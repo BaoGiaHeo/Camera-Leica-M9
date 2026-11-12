@@ -21,10 +21,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Download Apktool
+            - name: Download Apktool
         run: |
           curl -L --fail --retry 3 -o apktool.jar \
             https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
+
+      - name: Extract decoded app project
+        run: |
+          rm -rf decoded-project app
+          mkdir decoded-project
+          unzip -q app.zip -d decoded-project
+          mv decoded-project/app app
+          rm -rf decoded-project
+
+      - name: Build unsigned APK
+      
 
       - name: Build unsigned APK
         run: |

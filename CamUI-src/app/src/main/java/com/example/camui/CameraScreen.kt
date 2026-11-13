@@ -732,12 +732,14 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
                                     processingProgress = 100
-                                    val watermarkRequested = appPrefs.getBoolean("watermark_enabled", false)
+                                    val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
-                                        stamped && lookApplied -> "Đã lưu ảnh đúng hướng, áp dụng màu và watermark."
-                                        stamped -> "Đã lưu ảnh đúng hướng và đóng watermark."
+                                        stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng hướng, áp dụng màu và watermark."
+                                        stamped && orientationLabelFixed -> "Đã lưu ảnh đúng hướng và đóng watermark."
+                                        stamped -> "Watermark đã đóng nhưng hướng ảnh chưa được xác minh; hãy kiểm tra ảnh."
                                         watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
                                         lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng hướng và áp dụng bộ lọc/LUT."
+                                        lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được hướng ảnh."
                                         orientationLabelFixed -> "Đã lưu ảnh đã chuẩn hóa hướng vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được hướng pixel. Hãy kiểm tra lại ảnh."
                                     }

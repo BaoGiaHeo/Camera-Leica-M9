@@ -300,7 +300,7 @@ fun CameraScreen(
     // Recreate PreviewView when renderer changes; implementationMode is chosen before surface creation.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            scaleType = PreviewView.ScaleType.FIT_CENTER
             implementationMode = if (renderEngine == "Performance") {
                 PreviewView.ImplementationMode.PERFORMANCE
             } else {
@@ -404,8 +404,6 @@ fun CameraScreen(
                     )
                 }
                 val capture = captureBuilder.build()
-                // Set the actual still-image crop (not just the preview ViewPort).
-                capture.setCropAspectRatio(ratio)
                 capture.flashMode = flash
 
                 val analysis = ImageAnalysis.Builder()
@@ -468,7 +466,10 @@ fun CameraScreen(
 
                 val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
                     else CameraSelector.DEFAULT_BACK_CAMERA
-                val viewPort = ViewPort.Builder(ratio, rotation)
+                val measuredViewPortRatio = if (previewView.width > 0 && previewView.height > 0) {
+                    Rational(previewView.width, previewView.height)
+                } else ratio
+                val viewPort = ViewPort.Builder(measuredViewPortRatio, rotation)
                     .setScaleType(ViewPort.FILL_CENTER)
                     .build()
                 val group = UseCaseGroup.Builder()
@@ -629,7 +630,11 @@ fun CameraScreen(
             val captureRotation = previewView.display?.rotation
                 ?: context.display?.rotation
                 ?: targetRotation
-            val captureIsLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val captureIsLandscape = if (previewView.width > 0 && previewView.height > 0) {
+                previewView.width > previewView.height
+            } else {
+                configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            }
             capture.targetRotation = captureRotation
             previewUseCase?.setTargetRotation(captureRotation)
             analysisUseCase?.setTargetRotation(captureRotation)
@@ -640,8 +645,9 @@ fun CameraScreen(
                 3 -> Rational(1, 1)
                 else -> if (captureIsLandscape) Rational(21, 9) else Rational(9, 21)
             }
-            capture.setCropAspectRatio(captureRatio)
-            val expectedLandscape = if (ratioIdx == 3) null else captureIsLandscape
+            // Derive the final pixel orientation from the selected output crop itself.
+            val expectedLandscape = if (ratioIdx == 3) null
+                else captureRatio.numerator > captureRatio.denominator
             val name = "FUJI_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")

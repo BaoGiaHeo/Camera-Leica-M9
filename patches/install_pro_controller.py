@@ -65,12 +65,12 @@ if 'const-string v11, "2x"' not in zb:
     marker = '    const-string v10, "1\\u00d7"'
     if zb.count(marker) != 1:
         raise SystemExit("Cannot locate 1x zoom control")
-    zb = zb.replace(marker, "    move v13, v8\\n\\n" + marker, 1)
+    zb = zb.replace(marker, "    move v13, v8\n\n" + marker, 1)
     call = "invoke-static {p0, v10, v11, v0, v8}, Lcom/xcam/offline/ZoomUiFeature;->makeZoomButton"
     if zb.count(call) != 1:
         raise SystemExit("Cannot locate 1x button dimensions")
     zb = zb.replace(call, "invoke-static {p0, v10, v11, v0, v13}, Lcom/xcam/offline/ZoomUiFeature;->makeZoomButton", 1)
-    anchor = "    move-result-object v8\\n\\n    .line 52"
+    anchor = "    move-result-object v8\n\n    .line 52"
     button = """    move-result-object v8
 
     const-string v10, "2\\u00d7"
@@ -85,7 +85,7 @@ if 'const-string v11, "2x"' not in zb:
     add = "    invoke-virtual {v6, v8}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V"
     if zb.count(add) != 1:
         raise SystemExit("Cannot locate 1x view insertion point")
-    zb = zb.replace(add, add + "\\n    invoke-virtual {v6, v12}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V", 1)
+    zb = zb.replace(add, add + "\n    invoke-virtual {v6, v12}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V", 1)
     old = "    invoke-interface {v0, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z"
     if zb.count(old) != 1:
         raise SystemExit("Cannot locate third zoom preset registration")

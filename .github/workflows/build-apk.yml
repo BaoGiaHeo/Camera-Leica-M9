@@ -210,19 +210,20 @@ jobs:
           a = ms.index(".method private static renderShowcase(")
           b = ms.index(".end method", a)
           mb = ms[a:b]
-          fill = "    const/4 v5, -0x1" + chr(10) * 2 + "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"
-          glass = chr(10) * 2 .join(["    const/16 v5, 0xdc", "    const/16 v6, 0x12", "    const/16 v8, 0x18", "    const/16 v9, 0x20", "    invoke-static {v5, v6, v8, v9}, Landroid/graphics/Color;->argb(IIII)I", "    move-result v5", "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"])
+          gap = chr(10) * 2
+          fill = "    const/4 v5, -0x1" + gap + "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"
+          glass = gap.join(["    const/16 v5, 0xdc", "    const/16 v6, 0x12", "    const/16 v8, 0x18", "    const/16 v9, 0x20", "    invoke-static {v5, v6, v8, v9}, Landroid/graphics/Color;->argb(IIII)I", "    move-result v5", "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"])
           if mb.count(fill) != 1:
               raise SystemExit("Could not locate watermark glass panel fill")
           mb = mb.replace(fill, glass, 1)
-          edge = "    const/16 v9, 0xe1" + chr(10) * 2 + "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I"
-          reflective_edge = chr(10) * 2 .join(["    const/16 v9, 0x9c", "    const/16 v11, 0xd8", "    const/16 v14, 0xf0", "    invoke-static {v9, v11, v14}, Landroid/graphics/Color;->rgb(III)I"])
+          edge = "    const/16 v9, 0xe1" + gap + "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I"
+          reflective_edge = gap.join(["    const/16 v9, 0x9c", "    const/16 v11, 0xd8", "    const/16 v14, 0xf0", "    invoke-static {v9, v11, v14}, Landroid/graphics/Color;->rgb(III)I"])
           if mb.count(edge) != 1:
               raise SystemExit("Could not locate watermark reflective edge")
           mb = mb.replace(edge, reflective_edge, 1)
           mb = mb.replace('"sans-serif-condensed"', '"sans-serif"', 1)
-          dark_text = "    const/16 v9, 0x14" + chr(10) * 2 + "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I" + chr(10) * 2 + "    move-result v11"
-          light_text = "    const/4 v9, -0x1" + chr(10) * 2 + "    move v11, v9"
+          dark_text = "    const/16 v9, 0x14" + gap + "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I" + chr(10) * 2 + "    move-result v11"
+          light_text = "    const/4 v9, -0x1" + gap + "    move v11, v9"
           if mb.count(dark_text) != 1:
               raise SystemExit("Could not locate watermark text color")
           mb = mb.replace(dark_text, light_text, 1)

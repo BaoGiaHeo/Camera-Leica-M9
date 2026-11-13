@@ -33,6 +33,22 @@ jobs:
             exit 1
           fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Apply Fuji-inspired interface patch
+        run: |
+          set -e
+          mkdir -p "$PROJECT_DIR/smali_classes3/com/xcam/offline"
+          cp patches/FujiDesignFeature.smali "$PROJECT_DIR/smali_classes3/com/xcam/offline/FujiDesignFeature.smali"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("$PROJECT_DIR/smali_classes3/com/xcam/offline/MainActivity.smali")
+          s = p.read_text()
+          anchor = "    invoke-static {v6}, Lcom/xcam/offline/UiV111Feature;->install(Landroid/app/Activity;)V"
+          patch = anchor + "\\n    invoke-static {v6}, Lcom/xcam/offline/FujiDesignFeature;->install(Landroid/app/Activity;)V"
+          if s.count(anchor) != 1:
+              raise SystemExit("Could not safely locate the single UI installation point")
+          p.write_text(s.replace(anchor, patch, 1))
+          PY
       - name: Build unsigned APK
         run: |
           mkdir -p output

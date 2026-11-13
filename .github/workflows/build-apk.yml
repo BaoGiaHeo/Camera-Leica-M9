@@ -188,8 +188,6 @@ jobs:
           import os
           root = Path(os.environ["PROJECT_DIR"])
 
-          # Soft blur: retain enough source detail for smooth filtered scaling,
-          # rather than enlarging a tiny 80px thumbnail that looks pixelated.
           wp = root / "smali_classes3/com/xcam/offline/WatermarkProcessor.smali"
           ws = wp.read_text()
           a = ws.index(".method private final drawSoftBackdrop(")
@@ -202,7 +200,6 @@ jobs:
           wb = wb.replace("const/16 v1, 0x50", "const/16 v1, 0x200", 1)
           wp.write_text(ws[:a] + wb + ws[b:])
 
-          # Liquid-glass Fujifilm signature watermark treatment.
           mp = root / "smali_classes7/com/xcam/offline/WatermarkStyleFeature.smali"
           ms = mp.read_text()
           if ms.count('"Watermark Style"') != 1 or ms.count('"FujiFilm 01"') != 1:
@@ -212,33 +209,19 @@ jobs:
           a = ms.index(".method private static renderShowcase(")
           b = ms.index(".end method", a)
           mb = ms[a:b]
-          fill = """    const/4 v5, -0x1
-    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"""
-          glass = """    const/16 v5, 0xdc
-    const/16 v6, 0x12
-    const/16 v8, 0x18
-    const/16 v9, 0x20
-    invoke-static {v5, v6, v8, v9}, Landroid/graphics/Color;->argb(IIII)I
-    move-result v5
-    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"""
+          fill = "\\n".join(["    const/4 v5, -0x1", "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"])
+          glass = "\\n".join(["    const/16 v5, 0xdc", "    const/16 v6, 0x12", "    const/16 v8, 0x18", "    const/16 v9, 0x20", "    invoke-static {v5, v6, v8, v9}, Landroid/graphics/Color;->argb(IIII)I", "    move-result v5", "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"])
           if mb.count(fill) != 1:
               raise SystemExit("Could not locate watermark glass panel fill")
           mb = mb.replace(fill, glass, 1)
-          edge = """    const/16 v9, 0xe1
-    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I"""
-          reflective_edge = """    const/16 v9, 0x9c
-    const/16 v11, 0xd8
-    const/16 v14, 0xf0
-    invoke-static {v9, v11, v14}, Landroid/graphics/Color;->rgb(III)I"""
+          edge = "\\n".join(["    const/16 v9, 0xe1", "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I"])
+          reflective_edge = "\\n".join(["    const/16 v9, 0x9c", "    const/16 v11, 0xd8", "    const/16 v14, 0xf0", "    invoke-static {v9, v11, v14}, Landroid/graphics/Color;->rgb(III)I"])
           if mb.count(edge) != 1:
               raise SystemExit("Could not locate watermark reflective edge")
           mb = mb.replace(edge, reflective_edge, 1)
           mb = mb.replace('"sans-serif-condensed"', '"sans-serif"', 1)
-          dark_text = """    const/16 v9, 0x14
-    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I
-    move-result v11"""
-          light_text = """    const/4 v9, -0x1
-    move v11, v9"""
+          dark_text = "\\n".join(["    const/16 v9, 0x14", "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I", "    move-result v11"])
+          light_text = "\\n".join(["    const/4 v9, -0x1", "    move v11, v9"])
           if mb.count(dark_text) != 1:
               raise SystemExit("Could not locate watermark text color")
           mb = mb.replace(dark_text, light_text, 1)

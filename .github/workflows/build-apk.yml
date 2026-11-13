@@ -237,8 +237,10 @@ jobs:
         run: |
           set -e
           mkdir -p "$PROJECT_DIR/smali_classes3/com/xcam/offline"
-          base64 -d patches/ProCameraPatch.zip.b64 > /tmp/ProCameraPatch.zip
-          unzip -oq /tmp/ProCameraPatch.zip -d "$PROJECT_DIR/smali_classes3/com/xcam/offline"
+          cp patches/ProCameraFeature.smali "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature.smali"
+          cp 'patches/ProCameraFeature$ChoiceClick.smali' "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature$ChoiceClick.smali"
+          cp 'patches/ProCameraFeature$MenuClick.smali' "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature$MenuClick.smali"
+          cp 'patches/ProCameraFeature$OpenClick.smali' "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature$OpenClick.smali"
           python3 patches/install_pro_controller.py
       - name: Build unsigned APK
         run: |

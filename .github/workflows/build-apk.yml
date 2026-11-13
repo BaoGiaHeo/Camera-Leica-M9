@@ -73,9 +73,9 @@ jobs:
           b = s.index('>', a)
           tag = s[a:b]
           import re
-          tag, n = re.subn(r'android:label="[^"]*"', 'android:label="Fujifilm Mode (app-debug)"', tag, count=1)
+          tag, n = re.subn(r'android:label="[^"]*"', 'android:label="Camera Leica M9 (app-debug)"', tag, count=1)
           if n == 0:
-              tag += ' android:label="Fujifilm Mode (app-debug)"'
+              tag += ' android:label="Camera Leica M9 (app-debug)"'
           p.write_text(s[:a] + tag + s[b:])
           PY
       - name: Apply Fuji-inspired interface patch

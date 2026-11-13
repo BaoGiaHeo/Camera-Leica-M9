@@ -182,6 +182,10 @@ fun CameraScreen(
     // Window configuration is authoritative for whether the UI/crop is portrait or landscape.
     // Do not mix sensor azimuth with display rotation: the two can briefly disagree while rotating.
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // Remember exactly which geometry is active in the bound CameraX UseCaseGroup.
+    var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
+    var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
+    var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
     // Keep CameraX target rotation current even when rotating between two orientations
     // that share the same configuration class (for example, landscape-left/right).
     val orientationListener = remember(context) {
@@ -312,6 +316,11 @@ fun CameraScreen(
     LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine, manualCaptureRevision) {
         if (!hasCam) return@LaunchedEffect
         val bindGeneration = ++cameraBindGeneration
+        // Disable shutter immediately while the old UseCaseGroup is being replaced.
+        camera = null
+        imageCapture = null
+        previewUseCase = null
+        analysisUseCase = null
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
             if (bindGeneration != cameraBindGeneration) return@addListener
@@ -482,6 +491,9 @@ fun CameraScreen(
                 val bound = provider.bindToLifecycle(lifecycleOwner, selector, group)
                 camera = bound
                 imageCapture = capture
+                boundCameraRotation = rotation
+                boundCameraLandscape = isLandscape
+                boundCameraRatioIdx = ratioIdx
                 evIndex = 0
                 zoomSel = 1f
                 val capabilities = runCatching {
@@ -632,7 +644,16 @@ fun CameraScreen(
             val captureRotation = previewView.display?.rotation
                 ?: context.display?.rotation
                 ?: targetRotation
-            targetRotation = captureRotation
+            if (captureRotation != targetRotation ||
+                boundCameraRotation != captureRotation ||
+                boundCameraLandscape != isLandscape ||
+                boundCameraRatioIdx != ratioIdx
+            ) {
+                // Do not let a shutter event race a 90/180-degree rebind or ratio selection.
+                targetRotation = captureRotation
+                Toast.makeText(context, "Đang đồng bộ hướng và tỉ lệ khung ngắm, hãy chụp lại sau một chút.", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
             capture.targetRotation = captureRotation
             previewUseCase?.targetRotation = captureRotation
             analysisUseCase?.targetRotation = captureRotation

@@ -238,7 +238,7 @@ private fun readCubeLut(context: Context, uri: Uri): CubeLut? = runCatching {
     text.lineSequence().forEach { raw ->
         val line = raw.substringBefore("#").trim()
         if (line.isEmpty()) return@forEach
-        val parts = line.split(Regex("\s+"))
+        val parts = line.split(Regex("\\s+"))
         when (parts.firstOrNull()) {
             "TITLE" -> Unit
             "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: 0

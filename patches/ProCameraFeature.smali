@@ -497,19 +497,16 @@
     const-wide/32 v4, 0xee6b2800
     goto :shutter_done
     :shutter_13
-    const-wide/32 v4, 0xee6b2800
-    const-wide/16 v6, 0x2
-    mul-long/2addr v4, v6
+    const-wide v4, 0x000000037e11d600L
     goto :shutter_done
     :shutter_14
-    const-wide/32 v4, 0xee6b2800
-    const-wide/16 v6, 0x4
-    mul-long/2addr v4, v6
+    const-wide v4, 0x00000004a817c800L
     goto :shutter_done
     :shutter_15
-    const-wide/32 v4, 0xee6b2800
-    const-wide/16 v6, 0x8
-    mul-long/2addr v4, v6
+    const-wide v4, 0x0000000773594000L
+    goto :shutter_done
+    :shutter_16
+    const-wide v4, 0x00000006fc23ac00L
     :shutter_done
     sget-object v6, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_EXPOSURE_TIME_RANGE:Landroid/hardware/camera2/CameraCharacteristics$Key;
     invoke-virtual {v11, v6}, Landroid/hardware/camera2/CameraCharacteristics;->get(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
@@ -608,6 +605,38 @@
     :catch_all
     move-exception v0
     return-void
+
+    :iso_switch
+    .packed-switch 0x0
+        :iso_0
+        :iso_1
+        :iso_2
+        :iso_3
+        :iso_4
+        :iso_5
+        :iso_6
+    .end packed-switch
+
+    :shutter_switch
+    .packed-switch 0x0
+        :shutter_0
+        :shutter_1
+        :shutter_2
+        :shutter_3
+        :shutter_4
+        :shutter_5
+        :shutter_6
+        :shutter_7
+        :shutter_8
+        :shutter_9
+        :shutter_10
+        :shutter_11
+        :shutter_12
+        :shutter_13
+        :shutter_14
+        :shutter_15
+        :shutter_16
+    .end packed-switch
 .end method
 
 .method private static containsInt([II)Z

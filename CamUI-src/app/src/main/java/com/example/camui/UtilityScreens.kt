@@ -44,6 +44,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -172,20 +175,20 @@ fun applyCameraWatermark(
         } else source
         val output = if (upright.isMutable) upright else (upright.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching false)
         val canvas = Canvas(output)
-        val style = prefs.getString("watermark_style", "White") ?: "White"
-        val baseColor = when (style) {
+        val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
+        val baseColor = when (frameStyle) {
             "Black" -> AndroidColor.BLACK
             "Transparent" -> AndroidColor.WHITE
             else -> AndroidColor.WHITE
         }
-        val alpha = if (style == "Transparent") 105 else 235
+        val alpha = if (frameStyle == "Transparent") 105 else 235
         val minSide = minOf(output.width, output.height).toFloat()
         val inset = (minSide * 0.035f).coerceAtLeast(12f)
         val stroke = (minSide * 0.003f).coerceAtLeast(2f)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = baseColor
             this.alpha = alpha
-            style = Paint.Style.STROKE
+            this.style = Paint.Style.STROKE
             strokeWidth = stroke
         }
         canvas.drawRect(RectF(inset, inset, output.width - inset, output.height - inset), paint)

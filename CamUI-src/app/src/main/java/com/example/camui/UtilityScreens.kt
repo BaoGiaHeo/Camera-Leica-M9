@@ -420,48 +420,98 @@ private fun setMediaStoreOrientationUpright(context: Context, uri: Uri) {
 fun normalizeCapturedImage(
     context: Context,
     uri: Uri,
-    fallbackRotationDegrees: Int = 0
+    fallbackRotationDegrees: Int = 0,
+    expectedLandscape: Boolean? = null
 ): Boolean {
     return runCatching {
-        val metadataOrientation = readEffectiveImageOrientation(context, uri)
-        val metadataHasRotation = metadataOrientation != ExifInterface.ORIENTATION_NORMAL &&
-            metadataOrientation != ExifInterface.ORIENTATION_UNDEFINED
-        val fallbackDegrees = ((fallbackRotationDegrees % 360) + 360) % 360
+        // Decode raw JPEG pixels; BitmapFactory does not apply EXIF orientation.
+        // CameraX rotationDegrees is the clockwise transform needed for targetRotation.
+        val rawBitmap = context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input)
+        } ?: return@runCatching false
 
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, bounds)
-        }
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching false
+        val cameraXDegrees = ((fallbackRotationDegrees % 360) + 360) % 360
+        val exifInfo = runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                ExifInterface(descriptor.fileDescriptor)
+            }
+        }.getOrNull()
+        val exifDegrees = exifInfo?.rotationDegrees ?: 0
+        val exifFlipped = exifInfo?.isFlipped == true
 
-        if (!metadataHasRotation && fallbackDegrees == 0) {
-            setMediaStoreOrientationUpright(context, uri)
-            return@runCatching true
-        }
-
-        // This bitmap has EXIF/MediaStore transforms applied already when metadata exists.
-        val decodedUpright = decodeUprightBitmap(context, uri) ?: return@runCatching false
-        val finalBitmap = if (metadataHasRotation) {
-            decodedUpright
-        } else {
-            val correction = Matrix().apply { postRotate(fallbackDegrees.toFloat()) }
-            Bitmap.createBitmap(
-                decodedUpright, 0, 0, decodedUpright.width, decodedUpright.height, correction, true
+        fun transform(degrees: Int, flipHorizontal: Boolean): Bitmap {
+            val normalized = ((degrees % 360) + 360) % 360
+            if (normalized == 0 && !flipHorizontal) return rawBitmap
+            val matrix = Matrix().apply {
+                if (flipHorizontal) preScale(-1f, 1f)
+                if (normalized != 0) postRotate(normalized.toFloat())
+            }
+            return Bitmap.createBitmap(
+                rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true
             )
         }
 
-        context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
-        } ?: return@runCatching false
+        fun matchesExpectedOrientation(bitmap: Bitmap): Boolean? {
+            return expectedLandscape?.let { landscape ->
+                if (landscape) bitmap.width > bitmap.height
+                else bitmap.height > bitmap.width
+            }
+        }
 
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-            ExifInterface(descriptor.fileDescriptor).apply {
+        // EXIF and CameraX are alternative descriptions of the same JPEG orientation.
+        // Never add the two angles together.
+        var appliedSource = "CameraX"
+        var appliedDegrees = cameraXDegrees
+        var finalBitmap = transform(cameraXDegrees, false)
+
+        if (matchesExpectedOrientation(finalBitmap) == false) {
+            // Use EXIF only as a mutually-exclusive fallback when CameraX rotation
+            // contradicts the known portrait/landscape capture geometry.
+            val exifCandidate = transform(exifDegrees, exifFlipped)
+            if (matchesExpectedOrientation(exifCandidate) == true) {
+                finalBitmap = exifCandidate
+                appliedSource = "EXIF fallback"
+                appliedDegrees = exifDegrees
+            } else {
+                android.util.Log.e(
+                    "FUJI_ORIENTATION",
+                    "No candidate matches expectedLandscape=" + expectedLandscape +
+                        "; raw=" + rawBitmap.width + "x" + rawBitmap.height +
+                        ", cameraX=" + cameraXDegrees + ", exif=" + exifDegrees
+                )
+                return@runCatching false
+            }
+        } else if (exifDegrees == cameraXDegrees && exifFlipped) {
+            finalBitmap = transform(cameraXDegrees, true)
+            appliedSource = "CameraX + EXIF mirror"
+        }
+
+        val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
+        } ?: false
+        if (!outputWritten) return@runCatching false
+
+        // Rotation is now baked into pixels. Clear metadata so gallery/watermark passes
+        // cannot apply another rotation.
+        val descriptor = context.contentResolver.openFileDescriptor(uri, "rw")
+            ?: return@runCatching false
+        descriptor.use {
+            ExifInterface(it.fileDescriptor).apply {
                 setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
                 saveAttributes()
             }
         }
         setMediaStoreOrientationUpright(context, uri)
+
+        android.util.Log.d(
+            "FUJI_ORIENTATION",
+            "source=" + appliedSource + ", rotation=" + appliedDegrees +
+                ", result=" + finalBitmap.width + "x" + finalBitmap.height +
+                ", expectedLandscape=" + expectedLandscape
+        )
         true
+    }.onFailure {
+        android.util.Log.e("FUJI_ORIENTATION", "normalizeCapturedImage failed", it)
     }.getOrDefault(false)
 }
 

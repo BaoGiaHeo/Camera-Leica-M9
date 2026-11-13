@@ -1,7 +1,7 @@
 
 name: Build Fujifilm Mode APK
 
-on:
+'on':
   workflow_dispatch:
   push:
     branches:
@@ -13,73 +13,44 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Download Apktool
-        run: |
-          curl -L --fail -o apktool.jar \
-            https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
-
+        run: curl -L --fail -o apktool.jar https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
       - name: Extract app project
         run: |
           mkdir -p decoded-project
           unzip -q app.zip -d decoded-project
           PROJECT_DIR=$(find decoded-project -type f -name apktool.yml -print -quit | xargs dirname)
-
           if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/AndroidManifest.xml" ]; then
             echo "ERROR: Không tìm thấy dự án Apktool hợp lệ trong app.zip"
             exit 1
           fi
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
       - name: Build unsigned APK
         run: |
           mkdir -p output
-          java -Xmx4g -jar apktool.jar b "$PROJECT_DIR" \
-            -o output/Fujifilm-Mode-unsigned.apk
-
+          java -Xmx4g -jar apktool.jar b "$PROJECT_DIR" -o output/Fujifilm-Mode-unsigned.apk
       - name: Download APK signer
-        run: |
-          curl -L --fail -o uber-apk-signer.jar \
-            https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
-
+        run: curl -L --fail -o uber-apk-signer.jar https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
       - name: Generate signing key
         run: |
-          keytool -genkeypair -v \
-            -keystore release.jks \
-            -storepass temporary123 \
-            -keypass temporary123 \
-            -alias release \
-            -keyalg RSA -keysize 2048 -validity 3650 \
-            -dname "CN=Fujifilm Mode, O=Build, C=VN"
-
+          keytool -genkeypair -v -keystore release.jks -storepass temporary123 -keypass temporary123 -alias release -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=Fujifilm Mode, O=Build, C=VN"
       - name: Sign APK
         run: |
-          java -jar uber-apk-signer.jar \
-            -a output/Fujifilm-Mode-unsigned.apk \
-            -o output/signed \
-            --ks release.jks \
-            --ksAlias release \
-            --ksPass temporary123 \
-            --ksKeyPass temporary123
-
+          java -jar uber-apk-signer.jar -a output/Fujifilm-Mode-unsigned.apk -o output/signed --ks release.jks --ksAlias release --ksPass temporary123 --ksKeyPass temporary123
       - name: Prepare APK
         run: |
           APK=$(find output/signed -type f -name '*signed.apk' -print -quit)
           test -n "$APK"
           cp "$APK" output/Fujifilm-Mode-release.apk
           sha256sum output/Fujifilm-Mode-release.apk > output/SHA256SUMS.txt
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

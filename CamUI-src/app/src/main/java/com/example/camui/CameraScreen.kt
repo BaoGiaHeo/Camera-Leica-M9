@@ -647,6 +647,7 @@ fun CameraScreen(
             val captureRotation = previewView.display?.rotation
                 ?: context.display?.rotation
                 ?: targetRotation
+            val expectedLandscapeForCapture = isLandscape.takeIf { ratioIdx != 3 }
             if (captureRotation != targetRotation ||
                 boundCameraRotation != captureRotation ||
                 boundCameraLandscape != isLandscape ||
@@ -707,7 +708,12 @@ fun CameraScreen(
                             scope.launch(Dispatchers.IO) {
                                 withContext(Dispatchers.Main) { processingProgress = 12 }
                                 val orientationNormalized = runCatching {
-                                    normalizeCapturedImage(context, saved, captureRotationDegrees)
+                                    normalizeCapturedImage(
+                                        context,
+                                        saved,
+                                        captureRotationDegrees,
+                                        expectedLandscapeForCapture
+                                    )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
                                 val lookApplied = runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
@@ -726,12 +732,14 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
                                     processingProgress = 100
+                                    val watermarkRequested = appPrefs.getBoolean("watermark_enabled", false)
                                     val message = when {
                                         stamped && lookApplied -> "Đã lưu ảnh đúng hướng, áp dụng màu và watermark."
                                         stamped -> "Đã lưu ảnh đúng hướng và đóng watermark."
-                                        lookApplied -> "Đã lưu ảnh đúng hướng và áp dụng bộ lọc/LUT."
-                                        orientationLabelFixed -> "Đã lưu ảnh đúng hướng vào album."
-                                        else -> "Đã lưu ảnh vào Pictures/FujifilmMode."
+                                        watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
+                                        lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng hướng và áp dụng bộ lọc/LUT."
+                                        orientationLabelFixed -> "Đã lưu ảnh đã chuẩn hóa hướng vào album."
+                                        else -> "Ảnh đã lưu nhưng chưa xác minh được hướng pixel. Hãy kiểm tra lại ảnh."
                                     }
                                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                 }

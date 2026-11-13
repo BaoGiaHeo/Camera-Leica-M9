@@ -50,6 +50,44 @@ jobs:
               raise SystemExit("Could not safely locate the single UI installation point")
           p.write_text(s.replace(anchor, patch, 1))
           PY
+      - name: Polish watermark settings labels
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ["PROJECT_DIR"]) / "smali_classes7/com/xcam/offline/WatermarkStyleFeature.smali"
+          s = p.read_text()
+          start = s.index(".method public static addControls(Landroid/widget/LinearLayout;Landroid/app/Activity;)V")
+          end = s.index(".end method", start)
+          block = s[start:end]
+          if "    .locals 9" not in block:
+              raise SystemExit("Unexpected addControls register layout; refusing unsafe patch")
+          block = block.replace("    .locals 9", "    .locals 10", 1)
+          if block.count('"Watermark Style"') != 1 or block.count('"FujiFilm 01"') != 1:
+              raise SystemExit("Watermark labels were not found exactly once")
+          block = block.replace('"Watermark Style"', '"KIỂU WATERMARK"', 1)
+          block = block.replace('"FujiFilm 01"', '"FUJIFILM SIGNATURE"', 1)
+          nl = chr(10)
+          anchor = "    invoke-virtual {v4, v5}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V" + nl + nl + "    .line 49"
+          subtitle = nl.join([
+              "    new-instance v9, Landroid/widget/TextView;",
+              "    invoke-direct {v9, p1}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V",
+              '    const-string v6, "Chọn kiểu hiển thị watermark được in lên ảnh."',
+              "    invoke-virtual {v9, v6}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V",
+              "    const/high16 v6, 0x41300000    # 11.0f",
+              "    invoke-virtual {v9, v6}, Landroid/widget/TextView;->setTextSize(F)V",
+              "    const v6, -0x777778",
+              "    invoke-virtual {v9, v6}, Landroid/widget/TextView;->setTextColor(I)V",
+              "    invoke-virtual {v4, v9}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V",
+              "",
+              "    .line 49"
+          ])
+          if block.count(anchor) != 1:
+              raise SystemExit("Could not safely locate watermark title insertion point")
+          block = block.replace(anchor, "    invoke-virtual {v4, v5}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V" + nl + subtitle, 1)
+          p.write_text(s[:start] + block + s[end:])
+          PY
       - name: Add tactile shutter feedback
         run: |
           set -e

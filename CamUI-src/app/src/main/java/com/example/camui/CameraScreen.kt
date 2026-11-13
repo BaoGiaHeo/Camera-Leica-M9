@@ -8,6 +8,7 @@ import android.os.Build
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
@@ -275,13 +276,32 @@ fun CameraScreen(
                             .build()
                     )
                 }
-                val nrMode = when (noiseReduction) {
+                val requestedNrMode = when (noiseReduction) {
                     "Off" -> CaptureRequest.NOISE_REDUCTION_MODE_OFF
-                    "Low" -> CaptureRequest.NOISE_REDUCTION_MODE_FAST
+                    "Low" -> CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL
                     "High" -> CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
                     else -> CaptureRequest.NOISE_REDUCTION_MODE_FAST
                 }
-                Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, nrMode)
+                val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                val activeFacingId = runCatching {
+                    cameraManager.cameraIdList.firstOrNull { id ->
+                        cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) ==
+                            if (front) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
+                    }
+                }.getOrNull()
+                val availableNrModes = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
+                    }.getOrNull()
+                }.orEmpty()
+                val effectiveNrMode = requestedNrMode.takeIf { it in availableNrModes }
+                    ?: availableNrModes.firstOrNull()
+                if (effectiveNrMode != null) {
+                    Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(
+                        CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
+                    )
+                }
                 val capture = captureBuilder.build()
                 // Set the actual still-image crop (not just the preview ViewPort).
                 capture.setCropAspectRatio(ratio)
@@ -488,6 +508,12 @@ fun CameraScreen(
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.ORIENTATION, when (targetRotation) {
+                    Surface.ROTATION_90 -> 90
+                    Surface.ROTATION_180 -> 180
+                    Surface.ROTATION_270 -> 270
+                    else -> 0
+                })
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode")
             }
             val output = ImageCapture.OutputFileOptions.Builder(

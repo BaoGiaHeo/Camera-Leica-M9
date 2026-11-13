@@ -6,7 +6,6 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.graphics.ImageFormat
 import android.net.Uri
-import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -179,12 +178,9 @@ private fun SettingsDetailPage(
                                 ?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true
                             val eisSupported = c.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
                                 ?.contains(CameraCharacteristics.CONTROL_VIDEO_STABILIZATION_MODE_ON) == true
-                            val physicalIds = if (Build.VERSION.SDK_INT >= 28) {
-                                runCatching {
-                                    c.get(CameraCharacteristics.LOGICAL_MULTI_CAMERA_PHYSICAL_IDS)
-                                        ?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "Không có ID vật lý công bố"
-                                }.getOrDefault("Không đọc được")
-                            } else "Không hỗ trợ API"
+                            // CameraManager.cameraIdList is rendered one row per available camera above.
+                            // The physical-ID characteristics key is not present in this project's compile SDK.
+                            val physicalIds = "Xem danh sách Camera ID ở trên"
                             CameraLensRow(
                                 id, facing, focal, aperture, physical, size,
                                 if (oisSupported) "Có" else "Không công bố",

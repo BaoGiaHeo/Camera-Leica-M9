@@ -31,6 +31,8 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.ViewPort
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -266,6 +268,13 @@ fun CameraScreen(
                     "High" -> 92
                     else -> 100
                 })
+                if (imageQuality == "Best") {
+                    captureBuilder.setResolutionSelector(
+                        ResolutionSelector.Builder()
+                            .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                            .build()
+                    )
+                }
                 val nrMode = when (noiseReduction) {
                     "Off" -> CaptureRequest.NOISE_REDUCTION_MODE_OFF
                     "Low" -> CaptureRequest.NOISE_REDUCTION_MODE_FAST

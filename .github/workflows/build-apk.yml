@@ -50,6 +50,26 @@ jobs:
               raise SystemExit("Could not safely locate the single UI installation point")
           p.write_text(s.replace(anchor, patch, 1))
           PY
+      - name: Localize camera settings and clarify output formats
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ["PROJECT_DIR"]) / "smali_classes3/com/xcam/offline/MainActivity.smali"
+          s = p.read_text()
+          replacements = {
+              '"WATERMARK & FRAME"': '"WATERMARK & KHUNG ANH"',
+              '"L\\u01b0u th\\u00eam PNG ch\\u01b0a \\u00e1p m\\u00e0u phim (kh\\u00f4ng ph\\u1ea3i RAW)"': '"L\\u01b0u th\\u00eam PNG g\\u1ed1c (kh\\u00f4ng ph\\u1ea3i RAW/DNG)"',
+              '"\\u0110I\\u1ec0U KHI\\u1ec2N"': '"\\u0110I\\u1ec0U KHI\\u1ec2N CAMERA"',
+              '"RAW/DNG: ch\\u01b0a \\u0111\\u01b0\\u1ee3c h\\u1ed7 tr\\u1ee3 trong pipeline CameraX n\\u00e0y"': '"RAW/DNG ch\\u01b0a \\u0111\\u01b0\\u1ee3c h\\u1ed7 tr\\u1ee3: hi\\u1ec7n t\\u1ea1i app ch\\u1ee5p JPEG b\\u1eb1ng CameraX."',
+          }
+          for old, new in replacements.items():
+              if s.count(old) != 1:
+                  raise SystemExit("Expected exactly one settings label: " + old)
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
       - name: Polish watermark settings labels
         run: |
           set -e

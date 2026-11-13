@@ -1086,13 +1086,11 @@ fun CameraScreen(
                                         proSel = null
                                     } else {
                                         if (key == "EV" && manualExposure) {
-                                            camera?.let {
-                                                runCatching {
-                                                    Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions()
-                                                    it.cameraControl.setExposureCompensationIndex(evIndex)
-                                                }
-                                            }
+                                            manualIsoEnabled = false
+                                            manualShutterEnabled = false
                                             manualExposure = false
+                                            manualCaptureRevision++
+                                            camera?.let { runCatching { it.cameraControl.setExposureCompensationIndex(evIndex) } }
                                         }
                                         if (key == "AF" && manualFocus > 0f) {
                                             manualFocus = 0f
@@ -1216,7 +1214,7 @@ fun CameraScreen(
                         }
                     }
                     .padding(horizontal = 14.dp, vertical = 7.dp)) {
-                    Text(if (compositionGuideEnabled) "Bố cục ✓" else "Bố cục",
+                    Text(if (compositionGuideEnabled) "AI Bố cục ✓" else "AI Bố cục",
                         color = if (compositionGuideEnabled) CamColors.Yellow else Color.White,
                         fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }

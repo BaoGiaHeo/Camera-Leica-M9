@@ -144,6 +144,8 @@ private fun SettingsDetailPage(
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             backgroundImageUri = uri.toString()
+            CamColors.BackgroundImageUri = uri.toString()
+            CamColors.Bg = Color(0xC9121212)
             prefs.edit().putString("app_background_image_uri", uri.toString()).apply()
         }
     }
@@ -278,6 +280,7 @@ private fun SettingsDetailPage(
                             selectedBackground = hex
                             backgroundImageUri = null
                             prefs.edit().putString("app_background_color", hex).remove("app_background_image_uri").apply()
+                            CamColors.BackgroundImageUri = null
                             CamColors.Bg = Color(android.graphics.Color.parseColor(hex))
                         }, Modifier.width(82.dp))
                     }
@@ -292,6 +295,7 @@ private fun SettingsDetailPage(
                     Text("Dùng màu nền", color = CamColors.Yellow, fontSize = 12.sp,
                         modifier = Modifier.clickable {
                             backgroundImageUri = null
+                            CamColors.BackgroundImageUri = null
                             prefs.edit().remove("app_background_image_uri").apply()
                             CamColors.Bg = Color(android.graphics.Color.parseColor(selectedBackground))
                         }.padding(vertical = 7.dp))

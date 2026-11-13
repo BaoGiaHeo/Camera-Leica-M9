@@ -201,6 +201,18 @@ jobs:
               if old in block:
                   block = block.replace(old, new, 1)
           p.write_text(s[:start] + block + s[end:])
+          print("===== WATERMARK IMPLEMENTATION REFERENCES =====")
+          for q in root.rglob("*.smali"):
+              try:
+                  data = q.read_text(errors="ignore")
+              except Exception:
+                  continue
+              hits = [line.strip() for line in data.splitlines() if any(k in line.lower() for k in ("watermark_style", "pixelate", "blur", "renderwatermark", "watermark"))]
+              if hits:
+                  print("FILE:", q)
+                  for line in hits[:24]:
+                      print(line)
+
           PY
       - name: Add tactile shutter feedback
         run: |

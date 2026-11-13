@@ -1,6 +1,5 @@
 package com.example.camui
 
-import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Size
 import androidx.compose.foundation.Image
@@ -37,7 +36,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +44,7 @@ import kotlinx.coroutines.withContext
 object CamColors {
     var Bg by mutableStateOf(Color(0xFF121212))
     var Shutter by mutableStateOf(Color.White)
+    var BackgroundImageUri by mutableStateOf<String?>(null)
     val Card = Color(0xFF1E1E1E)
     val Glass = Color(0xD92A2A2A)
     val Panel = Color(0xF21A1A1A)
@@ -74,7 +73,14 @@ fun CamTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("fujifilm_settings", 0)
     val bgHex = prefs.getString("app_background_color", "#121212")
-    val bgUriText = prefs.getString("app_background_image_uri", null)
+    var initialized by androidx.compose.runtime.remember { mutableStateOf(false) }
+    if (!initialized) {
+        SideEffect {
+            CamColors.BackgroundImageUri = prefs.getString("app_background_image_uri", null)
+            initialized = true
+        }
+    }
+    val bgUriText = CamColors.BackgroundImageUri
     val shutterHex = prefs.getString("shutter_button_color", "#FFFFFFFF")
     val bgBitmap by produceState<ImageBitmap?>(initialValue = null, bgUriText) {
         value = if (bgUriText.isNullOrBlank()) null else withContext(Dispatchers.IO) {

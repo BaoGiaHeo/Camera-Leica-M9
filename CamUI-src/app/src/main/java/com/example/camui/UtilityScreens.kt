@@ -409,7 +409,7 @@ fun applyCameraWatermark(
         canvas.drawRoundRect(plate, radius * 0.75f, radius * 0.75f, platePaint)
 
         val model = prefs.getString("watermark_custom_model", "")?.trim()
-            ?.takeIf { it.isNotEmpty() } ?: "\${android.os.Build.MANUFACTURER} \${android.os.Build.MODEL}"
+            ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
         val detail = listOf(focal, aperture, shutter, "ISO $iso")
             .filter { it.isNotBlank() }.joinToString("    ")
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {

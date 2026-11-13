@@ -1,0 +1,58 @@
+.
+name: Inspect APK Project
+
+'on':
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract app.zip
+        run: |
+          set -e
+          mkdir -p decoded
+          unzip -q app.zip -d decoded
+          PROJECT=$(find decoded -name apktool.yml -print -quit | xargs dirname)
+          test -f "$PROJECT/AndroidManifest.xml"
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+
+      - name: Analyze project
+        run: |
+          mkdir -p report
+          OUT=report/apk-analysis.txt
+
+          echo "=== APKTOOL CONFIG ===" > "$OUT"
+          cat "$PROJECT/apktool.yml" >> "$OUT"
+
+          echo "=== CAMERA AND CAPTURE SMALI ===" >> "$OUT"
+          grep -RInE --include='*.smali' \
+          'takePicture|ImageCapture|CameraCaptureSession|CaptureRequest|ImageReader|openCamera|getCameraIdList|getCameraCharacteristics|getPhysicalCameraIds|getConcurrentCameraIds|setPhysicalCameraId' \
+          "$PROJECT"/smali* >> "$OUT" 2>/dev/null || true
+
+          echo "=== MAX AND SHUTTER ===" >> "$OUT"
+          grep -RInE --include='*.smali' --include='*.xml' \
+          'MAX|max|shutter|capture_button' \
+          "$PROJECT"/smali* "$PROJECT"/res >> "$OUT" 2>/dev/null || true
+
+          echo "=== NATIVE LIBRARIES ===" >> "$OUT"
+          find "$PROJECT/lib" -type f >> "$OUT" 2>/dev/null || true
+
+          echo "=== OPENCV ===" >> "$OUT"
+          grep -RIn 'org/opencv' "$PROJECT"/smali* >> "$OUT" 2>/dev/null || true
+
+          echo "=== SMALI DIRECTORIES ===" >> "$OUT"
+          find "$PROJECT" -maxdepth 1 -type d -name 'smali*' >> "$OUT"
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-analysis-report
+          path: report/apk-analysis.txt
+          

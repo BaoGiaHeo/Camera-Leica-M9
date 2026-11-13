@@ -1170,6 +1170,8 @@ private fun FilterLookDialog(
                     MiniChip(item, category == item) { category = item }
                 }
             }
+            Text("Không dùng bộ lọc · Ảnh gốc", color = CamColors.Yellow, fontSize = 11.sp,
+                modifier = Modifier.clickable { onSelectFilter("None") }.padding(bottom = 8.dp))
 
             if (category == "LUT") {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween,

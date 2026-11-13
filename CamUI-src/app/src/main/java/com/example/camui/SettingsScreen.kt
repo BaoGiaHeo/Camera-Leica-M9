@@ -342,7 +342,7 @@ private fun SettingsDetailPage(
                     hdr = it
                     prefs.edit().putBoolean("hdr_coming_soon", it).apply()
                 }
-                SettingsSwitch("UHD", "Coming soon · chụp độ phân giải siêu cao", uhd) {
+                SettingsSwitch("UHD · SUPIR AI Render", "Coming soon · SUPIR cần SDXL + LLaVA và GPU ngoài; APK hiện chưa chạy AI render trên máy", uhd) {
                     uhd = it
                     prefs.edit().putBoolean("uhd_coming_soon", it).apply()
                 }

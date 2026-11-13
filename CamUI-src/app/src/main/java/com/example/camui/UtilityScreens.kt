@@ -1,6 +1,7 @@
 package com.example.camui
 
 import android.content.Context
+import android.content.ContentValues
 import android.content.Intent
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -170,16 +171,44 @@ fun ToolboxScreen(
 
 
 /**
- * Decodes a JPEG and applies its EXIF orientation to the pixels before post-processing.
+ * Reads the legacy MediaStore rotation only as a fallback when JPEG EXIF is neutral.
+ * CameraX writes the authoritative EXIF orientation; never apply both rotations.
  */
-private fun decodeUprightBitmap(context: Context, uri: Uri): Bitmap? {
-    val orientation = runCatching {
+private fun readMediaStoreRotation(context: Context, uri: Uri): Int {
+    return runCatching {
+        context.contentResolver.query(
+            uri, arrayOf(MediaStore.Images.Media.ORIENTATION), null, null, null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        } ?: 0
+    }.getOrDefault(0).let { ((it % 360) + 360) % 360 }
+}
+
+private fun readExifOrientation(context: Context, uri: Uri): Int {
+    return runCatching {
         context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
             ExifInterface(descriptor.fileDescriptor).getAttributeInt(
                 ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
             )
         }
     }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
+}
+
+/**
+ * Decodes a JPEG with orientation applied to pixels. The output dimensions and pixels
+ * therefore agree, independent of the viewer or MediaStore thumbnail implementation.
+ */
+private fun decodeUprightBitmap(context: Context, uri: Uri): Bitmap? {
+    val exifOrientation = readExifOrientation(context, uri)
+    val orientation = if (exifOrientation == ExifInterface.ORIENTATION_NORMAL ||
+        exifOrientation == ExifInterface.ORIENTATION_UNDEFINED) {
+        when (readMediaStoreRotation(context, uri)) {
+            90 -> ExifInterface.ORIENTATION_ROTATE_90
+            180 -> ExifInterface.ORIENTATION_ROTATE_180
+            270 -> ExifInterface.ORIENTATION_ROTATE_270
+            else -> ExifInterface.ORIENTATION_NORMAL
+        }
+    } else exifOrientation
 
     val decoded = context.contentResolver.openInputStream(uri)?.use { input ->
         BitmapFactory.Options().let { options ->
@@ -208,6 +237,50 @@ private fun decodeUprightBitmap(context: Context, uri: Uri): Bitmap? {
     return if (orientation == ExifInterface.ORIENTATION_NORMAL ||
         orientation == ExifInterface.ORIENTATION_UNDEFINED) decoded
     else Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+}
+
+private fun setMediaStoreOrientationUpright(context: Context, uri: Uri) {
+    runCatching {
+        context.contentResolver.update(
+            uri,
+            ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
+            null,
+            null
+        )
+    }
+}
+
+/**
+ * Physically rotates the captured JPEG when it carries EXIF/MediaStore rotation metadata,
+ * then resets both metadata sources to neutral. Does no full-resolution decode when already upright.
+ */
+fun normalizeCapturedImage(context: Context, uri: Uri): Boolean {
+    return runCatching {
+        val exifOrientation = readExifOrientation(context, uri)
+        val mediaRotation = readMediaStoreRotation(context, uri)
+        val needsExifTransform = exifOrientation != ExifInterface.ORIENTATION_NORMAL &&
+            exifOrientation != ExifInterface.ORIENTATION_UNDEFINED
+        val needsMediaTransform = !needsExifTransform && mediaRotation != 0
+
+        if (!needsExifTransform && !needsMediaTransform) {
+            setMediaStoreOrientationUpright(context, uri)
+            return@runCatching true
+        }
+
+        val upright = decodeUprightBitmap(context, uri) ?: return@runCatching false
+        context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+            upright.compress(Bitmap.CompressFormat.JPEG, 98, output)
+        } ?: return@runCatching false
+
+        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
+            ExifInterface(descriptor.fileDescriptor).apply {
+                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                saveAttributes()
+            }
+        }
+        setMediaStoreOrientationUpright(context, uri)
+        true
+    }.getOrDefault(false)
 }
 
 private data class CubeLut(
@@ -364,12 +437,14 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
                 saveAttributes()
             }
         }
+        setMediaStoreOrientationUpright(context, uri)
         true
     }.getOrDefault(false)
 }
 
 /**
- * Draws a landscape-aware camera-spec frame with a compact, premium information plate.
+ * Draws a camera-spec frame directly onto the upright pixel matrix. No portrait/landscape
+ * heuristic is applied here: the image pixels, metadata and watermark all share one orientation.
  */
 fun applyCameraWatermark(
     context: Context,
@@ -377,19 +452,13 @@ fun applyCameraWatermark(
     focal: String,
     aperture: String,
     shutter: String,
-    iso: String,
-    expectedLandscape: Boolean = false
+    iso: String
 ): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     if (!prefs.getBoolean("watermark_enabled", false)) return false
 
     return runCatching {
-        var bitmap = decodeUprightBitmap(context, uri) ?: return@runCatching false
-        val isLandscapeBitmap = bitmap.width > bitmap.height
-        if (expectedLandscape != isLandscapeBitmap && bitmap.width != bitmap.height) {
-            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height,
-                Matrix().apply { postRotate(90f) }, true)
-        }
+        val bitmap = decodeUprightBitmap(context, uri) ?: return@runCatching false
         val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
             ?: return@runCatching false
         val canvas = Canvas(output)
@@ -463,9 +532,9 @@ fun applyCameraWatermark(
                 saveAttributes()
             }
         }
+        setMediaStoreOrientationUpright(context, uri)
         true
     }.getOrDefault(false)
-}
 
 @Composable
 fun ContentManagementScreen(onBack: () -> Unit) {
@@ -713,7 +782,7 @@ fun AlbumScreen(onBack: () -> Unit) {
             LaunchedEffect(selectedPhoto) {
                 selectedBitmap = withContext(Dispatchers.IO) {
                     runCatching {
-                        context.contentResolver.loadThumbnail(selectedPhoto!!, Size(2048, 2048), null).asImageBitmap()
+                        decodeUprightBitmap(context, selectedPhoto!!)?.asImageBitmap()
                     }.getOrNull()
                 }
             }

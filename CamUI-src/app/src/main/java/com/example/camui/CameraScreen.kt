@@ -619,8 +619,24 @@ fun CameraScreen(
                     shutterEffectAlpha = 0f
                 }
             }
-            val captureRotation = targetRotation
+            // Read the actual display orientation at shutter time; the sensor event can lag rotation.
+            val captureRotation = previewView.display?.rotation
+                ?: context.display?.rotation
+                ?: targetRotation
+            val captureIsLandscape = captureRotation == Surface.ROTATION_90 ||
+                captureRotation == Surface.ROTATION_270
             capture.targetRotation = captureRotation
+            previewUseCase?.setTargetRotation(captureRotation)
+            analysisUseCase?.setTargetRotation(captureRotation)
+            val captureRatio = when (ratioIdx) {
+                0 -> if (captureIsLandscape) Rational(3, 2) else Rational(2, 3)
+                1 -> if (captureIsLandscape) Rational(4, 3) else Rational(3, 4)
+                2 -> if (captureIsLandscape) Rational(16, 9) else Rational(9, 16)
+                3 -> Rational(1, 1)
+                else -> if (captureIsLandscape) Rational(21, 9) else Rational(9, 21)
+            }
+            capture.setCropAspectRatio(captureRatio)
+            val expectedLandscape = if (ratioIdx == 3) null else captureIsLandscape
             val name = "FUJI_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
@@ -667,7 +683,7 @@ fun CameraScreen(
                             scope.launch(Dispatchers.IO) {
                                 withContext(Dispatchers.Main) { processingProgress = 12 }
                                 val orientationNormalized = runCatching {
-                                    normalizeCapturedImage(context, saved)
+                                    normalizeCapturedImage(context, saved, expectedLandscape)
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
                                 val lookApplied = runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
@@ -679,7 +695,7 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 val orientationLabelFixed = orientationNormalized || runCatching {
-                                    normalizeCapturedImage(context, saved)
+                                    normalizeCapturedImage(context, saved, expectedLandscape)
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 92 }
                                 withContext(Dispatchers.Main) {

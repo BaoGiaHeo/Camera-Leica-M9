@@ -190,8 +190,8 @@ fun CameraScreen(
     var renderEngine by remember { mutableStateOf("Performance") }
     var proSel by remember { mutableStateOf<String?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
-    var activeFilter by remember { mutableStateOf(appPrefs.getString("selected_filter", "None") ?: "None") }
-    var activeLutUri by remember { mutableStateOf(appPrefs.getString("selected_lut_uri", "") ?: "") }
+    var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
+    var activeLutUri by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_lut_uri", "") ?: "") }
     var shutterEffectAlpha by remember { mutableFloatStateOf(0f) }
     var shutterEffectInverted by remember { mutableStateOf(false) }
     val shutterSoundPlayer = remember {

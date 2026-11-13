@@ -895,7 +895,7 @@ fun CameraScreen(
                     val selectedZoom = abs(zoomSel - z) < 0.08f
                     val label = if (z < 1f) String.format(Locale.US, "%.1f×", z) else "${z.toInt()}×"
                     Text(label,
-                        color = if (selectedZoom) CamColors.Yellow else Color.White,
+                        color = if (selectedZoom) CamColors.Yellow else CamColors.TextColor,
                         fontWeight = if (selectedZoom) FontWeight.Bold else FontWeight.Medium,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
@@ -1131,7 +1131,7 @@ fun CameraScreen(
                         Text("EV không được hỗ trợ", color = CamColors.Sub, fontSize = 10.sp,
                             modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                     }
-                    Text(evText, color = Color.White, fontSize = 11.sp)
+                    Text(evText, color = CamColors.TextColor, fontSize = 11.sp)
                     Text("AUTO", color = CamColors.Sub, fontSize = 9.sp,
                         modifier = Modifier.padding(start = 10.dp).clickable {
                             evIndex = 0

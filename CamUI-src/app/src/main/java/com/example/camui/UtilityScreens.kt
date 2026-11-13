@@ -228,39 +228,41 @@ private data class CubeLut(
     }
 }
 
-private fun readCubeLut(context: Context, uri: Uri): CubeLut? = runCatching {
-    val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-        ?: return null
-    var size = 0
-    val min = floatArrayOf(0f, 0f, 0f)
-    val max = floatArrayOf(1f, 1f, 1f)
-    val rows = ArrayList<FloatArray>()
-    text.lineSequence().forEach { raw ->
-        val line = raw.substringBefore("#").trim()
-        if (line.isEmpty()) return@forEach
-        val parts = line.split(Regex("\\s+"))
-        when (parts.firstOrNull()) {
-            "TITLE" -> Unit
-            "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: 0
-            "DOMAIN_MIN" -> if (parts.size >= 4) for (i in 0..2) min[i] = parts[i + 1].toFloat()
-            "DOMAIN_MAX" -> if (parts.size >= 4) for (i in 0..2) max[i] = parts[i + 1].toFloat()
-            else -> {
-                if (parts.size >= 3) {
-                    val rgb = parts.take(3).mapNotNull { it.toFloatOrNull() }
-                    if (rgb.size == 3) rows.add(floatArrayOf(rgb[0], rgb[1], rgb[2]))
+private fun readCubeLut(context: Context, uri: Uri): CubeLut? {
+    return runCatching {
+        val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            ?: return@runCatching null
+        var size = 0
+        val min = floatArrayOf(0f, 0f, 0f)
+        val max = floatArrayOf(1f, 1f, 1f)
+        val rows = ArrayList<FloatArray>()
+        text.lineSequence().forEach { raw ->
+            val line = raw.substringBefore("#").trim()
+            if (line.isEmpty()) return@forEach
+            val parts = line.split(Regex("\\\\s+"))
+            when (parts.firstOrNull()) {
+                "TITLE" -> Unit
+                "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                "DOMAIN_MIN" -> if (parts.size >= 4) for (i in 0..2) min[i] = parts[i + 1].toFloat()
+                "DOMAIN_MAX" -> if (parts.size >= 4) for (i in 0..2) max[i] = parts[i + 1].toFloat()
+                else -> {
+                    if (parts.size >= 3) {
+                        val rgb = parts.take(3).mapNotNull { it.toFloatOrNull() }
+                        if (rgb.size == 3) rows.add(floatArrayOf(rgb[0], rgb[1], rgb[2]))
+                    }
                 }
             }
         }
-    }
-    if (size !in 2..65 || rows.size != size * size * size) return null
-    CubeLut(size, min, max, FloatArray(rows.size * 3).also { out ->
-        rows.forEachIndexed { index, rgb ->
-            out[index * 3] = rgb[0]
-            out[index * 3 + 1] = rgb[1]
-            out[index * 3 + 2] = rgb[2]
-        }
-    })
-}.getOrNull()
+        if (size !in 2..65 || rows.size != size * size * size) return@runCatching null
+        CubeLut(size, min, max, FloatArray(rows.size * 3).also { out ->
+            rows.forEachIndexed { index, rgb ->
+                out[index * 3] = rgb[0]
+                out[index * 3 + 1] = rgb[1]
+                out[index * 3 + 2] = rgb[2]
+            }
+        })
+    }.getOrNull()
+}
 
 private fun clamp8(value: Float): Int = value.toInt().coerceIn(0, 255)
 

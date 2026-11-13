@@ -652,6 +652,10 @@ fun CameraScreen(
                         .pointerInput(camera, metering) {
                             detectTapGestures { offset ->
                                 val active = camera ?: return@detectTapGestures
+                                if (mode == "Pro" && manualFocus > 0f) {
+                                    manualFocus = 0f
+                                    runCatching { applyAutoFocus(active) }
+                                }
                                 val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
                                 // Center meters at frame center; Matrix uses a broad region
                                 // around the tapped subject; Spot uses a tight region.

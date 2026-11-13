@@ -13,6 +13,9 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.media.ExifInterface
 import android.net.Uri
+import android.provider.MediaStore
+import android.content.ContentUris
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -28,6 +31,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +46,11 @@ import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
@@ -48,6 +59,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -63,6 +75,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ToolboxScreen(
@@ -610,4 +624,108 @@ private fun ManagedItem(name: String, onDelete: () -> Unit) {
 @Composable
 private fun EmptyNote(text: String) {
     Text(text, color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(vertical = 10.dp))
+}
+
+
+private data class AlbumPhotoEntry(val uri: Uri, val dateAdded: Long)
+
+@Composable
+fun AlbumScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var photos by remember { mutableStateOf<List<AlbumPhotoEntry>>(emptyList()) }
+    var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
+    var selectedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        photos = withContext(Dispatchers.IO) {
+            runCatching {
+                val result = ArrayList<AlbumPhotoEntry>()
+                context.contentResolver.query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DATE_ADDED),
+                    "${MediaStore.Images.Media.RELATIVE_PATH} = ?",
+                    arrayOf("Pictures/FujifilmMode/"),
+                    "${MediaStore.Images.Media.DATE_ADDED} DESC"
+                )?.use { cursor ->
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                    val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idColumn)
+                        result.add(
+                            AlbumPhotoEntry(
+                                ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id),
+                                cursor.getLong(dateColumn)
+                            )
+                        )
+                    }
+                }
+                result
+            }.getOrDefault(emptyList())
+        }
+        isLoading = false
+    }
+
+    Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(12.dp)) {
+        PageHeader("Album · Fujifilm Mode", onBack)
+        when {
+            isLoading -> Text("Đang tải ảnh…", color = CamColors.Sub, modifier = Modifier.padding(12.dp))
+            photos.isEmpty() -> EmptyNote("Chưa có ảnh. Ảnh chụp trong ứng dụng sẽ xuất hiện ở đây.")
+            else -> Text("${photos.size} ảnh", color = CamColors.Sub, fontSize = 11.sp,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            items(photos, key = { it.uri.toString() }) { entry ->
+                var bitmap by remember(entry.uri) { mutableStateOf<ImageBitmap?>(null) }
+                LaunchedEffect(entry.uri) {
+                    bitmap = withContext(Dispatchers.IO) {
+                        runCatching {
+                            context.contentResolver.loadThumbnail(entry.uri, Size(360, 360), null).asImageBitmap()
+                        }.getOrNull()
+                    }
+                }
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp))
+                        .background(CamColors.Card).clickable { selectedPhoto = entry.uri }
+                ) {
+                    if (bitmap != null) {
+                        Image(bitmap!!, "Photo thumbnail", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    }
+                }
+            }
+        }
+    }
+
+    if (selectedPhoto != null) {
+        Dialog(
+            onDismissRequest = { selectedPhoto = null; selectedBitmap = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            LaunchedEffect(selectedPhoto) {
+                selectedBitmap = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.loadThumbnail(selectedPhoto!!, Size(2048, 2048), null).asImageBitmap()
+                    }.getOrNull()
+                }
+            }
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                if (selectedBitmap != null) {
+                    Image(selectedBitmap!!, "Ảnh trong album", Modifier.fillMaxSize().padding(12.dp),
+                        contentScale = ContentScale.Fit)
+                } else {
+                    Text("Đang tải ảnh…", color = Color.White, modifier = Modifier.align(Alignment.Center))
+                }
+                Text("Đóng", color = Color.White,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(20.dp)
+                        .clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
+                        .clickable { selectedPhoto = null; selectedBitmap = null }.padding(12.dp))
+            }
+        }
+    }
 }

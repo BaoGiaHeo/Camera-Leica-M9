@@ -102,120 +102,63 @@ jobs:
           p = Path(os.environ["PROJECT_DIR"]) / "smali_classes3/com/xcam/offline/MainActivity.smali"
           s = p.read_text()
 
-          def replace_once(source, old, new, label):
-              count = source.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected one safe match, found {count}")
-              return source.replace(old, new, 1)
+          def block_for(name):
+              a = s.index(name)
+              b = s.index(".end method", a)
+              return a, b, s[a:b]
 
-          # Preserve the existing default, but allow the persisted setting to be index 2.
-          a = s.index(".method private final loadSettings()V")
-          b = s.index(".end method", a)
-          block = s[a:b]
-          old = """              move-result v3
+          # Persisted setting range.
+          a, b, lines_block = block_for(".method private final loadSettings()V")
+          ls = lines_block.splitlines()
+          ix = [i for i,x in enumerate(ls) if "coerceIn(III)I" in x and "{v3, v1, v4}" in x]
+          if len(ix) != 1:
+              raise SystemExit("Denoise preference clamp not found uniquely")
+          ls[ix[0]] = ls[ix[0]].replace("{v3, v1, v4}", "{v3, v1, v5}")
+          ls.insert(ix[0], "    const/4 v5, 0x2")
+          s = s[:a] + "\n".join(ls) + s[b:]
 
-              invoke-static {v3, v1, v4}, Lkotlin/ranges/RangesKt;->coerceIn(III)I"""
-          new = """              move-result v3
+          # Add OFF to the existing three-choice builder.
+          a, b, lines_block = block_for(".method private final showSettings()V")
+          ls = lines_block.splitlines()
+          ti = next((i for i,x in enumerate(ls) if '"Kh\\u1eed nhi\\u1ec5u \\u1ea3nh"' in x), -1)
+          if ti < 0:
+              raise SystemExit("Noise reduction section not found")
+          si = next((i for i in range(ti, len(ls)) if ls[i].strip() == "const/4 v6, 0x2"), -1)
+          bi = next((i for i in range(si + 1, len(ls)) if 'const-string v1, "Best"' in ls[i]), -1) if si >= 0 else -1
+          ai = next((i for i in range(bi + 1, len(ls)) if ls[i].strip() == "aput-object v1, v0, v2"), -1) if bi >= 0 else -1
+          if min(si, bi, ai) < 0:
+              raise SystemExit("Noise reduction choices are not in expected structure")
+          ls[si] = ls[si].replace("0x2", "0x3")
+          ls[ai + 1:ai + 1] = ["", '    const-string v1, "T\\u1eaft"', "", "    const/4 v2, 0x2", "", "    aput-object v1, v0, v2"]
+          s = s[:a] + "\n".join(ls) + s[b:]
 
-              const/4 v5, 0x2
-
-              invoke-static {v3, v1, v5}, Lkotlin/ranges/RangesKt;->coerceIn(III)I"""
-          block = replace_once(block, old, new, "loadSettings denoise range")
-          s = s[:a] + block + s[b:]
-
-          # Add a third RadioButton in the existing Khử nhiễu ảnh group.
-          a = s.index(".method private final showSettings()V")
-          b = s.index(".end method", a)
-          block = s[a:b]
-          old = """              const/4 v6, 0x2
-
-              new-array v0, v6, [Ljava/lang/String;
-
-              const-string v1, "Nh\\u1eb9"
-
-              aput-object v1, v0, v13
-
-              const-string v1, "Best"
-
-              const/4 v2, 0x1
-
-              aput-object v1, v0, v2"""
-          new = """              const/4 v6, 0x3
-
-              new-array v0, v6, [Ljava/lang/String;
-
-              const-string v1, "Nh\\u1eb9"
-
-              aput-object v1, v0, v13
-
-              const-string v1, "Best"
-
-              const/4 v2, 0x1
-
-              aput-object v1, v0, v2
-
-              const-string v1, "T\\u1eaft"
-
-              const/4 v2, 0x2
-
-              aput-object v1, v0, v2"""
-          block = replace_once(block, old, new, "denoise option labels")
-          s = s[:a] + block + s[b:]
-
-          # Map UI index 2 to Camera2 NOISE_REDUCTION_MODE_OFF (0).
-          a = s.index(".method private final resolveNoiseReductionMode(")
-          b = s.index(".end method", a)
-          block = s[a:b]
-          old = """              if-ne v2, v4, :cond_1
-
-              move v2, v3
-
-              goto :goto_0
-
-              :cond_1
-
-              move v2, v4"""
-          new = """              if-nez v2, :cond_denoise_nonzero
-
-              move v2, v4
-
-              goto :goto_0
-
-              :cond_denoise_nonzero
-
-              if-ne v2, v4, :cond_denoise_off
-
-              move v2, v3
-
-              goto :goto_0
-
-              :cond_denoise_off
-
-              const/4 v2, 0x0"""
-          block = replace_once(block, old, new, "Camera2 noise reduction mapping")
-
-          # If Camera2 reports OFF as unsupported, do not silently select FAST/MINIMAL.
-          old = """              :cond_2
-
-              const/4 v5, 0x3"""
-          new = """              :cond_2
-
-              iget v2, p0, Lcom/xcam/offline/MainActivity;->denoiseMode:I
-
-              const/4 v3, 0x2
-
-              if-ne v2, v3, :continue_denoise_fallback
-
-              return-object v0
-
-              :continue_denoise_fallback
-
-              const/4 v5, 0x3"""
-          block = replace_once(block, old, new, "OFF unsupported fallback guard")
-          s = s[:a] + block + s[b:]
-
+          # Map setting index 2 to Camera2 OFF = 0; keep unsupported OFF from falling back to FAST.
+          a, b, lines_block = block_for(".method private final resolveNoiseReductionMode(")
+          ls = lines_block.splitlines()
+          bi = next((i for i,x in enumerate(ls) if x.strip() == "if-ne v2, v4, :cond_1"), -1)
+          ei = next((i for i in range(bi + 1, len(ls)) if ls[i].strip() == "move v2, v4"), -1) if bi >= 0 else -1
+          if min(bi, ei) < 0:
+              raise SystemExit("Camera2 denoise mode mapping not found")
+          ls[bi:ei + 1] = [
+              "    if-nez v2, :cond_denoise_nonzero", "",
+              "    move v2, v4", "", "    goto :goto_0", "",
+              "    :cond_denoise_nonzero", "",
+              "    if-ne v2, v4, :cond_denoise_off", "",
+              "    move v2, v3", "", "    goto :goto_0", "",
+              "    :cond_denoise_off", "", "    const/4 v2, 0x0"
+          ]
+          ci = next((i for i,x in enumerate(ls) if x.strip() == ":cond_2"), -1)
+          if ci < 0:
+              raise SystemExit("Camera2 unsupported-mode branch not found")
+          ls[ci + 1:ci + 1] = [
+              "    iget v2, p0, Lcom/xcam/offline/MainActivity;->denoiseMode:I", "",
+              "    const/4 v3, 0x2", "",
+              "    if-ne v2, v3, :continue_denoise_fallback", "",
+              "    return-object v0", "", "    :continue_denoise_fallback", ""
+          ]
+          s = s[:a] + "\n".join(ls) + s[b:]
           p.write_text(s)
-          print("Added OFF option; saved mode range is 0..2 and Camera2 OFF maps to value 0.")
+          print("Camera2 OFF selection added.")
           PY
       - name: Localize camera settings and clarify output formats
         run: |

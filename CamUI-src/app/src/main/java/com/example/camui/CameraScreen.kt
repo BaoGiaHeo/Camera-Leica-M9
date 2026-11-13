@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.ContentUris
 import android.content.Context
+import android.graphics.Point
 import android.media.MediaActionSound
 import android.os.Build
 import android.content.pm.PackageManager
@@ -145,6 +146,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private fun currentDisplayIsLandscape(context: Context): Boolean {
+    val display = context.display
+    if (display != null) {
+        val size = Point()
+        val hasDisplayBounds = runCatching {
+            display.getRealSize(size)
+            size.x > 0 && size.y > 0
+        }.getOrDefault(false)
+        if (hasDisplayBounds) return size.x > size.y
+    }
+    return context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+}
+
 private val meteringModes = listOf("Center", "Matrix", "Spot")
 private val wbModes = listOf(
     "Auto" to CaptureRequest.CONTROL_AWB_MODE_AUTO,
@@ -179,9 +193,10 @@ fun CameraScreen(
         mutableIntStateOf(context.display?.rotation ?: Surface.ROTATION_0)
     }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    // Window configuration is authoritative for whether the UI/crop is portrait or landscape.
-    // Do not mix sensor azimuth with display rotation: the two can briefly disagree while rotating.
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // Read the current display bounds instead of relying only on Configuration.orientation.
+    // Some vendor builds keep the activity's cached configuration in portrait while the display
+    // has already rotated; using that stale value makes a landscape JPEG get normalized as portrait.
+    var isLandscape by remember { mutableStateOf(currentDisplayIsLandscape(context)) }
     // Remember exactly which geometry is active in the bound CameraX UseCaseGroup.
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
@@ -196,6 +211,8 @@ fun CameraScreen(
                 // directly assumes every device has a portrait natural orientation.
                 val displayRotation = context.display?.rotation ?: return
                 if (displayRotation != targetRotation) targetRotation = displayRotation
+                val displayLandscape = currentDisplayIsLandscape(context)
+                if (displayLandscape != isLandscape) isLandscape = displayLandscape
             }
         }
     }
@@ -203,9 +220,11 @@ fun CameraScreen(
         if (orientationListener.canDetectOrientation()) orientationListener.enable()
         onDispose { orientationListener.disable() }
     }
-    LaunchedEffect(configuration.orientation) {
+    LaunchedEffect(configuration.orientation, targetRotation) {
         val displayRotation = context.display?.rotation ?: targetRotation
         if (displayRotation != targetRotation) targetRotation = displayRotation
+        val displayLandscape = currentDisplayIsLandscape(context)
+        if (displayLandscape != isLandscape) isLandscape = displayLandscape
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
 
@@ -647,6 +666,9 @@ fun CameraScreen(
             val captureRotation = previewView.display?.rotation
                 ?: context.display?.rotation
                 ?: targetRotation
+            // Re-check the physical display at shutter time. The saved pixels and the
+            // watermark must use the orientation of the display that actually took this shot.
+            val captureIsLandscape = currentDisplayIsLandscape(context)
             val selectedBaseAspectRatio = when (ratioIdx) {
                 0 -> 3f / 2f
                 1 -> 4f / 3f
@@ -654,18 +676,20 @@ fun CameraScreen(
                 3 -> 1f
                 else -> 21f / 9f
             }
-            val expectedAspectRatioForCapture = if (isLandscape || ratioIdx == 3) {
+            val expectedAspectRatioForCapture = if (captureIsLandscape || ratioIdx == 3) {
                 selectedBaseAspectRatio
             } else {
                 1f / selectedBaseAspectRatio
             }
             if (captureRotation != targetRotation ||
                 boundCameraRotation != captureRotation ||
-                boundCameraLandscape != isLandscape ||
+                boundCameraLandscape != captureIsLandscape ||
+                isLandscape != captureIsLandscape ||
                 boundCameraRatioIdx != ratioIdx
             ) {
-                // Do not let a shutter event race a 90/180-degree rebind or ratio selection.
+                // Never save a frame with the old orientation/crop after the display rotated.
                 targetRotation = captureRotation
+                isLandscape = captureIsLandscape
                 Toast.makeText(context, "Đang đồng bộ hướng và tỉ lệ khung ngắm, hãy chụp lại sau một chút.", Toast.LENGTH_SHORT).show()
                 return@launch
             }

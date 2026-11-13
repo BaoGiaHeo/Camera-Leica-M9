@@ -693,6 +693,11 @@ fun CameraScreen(
                     tint = if (showHist) CamColors.Yellow else Color.White
                 )
                 CircleBtn(
+                    Icons.Default.FilterCenterFocus, "Focus Peaking",
+                    onClick = { onFocusPeaking(!focusPeaking) },
+                    tint = if (focusPeaking) Color(0xFF00FFB0) else Color.White
+                )
+                CircleBtn(
                     Icons.Default.Settings, "Quick settings",
                     onClick = { showQuick = !showQuick },
                     tint = if (showQuick) CamColors.Yellow else Color.White
@@ -716,24 +721,38 @@ fun CameraScreen(
                                 zoomSel = nextZoom
                             }
                         }
-                        .pointerInput(camera, metering) {
-                            detectTapGestures { offset ->
-                                val active = camera ?: return@detectTapGestures
-                                if (mode == "Pro" && manualFocus > 0f) {
-                                    manualFocus = 0f
-                                    runCatching { applyAutoFocus(active) }
+                        .pointerInput(camera, metering, mode) {
+                            detectTapGestures(
+                                onTap = { offset ->
+                                    val active = camera ?: return@detectTapGestures
+                                    focusLocked = false
+                                    if (manualFocus > 0f) {
+                                        manualFocus = 0f
+                                        runCatching { applyAutoFocus(active) }
+                                    }
+                                    val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
+                                    val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, area)
+                                    val action = FocusMeteringAction.Builder(
+                                        point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                                    ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+                                    active.cameraControl.startFocusAndMetering(action)
+                                },
+                                onLongPress = { offset ->
+                                    val active = camera ?: return@detectTapGestures
+                                    if (manualFocus > 0f) {
+                                        Toast.makeText(context, "Chuyển AF sang Auto trước khi khóa nét.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, 0.22f)
+                                        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+                                            .setLockingMode(FocusMeteringAction.FLAG_AF)
+                                            .disableAutoCancel()
+                                            .build()
+                                        active.cameraControl.startFocusAndMetering(action)
+                                        focusLocked = true
+                                        Toast.makeText(context, "Đã khóa nét · chạm lại để lấy nét mới.", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
-                                val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
-                                // Center meters at frame center; Matrix uses a broad region
-                                // around the tapped subject; Spot uses a tight region.
-                                val pointX = offset.x
-                                val pointY = offset.y
-                                val point = previewView.meteringPointFactory.createPoint(pointX, pointY, area)
-                                val action = FocusMeteringAction.Builder(
-                                    point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
-                                ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
-                                active.cameraControl.startFocusAndMetering(action)
-                            }
+                            )
                         }
                 ) {
                     key(renderEngine) {
@@ -780,6 +799,11 @@ fun CameraScreen(
                             }
                         }
                     }
+                    if (focusLocked) {
+                        Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                                .clip(RoundedCornerShape(8.dp)).background(CamColors.Yellow).padding(horizontal = 9.dp, vertical = 5.dp))
+                    }
                     if (showHist) {
                         Histogram(hist, Modifier.align(Alignment.TopStart).padding(8.dp).size(106.dp, 52.dp))
                     }
@@ -793,6 +817,13 @@ fun CameraScreen(
                     }
                 }
             }
+
+            Text(
+                if (focusLocked) "AF LOCK · Chạm để lấy nét lại" else "Chạm để lấy nét · Nhấn giữ để khóa nét",
+                color = if (focusLocked) CamColors.Yellow else CamColors.Sub,
+                fontSize = 9.sp, modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                textAlign = TextAlign.Center
+            )
 
             // Only show values exposed by this camera's zoom range.
             val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
@@ -851,57 +882,112 @@ fun CameraScreen(
                         }
                         "ISO" -> {
                             val range = isoRange
-                            if (manualSensorSupported && range != null && range.upper > range.lower) {
-                                val lo = range.lower
-                                val hi = range.upper.coerceAtMost(2400).coerceAtLeast(range.lower)
-                                Slider(
-                                    value = ((manualIso.coerceIn(lo, hi) - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0f, 1f),
-                                    onValueChange = { f ->
-                                        manualIso = (lo + f * (hi - lo)).roundToInt().coerceIn(lo, hi)
-                                        manualExposure = true
-                                    },
-                                    colors = cameraSliderColors()
-                                )
-                            } else Text("Cảm biến không hỗ trợ ISO thủ công", color = CamColors.Sub, fontSize = 10.sp)
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (manualSensorSupported && range != null && range.upper > range.lower) {
+                                        val lo = range.lower
+                                        val hi = range.upper.coerceAtMost(2400).coerceAtLeast(range.lower)
+                                        Slider(
+                                            modifier = Modifier.weight(1f),
+                                            value = ((manualIso.coerceIn(lo, hi) - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0f, 1f),
+                                            onValueChange = { f ->
+                                                manualIso = (lo + f * (hi - lo)).roundToInt().coerceIn(lo, hi)
+                                                manualIsoEnabled = true
+                                                manualExposure = true
+                                            },
+                                            onValueChangeFinished = { manualCaptureRevision++ },
+                                            colors = cameraSliderColors()
+                                        )
+                                    } else Text("ISO không được camera hỗ trợ", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                    Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else CamColors.Yellow,
+                                        fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
+                                            manualIsoEnabled = false
+                                            manualExposure = manualShutterEnabled
+                                            manualCaptureRevision++
+                                        })
+                                }
+                                Text(if (manualIsoEnabled) "ISO $manualIso" else "ISO Auto",
+                                    color = CamColors.Sub, fontSize = 9.sp)
+                            }
                         }
                         "Tv" -> {
                             val range = shutterRange
-                            if (manualSensorSupported && range != null && range.upper > range.lower) {
-                                val lo = range.lower
-                                val hi = range.upper.coerceAtMost(1_000_000_000L).coerceAtLeast(range.lower)
-                                Slider(
-                                    value = shutterFraction(manualShutterNs.coerceAtMost(1_000_000_000L), lo, hi),
-                                    onValueChange = { f ->
-                                        manualShutterNs = shutterFromFraction(f, lo, hi).coerceAtMost(1_000_000_000L)
-                                        manualExposure = true
-                                    },
-                                    colors = cameraSliderColors()
-                                )
-                            } else Text("Cảm biến không hỗ trợ shutter thủ công", color = CamColors.Sub, fontSize = 10.sp)
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (manualSensorSupported && range != null && range.upper > range.lower) {
+                                        val lo = range.lower
+                                        val hi = range.upper.coerceAtMost(1_000_000_000L).coerceAtLeast(range.lower)
+                                        Slider(
+                                            modifier = Modifier.weight(1f),
+                                            value = shutterFraction(manualShutterNs.coerceAtMost(1_000_000_000L), lo, hi),
+                                            onValueChange = { f ->
+                                                manualShutterNs = shutterFromFraction(f, lo, hi).coerceAtMost(1_000_000_000L)
+                                                manualShutterEnabled = true
+                                                manualExposure = true
+                                            },
+                                            onValueChangeFinished = { manualCaptureRevision++ },
+                                            colors = cameraSliderColors()
+                                        )
+                                    } else Text("Shutter không được camera hỗ trợ", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                    Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else CamColors.Yellow,
+                                        fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
+                                            manualShutterEnabled = false
+                                            manualExposure = manualIsoEnabled
+                                            manualCaptureRevision++
+                                        })
+                                }
+                                Text(if (manualShutterEnabled) shutterText else "Shutter Auto",
+                                    color = CamColors.Sub, fontSize = 9.sp)
+                            }
                         }
                         "AF" -> {
-                            if (maxFocus > 0f) {
-                                Slider(
-                                    value = (manualFocus / maxFocus).coerceIn(0f, 1f),
-                                    onValueChange = { f ->
-                                        manualFocus = f * maxFocus
-                                        camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
-                                    },
-                                    colors = cameraSliderColors()
-                                )
-                            } else Text("Ống kính chỉ hỗ trợ AF tự động", color = CamColors.Sub, fontSize = 10.sp)
-                        }
-                        "AWB" -> {
-                            Row(
-                                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                supportedWbModes.forEach { (label, value) ->
-                                    MiniChip(label, whiteBalance == value) {
-                                        whiteBalance = value
-                                        camera?.let { runCatching { applyWhiteBalance(it, value) } }
-                                    }
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (maxFocus > 0f) {
+                                        Slider(
+                                            modifier = Modifier.weight(1f),
+                                            value = (manualFocus / maxFocus).coerceIn(0f, 1f),
+                                            onValueChange = { f ->
+                                                manualFocus = f * maxFocus
+                                                focusLocked = false
+                                                camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
+                                            },
+                                            colors = cameraSliderColors()
+                                        )
+                                    } else Text("AF tự động", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                    Text("AUTO", color = CamColors.Yellow, fontSize = 10.sp,
+                                        modifier = Modifier.padding(start = 8.dp).clickable {
+                                            manualFocus = 0f
+                                            focusLocked = false
+                                            camera?.let { runCatching { applyAutoFocus(it) } }
+                                        })
                                 }
+                                Text(if (focusLocked) "Focus locked" else afText, color = CamColors.Sub, fontSize = 9.sp)
+                            }
+                        }
+                        "Tone" -> {
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Ấm", color = CamColors.Sub, fontSize = 9.sp)
+                                    Slider(
+                                        modifier = Modifier.weight(1f),
+                                        value = ((manualColorTemp - 2500) / 5500f).coerceIn(0f, 1f),
+                                        onValueChange = { fraction ->
+                                            manualColorTemp = (2500 + fraction * 5500).roundToInt()
+                                            manualColorTempEnabled = true
+                                            camera?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
+                                        },
+                                        colors = cameraSliderColors()
+                                    )
+                                    Text("Lạnh", color = CamColors.Sub, fontSize = 9.sp)
+                                    Text("AUTO", color = if (manualColorTempEnabled) CamColors.Sub else CamColors.Yellow,
+                                        fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
+                                            manualColorTempEnabled = false
+                                            camera?.let { runCatching { applyAutoWhiteBalance(it) } }
+                                        })
+                                }
+                                Text(if (manualColorTempEnabled) "Tông màu $manualColorTemp K" else "Tông màu tự động",
+                                    color = CamColors.Sub, fontSize = 9.sp)
                             }
                         }
                     }
@@ -914,7 +1000,7 @@ fun CameraScreen(
                     Triple("Tv", shutterText, "Tv"),
                     Triple("ISO", isoText, "ISO"),
                     Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else "AF", "AF"),
-                    Triple("AWB", supportedWbModes.firstOrNull { it.second == whiteBalance }?.first ?: "Auto", "AWB"),
+                    Triple("Tone", toneText, "WB"),
                     Triple("AUTO", "AUTO", "RESET")
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -926,15 +1012,19 @@ fun CameraScreen(
                                 .clickable {
                                     if (key == "AUTO") {
                                         manualExposure = false
+                                        manualIsoEnabled = false
+                                        manualShutterEnabled = false
+                                        manualColorTempEnabled = false
                                         manualFocus = 0f
-                                        whiteBalance = CaptureRequest.CONTROL_AWB_MODE_AUTO
+                                        focusLocked = false
                                         evIndex = 0
+                                        manualCaptureRevision++
                                         camera?.let { c ->
                                             runCatching {
                                                 Camera2CameraControl.from(c.cameraControl).clearCaptureRequestOptions()
                                                 c.cameraControl.setExposureCompensationIndex(0)
                                                 applyAutoFocus(c)
-                                                applyWhiteBalance(c, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+                                                applyAutoWhiteBalance(c)
                                             }
                                         }
                                         proSel = null
@@ -950,6 +1040,7 @@ fun CameraScreen(
                                         }
                                         if (key == "AF" && manualFocus > 0f) {
                                             manualFocus = 0f
+                                            focusLocked = false
                                             camera?.let { runCatching { applyAutoFocus(it) } }
                                         }
                                         proSel = if (active) null else key
@@ -996,13 +1087,19 @@ fun CameraScreen(
             Row(Modifier.fillMaxWidth().padding(vertical = 9.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(52.dp).clip(RoundedCornerShape(13.dp)).background(CamColors.Glass)
-                    .clickable { openLastPhoto() }, contentAlignment = Alignment.Center) {
+                    .clickable { onOpenAlbum() }, contentAlignment = Alignment.Center) {
                     val image = thumb
                     if (image != null) Image(image, "Mở ảnh vừa chụp", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     else Icon(Icons.Default.PhotoLibrary, "Mở album", tint = Color.White)
                 }
                 Box(Modifier.size(72.dp).border(4.dp, Color.White, CircleShape)
-                    .padding(7.dp).clip(CircleShape).background(Color.White).clickable { takePhoto() })
+                    .padding(7.dp).clip(CircleShape).background(CamColors.Shutter).clickable { takePhoto() },
+                    contentAlignment = Alignment.Center) {
+                    if (shutterButtonBitmap != null) {
+                        Image(shutterButtonBitmap!!, "Custom shutter button",
+                            Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                    }
+                }
                 CircleBtn(Icons.Default.FlipCameraAndroid, "Đổi camera",
                     onClick = { front = !front; manualFocus = 0f }, size = 52.dp)
             }
@@ -1013,7 +1110,20 @@ fun CameraScreen(
                     Box(Modifier.padding(horizontal = 4.dp).width(92.dp).height(36.dp)
                         .clip(RoundedCornerShape(22.dp))
                         .background(if (active) CamColors.Yellow else CamColors.Glass)
-                        .clickable { mode = item; if (item == "Photo") proSel = null },
+                        .clickable {
+                            mode = item
+                            if (item == "Photo") {
+                                proSel = null
+                                manualExposure = false
+                                manualIsoEnabled = false
+                                manualShutterEnabled = false
+                                manualColorTempEnabled = false
+                                manualFocus = 0f
+                                focusLocked = false
+                                manualCaptureRevision++
+                                camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
+                            }
+                        },
                         contentAlignment = Alignment.Center) {
                         Text(item, color = if (active) Color.Black else Color.White,
                             fontWeight = FontWeight.Bold, fontSize = 13.sp)

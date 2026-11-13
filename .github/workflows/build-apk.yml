@@ -233,6 +233,13 @@ jobs:
               raise SystemExit("Could not safely locate playShutter()")
           p.write_text(s.replace(anchor, anchor + injected, 1))
           PY
+      - name: Apply Camera2 Pro controls
+        run: |
+          set -e
+          mkdir -p "$PROJECT_DIR/smali_classes3/com/xcam/offline"
+          base64 -d patches/ProCameraPatch.zip.b64 > /tmp/ProCameraPatch.zip
+          unzip -oq /tmp/ProCameraPatch.zip -d "$PROJECT_DIR/smali_classes3/com/xcam/offline"
+          python3 patches/install_pro_controller.py
       - name: Build unsigned APK
         run: |
           mkdir -p output

@@ -56,9 +56,10 @@ jobs:
           lp.write_text(ls.replace(old, new, 1))
           dp = dialogs[0]
           ds = dp.read_text()
-          if ds.count('"Thông số camera"') != 1:
-              raise SystemExit("Could not safely locate camera scanner button label")
-          dp.write_text(ds.replace('"Thông số camera"', '"CAMERA ID SCANNER"', 1))
+          old_label = '"Th\\u00f4ng s\\u1ed1 camera"'
+          if ds.count(old_label) != 1:
+              raise SystemExit("Could not safely locate encoded camera scanner button label")
+          dp.write_text(ds.replace(old_label, '"CAMERA ID SCANNER"', 1))
           PY
       - name: Apply Fuji-inspired interface patch
         run: |

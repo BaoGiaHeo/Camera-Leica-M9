@@ -21,6 +21,7 @@ import android.provider.OpenableColumns
 import android.util.Rational
 import android.util.Size
 import android.view.Surface
+import android.view.OrientationEventListener
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -180,6 +181,26 @@ fun CameraScreen(
     // Window configuration is authoritative for whether the UI/crop is portrait or landscape.
     // Do not mix sensor azimuth with display rotation: the two can briefly disagree while rotating.
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // Keep CameraX target rotation current even when rotating between two orientations
+    // that share the same configuration class (for example, landscape-left/right).
+    val orientationListener = remember(context) {
+        object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val rotation = when (orientation) {
+                    in 45 until 135 -> Surface.ROTATION_270
+                    in 135 until 225 -> Surface.ROTATION_180
+                    in 225 until 315 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                if (rotation != targetRotation) targetRotation = rotation
+            }
+        }
+    }
+    DisposableEffect(orientationListener) {
+        if (orientationListener.canDetectOrientation()) orientationListener.enable()
+        onDispose { orientationListener.disable() }
+    }
     LaunchedEffect(configuration.orientation) {
         val displayRotation = context.display?.rotation ?: targetRotation
         if (displayRotation != targetRotation) targetRotation = displayRotation

@@ -103,7 +103,7 @@ fun SettingsScreen(
             androidx.compose.material3.IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
             }
-            Text("Settings", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text("Settings", color = CamColors.TextColor, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         }
         LazyColumn(
             Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -165,7 +165,7 @@ private fun SettingsDetailPage(
             androidx.compose.material3.IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
             }
-            Text(title, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+            Text(title, color = CamColors.TextColor, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
         }
         when (title) {
             "Assistive Tools" -> {
@@ -239,7 +239,7 @@ private fun SettingsDetailPage(
                 }
             }
             "Capture & Quality" -> {
-                Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Aspect Ratio", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -249,7 +249,7 @@ private fun SettingsDetailPage(
                     }
                 }
                 Spacer(Modifier.padding(7.dp))
-                Text("Image Quality", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Image Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -265,13 +265,14 @@ private fun SettingsDetailPage(
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
             }
             "Appearance" -> {
-                Text("App background", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("App background", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Chọn màu nền tối hoặc dùng ảnh trong máy làm hình nền. Ảnh được phủ lớp tối để chữ và nút camera vẫn dễ đọc.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf(
                         "Black" to "#121212",
+                        "White" to "#FFFFFFFF",
                         "Blue" to "#10243B",
                         "Graphite" to "#292D33",
                         "Olive" to "#24281A"
@@ -302,7 +303,7 @@ private fun SettingsDetailPage(
                 }
 
                 Spacer(Modifier.padding(8.dp))
-                Text("Shutter button", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Shutter button", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -336,7 +337,7 @@ private fun SettingsDetailPage(
                 }
             }
             "Photo Mode Setting" -> {
-                Text("Capture Quality", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch("HDR", "Coming soon · backend chưa được tích hợp", hdr) {
                     hdr = it
                     prefs.edit().putBoolean("hdr_coming_soon", it).apply()
@@ -346,7 +347,7 @@ private fun SettingsDetailPage(
                     prefs.edit().putBoolean("uhd_coming_soon", it).apply()
                 }
                 Spacer(Modifier.padding(5.dp))
-                Text("Noise Reduction", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -360,8 +361,8 @@ private fun SettingsDetailPage(
                 }
             }
             else -> {
-                Text("Fujifilm Mode (app-debug)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("Người làm App: Baoaka06", color = Color.White, fontSize = 14.sp,
+                Text("Fujifilm Mode (app-debug)", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("Người làm App: Baoaka06", color = CamColors.TextColor, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 18.dp))
                 Text("TikTok: @baoaka06", color = CamColors.Yellow, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 8.dp).clickable {

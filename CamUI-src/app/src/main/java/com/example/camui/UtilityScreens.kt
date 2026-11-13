@@ -101,6 +101,9 @@ fun ToolboxScreen(
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", false)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
     var watermarkTemplate by remember { mutableStateOf(prefs.getString("watermark_template", "standard1") ?: "standard1") }
+    var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
+    var watermarkShowModel by remember { mutableStateOf(prefs.getBoolean("watermark_show_model", true)) }
+    var watermarkShowSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
     var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Film Wash") ?: "Film Wash") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
@@ -156,7 +159,23 @@ fun ToolboxScreen(
                 }, Modifier.weight(1f))
             }
         }
-        Text("Model", color = Color.White, fontWeight = FontWeight.SemiBold,
+        Spacer(Modifier.height(10.dp))
+        ToolToggle("Hiện thời gian", "Bật/tắt ngày và giờ trên watermark",
+            Icons.Default.Tune, watermarkShowTime) {
+            watermarkShowTime = it
+            prefs.edit().putBoolean("watermark_show_time", it).apply()
+        }
+        ToolToggle("Hiện model máy", "Bật/tắt tên model điện thoại",
+            Icons.Default.Tune, watermarkShowModel) {
+            watermarkShowModel = it
+            prefs.edit().putBoolean("watermark_show_model", it).apply()
+        }
+        ToolToggle("Hiện thông số", "Bật/tắt tiêu cự, khẩu độ, tốc độ màn trập và ISO",
+            Icons.Default.Tune, watermarkShowSpecs) {
+            watermarkShowSpecs = it
+            prefs.edit().putBoolean("watermark_show_specs", it).apply()
+        }
+        Text("Model tùy chỉnh", color = Color.White, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 15.dp))
         Text("Auto sẽ lấy tên model của điện thoại: ${android.os.Build.MODEL}",
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
@@ -279,7 +298,7 @@ private fun WatermarkTemplateCard(
                     Text("FUJIFILM", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Box(Modifier.padding(vertical = 3.dp).fillMaxWidth(0.62f).height(1.dp)
                         .background(Color.White.copy(alpha = 0.8f)))
-                    Text("CAMERA NOTES", color = Color.White, fontSize = 5.5.sp, letterSpacing = 1.sp)
+                    Text("X SERIES", color = Color.White, fontSize = 5.5.sp, letterSpacing = 1.sp)
                 }
             }
         }
@@ -390,12 +409,14 @@ private fun setMediaStoreOrientationUpright(context: Context, uri: Uri) {
 fun normalizeCapturedImage(context: Context, uri: Uri): Boolean {
     return runCatching {
         val exifOrientation = readExifOrientation(context, uri)
-        val mediaRotation = readMediaStoreRotation(context, uri)
         val needsExifTransform = exifOrientation != ExifInterface.ORIENTATION_NORMAL &&
             exifOrientation != ExifInterface.ORIENTATION_UNDEFINED
-        val needsMediaTransform = !needsExifTransform && mediaRotation != 0
 
-        if (!needsExifTransform && !needsMediaTransform) {
+        // Do not fall back to MediaStore.ORIENTATION for CameraX captures:
+        // several OEMs leave a stale 90/270 value even when JPEG pixels are already upright.
+        // Applying that stale value turns a portrait photo sideways while the watermark,
+        // which is drawn after normalization, appears correctly oriented.
+        if (!needsExifTransform) {
             setMediaStoreOrientationUpright(context, uri)
             return@runCatching true
         }
@@ -597,27 +618,30 @@ fun applyCameraWatermark(
         val canvas = Canvas(output)
         val template = prefs.getString("watermark_template", "standard1") ?: "standard1"
         val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
-        val foreground = if (frameStyle == "Black") AndroidColor.rgb(18, 18, 18) else AndroidColor.WHITE
-        val panelColor = when (frameStyle) {
-            "Black" -> AndroidColor.argb(218, 248, 248, 245)
-            "Transparent" -> AndroidColor.argb(62, 0, 0, 0)
-            else -> AndroidColor.argb(178, 8, 12, 11)
-        }
+        val showTime = prefs.getBoolean("watermark_show_time", true)
+        val showModel = prefs.getBoolean("watermark_show_model", true)
+        val showSpecs = prefs.getBoolean("watermark_show_specs", true)
+
+        // Text and backing plate stay readable; the selected color controls only the frame.
+        val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+        val panelColor = AndroidColor.argb(166, 8, 12, 11)
         val minSide = minOf(output.width, output.height).toFloat()
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         val model = prefs.getString("watermark_custom_model", "")?.trim()
             ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
-        val details = listOf(focal, aperture, shutter, "ISO $iso")
-            .filter { it.isNotBlank() }.joinToString("   •   ")
-        val timestamp = java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US)
-            .format(java.util.Date())
+        val specs = listOf(focal, aperture, shutter, "ISO $iso")
+            .filter { it.isNotBlank() }.joinToString("   •   ").takeIf { showSpecs }.orEmpty()
+        val modelLine = model.takeIf { showModel }.orEmpty()
+        val timeLine = java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US)
+            .format(java.util.Date()).takeIf { showTime }.orEmpty()
+
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = foreground
+            color = AndroidColor.WHITE
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = foreground
-            alpha = if (frameStyle == "Transparent") 190 else 235
+            color = AndroidColor.WHITE
+            alpha = 235
             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -625,21 +649,22 @@ fun applyCameraWatermark(
             typeface = android.graphics.Typeface.create("sans-serif-bold", android.graphics.Typeface.NORMAL)
         }
         fun fitText(value: String, paint: Paint, x: Float, baseline: Float, maxWidth: Float, baseSize: Float) {
+            if (value.isBlank()) return
             paint.textSize = baseSize
             while (paint.textSize > 9f && paint.measureText(value) > maxWidth) {
                 paint.textSize *= 0.92f
             }
             canvas.drawText(value, x, baseline, paint)
         }
-        fun drawPhotoFrame() {
+        fun drawFrame(rect: RectF, radius: Float) {
+            if (frameStyle == "Transparent") return
             val framePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = foreground
-                alpha = if (frameStyle == "Transparent") 150 else 235
+                color = frameColor
+                alpha = 245
                 style = Paint.Style.STROKE
-                strokeWidth = (minSide * 0.002f).coerceAtLeast(2f)
+                strokeWidth = (minSide * 0.0022f).coerceAtLeast(2f)
             }
-            val rect = RectF(margin, margin, output.width - margin, output.height - margin)
-            canvas.drawRoundRect(rect, margin * 0.30f, margin * 0.30f, framePaint)
+            canvas.drawRoundRect(rect, radius, radius, framePaint)
         }
         fun drawBottomPlate(heightFactor: Float = 0.12f, inset: Float = margin): RectF {
             val height = (minSide * heightFactor).coerceAtLeast(76f)
@@ -653,84 +678,95 @@ fun applyCameraWatermark(
                 (minSide * 0.012f).coerceAtLeast(7f), paint)
             return plate
         }
+
+        if (template != "center_logo") {
+            drawFrame(RectF(margin, margin, output.width - margin, output.height - margin), margin * 0.30f)
+        }
+
         when (template) {
             "standard2" -> {
-                drawPhotoFrame()
                 val plate = drawBottomPlate(0.145f, margin * 1.25f)
                 val left = plate.left + plate.height() * 0.22f
-                fitText(model.take(52).uppercase(), titlePaint, left, plate.top + plate.height() * 0.43f,
+                fitText(modelLine.uppercase(), titlePaint, left, plate.top + plate.height() * 0.38f,
                     plate.width() - plate.height() * 0.42f, minSide * 0.024f)
-                fitText(details, detailPaint, left, plate.top + plate.height() * 0.76f,
+                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
                     plate.width() - plate.height() * 0.42f, minSide * 0.014f)
-                fitText("FUJIFILM MODE  /  $timestamp", detailPaint,
-                    plate.left + 5f, plate.top - margin * 0.25f, plate.width(), minSide * 0.010f)
+                fitText(timeLine, detailPaint, plate.left + 5f, plate.top - margin * 0.25f,
+                    plate.width(), minSide * 0.010f)
             }
             "blur" -> {
                 val plate = drawBottomPlate(0.17f, margin)
-                fitText(model, titlePaint, plate.left + plate.height() * 0.20f,
-                    plate.top + plate.height() * 0.42f, plate.width() - plate.height() * 0.35f,
-                    minSide * 0.026f)
-                fitText(details, detailPaint, plate.left + plate.height() * 0.20f,
-                    plate.top + plate.height() * 0.76f, plate.width() - plate.height() * 0.35f,
-                    minSide * 0.014f)
-                accentPaint.textSize = minSide * 0.011f
-                canvas.drawText("CAMERA NOTES  •  $timestamp", plate.left + plate.height() * 0.20f,
-                    plate.top - margin * 0.25f, accentPaint)
+                val left = plate.left + plate.height() * 0.20f
+                fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
+                    plate.width() - plate.height() * 0.35f, minSide * 0.026f)
+                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
+                    plate.width() - plate.height() * 0.35f, minSide * 0.014f)
+                fitText(timeLine, accentPaint, left, plate.top - margin * 0.25f,
+                    plate.width() - plate.height() * 0.35f, minSide * 0.011f)
             }
             "normal1" -> {
                 val right = output.width - margin
                 titlePaint.textAlign = Paint.Align.RIGHT
                 detailPaint.textAlign = Paint.Align.RIGHT
-                fitText("${focal.ifBlank { "CAMERA" }}  ${aperture}".trim(), titlePaint,
-                    right, output.height - margin * 2.25f, output.width * 0.60f, minSide * 0.022f)
-                fitText("${shutter}  ISO $iso", detailPaint, right,
-                    output.height - margin * 1.30f, output.width * 0.60f, minSide * 0.016f)
+                var baseline = output.height - margin * 1.18f
+                fitText(timeLine, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.014f)
+                baseline -= margin * 0.92f
+                fitText(specs, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.016f)
+                baseline -= margin * 0.98f
+                fitText(modelLine, titlePaint, right, baseline, output.width * 0.60f, minSide * 0.022f)
                 titlePaint.textAlign = Paint.Align.LEFT
                 detailPaint.textAlign = Paint.Align.LEFT
             }
             "normal2" -> {
                 accentPaint.textSize = (minSide * 0.020f).coerceIn(16f, 42f)
                 canvas.drawText("FUJIFILM MODE", margin, output.height - margin * 2.05f, accentPaint)
-                fitText("$timestamp  •  $model", detailPaint, margin,
-                    output.height - margin * 1.12f, output.width - margin * 2f, minSide * 0.014f)
+                val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
+                optionalLines.forEachIndexed { index, line ->
+                    fitText(line, detailPaint, margin,
+                        output.height - margin * (1.12f + index * 0.82f),
+                        output.width - margin * 2f, minSide * 0.013f)
+                }
             }
             "center_logo" -> {
                 val centerX = output.width / 2f
                 val centerY = output.height * 0.52f
+                val panel = RectF(output.width * 0.12f, centerY - minSide * 0.085f,
+                    output.width * 0.88f, centerY + minSide * 0.105f)
                 val backing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = panelColor
                     style = Paint.Style.FILL
                 }
-                val panel = RectF(output.width * 0.12f, centerY - minSide * 0.085f,
-                    output.width * 0.88f, centerY + minSide * 0.105f)
                 canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
+                drawFrame(panel, minSide * 0.018f)
                 titlePaint.textAlign = Paint.Align.CENTER
                 titlePaint.textSize = (minSide * 0.034f).coerceIn(22f, 66f)
                 canvas.drawText("FUJIFILM", centerX, centerY - minSide * 0.006f, titlePaint)
                 val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = foreground
+                    color = AndroidColor.WHITE
                     alpha = 170
                     strokeWidth = (minSide * 0.0015f).coerceAtLeast(2f)
                 }
                 canvas.drawLine(output.width * 0.30f, centerY + minSide * 0.025f,
                     output.width * 0.70f, centerY + minSide * 0.025f, line)
                 detailPaint.textAlign = Paint.Align.CENTER
-                fitText("$model  •  $timestamp", detailPaint, centerX,
-                    centerY + minSide * 0.068f, panel.width() * 0.88f, minSide * 0.013f)
+                val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
+                optionalLines.forEachIndexed { index, value ->
+                    fitText(value, detailPaint, centerX,
+                        centerY + minSide * (0.060f + index * 0.032f),
+                        panel.width() * 0.88f, minSide * 0.011f)
+                }
                 titlePaint.textAlign = Paint.Align.LEFT
                 detailPaint.textAlign = Paint.Align.LEFT
             }
             else -> {
-                drawPhotoFrame()
                 val plate = drawBottomPlate(0.12f, margin)
                 val left = plate.left + plate.height() * 0.22f
-                fitText(model, titlePaint, left, plate.top + plate.height() * 0.43f,
+                fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
                     plate.width() - plate.height() * 0.42f, minSide * 0.023f)
-                fitText(details, detailPaint, left, plate.top + plate.height() * 0.78f,
+                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
                     plate.width() - plate.height() * 0.42f, minSide * 0.014f)
-                accentPaint.textSize = (minSide * 0.0105f).coerceIn(10f, 26f)
-                canvas.drawText("FUJIFILM MODE  •  $timestamp", margin + 2f,
-                    margin + accentPaint.textSize * 1.4f, accentPaint)
+                fitText(timeLine, accentPaint, margin + 2f,
+                    margin + minSide * 0.012f, output.width - margin * 2f, minSide * 0.0105f)
             }
         }
 

@@ -775,7 +775,7 @@ fun CameraScreen(
                                     } else {
                                         val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, 0.22f)
                                         val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
-                                            .setLockingMode(FocusMeteringAction.FLAG_AF)
+                                            // Keep the tapped AF region active until the next user tap.
                                             .disableAutoCancel()
                                             .build()
                                         active.cameraControl.startFocusAndMetering(action)

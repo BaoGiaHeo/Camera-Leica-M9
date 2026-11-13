@@ -159,6 +159,24 @@ private fun currentDisplayIsLandscape(context: Context): Boolean {
     return context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 }
 
+/**
+ * Convert the physical device attitude reported by OrientationEventListener into the
+ * corresponding CameraX target rotation. Do not rely on Display.rotation here: an app can
+ * remain portrait-locked while the handset itself is physically landscape.
+ */
+private fun surfaceRotationFromDeviceOrientation(orientation: Int): Int {
+    if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return Surface.ROTATION_0
+    return when (orientation) {
+        in 45..134 -> Surface.ROTATION_270
+        in 135..224 -> Surface.ROTATION_180
+        in 225..314 -> Surface.ROTATION_90
+        else -> Surface.ROTATION_0
+    }
+}
+
+private fun isDeviceOrientationLandscape(orientation: Int): Boolean =
+    orientation in 45..134 || orientation in 225..314
+
 private val meteringModes = listOf("Center", "Matrix", "Spot")
 private val wbModes = listOf(
     "Auto" to CaptureRequest.CONTROL_AWB_MODE_AUTO,
@@ -201,30 +219,22 @@ fun CameraScreen(
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
     var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
-    // Keep CameraX target rotation current even when rotating between two orientations
-    // that share the same configuration class (for example, landscape-left/right).
+    // Physical device orientation is authoritative for capture geometry. Display.rotation can
+    // stay ROTATION_0 while an app/activity is held in portrait, even when the handset is landscape.
     val orientationListener = remember(context) {
         object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN) return
-                // Re-read Android's actual display rotation. Converting raw sensor degrees
-                // directly assumes every device has a portrait natural orientation.
-                val displayRotation = context.display?.rotation ?: return
-                if (displayRotation != targetRotation) targetRotation = displayRotation
-                val displayLandscape = currentDisplayIsLandscape(context)
-                if (displayLandscape != isLandscape) isLandscape = displayLandscape
+                val sensorRotation = surfaceRotationFromDeviceOrientation(orientation)
+                val sensorLandscape = isDeviceOrientationLandscape(orientation)
+                if (sensorRotation != targetRotation) targetRotation = sensorRotation
+                if (sensorLandscape != isLandscape) isLandscape = sensorLandscape
             }
         }
     }
     DisposableEffect(orientationListener) {
         if (orientationListener.canDetectOrientation()) orientationListener.enable()
         onDispose { orientationListener.disable() }
-    }
-    LaunchedEffect(configuration.orientation, targetRotation) {
-        val displayRotation = context.display?.rotation ?: targetRotation
-        if (displayRotation != targetRotation) targetRotation = displayRotation
-        val displayLandscape = currentDisplayIsLandscape(context)
-        if (displayLandscape != isLandscape) isLandscape = displayLandscape
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
 
@@ -663,12 +673,10 @@ fun CameraScreen(
             }
             // Freeze display rotation and the active camera's sensor-relative rotation for
             // this still capture. CameraX combines target rotation with SENSOR_ORIENTATION.
-            val captureRotation = previewView.display?.rotation
-                ?: context.display?.rotation
-                ?: targetRotation
-            // Re-check the physical display at shutter time. The saved pixels and the
-            // watermark must use the orientation of the display that actually took this shot.
-            val captureIsLandscape = currentDisplayIsLandscape(context)
+            // Freeze the physical handset orientation tracked by OrientationEventListener.
+            // PreviewView/Display.rotation may remain portrait while the handset is landscape.
+            val captureRotation = targetRotation
+            val captureIsLandscape = isLandscape
             val selectedBaseAspectRatio = when (ratioIdx) {
                 0 -> 3f / 2f
                 1 -> 4f / 3f

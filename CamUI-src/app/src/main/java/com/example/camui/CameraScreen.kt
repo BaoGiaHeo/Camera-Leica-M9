@@ -493,8 +493,30 @@ fun CameraScreen(
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                         val saved = result.savedUri
                         if (saved != null) {
-                            lastUri = saved
-                            Toast.makeText(context, "Đã lưu ảnh vào Pictures/FujifilmMode", Toast.LENGTH_SHORT).show()
+                            val info = camera?.cameraInfo?.let { runCatching { Camera2CameraInfo.from(it) }.getOrNull() }
+                            val focal = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                                ?.firstOrNull()?.let { "%.1f mm".format(Locale.US, it) } ?: ""
+                            val aperture = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
+                                ?.firstOrNull()?.let { "f/%.1f".format(Locale.US, it) } ?: ""
+                            val actualIso = if (manualExposure) manualIso else iso
+                            val actualShutterNs = if (manualExposure) manualShutterNs else shutterNs
+                            val shutterLabel = if (actualShutterNs > 0L) {
+                                val seconds = actualShutterNs / 1_000_000_000.0
+                                if (seconds >= 0.5) "%.1fs".format(Locale.US, seconds)
+                                else "1/" + (1.0 / seconds).roundToInt() + "s"
+                            } else ""
+                            scope.launch(Dispatchers.IO) {
+                                val stamped = runCatching {
+                                    applyCameraWatermark(context, saved, focal, aperture, shutterLabel,
+                                        if (actualIso > 0) actualIso.toString() else "AUTO")
+                                }.getOrDefault(false)
+                                withContext(Dispatchers.Main) {
+                                    lastUri = saved
+                                    val message = if (stamped) "Đã lưu ảnh và đóng watermark."
+                                        else "Đã lưu ảnh vào Pictures/FujifilmMode."
+                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         } else {
                             Toast.makeText(context, "Ảnh đã chụp nhưng MediaStore không trả về URI.", Toast.LENGTH_LONG).show()
                         }
@@ -651,6 +673,7 @@ fun CameraScreen(
             val zoomSteps = listOf(0.6f, 0.7f, 1f, 2f)
                 .filter { it >= zoomMinForUi - 0.01f && it <= zoomMaxForUi + 0.01f }
                 .ifEmpty { listOf(zoomMinForUi.coerceAtMost(2f)) }
+            val activeCameraIdLabel = cameraInfo2?.cameraId ?: "—"
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp),
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 zoomSteps.forEach { z ->
@@ -669,8 +692,8 @@ fun CameraScreen(
                             }.padding(horizontal = 5.dp, vertical = 3.dp)
                     )
                 }
-                Text("Vuốt hai ngón để zoom · tối đa 2×", color = CamColors.Sub, fontSize = 8.sp,
-                    modifier = Modifier.padding(start = 7.dp))
+                Text("Camera ID $activeCameraIdLabel", color = CamColors.Sub, fontSize = 8.sp,
+                    modifier = Modifier.padding(start = 5.dp))
             }
 
             val selected = proSel

@@ -19,13 +19,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract CamUI project
+      - name: Prepare Fujifilm camera source
         run: |
           set -e
-          unzip -q CamUI-project.zip
-          test -d CamUI
-          echo "CamUI project files:"
-          find CamUI -maxdepth 3 -type f | sort | head -100
+          test -d CamUI-src
+          cp -R CamUI-src CamUI
+          echo "Camera source files:"
+          find CamUI -maxdepth 8 -type f | sort
 
       - name: Export extracted CamUI source for repair
         uses: actions/upload-artifact@v4

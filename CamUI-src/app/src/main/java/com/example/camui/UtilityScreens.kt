@@ -399,6 +399,12 @@ fun decodeUprightBitmap(context: Context, uri: Uri, maxDimension: Int = 0): Bitm
     else Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
 }
 
+private fun decodeRawPixelBitmap(context: Context, uri: Uri): Bitmap? {
+    return context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input)
+    }
+}
+
 private fun setMediaStoreOrientationUpright(context: Context, uri: Uri) {
     runCatching {
         context.contentResolver.update(
@@ -426,9 +432,7 @@ fun normalizeCapturedImage(
     return runCatching {
         // Decode raw JPEG pixels; BitmapFactory does not apply EXIF orientation.
         // CameraX rotationDegrees is the clockwise transform needed for targetRotation.
-        val rawBitmap = context.contentResolver.openInputStream(uri)?.use { input ->
-            BitmapFactory.decodeStream(input)
-        } ?: return@runCatching false
+        val rawBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
 
         val cameraXDegrees = ((fallbackRotationDegrees % 360) + 360) % 360
         val exifInfo = runCatching {
@@ -656,7 +660,7 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
     return runCatching {
         val cube = lutUriText?.let { readCubeLut(context, Uri.parse(it)) }
         if (!lutUriText.isNullOrBlank() && cube == null) return@runCatching false
-        val bitmap = decodeUprightBitmap(context, uri) ?: return@runCatching false
+        val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
         val row = IntArray(bitmap.width)
         for (y in 0 until bitmap.height) {
             bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -709,7 +713,7 @@ fun applyCameraWatermark(
     }
 
     return runCatching {
-        val bitmap = decodeUprightBitmap(context, uri) ?: return@runCatching false
+        val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
         val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
             ?: return@runCatching false
         val canvas = Canvas(output)

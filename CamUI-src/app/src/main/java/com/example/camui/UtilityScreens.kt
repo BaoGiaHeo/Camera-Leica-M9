@@ -427,87 +427,186 @@ private fun setMediaStoreOrientationUpright(context: Context, uri: Uri) {
  * we use CameraX's sensor-relative rotation, which includes the active camera's SENSOR_ORIENTATION
  * and the frozen display target rotation. No width-vs-height 90-degree guess is made here.
  */
+private data class CaptureOrientationCandidate(
+    val source: String,
+    val degrees: Int,
+    val flipHorizontal: Boolean,
+    val aspectError: Float
+)
+
+private fun aspectErrorAfterRotation(
+    width: Int,
+    height: Int,
+    degrees: Int,
+    expectedAspectRatio: Float
+): Float {
+    val swapsAxes = ((degrees % 180) + 180) % 180 != 0
+    val outputWidth = if (swapsAxes) height else width
+    val outputHeight = if (swapsAxes) width else height
+    val actual = outputWidth.toFloat() / outputHeight.coerceAtLeast(1)
+    return kotlin.math.abs(actual / expectedAspectRatio - 1f)
+}
+
+private fun writeUprightExifMetadata(
+    context: Context,
+    uri: Uri,
+    width: Int,
+    height: Int
+): Boolean {
+    return runCatching {
+        val descriptor = context.contentResolver.openFileDescriptor(uri, "rw")
+            ?: return@runCatching false
+        descriptor.use {
+            ExifInterface(it.fileDescriptor).apply {
+                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                setAttribute(ExifInterface.TAG_THUMBNAIL_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                setAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION, width.toString())
+                setAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION, height.toString())
+                setAttribute(ExifInterface.TAG_IMAGE_WIDTH, width.toString())
+                setAttribute(ExifInterface.TAG_IMAGE_LENGTH, height.toString())
+                saveAttributes()
+            }
+        }
+        true
+    }.onFailure {
+        android.util.Log.e("FUJI_ORIENTATION", "Could not write upright EXIF dimensions", it)
+    }.getOrDefault(false)
+}
+
+/**
+ * Finalize the JPEG after pixels, filters and watermark are complete.
+ * Synchronize EXIF pixel dimensions and MediaStore's cached dimensions/orientation,
+ * then publish the MediaStore row so gallery apps index the final file, not the
+ * temporary camera JPEG metadata.
+ */
+fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, bounds)
+    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return false
+
+    val exifOk = writeUprightExifMetadata(context, uri, bounds.outWidth, bounds.outHeight)
+    val orientationAndPublishOk = runCatching {
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.ORIENTATION, 0)
+            put(MediaStore.Images.Media.IS_PENDING, 0)
+        }
+        context.contentResolver.update(uri, values, null, null) > 0
+    }.getOrDefault(false)
+
+    // WIDTH/HEIGHT are maintained by MediaStore on some Android builds. Update them
+    // explicitly where supported; EXIF dimensions above remain the portable fallback.
+    runCatching {
+        context.contentResolver.update(
+            uri,
+            ContentValues().apply {
+                put(MediaStore.Images.Media.WIDTH, bounds.outWidth)
+                put(MediaStore.Images.Media.HEIGHT, bounds.outHeight)
+            },
+            null,
+            null
+        )
+    }
+
+    android.util.Log.d(
+        "FUJI_ORIENTATION",
+        "published=" + orientationAndPublishOk + ", exif=" + exifOk +
+            ", finalPixels=" + bounds.outWidth + "x" + bounds.outHeight
+    )
+    return exifOk && orientationAndPublishOk
+}
+
+/**
+ * Normalize the pixels to the selected capture aspect ratio.
+ *
+ * The JPEG may already contain correctly oriented landscape pixels while its EXIF tag
+ * still requests a 90/270-degree turn. In that case, the pixel aspect ratio is the
+ * decisive evidence: keep the pixels as-is and clear the stale orientation metadata.
+ * EXIF and CameraX rotations are alternatives; they are never added together.
+ */
 fun normalizeCapturedImage(
     context: Context,
     uri: Uri,
     fallbackRotationDegrees: Int = 0,
-    expectedLandscape: Boolean? = null
+    expectedAspectRatio: Float = 1f
 ): Boolean {
     return runCatching {
-        // Decode raw JPEG pixels; BitmapFactory does not apply EXIF orientation.
-        // CameraX rotationDegrees is the clockwise transform needed for targetRotation.
         val rawBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-
+        val safeExpectedAspect = expectedAspectRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
         val cameraXDegrees = ((fallbackRotationDegrees % 360) + 360) % 360
-        val exifInfo = runCatching {
+
+        val exifOrientation = runCatching {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
-                ExifInterface(descriptor.fileDescriptor)
+                ExifInterface(descriptor.fileDescriptor).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+                )
             }
-        }.getOrNull()
-        val exifOrientation = exifInfo?.getAttributeInt(
-            ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
-        ) ?: ExifInterface.ORIENTATION_NORMAL
-        // Match ExifInterface.getRotationDegrees()/isFlipped() semantics without relying
-        // on newer convenience accessors that are absent in this project's dependency.
+        }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
+
+        // EXIF 5/7 are mirrored transpose variants. Standard mapping: transpose=90,
+        // transverse=270, matching the rotation-plus-mirror mapping used by the decoder.
         val exifDegrees = when (exifOrientation) {
             ExifInterface.ORIENTATION_ROTATE_90,
-            ExifInterface.ORIENTATION_TRANSVERSE -> 90
+            ExifInterface.ORIENTATION_TRANSPOSE -> 90
             ExifInterface.ORIENTATION_ROTATE_180,
             ExifInterface.ORIENTATION_FLIP_VERTICAL -> 180
             ExifInterface.ORIENTATION_ROTATE_270,
-            ExifInterface.ORIENTATION_TRANSPOSE -> 270
+            ExifInterface.ORIENTATION_TRANSVERSE -> 270
             else -> 0
         }
         val exifFlipped = exifOrientation == ExifInterface.ORIENTATION_FLIP_HORIZONTAL ||
             exifOrientation == ExifInterface.ORIENTATION_FLIP_VERTICAL ||
             exifOrientation == ExifInterface.ORIENTATION_TRANSPOSE ||
             exifOrientation == ExifInterface.ORIENTATION_TRANSVERSE
+        val hasExifTransform = exifOrientation != ExifInterface.ORIENTATION_NORMAL &&
+            exifOrientation != ExifInterface.ORIENTATION_UNDEFINED
 
-        fun transform(degrees: Int, flipHorizontal: Boolean): Bitmap {
-            val normalized = ((degrees % 360) + 360) % 360
-            if (normalized == 0 && !flipHorizontal) return rawBitmap
-            val matrix = Matrix().apply {
-                if (flipHorizontal) preScale(-1f, 1f)
-                if (normalized != 0) postRotate(normalized.toFloat())
-            }
-            return Bitmap.createBitmap(
-                rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true
+        val mediaStoreDegrees = if (hasExifTransform) 0 else readMediaStoreRotation(context, uri)
+        val metadataCandidate = when {
+            hasExifTransform -> CaptureOrientationCandidate(
+                "EXIF", exifDegrees, exifFlipped,
+                aspectErrorAfterRotation(rawBitmap.width, rawBitmap.height, exifDegrees, safeExpectedAspect)
             )
+            mediaStoreDegrees != 0 -> CaptureOrientationCandidate(
+                "MediaStore", mediaStoreDegrees, false,
+                aspectErrorAfterRotation(rawBitmap.width, rawBitmap.height, mediaStoreDegrees, safeExpectedAspect)
+            )
+            else -> null
+        }
+        val rawCandidate = CaptureOrientationCandidate(
+            "Raw pixels", 0, false,
+            aspectErrorAfterRotation(rawBitmap.width, rawBitmap.height, 0, safeExpectedAspect)
+        )
+        val cameraCandidate = CaptureOrientationCandidate(
+            "CameraX", cameraXDegrees, false,
+            aspectErrorAfterRotation(rawBitmap.width, rawBitmap.height, cameraXDegrees, safeExpectedAspect)
+        )
+
+        // 6% tolerance covers small even-pixel crop rounding from JPEG encoders.
+        val aspectTolerance = 0.06f
+        val selected = when {
+            // Honor EXIF when its transformed pixel dimensions agree with the selected frame.
+            metadataCandidate?.aspectError?.let { it <= aspectTolerance } == true -> metadataCandidate
+            // Preserve 180-degree correction when EXIF is neutral; 180 keeps the aspect ratio.
+            !hasExifTransform && mediaStoreDegrees == 0 &&
+                cameraXDegrees == 180 && cameraCandidate.aspectError <= aspectTolerance -> cameraCandidate
+            // If the raw pixels already match the target frame, ignore stale 90/270 metadata.
+            rawCandidate.aspectError <= aspectTolerance -> rawCandidate
+            // Apply 90/270 only when the raw pixels have the inverse aspect ratio.
+            cameraCandidate.aspectError <= aspectTolerance -> cameraCandidate
+            else -> listOfNotNull(metadataCandidate, cameraCandidate, rawCandidate)
+                .minByOrNull { it.aspectError } ?: rawCandidate
         }
 
-        fun matchesExpectedOrientation(bitmap: Bitmap): Boolean? {
-            return expectedLandscape?.let { landscape ->
-                if (landscape) bitmap.width > bitmap.height
-                else bitmap.height > bitmap.width
-            }
+        val matrix = Matrix().apply {
+            if (selected.flipHorizontal) preScale(-1f, 1f)
+            if (selected.degrees != 0) postRotate(selected.degrees.toFloat())
         }
-
-        // EXIF and CameraX are alternative descriptions of the same JPEG orientation.
-        // Never add the two angles together.
-        var appliedSource = "CameraX"
-        var appliedDegrees = cameraXDegrees
-        var finalBitmap = transform(cameraXDegrees, false)
-
-        if (matchesExpectedOrientation(finalBitmap) == false) {
-            // Use EXIF only as a mutually-exclusive fallback when CameraX rotation
-            // contradicts the known portrait/landscape capture geometry.
-            val exifCandidate = transform(exifDegrees, exifFlipped)
-            if (matchesExpectedOrientation(exifCandidate) == true) {
-                finalBitmap = exifCandidate
-                appliedSource = "EXIF fallback"
-                appliedDegrees = exifDegrees
-            } else {
-                android.util.Log.e(
-                    "FUJI_ORIENTATION",
-                    "No candidate matches expectedLandscape=" + expectedLandscape +
-                        "; raw=" + rawBitmap.width + "x" + rawBitmap.height +
-                        ", cameraX=" + cameraXDegrees + ", exif=" + exifDegrees
-                )
-                return@runCatching false
-            }
-        } else if (exifDegrees == cameraXDegrees && exifFlipped) {
-            finalBitmap = transform(cameraXDegrees, true)
-            appliedSource = "CameraX + EXIF mirror"
+        val finalBitmap = if (selected.degrees == 0 && !selected.flipHorizontal) {
+            rawBitmap
+        } else {
+            Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
         }
 
         val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
@@ -515,25 +614,20 @@ fun normalizeCapturedImage(
         } ?: false
         if (!outputWritten) return@runCatching false
 
-        // Rotation is now baked into pixels. Clear metadata so gallery/watermark passes
-        // cannot apply another rotation.
-        val descriptor = context.contentResolver.openFileDescriptor(uri, "rw")
-            ?: return@runCatching false
-        descriptor.use {
-            ExifInterface(it.fileDescriptor).apply {
-                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                saveAttributes()
-            }
-        }
+        val exifWritten = writeUprightExifMetadata(
+            context, uri, finalBitmap.width, finalBitmap.height
+        )
         setMediaStoreOrientationUpright(context, uri)
 
         android.util.Log.d(
             "FUJI_ORIENTATION",
-            "source=" + appliedSource + ", rotation=" + appliedDegrees +
-                ", result=" + finalBitmap.width + "x" + finalBitmap.height +
-                ", expectedLandscape=" + expectedLandscape
+            "source=" + selected.source + ", degrees=" + selected.degrees +
+                ", raw=" + rawBitmap.width + "x" + rawBitmap.height +
+                ", final=" + finalBitmap.width + "x" + finalBitmap.height +
+                ", expectedAspect=" + safeExpectedAspect +
+                ", error=" + selected.aspectError + ", exifWritten=" + exifWritten
         )
-        true
+        exifWritten
     }.onFailure {
         android.util.Log.e("FUJI_ORIENTATION", "normalizeCapturedImage failed", it)
     }.getOrDefault(false)

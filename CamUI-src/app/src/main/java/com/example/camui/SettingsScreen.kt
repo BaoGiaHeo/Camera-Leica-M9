@@ -6,6 +6,8 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.graphics.ImageFormat
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -60,6 +63,7 @@ private val settingItems = listOf(
     SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
     SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
     SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
+    SettingItem("Appearance", "App background · custom shutter button"),
     SettingItem("About", "Fujifilm Mode · app-debug")
 )
 
@@ -132,6 +136,24 @@ private fun SettingsDetailPage(
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_coming_soon", false)) }
     var uhd by remember { mutableStateOf(prefs.getBoolean("uhd_coming_soon", false)) }
+    var selectedBackground by remember { mutableStateOf(prefs.getString("app_background_color", "#121212") ?: "#121212") }
+    var backgroundImageUri by remember { mutableStateOf(prefs.getString("app_background_image_uri", null)) }
+    var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFFFFFFF") ?: "#FFFFFFFF") }
+    var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
+    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            backgroundImageUri = uri.toString()
+            prefs.edit().putString("app_background_image_uri", uri.toString()).apply()
+        }
+    }
+    val shutterImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            shutterButtonImageUri = uri.toString()
+            prefs.edit().putString("shutter_button_image_uri", uri.toString()).apply()
+        }
+    }
 
     Column(
         Modifier.fillMaxSize().background(CamColors.Bg)
@@ -239,6 +261,75 @@ private fun SettingsDetailPage(
                 }
                 Text("Ảnh được lưu vào Pictures/FujifilmMode.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
+            }
+            "Appearance" -> {
+                Text("App background", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Chọn màu nền tối hoặc dùng ảnh trong máy làm hình nền. Ảnh được phủ lớp tối để chữ và nút camera vẫn dễ đọc.",
+                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(
+                        "Black" to "#121212",
+                        "Blue" to "#10243B",
+                        "Graphite" to "#292D33",
+                        "Olive" to "#24281A"
+                    ).forEach { (label, hex) ->
+                        Chip(label, selectedBackground == hex && backgroundImageUri == null, {
+                            selectedBackground = hex
+                            backgroundImageUri = null
+                            prefs.edit().putString("app_background_color", hex).remove("app_background_image_uri").apply()
+                            CamColors.Bg = Color(android.graphics.Color.parseColor(hex))
+                        }, Modifier.width(82.dp))
+                    }
+                }
+                Button(onClick = { backgroundPicker.launch(arrayOf("image/*")) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    Text(if (backgroundImageUri == null) "Import ảnh nền" else "Đổi ảnh nền")
+                }
+                if (backgroundImageUri != null) {
+                    Text("Đã chọn ảnh nền. Dùng nút bên dưới để trở về màu đơn.",
+                        color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+                    Text("Dùng màu nền", color = CamColors.Yellow, fontSize = 12.sp,
+                        modifier = Modifier.clickable {
+                            backgroundImageUri = null
+                            prefs.edit().remove("app_background_image_uri").apply()
+                            CamColors.Bg = Color(android.graphics.Color.parseColor(selectedBackground))
+                        }.padding(vertical = 7.dp))
+                }
+
+                Spacer(Modifier.padding(8.dp))
+                Text("Shutter button", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút.",
+                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(
+                        "White" to "#FFFFFFFF",
+                        "Yellow" to "#FFF5C842",
+                        "Blue" to "#FF58A6FF",
+                        "Black" to "#FF202020"
+                    ).forEach { (label, hex) ->
+                        Chip(label, shutterButtonColor == hex && shutterButtonImageUri == null, {
+                            shutterButtonColor = hex
+                            shutterButtonImageUri = null
+                            prefs.edit().putString("shutter_button_color", hex).remove("shutter_button_image_uri").apply()
+                            CamColors.Shutter = Color(android.graphics.Color.parseColor(hex))
+                        }, Modifier.width(78.dp))
+                    }
+                }
+                Button(onClick = { shutterImagePicker.launch(arrayOf("image/*")) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    Text(if (shutterButtonImageUri == null) "Import ảnh cho nút chụp" else "Đổi ảnh nút chụp")
+                }
+                if (shutterButtonImageUri != null) {
+                    Text("Đã chọn ảnh cho nút chụp.",
+                        color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+                    Text("Dùng nút màu", color = CamColors.Yellow, fontSize = 12.sp,
+                        modifier = Modifier.clickable {
+                            shutterButtonImageUri = null
+                            prefs.edit().remove("shutter_button_image_uri").apply()
+                        }.padding(vertical = 7.dp))
+                }
             }
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = Color.White, fontWeight = FontWeight.SemiBold)

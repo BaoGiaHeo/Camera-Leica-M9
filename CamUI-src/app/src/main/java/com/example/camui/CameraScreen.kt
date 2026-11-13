@@ -113,6 +113,7 @@ import androidx.compose.ui.geometry.Size as DrawSize
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -223,6 +224,7 @@ fun CameraScreen(
     var zoomAnimationJob by remember { mutableStateOf<Job?>(null) }
     var lensTransitionVisible by remember { mutableStateOf(false) }
     var lensTransitionLabel by remember { mutableStateOf("") }
+    val lensTransitionPulse = remember { Animatable(0f) }
     var metering by remember { mutableIntStateOf(0) }
     var ultraHdr by remember { mutableStateOf(false) }
     var stabilization by remember { mutableStateOf(false) }
@@ -551,7 +553,7 @@ fun CameraScreen(
         val uri = lastUri ?: return@LaunchedEffect
         thumb = withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.loadThumbnail(uri, Size(320, 320), null).asImageBitmap()
+                decodeUprightBitmap(context, uri, maxDimension = 320)?.asImageBitmap()
             }.getOrNull()
         }
     }
@@ -561,7 +563,8 @@ fun CameraScreen(
         val uri = lastUri ?: return@LaunchedEffect
         viewerBitmap = withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.loadThumbnail(uri, Size(2048, 2048), null).asImageBitmap()
+                // Decode EXIF into the pixels instead of trusting a stale MediaStore thumbnail.
+                decodeUprightBitmap(context, uri, maxDimension = 2048)?.asImageBitmap()
             }.getOrNull()
         }
     }
@@ -717,7 +720,14 @@ fun CameraScreen(
             lensTransitionLabel = if (safeTarget < 0.98f) "SIÊU RỘNG" else "CAM THƯỜNG"
             lensTransitionVisible = true
             scope.launch {
-                delay(720)
+                lensTransitionPulse.snapTo(0f)
+                lensTransitionPulse.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing)
+                )
+            }
+            scope.launch {
+                delay(820)
                 lensTransitionVisible = false
             }
         }
@@ -725,7 +735,7 @@ fun CameraScreen(
             val animatedZoom = Animatable(start)
             animatedZoom.animateTo(
                 targetValue = safeTarget,
-                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing)
             ) {
                 activeCamera.cameraControl.setZoomRatio(value)
                 zoomSel = value
@@ -857,7 +867,15 @@ fun CameraScreen(
                         }
                 ) {
                     key(renderEngine) {
-                        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                        AndroidView(
+                            factory = { previewView },
+                            modifier = Modifier.fillMaxSize().graphicsLayer {
+                                val pulse = kotlin.math.sin(lensTransitionPulse.value * Math.PI).toFloat()
+                                scaleX = 1f + pulse * 0.045f
+                                scaleY = 1f + pulse * 0.045f
+                                alpha = 1f - pulse * 0.14f
+                            }
+                        )
                     }
                     val previewTint = when {
                         activeLutUri.isNotBlank() -> Color(0xFFB4A7C8)
@@ -886,6 +904,11 @@ fun CameraScreen(
                                     Color(0xFFFFF0D2).copy(alpha = 0.38f * wash),
                                     Offset(0f, bandTop),
                                     DrawSize(size.width, size.height * 0.12f)
+                                )
+                                drawRect(
+                                    Color(0xFFFFE5B2).copy(alpha = 0.20f * wash),
+                                    Offset(0f, bandTop + size.height * 0.13f),
+                                    DrawSize(size.width, size.height * 0.025f)
                                 )
                                 drawRect(
                                     Color(0xFF5A2915).copy(alpha = 0.10f * wash),

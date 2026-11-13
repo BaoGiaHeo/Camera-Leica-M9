@@ -400,8 +400,12 @@ fun decodeUprightBitmap(context: Context, uri: Uri, maxDimension: Int = 0): Bitm
 }
 
 private fun decodeRawPixelBitmap(context: Context, uri: Uri): Bitmap? {
+    val options = BitmapFactory.Options().apply {
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+        inMutable = true
+    }
     return context.contentResolver.openInputStream(uri)?.use { input ->
-        BitmapFactory.decodeStream(input)
+        BitmapFactory.decodeStream(input, null, options)
     }
 }
 

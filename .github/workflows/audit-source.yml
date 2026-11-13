@@ -18,38 +18,21 @@ jobs:
           PROJECT_DIR=$(find decoded -type f -name apktool.yml -print -quit | xargs dirname)
           test -n "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-      - name: Inspect settings dialog and UI hooks
+      - name: Dump denoise controls and event handlers
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import os,re
+          import os
           root=Path(os.environ["PROJECT_DIR"])
-          main=root/"smali_classes3/com/xcam/offline/MainActivity.smali"
-          lines=main.read_text(errors="ignore").splitlines()
-          def show_range(a,b):
+          p=root/"smali_classes3/com/xcam/offline/MainActivity.smali"
+          lines=p.read_text(errors="ignore").splitlines()
+          def dump(a,b):
+              print(f"=== SOURCE LINES {a}-{b} ===")
               for n in range(a,min(b,len(lines))+1): print(f"{n}: {lines[n-1]}")
-          print("=== SHOW SETTINGS METHOD: STRINGS / CHECKBOXES / SWITCHES / ROWS ===")
-          start=next(i for i,x in enumerate(lines) if x==".method private final showSettings()V")
-          end=next(i for i in range(start+1,len(lines)) if lines[i]==".end method")
-          for n in range(start,end):
-              line=lines[n]
-              if ("const-string" in line or "new-instance" in line or "->setText(" in line or "->setChecked(" in line or "->setOnCheckedChangeListener" in line or "->setOnClickListener" in line or "->addView(" in line or "denoiseMode" in line or "putInt(" in line or "setTitle(" in line):
-                  print(f"{n+1}: {line}")
-          print("=== SHOW SETTINGS OPENING (first 180 lines) ===")
-          show_range(start+1,min(start+180,end+1))
-          print("=== SHOW SETTINGS LAMBDA METHODS ===")
-          for name in ("showSettings$lambda$152$lambda$151","showSettings$lambda$152$lambda$151$lambda$150"):
-              st=next((i for i,x in enumerate(lines) if x.startswith(".method ") and name in x),None)
-              if st is not None:
-                  en=next((j for j in range(st+1,len(lines)) if lines[j]==".end method"),st)
-                  print(f"--- {name} ---")
-                  show_range(st+1,en+1)
-          print("=== UI PATCH CLASSES ===")
-          for rel in ("smali_classes9/com/xcam/offline/UiV111Feature.smali","smali_classes8/com/xcam/offline/ZoomUiFeature.smali"):
-              p=root/rel
-              if p.exists():
-                  src=p.read_text(errors="ignore").splitlines()
-                  print(f"--- {rel} ---")
-                  for n,line in enumerate(src,1):
-                      if n<300: print(f"{n}: {line}")
+          dump(14955,15250)
+          dump(15955,16470)
+          print("=== DENOISE FIELD DECLARATION AND ALL USES ===")
+          for n,line in enumerate(lines,1):
+              if "denoiseMode" in line or "NOISE_REDUCTION_MODE" in line:
+                  print(f"{n}: {line}")
           PY

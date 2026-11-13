@@ -265,12 +265,12 @@ fun CameraScreen(
                 val captureBuilder = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                     .setTargetRotation(rotation)
-                    // Keep the saved JPEG/JPEG_R crop in the selected aspect ratio.
-                    .setCropAspectRatio(ratio)
                 if (outputFormat == ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR) {
                     captureBuilder.setOutputFormat(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
                 }
                 val capture = captureBuilder.build()
+                // Set the actual still-image crop (not just the preview ViewPort).
+                capture.setCropAspectRatio(ratio)
                 capture.flashMode = flash
 
                 val analysis = ImageAnalysis.Builder()
@@ -865,11 +865,13 @@ fun CameraScreen(
                     } else {
                         Text("Đang tải ảnh...", color = Color.White, modifier = Modifier.align(Alignment.Center))
                     }
-                    CircleBtn(
-                        Icons.Default.Close, "Đóng ảnh",
-                        onClick = { photoViewerVisible = false; viewerBitmap = null },
-                        size = 44.dp
-                    ).align(Alignment.TopEnd).padding(16.dp)
+                    Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                        CircleBtn(
+                            Icons.Default.Close, "Đóng ảnh",
+                            onClick = { photoViewerVisible = false; viewerBitmap = null },
+                            size = 44.dp
+                        )
+                    }
                 }
             }
         }

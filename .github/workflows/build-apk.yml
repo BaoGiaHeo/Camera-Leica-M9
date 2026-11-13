@@ -78,6 +78,21 @@ jobs:
               tag += ' android:label="Fujifilm Mode (app-debug)"'
           p.write_text(s[:a] + tag + s[b:])
           PY
+      - name: Apply CamerAwesome-inspired Fujifilm native UI
+        run: |
+          set -e
+          cp patches/FujiCameraUiFeature.smali "$PROJECT_DIR/smali_classes3/com/xcam/offline/FujiCameraUiFeature.smali"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ["PROJECT_DIR"]) / "smali_classes3/com/xcam/offline/MainActivity.smali"
+          s = p.read_text()
+          anchor = "    invoke-static {v6}, Lcom/xcam/offline/UiV111Feature;->install(Landroid/app/Activity;)V"
+          if s.count(anchor) != 1:
+              raise SystemExit("Could not uniquely locate MainActivity UI install hook")
+          s = s.replace(anchor, anchor + "\\n    invoke-static {v6}, Lcom/xcam/offline/FujiCameraUiFeature;->install(Landroid/app/Activity;)V", 1)
+          p.write_text(s)
+          PY
       - name: Add hardware noise reduction OFF mode
         run: |
           set -e

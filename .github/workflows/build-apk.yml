@@ -34,6 +34,32 @@ jobs:
           fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      - name: Install Camera2 ID and physical camera scanner
+        run: |
+          set -e
+          mkdir -p "$PROJECT_DIR/smali_classes3/com/xcam/offline"
+          cp patches/CameraIdScanner.smali "$PROJECT_DIR/smali_classes3/com/xcam/offline/CameraIdScanner.smali"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root = Path(os.environ["PROJECT_DIR"])
+          listeners = list(root.rglob("CameraInfoDialog$1.smali"))
+          dialogs = list(root.rglob("CameraInfoDialog.smali"))
+          if len(listeners) != 1 or len(dialogs) != 1:
+              raise SystemExit("Expected one CameraInfoDialog listener and class")
+          lp = listeners[0]
+          ls = lp.read_text()
+          old = "Lcom/xcam/offline/CameraInfoDialog;->show(Landroid/content/Context;)V"
+          new = "Lcom/xcam/offline/CameraIdScanner;->show(Landroid/content/Context;)V"
+          if ls.count(old) != 1:
+              raise SystemExit("Could not safely locate camera info button action")
+          lp.write_text(ls.replace(old, new, 1))
+          dp = dialogs[0]
+          ds = dp.read_text()
+          if ds.count('"Thông số camera"') != 1:
+              raise SystemExit("Could not safely locate camera scanner button label")
+          dp.write_text(ds.replace('"Thông số camera"', '"CAMERA ID SCANNER"', 1))
+          PY
       - name: Apply Fuji-inspired interface patch
         run: |
           set -e

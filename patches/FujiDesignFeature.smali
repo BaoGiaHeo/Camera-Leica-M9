@@ -107,6 +107,9 @@
     move-result v1
     if-eqz v1, :check_group
 
+    const-string v1, "Camera Leica M9"
+    invoke-virtual {v0, v1}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
+
     const/4 v1, 0x0
     invoke-virtual {v0, v1}, Landroid/view/View;->setVisibility(I)V
     const/high16 v1, 0x41b00000    # 22.0f

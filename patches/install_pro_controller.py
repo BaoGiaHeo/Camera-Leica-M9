@@ -26,12 +26,15 @@ if capture_call not in s:
         raise SystemExit("Cannot locate ImageCapture.Builder")
     s = s.replace(capture, capture + "\n" + capture_call, 1)
 
-start = s.index(".method private final focusAt(FF)V")
-end = s.index(".end method", start)
-block = s[start:end]
-if ":manual_focus_return" not in block:
-    anchor = '    .param p2, "y"    # F\n\n    .line 436'
-    guard = """    # Manual focus bypasses tap-to-autofocus.
+# Tap-to-focus should not override manual focus, when the base method is present.
+focus_marker = ".method private final focusAt(FF)V"
+if focus_marker in s:
+    start = s.index(focus_marker)
+    end = s.index(".end method", start)
+    block = s[start:end]
+    if ":manual_focus_return" not in block:
+        anchor = '    .param p2, "y"    # F\n\n    .line 436'
+        guard = """    # Manual focus bypasses tap-to-autofocus.
     const-string v0, "pro_camera"
     const/4 v1, 0x0
     invoke-virtual {p0, v0, v1}, Landroid/app/Activity;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
@@ -43,12 +46,17 @@ if ":manual_focus_return" not in block:
     if-nez v0, :manual_focus_return
 
     .line 436"""
-    if block.count(anchor) != 1:
-        raise SystemExit("Cannot locate focusAt insertion point")
-    block = block.replace(anchor, '    .param p2, "y"    # F\n\n' + guard, 1)
-    block += "\n    :manual_focus_return\n    return-void\n"
-    s = s[:start] + block + s[end:]
+        if block.count(anchor) == 1:
+            block = block.replace(anchor, '    .param p2, "y"    # F\n\n' + guard, 1)
+            block += "\n    :manual_focus_return\n    return-void\n"
+            s = s[:start] + block + s[end:]
+            print("Manual-focus tap guard installed.")
+        else:
+            print("NOTICE: focusAt anchor differs; leaving tap-focus method unchanged.")
+else:
+    print("NOTICE: focusAt method absent; leaving tap-focus behavior unchanged.")
 main.write_text(s)
+print("Camera2 Pro UI/configuration hooks installed.")
 
 zoom_files = list(root.rglob("ZoomUiFeature.smali"))
 if len(zoom_files) == 0:

@@ -21,6 +21,7 @@ import android.provider.OpenableColumns
 import android.util.Rational
 import android.util.Size
 import android.view.Surface
+import android.view.OrientationEventListener
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,6 +42,14 @@ import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.ViewPort
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -127,6 +136,7 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -161,12 +171,34 @@ fun CameraScreen(
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
-    val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
-    LaunchedEffect(configuration.orientation) {
-        targetRotation = (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
+    var targetRotation by remember {
+        mutableIntStateOf(context.display?.rotation ?: Surface.ROTATION_0)
     }
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
+        targetRotation == Surface.ROTATION_90 || targetRotation == Surface.ROTATION_270
+    val orientationListener = remember(context) {
+        object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val rotation = when (orientation) {
+                    in 45 until 135 -> Surface.ROTATION_270
+                    in 135 until 225 -> Surface.ROTATION_180
+                    in 225 until 315 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                if (rotation != targetRotation) targetRotation = rotation
+            }
+        }
+    }
+    DisposableEffect(orientationListener) {
+        if (orientationListener.canDetectOrientation()) orientationListener.enable()
+        onDispose { orientationListener.disable() }
+    }
+    LaunchedEffect(configuration.orientation) {
+        val displayRotation = context.display?.rotation ?: targetRotation
+        if (displayRotation != targetRotation) targetRotation = displayRotation
+    }
+    val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
 
     var hasCam by remember {
         mutableStateOf(
@@ -188,6 +220,9 @@ fun CameraScreen(
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(1f) }
+    var zoomAnimationJob by remember { mutableStateOf<Job?>(null) }
+    var lensTransitionVisible by remember { mutableStateOf(false) }
+    var lensTransitionLabel by remember { mutableStateOf("") }
     var metering by remember { mutableIntStateOf(0) }
     var ultraHdr by remember { mutableStateOf(false) }
     var stabilization by remember { mutableStateOf(false) }
@@ -204,7 +239,7 @@ fun CameraScreen(
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
     var activeLutUri by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_lut_uri", "") ?: "") }
     var shutterEffectAlpha by remember { mutableFloatStateOf(0f) }
-    var shutterEffectInverted by remember { mutableStateOf(false) }
+    val filmWashProgress = remember { Animatable(0f) }
     var isProcessing by remember { mutableStateOf(false) }
     var processingProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
@@ -257,7 +292,7 @@ fun CameraScreen(
     }
 
     // The custom CameraX ViewPort crops the preview and saved image to the same ratio.
-    LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, renderEngine, manualCaptureRevision) {
+    LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine, manualCaptureRevision) {
         if (!hasCam) return@LaunchedEffect
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
@@ -554,23 +589,25 @@ fun CameraScreen(
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
                 runCatching { shutterSoundPlayer.play(MediaActionSound.SHUTTER_CLICK) }
             }
-            shutterEffectInverted = appPrefs.getString("shutter_effect", "Mechanical") == "Invert"
+            val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
             scope.launch {
-                if (shutterEffectInverted) {
-                    // A 1.2-second negative flash that slowly returns to the live image.
-                    for (step in 0 until 12) {
-                        shutterEffectAlpha = 0.94f * (1f - (step / 12f))
-                        delay(100)
-                    }
+                if (shutterEffectType == "Film Wash") {
+                    // Warm emulsion wash: a soft amber veil and a moving light band.
+                    filmWashProgress.snapTo(1f)
+                    filmWashProgress.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 1050, easing = FastOutSlowInEasing)
+                    )
                 } else {
                     shutterEffectAlpha = 0.72f
                     delay(70)
                     shutterEffectAlpha = 0.34f
                     delay(80)
+                    shutterEffectAlpha = 0f
                 }
-                shutterEffectAlpha = 0f
             }
-            capture.targetRotation = targetRotation
+            val captureRotation = targetRotation
+            capture.targetRotation = captureRotation
             val name = "FUJI_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
@@ -665,6 +702,37 @@ fun CameraScreen(
         }
     }
 
+    fun animateZoomTo(targetRatio: Float) {
+        val activeCamera = camera ?: return
+        val state = activeCamera.cameraInfo.zoomState.value ?: return
+        val safeTarget = targetRatio.coerceIn(
+            state.minZoomRatio,
+            min(2f, state.maxZoomRatio)
+        )
+        val start = state.zoomRatio
+        val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
+            (start >= 0.98f && safeTarget < 0.98f)
+        zoomAnimationJob?.cancel()
+        if (crossesLensBoundary) {
+            lensTransitionLabel = if (safeTarget < 0.98f) "SIÊU RỘNG" else "CAM THƯỜNG"
+            lensTransitionVisible = true
+            scope.launch {
+                delay(720)
+                lensTransitionVisible = false
+            }
+        }
+        zoomAnimationJob = scope.launch {
+            val animatedZoom = Animatable(start)
+            animatedZoom.animateTo(
+                targetValue = safeTarget,
+                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing)
+            ) {
+                activeCamera.cameraControl.setZoomRatio(value)
+                zoomSel = value
+            }
+        }
+    }
+
     val cameraInfo2 = camera?.cameraInfo?.let { runCatching { Camera2CameraInfo.from(it) }.getOrNull() }
     val requestCapabilities = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
     val manualSensorSupported = requestCapabilities?.contains(
@@ -745,6 +813,7 @@ fun CameraScreen(
                         .background(Color.Black)
                         .pointerInput(camera) {
                             detectTransformGestures { _, _, zoomChange, _ ->
+                                zoomAnimationJob?.cancel()
                                 val zoomState = camera?.cameraInfo?.zoomState?.value ?: return@detectTransformGestures
                                 val maxZoom = min(2f, zoomState.maxZoomRatio)
                                 val nextZoom = (zoomState.zoomRatio * zoomChange)
@@ -804,13 +873,43 @@ fun CameraScreen(
                             drawRect(previewTint.copy(alpha = 0.105f))
                         }
                     }
-                    if (shutterEffectAlpha > 0f) {
+                    if (shutterEffectAlpha > 0f || filmWashProgress.value > 0f) {
                         Canvas(Modifier.fillMaxSize()) {
-                            drawRect(
-                                color = Color.White.copy(alpha = shutterEffectAlpha),
-                                blendMode = if (shutterEffectInverted) BlendMode.Difference else BlendMode.SrcOver
-                            )
+                            if (shutterEffectAlpha > 0f) {
+                                drawRect(Color.White.copy(alpha = shutterEffectAlpha))
+                            }
+                            val wash = filmWashProgress.value
+                            if (wash > 0f) {
+                                drawRect(Color(0xFFFFC078).copy(alpha = 0.24f * wash))
+                                val bandTop = size.height * (1f - wash * 0.88f)
+                                drawRect(
+                                    Color(0xFFFFF0D2).copy(alpha = 0.38f * wash),
+                                    Offset(0f, bandTop),
+                                    DrawSize(size.width, size.height * 0.12f)
+                                )
+                                drawRect(
+                                    Color(0xFF5A2915).copy(alpha = 0.10f * wash),
+                                    Offset(0f, size.height * 0.84f),
+                                    DrawSize(size.width, size.height * 0.16f)
+                                )
+                            }
                         }
+                    }
+                    AnimatedVisibility(
+                        visible = filmWashProgress.value > 0.08f,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+                        enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.92f),
+                        exit = fadeOut(tween(260))
+                    ) {
+                        Text(
+                            "FILM WASH",
+                            color = Color(0xFFFFE8BD).copy(alpha = filmWashProgress.value),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                .background(Color(0x99351B10)).padding(horizontal = 12.dp, vertical = 7.dp)
+                        )
                     }
                     if (showGrid) {
                         Canvas(Modifier.fillMaxSize()) {
@@ -844,6 +943,29 @@ fun CameraScreen(
                             .clip(RoundedCornerShape(6.dp)).background(Color(0x66000000))
                             .padding(horizontal = 6.dp, vertical = 4.dp)
                     )
+                    AnimatedVisibility(
+                        visible = lensTransitionVisible,
+                        modifier = Modifier.align(Alignment.Center),
+                        enter = fadeIn(tween(110)) + scaleIn(
+                            initialScale = 0.78f,
+                            animationSpec = tween(250, easing = FastOutSlowInEasing)
+                        ),
+                        exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.90f, animationSpec = tween(190))
+                    ) {
+                        Column(
+                            Modifier.clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xD9000000))
+                                .border(1.dp, Color(0x88FFFFFF), RoundedCornerShape(16.dp))
+                                .padding(horizontal = 22.dp, vertical = 14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("LENS TRANSITION", color = Color(0xFFBDBDBD), fontSize = 9.sp,
+                                letterSpacing = 1.5.sp)
+                            Text(lensTransitionLabel, color = CamColors.Yellow,
+                                fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
                     if (showHist) {
                         Histogram(hist, Modifier.align(Alignment.TopStart).padding(8.dp).size(106.dp, 52.dp))
                     }
@@ -879,8 +1001,7 @@ fun CameraScreen(
                             .clip(RoundedCornerShape(8.dp))
                             .clickable {
                                 val next = z.coerceIn(zoomMinForUi, zoomMaxForUi)
-                                camera?.cameraControl?.setZoomRatio(next)
-                                zoomSel = next
+                                animateZoomTo(next)
                             }.padding(horizontal = 5.dp, vertical = 3.dp)
                     )
                 }

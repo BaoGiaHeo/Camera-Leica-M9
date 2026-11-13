@@ -406,24 +406,53 @@ private fun setMediaStoreOrientationUpright(context: Context, uri: Uri) {
  * Physically rotates the captured JPEG when it carries EXIF/MediaStore rotation metadata,
  * then resets both metadata sources to neutral. Does no full-resolution decode when already upright.
  */
-fun normalizeCapturedImage(context: Context, uri: Uri): Boolean {
+fun normalizeCapturedImage(
+    context: Context,
+    uri: Uri,
+    expectedLandscape: Boolean? = null
+): Boolean {
     return runCatching {
         val exifOrientation = readExifOrientation(context, uri)
         val needsExifTransform = exifOrientation != ExifInterface.ORIENTATION_NORMAL &&
             exifOrientation != ExifInterface.ORIENTATION_UNDEFINED
 
-        // Do not fall back to MediaStore.ORIENTATION for CameraX captures:
-        // several OEMs leave a stale 90/270 value even when JPEG pixels are already upright.
-        // Applying that stale value turns a portrait photo sideways while the watermark,
-        // which is drawn after normalization, appears correctly oriented.
-        if (!needsExifTransform) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching false
+
+        val exifSwapsDimensions = exifOrientation == ExifInterface.ORIENTATION_ROTATE_90 ||
+            exifOrientation == ExifInterface.ORIENTATION_ROTATE_270 ||
+            exifOrientation == ExifInterface.ORIENTATION_TRANSPOSE ||
+            exifOrientation == ExifInterface.ORIENTATION_TRANSVERSE
+        val uprightWidth = if (exifSwapsDimensions) bounds.outHeight else bounds.outWidth
+        val uprightHeight = if (exifSwapsDimensions) bounds.outWidth else bounds.outHeight
+        val dimensionsMismatch = expectedLandscape != null &&
+            uprightWidth != uprightHeight &&
+            (uprightWidth > uprightHeight) != expectedLandscape
+
+        // Use the display orientation captured with the shutter as the final authority.
+        // This corrects portrait JPEGs whose EXIF is neutral or reversed on some camera HALs.
+        if (!needsExifTransform && !dimensionsMismatch) {
             setMediaStoreOrientationUpright(context, uri)
             return@runCatching true
         }
 
-        val upright = decodeUprightBitmap(context, uri) ?: return@runCatching false
+        val exifUpright = decodeUprightBitmap(context, uri) ?: return@runCatching false
+        val finalBitmap = if (
+            expectedLandscape != null &&
+            exifUpright.width != exifUpright.height &&
+            (exifUpright.width > exifUpright.height) != expectedLandscape
+        ) {
+            val correction = Matrix().apply { postRotate(90f) }
+            Bitmap.createBitmap(
+                exifUpright, 0, 0, exifUpright.width, exifUpright.height, correction, true
+            )
+        } else exifUpright
+
         context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            upright.compress(Bitmap.CompressFormat.JPEG, 98, output)
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
         } ?: return@runCatching false
 
         context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
@@ -746,13 +775,15 @@ fun applyCameraWatermark(
                 titlePaint.textAlign = Paint.Align.CENTER
                 titlePaint.textSize = (minSide * 0.034f).coerceIn(22f, 66f)
                 canvas.drawText("FUJIFILM", centerX, centerY - minSide * 0.006f, titlePaint)
-                val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.WHITE
-                    alpha = 170
-                    strokeWidth = (minSide * 0.0015f).coerceAtLeast(2f)
+                if (frameStyle != "Transparent") {
+                    val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = frameColor
+                        alpha = 245
+                        strokeWidth = (minSide * 0.0015f).coerceAtLeast(2f)
+                    }
+                    canvas.drawLine(output.width * 0.30f, centerY + minSide * 0.025f,
+                        output.width * 0.70f, centerY + minSide * 0.025f, line)
                 }
-                canvas.drawLine(output.width * 0.30f, centerY + minSide * 0.025f,
-                    output.width * 0.70f, centerY + minSide * 0.025f, line)
                 detailPaint.textAlign = Paint.Align.CENTER
                 val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
                 optionalLines.forEachIndexed { index, value ->

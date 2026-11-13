@@ -236,16 +236,30 @@ jobs:
       - name: Apply Camera2 Pro controls
         run: |
           set -e
-          mkdir -p "$PROJECT_DIR/smali_classes3/com/xcam/offline"
-          cp patches/ProCameraFeature.smali "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature.smali"
-          cp 'patches/ProCameraFeature$ChoiceClick.smali' "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature$ChoiceClick.smali"
-          cp 'patches/ProCameraFeature$MenuClick.smali' "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature$MenuClick.smali"
-          cp 'patches/ProCameraFeature$OpenClick.smali' "$PROJECT_DIR/smali_classes3/com/xcam/offline/ProCameraFeature$OpenClick.smali"
+          # Keep the new controller in a dedicated dex shard. This avoids the
+          # source/dex shard collision that left only unresolved class references.
+          PRO_DIR="$PROJECT_DIR/smali_classes11/com/xcam/offline"
+          mkdir -p "$PRO_DIR"
+          cp patches/ProCameraFeature.smali "$PRO_DIR/ProCameraFeature.smali"
+          cp 'patches/ProCameraFeature$ChoiceClick.smali' "$PRO_DIR/ProCameraFeature$ChoiceClick.smali"
+          cp 'patches/ProCameraFeature$MenuClick.smali' "$PRO_DIR/ProCameraFeature$MenuClick.smali"
+          cp 'patches/ProCameraFeature$OpenClick.smali' "$PRO_DIR/ProCameraFeature$OpenClick.smali"
+          test "$(find "$PRO_DIR" -maxdepth 1 -name 'ProCameraFeature*.smali' | wc -l)" -eq 4
           python3 patches/install_pro_controller.py
       - name: Build unsigned APK
         run: |
+          set -e
           mkdir -p output
           java -Xmx4g -jar apktool.jar b "$PROJECT_DIR" -o output/Fujifilm-Mode-unsigned.apk
+          # Decode the produced APK and verify that all Pro class definitions
+          # are actually packaged, not merely referenced by MainActivity.
+          java -jar apktool.jar d -f output/Fujifilm-Mode-unsigned.apk -o output/verify-apk
+          VERIFY_DIR=$(find output/verify-apk -type f -name 'ProCameraFeature.smali' -print -quit)
+          test -n "$VERIFY_DIR"
+          for cls in 'ProCameraFeature$ChoiceClick' 'ProCameraFeature$MenuClick' 'ProCameraFeature$OpenClick'; do
+            test -f "$(dirname "$VERIFY_DIR")/$cls.smali"
+          done
+          echo "Verified all four ProCameraFeature class definitions inside built APK."
       - name: Download APK signer
         run: curl -L --fail -o uber-apk-signer.jar https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
       - name: Generate signing key

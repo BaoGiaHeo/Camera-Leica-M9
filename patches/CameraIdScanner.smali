@@ -125,6 +125,8 @@
     invoke-virtual {v4, v8}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
     move-result-object v4
     :physical_end
+    invoke-static {v4, v0, v6}, Lcom/xcam/offline/CameraIdScanner;->appendPhysicalDetails(Ljava/lang/StringBuilder;Landroid/hardware/camera2/CameraManager;Landroid/hardware/camera2/CameraCharacteristics;)V
+    invoke-static {v4, v6}, Lcom/xcam/offline/CameraIdScanner;->appendEquivalent35(Ljava/lang/StringBuilder;Landroid/hardware/camera2/CameraCharacteristics;)V
     const-string v2, "\n\n"
     invoke-virtual {v4, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
     move-result-object v4
@@ -138,6 +140,151 @@
     const-string v0, "CameraManager không khả dụng trên thiết bị này."
     return-object v0
 .end method
+
+.method private static appendEquivalent35(Ljava/lang/StringBuilder;Landroid/hardware/camera2/CameraCharacteristics;)V
+    .locals 10
+    sget-object v0, Landroid/hardware/camera2/CameraCharacteristics;->LENS_INFO_AVAILABLE_FOCAL_LENGTHS:Landroid/hardware/camera2/CameraCharacteristics$Key;
+    invoke-virtual {p1, v0}, Landroid/hardware/camera2/CameraCharacteristics;->get(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+    move-result-object v1
+    check-cast v1, [F
+    if-eqz v1, :eq_missing
+    array-length v0, v1
+    if-lez v0, :eq_missing
+    const/4 v0, 0x0
+    aget v2, v1, v0
+    sget-object v0, Landroid/hardware/camera2/CameraCharacteristics;->SENSOR_INFO_PHYSICAL_SIZE:Landroid/hardware/camera2/CameraCharacteristics$Key;
+    invoke-virtual {p1, v0}, Landroid/hardware/camera2/CameraCharacteristics;->get(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+    move-result-object v4
+    check-cast v4, Landroid/util/SizeF;
+    if-eqz v4, :eq_missing
+    invoke-virtual {v4}, Landroid/util/SizeF;->getWidth()F
+    move-result v5
+    invoke-virtual {v4}, Landroid/util/SizeF;->getHeight()F
+    move-result v6
+    const/4 v0, 0x0
+    cmpg-float v0, v5, v0
+    if-lez v0, :eq_missing
+    const/4 v0, 0x0
+    cmpg-float v0, v6, v0
+    if-lez v0, :eq_missing
+    mul-float v7, v5, v5
+    mul-float v8, v6, v6
+    add-float/2addr v7, v8
+    float-to-double v8, v7
+    invoke-static {v8, v9}, Ljava/lang/Math;->sqrt(D)D
+    move-result-wide v8
+    double-to-float v7, v8
+    const v8, 0x422d147b
+    mul-float/2addr v8, v2
+    div-float/2addr v8, v7
+    const-string v0, "\nEquivalent 35mm: "
+    invoke-virtual {p0, v0}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v0
+    invoke-static {v8}, Ljava/lang/Float;->toString(F)Ljava/lang/String;
+    move-result-object v1
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v0
+    const-string v1, " mm"
+    invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    return-void
+    :eq_missing
+    const-string v0, "\nEquivalent 35mm: unavailable"
+    invoke-virtual {p0, v0}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    return-void
+.end method
+
+.method private static appendPhysicalDetails(Ljava/lang/StringBuilder;Landroid/hardware/camera2/CameraManager;Landroid/hardware/camera2/CameraCharacteristics;)V
+    .locals 12
+    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+    const/16 v1, 0x1c
+    if-lt v0, v1, :pd_done
+    :try_start_pd
+    invoke-virtual {p2}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+    move-result-object v0
+    const-string v1, "getPhysicalCameraIds"
+    const/4 v2, 0x0
+    new-array v2, v2, [Ljava/lang/Class;
+    invoke-virtual {v0, v1, v2}, Ljava/lang/Class;->getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;
+    move-result-object v0
+    invoke-virtual {v0, p2, v2}, Ljava/lang/reflect/Method;->invoke(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
+    move-result-object v0
+    check-cast v0, Ljava/util/Set;
+    if-eqz v0, :pd_done
+    invoke-interface {v0}, Ljava/util/Set;->iterator()Ljava/util/Iterator;
+    move-result-object v3
+    :pd_loop
+    invoke-interface {v3}, Ljava/util/Iterator;->hasNext()Z
+    move-result v4
+    if-eqz v4, :pd_done
+    invoke-interface {v3}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+    move-result-object v4
+    check-cast v4, Ljava/lang/String;
+    invoke-virtual {p1, v4}, Landroid/hardware/camera2/CameraManager;->getCameraCharacteristics(Ljava/lang/String;)Landroid/hardware/camera2/CameraCharacteristics;
+    move-result-object v5
+    const-string v6, "  Physical camera ID: "
+    invoke-virtual {p0, v6}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    invoke-virtual {v6, v4}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    sget-object v7, Landroid/hardware/camera2/CameraCharacteristics;->LENS_FACING:Landroid/hardware/camera2/CameraCharacteristics$Key;
+    invoke-virtual {v5, v7}, Landroid/hardware/camera2/CameraCharacteristics;->get(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+    move-result-object v7
+    check-cast v7, Ljava/lang/Integer;
+    const-string v8, " | facing="
+    invoke-virtual {v6, v8}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    if-eqz v7, :pd_facing_unknown
+    invoke-virtual {v7}, Ljava/lang/Integer;->intValue()I
+    move-result v8
+    invoke-virtual {v6, v8}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+    move-result-object v6
+    goto :pd_focal
+    :pd_facing_unknown
+    const-string v8, "unknown"
+    invoke-virtual {v6, v8}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    :pd_focal
+    const-string v8, " | focal="
+    invoke-virtual {v6, v8}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    sget-object v8, Landroid/hardware/camera2/CameraCharacteristics;->LENS_INFO_AVAILABLE_FOCAL_LENGTHS:Landroid/hardware/camera2/CameraCharacteristics$Key;
+    invoke-virtual {v5, v8}, Landroid/hardware/camera2/CameraCharacteristics;->get(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
+    move-result-object v8
+    check-cast v8, [F
+    if-eqz v8, :pd_focal_missing
+    array-length v9, v8
+    if-lez v9, :pd_focal_missing
+    const/4 v9, 0x0
+    aget v9, v8, v9
+    invoke-static {v9}, Ljava/lang/Float;->toString(F)Ljava/lang/String;
+    move-result-object v9
+    invoke-virtual {v6, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    const-string v9, " mm"
+    invoke-virtual {v6, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    goto :pd_metrics
+    :pd_focal_missing
+    const-string v9, "unavailable"
+    invoke-virtual {v6, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    :pd_metrics
+    invoke-static {p0, v5}, Lcom/xcam/offline/CameraIdScanner;->appendEquivalent35(Ljava/lang/StringBuilder;Landroid/hardware/camera2/CameraCharacteristics;)V
+    const-string v9, "\n"
+    invoke-virtual {p0, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    move-result-object v6
+    goto :pd_loop
+    :try_end_pd
+    .catch Ljava/lang/Throwable; {:try_start_pd .. :try_end_pd} :pd_error
+    goto :pd_done
+    :pd_error
+    move-exception v0
+    const-string v1, "\nKhông đọc được thông tin camera vật lý."
+    invoke-virtual {p0, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    :pd_done
+    return-void
+.end method
+
 
 .method public static show(Landroid/content/Context;)V
     .locals 5

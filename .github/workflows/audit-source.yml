@@ -18,43 +18,42 @@ jobs:
           PROJECT_DIR=$(find decoded -type f -name apktool.yml -print -quit | xargs dirname)
           test -n "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-      - name: Inspect app UI and camera implementation
+      - name: Inspect settings, UI and camera source
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import os, re
+          import os,re
           root=Path(os.environ["PROJECT_DIR"])
           main=root/"smali_classes3/com/xcam/offline/MainActivity.smali"
-          s=main.read_text(errors="ignore")
-          lines=s.splitlines()
-          print("=== APP-OWNED SMALI CLASSES ===")
-          for base in sorted(root.glob("smali*/com/xcam/offline")):
-              for f in sorted(base.glob("*.smali")):
-                  print(f.relative_to(root))
+          lines=main.read_text(errors="ignore").splitlines()
+          def dump_file(path, ranges=None):
+              src=path.read_text(errors="ignore").splitlines()
+              print(f"=== FILE {path.relative_to(root)} ({len(src)} lines) ===")
+              if ranges is None:
+                  for n,line in enumerate(src,1): print(f"{n}: {line}")
+              else:
+                  for a,b in ranges:
+                      print(f"--- lines {a}-{b} ---")
+                      for n in range(a,min(b,len(src))+1): print(f"{n}: {src[n-1]}")
           print("=== MAIN ACTIVITY METHOD INDEX ===")
-          for i,line in enumerate(lines):
-              if line.startswith(".method ") and any(k in line.lower() for k in ("init", "create", "setting", "dialog", "camera", "mode", "control", "view", "noise", "preview", "build")):
-                  print(f"{i+1}: {line}")
-          def dump(label, start, end):
-              print(f"=== {label} lines {start}-{end} ===")
-              for n in range(start, min(end,len(lines))+1):
-                  print(f"{n}: {lines[n-1]}")
-          for i,line in enumerate(lines):
-              if ".method private final resolveNoiseReductionMode(" in line:
-                  end=next((j for j in range(i+1,len(lines)) if lines[j]==".end method"),i+1)
-                  dump("NOISE REDUCTION MODE RESOLVER",i+1,end+1)
-              if "NOISE_REDUCTION_MODE" in line:
-                  dump("CAMERA2 NOISE REDUCTION REQUEST",max(1,i-22),min(len(lines),i+28))
-              if ".method private final capturePhoto()" in line:
-                  end=next((j for j in range(i+1,len(lines)) if lines[j]==".end method"),i+1)
-                  dump("CAPTURE PHOTO",i+1,min(end+1,i+100))
-          print("=== MAIN ACTIVITY SETTINGS-RELATED STRINGS ===")
-          for i,line in enumerate(lines):
-              if "const-string" in line and re.search(r"setting|quality|noise|kh[u\u1ee7] nhi|camera|photo|image|jpeg|raw|watermark|shutter|resolution|focus|stabil|manual|iso|exposure|timer|grid|format|filter|style|film",line,re.I):
-                  print(f"{i+1}: {line.strip()}")
-          print("=== UI RESOURCE INVENTORY ===")
-          for folder in ("res/layout","res/drawable","res/menu","res/values"):
-              d=root/folder
-              if d.exists():
-                  print(folder, [x.name for x in d.iterdir()])
+          for i,line in enumerate(lines,1):
+              if line.startswith(".method "):
+                  print(f"{i}: {line}")
+          for name in ("loadSettings","saveSettings","resolveNoiseReductionMode"):
+              start=next((i for i,x in enumerate(lines) if x.startswith(".method ") and (" "+name+"(") in x),None)
+              if start is not None:
+                  end=next((j for j in range(start+1,len(lines)) if lines[j]==".end method"),start)
+                  print(f"=== METHOD {name} ===")
+                  for n in range(start,end+1): print(f"{n+1}: {lines[n]}")
+          # Summarize all visible strings in buildUi to map the existing controls.
+          start=next(i for i,x in enumerate(lines) if x==".method private final buildUi()V")
+          end=next(i for i in range(start+1,len(lines)) if lines[i]==".end method")
+          print("=== BUILD UI STRINGS AND VIEW CONSTRUCTION ===")
+          for n in range(start,end):
+              line=lines[n]
+              if any(k in line for k in ("const-string","new-instance","->setText(","->setTextSize(","->setTextColor(","->setBackground","->addView(","->setOnClickListener","->setPadding(","->setGravity(")):
+                  print(f"{n+1}: {line}")
+          for rel in ("smali_classes3/com/xcam/offline/AppSettingsStore.smali","smali_classes3/com/xcam/offline/ExtraCameraSettings.smali"):
+              p=root/rel
+              if p.exists(): dump_file(p)
           PY

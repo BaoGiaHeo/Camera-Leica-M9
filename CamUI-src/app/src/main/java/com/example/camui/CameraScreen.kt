@@ -78,6 +78,7 @@ import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -207,7 +208,6 @@ fun CameraScreen(
     var isProcessing by remember { mutableStateOf(false) }
     var processingProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
-    var compositionGuideEnabled by remember { mutableStateOf(false) }
     val shutterSoundPlayer = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
     }
@@ -575,12 +575,6 @@ fun CameraScreen(
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                put(MediaStore.Images.Media.ORIENTATION, when (targetRotation) {
-                    Surface.ROTATION_90 -> 90
-                    Surface.ROTATION_180 -> 180
-                    Surface.ROTATION_270 -> 270
-                    else -> 0
-                })
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode")
             }
             val output = ImageCapture.OutputFileOptions.Builder(
@@ -621,24 +615,31 @@ fun CameraScreen(
                                 }
                             }
                             scope.launch(Dispatchers.IO) {
-                                withContext(Dispatchers.Main) { processingProgress = 18 }
+                                withContext(Dispatchers.Main) { processingProgress = 12 }
+                                val orientationNormalized = runCatching {
+                                    normalizeCapturedImage(context, saved)
+                                }.getOrDefault(false)
+                                withContext(Dispatchers.Main) { processingProgress = 28 }
                                 val lookApplied = runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 62 }
                                 val stamped = runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
-                                        if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        expectedLandscape = isLandscape
+                                        if (actualIso > 0) actualIso.toString() else "AUTO"
                                     )
+                                }.getOrDefault(false)
+                                val orientationLabelFixed = orientationNormalized || runCatching {
+                                    normalizeCapturedImage(context, saved)
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 92 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
                                     processingProgress = 100
                                     val message = when {
-                                        stamped && lookApplied -> "Đã lưu ảnh, áp dụng màu và watermark."
-                                        stamped -> "Đã lưu ảnh và đóng watermark."
-                                        lookApplied -> "Đã lưu ảnh và áp dụng bộ lọc/LUT."
+                                        stamped && lookApplied -> "Đã lưu ảnh đúng hướng, áp dụng màu và watermark."
+                                        stamped -> "Đã lưu ảnh đúng hướng và đóng watermark."
+                                        lookApplied -> "Đã lưu ảnh đúng hướng và áp dụng bộ lọc/LUT."
+                                        orientationLabelFixed -> "Đã lưu ảnh đúng hướng vào album."
                                         else -> "Đã lưu ảnh vào Pictures/FujifilmMode."
                                     }
                                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -714,7 +715,7 @@ fun CameraScreen(
                     tint = if (timerSec > 0) CamColors.Yellow else Color.White
                 )
                 CircleBtn(
-                    Icons.Default.FilterCenterFocus, "Metering",
+                    Icons.Default.Tune, "Metering",
                     onClick = { metering = (metering + 1) % meteringModes.size },
                     tint = if (metering > 0) CamColors.Yellow else Color.White
                 )
@@ -803,19 +804,6 @@ fun CameraScreen(
                             drawRect(previewTint.copy(alpha = 0.105f))
                         }
                     }
-                    if (compositionGuideEnabled) {
-                        Canvas(Modifier.fillMaxSize()) {
-                            val guide = Color(0xCCF5C842)
-                            for (i in 1..2) {
-                                val x = size.width * i / 3f
-                                val y = size.height * i / 3f
-                                drawLine(guide, Offset(x, 0f), Offset(x, size.height), 1.2.dp.toPx())
-                                drawLine(guide, Offset(0f, y), Offset(size.width, y), 1.2.dp.toPx())
-                                drawCircle(guide, 3.dp.toPx(), Offset(x, size.height / 2f))
-                                drawCircle(guide, 3.dp.toPx(), Offset(size.width / 2f, y))
-                            }
-                        }
-                    }
                     if (shutterEffectAlpha > 0f) {
                         Canvas(Modifier.fillMaxSize()) {
                             drawRect(
@@ -848,11 +836,14 @@ fun CameraScreen(
                             modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                                 .clip(RoundedCornerShape(8.dp)).background(CamColors.Yellow).padding(horizontal = 9.dp, vertical = 5.dp))
                     }
-                    if (focusLocked) {
-                        Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
-                                .clip(RoundedCornerShape(8.dp)).background(CamColors.Yellow).padding(horizontal = 9.dp, vertical = 5.dp))
-                    }
+                    Text(
+                        if (focusLocked) "AF LOCK" else "TAP AF · HOLD LOCK",
+                        color = if (focusLocked) CamColors.Yellow else Color.White.copy(alpha = 0.72f),
+                        fontSize = 8.sp,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(7.dp)
+                            .clip(RoundedCornerShape(6.dp)).background(Color(0x66000000))
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    )
                     if (showHist) {
                         Histogram(hist, Modifier.align(Alignment.TopStart).padding(8.dp).size(106.dp, 52.dp))
                     }
@@ -866,20 +857,6 @@ fun CameraScreen(
                     }
                 }
             }
-
-            Text(
-                if (focusLocked) "AF LOCK · Chạm để lấy nét lại" else "Chạm để lấy nét · Nhấn giữ để khóa nét",
-                color = if (focusLocked) CamColors.Yellow else CamColors.Sub,
-                fontSize = 9.sp, modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                textAlign = TextAlign.Center
-            )
-
-            Text(
-                if (focusLocked) "AF LOCK · Chạm để lấy nét lại" else "Chạm để lấy nét · Nhấn giữ để khóa nét",
-                color = if (focusLocked) CamColors.Yellow else CamColors.Sub,
-                fontSize = 9.sp, modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                textAlign = TextAlign.Center
-            )
 
             // Only show values exposed by this camera's zoom range.
             val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
@@ -1206,17 +1183,10 @@ fun CameraScreen(
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
-                    .clickable {
-                        compositionGuideEnabled = !compositionGuideEnabled
-                        if (compositionGuideEnabled) {
-                            Toast.makeText(context, "Đang hiển thị lưới căn bố cục. AI Grid Anchor đang chờ chuyển đổi model Android.", Toast.LENGTH_LONG).show()
-                        }
-                    }
+                Box(Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x552B2B2B))
                     .padding(horizontal = 14.dp, vertical = 7.dp)) {
-                    Text(if (compositionGuideEnabled) "AI Bố cục ✓" else "AI Bố cục",
-                        color = if (compositionGuideEnabled) CamColors.Yellow else Color.White,
-                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("AI Bố cục · Sắp ra mắt",
+                        color = Color(0xFF777777), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

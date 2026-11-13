@@ -928,22 +928,10 @@ fun CameraScreen(
                             }
                         }
                     }
-                    AnimatedVisibility(
-                        visible = filmWashProgress.value > 0.08f,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
-                        enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.92f),
-                        exit = fadeOut(tween(260))
-                    ) {
-                        Text(
-                            "FILM WASH",
-                            color = Color(0xFFFFE8BD).copy(alpha = filmWashProgress.value),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x99351B10)).padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
-                    }
+                    FilmWashLabel(
+                        progress = filmWashProgress.value,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp)
+                    )
                     if (showGrid) {
                         Canvas(Modifier.fillMaxSize()) {
                             val c = Color(0x66FFFFFF)
@@ -976,29 +964,11 @@ fun CameraScreen(
                             .clip(RoundedCornerShape(6.dp)).background(Color(0x66000000))
                             .padding(horizontal = 6.dp, vertical = 4.dp)
                     )
-                    AnimatedVisibility(
+                    LensTransitionOverlay(
                         visible = lensTransitionVisible,
-                        modifier = Modifier.align(Alignment.Center),
-                        enter = fadeIn(tween(110)) + scaleIn(
-                            initialScale = 0.78f,
-                            animationSpec = tween(250, easing = FastOutSlowInEasing)
-                        ),
-                        exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.90f, animationSpec = tween(190))
-                    ) {
-                        Column(
-                            Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xD9000000))
-                                .border(1.dp, Color(0x88FFFFFF), RoundedCornerShape(16.dp))
-                                .padding(horizontal = 22.dp, vertical = 14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("LENS TRANSITION", color = Color(0xFFBDBDBD), fontSize = 9.sp,
-                                letterSpacing = 1.5.sp)
-                            Text(lensTransitionLabel, color = CamColors.Yellow,
-                                fontSize = 17.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 4.dp))
-                        }
-                    }
+                        lensLabel = lensTransitionLabel,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
                     if (showHist) {
                         Histogram(hist, Modifier.align(Alignment.TopStart).padding(8.dp).size(106.dp, 52.dp))
                     }
@@ -1447,6 +1417,58 @@ fun CameraScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun FilmWashLabel(progress: Float, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = progress > 0.08f,
+        modifier = modifier,
+        enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.92f),
+        exit = fadeOut(tween(260))
+    ) {
+        Text(
+            "FILM WASH",
+            color = Color(0xFFFFE8BD).copy(alpha = progress.coerceIn(0f, 1f)),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                .background(Color(0x99351B10)).padding(horizontal = 12.dp, vertical = 7.dp)
+        )
+    }
+}
+
+@Composable
+private fun LensTransitionOverlay(
+    visible: Boolean,
+    lensLabel: String,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = fadeIn(tween(110)) + scaleIn(
+            initialScale = 0.78f,
+            animationSpec = tween(250, easing = FastOutSlowInEasing)
+        ),
+        exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.90f, animationSpec = tween(190))
+    ) {
+        Column(
+            Modifier.clip(RoundedCornerShape(16.dp))
+                .background(Color(0xD9000000))
+                .border(1.dp, Color(0x88FFFFFF), RoundedCornerShape(16.dp))
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("LENS TRANSITION", color = Color(0xFFBDBDBD), fontSize = 9.sp,
+                letterSpacing = 1.5.sp)
+            Text(lensLabel, color = CamColors.Yellow,
+                fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

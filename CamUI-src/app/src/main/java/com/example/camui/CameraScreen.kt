@@ -269,7 +269,17 @@ fun CameraScreen(
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
-    val appPrefs = remember { context.getSharedPreferences("fujifilm_settings", 0) }
+    val appPrefs = remember {
+        context.getSharedPreferences("fujifilm_settings", 0).also { prefs ->
+            // Migrate earlier default/invert shutter preferences to the requested film-development effect.
+            if (!prefs.getBoolean("shutter_effect_v2_migrated", false)) {
+                prefs.edit()
+                    .putString("shutter_effect", "Film Wash")
+                    .putBoolean("shutter_effect_v2_migrated", true)
+                    .apply()
+            }
+        }
+    }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val shutterButtonImageUri = appPrefs.getString("shutter_button_image_uri", null)

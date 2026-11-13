@@ -535,6 +535,7 @@ fun applyCameraWatermark(
         setMediaStoreOrientationUpright(context, uri)
         true
     }.getOrDefault(false)
+}
 
 @Composable
 fun ContentManagementScreen(onBack: () -> Unit) {

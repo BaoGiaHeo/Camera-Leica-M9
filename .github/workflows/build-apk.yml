@@ -78,7 +78,7 @@ jobs:
               tag += ' android:label="Camera Leica M9 (app-debug)"'
           p.write_text(s[:a] + tag + s[b:])
           PY
-      - name: Apply Fuji-inspired interface patch
+      - name: Apply PhotonCamera-inspired full UI theme
         run: |
           set -e
           mkdir -p "$PROJECT_DIR/smali_classes3/com/xcam/offline"

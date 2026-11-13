@@ -1,6 +1,15 @@
 package com.example.camui
 
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color as AndroidColor
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.RectF
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,9 +39,10 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -41,6 +51,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,7 +67,13 @@ fun ToolboxScreen(
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(16.dp)) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", false)) }
+    var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
+    var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
+
+    Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
         PageHeader("Toolbox", onBack)
         Text("Viewfinder overlays", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
@@ -63,7 +81,140 @@ fun ToolboxScreen(
         ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
         ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
             focusPeaking, onFocusPeaking)
+        Spacer(Modifier.height(16.dp))
+        Text("Watermark", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        ToolToggle("Enable Watermark", "Khung ảnh phong cách rangefinder, không có logo thương hiệu",
+            Icons.Default.Image, watermarkEnabled) {
+            watermarkEnabled = it
+            prefs.edit().putBoolean("watermark_enabled", it).apply()
+        }
+        Text("Frame color", color = CamColors.Sub, fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 7.dp, top = 5.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("White", "Black", "Transparent").forEach { style ->
+                Chip(style, watermarkStyle == style, {
+                    watermarkStyle = style
+                    prefs.edit().putString("watermark_style", style).apply()
+                }, Modifier.weight(1f))
+            }
+        }
+        Text("Model", color = Color.White, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 15.dp))
+        Text("Auto sẽ lấy tên model của điện thoại: ${android.os.Build.MODEL}",
+            color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+        OutlinedTextField(
+            value = customModel,
+            onValueChange = { customModel = it },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            label = { Text("Custom Model (để trống = Auto)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+        )
+        Button(onClick = {
+            prefs.edit().putString("watermark_custom_model", customModel.trim()).apply()
+        }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            Text("Save Model")
+        }
+        Text("Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng.",
+            color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp))
+        Text("Watermark được đóng trực tiếp lên ảnh sau khi chụp. Thông số mm, khẩu độ, shutter và ISO lấy từ camera đang hoạt động khi HAL có cung cấp.",
+            color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
     }
+}
+
+
+/**
+ * Burns an unobtrusive, logo-free rangefinder-style frame into the captured JPEG.
+ * Large images are retried with a lower decode sample size to avoid exhausting device memory.
+ */
+fun applyCameraWatermark(
+    context: Context,
+    uri: Uri,
+    focal: String,
+    aperture: String,
+    shutter: String,
+    iso: String
+): Boolean {
+    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    if (!prefs.getBoolean("watermark_enabled", false)) return false
+
+    return runCatching {
+        val orientation = context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+            ExifInterface(pfd.fileDescriptor).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+            )
+        } ?: ExifInterface.ORIENTATION_NORMAL
+
+        var decoded: Bitmap? = null
+        for (sample in listOf(1, 2, 4, 8)) {
+            decoded = try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    BitmapFactory.Options().let { options ->
+                        options.inSampleSize = sample
+                        BitmapFactory.decodeStream(input, null, options)
+                    }
+                }
+            } catch (_: OutOfMemoryError) {
+                null
+            }
+            if (decoded != null) break
+        }
+        val source = decoded ?: return@runCatching false
+        val rotateDegrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90, ExifInterface.ORIENTATION_TRANSPOSE -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180, ExifInterface.ORIENTATION_FLIP_VERTICAL -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270, ExifInterface.ORIENTATION_TRANSVERSE -> 270f
+            else -> 0f
+        }
+        val upright = if (rotateDegrees != 0f) {
+            Bitmap.createBitmap(source, 0, 0, source.width, source.height,
+                Matrix().apply { postRotate(rotateDegrees) }, true)
+        } else source
+        val output = if (upright.isMutable) upright else upright.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(output)
+        val style = prefs.getString("watermark_style", "White") ?: "White"
+        val baseColor = when (style) {
+            "Black" -> AndroidColor.BLACK
+            "Transparent" -> AndroidColor.WHITE
+            else -> AndroidColor.WHITE
+        }
+        val alpha = if (style == "Transparent") 105 else 235
+        val minSide = minOf(output.width, output.height).toFloat()
+        val inset = (minSide * 0.035f).coerceAtLeast(12f)
+        val stroke = (minSide * 0.003f).coerceAtLeast(2f)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = baseColor
+            this.alpha = alpha
+            style = Paint.Style.STROKE
+            strokeWidth = stroke
+        }
+        canvas.drawRect(RectF(inset, inset, output.width - inset, output.height - inset), paint)
+        paint.style = Paint.Style.FILL
+        paint.textSize = (minSide * 0.022f).coerceIn(12f, 42f)
+        paint.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+        val model = prefs.getString("watermark_custom_model", "")?.trim()
+            ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+        val line1 = model
+        val line2 = listOf(focal, aperture, shutter, "ISO $iso")
+            .filter { it.isNotBlank() }.joinToString("   ")
+        val bottomY = output.height - inset * 0.48f
+        canvas.drawText(line1.take(48), inset * 1.25f, bottomY - paint.textSize * 1.25f, paint)
+        val line2Width = paint.measureText(line2)
+        canvas.drawText(line2, (output.width - inset * 1.25f - line2Width).coerceAtLeast(inset),
+            bottomY, paint)
+
+        val bytes = java.io.ByteArrayOutputStream()
+        output.compress(Bitmap.CompressFormat.JPEG, 96, bytes)
+        context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes.toByteArray()) }
+            ?: return@runCatching false
+        context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
+            ExifInterface(pfd.fileDescriptor).apply {
+                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                saveAttributes()
+            }
+        }
+        true
+    }.getOrDefault(false)
 }
 
 @Composable

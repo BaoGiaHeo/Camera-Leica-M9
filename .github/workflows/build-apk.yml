@@ -42,6 +42,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import os
+          import re
           root = Path(os.environ["PROJECT_DIR"])
           listeners = list(root.rglob("CameraInfoDialog$1.smali"))
           dialogs = list(root.rglob("CameraInfoDialog.smali"))
@@ -209,22 +210,22 @@ jobs:
           a = ms.index(".method private static renderShowcase(")
           b = ms.index(".end method", a)
           mb = ms[a:b]
-          fill = "\n".join(["    const/4 v5, -0x1", "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"])
-          glass = "\n".join(["    const/16 v5, 0xdc", "    const/16 v6, 0x12", "    const/16 v8, 0x18", "    const/16 v9, 0x20", "    invoke-static {v5, v6, v8, v9}, Landroid/graphics/Color;->argb(IIII)I", "    move-result v5", "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"])
-          if mb.count(fill) != 1:
+          fill_re = r"const/4 v5, -0x1\\s+invoke-virtual \\{v3, v5\\}, Landroid/graphics/Paint;->setColor\\(I\\)V"
+          glass = "\\n\\n".join(["    const/16 v5, 0xdc", "    const/16 v6, 0x12", "    const/16 v8, 0x18", "    const/16 v9, 0x20", "    invoke-static {v5, v6, v8, v9}, Landroid/graphics/Color;->argb(IIII)I", "    move-result v5", "    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"])
+          mb, n = re.subn(fill_re, glass, mb, count=1)
+          if n != 1:
               raise SystemExit("Could not locate watermark glass panel fill")
-          mb = mb.replace(fill, glass, 1)
-          edge = "\n".join(["    const/16 v9, 0xe1", "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I"])
-          reflective_edge = "\n".join(["    const/16 v9, 0x9c", "    const/16 v11, 0xd8", "    const/16 v14, 0xf0", "    invoke-static {v9, v11, v14}, Landroid/graphics/Color;->rgb(III)I"])
-          if mb.count(edge) != 1:
+          edge_re = r"const/16 v9, 0xe1\\s+invoke-static \\{v9, v9, v9\\}, Landroid/graphics/Color;->rgb\\(III\\)I"
+          reflective_edge = "\\n\\n".join(["    const/16 v9, 0x9c", "    const/16 v11, 0xd8", "    const/16 v14, 0xf0", "    invoke-static {v9, v11, v14}, Landroid/graphics/Color;->rgb(III)I"])
+          mb, n = re.subn(edge_re, reflective_edge, mb, count=1)
+          if n != 1:
               raise SystemExit("Could not locate watermark reflective edge")
-          mb = mb.replace(edge, reflective_edge, 1)
           mb = mb.replace('"sans-serif-condensed"', '"sans-serif"', 1)
-          dark_text = "\n".join(["    const/16 v9, 0x14", "    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I", "    move-result v11"])
-          light_text = "\n".join(["    const/4 v9, -0x1", "    move v11, v9"])
-          if mb.count(dark_text) != 1:
+          dark_text_re = r"const/16 v9, 0x14\\s+invoke-static \\{v9, v9, v9\\}, Landroid/graphics/Color;->rgb\\(III\\)I\\s+move-result v11"
+          light_text = "    const/4 v9, -0x1\\n\\n    move v11, v9"
+          mb, n = re.subn(dark_text_re, light_text, mb, count=1)
+          if n != 1:
               raise SystemExit("Could not locate watermark text color")
-          mb = mb.replace(dark_text, light_text, 1)
           ms = ms[:a] + mb + ms[b:]
           mp.write_text(ms)
           print("Liquid-glass watermark and smooth non-pixel blur patches applied.")

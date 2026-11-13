@@ -57,10 +57,9 @@ jobs:
           mkdir -p report/source
           cp "$PROJECT/AndroidManifest.xml" report/source/
           cp "$PROJECT/apktool.yml" report/source/
-          cp "$PROJECT/smali_classes3/com/xcam/offline/MainActivity.smali" report/source/
-          cp "$PROJECT/smali_classes9/com/xcam/offline/HighResolutionFeature.smali" report/source/
-          cp "$PROJECT/smali_classes10/com/xcam/offline/CameraInfoDialog.smali" report/source/
+          find "$PROJECT"/smali* -path '*/com/xcam/offline/*.smali' -type f -exec cp {} report/source/ \;
           find "$PROJECT/res/layout" -maxdepth 1 -type f -name '*.xml' -exec cp {} report/source/ \; 2>/dev/null || true
+          find "$PROJECT/res/values" -maxdepth 1 -type f \( -name 'strings.xml' -o -name 'styles.xml' -o -name 'themes.xml' \) -exec cp {} report/source/ \; 2>/dev/null || true
 
       - name: Upload report
         uses: actions/upload-artifact@v4

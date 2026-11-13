@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,7 +24,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,7 +38,7 @@ import androidx.compose.ui.unit.sp
 private data class SettingItem(val title: String, val subtitle: String)
 
 private val settingItems = listOf(
-    SettingItem("Assistive Tools", "Grid Lines · Horizontal Level · Focus Peaking · Histogram"),
+    SettingItem("Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
     SettingItem("Focus & Lens", "Autofocus · Manual focus · Lens behavior"),
     SettingItem("Capture & Storage", "Aspect ratio · Photo quality · Save location"),
     SettingItem("Photo Mode Settings", "Photo output · Sharpening · Noise reduction"),
@@ -44,10 +46,31 @@ private val settingItems = listOf(
 )
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    ratioIdx: Int,
+    onRatio: (Int) -> Unit,
+    showGrid: Boolean,
+    onShowGrid: (Boolean) -> Unit,
+    showHist: Boolean,
+    onShowHist: (Boolean) -> Unit,
+    focusPeaking: Boolean,
+    onFocusPeaking: (Boolean) -> Unit
+) {
     var selectedPage by remember { mutableStateOf<String?>(null) }
     if (selectedPage != null) {
-        SettingsDetailPage(title = selectedPage!!, onBack = { selectedPage = null })
+        SettingsDetailPage(
+            title = selectedPage!!,
+            onBack = { selectedPage = null },
+            ratioIdx = ratioIdx,
+            onRatio = onRatio,
+            showGrid = showGrid,
+            onShowGrid = onShowGrid,
+            showHist = showHist,
+            onShowHist = onShowHist,
+            focusPeaking = focusPeaking,
+            onFocusPeaking = onFocusPeaking
+        )
         return
     }
     Column(Modifier.fillMaxSize().background(CamColors.Bg)) {
@@ -73,17 +96,21 @@ fun SettingsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun SettingsDetailPage(title: String, onBack: () -> Unit) {
-    var focusAssist by remember { mutableStateOf(true) }
-    var hLevel by remember { mutableStateOf(false) }
-    var faceAf by remember { mutableStateOf(true) }
-    var distortion by remember { mutableStateOf(false) }
-    var autoSave by remember { mutableStateOf(true) }
-    var highQuality by remember { mutableStateOf(true) }
-    var denoise by remember { mutableStateOf(false) }
-    var sharpening by remember { mutableFloatStateOf(0.35f) }
-
-    Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(16.dp)) {
+private fun SettingsDetailPage(
+    title: String,
+    onBack: () -> Unit,
+    ratioIdx: Int,
+    onRatio: (Int) -> Unit,
+    showGrid: Boolean,
+    onShowGrid: (Boolean) -> Unit,
+    showHist: Boolean,
+    onShowHist: (Boolean) -> Unit,
+    focusPeaking: Boolean,
+    onFocusPeaking: (Boolean) -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)
+    ) {
         Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.material3.IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -92,39 +119,48 @@ private fun SettingsDetailPage(title: String, onBack: () -> Unit) {
         }
         when (title) {
             "Assistive Tools" -> {
-                SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusAssist) { focusAssist = it }
-                SettingsSwitch("Horizontal Level", "Show the horizon guide", hLevel) { hLevel = it }
-                Text("Grid và Histogram có thể bật nhanh từ Toolbox.", color = CamColors.Sub,
-                    fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+                Text("Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm.",
+                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+                SettingsSwitch("Grid Lines", "Thirds composition guide", showGrid, onShowGrid)
+                SettingsSwitch("Histogram", "Live luminance histogram", showHist, onShowHist)
+                SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusPeaking, onFocusPeaking)
             }
             "Focus & Lens" -> {
-                SettingsSwitch("Human / Eye AF priority", "Use continuous autofocus when supported", faceAf) { faceAf = it }
-                SettingsSwitch("Lens distortion correction", "Camera pipeline dependent", distortion) { distortion = it }
-                Text("Chạm vào khung ngắm để lấy nét và đo sáng tại điểm chạm. Điều khiển AF thủ công có trong Pro.",
-                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+                Text("Autofocus", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Chạm vào vị trí cần nét trên kính ngắm để CameraX chạy AF + AE tại điểm chạm. Trong chế độ Pro, mục AF mở lấy nét thủ công khi ống kính báo hỗ trợ LENS_INFO_MINIMUM_FOCUS_DISTANCE.",
+                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp))
+                Text("Giới hạn", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Eye AF và hiệu chỉnh méo ống kính phụ thuộc các chế độ mà camera HAL của thiết bị cung cấp; app không bật giả khi HAL không hỗ trợ.",
+                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
             }
             "Capture & Storage" -> {
-                SettingsSwitch("Auto save to gallery", "Store captured photos in Pictures/FujifilmMode", autoSave) { autoSave = it }
-                Text("Aspect ratio hiện được chọn trong Quick Settings và được áp dụng cho ảnh chụp.",
-                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+                Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 8.dp))
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    aspectRatios.forEachIndexed { index, pair ->
+                        Chip(pair.first, index == ratioIdx, { onRatio(index) })
+                    }
+                }
+                Text("Ảnh được lưu vào Pictures/FujifilmMode và xuất hiện trong thư viện ảnh của Android. Tỉ lệ được áp dụng cho cả khung xem trước và ảnh JPEG đã cắt.",
+                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
             }
             "Photo Mode Settings" -> {
-                SettingsSwitch("Highest photo quality", "Use CameraX maximum quality capture mode", highQuality) { highQuality = it }
-                SettingsSwitch("Noise reduction preference", "Camera hardware support varies by device", denoise) { denoise = it }
-                Text("Sharpening preference", color = Color.White, fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-                Slider(value = sharpening, onValueChange = { sharpening = it })
-                Text("\${(sharpening * 100).toInt()}%", color = CamColors.Sub, fontSize = 12.sp)
+                Text("Capture Quality", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("CameraX đang dùng CAPTURE_MODE_MAXIMIZE_QUALITY.", color = CamColors.Sub,
+                    fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp))
+                Text("Noise Reduction", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Khử nhiễu ảnh tĩnh do ISP/Camera HAL quyết định. App chỉ hiển thị điều khiển khi thiết bị cung cấp API phù hợp; hiện không có công tắc chung an toàn cho mọi máy.",
+                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
             }
             else -> {
                 Text("Fujifilm Mode (app-debug)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("CameraX experimental build", color = CamColors.Sub, fontSize = 12.sp,
+                Text("CameraX 1.4 · Camera2 interop · Experimental build", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 6.dp))
             }
         }
-        Spacer(Modifier.weight(1f))
-        Text("Một số tùy chọn chỉ lưu trong phiên hiện tại; chức năng phụ thuộc khả năng Camera2 của thiết bị.",
-            color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(bottom = 8.dp))
     }
 }
 

@@ -2,7 +2,8 @@ package com.example.camui
 
 import android.Manifest
 import android.content.ContentValues
-import android.content.Intent
+import android.content.ContentUris
+import android.os.Build
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.camera2.CameraCharacteristics
@@ -15,6 +16,7 @@ import android.provider.MediaStore
 import android.util.Rational
 import android.util.Size
 import android.view.Surface
+import android.view.OrientationEventListener
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,10 +54,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterCenterFocus
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
@@ -69,6 +74,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -76,6 +82,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -95,6 +103,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.text.SimpleDateFormat
@@ -129,7 +139,9 @@ fun CameraScreen(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    ratioIdx: Int,
+    onRatio: (Int) -> Unit
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -138,6 +150,25 @@ fun CameraScreen(
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
+    val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+
+    DisposableEffect(context) {
+        val orientationListener = object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val rotation = when (orientation) {
+                    in 45..134 -> Surface.ROTATION_270
+                    in 135..224 -> Surface.ROTATION_180
+                    in 225..314 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                if (targetRotation != rotation) targetRotation = rotation
+            }
+        }
+        orientationListener.enable()
+        onDispose { orientationListener.disable() }
+    }
 
     var hasCam by remember {
         mutableStateOf(
@@ -158,7 +189,6 @@ fun CameraScreen(
     var timerSec by remember { mutableIntStateOf(0) }
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
-    var ratioIdx by remember { mutableIntStateOf(1) }
     var zoomSel by remember { mutableFloatStateOf(1f) }
     var metering by remember { mutableIntStateOf(0) }
     var ultraHdr by remember { mutableStateOf(false) }
@@ -178,26 +208,25 @@ fun CameraScreen(
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
+    var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var photoViewerVisible by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
-    val previewView = remember {
+    // Recreate PreviewView when renderer changes; implementationMode is chosen before surface creation.
+    val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
-        }
-    }
-
-    LaunchedEffect(renderEngine) {
-        previewView.implementationMode = if (renderEngine == "Performance") {
-            PreviewView.ImplementationMode.PERFORMANCE
-        } else {
-            PreviewView.ImplementationMode.COMPATIBLE
+            implementationMode = if (renderEngine == "Performance") {
+                PreviewView.ImplementationMode.PERFORMANCE
+            } else {
+                PreviewView.ImplementationMode.COMPATIBLE
+            }
         }
     }
 
     // The custom CameraX ViewPort crops the preview and saved image to the same ratio.
-    LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, renderEngine) {
+    LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, renderEngine, targetRotation) {
         if (!hasCam) return@LaunchedEffect
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
@@ -206,7 +235,7 @@ fun CameraScreen(
             camera = null
             imageCapture = null
 
-            val rotation = previewView.display?.rotation ?: Surface.ROTATION_0
+            val rotation = targetRotation
             val ratio = when (ratioIdx) {
                 0 -> if (isLandscape) Rational(3, 2) else Rational(2, 3)
                 1 -> if (isLandscape) Rational(4, 3) else Rational(3, 4)
@@ -236,6 +265,8 @@ fun CameraScreen(
                 val captureBuilder = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                     .setTargetRotation(rotation)
+                    // Keep the saved JPEG/JPEG_R crop in the selected aspect ratio.
+                    .setCropAspectRatio(ratio)
                 if (outputFormat == ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR) {
                     captureBuilder.setOutputFormat(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
                 }
@@ -243,6 +274,7 @@ fun CameraScreen(
                 capture.flashMode = flash
 
                 val analysis = ImageAnalysis.Builder()
+                    .setTargetRotation(rotation)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 var lastAnalysis = 0L
@@ -264,11 +296,23 @@ fun CameraScreen(
                                     val index = y * rowStride + x * pixelStride
                                     val value = buffer.get(index).toInt() and 0xFF
                                     bins[value shr 2]++
-                                    if (focusPeaking && x > 1 && y > 1) {
-                                        val left = buffer.get(index - pixelStride).toInt() and 0xFF
-                                        val up = buffer.get(index - rowStride).toInt() and 0xFF
-                                        if (abs(value - left) + abs(value - up) > 82 && edges.size < 250) {
-                                            edges.add(Offset(x.toFloat() / image.width, y.toFloat() / image.height))
+                                    if (focusPeakingEnabled.value && x > 1 && y > 1 && index < buffer.limit()) {
+                                        val leftIndex = index - pixelStride
+                                        val upIndex = index - rowStride
+                                        if (leftIndex >= 0 && upIndex >= 0 && upIndex < buffer.limit()) {
+                                            val left = buffer.get(leftIndex).toInt() and 0xFF
+                                            val up = buffer.get(upIndex).toInt() and 0xFF
+                                            if (abs(value - left) + abs(value - up) > 48 && edges.size < 350) {
+                                                val px = x.toFloat() / image.width
+                                                val py = y.toFloat() / image.height
+                                                val oriented = when (image.imageInfo.rotationDegrees) {
+                                                    90 -> Offset(1f - py, px)
+                                                    180 -> Offset(1f - px, 1f - py)
+                                                    270 -> Offset(py, 1f - px)
+                                                    else -> Offset(px, py)
+                                                }
+                                                edges.add(if (front) Offset(1f - oriented.x, oriented.y) else oriented)
+                                            }
                                         }
                                     }
                                     x += 12
@@ -277,7 +321,7 @@ fun CameraScreen(
                             }
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
-                                peakPoints = if (focusPeaking) edges else emptyList()
+                                peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
                             }
                         }
                     } finally {
@@ -301,16 +345,27 @@ fun CameraScreen(
                 imageCapture = capture
                 evIndex = 0
                 zoomSel = 1f
-                if (manualExposure) applyManualExposure(bound, manualIso, manualShutterNs)
+                val capabilities = runCatching {
+                    Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(
+                        CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES
+                    )
+                }.getOrNull()
+                val supportsManualSensor = capabilities?.contains(
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
+                ) == true
+                if (manualExposure && supportsManualSensor) {
+                    applyManualExposure(bound, manualIso, manualShutterNs)
+                }
                 applyWhiteBalance(bound, whiteBalance)
                 if (stabilization) applyStabilization(bound, true)
             }
 
             try {
-                val requestedFormat = if (ultraHdr) ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
+                val requestedFormat = if (ultraHdr && Build.VERSION.SDK_INT >= 34)
+                    ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
                     else ImageCapture.OUTPUT_FORMAT_JPEG
                 bindCapture(requestedFormat)
-                if (ultraHdr) {
+                if (ultraHdr && Build.VERSION.SDK_INT >= 34) {
                     val supported = runCatching {
                         ImageCapture.getImageCaptureCapabilities(camera!!.cameraInfo)
                             .supportedOutputFormats
@@ -344,6 +399,31 @@ fun CameraScreen(
         imageCapture?.flashMode = flash
     }
 
+    // Restore the latest app-owned photo after relaunch, then refresh its thumbnail.
+    LaunchedEffect(Unit) {
+        if (lastUri == null) {
+            val recent = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.query(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        arrayOf(MediaStore.Images.Media._ID),
+                        "\${MediaStore.Images.Media.RELATIVE_PATH} = ?",
+                        arrayOf("Pictures/FujifilmMode/"),
+                        "\${MediaStore.Images.Media.DATE_ADDED} DESC"
+                    )?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            ContentUris.withAppendedId(
+                                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                                cursor.getLong(0)
+                            )
+                        } else null
+                    }
+                }.getOrNull()
+            }
+            if (recent != null) lastUri = recent
+        }
+    }
+
     LaunchedEffect(lastUri) {
         val uri = lastUri ?: return@LaunchedEffect
         thumb = withContext(Dispatchers.IO) {
@@ -353,21 +433,22 @@ fun CameraScreen(
         }
     }
 
+    LaunchedEffect(photoViewerVisible, lastUri) {
+        if (!photoViewerVisible) return@LaunchedEffect
+        val uri = lastUri ?: return@LaunchedEffect
+        viewerBitmap = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.loadThumbnail(uri, Size(2048, 2048), null).asImageBitmap()
+            }.getOrNull()
+        }
+    }
+
     fun openLastPhoto() {
-        val uri = lastUri
-        if (uri == null) {
-            Toast.makeText(context, "Chưa có ảnh mới chụp.", Toast.LENGTH_SHORT).show()
+        if (lastUri == null) {
+            Toast.makeText(context, "Chưa có ảnh trong Pictures/FujifilmMode.", Toast.LENGTH_SHORT).show()
             return
         }
-        runCatching {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "image/*")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(intent)
-        }.onFailure {
-            Toast.makeText(context, "Không tìm thấy ứng dụng xem ảnh.", Toast.LENGTH_SHORT).show()
-        }
+        photoViewerVisible = true
     }
 
     fun takePhoto() {
@@ -381,7 +462,7 @@ fun CameraScreen(
                 }
                 countdown = 0
             }
-            capture.targetRotation = previewView.display?.rotation ?: Surface.ROTATION_0
+            capture.targetRotation = targetRotation
             val name = "FUJI_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
@@ -398,8 +479,13 @@ fun CameraScreen(
                 ContextCompat.getMainExecutor(context),
                 object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
-                        lastUri = result.savedUri
-                        Toast.makeText(context, "Đã lưu ảnh vào Pictures/FujifilmMode", Toast.LENGTH_SHORT).show()
+                        val saved = result.savedUri
+                        if (saved != null) {
+                            lastUri = saved
+                            Toast.makeText(context, "Đã lưu ảnh vào Pictures/FujifilmMode", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Ảnh đã chụp nhưng MediaStore không trả về URI.", Toast.LENGTH_LONG).show()
+                        }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
                         Toast.makeText(context, "Lỗi chụp ảnh: \${exception.message}", Toast.LENGTH_LONG).show()
@@ -410,9 +496,20 @@ fun CameraScreen(
     }
 
     val cameraInfo2 = camera?.cameraInfo?.let { runCatching { Camera2CameraInfo.from(it) }.getOrNull() }
-    val isoRange = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
-    val shutterRange = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+    val requestCapabilities = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+    val manualSensorSupported = requestCapabilities?.contains(
+        CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
+    ) == true
+    val isoRange = if (manualSensorSupported) cameraInfo2?.getCameraCharacteristic(
+        CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE
+    ) else null
+    val shutterRange = if (manualSensorSupported) cameraInfo2?.getCameraCharacteristic(
+        CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
+    ) else null
     val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+    val availableAwbModes = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)?.toSet()
+        ?: setOf(CaptureRequest.CONTROL_AWB_MODE_AUTO)
+    val supportedWbModes = wbModes.filter { it.second in availableAwbModes }
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -486,8 +583,12 @@ fun CameraScreen(
                         .pointerInput(camera, metering) {
                             detectTapGestures { offset ->
                                 val active = camera ?: return@detectTapGestures
-                                val area = when (metering) { 0 -> 0.45f; 1 -> 0.65f; else -> 0.14f }
-                                val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, area)
+                                val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
+                                // Center meters at frame center; Matrix uses a broad region
+                                // around the tapped subject; Spot uses a tight region.
+                                val pointX = if (metering == 0) size.width / 2f else offset.x
+                                val pointY = if (metering == 0) size.height / 2f else offset.y
+                                val point = previewView.meteringPointFactory.createPoint(pointX, pointY, area)
                                 val action = FocusMeteringAction.Builder(
                                     point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
                                 ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
@@ -495,7 +596,9 @@ fun CameraScreen(
                             }
                         }
                 ) {
-                    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                    key(renderEngine) {
+                        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                    }
                     if (showGrid) {
                         Canvas(Modifier.fillMaxSize()) {
                             val c = Color(0x66FFFFFF)
@@ -538,8 +641,8 @@ fun CameraScreen(
                         "\${z.toInt()}x",
                         color = if (selected) CamColors.Yellow else Color.White,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp)
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable {
                                 val zs = camera?.cameraInfo?.zoomState?.value
@@ -547,10 +650,10 @@ fun CameraScreen(
                                 val next = z.coerceIn(zs?.minZoomRatio ?: 1f, maxZoom)
                                 camera?.cameraControl?.setZoomRatio(next)
                                 zoomSel = next
-                            }.padding(horizontal = 7.dp, vertical = 3.dp)
+                            }.padding(horizontal = 5.dp, vertical = 2.dp)
                     )
                 }
-                Text("Vuốt 2 ngón để zoom", color = CamColors.Sub, fontSize = 9.sp,
+                Text("PINCH · MAX 2×", color = CamColors.Sub, fontSize = 8.sp,
                     modifier = Modifier.padding(start = 7.dp))
             }
 
@@ -570,10 +673,7 @@ fun CameraScreen(
                                         val value = it.roundToInt()
                                         evIndex = value
                                         camera?.let { c ->
-                                            runCatching {
-                                                Camera2CameraControl.from(c.cameraControl).clearCaptureRequestOptions()
-                                                c.cameraControl.setExposureCompensationIndex(value)
-                                            }
+                                            runCatching { c.cameraControl.setExposureCompensationIndex(value) }
                                         }
                                     },
                                     valueRange = range.lower.toFloat()..range.upper.toFloat(),
@@ -583,30 +683,36 @@ fun CameraScreen(
                             } else Text("EV không được hỗ trợ", color = CamColors.Sub, fontSize = 11.sp)
                         }
                         "ISO" -> {
-                            val lo = isoRange?.lower ?: 100
-                            val hi = isoRange?.upper ?: 1600
-                            Slider(
-                                value = ((manualIso - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0f, 1f),
-                                onValueChange = { f ->
-                                    manualIso = (lo + f * (hi - lo)).roundToInt().coerceIn(lo, hi)
-                                    manualExposure = true
-                                    camera?.let { runCatching { applyManualExposure(it, manualIso, manualShutterNs) } }
-                                },
-                                colors = cameraSliderColors()
-                            )
+                            val range = isoRange
+                            if (manualSensorSupported && range != null && range.upper > range.lower) {
+                                val lo = range.lower
+                                val hi = range.upper
+                                Slider(
+                                    value = ((manualIso - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0f, 1f),
+                                    onValueChange = { f ->
+                                        manualIso = (lo + f * (hi - lo)).roundToInt().coerceIn(lo, hi)
+                                        manualExposure = true
+                                        camera?.let { runCatching { applyManualExposure(it, manualIso, manualShutterNs) } }
+                                    },
+                                    colors = cameraSliderColors()
+                                )
+                            } else Text("Cảm biến không hỗ trợ ISO thủ công", color = CamColors.Sub, fontSize = 10.sp)
                         }
                         "Tv" -> {
-                            val lo = shutterRange?.lower ?: 125_000L
-                            val hi = shutterRange?.upper ?: 250_000_000L
-                            Slider(
-                                value = shutterFraction(manualShutterNs, lo, hi),
-                                onValueChange = { f ->
-                                    manualShutterNs = shutterFromFraction(f, lo, hi)
-                                    manualExposure = true
-                                    camera?.let { runCatching { applyManualExposure(it, manualIso, manualShutterNs) } }
-                                },
-                                colors = cameraSliderColors()
-                            )
+                            val range = shutterRange
+                            if (manualSensorSupported && range != null && range.upper > range.lower) {
+                                val lo = range.lower
+                                val hi = range.upper
+                                Slider(
+                                    value = shutterFraction(manualShutterNs, lo, hi),
+                                    onValueChange = { f ->
+                                        manualShutterNs = shutterFromFraction(f, lo, hi)
+                                        manualExposure = true
+                                        camera?.let { runCatching { applyManualExposure(it, manualIso, manualShutterNs) } }
+                                    },
+                                    colors = cameraSliderColors()
+                                )
+                            } else Text("Cảm biến không hỗ trợ shutter thủ công", color = CamColors.Sub, fontSize = 10.sp)
                         }
                         "AF" -> {
                             if (maxFocus > 0f) {
@@ -621,8 +727,11 @@ fun CameraScreen(
                             } else Text("Ống kính chỉ hỗ trợ AF tự động", color = CamColors.Sub, fontSize = 10.sp)
                         }
                         "AWB" -> {
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                wbModes.forEach { (label, value) ->
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                supportedWbModes.forEach { (label, value) ->
                                     MiniChip(label, whiteBalance == value) {
                                         whiteBalance = value
                                         camera?.let { runCatching { applyWhiteBalance(it, value) } }
@@ -639,7 +748,7 @@ fun CameraScreen(
                 Triple("Tv", shutterText, "Tv"),
                 Triple("ISO", isoText, "ISO"),
                 Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else "AF", "AF"),
-                Triple("AWB", wbModes.firstOrNull { it.second == whiteBalance }?.first ?: "Auto", "AWB")
+                Triple("AWB", supportedWbModes.firstOrNull { it.second == whiteBalance }?.first ?: "Auto", "AWB")
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 proItems.forEach { (key, value, label) ->
@@ -704,9 +813,20 @@ fun CameraScreen(
         if (showQuick) {
             QuickPanel(
                 ratioIdx = ratioIdx,
-                onRatio = { ratioIdx = it },
+                onRatio = onRatio,
                 ultraHdr = ultraHdr,
-                onUltraHdr = { ultraHdr = !ultraHdr },
+                onUltraHdr = {
+                    val activeCamera = camera
+                    val supported = Build.VERSION.SDK_INT >= 34 && activeCamera != null && runCatching {
+                        ImageCapture.getImageCaptureCapabilities(activeCamera.cameraInfo)
+                            .supportedOutputFormats.contains(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
+                    }.getOrDefault(false)
+                    if (!ultraHdr && !supported) {
+                        Toast.makeText(context, "Camera/API này không hỗ trợ chụp JPEG Ultra HDR.", Toast.LENGTH_LONG).show()
+                    } else {
+                        ultraHdr = !ultraHdr
+                    }
+                },
                 stabilization = stabilization,
                 onStabilization = {
                     stabilization = !stabilization
@@ -727,20 +847,49 @@ fun CameraScreen(
             Text("$countdown", color = Color.White, fontSize = 88.sp,
                 fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
         }
+
+        if (photoViewerVisible) {
+            Dialog(
+                onDismissRequest = { photoViewerVisible = false; viewerBitmap = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(Modifier.fillMaxSize().background(Color.Black)) {
+                    val image = viewerBitmap ?: thumb
+                    if (image != null) {
+                        Image(
+                            bitmap = image,
+                            contentDescription = "Ảnh vừa chụp",
+                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text("Đang tải ảnh...", color = Color.White, modifier = Modifier.align(Alignment.Center))
+                    }
+                    CircleBtn(
+                        Icons.Default.Close, "Đóng ảnh",
+                        onClick = { photoViewerVisible = false; viewerBitmap = null },
+                        size = 44.dp
+                    ).align(Alignment.TopEnd).padding(16.dp)
+                }
+            }
+        }
     }
 }
 
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {
     val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
         .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, iso)
         .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureNs)
+        .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(exposureNs, 10_000_000L))
         .build()
     Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
 }
 
 private fun applyManualFocus(camera: Camera, diopters: Float) {
     val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
         .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, diopters)
         .build()
@@ -749,6 +898,7 @@ private fun applyManualFocus(camera: Camera, diopters: Float) {
 
 private fun applyAutoFocus(camera: Camera) {
     val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         .build()
     Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
@@ -756,6 +906,7 @@ private fun applyAutoFocus(camera: Camera) {
 
 private fun applyWhiteBalance(camera: Camera, mode: Int) {
     val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, mode)
         .build()
     Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)

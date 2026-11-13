@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,7 +98,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(16.dp)) {
+    Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
         PageHeader("Contents Management", onBack)
         Text("LUT Manage", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text("Nhập tệp .cube để quản lý hồ sơ màu.", color = CamColors.Sub, fontSize = 12.sp,
@@ -107,14 +109,14 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         }
         if (luts.isEmpty()) EmptyNote("Chưa có LUT nào được nhập.")
         else {
-            LazyColumn(Modifier.height(118.dp)) {
-                items(luts) { value ->
-                val name = Uri.parse(value).lastPathSegment?.substringAfterLast('/') ?: value
-                ManagedItem(name, onDelete = {
-                    luts.remove(value)
-                    prefs.edit().putStringSet("luts", luts.toSet()).apply()
-                })
-            }
+            Column {
+                luts.forEach { value ->
+                    val name = Uri.parse(value).lastPathSegment?.substringAfterLast('/') ?: value
+                    ManagedItem(name, onDelete = {
+                        luts.remove(value)
+                        prefs.edit().putStringSet("luts", luts.toSet()).apply()
+                    })
+                }
             }
         }
         Spacer(Modifier.height(18.dp))
@@ -128,8 +130,8 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         }
         if (frames.isEmpty()) EmptyNote("Chưa có frame nào được nhập.")
         else {
-            LazyColumn {
-                items(frames) { value ->
+            Column {
+                frames.forEach { value ->
                     val name = Uri.parse(value).lastPathSegment?.substringAfterLast('/') ?: value
                     ManagedItem(name, onDelete = {
                         frames.remove(value)

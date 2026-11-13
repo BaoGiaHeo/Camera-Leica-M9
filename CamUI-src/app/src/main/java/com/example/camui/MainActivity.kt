@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
@@ -25,10 +26,21 @@ class MainActivity : ComponentActivity() {
                 var showGrid by remember { mutableStateOf(true) }
                 var showHist by remember { mutableStateOf(true) }
                 var focusPeaking by remember { mutableStateOf(false) }
+                var ratioIdx by remember { mutableIntStateOf(1) }
 
                 BackHandler(enabled = page != "camera") { page = "camera" }
                 when (page) {
-                    "settings" -> SettingsScreen(onBack = { page = "camera" })
+                    "settings" -> SettingsScreen(
+                        onBack = { page = "camera" },
+                        ratioIdx = ratioIdx,
+                        onRatio = { ratioIdx = it },
+                        showGrid = showGrid,
+                        onShowGrid = { showGrid = it },
+                        showHist = showHist,
+                        onShowHist = { showHist = it },
+                        focusPeaking = focusPeaking,
+                        onFocusPeaking = { focusPeaking = it }
+                    )
                     "toolbox" -> ToolboxScreen(
                         onBack = { page = "camera" },
                         showGrid = showGrid,
@@ -48,7 +60,9 @@ class MainActivity : ComponentActivity() {
                         showHist = showHist,
                         onShowHist = { showHist = it },
                         focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it }
+                        onFocusPeaking = { focusPeaking = it },
+                        ratioIdx = ratioIdx,
+                        onRatio = { ratioIdx = it }
                     )
                 }
             }

@@ -4,6 +4,7 @@ import os
 root = Path(os.environ["PROJECT_DIR"])
 main = root / "smali_classes3/com/xcam/offline/MainActivity.smali"
 s = main.read_text()
+print("INSTALL: MainActivity loaded", flush=True)
 
 ui = "    invoke-static {v6}, Lcom/xcam/offline/UiV111Feature;->install(Landroid/app/Activity;)V"
 pro = "    invoke-static {v6}, Lcom/xcam/offline/ProCameraFeature;->install(Landroid/app/Activity;)V"
@@ -12,6 +13,7 @@ if pro not in s:
         raise SystemExit("Cannot locate camera UI install point")
     s = s.replace(ui, ui + "\n" + pro, 1)
 
+print("INSTALL: UI entry hook ready", flush=True)
 preview = '    .local v14, "previewBuilder":Landroidx/camera/core/Preview$Builder;'
 preview_call = "    invoke-static {v1, v14, v12}, Lcom/xcam/offline/ProCameraFeature;->configure(Landroid/app/Activity;Landroidx/camera/core/ExtendableBuilder;Landroid/hardware/camera2/CameraCharacteristics;)V"
 if preview_call not in s:
@@ -19,6 +21,7 @@ if preview_call not in s:
         raise SystemExit("Cannot locate Preview.Builder")
     s = s.replace(preview, preview + "\n" + preview_call, 1)
 
+print("INSTALL: Preview hook ready", flush=True)
 capture = '    .local v9, "captureBuilder":Landroidx/camera/core/ImageCapture$Builder;'
 capture_call = "    invoke-static {v1, v9, v12}, Lcom/xcam/offline/ProCameraFeature;->configure(Landroid/app/Activity;Landroidx/camera/core/ExtendableBuilder;Landroid/hardware/camera2/CameraCharacteristics;)V"
 if capture_call not in s:
@@ -26,6 +29,7 @@ if capture_call not in s:
         raise SystemExit("Cannot locate ImageCapture.Builder")
     s = s.replace(capture, capture + "\n" + capture_call, 1)
 
+print("INSTALL: Capture hook ready", flush=True)
 # Tap-to-focus should not override manual focus, when the base method is present.
 focus_marker = ".method private final focusAt(FF)V"
 if focus_marker in s:
@@ -56,9 +60,10 @@ if focus_marker in s:
 else:
     print("NOTICE: focusAt method absent; leaving tap-focus behavior unchanged.")
 main.write_text(s)
-print("Camera2 Pro UI/configuration hooks installed.")
+print("INSTALL: MainActivity written", flush=True)
 
 zoom_files = list(root.rglob("ZoomUiFeature.smali"))
+print("INSTALL: Zoom feature count =", len(zoom_files), flush=True)
 if len(zoom_files) == 0:
     print("NOTICE: ZoomUiFeature.smali absent; skipping optional 2x UI patch.")
 elif len(zoom_files) != 1:

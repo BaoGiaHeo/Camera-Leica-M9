@@ -3,6 +3,11 @@ package com.example.camui
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -12,6 +17,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,7 +36,14 @@ class MainActivity : ComponentActivity() {
                 var ratioIdx by remember { mutableIntStateOf(1) }
 
                 BackHandler(enabled = page != "camera") { page = "camera" }
-                when (page) {
+                AnimatedContent(
+                    targetState = page,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+                    label = "Fujifilm Mode page transition"
+                ) { targetPage ->
+                when (targetPage) {
+                    "album" -> AlbumScreen(onBack = { page = "camera" })
                     "settings" -> SettingsScreen(
                         onBack = { page = "camera" },
                         ratioIdx = ratioIdx,
@@ -55,6 +69,7 @@ class MainActivity : ComponentActivity() {
                         onOpenSettings = { page = "settings" },
                         onOpenToolbox = { page = "toolbox" },
                         onOpenContentManagement = { page = "contents" },
+                        onOpenAlbum = { page = "album" },
                         showGrid = showGrid,
                         onShowGrid = { showGrid = it },
                         showHist = showHist,
@@ -64,6 +79,7 @@ class MainActivity : ComponentActivity() {
                         ratioIdx = ratioIdx,
                         onRatio = { ratioIdx = it }
                     )
+                }
                 }
             }
         }

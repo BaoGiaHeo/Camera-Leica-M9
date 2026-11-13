@@ -96,7 +96,9 @@ fun CamTheme(content: @Composable () -> Unit) {
                 android.graphics.Color.green(chosenBg.toArgb()) * 0.587f +
                 android.graphics.Color.blue(chosenBg.toArgb()) * 0.114f
             ) > 185f
-        CamColors.Bg = if (bgBitmap != null) Color(0x44000000) else chosenBg
+        // A selected photo replaces the app-wide base background. Keep screen root
+        // surfaces transparent so the image remains visible across every destination.
+        CamColors.Bg = if (bgBitmap != null) Color.Transparent else chosenBg
         CamColors.TextColor = if (isLightBackground) Color(0xFF171717) else Color.White
         CamColors.Sub = if (isLightBackground) Color(0xFF626262) else Color(0xFF9E9E9E)
         CamColors.Shutter = parseAppColor(shutterHex, Color.White)

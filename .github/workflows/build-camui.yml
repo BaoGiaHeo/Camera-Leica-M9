@@ -1,28 +1,49 @@
-name: Build APK from zip
+name: Build CamerAwesome UI experiment (debug APK)
 
-on:
+'on':
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Unzip project
-        run: unzip -q CamUI-project.zip
+      - name: Extract CamUI project
+        run: |
+          set -e
+          unzip -q CamUI-project.zip
+          test -d CamUI
+          echo "CamUI project files:"
+          find CamUI -maxdepth 3 -type f | sort | head -100
 
-      - uses: actions/setup-java@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # GitHub's ubuntu-latest runner already includes Android SDK.
+      # Do not run sdkmanager "tools": that obsolete package causes setup-android@v3 to fail.
+      - name: Verify Android SDK
+        run: |
+          test -d "$ANDROID_HOME"
+          test -x "$ANDROID_HOME/platform-tools/adb" || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
@@ -30,8 +51,9 @@ jobs:
         working-directory: CamUI
         run: gradle assembleDebug --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: CamUI/app/build/outputs/apk/debug/app-debug.apk
+          name: Fujifilm-CamerAwesome-UI-experiment-app-debug
+          path: CamUI/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error

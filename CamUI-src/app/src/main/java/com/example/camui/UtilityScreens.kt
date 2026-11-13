@@ -170,7 +170,7 @@ fun applyCameraWatermark(
             Bitmap.createBitmap(source, 0, 0, source.width, source.height,
                 Matrix().apply { postRotate(rotateDegrees) }, true)
         } else source
-        val output = if (upright.isMutable) upright else upright.copy(Bitmap.Config.ARGB_8888, true)
+        val output = if (upright.isMutable) upright else (upright.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching false)
         val canvas = Canvas(output)
         val style = prefs.getString("watermark_style", "White") ?: "White"
         val baseColor = when (style) {

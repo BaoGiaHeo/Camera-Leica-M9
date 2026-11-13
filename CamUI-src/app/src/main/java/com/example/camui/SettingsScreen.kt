@@ -1,7 +1,15 @@
 package com.example.camui
 
+import android.content.Context
+import android.content.Intent
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.graphics.ImageFormat
+import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,8 +17,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,17 +38,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private data class SettingItem(val title: String, val subtitle: String)
+private data class CameraLensRow(
+    val id: String,
+    val facing: String,
+    val focal: String,
+    val aperture: String,
+    val sensor: String,
+    val maxOutput: String,
+    val ois: String,
+    val eis: String,
+    val physicalIds: String
+)
 
 private val settingItems = listOf(
     SettingItem("Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
-    SettingItem("Focus & Lens", "Autofocus · Manual focus · Lens behavior"),
-    SettingItem("Capture & Storage", "Aspect ratio · Photo quality · Save location"),
-    SettingItem("Photo Mode Settings", "Photo output · Sharpening · Noise reduction"),
+    SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
+    SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
+    SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
     SettingItem("About", "Fujifilm Mode · app-debug")
 )
 
@@ -108,8 +127,16 @@ private fun SettingsDetailPage(
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit
 ) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
+    var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
+    var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_coming_soon", false)) }
+    var uhd by remember { mutableStateOf(prefs.getBoolean("uhd_coming_soon", false)) }
+
     Column(
-        Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)
+        Modifier.fillMaxSize().background(CamColors.Bg)
+            .verticalScroll(rememberScrollState()).padding(16.dp)
     ) {
         Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.material3.IconButton(onClick = onBack) {
@@ -126,48 +153,162 @@ private fun SettingsDetailPage(
                 SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusPeaking, onFocusPeaking)
             }
             "Focus & Lens" -> {
-                Text("Autofocus", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text("Chạm vào vị trí cần nét trên kính ngắm để CameraX chạy AF + AE tại điểm chạm. Trong chế độ Pro, mục AF mở lấy nét thủ công khi ống kính báo hỗ trợ LENS_INFO_MINIMUM_FOCUS_DISTANCE.",
-                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp))
-                Text("Giới hạn", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text("Eye AF và hiệu chỉnh méo ống kính phụ thuộc các chế độ mà camera HAL của thiết bị cung cấp; app không bật giả khi HAL không hỗ trợ.",
-                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                Text("Thông tin camera do Camera2 đọc trực tiếp từ thiết bị.",
+                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+                val cameraRows = remember {
+                    runCatching {
+                        val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                        manager.cameraIdList.map { id ->
+                            val c = manager.getCameraCharacteristics(id)
+                            val facing = when (c.get(CameraCharacteristics.LENS_FACING)) {
+                                CameraCharacteristics.LENS_FACING_BACK -> "Sau"
+                                CameraCharacteristics.LENS_FACING_FRONT -> "Trước"
+                                CameraCharacteristics.LENS_FACING_EXTERNAL -> "Ngoài"
+                                else -> "Không rõ"
+                            }
+                            val focal = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                                ?.joinToString(" / ") { "%.1f mm".format(it) } ?: "Không công bố"
+                            val aperture = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
+                                ?.joinToString(" / ") { "f/%.1f".format(it) } ?: "Không công bố"
+                            val physical = c.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+                                ?.let { "%.2f × %.2f mm".format(it.width, it.height) } ?: "Không công bố"
+                            val size = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                                ?.getOutputSizes(ImageFormat.JPEG)?.maxByOrNull { it.width.toLong() * it.height }
+                                ?.let { "${it.width} × ${it.height}" } ?: "Không công bố"
+                            val oisSupported = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
+                                ?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true
+                            val eisSupported = c.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
+                                ?.contains(CameraCharacteristics.CONTROL_VIDEO_STABILIZATION_MODE_ON) == true
+                            val physicalIds = if (Build.VERSION.SDK_INT >= 28) {
+                                runCatching {
+                                    c.get(CameraCharacteristics.LOGICAL_MULTI_CAMERA_PHYSICAL_IDS)
+                                        ?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "Không có ID vật lý công bố"
+                                }.getOrDefault("Không đọc được")
+                            } else "Không hỗ trợ API"
+                            CameraLensRow(
+                                id, facing, focal, aperture, physical, size,
+                                if (oisSupported) "Có" else "Không công bố",
+                                if (eisSupported) "Có" else "Không công bố",
+                                physicalIds
+                            )
+                        }
+                    }.getOrDefault(emptyList())
+                }
+                if (cameraRows.isEmpty()) {
+                    Text("Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng.",
+                        color = CamColors.Sub, fontSize = 12.sp)
+                } else {
+                    cameraRows.forEach { row ->
+                        InfoCard("Camera ID ${row.id}", "Camera ${row.facing}") {
+                            InfoLine("Focal length", row.focal)
+                            InfoLine("Khẩu độ", row.aperture)
+                            InfoLine("Kích thước cảm biến", row.sensor)
+                            InfoLine("JPEG tối đa", row.maxOutput)
+                            InfoLine("OIS", row.ois)
+                            InfoLine("EIS", row.eis)
+                            InfoLine("Physical camera IDs", row.physicalIds)
+                        }
+                    }
+                }
+                Text("Thông tin tên mã cảm biến không được Android Camera2 công bố thống nhất trên mọi thiết bị; ứng dụng hiển thị kích thước cảm biến và độ phân giải tối đa mà hệ thống cung cấp.",
+                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                Spacer(Modifier.padding(6.dp))
+                InfoCard("Additional lens tools", "Coming soon") {
+                    Text("Lens calibration · EIS+ · sensor diagnostics",
+                        color = CamColors.Sub, fontSize = 11.sp)
+                }
             }
-            "Capture & Storage" -> {
-                Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp))
+            "Capture & Quality" -> {
+                Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.SemiBold)
                 Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     aspectRatios.forEachIndexed { index, pair ->
-                        Chip(pair.first, index == ratioIdx, { onRatio(index) })
+                        Chip(pair.first, index == ratioIdx, { onRatio(index) }, Modifier.width(68.dp))
                     }
                 }
-                Text("Ảnh được lưu vào Pictures/FujifilmMode và xuất hiện trong thư viện ảnh của Android. Tỉ lệ được áp dụng cho cả khung xem trước và ảnh JPEG đã cắt.",
-                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
+                Spacer(Modifier.padding(7.dp))
+                Text("Image Quality", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn.",
+                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf("Low", "Medium", "High", "Best").forEach { option ->
+                        Chip(option, imageQuality == option, {
+                            imageQuality = option
+                            prefs.edit().putString("image_quality", option).apply()
+                        }, Modifier.width(75.dp))
+                    }
+                }
+                Text("Ảnh được lưu vào Pictures/FujifilmMode.",
+                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
             }
-            "Photo Mode Settings" -> {
+            "Photo Mode Setting" -> {
                 Text("Capture Quality", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text("CameraX đang dùng CAPTURE_MODE_MAXIMIZE_QUALITY.", color = CamColors.Sub,
-                    fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp))
+                SettingsSwitch("HDR", "Coming soon · backend chưa được tích hợp", hdr) {
+                    hdr = it
+                    prefs.edit().putBoolean("hdr_coming_soon", it).apply()
+                }
+                SettingsSwitch("UHD", "Coming soon · chụp độ phân giải siêu cao", uhd) {
+                    uhd = it
+                    prefs.edit().putBoolean("uhd_coming_soon", it).apply()
+                }
+                Spacer(Modifier.padding(5.dp))
                 Text("Noise Reduction", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text("Khử nhiễu ảnh tĩnh do ISP/Camera HAL quyết định. App chỉ hiển thị điều khiển khi thiết bị cung cấp API phù hợp; hiện không có công tắc chung an toàn cho mọi máy.",
-                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                Text("Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL.",
+                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("Off", "Low", "Medium", "High").forEach { option ->
+                        Chip(option, noiseReduction == option, {
+                            noiseReduction = option
+                            prefs.edit().putString("noise_reduction", option).apply()
+                        }, Modifier.width(75.dp))
+                    }
+                }
             }
             else -> {
-                Text("Fujifilm Mode (app-debug)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("CameraX 1.4 · Camera2 interop · Experimental build", color = CamColors.Sub, fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 6.dp))
+                Text("Fujifilm Mode (app-debug)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("Người làm App: Baoaka06", color = Color.White, fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 18.dp))
+                Text("TikTok: @baoaka06", color = CamColors.Yellow, fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 8.dp).clickable {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
+                        }
+                    })
+                Text("Version 1.1 experimental · Debug build", color = CamColors.Sub, fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 18.dp))
             }
         }
     }
 }
 
 @Composable
+private fun InfoCard(title: String, subtitle: String, content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 9.dp).clip(RoundedCornerShape(15.dp))
+            .background(CamColors.Card).padding(14.dp)
+    ) {
+        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+        content()
+    }
+}
+
+@Composable
+private fun InfoLine(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.weight(1f))
+        Text(value, color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+@Composable
 private fun SettingsSwitch(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 9.dp).clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(16.dp))
             .background(CamColors.Card).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

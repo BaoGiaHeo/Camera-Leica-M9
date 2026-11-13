@@ -608,8 +608,7 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
-        if (camera == null) return
-        val capture = imageCapture ?: return
+        if (camera == null || imageCapture == null) return
         scope.launch {
             if (timerSec > 0) {
                 for (s in timerSec downTo 1) {
@@ -618,6 +617,10 @@ fun CameraScreen(
                 }
                 countdown = 0
             }
+            // Resolve the active camera/use case after the timer, because the user may rotate
+            // or switch lenses while the countdown is running.
+            val capture = imageCapture ?: return@launch
+            val activeCamera = camera ?: return@launch
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
                 runCatching { shutterSoundPlayer.play(MediaActionSound.SHUTTER_CLICK) }
@@ -658,8 +661,8 @@ fun CameraScreen(
             previewUseCase?.targetRotation = captureRotation
             analysisUseCase?.targetRotation = captureRotation
             val captureRotationDegrees = runCatching {
-                camera?.cameraInfo?.getSensorRotationDegrees(captureRotation)
-            }.getOrNull() ?: 0
+                activeCamera.cameraInfo.getSensorRotationDegrees(captureRotation)
+            }.getOrDefault(0)
             val name = "FUJI_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
@@ -678,7 +681,7 @@ fun CameraScreen(
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                         val saved = result.savedUri
                         if (saved != null) {
-                            val info = camera?.cameraInfo?.let { runCatching { Camera2CameraInfo.from(it) }.getOrNull() }
+                            val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
                             val focal = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
                                 ?.firstOrNull()?.let { "%.1f mm".format(Locale.US, it) } ?: ""
                             val aperture = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
@@ -697,11 +700,9 @@ fun CameraScreen(
                                 "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
                             } else "Ảnh đang được xử lý"
                             runCatching {
-                                camera?.let { active ->
-                                    Camera2CameraControl.from(active.cameraControl).clearCaptureRequestOptions()
-                                    if (manualColorTempEnabled) applyManualWhiteBalance(active, manualColorTemp)
-                                    if (manualFocus > 0f) applyManualFocus(active, manualFocus)
-                                }
+                                Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
+                                if (manualColorTempEnabled) applyManualWhiteBalance(activeCamera, manualColorTemp)
+                                if (manualFocus > 0f) applyManualFocus(activeCamera, manualFocus)
                             }
                             scope.launch(Dispatchers.IO) {
                                 withContext(Dispatchers.Main) { processingProgress = 12 }

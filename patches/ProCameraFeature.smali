@@ -258,7 +258,8 @@
     const/16 v3, 0x8
     new-array v3, v3, [Ljava/lang/CharSequence;
     const-string v4, "Auto"
-
+    const/4 v5, 0x0
+    aput-object v4, v3, v5
     const-string v4, "S\u1ee3i \u0111\u1ed1t"
     const/4 v5, 0x1
     aput-object v4, v3, v5
@@ -530,10 +531,6 @@
     invoke-static {v4, v5, v9, v10}, Ljava/lang/Math;->min(JJ)J
     move-result-wide v4
 
-    const-string v6, "android.control.aeMode"
-    sget-object v7, Ljava/lang/Integer;->TYPE:Ljava/lang/Class;
-    const/4 v8, 0x0
-    invoke-static {v6, v7, v8}, Landroid/hardware/camera2/CaptureRequest;-><clinit>()V
     sget-object v6, Landroid/hardware/camera2/CaptureRequest;->CONTROL_AE_MODE:Landroid/hardware/camera2/CaptureRequest$Key;
     const/4 v7, 0x0
     invoke-static {v7}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
@@ -554,6 +551,7 @@
     invoke-interface {v0, v2, v3}, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I
     move-result v2
     if-lez v2, :focus
+    add-int/lit8 v2, v2, 0x1
     sget-object v3, Landroid/hardware/camera2/CameraCharacteristics;->CONTROL_AWB_AVAILABLE_MODES:Landroid/hardware/camera2/CameraCharacteristics$Key;
     invoke-virtual {v11, v3}, Landroid/hardware/camera2/CameraCharacteristics;->get(Landroid/hardware/camera2/CameraCharacteristics$Key;)Ljava/lang/Object;
     move-result-object v3

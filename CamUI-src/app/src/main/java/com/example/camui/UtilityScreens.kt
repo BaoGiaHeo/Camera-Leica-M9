@@ -98,7 +98,7 @@ fun ToolboxScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
-    var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", false)) }
+    var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
     var watermarkTemplate by remember { mutableStateOf(prefs.getString("watermark_template", "standard1") ?: "standard1") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
@@ -687,7 +687,10 @@ fun applyCameraWatermark(
     iso: String
 ): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    if (!prefs.getBoolean("watermark_enabled", false)) return false
+    if (!prefs.getBoolean("watermark_enabled", true)) {
+        android.util.Log.d("FUJI_WATERMARK", "Watermark disabled in settings")
+        return false
+    }
 
     return runCatching {
         val bitmap = decodeUprightBitmap(context, uri) ?: return@runCatching false
@@ -855,9 +858,10 @@ fun applyCameraWatermark(
             }
         }
 
-        context.contentResolver.openOutputStream(uri, "wt")?.use {
+        val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use {
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)
-        } ?: return@runCatching false
+        } ?: false
+        if (!outputWritten) return@runCatching false
         context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
             ExifInterface(descriptor.fileDescriptor).apply {
                 setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
@@ -866,6 +870,8 @@ fun applyCameraWatermark(
         }
         setMediaStoreOrientationUpright(context, uri)
         true
+    }.onFailure {
+        android.util.Log.e("FUJI_WATERMARK", "applyCameraWatermark failed", it)
     }.getOrDefault(false)
 }
 

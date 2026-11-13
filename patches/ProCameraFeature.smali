@@ -497,13 +497,13 @@
     const-wide/32 v4, 0xee6b2800
     goto :shutter_done
     :shutter_13
-    const-wide v4, 0x000000037e11d600L
+    const-wide v4, 0x00000001dcd65000L
     goto :shutter_done
     :shutter_14
-    const-wide v4, 0x00000004a817c800L
+    const-wide v4, 0x000000037e11d600L
     goto :shutter_done
     :shutter_15
-    const-wide v4, 0x0000000773594000L
+    const-wide v4, 0x00000004a817c800L
     goto :shutter_done
     :shutter_16
     const-wide v4, 0x00000006fc23ac00L

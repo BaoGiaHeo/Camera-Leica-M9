@@ -586,16 +586,23 @@ fun normalizeCapturedImage(
         // 6% tolerance covers small even-pixel crop rounding from JPEG encoders.
         val aspectTolerance = 0.06f
         val selected = when {
-            // Honor EXIF when its transformed pixel dimensions agree with the selected frame.
-            metadataCandidate?.aspectError?.let { it <= aspectTolerance } == true -> metadataCandidate
-            // Preserve 180-degree correction when EXIF is neutral; 180 keeps the aspect ratio.
+            // Preserve explicit 180-degree and mirrored EXIF transforms when geometry agrees.
+            metadataCandidate?.let {
+                it.aspectError <= aspectTolerance &&
+                    (it.degrees == 180 || it.flipHorizontal)
+            } == true -> metadataCandidate
+            // Preserve CameraX's 180-degree correction when EXIF and MediaStore are neutral.
             !hasExifTransform && mediaStoreDegrees == 0 &&
                 cameraXDegrees == 180 && cameraCandidate.aspectError <= aspectTolerance -> cameraCandidate
-            // If the raw pixels already match the target frame, ignore stale 90/270 metadata.
+            // If the JPEG pixels already match the requested frame, clear stale rotation tags.
             rawCandidate.aspectError <= aspectTolerance -> rawCandidate
-            // Apply 90/270 only when the raw pixels have the inverse aspect ratio.
+            // When axes must swap, prefer the frozen CameraX sensor-to-display rotation.
+            // EXIF 90 and 270 have identical aspect errors, so geometry alone cannot choose
+            // the clockwise direction. CameraX's target rotation identifies that direction.
             cameraCandidate.aspectError <= aspectTolerance -> cameraCandidate
-            else -> listOfNotNull(metadataCandidate, cameraCandidate, rawCandidate)
+            // Fall back to EXIF/MediaStore only when CameraX rotation does not fit the frame.
+            metadataCandidate?.aspectError?.let { it <= aspectTolerance } == true -> metadataCandidate
+            else -> listOfNotNull(cameraCandidate, metadataCandidate, rawCandidate)
                 .minByOrNull { it.aspectError } ?: rawCandidate
         }
 

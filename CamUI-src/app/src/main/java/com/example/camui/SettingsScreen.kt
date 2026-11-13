@@ -168,7 +168,7 @@ private fun SettingsDetailPage(
             runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             backgroundImageUri = uri.toString()
             CamColors.BackgroundImageUri = uri.toString()
-            CamColors.Bg = Color(0xC9121212)
+            CamColors.Bg = Color(0x44000000)
             prefs.edit().putString("app_background_image_uri", uri.toString()).apply()
         }
     }

@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -97,7 +96,7 @@ fun CamTheme(content: @Composable () -> Unit) {
                 android.graphics.Color.green(chosenBg.toArgb()) * 0.587f +
                 android.graphics.Color.blue(chosenBg.toArgb()) * 0.114f
             ) > 185f
-        CamColors.Bg = if (bgBitmap != null) Color(0xC9121212) else chosenBg
+        CamColors.Bg = if (bgBitmap != null) Color(0x44000000) else chosenBg
         CamColors.TextColor = if (isLightBackground) Color(0xFF171717) else Color.White
         CamColors.Sub = if (isLightBackground) Color(0xFF626262) else Color(0xFF9E9E9E)
         CamColors.Shutter = parseAppColor(shutterHex, Color.White)
@@ -115,7 +114,7 @@ fun CamTheme(content: @Composable () -> Unit) {
                 Image(
                     bitmap = bgBitmap!!,
                     contentDescription = "App background",
-                    modifier = Modifier.fillMaxSize().alpha(0.42f),
+                    modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             }

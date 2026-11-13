@@ -180,30 +180,16 @@ jobs:
               s = s.replace(old, new, 1)
           p.write_text(s)
           PY
-      - name: Inspect and localize watermark controls
+      - name: Apply liquid-glass watermark and smooth blur
         run: |
           set -e
           python3 - <<'PY'
           from pathlib import Path
           import os
-          p = Path(os.environ["PROJECT_DIR"]) / "smali_classes7/com/xcam/offline/WatermarkStyleFeature.smali"
-          s = p.read_text()
-          start = s.index(".method public static addControls(Landroid/widget/LinearLayout;Landroid/app/Activity;)V")
-          end = s.index(".end method", start)
-          block = s[start:end]
-          print("===== WATERMARK ADDCONTROLS SOURCE BEGIN =====")
-          print(block)
-          print("===== WATERMARK ADDCONTROLS SOURCE END =====")
-          for old, new in {
-              '"Watermark Style"': '"KIỂU WATERMARK"',
-              '"FujiFilm 01"': '"FUJIFILM SIGNATURE"',
-          }.items():
-              if old in block:
-                  block = block.replace(old, new, 1)
-          p.write_text(s[:start] + block + s[end:])
           root = Path(os.environ["PROJECT_DIR"])
-          # Replace the pixel-like low-resolution backdrop with a smoother,
-          # higher-resolution filtered blur.
+
+          # Soft blur: retain enough source detail for smooth filtered scaling,
+          # rather than enlarging a tiny 80px thumbnail that looks pixelated.
           wp = root / "smali_classes3/com/xcam/offline/WatermarkProcessor.smali"
           ws = wp.read_text()
           a = ws.index(".method private final drawSoftBackdrop(")
@@ -216,8 +202,7 @@ jobs:
           wb = wb.replace("const/16 v1, 0x50", "const/16 v1, 0x200", 1)
           wp.write_text(ws[:a] + wb + ws[b:])
 
-          # Give the Fuji signature watermark a dark translucent glass panel,
-          # a cool reflective edge, crisp white type, and a clean sans-serif face.
+          # Liquid-glass Fujifilm signature watermark treatment.
           mp = root / "smali_classes7/com/xcam/offline/WatermarkStyleFeature.smali"
           ms = mp.read_text()
           if ms.count('"Watermark Style"') != 1 or ms.count('"FujiFilm 01"') != 1:
@@ -260,8 +245,6 @@ jobs:
           ms = ms[:a] + mb + ms[b:]
           mp.write_text(ms)
           print("Liquid-glass watermark and smooth non-pixel blur patches applied.")
-
-
           PY
       - name: Add tactile shutter feedback
         run: |

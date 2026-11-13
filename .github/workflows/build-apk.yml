@@ -61,6 +61,22 @@ jobs:
               raise SystemExit("Expected the camera info button and dialog title labels")
           dp.write_text(ds.replace(old_label, '"CAMERA ID SCANNER"'))
           PY
+      - name: Set testing app label
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ['PROJECT_DIR']) / 'AndroidManifest.xml'
+          s = p.read_text()
+          a = s.index('<application')
+          b = s.index('>', a)
+          tag = s[a:b]
+          import re
+          tag, n = re.subn(r'android:label="[^"]*"', 'android:label="Fujifilm Mode (app-debug)"', tag, count=1)
+          if n == 0:
+              tag += ' android:label="Fujifilm Mode (app-debug)"'
+          p.write_text(s[:a] + tag + s[b:])
+          PY
       - name: Apply Fuji-inspired interface patch
         run: |
           set -e
@@ -166,8 +182,8 @@ jobs:
         run: |
           APK=$(find output/signed -type f -name '*signed.apk' -print -quit)
           test -n "$APK"
-          cp "$APK" output/Fujifilm-Mode-release.apk
-          sha256sum output/Fujifilm-Mode-release.apk > output/SHA256SUMS.txt
+          cp "$APK" output/Fujifilm-Mode-app-debug.apk
+          sha256sum output/Fujifilm-Mode-app-debug.apk > output/SHA256SUMS.txt
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

@@ -18,21 +18,18 @@ jobs:
           PROJECT_DIR=$(find decoded -type f -name apktool.yml -print -quit | xargs dirname)
           test -n "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-      - name: Dump denoise controls and event handlers
+      - name: Inspect activity startup and layout hierarchy
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import os
-          root=Path(os.environ["PROJECT_DIR"])
-          p=root/"smali_classes3/com/xcam/offline/MainActivity.smali"
+          p=Path(os.environ["PROJECT_DIR"])/"smali_classes3/com/xcam/offline/MainActivity.smali"
           lines=p.read_text(errors="ignore").splitlines()
-          def dump(a,b):
-              print(f"=== SOURCE LINES {a}-{b} ===")
-              for n in range(a,min(b,len(lines))+1): print(f"{n}: {lines[n-1]}")
-          dump(14955,15250)
-          dump(15955,16470)
-          print("=== DENOISE FIELD DECLARATION AND ALL USES ===")
-          for n,line in enumerate(lines,1):
-              if "denoiseMode" in line or "NOISE_REDUCTION_MODE" in line:
-                  print(f"{n}: {line}")
+          def dump_method(name):
+              st=next(i for i,x in enumerate(lines) if x.startswith(".method ") and name in x)
+              en=next(i for i in range(st+1,len(lines)) if lines[i]==".end method")
+              print(f"=== METHOD {name} lines {st+1}-{en+1} ===")
+              for n in range(st,en+1): print(f"{n+1}: {lines[n]}")
+          dump_method("onCreate(Landroid/os/Bundle;)V")
+          dump_method("buildUi()V")
           PY

@@ -1,0 +1,50 @@
+name: Audit Fujifilm app source
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app.zip'
+      - '.github/workflows/audit-source.yml'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract decoded APK project
+        run: |
+          mkdir -p decoded
+          unzip -q app.zip -d decoded
+          PROJECT_DIR=$(find decoded -type f -name apktool.yml -print -quit | xargs dirname)
+          test -n "$PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+      - name: Inventory camera settings and UI
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          root=Path(os.environ["PROJECT_DIR"])
+          print("=== PROJECT STRUCTURE ===")
+          for p in sorted(root.iterdir()):
+              if p.is_dir() and (p.name.startswith("smali") or p.name=="res"):
+                  print(p.name)
+          terms=("noise_reduction","NOISE_REDUCTION","NoiseReduction","khử nhiễu","Khử nhiễu",
+                 "capturePhoto","takePicture","ResolutionSelector","Camera2")
+          print("=== FEATURE MATCHES ===")
+          for p in root.rglob("*.smali"):
+              try: s=p.read_text(errors="ignore")
+              except Exception: continue
+              hits=[t for t in terms if t.lower() in s.lower()]
+              if hits:
+                  print(f"FILE {p.relative_to(root)} MATCHES {','.join(hits)}")
+                  lines=s.splitlines()
+                  for i,line in enumerate(lines):
+                      if any(t.lower() in line.lower() for t in hits):
+                          print(f"{i+1}: {line[:220]}")
+          print("=== LAYOUT/RESOURCE INVENTORY ===")
+          for folder in ("res/layout","res/drawable","res/menu","res/values"):
+              d=root/folder
+              if d.exists():
+                  files=list(d.iterdir())
+                  print(folder, len(files), [x.name for x in files[:80]])
+          PY

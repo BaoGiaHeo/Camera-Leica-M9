@@ -50,6 +50,25 @@ jobs:
               raise SystemExit("Could not safely locate the single UI installation point")
           p.write_text(s.replace(anchor, patch, 1))
           PY
+      - name: Add tactile shutter feedback
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ["PROJECT_DIR"]) / "smali_classes3/com/xcam/offline/MainActivity.smali"
+          s = p.read_text()
+          anchor = ".method private final playShutter()V\\n    .locals 4\\n"
+          patch = anchor + """    iget-object v0, p0, Lcom/xcam/offline/MainActivity;->shutterEffect:Lcom/xcam/offline/MainActivity$ShutterEffectView;
+              if-eqz v0, :haptic_done
+              const/4 v1, 0x1
+              invoke-virtual {v0, v1}, Landroid/view/View;->performHapticFeedback(I)Z
+              :haptic_done
+          """
+          if s.count(anchor) != 1:
+              raise SystemExit("Could not safely locate playShutter()")
+          p.write_text(s.replace(anchor, patch, 1))
+          PY
       - name: Build unsigned APK
         run: |
           mkdir -p output

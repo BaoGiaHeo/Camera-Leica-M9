@@ -20,6 +20,8 @@ import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas as ComposeCanvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +33,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -73,6 +76,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
@@ -96,8 +100,9 @@ fun ToolboxScreen(
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", false)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
+    var watermarkTemplate by remember { mutableStateOf(prefs.getString("watermark_template", "standard1") ?: "standard1") }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
-    var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Mechanical") ?: "Mechanical") }
+    var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Film Wash") ?: "Film Wash") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
 
     Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -115,7 +120,33 @@ fun ToolboxScreen(
             watermarkEnabled = it
             prefs.edit().putBoolean("watermark_enabled", it).apply()
         }
-        Text("Frame color", color = CamColors.Sub, fontSize = 12.sp,
+        Text("Mẫu watermark · chọn riêng từng kiểu", color = CamColors.Sub, fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 8.dp, top = 9.dp))
+        val watermarkTemplates = listOf(
+            Triple("standard1", "Standard 1", "EXIF cổ điển"),
+            Triple("standard2", "Standard 2", "Viền bo + khoảng trống"),
+            Triple("blur", "Blur", "Nền mờ, thông số nổi"),
+            Triple("normal1", "Normal 1", "Thông số góc phải"),
+            Triple("normal2", "Normal 2", "Ngày chụp tối giản"),
+            Triple("center_logo", "Center Logo", "Logo ở chính giữa")
+        )
+        watermarkTemplates.chunked(2).forEach { rowItems ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                rowItems.forEach { (id, title, subtitle) ->
+                    WatermarkTemplateCard(
+                        id = id, title = title, subtitle = subtitle,
+                        selected = watermarkTemplate == id,
+                        onClick = {
+                            watermarkTemplate = id
+                            prefs.edit().putString("watermark_template", id).apply()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(Modifier.height(9.dp))
+        }
+        Text("Màu khung", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 7.dp, top = 5.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("White", "Black", "Transparent").forEach { style ->
@@ -152,11 +183,11 @@ fun ToolboxScreen(
         Text("Hiệu ứng khi bấm chụp", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(top = 5.dp, bottom = 8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("Đảo màu", shutterEffect == "Invert", {
-                shutterEffect = "Invert"
-                prefs.edit().putString("shutter_effect", "Invert").apply()
+            Chip("Rửa film", shutterEffect == "Film Wash", {
+                shutterEffect = "Film Wash"
+                prefs.edit().putString("shutter_effect", "Film Wash").apply()
             }, Modifier.weight(1f))
-            Chip("Máy ảnh", shutterEffect == "Mechanical", {
+            Chip("Chớp nhanh", shutterEffect == "Mechanical", {
                 shutterEffect = "Mechanical"
                 prefs.edit().putString("shutter_effect", "Mechanical").apply()
             }, Modifier.weight(1f))
@@ -169,6 +200,96 @@ fun ToolboxScreen(
     }
 }
 
+
+
+@Composable
+private fun WatermarkTemplateCard(
+    id: String,
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier.clip(RoundedCornerShape(13.dp))
+            .background(if (selected) Color(0xFF333126) else CamColors.Card)
+            .border(
+                width = if (selected) 1.5.dp else 0.7.dp,
+                color = if (selected) CamColors.Yellow else Color(0x334C535B),
+                shape = RoundedCornerShape(13.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(7.dp)
+    ) {
+        Box(
+            Modifier.fillMaxWidth().height(88.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF475550))
+        ) {
+            ComposeCanvas(Modifier.fillMaxSize()) {
+                drawRect(Color(0xFF697A70))
+                drawCircle(Color(0xFFFFD8A0), size.minDimension * 0.13f,
+                    Offset(size.width * 0.76f, size.height * 0.28f))
+                drawLine(Color(0xFF526A59), Offset(0f, size.height * 0.64f),
+                    Offset(size.width, size.height * 0.52f), strokeWidth = size.height * 0.25f)
+                drawLine(Color(0xFF31483E), Offset(0f, size.height * 0.82f),
+                    Offset(size.width, size.height * 0.72f), strokeWidth = size.height * 0.32f)
+            }
+            when (id) {
+                "standard1" -> Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Color(0xD9000000)).padding(horizontal = 6.dp, vertical = 4.dp)
+                ) {
+                    Text("FUJIFILM X", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    Text("23mm  •  f/2  •  1/125  •  ISO 400",
+                        color = Color.White.copy(alpha = 0.82f), fontSize = 5.5.sp, maxLines = 1)
+                }
+                "standard2" -> Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
+                        .background(Color(0xEEFFFFFF), RoundedCornerShape(4.dp)).padding(5.dp)
+                ) {
+                    Text("FUJIFILM  /  X SERIES", color = Color(0xFF202020),
+                        fontSize = 6.5.sp, fontWeight = FontWeight.Bold)
+                    Text("23mm  ·  f/2.0  ·  ISO 400", color = Color(0xFF353535), fontSize = 5.5.sp)
+                }
+                "blur" -> Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Color(0xAA17201D)).padding(6.dp)
+                ) {
+                    Text("X SERIES", color = Color.White, fontSize = 6.sp, fontWeight = FontWeight.Bold)
+                    Text("23mm   f/2.0   ISO 400", color = Color.White, fontSize = 5.5.sp)
+                }
+                "normal1" -> Column(
+                    Modifier.align(Alignment.BottomEnd).padding(6.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text("23mm  f/2.0", color = Color.White, fontSize = 6.sp, fontWeight = FontWeight.Bold)
+                    Text("1/125  ISO 400", color = Color.White, fontSize = 5.5.sp)
+                }
+                "normal2" -> Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
+                    Text("FUJIFILM MODE", color = Color(0xFFFFB15F), fontSize = 6.5.sp,
+                        fontWeight = FontWeight.Bold)
+                    Text("2026.11.13  •  18:42", color = Color.White, fontSize = 5.5.sp)
+                }
+                else -> Column(
+                    Modifier.align(Alignment.Center).padding(5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("FUJIFILM", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.padding(vertical = 3.dp).fillMaxWidth(0.62f).height(1.dp)
+                        .background(Color.White.copy(alpha = 0.8f)))
+                    Text("CAMERA NOTES", color = Color.White, fontSize = 5.5.sp, letterSpacing = 1.sp)
+                }
+            }
+        }
+        Text(title, color = if (selected) CamColors.Yellow else Color.White,
+            fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 6.dp))
+        Text(subtitle, color = CamColors.Sub, fontSize = 9.sp,
+            modifier = Modifier.padding(top = 1.dp))
+    }
+}
 
 /**
  * Reads the legacy MediaStore rotation only as a fallback when JPEG EXIF is neutral.
@@ -198,7 +319,7 @@ private fun readExifOrientation(context: Context, uri: Uri): Int {
  * Decodes a JPEG with orientation applied to pixels. The output dimensions and pixels
  * therefore agree, independent of the viewer or MediaStore thumbnail implementation.
  */
-private fun decodeUprightBitmap(context: Context, uri: Uri): Bitmap? {
+fun decodeUprightBitmap(context: Context, uri: Uri, maxDimension: Int = 0): Bitmap? {
     val exifOrientation = readExifOrientation(context, uri)
     val orientation = if (exifOrientation == ExifInterface.ORIENTATION_NORMAL ||
         exifOrientation == ExifInterface.ORIENTATION_UNDEFINED) {
@@ -210,10 +331,22 @@ private fun decodeUprightBitmap(context: Context, uri: Uri): Bitmap? {
         }
     } else exifOrientation
 
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, bounds)
+    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sampleSize = 1
+    if (maxDimension > 0) {
+        while (maxOf(bounds.outWidth, bounds.outHeight) / sampleSize > maxDimension) {
+            sampleSize *= 2
+        }
+    }
     val decoded = context.contentResolver.openInputStream(uri)?.use { input ->
         BitmapFactory.Options().let { options ->
             options.inPreferredConfig = Bitmap.Config.ARGB_8888
             options.inMutable = true
+            options.inSampleSize = sampleSize
             BitmapFactory.decodeStream(input, null, options)
         }
     } ?: return null
@@ -462,66 +595,144 @@ fun applyCameraWatermark(
         val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
             ?: return@runCatching false
         val canvas = Canvas(output)
+        val template = prefs.getString("watermark_template", "standard1") ?: "standard1"
         val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
-        val foreground = if (frameStyle == "Black") AndroidColor.rgb(12, 12, 12) else AndroidColor.WHITE
+        val foreground = if (frameStyle == "Black") AndroidColor.rgb(18, 18, 18) else AndroidColor.WHITE
         val panelColor = when (frameStyle) {
-            "Black" -> AndroidColor.argb(210, 245, 245, 245)
-            "Transparent" -> AndroidColor.argb(48, 0, 0, 0)
-            else -> AndroidColor.argb(155, 0, 0, 0)
+            "Black" -> AndroidColor.argb(218, 248, 248, 245)
+            "Transparent" -> AndroidColor.argb(62, 0, 0, 0)
+            else -> AndroidColor.argb(178, 8, 12, 11)
         }
         val minSide = minOf(output.width, output.height).toFloat()
-        val inset = (minSide * 0.032f).coerceAtLeast(18f)
-        val radius = (minSide * 0.012f).coerceAtLeast(8f)
-        val stroke = (minSide * 0.0018f).coerceAtLeast(2f)
-        val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = foreground
-            alpha = if (frameStyle == "Transparent") 145 else 245
-            style = Paint.Style.STROKE
-            strokeWidth = stroke
-        }
-        canvas.drawRoundRect(RectF(inset, inset, output.width - inset, output.height - inset),
-            radius, radius, frame)
-        frame.strokeWidth = (stroke * 0.45f).coerceAtLeast(1f)
-        frame.alpha = if (frameStyle == "Transparent") 85 else 130
-        val inner = inset + stroke * 3.2f
-        canvas.drawRoundRect(RectF(inner, inner, output.width - inner, output.height - inner),
-            radius * 0.72f, radius * 0.72f, frame)
-
-        val plateHeight = (minSide * 0.105f).coerceAtLeast(74f)
-        val plate = RectF(inset + stroke, output.height - inset - plateHeight,
-            output.width - inset - stroke, output.height - inset - stroke)
-        val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = panelColor
-            style = Paint.Style.FILL
-        }
-        canvas.drawRoundRect(plate, radius * 0.75f, radius * 0.75f, platePaint)
-
+        val margin = (minSide * 0.035f).coerceAtLeast(18f)
         val model = prefs.getString("watermark_custom_model", "")?.trim()
             ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
-        val detail = listOf(focal, aperture, shutter, "ISO $iso")
-            .filter { it.isNotBlank() }.joinToString("    ")
-        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val details = listOf(focal, aperture, shutter, "ISO $iso")
+            .filter { it.isNotBlank() }.joinToString("   •   ")
+        val timestamp = java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US)
+            .format(java.util.Date())
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = foreground
-            alpha = if (frameStyle == "Transparent") 180 else 250
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         }
-        val left = plate.left + plateHeight * 0.25f
-        text.textSize = (minSide * 0.022f).coerceIn(16f, 54f)
-        canvas.drawText(model.take(48), left, plate.top + plateHeight * 0.43f, text)
-        text.textSize = (minSide * 0.015f).coerceIn(12f, 38f)
-        val detailWidth = text.measureText(detail)
-        val availableWidth = plate.width() - plateHeight * 0.45f
-        text.textSize = (text.textSize * (availableWidth / detailWidth.coerceAtLeast(1f)).coerceAtMost(1f))
-            .coerceAtLeast(10f)
-        canvas.drawText(detail, left, plate.top + plateHeight * 0.78f, text)
-
-        val signature = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = foreground
-            alpha = if (frameStyle == "Transparent") 135 else 195
-            textSize = (minSide * 0.0105f).coerceIn(10f, 26f)
-            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+            alpha = if (frameStyle == "Transparent") 190 else 235
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
-        canvas.drawText("FUJIFILM MODE  •  CAMERA NOTES", inset + stroke * 2, inset + plateHeight * 0.25f, signature)
+        val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = AndroidColor.rgb(239, 164, 91)
+            typeface = android.graphics.Typeface.create("sans-serif-bold", android.graphics.Typeface.NORMAL)
+        }
+        fun fitText(value: String, paint: Paint, x: Float, baseline: Float, maxWidth: Float, baseSize: Float) {
+            paint.textSize = baseSize
+            while (paint.textSize > 9f && paint.measureText(value) > maxWidth) {
+                paint.textSize *= 0.92f
+            }
+            canvas.drawText(value, x, baseline, paint)
+        }
+        fun drawPhotoFrame() {
+            val framePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = foreground
+                alpha = if (frameStyle == "Transparent") 150 else 235
+                style = Paint.Style.STROKE
+                strokeWidth = (minSide * 0.002f).coerceAtLeast(2f)
+            }
+            val rect = RectF(margin, margin, output.width - margin, output.height - margin)
+            canvas.drawRoundRect(rect, margin * 0.30f, margin * 0.30f, framePaint)
+        }
+        fun drawBottomPlate(heightFactor: Float = 0.12f, inset: Float = margin): RectF {
+            val height = (minSide * heightFactor).coerceAtLeast(76f)
+            val plate = RectF(inset, output.height - inset - height, output.width - inset, output.height - inset)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = panelColor
+                style = Paint.Style.FILL
+                setShadowLayer((minSide * 0.006f).coerceAtLeast(3f), 0f, 3f, AndroidColor.BLACK)
+            }
+            canvas.drawRoundRect(plate, (minSide * 0.012f).coerceAtLeast(7f),
+                (minSide * 0.012f).coerceAtLeast(7f), paint)
+            return plate
+        }
+        when (template) {
+            "standard2" -> {
+                drawPhotoFrame()
+                val plate = drawBottomPlate(0.145f, margin * 1.25f)
+                val left = plate.left + plate.height * 0.22f
+                fitText(model.take(52).uppercase(), titlePaint, left, plate.top + plate.height * 0.43f,
+                    plate.width() - plate.height * 0.42f, minSide * 0.024f)
+                fitText(details, detailPaint, left, plate.top + plate.height * 0.76f,
+                    plate.width() - plate.height * 0.42f, minSide * 0.014f)
+                fitText("FUJIFILM MODE  /  $timestamp", detailPaint,
+                    plate.left + 5f, plate.top - margin * 0.25f, plate.width(), minSide * 0.010f)
+            }
+            "blur" -> {
+                val plate = drawBottomPlate(0.17f, margin)
+                fitText(model, titlePaint, plate.left + plate.height * 0.20f,
+                    plate.top + plate.height * 0.42f, plate.width() - plate.height * 0.35f,
+                    minSide * 0.026f)
+                fitText(details, detailPaint, plate.left + plate.height * 0.20f,
+                    plate.top + plate.height * 0.76f, plate.width() - plate.height * 0.35f,
+                    minSide * 0.014f)
+                accentPaint.textSize = minSide * 0.011f
+                canvas.drawText("CAMERA NOTES  •  $timestamp", plate.left + plate.height * 0.20f,
+                    plate.top - margin * 0.25f, accentPaint)
+            }
+            "normal1" -> {
+                val right = output.width - margin
+                titlePaint.textAlign = Paint.Align.RIGHT
+                detailPaint.textAlign = Paint.Align.RIGHT
+                fitText("${focal.ifBlank { "CAMERA" }}  ${aperture}".trim(), titlePaint,
+                    right, output.height - margin * 2.25f, output.width * 0.60f, minSide * 0.022f)
+                fitText("${shutter}  ISO $iso", detailPaint, right,
+                    output.height - margin * 1.30f, output.width * 0.60f, minSide * 0.016f)
+                titlePaint.textAlign = Paint.Align.LEFT
+                detailPaint.textAlign = Paint.Align.LEFT
+            }
+            "normal2" -> {
+                accentPaint.textSize = (minSide * 0.020f).coerceIn(16f, 42f)
+                canvas.drawText("FUJIFILM MODE", margin, output.height - margin * 2.05f, accentPaint)
+                fitText("$timestamp  •  $model", detailPaint, margin,
+                    output.height - margin * 1.12f, output.width - margin * 2f, minSide * 0.014f)
+            }
+            "center_logo" -> {
+                val centerX = output.width / 2f
+                val centerY = output.height * 0.52f
+                val backing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = panelColor
+                    style = Paint.Style.FILL
+                }
+                val panel = RectF(output.width * 0.12f, centerY - minSide * 0.085f,
+                    output.width * 0.88f, centerY + minSide * 0.105f)
+                canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
+                titlePaint.textAlign = Paint.Align.CENTER
+                titlePaint.textSize = (minSide * 0.034f).coerceIn(22f, 66f)
+                canvas.drawText("FUJIFILM", centerX, centerY - minSide * 0.006f, titlePaint)
+                val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = foreground
+                    alpha = 170
+                    strokeWidth = (minSide * 0.0015f).coerceAtLeast(2f)
+                }
+                canvas.drawLine(output.width * 0.30f, centerY + minSide * 0.025f,
+                    output.width * 0.70f, centerY + minSide * 0.025f, line)
+                detailPaint.textAlign = Paint.Align.CENTER
+                fitText("$model  •  $timestamp", detailPaint, centerX,
+                    centerY + minSide * 0.068f, panel.width() * 0.88f, minSide * 0.013f)
+                titlePaint.textAlign = Paint.Align.LEFT
+                detailPaint.textAlign = Paint.Align.LEFT
+            }
+            else -> {
+                drawPhotoFrame()
+                val plate = drawBottomPlate(0.12f, margin)
+                val left = plate.left + plate.height * 0.22f
+                fitText(model, titlePaint, left, plate.top + plate.height * 0.43f,
+                    plate.width() - plate.height * 0.42f, minSide * 0.023f)
+                fitText(details, detailPaint, left, plate.top + plate.height * 0.78f,
+                    plate.width() - plate.height * 0.42f, minSide * 0.014f)
+                accentPaint.textSize = (minSide * 0.0105f).coerceIn(10f, 26f)
+                canvas.drawText("FUJIFILM MODE  •  $timestamp", margin + 2f,
+                    margin + accentPaint.textSize * 1.4f, accentPaint)
+            }
+        }
 
         context.contentResolver.openOutputStream(uri, "wt")?.use {
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)

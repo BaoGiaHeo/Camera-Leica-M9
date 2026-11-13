@@ -1,6 +1,7 @@
 package com.example.camui
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -66,16 +67,22 @@ fun ToolboxScreen(
 @Composable
 fun ContentManagementScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val luts = remember { mutableStateListOf<String>() }
-    val frames = remember { mutableStateListOf<String>() }
+    val prefs = remember { context.getSharedPreferences("fujifilm_contents", 0) }
+    val luts = remember { mutableStateListOf<String>().apply {
+        addAll(prefs.getStringSet("luts", emptySet()) ?: emptySet())
+    } }
+    val frames = remember { mutableStateListOf<String>().apply {
+        addAll(prefs.getStringSet("frames", emptySet()) ?: emptySet())
+    } }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: uri.toString()
-            luts.add(name)
+            val value = uri.toString()
+            if (!luts.contains(value)) luts.add(value)
+            prefs.edit().putStringSet("luts", luts.toSet()).apply()
         }
     }
     val framePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -83,8 +90,9 @@ fun ContentManagementScreen(onBack: () -> Unit) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: uri.toString()
-            frames.add(name)
+            val value = uri.toString()
+            if (!frames.contains(value)) frames.add(value)
+            prefs.edit().putStringSet("frames", frames.toSet()).apply()
         }
     }
 
@@ -100,7 +108,13 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         if (luts.isEmpty()) EmptyNote("Chưa có LUT nào được nhập.")
         else {
             LazyColumn(Modifier.height(118.dp)) {
-                items(luts) { name -> ManagedItem(name, onDelete = { luts.remove(name) }) }
+                items(luts) { value ->
+                val name = Uri.parse(value).lastPathSegment?.substringAfterLast('/') ?: value
+                ManagedItem(name, onDelete = {
+                    luts.remove(value)
+                    prefs.edit().putStringSet("luts", luts.toSet()).apply()
+                })
+            }
             }
         }
         Spacer(Modifier.height(18.dp))
@@ -115,7 +129,13 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         if (frames.isEmpty()) EmptyNote("Chưa có frame nào được nhập.")
         else {
             LazyColumn {
-                items(frames) { name -> ManagedItem(name, onDelete = { frames.remove(name) }) }
+                items(frames) { value ->
+                    val name = Uri.parse(value).lastPathSegment?.substringAfterLast('/') ?: value
+                    ManagedItem(name, onDelete = {
+                        frames.remove(value)
+                        prefs.edit().putStringSet("frames", frames.toSet()).apply()
+                    })
+                }
             }
         }
     }

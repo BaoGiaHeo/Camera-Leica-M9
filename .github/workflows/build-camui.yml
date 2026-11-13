@@ -27,6 +27,13 @@ jobs:
           echo "CamUI project files:"
           find CamUI -maxdepth 3 -type f | sort | head -100
 
+      - name: Export extracted CamUI source for repair
+        uses: actions/upload-artifact@v4
+        with:
+          name: CamUI-source-for-repair
+          path: CamUI/**
+          include-hidden-files: true
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

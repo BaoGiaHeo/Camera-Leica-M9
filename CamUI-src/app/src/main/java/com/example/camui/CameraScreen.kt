@@ -382,7 +382,7 @@ fun CameraScreen(
                                         if (leftIndex >= 0 && upIndex >= 0 && upIndex < buffer.limit()) {
                                             val left = buffer.get(leftIndex).toInt() and 0xFF
                                             val up = buffer.get(upIndex).toInt() and 0xFF
-                                            if (abs(value - left) + abs(value - up) > 48 && edges.size < 350) {
+                                            if (abs(value - left) + abs(value - up) > 30 && edges.size < 1400) {
                                                 val px = x.toFloat() / image.width
                                                 val py = y.toFloat() / image.height
                                                 val oriented = when (image.imageInfo.rotationDegrees) {
@@ -395,9 +395,9 @@ fun CameraScreen(
                                             }
                                         }
                                     }
-                                    x += 12
+                                    x += 8
                                 }
-                                y += 12
+                                y += 8
                             }
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
@@ -794,10 +794,15 @@ fun CameraScreen(
                     if (focusPeaking && peakPoints.isNotEmpty()) {
                         Canvas(Modifier.fillMaxSize()) {
                             peakPoints.forEach { p ->
-                                drawCircle(Color(0xFFFF3B30), 1.5.dp.toPx(),
+                                drawCircle(Color(0xFF00FFB0), 2.dp.toPx(),
                                     Offset(p.x * size.width, p.y * size.height))
                             }
                         }
+                    }
+                    if (focusLocked) {
+                        Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                                .clip(RoundedCornerShape(8.dp)).background(CamColors.Yellow).padding(horizontal = 9.dp, vertical = 5.dp))
                     }
                     if (focusLocked) {
                         Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
@@ -817,6 +822,13 @@ fun CameraScreen(
                     }
                 }
             }
+
+            Text(
+                if (focusLocked) "AF LOCK · Chạm để lấy nét lại" else "Chạm để lấy nét · Nhấn giữ để khóa nét",
+                color = if (focusLocked) CamColors.Yellow else CamColors.Sub,
+                fontSize = 9.sp, modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                textAlign = TextAlign.Center
+            )
 
             Text(
                 if (focusLocked) "AF LOCK · Chạm để lấy nét lại" else "Chạm để lấy nét · Nhấn giữ để khóa nét",
@@ -1421,10 +1433,25 @@ private fun applyAutoFocus(camera: Camera) {
     Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
 }
 
-private fun applyWhiteBalance(camera: Camera, mode: Int) {
+private fun applyAutoWhiteBalance(camera: Camera) {
     val options = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-        .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, mode)
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+        .build()
+    Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
+}
+
+private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
+    // Approximate correlated color temperature with Camera2 sensor color-correction gains.
+    val warmth = ((6500f - kelvin.coerceIn(2500, 8000)) / 4000f).coerceIn(-0.85f, 1f)
+    val redGain = (1f + warmth * 0.42f).coerceIn(0.65f, 2.0f)
+    val blueGain = (1f - warmth * 0.38f).coerceIn(0.65f, 2.0f)
+    val gains = RggbChannelVector(redGain, 1f, 1f, blueGain)
+    val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF)
+        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_FAST)
+        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, gains)
         .build()
     Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
 }

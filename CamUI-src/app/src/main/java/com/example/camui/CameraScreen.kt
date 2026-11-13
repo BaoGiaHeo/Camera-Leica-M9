@@ -421,11 +421,11 @@ fun CameraScreen(
                     runCatching { bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG) }
                         .onFailure {
                             camera = null
-                            Toast.makeText(context, "Không thể bật Ultra HDR hoặc khởi tạo camera: \${it.message}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Không thể bật Ultra HDR hoặc khởi tạo camera: ${it.message}", Toast.LENGTH_LONG).show()
                         }
                 } else {
                     camera = null
-                    Toast.makeText(context, "Không mở được camera: \${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Không mở được camera: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }, mainExecutor)
@@ -448,9 +448,9 @@ fun CameraScreen(
                     context.contentResolver.query(
                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                         arrayOf(MediaStore.Images.Media._ID),
-                        "\${MediaStore.Images.Media.RELATIVE_PATH} = ?",
+                        "${MediaStore.Images.Media.RELATIVE_PATH} = ?",
                         arrayOf("Pictures/FujifilmMode/"),
-                        "\${MediaStore.Images.Media.DATE_ADDED} DESC"
+                        "${MediaStore.Images.Media.DATE_ADDED} DESC"
                     )?.use { cursor ->
                         if (cursor.moveToFirst()) {
                             ContentUris.withAppendedId(
@@ -557,7 +557,7 @@ fun CameraScreen(
                         }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
-                        Toast.makeText(context, "Lỗi chụp ảnh: \${exception.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Lỗi chụp ảnh: ${exception.message}", Toast.LENGTH_LONG).show()
                     }
                 }
             )
@@ -588,7 +588,7 @@ fun CameraScreen(
     val shutterText = if (currentShutter > 0) {
         val seconds = currentShutter / 1_000_000_000.0
         if (seconds >= 0.5) "%.1f\"".format(Locale.US, seconds)
-        else "1/\${(1.0 / seconds).roundToInt()}"
+        else "1/${(1.0 / seconds).roundToInt()}"
     } else "AUTO"
     val afText = if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
 

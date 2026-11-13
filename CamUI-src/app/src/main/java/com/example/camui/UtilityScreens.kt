@@ -624,7 +624,8 @@ fun applyCameraWatermark(
 
         // Text and backing plate stay readable; the selected color controls only the frame.
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
-        val panelColor = AndroidColor.argb(166, 8, 12, 11)
+        val panelColor = if (frameStyle == "Transparent") AndroidColor.TRANSPARENT
+            else AndroidColor.argb(166, 8, 12, 11)
         val minSide = minOf(output.width, output.height).toFloat()
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         val model = prefs.getString("watermark_custom_model", "")?.trim()
@@ -674,8 +675,10 @@ fun applyCameraWatermark(
                 style = Paint.Style.FILL
                 setShadowLayer((minSide * 0.006f).coerceAtLeast(3f), 0f, 3f, AndroidColor.BLACK)
             }
-            canvas.drawRoundRect(plate, (minSide * 0.012f).coerceAtLeast(7f),
-                (minSide * 0.012f).coerceAtLeast(7f), paint)
+            if (frameStyle != "Transparent") {
+                canvas.drawRoundRect(plate, (minSide * 0.012f).coerceAtLeast(7f),
+                    (minSide * 0.012f).coerceAtLeast(7f), paint)
+            }
             return plate
         }
 
@@ -736,7 +739,9 @@ fun applyCameraWatermark(
                     color = panelColor
                     style = Paint.Style.FILL
                 }
-                canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
+                if (frameStyle != "Transparent") {
+                    canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
+                }
                 drawFrame(panel, minSide * 0.018f)
                 titlePaint.textAlign = Paint.Align.CENTER
                 titlePaint.textSize = (minSide * 0.034f).coerceIn(22f, 66f)

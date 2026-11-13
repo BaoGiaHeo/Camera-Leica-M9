@@ -201,17 +201,66 @@ jobs:
               if old in block:
                   block = block.replace(old, new, 1)
           p.write_text(s[:start] + block + s[end:])
-          print("===== WATERMARK IMPLEMENTATION REFERENCES =====")
-          for q in root.rglob("*.smali"):
-              try:
-                  data = q.read_text(errors="ignore")
-              except Exception:
-                  continue
-              hits = [line.strip() for line in data.splitlines() if any(k in line.lower() for k in ("watermark_style", "pixelate", "blur", "renderwatermark", "watermark"))]
-              if hits:
-                  print("FILE:", q)
-                  for line in hits[:24]:
-                      print(line)
+          root = Path(os.environ["PROJECT_DIR"])
+          # Replace the pixel-like low-resolution backdrop with a smoother,
+          # higher-resolution filtered blur.
+          wp = root / "smali_classes3/com/xcam/offline/WatermarkProcessor.smali"
+          ws = wp.read_text()
+          a = ws.index(".method private final drawSoftBackdrop(")
+          b = ws.index(".end method", a)
+          wb = ws[a:b]
+          if wb.count("div-int/lit8 v0, v0, 0x1c") != 1 or wb.count("div-int/lit8 v3, v3, 0x1c") != 1 or wb.count("const/16 v1, 0x50") != 1:
+              raise SystemExit("Unexpected soft-blur implementation; refusing unsafe patch")
+          wb = wb.replace("div-int/lit8 v0, v0, 0x1c", "div-int/lit8 v0, v0, 0x8", 1)
+          wb = wb.replace("div-int/lit8 v3, v3, 0x1c", "div-int/lit8 v3, v3, 0x8", 1)
+          wb = wb.replace("const/16 v1, 0x50", "const/16 v1, 0x200", 1)
+          wp.write_text(ws[:a] + wb + ws[b:])
+
+          # Give the Fuji signature watermark a dark translucent glass panel,
+          # a cool reflective edge, crisp white type, and a clean sans-serif face.
+          mp = root / "smali_classes7/com/xcam/offline/WatermarkStyleFeature.smali"
+          ms = mp.read_text()
+          if ms.count('"Watermark Style"') != 1 or ms.count('"FujiFilm 01"') != 1:
+              raise SystemExit("Watermark style labels not found uniquely")
+          ms = ms.replace('"Watermark Style"', '"KIỂU WATERMARK"', 1)
+          ms = ms.replace('"FujiFilm 01"', '"KÍNH LỎNG · FUJIFILM"', 1)
+          a = ms.index(".method private static renderShowcase(")
+          b = ms.index(".end method", a)
+          mb = ms[a:b]
+          fill = """    const/4 v5, -0x1
+    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"""
+          glass = """    const/16 v5, 0xdc
+    const/16 v6, 0x12
+    const/16 v8, 0x18
+    const/16 v9, 0x20
+    invoke-static {v5, v6, v8, v9}, Landroid/graphics/Color;->argb(IIII)I
+    move-result v5
+    invoke-virtual {v3, v5}, Landroid/graphics/Paint;->setColor(I)V"""
+          if mb.count(fill) != 1:
+              raise SystemExit("Could not locate watermark glass panel fill")
+          mb = mb.replace(fill, glass, 1)
+          edge = """    const/16 v9, 0xe1
+    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I"""
+          reflective_edge = """    const/16 v9, 0x9c
+    const/16 v11, 0xd8
+    const/16 v14, 0xf0
+    invoke-static {v9, v11, v14}, Landroid/graphics/Color;->rgb(III)I"""
+          if mb.count(edge) != 1:
+              raise SystemExit("Could not locate watermark reflective edge")
+          mb = mb.replace(edge, reflective_edge, 1)
+          mb = mb.replace('"sans-serif-condensed"', '"sans-serif"', 1)
+          dark_text = """    const/16 v9, 0x14
+    invoke-static {v9, v9, v9}, Landroid/graphics/Color;->rgb(III)I
+    move-result v11"""
+          light_text = """    const/4 v9, -0x1
+    move v11, v9"""
+          if mb.count(dark_text) != 1:
+              raise SystemExit("Could not locate watermark text color")
+          mb = mb.replace(dark_text, light_text, 1)
+          ms = ms[:a] + mb + ms[b:]
+          mp.write_text(ms)
+          print("Liquid-glass watermark and smooth non-pixel blur patches applied.")
+
 
           PY
       - name: Add tactile shutter feedback

@@ -108,7 +108,7 @@ fun ToolboxScreen(
         ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
             focusPeaking, onFocusPeaking)
         Spacer(Modifier.height(16.dp))
-        Text("Watermark", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         ToolToggle("Enable Watermark", "Khung ảnh phong cách rangefinder, không có logo thương hiệu",
             Icons.Default.Image, watermarkEnabled) {
             watermarkEnabled = it
@@ -147,7 +147,7 @@ fun ToolboxScreen(
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
 
         Spacer(Modifier.height(20.dp))
-        Text("Shutter", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text("Shutter", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Text("Hiệu ứng khi bấm chụp", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(top = 5.dp, bottom = 8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -508,7 +508,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
         PageHeader("Contents Management", onBack)
-        Text("LUT Manage", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Text("LUT Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text("Nhập tệp .cube để quản lý hồ sơ màu.", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
         Button(onClick = { lutPicker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
@@ -525,7 +525,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(18.dp))
-        Text("Frame Manage", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Text("Frame Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text("Nhập khung phủ PNG/JPG để quản lý.", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
         Button(onClick = { framePicker.launch(arrayOf("image/png", "image/jpeg")) },
@@ -583,7 +583,7 @@ private fun PageHeader(title: String, onBack: () -> Unit) {
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
-        Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = CamColors.TextColor, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

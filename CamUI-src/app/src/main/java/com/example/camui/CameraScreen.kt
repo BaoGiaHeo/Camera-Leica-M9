@@ -204,6 +204,10 @@ fun CameraScreen(
     var activeLutUri by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_lut_uri", "") ?: "") }
     var shutterEffectAlpha by remember { mutableFloatStateOf(0f) }
     var shutterEffectInverted by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var processingProgress by remember { mutableIntStateOf(0) }
+    var processingLabel by remember { mutableStateOf("") }
+    var compositionGuideEnabled by remember { mutableStateOf(false) }
     val shutterSoundPlayer = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
     }
@@ -552,10 +556,18 @@ fun CameraScreen(
             }
             shutterEffectInverted = appPrefs.getString("shutter_effect", "Mechanical") == "Invert"
             scope.launch {
-                shutterEffectAlpha = if (shutterEffectInverted) 0.72f else 0.58f
-                delay(55)
-                shutterEffectAlpha = if (shutterEffectInverted) 0.42f else 0.20f
-                delay(65)
+                if (shutterEffectInverted) {
+                    // A 1.2-second negative flash that slowly returns to the live image.
+                    for (step in 0 until 12) {
+                        shutterEffectAlpha = 0.94f * (1f - (step / 12f))
+                        delay(100)
+                    }
+                } else {
+                    shutterEffectAlpha = 0.72f
+                    delay(70)
+                    shutterEffectAlpha = 0.34f
+                    delay(80)
+                }
                 shutterEffectAlpha = 0f
             }
             capture.targetRotation = targetRotation
@@ -595,11 +607,23 @@ fun CameraScreen(
                                 if (seconds >= 0.5) "%.1fs".format(Locale.US, seconds)
                                 else "1/" + (1.0 / seconds).roundToInt() + "s"
                             } else ""
+                            isProcessing = true
+                            processingProgress = 4
+                            val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
+                            processingLabel = if (supirRequested) {
+                                "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
+                            } else "Ảnh đang được xử lý"
                             runCatching {
-                                camera?.let { Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions() }
+                                camera?.let { active ->
+                                    Camera2CameraControl.from(active.cameraControl).clearCaptureRequestOptions()
+                                    if (manualColorTempEnabled) applyManualWhiteBalance(active, manualColorTemp)
+                                    if (manualFocus > 0f) applyManualFocus(active, manualFocus)
+                                }
                             }
                             scope.launch(Dispatchers.IO) {
+                                withContext(Dispatchers.Main) { processingProgress = 18 }
                                 val lookApplied = runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
+                                withContext(Dispatchers.Main) { processingProgress = 62 }
                                 val stamped = runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
@@ -607,8 +631,10 @@ fun CameraScreen(
                                         expectedLandscape = isLandscape
                                     )
                                 }.getOrDefault(false)
+                                withContext(Dispatchers.Main) { processingProgress = 92 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
+                                    processingProgress = 100
                                     val message = when {
                                         stamped && lookApplied -> "Đã lưu ảnh, áp dụng màu và watermark."
                                         stamped -> "Đã lưu ảnh và đóng watermark."
@@ -616,6 +642,11 @@ fun CameraScreen(
                                         else -> "Đã lưu ảnh vào Pictures/FujifilmMode."
                                     }
                                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                }
+                                delay(450)
+                                withContext(Dispatchers.Main) {
+                                    isProcessing = false
+                                    processingProgress = 0
                                 }
                             }
                         } else {
@@ -770,6 +801,19 @@ fun CameraScreen(
                     if (activeFilter != "None" || activeLutUri.isNotBlank()) {
                         Canvas(Modifier.fillMaxSize()) {
                             drawRect(previewTint.copy(alpha = 0.105f))
+                        }
+                    }
+                    if (compositionGuideEnabled) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val guide = Color(0xCCF5C842)
+                            for (i in 1..2) {
+                                val x = size.width * i / 3f
+                                val y = size.height * i / 3f
+                                drawLine(guide, Offset(x, 0f), Offset(x, size.height), 1.2.dp.toPx())
+                                drawLine(guide, Offset(0f, y), Offset(size.width, y), 1.2.dp.toPx())
+                                drawCircle(guide, 3.dp.toPx(), Offset(x, size.height / 2f))
+                                drawCircle(guide, 3.dp.toPx(), Offset(size.width / 2f, y))
+                            }
                         }
                     }
                     if (shutterEffectAlpha > 0f) {
@@ -1163,6 +1207,19 @@ fun CameraScreen(
                         fontSize = 11.sp, fontWeight = FontWeight.SemiBold
                     )
                 }
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
+                    .clickable {
+                        compositionGuideEnabled = !compositionGuideEnabled
+                        if (compositionGuideEnabled) {
+                            Toast.makeText(context, "Đang hiển thị lưới căn bố cục. AI Grid Anchor đang chờ chuyển đổi model Android.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    .padding(horizontal = 14.dp, vertical = 7.dp)) {
+                    Text(if (compositionGuideEnabled) "Bố cục ✓" else "Bố cục",
+                        color = if (compositionGuideEnabled) CamColors.Yellow else Color.White,
+                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
 
@@ -1202,6 +1259,21 @@ fun CameraScreen(
         if (countdown > 0) {
             Text("$countdown", color = Color.White, fontSize = 88.sp,
                 fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+        }
+        if (isProcessing) {
+            Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp, vertical = 18.dp)
+                .fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CamColors.Panel).padding(14.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(processingLabel, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("$processingProgress%", color = CamColors.Yellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
+                    drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+                    drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * processingProgress / 100f, size.height),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+                }
+            }
         }
 
         if (filterDialogVisible) {

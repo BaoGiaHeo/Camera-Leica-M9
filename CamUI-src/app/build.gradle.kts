@@ -12,8 +12,8 @@ android {
         applicationId = "com.fujifilm.mode"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1-experimental"
+        versionCode = 3
+        versionName = "1.2-experimental"
     }
 
     buildTypes {

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -43,13 +44,14 @@ import kotlinx.coroutines.withContext
 object CamColors {
     var Bg by mutableStateOf(Color(0xFF121212))
     var Shutter by mutableStateOf(Color.White)
+    var TextColor by mutableStateOf(Color.White)
+    var Sub by mutableStateOf(Color(0xFF9E9E9E))
     var BackgroundImageUri by mutableStateOf<String?>(null)
     val Card = Color(0xFF1E1E1E)
     val Glass = Color(0xD92A2A2A)
     val Panel = Color(0xF21A1A1A)
     val Chip = Color(0xFF2A2A2A)
     val Yellow = Color(0xFFF5C842)
-    val Sub = Color(0xFF9E9E9E)
     val Stroke = Color(0x33FFFFFF)
 }
 
@@ -89,8 +91,15 @@ fun CamTheme(content: @Composable () -> Unit) {
         }
     }
     SideEffect {
-        CamColors.Bg = if (bgBitmap != null) Color(0xC9121212)
-            else parseAppColor(bgHex, Color(0xFF121212))
+        val chosenBg = parseAppColor(bgHex, Color(0xFF121212))
+        val isLightBackground = bgBitmap == null && (
+            android.graphics.Color.red(chosenBg.toArgb()) * 0.299f +
+                android.graphics.Color.green(chosenBg.toArgb()) * 0.587f +
+                android.graphics.Color.blue(chosenBg.toArgb()) * 0.114f
+            ) > 185f
+        CamColors.Bg = if (bgBitmap != null) Color(0xC9121212) else chosenBg
+        CamColors.TextColor = if (isLightBackground) Color(0xFF171717) else Color.White
+        CamColors.Sub = if (isLightBackground) Color(0xFF626262) else Color(0xFF9E9E9E)
         CamColors.Shutter = parseAppColor(shutterHex, Color.White)
     }
     MaterialTheme(

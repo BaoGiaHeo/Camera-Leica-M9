@@ -50,3 +50,5 @@ jobs:
             CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
+
+# Rebuild after the landscape EXIF/CameraX normalization and watermark-status fixes.

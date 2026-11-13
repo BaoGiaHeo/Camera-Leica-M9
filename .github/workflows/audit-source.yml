@@ -18,7 +18,7 @@ jobs:
           PROJECT_DIR=$(find decoded -type f -name apktool.yml -print -quit | xargs dirname)
           test -n "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-      - name: Inspect settings, UI and camera source
+      - name: Inspect settings dialog and UI hooks
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -26,34 +26,30 @@ jobs:
           root=Path(os.environ["PROJECT_DIR"])
           main=root/"smali_classes3/com/xcam/offline/MainActivity.smali"
           lines=main.read_text(errors="ignore").splitlines()
-          def dump_file(path, ranges=None):
-              src=path.read_text(errors="ignore").splitlines()
-              print(f"=== FILE {path.relative_to(root)} ({len(src)} lines) ===")
-              if ranges is None:
-                  for n,line in enumerate(src,1): print(f"{n}: {line}")
-              else:
-                  for a,b in ranges:
-                      print(f"--- lines {a}-{b} ---")
-                      for n in range(a,min(b,len(src))+1): print(f"{n}: {src[n-1]}")
-          print("=== MAIN ACTIVITY METHOD INDEX ===")
-          for i,line in enumerate(lines,1):
-              if line.startswith(".method "):
-                  print(f"{i}: {line}")
-          for name in ("loadSettings","saveSettings","resolveNoiseReductionMode"):
-              start=next((i for i,x in enumerate(lines) if x.startswith(".method ") and (" "+name+"(") in x),None)
-              if start is not None:
-                  end=next((j for j in range(start+1,len(lines)) if lines[j]==".end method"),start)
-                  print(f"=== METHOD {name} ===")
-                  for n in range(start,end+1): print(f"{n+1}: {lines[n]}")
-          # Summarize all visible strings in buildUi to map the existing controls.
-          start=next(i for i,x in enumerate(lines) if x==".method private final buildUi()V")
+          def show_range(a,b):
+              for n in range(a,min(b,len(lines))+1): print(f"{n}: {lines[n-1]}")
+          print("=== SHOW SETTINGS METHOD: STRINGS / CHECKBOXES / SWITCHES / ROWS ===")
+          start=next(i for i,x in enumerate(lines) if x==".method private final showSettings()V")
           end=next(i for i in range(start+1,len(lines)) if lines[i]==".end method")
-          print("=== BUILD UI STRINGS AND VIEW CONSTRUCTION ===")
           for n in range(start,end):
               line=lines[n]
-              if any(k in line for k in ("const-string","new-instance","->setText(","->setTextSize(","->setTextColor(","->setBackground","->addView(","->setOnClickListener","->setPadding(","->setGravity(")):
+              if ("const-string" in line or "new-instance" in line or "->setText(" in line or "->setChecked(" in line or "->setOnCheckedChangeListener" in line or "->setOnClickListener" in line or "->addView(" in line or "denoiseMode" in line or "putInt(" in line or "setTitle(" in line):
                   print(f"{n+1}: {line}")
-          for rel in ("smali_classes3/com/xcam/offline/AppSettingsStore.smali","smali_classes3/com/xcam/offline/ExtraCameraSettings.smali"):
+          print("=== SHOW SETTINGS OPENING (first 180 lines) ===")
+          show_range(start+1,min(start+180,end+1))
+          print("=== SHOW SETTINGS LAMBDA METHODS ===")
+          for name in ("showSettings$lambda$152$lambda$151","showSettings$lambda$152$lambda$151$lambda$150"):
+              st=next((i for i,x in enumerate(lines) if x.startswith(".method ") and name in x),None)
+              if st is not None:
+                  en=next((j for j in range(st+1,len(lines)) if lines[j]==".end method"),st)
+                  print(f"--- {name} ---")
+                  show_range(st+1,en+1)
+          print("=== UI PATCH CLASSES ===")
+          for rel in ("smali_classes9/com/xcam/offline/UiV111Feature.smali","smali_classes8/com/xcam/offline/ZoomUiFeature.smali"):
               p=root/rel
-              if p.exists(): dump_file(p)
+              if p.exists():
+                  src=p.read_text(errors="ignore").splitlines()
+                  print(f"--- {rel} ---")
+                  for n,line in enumerate(src,1):
+                      if n<300: print(f"{n}: {line}")
           PY

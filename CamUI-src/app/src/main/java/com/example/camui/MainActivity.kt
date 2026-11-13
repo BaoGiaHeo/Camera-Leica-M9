@@ -6,7 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -39,7 +42,16 @@ class MainActivity : ComponentActivity() {
                 AnimatedContent(
                     targetState = page,
                     modifier = Modifier.fillMaxSize(),
-                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+                    // Each destination rises from a slightly smaller card and expands to full screen.
+                    transitionSpec = {
+                        (fadeIn(tween(260)) + scaleIn(
+                            initialScale = 0.86f,
+                            animationSpec = spring(dampingRatio = 0.78f, stiffness = 420f)
+                        )) togetherWith (fadeOut(tween(150)) + scaleOut(
+                            targetScale = 0.94f,
+                            animationSpec = tween(170)
+                        ))
+                    },
                     label = "Fujifilm Mode page transition"
                 ) { targetPage ->
                 when (targetPage) {

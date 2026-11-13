@@ -18,33 +18,43 @@ jobs:
           PROJECT_DIR=$(find decoded -type f -name apktool.yml -print -quit | xargs dirname)
           test -n "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-      - name: Inventory camera settings and UI
+      - name: Inspect app UI and camera implementation
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import os, re
           root=Path(os.environ["PROJECT_DIR"])
-          print("=== PROJECT STRUCTURE ===")
-          for p in sorted(root.iterdir()):
-              if p.is_dir() and (p.name.startswith("smali") or p.name=="res"):
-                  print(p.name)
-          terms=("noise_reduction","NOISE_REDUCTION","NoiseReduction","khử nhiễu","Khử nhiễu",
-                 "capturePhoto","takePicture","ResolutionSelector","Camera2")
-          print("=== FEATURE MATCHES ===")
-          for p in root.rglob("*.smali"):
-              try: s=p.read_text(errors="ignore")
-              except Exception: continue
-              hits=[t for t in terms if t.lower() in s.lower()]
-              if hits:
-                  print(f"FILE {p.relative_to(root)} MATCHES {','.join(hits)}")
-                  lines=s.splitlines()
-                  for i,line in enumerate(lines):
-                      if any(t.lower() in line.lower() for t in hits):
-                          print(f"{i+1}: {line[:220]}")
-          print("=== LAYOUT/RESOURCE INVENTORY ===")
+          main=root/"smali_classes3/com/xcam/offline/MainActivity.smali"
+          s=main.read_text(errors="ignore")
+          lines=s.splitlines()
+          print("=== APP-OWNED SMALI CLASSES ===")
+          for base in sorted(root.glob("smali*/com/xcam/offline")):
+              for f in sorted(base.glob("*.smali")):
+                  print(f.relative_to(root))
+          print("=== MAIN ACTIVITY METHOD INDEX ===")
+          for i,line in enumerate(lines):
+              if line.startswith(".method ") and any(k in line.lower() for k in ("init", "create", "setting", "dialog", "camera", "mode", "control", "view", "noise", "preview", "build")):
+                  print(f"{i+1}: {line}")
+          def dump(label, start, end):
+              print(f"=== {label} lines {start}-{end} ===")
+              for n in range(start, min(end,len(lines))+1):
+                  print(f"{n}: {lines[n-1]}")
+          for i,line in enumerate(lines):
+              if ".method private final resolveNoiseReductionMode(" in line:
+                  end=next((j for j in range(i+1,len(lines)) if lines[j]==".end method"),i+1)
+                  dump("NOISE REDUCTION MODE RESOLVER",i+1,end+1)
+              if "NOISE_REDUCTION_MODE" in line:
+                  dump("CAMERA2 NOISE REDUCTION REQUEST",max(1,i-22),min(len(lines),i+28))
+              if ".method private final capturePhoto()" in line:
+                  end=next((j for j in range(i+1,len(lines)) if lines[j]==".end method"),i+1)
+                  dump("CAPTURE PHOTO",i+1,min(end+1,i+100))
+          print("=== MAIN ACTIVITY SETTINGS-RELATED STRINGS ===")
+          for i,line in enumerate(lines):
+              if "const-string" in line and re.search(r"setting|quality|noise|kh[u\u1ee7] nhi|camera|photo|image|jpeg|raw|watermark|shutter|resolution|focus|stabil|manual|iso|exposure|timer|grid|format|filter|style|film",line,re.I):
+                  print(f"{i+1}: {line.strip()}")
+          print("=== UI RESOURCE INVENTORY ===")
           for folder in ("res/layout","res/drawable","res/menu","res/values"):
               d=root/folder
               if d.exists():
-                  files=list(d.iterdir())
-                  print(folder, len(files), [x.name for x in files[:80]])
+                  print(folder, [x.name for x in d.iterdir()])
           PY

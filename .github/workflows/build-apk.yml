@@ -45,7 +45,7 @@ jobs:
           p = Path(os.environ["PROJECT_DIR"]) / "smali_classes3/com/xcam/offline/MainActivity.smali"
           s = p.read_text()
           anchor = "    invoke-static {v6}, Lcom/xcam/offline/UiV111Feature;->install(Landroid/app/Activity;)V"
-          patch = anchor + "\\n    invoke-static {v6}, Lcom/xcam/offline/FujiDesignFeature;->install(Landroid/app/Activity;)V"
+          patch = anchor + "\n    invoke-static {v6}, Lcom/xcam/offline/FujiDesignFeature;->install(Landroid/app/Activity;)V"
           if s.count(anchor) != 1:
               raise SystemExit("Could not safely locate the single UI installation point")
           p.write_text(s.replace(anchor, patch, 1))

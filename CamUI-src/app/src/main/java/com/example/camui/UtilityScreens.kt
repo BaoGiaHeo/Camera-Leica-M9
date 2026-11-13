@@ -436,8 +436,24 @@ fun normalizeCapturedImage(
                 ExifInterface(descriptor.fileDescriptor)
             }
         }.getOrNull()
-        val exifDegrees = exifInfo?.rotationDegrees ?: 0
-        val exifFlipped = exifInfo?.isFlipped == true
+        val exifOrientation = exifInfo?.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+        ) ?: ExifInterface.ORIENTATION_NORMAL
+        // Match ExifInterface.getRotationDegrees()/isFlipped() semantics without relying
+        // on newer convenience accessors that are absent in this project's dependency.
+        val exifDegrees = when (exifOrientation) {
+            ExifInterface.ORIENTATION_ROTATE_90,
+            ExifInterface.ORIENTATION_TRANSVERSE -> 90
+            ExifInterface.ORIENTATION_ROTATE_180,
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> 180
+            ExifInterface.ORIENTATION_ROTATE_270,
+            ExifInterface.ORIENTATION_TRANSPOSE -> 270
+            else -> 0
+        }
+        val exifFlipped = exifOrientation == ExifInterface.ORIENTATION_FLIP_HORIZONTAL ||
+            exifOrientation == ExifInterface.ORIENTATION_FLIP_VERTICAL ||
+            exifOrientation == ExifInterface.ORIENTATION_TRANSPOSE ||
+            exifOrientation == ExifInterface.ORIENTATION_TRANSVERSE
 
         fun transform(degrees: Int, flipHorizontal: Boolean): Bitmap {
             val normalized = ((degrees % 360) + 360) % 360

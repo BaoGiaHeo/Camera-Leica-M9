@@ -335,20 +335,28 @@ private fun readExifOrientation(context: Context, uri: Uri): Int {
 }
 
 /**
+ * Returns the authoritative pixel-orientation transform. Some camera HALs leave JPEG EXIF
+ * neutral and publish the rotation through MediaStore instead; treat both sources identically.
+ */
+private fun readEffectiveImageOrientation(context: Context, uri: Uri): Int {
+    val exif = readExifOrientation(context, uri)
+    if (exif != ExifInterface.ORIENTATION_NORMAL && exif != ExifInterface.ORIENTATION_UNDEFINED) {
+        return exif
+    }
+    return when (readMediaStoreRotation(context, uri)) {
+        90 -> ExifInterface.ORIENTATION_ROTATE_90
+        180 -> ExifInterface.ORIENTATION_ROTATE_180
+        270 -> ExifInterface.ORIENTATION_ROTATE_270
+        else -> ExifInterface.ORIENTATION_NORMAL
+    }
+}
+
+/**
  * Decodes a JPEG with orientation applied to pixels. The output dimensions and pixels
  * therefore agree, independent of the viewer or MediaStore thumbnail implementation.
  */
 fun decodeUprightBitmap(context: Context, uri: Uri, maxDimension: Int = 0): Bitmap? {
-    val exifOrientation = readExifOrientation(context, uri)
-    val orientation = if (exifOrientation == ExifInterface.ORIENTATION_NORMAL ||
-        exifOrientation == ExifInterface.ORIENTATION_UNDEFINED) {
-        when (readMediaStoreRotation(context, uri)) {
-            90 -> ExifInterface.ORIENTATION_ROTATE_90
-            180 -> ExifInterface.ORIENTATION_ROTATE_180
-            270 -> ExifInterface.ORIENTATION_ROTATE_270
-            else -> ExifInterface.ORIENTATION_NORMAL
-        }
-    } else exifOrientation
+    val orientation = readEffectiveImageOrientation(context, uri)
 
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     context.contentResolver.openInputStream(uri)?.use { input ->
@@ -412,7 +420,7 @@ fun normalizeCapturedImage(
     expectedLandscape: Boolean? = null
 ): Boolean {
     return runCatching {
-        val exifOrientation = readExifOrientation(context, uri)
+        val exifOrientation = readEffectiveImageOrientation(context, uri)
         val needsExifTransform = exifOrientation != ExifInterface.ORIENTATION_NORMAL &&
             exifOrientation != ExifInterface.ORIENTATION_UNDEFINED
 

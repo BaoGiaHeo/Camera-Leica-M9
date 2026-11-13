@@ -187,8 +187,8 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Fujifilm-Mode-release
+          name: Fujifilm-Mode-app-debug
           path: |
-            output/Fujifilm-Mode-release.apk
+            output/Fujifilm-Mode-app-debug.apk
             output/SHA256SUMS.txt
             

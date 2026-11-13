@@ -647,7 +647,18 @@ fun CameraScreen(
             val captureRotation = previewView.display?.rotation
                 ?: context.display?.rotation
                 ?: targetRotation
-            val expectedLandscapeForCapture = isLandscape.takeIf { ratioIdx != 3 }
+            val selectedBaseAspectRatio = when (ratioIdx) {
+                0 -> 3f / 2f
+                1 -> 4f / 3f
+                2 -> 16f / 9f
+                3 -> 1f
+                else -> 21f / 9f
+            }
+            val expectedAspectRatioForCapture = if (isLandscape || ratioIdx == 3) {
+                selectedBaseAspectRatio
+            } else {
+                1f / selectedBaseAspectRatio
+            }
             if (captureRotation != targetRotation ||
                 boundCameraRotation != captureRotation ||
                 boundCameraLandscape != isLandscape ||
@@ -669,6 +680,9 @@ fun CameraScreen(
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode")
+                // Keep the row hidden from gallery scanners until the final JPEG pixels
+                // and EXIF/MediaStore dimensions have been normalized.
+                put(MediaStore.Images.Media.IS_PENDING, 1)
             }
             val output = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
@@ -712,7 +726,7 @@ fun CameraScreen(
                                         context,
                                         saved,
                                         captureRotationDegrees,
-                                        expectedLandscapeForCapture
+                                        expectedAspectRatioForCapture
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
@@ -724,24 +738,27 @@ fun CameraScreen(
                                         if (actualIso > 0) actualIso.toString() else "AUTO"
                                     )
                                 }.getOrDefault(false)
+                                val metadataPublished = runCatching {
+                                    finalizeCapturedImageMetadata(context, saved)
+                                }.getOrDefault(false)
                                 // Normalization runs before image looks and watermark drawing.
                                 // No later rotation is allowed to move the frame away from the
                                 // final upright pixel coordinate system.
-                                val orientationLabelFixed = orientationNormalized
+                                val orientationLabelFixed = orientationNormalized && metadataPublished
                                 withContext(Dispatchers.Main) { processingProgress = 92 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
-                                        stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng hướng, áp dụng màu và watermark."
-                                        stamped && orientationLabelFixed -> "Đã lưu ảnh đúng hướng và đóng watermark."
-                                        stamped -> "Watermark đã đóng nhưng hướng ảnh chưa được xác minh; hãy kiểm tra ảnh."
+                                        stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
+                                        stamped && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và có watermark."
+                                        stamped -> "Watermark đã đóng nhưng tỉ lệ/hướng ảnh chưa được xác minh."
                                         watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
-                                        lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng hướng và áp dụng bộ lọc/LUT."
-                                        lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được hướng ảnh."
-                                        orientationLabelFixed -> "Đã lưu ảnh đã chuẩn hóa hướng vào album."
-                                        else -> "Ảnh đã lưu nhưng chưa xác minh được hướng pixel. Hãy kiểm tra lại ảnh."
+                                        lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc/LUT."
+                                        lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
+                                        orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
+                                        else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
                                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                 }

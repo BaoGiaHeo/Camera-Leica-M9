@@ -411,18 +411,22 @@ private fun setMediaStoreOrientationUpright(context: Context, uri: Uri) {
 }
 
 /**
- * Physically rotates the captured JPEG when it carries EXIF/MediaStore rotation metadata,
- * then resets both metadata sources to neutral. Does no full-resolution decode when already upright.
+ * Physically writes the JPEG in its final upright pixel orientation before any look or watermark.
+ *
+ * Prefer the orientation actually stored by the JPEG/MediaStore. Only when both are neutral do
+ * we use CameraX's sensor-relative rotation, which includes the active camera's SENSOR_ORIENTATION
+ * and the frozen display target rotation. No width-vs-height 90-degree guess is made here.
  */
 fun normalizeCapturedImage(
     context: Context,
     uri: Uri,
-    expectedLandscape: Boolean? = null
+    fallbackRotationDegrees: Int = 0
 ): Boolean {
     return runCatching {
-        val exifOrientation = readEffectiveImageOrientation(context, uri)
-        val needsExifTransform = exifOrientation != ExifInterface.ORIENTATION_NORMAL &&
-            exifOrientation != ExifInterface.ORIENTATION_UNDEFINED
+        val metadataOrientation = readEffectiveImageOrientation(context, uri)
+        val metadataHasRotation = metadataOrientation != ExifInterface.ORIENTATION_NORMAL &&
+            metadataOrientation != ExifInterface.ORIENTATION_UNDEFINED
+        val fallbackDegrees = ((fallbackRotationDegrees % 360) + 360) % 360
 
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(uri)?.use { input ->
@@ -430,34 +434,21 @@ fun normalizeCapturedImage(
         }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching false
 
-        val exifSwapsDimensions = exifOrientation == ExifInterface.ORIENTATION_ROTATE_90 ||
-            exifOrientation == ExifInterface.ORIENTATION_ROTATE_270 ||
-            exifOrientation == ExifInterface.ORIENTATION_TRANSPOSE ||
-            exifOrientation == ExifInterface.ORIENTATION_TRANSVERSE
-        val uprightWidth = if (exifSwapsDimensions) bounds.outHeight else bounds.outWidth
-        val uprightHeight = if (exifSwapsDimensions) bounds.outWidth else bounds.outHeight
-        val dimensionsMismatch = expectedLandscape != null &&
-            uprightWidth != uprightHeight &&
-            (uprightWidth > uprightHeight) != expectedLandscape
-
-        // Use the display orientation captured with the shutter as the final authority.
-        // This corrects portrait JPEGs whose EXIF is neutral or reversed on some camera HALs.
-        if (!needsExifTransform && !dimensionsMismatch) {
+        if (!metadataHasRotation && fallbackDegrees == 0) {
             setMediaStoreOrientationUpright(context, uri)
             return@runCatching true
         }
 
-        val exifUpright = decodeUprightBitmap(context, uri) ?: return@runCatching false
-        val finalBitmap = if (
-            expectedLandscape != null &&
-            exifUpright.width != exifUpright.height &&
-            (exifUpright.width > exifUpright.height) != expectedLandscape
-        ) {
-            val correction = Matrix().apply { postRotate(90f) }
+        // This bitmap has EXIF/MediaStore transforms applied already when metadata exists.
+        val decodedUpright = decodeUprightBitmap(context, uri) ?: return@runCatching false
+        val finalBitmap = if (metadataHasRotation) {
+            decodedUpright
+        } else {
+            val correction = Matrix().apply { postRotate(fallbackDegrees.toFloat()) }
             Bitmap.createBitmap(
-                exifUpright, 0, 0, exifUpright.width, exifUpright.height, correction, true
+                decodedUpright, 0, 0, decodedUpright.width, decodedUpright.height, correction, true
             )
-        } else exifUpright
+        }
 
         context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
             finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)

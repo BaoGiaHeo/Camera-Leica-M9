@@ -72,3 +72,16 @@ jobs:
         with:
           name: camera-source-files
           path: report/source/
+
+      - name: Package complete decoded project
+        run: |
+          set -e
+          cd "$(dirname "$PROJECT")"
+          zip -qr "$GITHUB_WORKSPACE/report/complete-decoded-project.zip" "$(basename "$PROJECT")"
+
+      - name: Upload complete decoded project
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-decoded-project
+          path: report/complete-decoded-project.zip
+          compression-level: 0

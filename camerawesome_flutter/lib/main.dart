@@ -250,7 +250,7 @@ class _CameraOptionsScreenState extends State<CameraOptionsScreen> {
                   const SizedBox(height: 14),
                   _sectionLabel('VIEWFINDER'),
                   _optionPanel(
-                    icon: Icons.videocamera_outlined,
+                    icon: Icons.videocam_outlined,
                     title: 'Preview Stabilization',
                     subtitle: 'Select a stabilization preference',
                     child: Wrap(

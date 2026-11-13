@@ -1,19 +1,13 @@
-# Camera Leica M9 (app-debug)
+# Fujifilm Mode (app-debug)
 
-Ứng dụng camera Android thử nghiệm, được xây dựng từ APK đã giải mã và các bản vá Smali.
+Ứng dụng camera Android đang trong giai đoạn thử nghiệm. Tên hiển thị của ứng dụng là **Fujifilm Mode**; các bản thử nghiệm được gắn nhãn **app-debug**.
 
 ## Giao diện
 
-Giao diện được điều chỉnh theo hướng tham khảo PhotonCamera của bjzhou:
-- Bố cục camera ưu tiên viewfinder và các cụm điều khiển gọn.
-- Tông tối: nền #0D0D0D, bề mặt #1A1A1A, chữ sáng và màu nhấn vàng.
-- Các bảng điều khiển bo góc, viền nhẹ; thanh chỉnh và công tắc dùng màu nhấn.
-- Giữ lõi camera, cấu hình thiết bị và các bản vá chức năng hiện có của dự án.
+Bản thử nghiệm hiện tại giữ lại giao diện gốc của dự án. Bản phủ màu/bo góc toàn bộ View trước đây đã bị gỡ vì không tạo được giao diện PhotonCamera đúng nghĩa và làm giảm chất lượng bố cục.
 
-Nguồn tham khảo: https://github.com/bjzhou/PhotonCamera
-
-PhotonCamera được phát hành theo Apache License 2.0. Dự án này tham khảo hệ thống giao diện và màu sắc; không tuyên bố là sản phẩm chính thức hoặc được phát hành bởi nhóm PhotonCamera. Nếu phân phối lại mã nguồn của PhotonCamera, cần kèm giấy phép và thông báo bản quyền gốc.
+PhotonCamera (https://github.com/bjzhou/PhotonCamera) là nguồn tham khảo cho đợt thiết kế lại tiếp theo. Chưa có tuyên bố rằng giao diện hiện tại đã được chuyển sang PhotonCamera hoặc đã port các màn hình Compose của dự án đó.
 
 ## Build
 
-GitHub Actions tạo APK từ `app.zip` hiện tại.
+GitHub Actions tạo APK từ `app.zip` và các bản vá Smali của dự án.

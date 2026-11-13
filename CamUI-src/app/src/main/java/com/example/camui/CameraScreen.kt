@@ -14,6 +14,7 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
+import android.hardware.camera2.params.RggbChannelVector
 import android.net.Uri
 import android.provider.MediaStore
 import android.provider.OpenableColumns
@@ -143,6 +144,7 @@ fun CameraScreen(
     onOpenSettings: () -> Unit,
     onOpenToolbox: () -> Unit,
     onOpenContentManagement: () -> Unit,
+    onOpenAlbum: () -> Unit,
     showGrid: Boolean,
     onShowGrid: (Boolean) -> Unit,
     showHist: Boolean,
@@ -190,6 +192,13 @@ fun CameraScreen(
     var stabilization by remember { mutableStateOf(false) }
     var renderEngine by remember { mutableStateOf("Performance") }
     var proSel by remember { mutableStateOf<String?>(null) }
+    var focusLocked by remember { mutableStateOf(false) }
+    var manualIsoEnabled by remember { mutableStateOf(false) }
+    var manualShutterEnabled by remember { mutableStateOf(false) }
+    var manualColorTempEnabled by remember { mutableStateOf(false) }
+    var manualColorTemp by remember { mutableIntStateOf(5200) }
+    var manualCaptureRevision by remember { mutableIntStateOf(0) }
+    var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
     var activeLutUri by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_lut_uri", "") ?: "") }
@@ -209,7 +218,6 @@ fun CameraScreen(
     var manualIso by remember { mutableIntStateOf(400) }
     var manualShutterNs by remember { mutableLongStateOf(10_000_000L) }
     var manualFocus by remember { mutableFloatStateOf(0f) }
-    var whiteBalance by remember { mutableIntStateOf(CaptureRequest.CONTROL_AWB_MODE_AUTO) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
@@ -223,6 +231,14 @@ fun CameraScreen(
     val appPrefs = remember { context.getSharedPreferences("fujifilm_settings", 0) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
+    val shutterButtonImageUri = appPrefs.getString("shutter_button_image_uri", null)
+    LaunchedEffect(shutterButtonImageUri) {
+        shutterButtonBitmap = if (shutterButtonImageUri.isNullOrBlank()) null else withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.loadThumbnail(Uri.parse(shutterButtonImageUri), Size(180, 180), null).asImageBitmap()
+            }.getOrNull()
+        }
+    }
 
     // Recreate PreviewView when renderer changes; implementationMode is chosen before surface creation.
     val previewView = remember(context, renderEngine) {
@@ -237,7 +253,7 @@ fun CameraScreen(
     }
 
     // The custom CameraX ViewPort crops the preview and saved image to the same ratio.
-    LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, renderEngine) {
+    LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, renderEngine, manualCaptureRevision) {
         if (!hasCam) return@LaunchedEffect
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
@@ -285,6 +301,18 @@ fun CameraScreen(
                     "High" -> 92
                     else -> 100
                 })
+                if (manualExposure && (manualIsoEnabled || manualShutterEnabled)) {
+                    val captureIso = if (manualIsoEnabled) manualIso else iso.takeIf { it > 0 } ?: 400
+                    val captureExposure = if (manualShutterEnabled) manualShutterNs
+                        else shutterNs.takeIf { it > 0L } ?: 10_000_000L
+                    // Keep manual exposure on the still-capture use case, not the preview repeating request.
+                    Camera2Interop.Extender(captureBuilder)
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                        .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, captureIso)
+                        .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, captureExposure)
+                        .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(captureExposure, 10_000_000L))
+                }
                 if (imageQuality == "Best") {
                     captureBuilder.setResolutionSelector(
                         ResolutionSelector.Builder()
@@ -405,9 +433,9 @@ fun CameraScreen(
                 val supportsManualSensor = capabilities?.contains(
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
                 ) == true
-                // Manual shutter/ISO are applied only immediately before a still capture.
-                // Applying a 1s exposure to the repeating preview would reduce preview to ~1 fps.
-                applyWhiteBalance(bound, whiteBalance)
+                // White-balance warmth/coolness is a manual sensor color-correction request.
+                if (manualColorTempEnabled) applyManualWhiteBalance(bound, manualColorTemp)
+                else applyAutoWhiteBalance(bound)
                 if (stabilization) applyStabilization(bound, true)
             }
 
@@ -519,12 +547,6 @@ fun CameraScreen(
                 countdown = 0
             }
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
-            camera?.let { active ->
-                if (manualExposure) {
-                    runCatching { applyManualExposure(active, manualIso, manualShutterNs) }
-                    delay(140)
-                }
-            }
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
                 runCatching { shutterSoundPlayer.play(MediaActionSound.SHUTTER_CLICK) }
             }
@@ -566,8 +588,8 @@ fun CameraScreen(
                                 ?.firstOrNull()?.let { "%.1f mm".format(Locale.US, it) } ?: ""
                             val aperture = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
                                 ?.firstOrNull()?.let { "f/%.1f".format(Locale.US, it) } ?: ""
-                            val actualIso = if (manualExposure) manualIso else iso
-                            val actualShutterNs = if (manualExposure) manualShutterNs else shutterNs
+                            val actualIso = if (manualIsoEnabled) manualIso else iso
+                            val actualShutterNs = if (manualShutterEnabled) manualShutterNs else shutterNs
                             val shutterLabel = if (actualShutterNs > 0L) {
                                 val seconds = actualShutterNs / 1_000_000_000.0
                                 if (seconds >= 0.5) "%.1fs".format(Locale.US, seconds)
@@ -623,21 +645,19 @@ fun CameraScreen(
         CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
     ) else null
     val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
-    val availableAwbModes = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)?.toSet()
-        ?: setOf(CaptureRequest.CONTROL_AWB_MODE_AUTO)
-    val supportedWbModes = wbModes.filter { it.second in availableAwbModes }
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
-    val currentIso = if (manualExposure) manualIso else iso
-    val isoText = if (currentIso > 0) currentIso.toString() else "AUTO"
-    val currentShutter = if (manualExposure) manualShutterNs else shutterNs
+    val currentIso = if (manualIsoEnabled) manualIso else iso
+    val isoText = if (manualIsoEnabled) manualIso.toString() else "AUTO"
+    val currentShutter = if (manualShutterEnabled) manualShutterNs else shutterNs
     val shutterText = if (currentShutter > 0) {
         val seconds = currentShutter / 1_000_000_000.0
         if (seconds >= 0.5) "%.1f\"".format(Locale.US, seconds)
         else "1/${(1.0 / seconds).roundToInt()}"
     } else "AUTO"
-    val afText = if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
+    val afText = if (focusLocked) "LOCK" else if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
+    val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO"
 
     Box(Modifier.fillMaxSize().background(CamColors.Bg).systemBarsPadding()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 7.dp)) {

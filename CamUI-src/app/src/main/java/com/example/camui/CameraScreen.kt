@@ -178,6 +178,7 @@ fun CameraScreen(
     var targetRotation by remember {
         mutableIntStateOf(context.display?.rotation ?: Surface.ROTATION_0)
     }
+    var cameraBindGeneration by remember { mutableIntStateOf(0) }
     // Window configuration is authoritative for whether the UI/crop is portrait or landscape.
     // Do not mix sensor azimuth with display rotation: the two can briefly disagree while rotating.
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -187,13 +188,10 @@ fun CameraScreen(
         object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN) return
-                val rotation = when (orientation) {
-                    in 45 until 135 -> Surface.ROTATION_270
-                    in 135 until 225 -> Surface.ROTATION_180
-                    in 225 until 315 -> Surface.ROTATION_90
-                    else -> Surface.ROTATION_0
-                }
-                if (rotation != targetRotation) targetRotation = rotation
+                // Re-read Android's actual display rotation. Converting raw sensor degrees
+                // directly assumes every device has a portrait natural orientation.
+                val displayRotation = context.display?.rotation ?: return
+                if (displayRotation != targetRotation) targetRotation = displayRotation
             }
         }
     }
@@ -300,7 +298,7 @@ fun CameraScreen(
     // Recreate PreviewView when renderer changes; implementationMode is chosen before surface creation.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FIT_CENTER
+            scaleType = PreviewView.ScaleType.FILL_CENTER
             implementationMode = if (renderEngine == "Performance") {
                 PreviewView.ImplementationMode.PERFORMANCE
             } else {
@@ -309,12 +307,16 @@ fun CameraScreen(
         }
     }
 
-    // The custom CameraX ViewPort crops the preview and saved image to the same ratio.
+    // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
+    // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine, manualCaptureRevision) {
         if (!hasCam) return@LaunchedEffect
+        val bindGeneration = ++cameraBindGeneration
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
+            if (bindGeneration != cameraBindGeneration) return@addListener
             val provider = runCatching { future.get() }.getOrNull() ?: return@addListener
+            if (bindGeneration != cameraBindGeneration) return@addListener
             provider.unbindAll()
             camera = null
             imageCapture = null
@@ -466,10 +468,9 @@ fun CameraScreen(
 
                 val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
                     else CameraSelector.DEFAULT_BACK_CAMERA
-                val measuredViewPortRatio = if (previewView.width > 0 && previewView.height > 0) {
-                    Rational(previewView.width, previewView.height)
-                } else ratio
-                val viewPort = ViewPort.Builder(measuredViewPortRatio, rotation)
+                // Use the exact ratio used by the Compose preview container. Reading
+                // PreviewView.width/height here can pick up the previous layout during rotation.
+                val viewPort = ViewPort.Builder(ratio, rotation)
                     .setScaleType(ViewPort.FILL_CENTER)
                     .build()
                 val group = UseCaseGroup.Builder()
@@ -626,28 +627,18 @@ fun CameraScreen(
                     shutterEffectAlpha = 0f
                 }
             }
-            // Read the actual display orientation at shutter time; the sensor event can lag rotation.
+            // Freeze display rotation and the active camera's sensor-relative rotation for
+            // this still capture. CameraX combines target rotation with SENSOR_ORIENTATION.
             val captureRotation = previewView.display?.rotation
                 ?: context.display?.rotation
                 ?: targetRotation
-            val captureIsLandscape = if (previewView.width > 0 && previewView.height > 0) {
-                previewView.width > previewView.height
-            } else {
-                configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            }
+            targetRotation = captureRotation
             capture.targetRotation = captureRotation
-            previewUseCase?.setTargetRotation(captureRotation)
-            analysisUseCase?.setTargetRotation(captureRotation)
-            val captureRatio = when (ratioIdx) {
-                0 -> if (captureIsLandscape) Rational(3, 2) else Rational(2, 3)
-                1 -> if (captureIsLandscape) Rational(4, 3) else Rational(3, 4)
-                2 -> if (captureIsLandscape) Rational(16, 9) else Rational(9, 16)
-                3 -> Rational(1, 1)
-                else -> if (captureIsLandscape) Rational(21, 9) else Rational(9, 21)
-            }
-            // Derive the final pixel orientation from the selected output crop itself.
-            val expectedLandscape = if (ratioIdx == 3) null
-                else captureRatio.numerator > captureRatio.denominator
+            previewUseCase?.targetRotation = captureRotation
+            analysisUseCase?.targetRotation = captureRotation
+            val captureRotationDegrees = runCatching {
+                camera?.cameraInfo?.getSensorRotationDegrees(captureRotation)
+            }.getOrNull() ?: 0
             val name = "FUJI_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
@@ -694,7 +685,7 @@ fun CameraScreen(
                             scope.launch(Dispatchers.IO) {
                                 withContext(Dispatchers.Main) { processingProgress = 12 }
                                 val orientationNormalized = runCatching {
-                                    normalizeCapturedImage(context, saved, expectedLandscape)
+                                    normalizeCapturedImage(context, saved, captureRotationDegrees)
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
                                 val lookApplied = runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
@@ -705,9 +696,10 @@ fun CameraScreen(
                                         if (actualIso > 0) actualIso.toString() else "AUTO"
                                     )
                                 }.getOrDefault(false)
-                                val orientationLabelFixed = orientationNormalized || runCatching {
-                                    normalizeCapturedImage(context, saved, expectedLandscape)
-                                }.getOrDefault(false)
+                                // Normalization runs before image looks and watermark drawing.
+                                // No later rotation is allowed to move the frame away from the
+                                // final upright pixel coordinate system.
+                                val orientationLabelFixed = orientationNormalized
                                 withContext(Dispatchers.Main) { processingProgress = 92 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
@@ -810,11 +802,9 @@ fun CameraScreen(
     // Animate the preview's ratio when the device changes orientation.
     val basePreviewRatio = aspectRatios[ratioIdx.coerceIn(0, aspectRatios.lastIndex)].second
     val targetPreviewRatio = if (isLandscape) 1f / basePreviewRatio else basePreviewRatio
-    val previewAspectRatio by animateFloatAsState(
-        targetValue = targetPreviewRatio,
-        animationSpec = spring(dampingRatio = 0.86f, stiffness = 340f),
-        label = "camera preview aspect ratio"
-    )
+    // Change crop ratio atomically with CameraX's ViewPort. The surrounding layout still
+    // receives a subtle orientation animation below, without a temporary preview/photo mismatch.
+    val previewAspectRatio = targetPreviewRatio
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),

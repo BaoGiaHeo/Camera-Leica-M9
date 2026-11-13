@@ -657,24 +657,24 @@ fun applyCameraWatermark(
             "standard2" -> {
                 drawPhotoFrame()
                 val plate = drawBottomPlate(0.145f, margin * 1.25f)
-                val left = plate.left + plate.height * 0.22f
-                fitText(model.take(52).uppercase(), titlePaint, left, plate.top + plate.height * 0.43f,
-                    plate.width() - plate.height * 0.42f, minSide * 0.024f)
-                fitText(details, detailPaint, left, plate.top + plate.height * 0.76f,
-                    plate.width() - plate.height * 0.42f, minSide * 0.014f)
+                val left = plate.left + plate.height() * 0.22f
+                fitText(model.take(52).uppercase(), titlePaint, left, plate.top + plate.height() * 0.43f,
+                    plate.width() - plate.height() * 0.42f, minSide * 0.024f)
+                fitText(details, detailPaint, left, plate.top + plate.height() * 0.76f,
+                    plate.width() - plate.height() * 0.42f, minSide * 0.014f)
                 fitText("FUJIFILM MODE  /  $timestamp", detailPaint,
                     plate.left + 5f, plate.top - margin * 0.25f, plate.width(), minSide * 0.010f)
             }
             "blur" -> {
                 val plate = drawBottomPlate(0.17f, margin)
-                fitText(model, titlePaint, plate.left + plate.height * 0.20f,
-                    plate.top + plate.height * 0.42f, plate.width() - plate.height * 0.35f,
+                fitText(model, titlePaint, plate.left + plate.height() * 0.20f,
+                    plate.top + plate.height() * 0.42f, plate.width() - plate.height() * 0.35f,
                     minSide * 0.026f)
-                fitText(details, detailPaint, plate.left + plate.height * 0.20f,
-                    plate.top + plate.height * 0.76f, plate.width() - plate.height * 0.35f,
+                fitText(details, detailPaint, plate.left + plate.height() * 0.20f,
+                    plate.top + plate.height() * 0.76f, plate.width() - plate.height() * 0.35f,
                     minSide * 0.014f)
                 accentPaint.textSize = minSide * 0.011f
-                canvas.drawText("CAMERA NOTES  •  $timestamp", plate.left + plate.height * 0.20f,
+                canvas.drawText("CAMERA NOTES  •  $timestamp", plate.left + plate.height() * 0.20f,
                     plate.top - margin * 0.25f, accentPaint)
             }
             "normal1" -> {
@@ -723,11 +723,11 @@ fun applyCameraWatermark(
             else -> {
                 drawPhotoFrame()
                 val plate = drawBottomPlate(0.12f, margin)
-                val left = plate.left + plate.height * 0.22f
-                fitText(model, titlePaint, left, plate.top + plate.height * 0.43f,
-                    plate.width() - plate.height * 0.42f, minSide * 0.023f)
-                fitText(details, detailPaint, left, plate.top + plate.height * 0.78f,
-                    plate.width() - plate.height * 0.42f, minSide * 0.014f)
+                val left = plate.left + plate.height() * 0.22f
+                fitText(model, titlePaint, left, plate.top + plate.height() * 0.43f,
+                    plate.width() - plate.height() * 0.42f, minSide * 0.023f)
+                fitText(details, detailPaint, left, plate.top + plate.height() * 0.78f,
+                    plate.width() - plate.height() * 0.42f, minSide * 0.014f)
                 accentPaint.textSize = (minSide * 0.0105f).coerceIn(10f, 26f)
                 canvas.drawText("FUJIFILM MODE  •  $timestamp", margin + 2f,
                     margin + accentPaint.textSize * 1.4f, accentPaint)

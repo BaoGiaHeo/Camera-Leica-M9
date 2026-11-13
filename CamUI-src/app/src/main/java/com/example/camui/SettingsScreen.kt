@@ -8,6 +8,14 @@ import android.graphics.ImageFormat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -80,39 +88,54 @@ fun SettingsScreen(
     onFocusPeaking: (Boolean) -> Unit
 ) {
     var selectedPage by remember { mutableStateOf<String?>(null) }
-    if (selectedPage != null) {
-        SettingsDetailPage(
-            title = selectedPage!!,
-            onBack = { selectedPage = null },
-            ratioIdx = ratioIdx,
-            onRatio = onRatio,
-            showGrid = showGrid,
-            onShowGrid = onShowGrid,
-            showHist = showHist,
-            onShowHist = onShowHist,
-            focusPeaking = focusPeaking,
-            onFocusPeaking = onFocusPeaking
-        )
-        return
-    }
-    Column(Modifier.fillMaxSize().background(CamColors.Bg)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            androidx.compose.material3.IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+    AnimatedContent(
+        targetState = selectedPage,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            (fadeIn(tween(240)) + scaleIn(
+                initialScale = 0.88f,
+                animationSpec = spring(dampingRatio = 0.78f, stiffness = 430f)
+            )) togetherWith (fadeOut(tween(140)) + scaleOut(
+                targetScale = 0.94f,
+                animationSpec = tween(160)
+            ))
+        },
+        label = "Settings page pop transition"
+    ) { page ->
+        if (page != null) {
+            SettingsDetailPage(
+                title = page,
+                onBack = { selectedPage = null },
+                ratioIdx = ratioIdx,
+                onRatio = onRatio,
+                showGrid = showGrid,
+                onShowGrid = onShowGrid,
+                showHist = showHist,
+                onShowHist = onShowHist,
+                focusPeaking = focusPeaking,
+                onFocusPeaking = onFocusPeaking
+            )
+        } else {
+            Column(Modifier.fillMaxSize().background(CamColors.Bg)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    Text("Settings", color = CamColors.TextColor, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                }
+                LazyColumn(
+                    Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item { SectionTitle("Capture") }
+                    items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
+                    item { SectionTitle("Imaging") }
+                    items(settingItems.drop(3)) { item -> SettingCard(item) { selectedPage = item.title } }
+                }
             }
-            Text("Settings", color = CamColors.TextColor, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-        }
-        LazyColumn(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item { SectionTitle("Capture") }
-            items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
-            item { SectionTitle("Imaging") }
-            items(settingItems.drop(3)) { item -> SettingCard(item) { selectedPage = item.title } }
         }
     }
 }

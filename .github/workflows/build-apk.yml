@@ -93,6 +93,130 @@ jobs:
               raise SystemExit("Could not safely locate the single UI installation point")
           p.write_text(s.replace(anchor, patch, 1))
           PY
+      - name: Add hardware noise reduction OFF mode
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ["PROJECT_DIR"]) / "smali_classes3/com/xcam/offline/MainActivity.smali"
+          s = p.read_text()
+
+          def replace_once(source, old, new, label):
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one safe match, found {count}")
+              return source.replace(old, new, 1)
+
+          # Preserve the existing default, but allow the persisted setting to be index 2.
+          a = s.index(".method private final loadSettings()V")
+          b = s.index(".end method", a)
+          block = s[a:b]
+          old = """              move-result v3
+
+              invoke-static {v3, v1, v4}, Lkotlin/ranges/RangesKt;->coerceIn(III)I"""
+          new = """              move-result v3
+
+              const/4 v5, 0x2
+
+              invoke-static {v3, v1, v5}, Lkotlin/ranges/RangesKt;->coerceIn(III)I"""
+          block = replace_once(block, old, new, "loadSettings denoise range")
+          s = s[:a] + block + s[b:]
+
+          # Add a third RadioButton in the existing Khử nhiễu ảnh group.
+          a = s.index(".method private final showSettings()V")
+          b = s.index(".end method", a)
+          block = s[a:b]
+          old = """              const/4 v6, 0x2
+
+              new-array v0, v6, [Ljava/lang/String;
+
+              const-string v1, "Nh\\u1eb9"
+
+              aput-object v1, v0, v13
+
+              const-string v1, "Best"
+
+              const/4 v2, 0x1
+
+              aput-object v1, v0, v2"""
+          new = """              const/4 v6, 0x3
+
+              new-array v0, v6, [Ljava/lang/String;
+
+              const-string v1, "Nh\\u1eb9"
+
+              aput-object v1, v0, v13
+
+              const-string v1, "Best"
+
+              const/4 v2, 0x1
+
+              aput-object v1, v0, v2
+
+              const-string v1, "T\\u1eaft"
+
+              const/4 v2, 0x2
+
+              aput-object v1, v0, v2"""
+          block = replace_once(block, old, new, "denoise option labels")
+          s = s[:a] + block + s[b:]
+
+          # Map UI index 2 to Camera2 NOISE_REDUCTION_MODE_OFF (0).
+          a = s.index(".method private final resolveNoiseReductionMode(")
+          b = s.index(".end method", a)
+          block = s[a:b]
+          old = """              if-ne v2, v4, :cond_1
+
+              move v2, v3
+
+              goto :goto_0
+
+              :cond_1
+
+              move v2, v4"""
+          new = """              if-nez v2, :cond_denoise_nonzero
+
+              move v2, v4
+
+              goto :goto_0
+
+              :cond_denoise_nonzero
+
+              if-ne v2, v4, :cond_denoise_off
+
+              move v2, v3
+
+              goto :goto_0
+
+              :cond_denoise_off
+
+              const/4 v2, 0x0"""
+          block = replace_once(block, old, new, "Camera2 noise reduction mapping")
+
+          # If Camera2 reports OFF as unsupported, do not silently select FAST/MINIMAL.
+          old = """              :cond_2
+
+              const/4 v5, 0x3"""
+          new = """              :cond_2
+
+              iget v2, p0, Lcom/xcam/offline/MainActivity;->denoiseMode:I
+
+              const/4 v3, 0x2
+
+              if-ne v2, v3, :continue_denoise_fallback
+
+              return-object v0
+
+              :continue_denoise_fallback
+
+              const/4 v5, 0x3"""
+          block = replace_once(block, old, new, "OFF unsupported fallback guard")
+          s = s[:a] + block + s[b:]
+
+          p.write_text(s)
+          print("Added OFF option; saved mode range is 0..2 and Camera2 OFF maps to value 0.")
+          PY
       - name: Localize camera settings and clarify output formats
         run: |
           set -e

@@ -1283,22 +1283,22 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
         val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
             ?: return@runCatching false
         val canvas = Canvas(output)
-        val style = prefs.getString("frame_style", "White") ?: "White"
-        val frameColor = if (style == "Black") AndroidColor.BLACK else AndroidColor.WHITE
-        val textColor = if (style == "Black" || transparent) AndroidColor.WHITE else AndroidColor.BLACK
+        val frameStyle = prefs.getString("frame_style", "White") ?: "White"
+        val transparent = frameStyle == "Transparent"
+        val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+        val textColor = if (frameStyle == "Black" || transparent) AndroidColor.WHITE else AndroidColor.BLACK
         val minSide = minOf(output.width, output.height).toFloat()
         val margin = (minSide * 0.035f).coerceAtLeast(16f)
         val stroke = (minSide * 0.0032f).coerceAtLeast(2f)
-        val transparent = style == "Transparent"
 
         val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = frameColor
-            style = Paint.Style.STROKE
+            this.style = Paint.Style.STROKE
             strokeWidth = stroke
         }
         val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = frameColor
-            style = Paint.Style.FILL
+            this.style = Paint.Style.FILL
         }
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (transparent) AndroidColor.WHITE else textColor

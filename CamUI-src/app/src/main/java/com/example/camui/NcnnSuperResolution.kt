@@ -72,14 +72,16 @@ object NcnnSuperResolution {
             }
 
             val src = sourceBitmap!!
-            val inputPixels = src.width.toLong() * src.height.toLong()
+            val originalWidth = src.width
+            val originalHeight = src.height
+            val inputPixels = originalWidth.toLong() * originalHeight.toLong()
             modelInput = if (inputPixels > MAX_MODEL_INPUT_PIXELS) {
                 val scale = sqrt(MAX_MODEL_INPUT_PIXELS.toDouble() / inputPixels.toDouble())
-                val scaledWidth = (src.width * scale).toInt().coerceAtLeast(1)
-                val scaledHeight = (src.height * scale).toInt().coerceAtLeast(1)
+                val scaledWidth = (originalWidth * scale).toInt().coerceAtLeast(1)
+                val scaledHeight = (originalHeight * scale).toInt().coerceAtLeast(1)
                 Bitmap.createScaledBitmap(src, scaledWidth, scaledHeight, true).also {
                     if (it !== src) src.recycle()
-                    Log.i(TAG, "Large source reduced for bounded AI memory: ${src.width}x${src.height} -> ${it.width}x${it.height}")
+                    Log.i(TAG, "Large source reduced for bounded AI memory: ${originalWidth}x${originalHeight} -> ${it.width}x${it.height}")
                 }
             } else {
                 src

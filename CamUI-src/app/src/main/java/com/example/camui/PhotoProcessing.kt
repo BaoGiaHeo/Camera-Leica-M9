@@ -21,6 +21,12 @@ fun applySoftwarePhotoEnhancement(
     uhdSharpening: Boolean
 ): Boolean {
     if (!softwareHdr && !uhdSharpening) return false
+    // Prefer the OpenGL ES shader for modest frames; large sensor JPEGs and EGL/driver
+    // failures automatically fall back to the bounded row-by-row CPU implementation.
+    if (runCatching {
+            tryApplyGpuPhotoEnhancement(context, uri, softwareHdr, uhdSharpening)
+        }.getOrDefault(false)
+    ) return true
 
     return runCatching {
         val options = BitmapFactory.Options().apply {

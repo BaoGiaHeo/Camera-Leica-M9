@@ -6,6 +6,8 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.graphics.ImageFormat
 import android.net.Uri
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -71,7 +73,8 @@ private val settingItems = listOf(
     SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
     SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
     SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
-    SettingItem("Appearance", "App background · custom shutter button"),
+    SettingItem("Appearance", "Custom shutter button"),
+    SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("About", "Fujifilm Mode · app-debug")
 )
 
@@ -161,19 +164,8 @@ private fun SettingsDetailPage(
     var uhd by remember {
         mutableStateOf(prefs.getBoolean("uhd_capture_enabled", prefs.getBoolean("uhd_coming_soon", false)))
     }
-    var selectedBackground by remember { mutableStateOf(prefs.getString("app_background_color", "#121212") ?: "#121212") }
-    var backgroundImageUri by remember { mutableStateOf(prefs.getString("app_background_image_uri", null)) }
     var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFFFFFFF") ?: "#FFFFFFFF") }
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
-    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            backgroundImageUri = uri.toString()
-            CamColors.BackgroundImageUri = uri.toString()
-            CamColors.Bg = Color.Transparent
-            prefs.edit().putString("app_background_image_uri", uri.toString()).apply()
-        }
-    }
     val shutterImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
@@ -290,44 +282,6 @@ private fun SettingsDetailPage(
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
             }
             "Appearance" -> {
-                Text("App background", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                Text("Ảnh bạn chọn sẽ làm nền chung cho camera, cài đặt, album và các công cụ. Các bảng điều khiển sẽ bán trong suốt để không che kín hình nền.",
-                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf(
-                        "Black" to "#121212",
-                        "White" to "#FFFFFFFF",
-                        "Blue" to "#10243B",
-                        "Graphite" to "#292D33",
-                        "Olive" to "#24281A"
-                    ).forEach { (label, hex) ->
-                        Chip(label, selectedBackground == hex && backgroundImageUri == null, {
-                            selectedBackground = hex
-                            backgroundImageUri = null
-                            prefs.edit().putString("app_background_color", hex).remove("app_background_image_uri").apply()
-                            CamColors.BackgroundImageUri = null
-                            CamColors.Bg = Color(android.graphics.Color.parseColor(hex))
-                        }, Modifier.width(82.dp))
-                    }
-                }
-                Button(onClick = { backgroundPicker.launch(arrayOf("image/*")) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                    Text(if (backgroundImageUri == null) "Import ảnh nền" else "Đổi ảnh nền")
-                }
-                if (backgroundImageUri != null) {
-                    Text("Đã chọn ảnh nền. Dùng nút bên dưới để trở về màu đơn.",
-                        color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
-                    Text("Dùng màu nền", color = CamColors.Yellow, fontSize = 12.sp,
-                        modifier = Modifier.clickable {
-                            backgroundImageUri = null
-                            CamColors.BackgroundImageUri = null
-                            prefs.edit().remove("app_background_image_uri").apply()
-                            CamColors.Bg = Color(android.graphics.Color.parseColor(selectedBackground))
-                        }.padding(vertical = 7.dp))
-                }
-
-                Spacer(Modifier.padding(8.dp))
                 Text("Shutter button", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
@@ -360,6 +314,46 @@ private fun SettingsDetailPage(
                             prefs.edit().remove("shutter_button_image_uri").apply()
                         }.padding(vertical = 7.dp))
                 }
+            }
+            "Language" -> {
+                var selectedLanguage by remember {
+                    mutableStateOf(prefs.getString("app_language", "system") ?: "system")
+                }
+                Text("Language", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi.",
+                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
+                val languages = listOf(
+                    Triple("system", "Phát hiện ngôn ngữ hệ thống", ""),
+                    Triple("en", "English", "en"),
+                    Triple("vi", "Vietnamese", "vi"),
+                    Triple("ja", "Japan", "ja"),
+                    Triple("ko", "Korea", "ko"),
+                    Triple("zh-CN", "China", "zh-CN")
+                )
+                languages.forEach { (id, label, tag) ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(if (selectedLanguage == id) Color(0x553F3822) else CamColors.Card)
+                            .border(1.dp, if (selectedLanguage == id) CamColors.Yellow else CamColors.Stroke,
+                                RoundedCornerShape(13.dp))
+                            .clickable {
+                                selectedLanguage = id
+                                prefs.edit().putString("app_language", id).apply()
+                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
+                            }
+                            .padding(horizontal = 14.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, color = if (selectedLanguage == id) CamColors.Yellow else CamColors.TextColor,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        if (selectedLanguage == id) {
+                            Text("✓", color = CamColors.Yellow, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Text("Japan = 日本語 · Korea = 한국어 · China = 简体中文",
+                    color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)

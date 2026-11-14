@@ -721,7 +721,8 @@ fun CameraScreen(
                 val isOrdinaryPhotoJpeg = mode == "Photo" && nightShotMode == "off" &&
                     !rawCaptureActive && !isComputationalHighResolution
                 if (isOrdinaryPhotoJpeg) {
-                    val nativePhotoSize = preferredPhotoJpegSize(context, activeFacingId, ratio.toFloat())
+                    val nativePhotoAspect = ratio.toFloat().let { if (it < 1f) 1f / it else it }
+                    val nativePhotoSize = preferredPhotoJpegSize(context, activeFacingId, nativePhotoAspect)
                     if (nativePhotoSize != null) {
                         captureBuilder.setResolutionSelector(
                             ResolutionSelector.Builder()

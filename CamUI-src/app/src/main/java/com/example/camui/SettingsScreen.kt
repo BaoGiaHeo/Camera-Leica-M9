@@ -73,7 +73,7 @@ private val settingItems = listOf(
     SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
     SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
     SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
-    SettingItem("NightShot", "Chụp đêm nhiều khung · Star Trails"),
+    SettingItem("NightShot", "Night Shot · Long Exposure / Star Trails"),
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
@@ -386,7 +386,7 @@ private fun SettingsDetailPage(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Không kéo EV lên cực cao. Night Shot giữ phơi sáng tự động bình thường, chụp nhiều khung hình rồi căn kích thước và gộp trung bình để giảm nhiễu. Hãy giữ máy ổn định trong lúc chụp và xử lý.",
+                    "Night Shot không đẩy EV và không dùng chế độ NIGHT làm tăng sáng một khung. Camera giữ AE bình thường ở EV 0, chụp 4–12 khung, căn chỉnh rồi gộp để giảm nhiễu. Giữ máy yên đến khi ảnh được lưu.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -394,8 +394,8 @@ private fun SettingsDetailPage(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
                         "Tắt" to "off",
-                        "Night Shot" to "night",
-                        "Star Trails" to "star_trails"
+                        "Night Shot · Multi-frame" to "night",
+                        "Phơi sáng lâu · Star Trails" to "star_trails"
                     ).forEach { (label, value) ->
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
@@ -413,8 +413,8 @@ private fun SettingsDetailPage(
                                 )
                                 Text(
                                     when (value) {
-                                        "night" -> "Gộp nhiều ảnh để giảm nhiễu khi chụp thiếu sáng"
-                                        "star_trails" -> "Giữ ảnh liên tục; nhấn nút chụp lần nữa để dừng và ghép vệt sao"
+                                        "night" -> "AE bình thường · EV 0 · căn khung và gộp nhiều ảnh"
+                                        "star_trails" -> "Phơi sáng 1–8 giây mỗi khung trên máy hỗ trợ; nhấn chụp lần nữa để dừng rồi ghép vệt sao"
                                         else -> "Chụp ảnh bình thường"
                                     },
                                     color = CamColors.Sub,
@@ -460,7 +460,7 @@ private fun SettingsDetailPage(
                     Spacer(Modifier.padding(5.dp))
                     Text("Thời gian mỗi khung", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Ưu tiên 4–8 giây mỗi khung trên camera có hỗ trợ phơi sáng thủ công. Thiết bị không hỗ trợ sẽ tự dùng phơi sáng tự động.",
+                        "Mỗi khung dùng màn trập 1, 2, 4 hoặc 8 giây, ISO 800 và lấy nét vô cực khi camera hỗ trợ MANUAL_SENSOR. Máy không hỗ trợ sẽ báo rõ và dùng AE tự động; không giả lập thời gian phơi sáng.",
                         color = CamColors.Sub,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
@@ -482,7 +482,7 @@ private fun SettingsDetailPage(
                         }
                     }
                     Text(
-                        "Khuyên dùng tripod, khóa nét vào vô cực và tránh đèn flash. Phiên chụp tự dừng ở giới hạn an toàn 120 khung hình.",
+                        "Dùng tripod, tắt flash và hướng máy vào bầu trời. Nhấn nút chụp lần nữa để dừng sau khung hiện tại; ứng dụng sẽ ghép các vị trí sao sáng thành vệt dài. Chỉ tự dừng sớm khi bộ nhớ tạm gần đầy.",
                         color = CamColors.Sub,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 10.dp)

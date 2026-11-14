@@ -99,7 +99,8 @@ object NightShotProcessor {
         context: Context,
         frames: List<File>,
         destinationUri: Uri,
-        mode: MergeMode
+        mode: MergeMode,
+        onProgress: ((Int) -> Unit)? = null
     ): Boolean {
         if (frames.size < 2 || frames.any { !it.exists() || it.length() <= 0L }) return false
         val prefix = if (mode == MergeMode.STAR_TRAILS) "star-" else "night-"
@@ -120,6 +121,7 @@ object NightShotProcessor {
                 alignmentReference = makeAlignmentThumbnail(base!!)
             }
 
+            val totalMergedFrames = (frames.size - 1).coerceAtLeast(1)
             for (frameIndex in 1 until frames.size) {
                 val current = decodeUpright(frames[frameIndex], width, height)
                     ?: error("Could not decode frame " + (frameIndex + 1))
@@ -135,7 +137,13 @@ object NightShotProcessor {
                         Log.d(TAG, "Aligned frame ${frameIndex + 1}: dx=$shiftX dy=$shiftY")
                     }
 
+                    val progressRowInterval = (height / 8).coerceAtLeast(1)
                     for (y in 0 until height) {
+                        if (y % progressRowInterval == 0) {
+                            val frameFraction = (frameIndex - 1 + y.toFloat() / height) /
+                                totalMergedFrames.toFloat()
+                            runCatching { onProgress?.invoke((5 + frameFraction * 90f).toInt()) }
+                        }
                         val sourceY = (y + shiftY).coerceIn(0, height - 1)
                         base!!.getPixels(oldRow, 0, width, 0, y, width, 1)
                         current.getPixels(newRow, 0, width, 0, sourceY, width, 1)
@@ -176,6 +184,7 @@ object NightShotProcessor {
                 }
             }
 
+            runCatching { onProgress?.invoke(96) }
             FileOutputStream(tempOutput).use { output ->
                 check(base!!.compress(Bitmap.CompressFormat.JPEG, 96, output)) {
                     "Could not encode merged image"
@@ -193,6 +202,7 @@ object NightShotProcessor {
                 null,
                 null
             )
+            runCatching { onProgress?.invoke(100) }
             Log.i(TAG, "Merged " + frames.size + " frames as " + mode +
                 " at " + width + "x" + height)
             true
@@ -304,7 +314,11 @@ object NightShotProcessor {
     private fun luma(color: Int): Int =
         luma(Color.red(color), Color.green(color), Color.blue(color))
 
-    fun saveStarTrails(context: Context, frames: List<File>): Uri? {
+    fun saveStarTrails(
+        context: Context,
+        frames: List<File>,
+        onProgress: ((Int) -> Unit)? = null
+    ): Uri? {
         if (frames.size < 2) return null
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val values = ContentValues().apply {
@@ -317,7 +331,7 @@ object NightShotProcessor {
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             values
         ) ?: return null
-        val merged = mergeFramesIntoUri(context, frames, uri, MergeMode.STAR_TRAILS)
+        val merged = mergeFramesIntoUri(context, frames, uri, MergeMode.STAR_TRAILS, onProgress)
         if (!merged) {
             runCatching { context.contentResolver.delete(uri, null, null) }
             return null

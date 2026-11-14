@@ -1233,12 +1233,12 @@ fun ContentManagementScreen(onBack: () -> Unit) {
             }
             val name = documentDisplayName(context, uri)
             if (!name.endsWith(".cube", ignoreCase = true)) {
-                Toast.makeText(context, "Chỉ hỗ trợ LUT định dạng .cube.", Toast.LENGTH_LONG).show()
+                localizedToast(context, "Chỉ hỗ trợ LUT định dạng .cube.", Toast.LENGTH_LONG).show()
             } else {
                 val value = uri.toString()
                 if (!luts.contains(value)) luts.add(value)
                 prefs.edit().putStringSet("luts", luts.toSet()).apply()
-                Toast.makeText(context, "Đã nhập LUT: $name", Toast.LENGTH_SHORT).show()
+                localizedToast(context, "Đã nhập LUT: $name", Toast.LENGTH_SHORT).show()
             }
         }
     }

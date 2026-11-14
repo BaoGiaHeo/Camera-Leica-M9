@@ -1781,16 +1781,16 @@ fun CameraScreen(
                                 }
                                 val hdmpAiResult = if (hdmpWorkerCount > 0) {
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "HDMP AI · kiểm tra model và chuẩn bị xử lý ảnh"
+                                        processingLabel = "HDMP AI 2 • đang chuẩn bị xử lý ảnh"
                                         processingProgress = 35
                                     }
                                     withContext(Dispatchers.IO) {
                                         HdmpAiEngine.process(context, saved, hdmpWorkerCount) { model, progress ->
                                             mainExecutor.execute {
                                                 val aiModelLabel = when (model) {
-                                                    HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI · NAFNet width64"
-                                                    HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI · NAFNetLib width32 dự phòng"
-                                                    HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP AI · chuyển an toàn sang HDMP cơ bản"
+                                                    HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 • đang xử lý"
+                                                    HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast • đang xử lý"
+                                                    HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP • đang chuyển sang xử lý cơ bản"
                                                 }
                                                 processingLabel = "$aiModelLabel · $progress%"
                                                 processingProgress = (35 + progress * 0.09f).roundToInt().coerceIn(35, 44)
@@ -1807,11 +1807,11 @@ fun CameraScreen(
                                 val hdmpApplied = if (hdmpWorkerCount > 0) {
                                     withContext(Dispatchers.Main) {
                                         val aiLabel = when (hdmpAiResult.model) {
-                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> "NAFNet width64"
-                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "NAFNetLib width32 dự phòng"
+                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast"
                                             HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP cơ bản (AI không khả dụng)"
                                         }
-                                        processingLabel = "$aiLabel · HDMP kiểm tra và hoàn tất · $hdmpWorkerCount tác vụ"
+                                        processingLabel = "$aiLabel • HDMP đang kiểm tra và hoàn tất · $hdmpWorkerCount tác vụ"
                                         processingProgress = 44
                                     }
                                     withContext(Dispatchers.IO) {
@@ -1941,8 +1941,8 @@ fun CameraScreen(
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
                                     val aiStatusSuffix = if (hdmpWorkerCount > 0) {
                                         when (hdmpAiResult.model) {
-                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> " HDMP AI: NAFNet width64 đã chạy."
-                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> " HDMP AI: đã tự chuyển sang NAFNetLib width32."
+                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> " HDMP AI 2 đã xử lý ảnh."
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> " HDMP AI 2 Fast đã tự động tiếp quản và xử lý ảnh."
                                             HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI chưa chạy được; ảnh được xử lý bằng HDMP cơ bản, không báo AI thành công."
                                         }
                                     } else ""

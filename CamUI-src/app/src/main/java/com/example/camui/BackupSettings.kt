@@ -127,7 +127,7 @@ fun BackupRestorePanel(onRestoreComplete: () -> Unit = {}) {
                 .background(CamColors.Card).padding(12.dp)
         )
         Text(
-            "Lưu ý: tệp này lưu cấu hình và tham chiếu LUT/frame/ảnh nút chụp; không nhúng các tệp ảnh/LUT gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại những tệp tùy chỉnh và cấp quyền đọc chúng.",
+            "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng.",
             color = CamColors.Sub, fontSize = 10.sp
         )
     }

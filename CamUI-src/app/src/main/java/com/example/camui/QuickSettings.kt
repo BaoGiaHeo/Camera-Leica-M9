@@ -56,9 +56,9 @@ fun QuickPanel(
                 Chip(pair.first, index == ratioIdx, { onRatio(index) }, Modifier.weight(1f))
             }
         }
+        // Ultra HDR is hidden from the UI; its camera pipeline remains intact.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             FeatureCard("Render Engine", renderEngine, true, onRenderEngine, Modifier.weight(1f))
-            FeatureCard("Ultra HDR", if (ultraHdr) "ON" else "OFF", ultraHdr, onUltraHdr, Modifier.weight(1f))
             FeatureCard("Stabilization", if (stabilization) "ON" else "OFF", stabilization,
                 onStabilization, Modifier.weight(1f))
         }

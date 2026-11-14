@@ -491,7 +491,7 @@ fun CameraScreen(
                 hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3
             softwareHdrFallback = false
             val nightExtensionRequested = nightShotMode == "night" && mode == "Photo" && !front
-            val nightExtensionAvailable = nightExtensionRequested && extensionsManager != null &&
+            val nightExtensionAvailable = nightExtensionRequested && analysisCompatibleHardware && extensionsManager != null &&
                 runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT) }
                     .getOrDefault(false)
             val nightExtensionSelector = if (nightExtensionAvailable) {
@@ -502,7 +502,7 @@ fun CameraScreen(
                 }.getOrNull()
             } else null
             nightExtensionActive = nightExtensionSelector != null
-            val hdrCaptureRequested = hdrEnabled && mode == "Photo"" &&
+            val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
                 !nightExtensionActive && nightShotMode != "star_trails" &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
@@ -1274,7 +1274,6 @@ fun CameraScreen(
                 ContextCompat.getMainExecutor(context),
                 object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
-                        nightShotCaptureInProgress = false
                         val saved = result.savedUri
                         if (saved != null) {
                             val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -1351,6 +1350,9 @@ fun CameraScreen(
                                         }
                                     } finally {
                                         nightFrames.forEach { runCatching { it.delete() } }
+                                        withContext(Dispatchers.Main) {
+                                            nightShotCaptureInProgress = false
+                                        }
                                     }
                                 }
                                 withContext(Dispatchers.Main) { processingProgress = 30 }
@@ -1509,6 +1511,7 @@ fun CameraScreen(
                                 }
                             }
                         } else {
+                            nightShotCaptureInProgress = false
                             localizedToast(context, "Ảnh đã chụp nhưng MediaStore không trả về URI.", Toast.LENGTH_LONG).show()
                         }
                     }

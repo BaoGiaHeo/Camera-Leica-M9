@@ -125,7 +125,8 @@ internal fun tryApplyGpuPhotoEnhancement(
                     float upLum = lum(texture2D(uImage, vTexCoord + vec2(0.0, uTexel.y)).rgb);
                     float downLum = lum(texture2D(uImage, vTexCoord - vec2(0.0, uTexel.y)).rgb);
                     float blurLum = (leftLum + rightLum + upLum + downLum) * 0.25;
-                    targetLum = clamp(targetLum + (baseLum - blurLum) * 2.0, 0.0, 1.0);
+                    float detail = clamp(baseLum - blurLum, -0.04, 0.04);
+                    targetLum = clamp(targetLum + detail * 0.28, 0.0, 1.0);
                 }
                 float scale = baseLum > 0.012 ? targetLum / baseLum : 1.0;
                 gl_FragColor = vec4(clamp(color.rgb * scale, 0.0, 1.0), color.a);

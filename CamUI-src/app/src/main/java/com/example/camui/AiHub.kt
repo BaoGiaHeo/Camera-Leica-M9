@@ -78,7 +78,7 @@ portraitEnabled: Boolean,
             )
             AiHubToggleRow(
                 title = "AI Bố cục & Tạo dáng",
-                detail = "Đang dùng phân tích khuôn mặt để gợi ý bố cục; Pose 33 điểm chưa được nối.",
+                detail = "Nhận diện khuôn mặt và Pose Detection 33 điểm để gợi ý bố cục, vai, tay và tư thế ngay trên khung ngắm.",
                 enabled = compositionEnabled,
                 onEnabledChange = onCompositionChanged,
                 status = "Face detect"
@@ -93,11 +93,11 @@ portraitEnabled: Boolean,
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
-                title = "UHD · AI Super Resolution x2",
-                detail = "Chụp JPEG ở độ phân giải cao nhất camera cung cấp, sau đó chạy Real-ESRGAN x2 qua NCNN/Vulkan; CPU là đường dự phòng khi GPU không phù hợp.",
+                title = "UHD · AI Photo 211MP",
+                detail = "Khóa zoom 1x, NAFNet khử nhiễu mạnh và Real-ESRGAN x4plus dành cho ảnh chụp, xử lý tile qua NCNN/Vulkan; CPU tối đa 8 luồng khi cần. Đầu ra mục tiêu khoảng 211MP.",
                 enabled = uhdEnabled,
                 onEnabledChange = onUhdEnabledChange,
-                status = if (uhdEnabled) "AI x2 · ĐANG BẬT" else "AI x2 · SẴN SÀNG"
+                status = if (uhdEnabled) "AI PHOTO · 211MP · ĐANG BẬT" else "AI PHOTO · SẴN SÀNG"
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
@@ -121,7 +121,7 @@ portraitEnabled: Boolean,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "UHD hiện dùng Real-ESRGAN x2 và NAFNet. AI Bố cục dùng nhận diện khuôn mặt + Pose 33 điểm; AI Director dùng nhận diện nhãn cảnh trên thiết bị. VLM Moondream và xóa phông chiều sâu chưa tích hợp.",
+                    "UHD dùng NAFNet và Real-ESRGAN x4plus cho ảnh chụp; khi UHD tắt, ảnh 1x được nội suy đến mục tiêu 211MP (tăng số pixel, không tăng chi tiết quang học). AI Bố cục/Tạo dáng dùng Pose Detection 33 điểm; AI Director phân tích nhãn cảnh trên thiết bị. Moondream VLM và AI xóa phông chiều sâu chưa tích hợp.",
                     color = AiHubMuted,
                     fontSize = 11.sp,
                     lineHeight = 16.sp

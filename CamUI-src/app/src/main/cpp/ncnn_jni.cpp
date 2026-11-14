@@ -193,7 +193,7 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
     }
 
     ncnn::Option option;
-    option.num_threads = std::max(2, std::min(4, ncnn::get_cpu_count()));
+    option.num_threads = std::max(2, std::min(8, ncnn::get_cpu_count()));
     option.use_vulkan_compute = useVulkan;
     option.use_fp16_storage = false;
     option.use_fp16_packed = false;

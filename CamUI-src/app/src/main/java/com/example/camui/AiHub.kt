@@ -80,7 +80,7 @@ fun HdmpBottomSheet(
             HorizontalDivider(color = Color(0xFF333333))
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF202020)).animaTClickable(onCycleNightShot).padding(13.dp),
+                    .background(Color(0xFF202020)).animaTClickable(onClick = onCycleNightShot).padding(13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

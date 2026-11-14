@@ -151,7 +151,7 @@ object NcnnSuperResolution {
             )
             Log.i(TAG, "Real-ESRGAN x2 saved: ${outputWidth}x${outputHeight}")
             true
-        } catch (error: Throwable) {
+        } catch (failure: Throwable) {
             if (replacementStarted && originalBackup.exists()) {
                 runCatching {
                     context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
@@ -161,7 +161,7 @@ object NcnnSuperResolution {
                     Log.e(TAG, "Rollback of original JPEG failed", it)
                 }
             }
-            Log.e(TAG, "AI super-resolution failed; original camera JPEG rollback was attempted", error)
+            Log.e(TAG, "AI super-resolution failed; original camera JPEG rollback was attempted", failure)
             false
         } finally {
             sourceBitmap?.let { if (!it.isRecycled) it.recycle() }

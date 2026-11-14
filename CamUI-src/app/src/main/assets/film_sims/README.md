@@ -2,6 +2,9 @@
 
 This directory contains the 11 sRGB 3D LUTs used by Fujifilm Mode:
 
+The linked TingfengLuo repository contains 11 unique Fujifilm Creative Profiles (`.xmp) and 11 `wrapper.xmp` preset files. Each wrapper only selects its matching Creative Profile; it is not an additional filter. The 11 bundled looks below match those 11 unique profile names. The repository's 1,464 camera-specific `.dcp files are linear base profiles, not additional film looks, so they are not shown as filters in the app.
+
+
 - Provia
 - Velvia
 - Astia
@@ -30,6 +33,10 @@ The upstream FujifilmCameraProfiles look profiles are licensed under Creative Co
 https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 Attribution is retained here. Adaptations and redistribution of these profile assets must use the same license and must not be sold. This restriction applies to the LUT/profile assets, not to photographs produced by applying them.
+
+## Preview and capture consistency
+
+The filter picker and the saved-JPEG path call the same pixel-transform function. For these 11 Fujifilm profiles, both paths load the same bundled 32³ sRGB cube and use the same trilinear interpolation. Each preview is rendered from the clean, unfiltered source image; selecting another preset never compounds it on top of the previous preview. Other retained filter looks use their same shared per-pixel transform for preview and capture.
 
 ## Important color-pipeline note
 

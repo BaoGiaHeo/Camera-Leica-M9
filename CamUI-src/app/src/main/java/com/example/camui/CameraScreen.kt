@@ -276,7 +276,9 @@ fun CameraScreen(
     var lensTransitionLabel by remember { mutableStateOf("") }
     val lensTransitionPulse = remember { Animatable(0f) }
     var metering by remember { mutableIntStateOf(appPrefs.getInt("camera_metering_index", 0).coerceIn(0, 3)) }
-    var ultraHdr by remember { mutableStateOf(appPrefs.getBoolean("ultra_hdr_enabled", false)) }
+    // Ultra HDR is hidden from the UI. Keep the legacy camera path but start disabled.
+    var ultraHdr by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { appPrefs.edit().putBoolean("ultra_hdr_enabled", false).apply() }
     var stabilization by remember { mutableStateOf(appPrefs.getBoolean("camera_stabilization_enabled", false)) }
     var renderEngine by remember { mutableStateOf(appPrefs.getString("camera_render_engine", "Performance") ?: "Performance") }
     var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)) }
@@ -931,7 +933,7 @@ fun CameraScreen(
             val activeCamera = camera ?: return@launch
             val captureIsUltraHdr = preserveUltraHdrOutput
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
-            val captureUseUhdSharpening = uhdCaptureEnabled
+            val captureUseUhdAi = uhdCaptureEnabled
             if (nightCaptureSeconds > 0 && mode == "Photo") {
                 nightExposureInProgress = true
                 nightExposureRemaining = nightCaptureSeconds
@@ -1045,9 +1047,8 @@ fun CameraScreen(
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
-                                captureUseSoftwareHdr && captureUseUhdSharpening -> "Đang xử lý Software HDR + tăng độ nét UHD"
-                                captureUseSoftwareHdr -> "Đang xử lý Software HDR bằng CPU"
-                                captureUseUhdSharpening -> "Đang tăng độ nét UHD bằng CPU"
+                                captureUseSoftwareHdr -> "Đang xử lý Software HDR"
+                                captureUseUhdAi -> "Đang chuẩn bị AI Super-Resolution"
                                 supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
                                 else -> "Ảnh đang được xử lý"
                             }
@@ -1071,15 +1072,15 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
-                                val softwareEnhancementApplied = if (
-                                    !captureIsUltraHdr && (captureUseSoftwareHdr || captureUseUhdSharpening)
+                                val softwareHdrApplied = if (
+                                    !captureIsUltraHdr && captureUseSoftwareHdr
                                 ) {
                                     runCatching {
                                         applySoftwarePhotoEnhancement(
                                             context,
                                             saved,
-                                            softwareHdr = captureUseSoftwareHdr,
-                                            uhdSharpening = captureUseUhdSharpening
+                                            softwareHdr = true,
+                                            uhdSharpening = false
                                         )
                                     }.getOrDefault(false)
                                 } else false
@@ -1095,6 +1096,38 @@ fun CameraScreen(
                                         if (actualIso > 0) actualIso.toString() else "AUTO"
                                     )
                                 }.getOrDefault(false)
+
+                                val aiSuperResolutionApplied = if (!captureIsUltraHdr && captureUseUhdAi) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "Đang làm nét AI · Real-ESRGAN x2…"
+                                        processingProgress = 78
+                                    }
+                                    runCatching {
+                                        NcnnSuperResolution.enhanceCapturedPhoto(context, saved)
+                                    }.onFailure {
+                                        android.util.Log.e("FUJI_NCNN_SR", "AI enhancement failed", it)
+                                    }.getOrDefault(false)
+                                } else false
+
+                                // The existing GPU/CPU sharpener remains as a safe fallback if NCNN
+                                // cannot initialize Vulkan, the model asset is unavailable, or inference fails.
+                                val softwareSharpenFallback = if (
+                                    !captureIsUltraHdr && captureUseUhdAi && !aiSuperResolutionApplied
+                                ) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "AI không khả dụng · chuyển sang làm nét GPU/CPU"
+                                        processingProgress = 84
+                                    }
+                                    runCatching {
+                                        applySoftwarePhotoEnhancement(
+                                            context,
+                                            saved,
+                                            softwareHdr = false,
+                                            uhdSharpening = true
+                                        )
+                                    }.getOrDefault(false)
+                                } else false
+
                                 val metadataPublished = runCatching {
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
                                     else finalizeCapturedImageMetadata(context, saved)
@@ -1119,12 +1152,14 @@ fun CameraScreen(
                                         watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
                                         lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc/LUT."
                                         lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
-                                        orientationLabelFixed -> if (softwareEnhancementApplied) {
-                                            "Đã lưu ảnh đúng tỉ lệ; đã áp dụng " + listOfNotNull(
-                                                "Software HDR".takeIf { captureUseSoftwareHdr },
-                                                "UHD Sharpen 2×".takeIf { captureUseUhdSharpening }
+                                        orientationLabelFixed && aiSuperResolutionApplied ->
+                                            "Đã lưu ảnh đúng hướng · Real-ESRGAN NCNN x2 đã làm nét bằng GPU/CPU."
+                                        orientationLabelFixed && (softwareHdrApplied || softwareSharpenFallback) ->
+                                            "Đã lưu ảnh đúng hướng; đã áp dụng " + listOfNotNull(
+                                                "Software HDR".takeIf { softwareHdrApplied },
+                                                "GPU/CPU Sharpen 2×".takeIf { softwareSharpenFallback }
                                             ).joinToString(" + ") + "."
-                                        } else "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
+                                        orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
                                     val finalMessage = if (captureIsUltraHdr) message

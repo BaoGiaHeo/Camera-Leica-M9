@@ -1265,3 +1265,271 @@ fun AlbumScreen(onBack: () -> Unit) {
         }
     }
 }
+
+
+/**
+ * Applies a selected border/layout frame to the already-upright capture.
+ * Built-in layouts are original Android Canvas implementations based on the flexible
+ * photo-card / clean / film / expo layout ideas demonstrated by phew.
+ */
+fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
+    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val template = prefs.getString("selected_frame_template", "none") ?: "none"
+    if (template == "none") return false
+
+    return runCatching {
+        val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
+        val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
+            ?: return@runCatching false
+        val canvas = Canvas(output)
+        val style = prefs.getString("frame_style", "White") ?: "White"
+        val frameColor = if (style == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+        val textColor = if (style == "Black") AndroidColor.WHITE else AndroidColor.BLACK
+        val minSide = minOf(output.width, output.height).toFloat()
+        val margin = (minSide * 0.035f).coerceAtLeast(16f)
+        val stroke = (minSide * 0.0032f).coerceAtLeast(2f)
+        val transparent = style == "Transparent"
+
+        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = frameColor
+            style = Paint.Style.STROKE
+            strokeWidth = stroke
+        }
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = frameColor
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (transparent) AndroidColor.WHITE else textColor
+            typeface = android.graphics.Typeface.create(
+                "sans-serif-medium", android.graphics.Typeface.NORMAL
+            )
+            textSize = (minSide * 0.022f).coerceIn(14f, 48f)
+        }
+        val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (transparent) AndroidColor.WHITE else textColor
+            alpha = 220
+            typeface = android.graphics.Typeface.create(
+                "sans-serif", android.graphics.Typeface.NORMAL
+            )
+            textSize = (minSide * 0.012f).coerceIn(10f, 26f)
+        }
+        fun border(rect: RectF, width: Float = stroke) {
+            if (transparent) return
+            linePaint.strokeWidth = width
+            canvas.drawRect(rect, linePaint)
+        }
+        fun plate(rect: RectF, radius: Float = margin * 0.16f) {
+            if (!transparent) canvas.drawRoundRect(rect, radius, radius, fillPaint)
+        }
+        fun caption(title: String, detail: String = "") {
+            val bandHeight = (minSide * 0.075f).coerceAtLeast(42f)
+            val band = RectF(margin, output.height - margin - bandHeight, output.width - margin, output.height - margin)
+            plate(band)
+            val x = band.left + margin * 0.42f
+            val titleBaseline = band.top + band.height() * 0.43f
+            canvas.drawText(title, x, titleBaseline, textPaint)
+            if (detail.isNotBlank()) {
+                canvas.drawText(detail.take(90), x, band.top + band.height() * 0.77f, detailPaint)
+            }
+        }
+
+        if (template.startsWith("custom|")) {
+            val frameUri = Uri.parse(template.removePrefix("custom|"))
+            val imported = context.contentResolver.openInputStream(frameUri)?.use {
+                BitmapFactory.decodeStream(it)
+            } ?: return@runCatching false
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            if (!transparent) {
+                paint.colorFilter = android.graphics.PorterDuffColorFilter(
+                    frameColor, android.graphics.PorterDuff.Mode.SRC_IN
+                )
+            }
+            canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
+            imported.recycle()
+        } else {
+            val outer = RectF(margin, margin, output.width - margin, output.height - margin)
+            val inner = RectF(margin * 1.55f, margin * 1.55f,
+                output.width - margin * 1.55f, output.height - margin * 1.55f)
+            when (template) {
+                "classic" -> {
+                    border(outer, stroke * 1.8f)
+                    border(inner, stroke * 0.55f)
+                    caption("FUJIFILM  /  X SERIES", "PHOTO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}")
+                }
+                "clean" -> {
+                    val corner = minSide * 0.085f
+                    val p = Paint(linePaint).apply { strokeWidth = stroke * 1.5f }
+                    if (!transparent) {
+                        listOf(
+                            Triple(margin, margin, 1), Triple(output.width - margin, margin, 2),
+                            Triple(margin, output.height - margin, 3), Triple(output.width - margin, output.height - margin, 4)
+                        ).forEach { (x, y, index) ->
+                            val sx = if (index == 1 || index == 3) -1f else 1f
+                            val sy = if (index >= 3) -1f else 1f
+                            canvas.drawLine(x, y, x + corner * sx, y, p)
+                            canvas.drawLine(x, y, x, y + corner * sy, p)
+                        }
+                    }
+                    textPaint.textAlign = Paint.Align.RIGHT
+                    canvas.drawText("FUJIFILM MODE", output.width - margin, output.height - margin * 1.65f, textPaint)
+                    textPaint.textAlign = Paint.Align.LEFT
+                }
+                "film" -> {
+                    border(outer, stroke * 2f)
+                    if (!transparent) {
+                        val holeW = minSide * 0.028f
+                        val holeH = minSide * 0.014f
+                        val gap = holeW * 0.75f
+                        val count = (output.width / (holeW + gap)).toInt().coerceIn(4, 28)
+                        val start = (output.width - count * (holeW + gap) + gap) / 2f
+                        for (i in 0 until count) {
+                            val x = start + i * (holeW + gap)
+                            canvas.drawRoundRect(RectF(x, margin * 0.28f, x + holeW, margin * 0.28f + holeH), 3f, 3f, fillPaint)
+                            canvas.drawRoundRect(RectF(x, output.height - margin * 0.28f - holeH,
+                                x + holeW, output.height - margin * 0.28f), 3f, 3f, fillPaint)
+                        }
+                    }
+                    caption("35mm FILM", "FRAME  ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())}")
+                }
+                "polaroid" -> {
+                    val band = RectF(margin, margin, output.width - margin, output.height - margin)
+                    if (!transparent) {
+                        fillPaint.alpha = 255
+                        canvas.drawRect(band, fillPaint)
+                    }
+                    val imageInset = margin * 0.55f
+                    val imageArea = RectF(band.left + imageInset, band.top + imageInset,
+                        band.right - imageInset, band.bottom - margin * 2.35f)
+                    // The inset is a hairline, not an opaque mask: the original photo remains visible.
+                    border(imageArea, stroke * 0.55f)
+                    textPaint.textAlign = Paint.Align.CENTER
+                    canvas.drawText("INSTANT  /  FUJIFILM", output.width / 2f,
+                        output.height - margin * 1.25f, textPaint)
+                    textPaint.textAlign = Paint.Align.LEFT
+                }
+                "logo" -> {
+                    border(outer, stroke)
+                    textPaint.textAlign = Paint.Align.CENTER
+                    textPaint.textSize = (minSide * 0.045f).coerceIn(24f, 76f)
+                    canvas.drawText("FUJIFILM", output.width / 2f, output.height * 0.52f, textPaint)
+                    textPaint.textSize = (minSide * 0.014f).coerceIn(11f, 28f)
+                    canvas.drawText("X SERIES", output.width / 2f, output.height * 0.55f, detailPaint)
+                    textPaint.textAlign = Paint.Align.LEFT
+                }
+                "expo_left", "expo_right" -> {
+                    val bandWidth = minSide * 0.105f
+                    val leftSide = template == "expo_left"
+                    val band = if (leftSide) RectF(0f, 0f, bandWidth, output.height.toFloat())
+                        else RectF(output.width - bandWidth, 0f, output.width.toFloat(), output.height.toFloat())
+                    plate(band, 0f)
+                    textPaint.textAlign = Paint.Align.CENTER
+                    textPaint.textSize = (minSide * 0.018f).coerceIn(12f, 34f)
+                    canvas.save()
+                    canvas.rotate(if (leftSide) -90f else 90f, band.centerX(), band.centerY())
+                    canvas.drawText("FUJIFILM  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}",
+                        band.centerX(), band.centerY(), textPaint)
+                    canvas.restore()
+                    textPaint.textAlign = Paint.Align.LEFT
+                    border(outer, stroke * 0.7f)
+                }
+                "expo_around" -> {
+                    border(outer, stroke * 1.2f)
+                    border(inner, stroke * 0.45f)
+                    caption("EXPO", "CAMERA NOTES  •  ${java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US).format(java.util.Date())}")
+                }
+                "double" -> {
+                    border(outer, stroke * 1.8f)
+                    border(RectF(margin * 2.1f, margin * 2.1f,
+                        output.width - margin * 2.1f, output.height - margin * 2.1f), stroke * 0.6f)
+                }
+                else -> return@runCatching false
+            }
+        }
+
+        val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
+            output.compress(Bitmap.CompressFormat.JPEG, 98, it)
+        } ?: false
+        if (!written) return@runCatching false
+        writeUprightExifMetadata(context, uri, output.width, output.height)
+        setMediaStoreOrientationUpright(context, uri)
+        true
+    }.onFailure {
+        android.util.Log.e("FUJI_FRAME", "Could not apply selected frame", it)
+    }.getOrDefault(false)
+}
+
+@Composable
+fun CameraFrameDialog(
+    selectedTemplate: String,
+    selectedStyle: String,
+    customFrames: List<String>,
+    onSelectTemplate: (String) -> Unit,
+    onSelectStyle: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val builtInFrames = listOf(
+        "none" to "Tắt frame",
+        "classic" to "Classic Card",
+        "clean" to "Clean Corners",
+        "film" to "35mm Film",
+        "polaroid" to "Instant / Polaroid",
+        "logo" to "Center Logo",
+        "expo_around" to "Expo Around",
+        "expo_left" to "Expo Left",
+        "expo_right" to "Expo Right",
+        "double" to "Double Line"
+    )
+    val options = builtInFrames + customFrames.map { uri ->
+        "custom|$uri" to documentDisplayName(context, Uri.parse(uri))
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxWidth(0.94f).heightIn(max = 680.dp)
+                .clip(RoundedCornerShape(20.dp)).background(CamColors.Panel)
+                .verticalScroll(rememberScrollState()).padding(15.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Photo Frames", color = CamColors.TextColor, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text("Đóng", color = CamColors.Yellow,
+                    modifier = Modifier.clickable(onClick = onDismiss).padding(6.dp), fontSize = 12.sp)
+            }
+            Text("Chọn frame để xem trước và đóng lên ảnh sau khi chụp.",
+                color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
+            options.chunked(2).forEach { rowOptions ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowOptions.forEach { (id, label) ->
+                        Column(
+                            Modifier.weight(1f).padding(bottom = 7.dp).clip(RoundedCornerShape(11.dp))
+                                .background(if (selectedTemplate == id) Color(0x553F3822) else CamColors.Card)
+                                .border(1.dp, if (selectedTemplate == id) CamColors.Yellow else CamColors.Stroke,
+                                    RoundedCornerShape(11.dp))
+                                .clickable { onSelectTemplate(id) }.padding(10.dp)
+                        ) {
+                            Text(label, color = if (selectedTemplate == id) CamColors.Yellow else CamColors.TextColor,
+                                fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                            Text(if (id.startsWith("custom|")) "PNG/JPG đã nhập" else "Frame dựng sẵn",
+                                color = CamColors.Sub, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
+                        }
+                    }
+                    if (rowOptions.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            Text("Frame color", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 10.dp, bottom = 7.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf("White", "Black", "Transparent").forEach { style ->
+                    Chip(style, selectedStyle == style, { onSelectStyle(style) }, Modifier.weight(1f))
+                }
+            }
+            Text("Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ.",
+                color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
+            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                Text("Áp dụng frame")
+            }
+        }
+    }
+}

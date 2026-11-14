@@ -1422,6 +1422,9 @@ fun CameraScreen(
                 5 -> 150
                 else -> 300
             }
+            val captureNightStartedAtNanos = SystemClock.elapsedRealtimeNanos()
+            val captureNightDeadlineNanos = captureNightStartedAtNanos +
+                captureNightDurationSeconds * 1_000_000_000L
             val captureUseFiveFrameStack = captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm
             if (captureUseNightShot) {
                 localizedToast(
@@ -1596,12 +1599,14 @@ fun CameraScreen(
                                             // CameraX ImageCapture serializes still requests. Avoid any
                                             // artificial 200ms sleep: issue the next request immediately
                                             // after the previous callback and retain every valid frame.
-                                            // Target counts represent 30 FPS over the selected time window,
-                                            // but elapsed time is limited by the camera HAL and file pipeline.
+                                            // Stop at the selected 3/5/10s deadline; if the camera cannot
+                                            // reach 90/150/300 frames, process the real partial stack.
                                             var consecutiveCaptureFailures = 0
                                             val burstStartedNanos = SystemClock.elapsedRealtimeNanos()
                                             var stoppedForStorage = false
-                                            while (stackedFrames.size < maxFrames) {
+                                            while (stackedFrames.size < maxFrames &&
+                                                (!captureUseNightShot || SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)
+                                            ) {
                                                 if (captureUseNightShot && context.cacheDir.usableSpace < 256L * 1024L * 1024L) {
                                                     stoppedForStorage = true
                                                     break
@@ -1642,13 +1647,16 @@ fun CameraScreen(
                                                     }
                                                 }
                                             }
-                                            val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - burstStartedNanos) / 1_000_000L).coerceAtLeast(1L)
+                                            val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - captureNightStartedAtNanos) / 1_000_000L).coerceAtLeast(1L)
                                             if (captureUseNightShot) {
                                                 val achievedFps = stackedFrames.size * 1000.0 / burstElapsedMs
                                                 android.util.Log.i("FUJI_NIGHTSHOT", "Collected " + stackedFrames.size + "/" + maxFrames + " frames in " + burstElapsedMs + "ms; approx " + "%.1f".format(Locale.US, achievedFps) + " FPS")
                                             }
                                             if (stoppedForStorage) {
                                                 android.util.Log.w("FUJI_NIGHTSHOT", "Stopped early to protect free cache storage; processing " + stackedFrames.size + " frames")
+                                            }
+                                            if (captureUseNightShot && stackedFrames.size < maxFrames) {
+                                                android.util.Log.w("FUJI_NIGHTSHOT", "Actual stack is partial: " + stackedFrames.size + "/" + maxFrames + "; proceeding without rejecting capture")
                                             }
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
@@ -1798,7 +1806,7 @@ fun CameraScreen(
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
-                                            if (hdmpApplied && outputResolutionApplied) "Đã lưu Night Shot · đã ghép " + nightShotCapturedFrameCount + " khung, HDMP tối đa 60MP."
+                                            if (hdmpApplied && outputResolutionApplied) "Đã lưu Night Shot · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
                                             else "Đã lưu Night Shot · đã ghép khung; ảnh gốc vẫn được giữ nếu HDMP không khả dụng."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
                                             "NightShot đã xử lý bằng chế độ NIGHT của camera."

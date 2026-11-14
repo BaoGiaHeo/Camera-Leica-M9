@@ -48,7 +48,8 @@ data class LiveReading(
     val evStops: Float?,
     val afState: Int?,
     val aeState: Int?,
-    val wbGains: String?
+    val wbGains: String?,
+    val activePhysicalCameraId: String?
 ) {
     /** Examples: 1/125 or 0.8" */
     val shutterText: String
@@ -148,7 +149,8 @@ object Camera2Info {
             evStops = if (evIndex != null && evStep != null) evIndex * evStep else null,
             afState = result.get(CaptureResult.CONTROL_AF_STATE),
             aeState = result.get(CaptureResult.CONTROL_AE_STATE),
-            wbGains = gains
+            wbGains = gains,
+            activePhysicalCameraId = result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID)
         )
     }
 

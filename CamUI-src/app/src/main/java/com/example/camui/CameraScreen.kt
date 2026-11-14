@@ -520,7 +520,7 @@ fun CameraScreen(
                             .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(exposureNs, 10_000_000L))
                     } else {
                         scope.launch(Dispatchers.Main) {
-                            Toast.makeText(context, "Camera không hỗ trợ phơi sáng thủ công để chụp đêm.", Toast.LENGTH_LONG).show()
+                            localizedToast(context, "Camera không hỗ trợ phơi sáng thủ công để chụp đêm.", Toast.LENGTH_LONG).show()
                         }
                         nightCaptureSeconds = 0
                     }
@@ -687,13 +687,13 @@ fun CameraScreen(
                             hdrEnabled = false
                             appPrefs.edit().putBoolean("hdr_enabled", false).apply()
                         }
-                        Toast.makeText(context,
+                        localizedToast(context,
                             "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR.",
                             Toast.LENGTH_LONG).show()
                         provider.unbindAll()
                         bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG)
                     } else if (!jpegRSupported && hdrExtensionActive) {
-                        Toast.makeText(context,
+                        localizedToast(context,
                             "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG.",
                             Toast.LENGTH_LONG).show()
                         provider.unbindAll()
@@ -711,11 +711,11 @@ fun CameraScreen(
                     runCatching { bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG) }
                         .onFailure {
                             camera = null
-                            Toast.makeText(context, "Không thể khởi tạo HDR hoặc camera: ${it.message}", Toast.LENGTH_LONG).show()
+                            localizedToast(context, "Không thể khởi tạo HDR hoặc camera: ${it.message}", Toast.LENGTH_LONG).show()
                         }
                 } else {
                     camera = null
-                    Toast.makeText(context, "Không mở được camera: ${e.message}", Toast.LENGTH_LONG).show()
+                    localizedToast(context, "Không mở được camera: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
             }, mainExecutor)
@@ -778,7 +778,7 @@ fun CameraScreen(
 
     fun openLastPhoto() {
         if (lastUri == null) {
-            Toast.makeText(context, "Chưa có ảnh trong Pictures/FujifilmMode.", Toast.LENGTH_SHORT).show()
+            localizedToast(context, "Chưa có ảnh trong Pictures/FujifilmMode.", Toast.LENGTH_SHORT).show()
             return
         }
         photoViewerVisible = true
@@ -862,7 +862,7 @@ fun CameraScreen(
                 // Never save a frame with the old orientation/crop after the display rotated.
                 targetRotation = captureRotation
                 isLandscape = captureIsLandscape
-                Toast.makeText(context, "Đang đồng bộ hướng và tỉ lệ khung ngắm, hãy chụp lại sau một chút.", Toast.LENGTH_SHORT).show()
+                localizedToast(context, "Đang đồng bộ hướng và tỉ lệ khung ngắm, hãy chụp lại sau một chút.", Toast.LENGTH_SHORT).show()
                 return@launch
             }
             capture.targetRotation = captureRotation
@@ -960,7 +960,7 @@ fun CameraScreen(
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
                                     val finalMessage = if (frameApplied) "$message Frame đã được áp dụng." else message
-                                    Toast.makeText(context, finalMessage, Toast.LENGTH_SHORT).show()
+                                    localizedToast(context, finalMessage, Toast.LENGTH_SHORT).show()
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {
@@ -969,7 +969,7 @@ fun CameraScreen(
                                 }
                             }
                         } else {
-                            Toast.makeText(context, "Ảnh đã chụp nhưng MediaStore không trả về URI.", Toast.LENGTH_LONG).show()
+                            localizedToast(context, "Ảnh đã chụp nhưng MediaStore không trả về URI.", Toast.LENGTH_LONG).show()
                         }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
@@ -978,7 +978,7 @@ fun CameraScreen(
                         runCatching {
                             camera?.let { Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions() }
                         }
-                        Toast.makeText(context, "Lỗi chụp ảnh: ${exception.message}", Toast.LENGTH_LONG).show()
+                        localizedToast(context, "Lỗi chụp ảnh: ${exception.message}", Toast.LENGTH_LONG).show()
                     }
                 }
             )
@@ -1114,7 +1114,7 @@ fun CameraScreen(
                                     val choices = listOf(2, 4, 8).map { it.coerceAtMost(maxSeconds) }
                                         .distinct().filter { it >= 1 }
                                     if (!manualSensorSupported || choices.isEmpty()) {
-                                        Toast.makeText(context, "Camera này không hỗ trợ phơi sáng dài.", Toast.LENGTH_SHORT).show()
+                                        localizedToast(context, "Camera này không hỗ trợ phơi sáng dài.", Toast.LENGTH_SHORT).show()
                                     } else {
                                         val currentIndex = choices.indexOf(nightCaptureSeconds)
                                         nightCaptureSeconds = when {
@@ -1180,7 +1180,7 @@ fun CameraScreen(
                                         onLongPress = { offset ->
                                             val active = camera ?: return@detectTapGestures
                                             if (manualFocus > 0f) {
-                                                Toast.makeText(context, "Chuyển AF sang Auto trước khi khóa nét.", Toast.LENGTH_SHORT).show()
+                                                localizedToast(context, "Chuyển AF sang Auto trước khi khóa nét.", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, 0.22f)
                                                 val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
@@ -1189,7 +1189,7 @@ fun CameraScreen(
                                                     .build()
                                                 active.cameraControl.startFocusAndMetering(action)
                                                 focusLocked = true
-                                                Toast.makeText(context, "Đã khóa nét · chạm lại để lấy nét mới.", Toast.LENGTH_SHORT).show()
+                                                localizedToast(context, "Đã khóa nét · chạm lại để lấy nét mới.", Toast.LENGTH_SHORT).show()
                                             }
                                         }
                                     )
@@ -1720,7 +1720,7 @@ fun CameraScreen(
                             .supportedOutputFormats.contains(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
                     }.getOrDefault(false)
                     if (!ultraHdr && !supported) {
-                        Toast.makeText(context, "Camera/API này không hỗ trợ chụp JPEG Ultra HDR.", Toast.LENGTH_LONG).show()
+                        localizedToast(context, "Camera/API này không hỗ trợ chụp JPEG Ultra HDR.", Toast.LENGTH_LONG).show()
                     } else {
                         ultraHdr = !ultraHdr
                     }

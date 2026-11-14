@@ -108,7 +108,7 @@ fun CircleBtn(
     val context = LocalContext.current
     Box(
         Modifier.size(size).clip(CircleShape).background(CamColors.Glass)
-            .border(0.5.dp, CamColors.Stroke, CircleShape).clickable(onClick = onClick),
+            .border(0.5.dp, CamColors.Stroke, CircleShape).animaTClickable(onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = localizedUiText(context, desc), tint = tint)
@@ -119,7 +119,7 @@ fun CircleBtn(
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier.height(38.dp).clip(RoundedCornerShape(12.dp))
-            .background(if (selected) CamColors.Yellow else CamColors.Chip).clickable(onClick = onClick),
+            .background(if (selected) CamColors.Yellow else CamColors.Chip).animaTClickable(onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = if (selected) Color.Black else Color.White,

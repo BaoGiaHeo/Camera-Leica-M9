@@ -200,7 +200,7 @@ private val japaneseUi = mapOf(
     "Assistive Tools" to "補助ツール", "Focus & Lens" to "フォーカスとレンズ",
     "Capture & Quality" to "撮影と画質", "Photo Mode Setting" to "写真モード設定",
     "Appearance" to "外観", "Language" to "言語", "About" to "アプリ情報",
-    "Photo" to "写真", "Pro" to "プロ", "Bộ lọc" to "フィルター", "LUT" to "LUT",
+    "Photo" to "写真", "Pro" to "プロ", "Bộ lọc" to "フィルター", 
     "AI Bố cục" to "AI構図", "AI Bố cục ✓" to "AI構図 ✓",
     "Màu frame" to "フレームの色", "Màu khung" to "枠線の色",
     "Hiện thời gian" to "日時を表示", "Hiện model máy" to "端末モデルを表示",
@@ -243,7 +243,7 @@ private val koreanUi = mapOf(
     "Assistive Tools" to "보조 도구", "Focus & Lens" to "초점 및 렌즈",
     "Capture & Quality" to "촬영 및 화질", "Photo Mode Setting" to "사진 모드 설정",
     "Appearance" to "화면 설정", "Language" to "언어", "About" to "정보",
-    "Photo" to "사진", "Pro" to "프로", "Bộ lọc" to "필터", "LUT" to "LUT",
+    "Photo" to "사진", "Pro" to "프로", "Bộ lọc" to "필터", 
     "AI Bố cục" to "AI 구도", "AI Bố cục ✓" to "AI 구도 ✓",
     "Màu frame" to "프레임 색상", "Màu khung" to "테두리 색상",
     "Hiện thời gian" to "날짜 및 시간 표시", "Hiện model máy" to "기기 모델 표시",
@@ -283,7 +283,7 @@ private val chineseUi = mapOf(
     "Assistive Tools" to "辅助工具", "Focus & Lens" to "对焦与镜头",
     "Capture & Quality" to "拍摄与画质", "Photo Mode Setting" to "照片模式设置",
     "Appearance" to "外观", "Language" to "语言", "About" to "关于",
-    "Photo" to "照片", "Pro" to "专业", "Bộ lọc" to "滤镜", "LUT" to "LUT",
+    "Photo" to "照片", "Pro" to "专业", "Bộ lọc" to "滤镜", 
     "AI Bố cục" to "AI 构图", "AI Bố cục ✓" to "AI 构图 ✓",
     "Màu frame" to "相框颜色", "Màu khung" to "边框颜色",
     "Hiện thời gian" to "显示日期和时间", "Hiện model máy" to "显示设备型号",
@@ -425,7 +425,7 @@ private val fullEnglishUi = mapOf(
     "Đổi camera" to "Switch camera",
     "Đóng ảnh" to "Close photo",
     "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "This camera supports neither Ultra HDR nor the HDR extension; switched to standard JPEG.",
-    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "Saved the original Ultra HDR and preserved its gain map. Watermark, LUT, frame and post-capture UHD sharpening are skipped to preserve HDR.",
+    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, bộ lọc màu, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "Saved the original Ultra HDR and preserved its gain map. Watermarks, color filters, frames and post-capture UHD sharpening are skipped to preserve HDR.",
     "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "Multi-frame HDR is active. This camera does not support JPEG_R, so the photo will be saved as JPEG.",
     "No photos yet" to "No photos yet",
     "Sao lưu & Khôi phục" to "Backup & Restore",
@@ -438,7 +438,7 @@ private val fullEnglishUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "Camera, zoom and enabled feature settings restored.",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "Could not create the backup. Check the save location and try again.",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "Could not restore. Select a valid Fujifilm Mode backup file.",
-    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "Note: this file stores settings and references to LUTs, frames and shutter-button images; it does not embed the source assets. Re-import custom assets and grant read access after reinstalling or moving to another device.",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "Note: this file stores camera settings and references to frames and shutter-button images; source frame/image files are not embedded. Re-import custom frames/images and grant read access after reinstalling or moving devices.",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "Prefer the camera's multi-frame HDR extension or Ultra HDR JPEG_R. If neither is supported, Software HDR uses GPU or CPU single-image tone mapping; clipped highlights cannot be recovered.",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "Capture at the highest JPEG resolution supported by the camera, then apply 2× sharpening on the GPU when memory allows; large images or unsupported GPUs fall back to CPU. No detail beyond the sensor is created."
 )
@@ -529,7 +529,7 @@ private val fullJapaneseUi = mapOf(
     "Đổi camera" to "カメラ切替",
     "Đóng ảnh" to "写真を閉じる",
     "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "このカメラはUltra HDRにもHDR拡張にも対応していません。標準JPEGに切り替えました。",
-    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "Ultra HDRの元画像を保存し、ゲインマップを保持しました。HDRを保つため、ウォーターマーク、LUT、フレーム、撮影後のUHDシャープ処理はスキップされます。",
+    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, bộ lọc màu, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "Ultra HDRの元画像を保存し、ゲインマップを保持しました。HDRを保つため、ウォーターマーク、カラーフィルター、フレーム、撮影後のUHDシャープ処理はスキップされます。",
     "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "マルチフレームHDRは有効です。このカメラはJPEG_Rに対応していないため、写真はJPEGで保存されます。",
     "Sao lưu & Khôi phục" to "バックアップと復元",
     "Camera · Zoom · Các tính năng đã bật" to "カメラ · ズーム · 有効な機能",
@@ -541,7 +541,7 @@ private val fullJapaneseUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "カメラ、ズーム、有効な機能の設定を復元しました。",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "バックアップを作成できません。保存先を確認して再試行してください。",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "復元できません。有効なFujifilm Modeバックアップファイルを選択してください。",
-    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "このファイルには設定とLUT・フレーム・シャッターボタン画像への参照が保存されます。元ファイル自体は含まれません。再インストールや機種変更後はカスタム素材を再インポートし、読み取り権限を付与してください。",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "このファイルにはカメラ設定とフレーム・シャッターボタン画像への参照が保存されます。元のフレーム・画像ファイルは含まれません。再インストールや機種変更後はカスタムフレーム・画像を再インポートし、読み取り権限を付与してください。",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "カメラのマルチフレームHDR拡張またはUltra HDR JPEG_Rを優先します。どちらも非対応の場合、GPUまたはCPUで単一画像のトーンマッピングを行います。白飛びしたディテールは復元できません。",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "カメラが対応する最大JPEG解像度で撮影し、メモリが許す場合はGPUで2倍シャープ化します。大きな画像や非対応GPUではCPUに切り替えます。センサー以上のディテールは生成されません。"
 )
@@ -632,7 +632,7 @@ private val fullKoreanUi = mapOf(
     "Đổi camera" to "카메라 전환",
     "Đóng ảnh" to "사진 닫기",
     "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "이 카메라는 Ultra HDR 및 HDR 확장을 지원하지 않아 일반 JPEG로 전환했습니다.",
-    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "원본 Ultra HDR과 게인 맵을 보존했습니다. HDR 보존을 위해 워터마크, LUT, 프레임 및 촬영 후 UHD 선명화는 건너뜁니다.",
+    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, bộ lọc màu, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "원본 Ultra HDR과 게인 맵을 보존했습니다. HDR 보존을 위해 워터마크, 컬러 필터, 프레임 및 촬영 후 UHD 선명화는 건너뜁니다.",
     "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "멀티 프레임 HDR이 활성화되었습니다. 이 카메라는 JPEG_R을 지원하지 않아 JPEG로 저장됩니다.",
     "Sao lưu & Khôi phục" to "백업 및 복원",
     "Camera · Zoom · Các tính năng đã bật" to "카메라 · 줌 · 활성화된 기능",
@@ -644,7 +644,7 @@ private val fullKoreanUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "카메라, 줌 및 활성화된 기능 설정을 복원했습니다.",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "백업을 만들 수 없습니다. 저장 위치를 확인한 후 다시 시도하세요.",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "복원할 수 없습니다. 유효한 Fujifilm Mode 백업 파일을 선택하세요.",
-    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "이 파일에는 설정과 LUT·프레임·셔터 버튼 이미지 참조만 저장되며 원본 에셋은 포함되지 않습니다. 재설치하거나 기기를 변경한 후에는 사용자 지정 에셋을 다시 가져오고 읽기 권한을 부여해야 합니다.",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "이 파일에는 카메라 설정과 프레임·셔터 버튼 이미지 참조만 저장되며 원본 프레임·이미지 파일은 포함되지 않습니다. 재설치하거나 기기를 변경한 후에는 사용자 지정 프레임·이미지를 다시 가져오고 읽기 권한을 부여해야 합니다.",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "카메라의 멀티 프레임 HDR 확장 또는 Ultra HDR JPEG_R을 우선 사용합니다. 둘 다 지원하지 않으면 GPU 또는 CPU로 단일 이미지 톤 매핑을 수행합니다. 날아간 하이라이트 디테일은 복원할 수 없습니다.",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "카메라가 지원하는 최대 JPEG 해상도로 촬영한 뒤 메모리가 허용하면 GPU로 2배 선명화합니다. 큰 이미지나 미지원 GPU에서는 CPU로 전환합니다. 센서 이상의 세부 정보를 생성하지는 않습니다."
 )
@@ -735,7 +735,7 @@ private val fullChineseUi = mapOf(
     "Đổi camera" to "切换相机",
     "Đóng ảnh" to "关闭照片",
     "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "此相机不支持 Ultra HDR 或 HDR 扩展，已切换为标准 JPEG。",
-    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "已保存原始 Ultra HDR 并保留增益图。为保留 HDR，水印、LUT、边框和拍摄后的 UHD 锐化将被跳过。",
+    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, bộ lọc màu, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR." to "已保存原始 Ultra HDR 并保留增益图。为保留 HDR，水印、色彩滤镜、边框和拍摄后的 UHD 锐化将被跳过。",
     "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "多帧 HDR 已启用。此相机不支持 JPEG_R，因此照片将以 JPEG 格式保存。",
     "Sao lưu & Khôi phục" to "备份与恢复",
     "Camera · Zoom · Các tính năng đã bật" to "相机 · 变焦 · 已启用功能",
@@ -747,7 +747,7 @@ private val fullChineseUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "相机、变焦和已启用功能的设置已恢复。",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "无法创建备份。请检查保存位置后重试。",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "无法恢复。请选择有效的 Fujifilm Mode 备份文件。",
-    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "此文件保存设置以及 LUT、边框和快门按钮图片的引用，不会包含原始素材。重新安装应用或更换设备后，需要重新导入自定义素材并授予读取权限。",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "此文件保存相机设置以及边框和快门按钮图片的引用，不包含原始边框/图片文件。重新安装应用或更换设备后，需要重新导入自定义边框/图片并授予读取权限。",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "优先使用相机多帧 HDR 扩展或 Ultra HDR JPEG_R。如果两者均不支持，则使用 GPU 或 CPU 对单张图像进行软件色调映射；无法恢复已经过曝丢失的细节。",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "先以相机支持的最高 JPEG 分辨率拍摄，再在内存允许时使用 GPU 进行 2 倍锐化；大图或 GPU 不兼容时改用 CPU。不会生成超出传感器能力的细节。"
 )
@@ -797,11 +797,6 @@ private fun translateFullUiText(value: String, language: String): String? {
     }
     dynamic.firstOrNull { value.startsWith(it.first) }?.let {
         return it.second + value.removePrefix(it.first)
-    }
-    Regex("""^Đã nhập LUT: (.+)$""").matchEntire(value)?.let { match ->
-        val name = match.groupValues[1]
-        val prefix = dynamic.firstOrNull { it.first == "Đã nhập LUT: " }?.second ?: "Imported LUT: "
-        return prefix + name
     }
     Regex("""^(\d+) ảnh$""").matchEntire(value)?.let { match ->
         val count = match.groupValues[1]

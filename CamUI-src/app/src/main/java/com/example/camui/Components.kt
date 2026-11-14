@@ -176,10 +176,7 @@ private val englishUi = mapOf(
     "Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn."
         to "Best uses the highest JPEG quality. Actual resolution depends on the output sizes exposed by the active Camera2/CameraX camera.",
     "Người làm App: Baoaka06" to "Developer: Baoaka06",
-    "Frame Manage" to "Frame Manager", "LUT Manage" to "LUT Manager",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to "Import .cube files to manage color profiles.",
-    "Nhập khung phủ PNG/JPG để quản lý." to "Import PNG/JPG overlay frames.",
-    "Chưa có LUT nào được nhập." to "No LUTs imported yet.",
+    "Frame Manage" to "Frame Manager", "Nhập khung phủ PNG/JPG để quản lý." to "Import PNG/JPG overlay frames.",
     "Chưa có frame nào được nhập." to "No frames imported yet.",
     "Đang tải ảnh…" to "Loading photo…", "Đang tải ảnh..." to "Loading photo...",
     "Đóng" to "Close", "Chọn frame để xem trước và đóng lên ảnh sau khi chụp." to "Select a frame preview; it will be embedded after capture.",
@@ -231,9 +228,7 @@ private val japaneseUi = mapOf(
     "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "表示言語を選択します。変更後、アプリの画面を再読み込みします。",
     "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "オフにするとカメラのノイズ低減を要求しません。対応状況はCamera2 HALによって異なります。",
     "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút。" to "シャッターボタンの色を変更するか、PNG/JPG画像を使用します。",
-    "Frame Manage" to "フレーム管理", "LUT Manage" to "LUT管理",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to ".cubeファイルを読み込んでカラーLUTを管理します。",
-    "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPGのオーバーレイフレームを読み込みます。",
+    "Frame Manage" to "フレーム管理", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPGのオーバーレイフレームを読み込みます。",
     "Đóng" to "閉じる", "Áp dụng frame" to "フレームを適用",
     "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまでスマートフォンを動かさないでください。",
     "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng。" to "カメラIDを取得できません。カメラ権限を許可してください。"
@@ -274,9 +269,7 @@ private val koreanUi = mapOf(
     "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "셔터 버튼 색상을 변경하거나 PNG/JPG 이미지를 사용하세요.",
     "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "표시 언어를 선택하세요. 변경 후 앱 화면이 다시 로드됩니다.",
     "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "끄면 카메라에 노이즈 감소를 끄도록 요청합니다. 지원 여부는 Camera2 HAL에 따라 다릅니다.",
-    "Frame Manage" to "프레임 관리", "LUT Manage" to "LUT 관리",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to ".cube 파일을 가져와 색상 LUT를 관리합니다.",
-    "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPG 오버레이 프레임을 가져옵니다.",
+    "Frame Manage" to "프레임 관리", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPG 오버레이 프레임을 가져옵니다.",
     "Đóng" to "닫기", "Áp dụng frame" to "프레임 적용",
     "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 휴대전화를 움직이지 마세요."
 )
@@ -316,9 +309,7 @@ private val chineseUi = mapOf(
     "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "更改快门按钮颜色，或使用 PNG/JPG 图片。",
     "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "选择界面语言。更改后应用将重新加载界面。",
     "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "关闭会请求相机停用降噪，实际支持情况取决于 Camera2 HAL。",
-    "Frame Manage" to "边框管理", "LUT Manage" to "LUT 管理",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to "导入 .cube 文件以管理颜色配置。",
-    "Nhập khung phủ PNG/JPG để quản lý." to "导入 PNG/JPG 覆盖边框。",
+    "Frame Manage" to "边框管理", "Nhập khung phủ PNG/JPG để quản lý." to "导入 PNG/JPG 覆盖边框。",
     "Đóng" to "关闭", "Áp dụng frame" to "应用边框",
     "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机。"
 )
@@ -331,9 +322,7 @@ private val fullEnglishUi = mapOf(
     "ISO Auto" to "ISO Auto", "Shutter Auto" to "Shutter Auto",
     "Focus locked" to "Focus locked", "Tông màu tự động" to "Auto color temperature",
     "LENS TRANSITION" to "LENS TRANSITION", "FILM WASH" to "FILM WASH",
-    "Bộ lọc & LUT" to "Filters & LUT", "Không dùng bộ lọc · Ảnh gốc" to "No filter · Original photo",
-    "LUT .cube của bạn" to "Your .cube LUT", "Nhập LUT" to "Import LUT",
-    "Chưa có LUT. Mở Contents Management để nhập tệp .cube." to "No LUTs yet. Open Contents Management to import a .cube file.",
+    "Không dùng bộ lọc · Ảnh gốc" to "No filter · Original photo",
     "Mở Contents Management" to "Open Contents Management",
     "Nhấn để chọn áp dụng sau khi chụp" to "Tap to select and apply after capture",
     "✓ ĐANG DÙNG" to "✓ ACTIVE", "Xem trước · áp dụng ảnh" to "Preview · applied to photo",
@@ -362,12 +351,9 @@ private val fullEnglishUi = mapOf(
     "Màu frame" to "Frame color", "Transparent bỏ viền và panel của frame dựng sẵn; với frame PNG sẽ giữ nguyên độ trong suốt gốc." to "Transparent removes built-in frame borders and panels; imported PNG transparency is preserved.",
     "Muốn thêm frame PNG/JPG, vào Contents Management → Frame Manage → Import Frame." to "To add a PNG/JPG frame, open Contents Management → Frame Manager → Import Frame.",
     "PNG / JPG" to "PNG / JPG", "ORIGINAL" to "ORIGINAL", "Imported frame" to "Imported frame",
-    "Contents Management" to "Contents Management", "LUT Manage" to "LUT Manager",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to "Import .cube files to manage color profiles.",
-    "Import LUT" to "Import LUT", "Frame Manage" to "Frame Manager",
+    "Contents Management" to "Contents Management", "Frame Manage" to "Frame Manager",
     "Nhập khung phủ PNG/JPG để quản lý." to "Import PNG/JPG overlay frames.",
-    "Import Frame" to "Import Frame", "Xóa LUT?" to "Delete LUT?",
-    "Xóa" to "Delete", "Hủy" to "Cancel",
+    "Import Frame" to "Import Frame", "Xóa" to "Delete", "Hủy" to "Cancel",
     "Album · Fujifilm Mode" to "Album · Fujifilm Mode",
     "Đang tải ảnh…" to "Loading photos…", "Đang tải ảnh..." to "Loading photos...",
     "Đóng" to "Close", "Photo Frames" to "Photo Frames",
@@ -408,7 +394,6 @@ private val fullEnglishUi = mapOf(
     "Đang đồng bộ hướng và tỉ lệ khung ngắm, hãy chụp lại sau một chút." to "Synchronizing viewfinder orientation and aspect ratio. Please capture again in a moment.",
     "Ảnh đã chụp nhưng MediaStore không trả về URI." to "The photo was captured, but MediaStore did not return a URI.",
     "Camera/API này không hỗ trợ chụp JPEG Ultra HDR." to "This camera/API does not support Ultra HDR JPEG capture.",
-    "Chỉ hỗ trợ LUT định dạng .cube." to "Only .cube LUT files are supported.",
     "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark." to "Photo saved, but the watermark was not applied. Check Watermark settings.",
     "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Could not enable Ultra HDR or initialize the camera:",
     "Không mở được camera:" to "Could not open camera:",
@@ -425,7 +410,6 @@ private val fullEnglishUi = mapOf(
     "Shutter button" to "Shutter button",
     "Watermark" to "Watermark",
     "Màu khung" to "Frame color",
-    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "LUT .cube uses 3D interpolation when saving the photo.",
     "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "Choose a filter to preview its look; it is applied to the photo after capture.",
     "TAP AF · HOLD LOCK" to "TAP AF · HOLD TO LOCK",
     "ĐANG DÙNG" to "ACTIVE",
@@ -454,7 +438,7 @@ private val fullEnglishUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "Camera, zoom and enabled feature settings restored.",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "Could not create the backup. Check the save location and try again.",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "Could not restore. Select a valid Fujifilm Mode backup file.",
-    "Lưu ý: tệp này lưu cấu hình và tham chiếu LUT/frame/ảnh nút chụp; không nhúng các tệp ảnh/LUT gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại những tệp tùy chỉnh và cấp quyền đọc chúng." to "Note: this file stores settings and references to LUTs, frames and shutter-button images; it does not embed the source assets. Re-import custom assets and grant read access after reinstalling or moving to another device.",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "Note: this file stores settings and references to LUTs, frames and shutter-button images; it does not embed the source assets. Re-import custom assets and grant read access after reinstalling or moving to another device.",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "Prefer the camera's multi-frame HDR extension or Ultra HDR JPEG_R. If neither is supported, Software HDR uses GPU or CPU single-image tone mapping; clipped highlights cannot be recovered.",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "Capture at the highest JPEG resolution supported by the camera, then apply 2× sharpening on the GPU when memory allows; large images or unsupported GPUs fall back to CPU. No detail beyond the sensor is created."
 )
@@ -464,10 +448,7 @@ private val fullJapaneseUi = mapOf(
     "EV không được hỗ trợ" to "EVは利用できません", "AF tự động" to "AFオート",
     "Ấm" to "暖色", "Lạnh" to "寒色", "Focus locked" to "フォーカスロック",
     "Tông màu tự động" to "ホワイトバランス：オート", "LENS TRANSITION" to "レンズ切替中",
-    "FILM WASH" to "フィルムウォッシュ", "Bộ lọc & LUT" to "フィルターとLUT",
-    "Không dùng bộ lọc · Ảnh gốc" to "フィルターなし · オリジナル",
-    "LUT .cube của bạn" to "マイ .cube LUT", "Nhập LUT" to "LUTを読み込む",
-    "Chưa có LUT. Mở Contents Management để nhập tệp .cube." to "LUTがありません。コンテンツ管理から.cubeファイルを読み込んでください。",
+    "FILM WASH" to "フィルムウォッシュ", "Không dùng bộ lọc · Ảnh gốc" to "フィルターなし · オリジナル",
     "Mở Contents Management" to "コンテンツ管理を開く",
     "Nhấn để chọn áp dụng sau khi chụp" to "タップして選択し、撮影後に適用",
     "✓ ĐANG DÙNG" to "✓ 使用中", "Xem trước · áp dụng ảnh" to "プレビュー · 写真に適用",
@@ -493,10 +474,8 @@ private val fullJapaneseUi = mapOf(
     "Photo Frame" to "フォトフレーム", "Chọn frame tại đây. Frame được đóng lên ảnh sau khi chụp; không còn nút Frame ở màn hình chụp." to "ここでフレームを選択します。撮影後に写真へ合成され、撮影画面にはフレームボタンは表示されません。",
     "Màu frame" to "フレームの色", "Transparent bỏ viền và panel của frame dựng sẵn; với frame PNG sẽ giữ nguyên độ trong suốt gốc." to "透明では内蔵フレームの枠と背景を非表示にし、PNG本来の透明度を保持します。",
     "Muốn thêm frame PNG/JPG, vào Contents Management → Frame Manage → Import Frame." to "PNG/JPGフレームを追加するには、コンテンツ管理 → フレーム管理 → フレーム読み込みを開きます。",
-    "Contents Management" to "コンテンツ管理", "LUT Manage" to "LUT管理",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to ".cubeファイルを読み込んでカラーLUTを管理します。",
-    "Frame Manage" to "フレーム管理", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPGオーバーレイフレームを読み込みます。",
-    "Xóa LUT?" to "LUTを削除しますか？", "Xóa" to "削除", "Hủy" to "キャンセル",
+    "Contents Management" to "コンテンツ管理", "Frame Manage" to "フレーム管理", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPGオーバーレイフレームを読み込みます。",
+    "Xóa" to "削除", "Hủy" to "キャンセル",
     "Album · Fujifilm Mode" to "アルバム · Fujifilm Mode", "Đang tải ảnh…" to "写真を読み込み中…",
     "Đang tải ảnh..." to "写真を読み込み中…", "Đóng" to "閉じる",
     "Chọn frame để xem trước và đóng lên ảnh sau khi chụp." to "フレームを選択してください。撮影後に写真へ合成されます。",
@@ -518,7 +497,6 @@ private val fullJapaneseUi = mapOf(
     "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "これらのツールでファインダー表示を直接操作します。",
     "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "カメラ情報はCamera2を通じて端末から直接取得します。",
     "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "カメラIDを取得できません。アプリにカメラ権限を許可してください。",
-    "Chỉ hỗ trợ LUT định dạng .cube." to ".cube形式のLUTのみ対応しています。",
     "Camera này không hỗ trợ phơi sáng dài." to "このカメラは長時間露光に対応していません。",
     "Đang phơi sáng vui lòng để điện thoại cố định" to "露光中です。スマートフォンを固定してください。",
     "Chuyển AF sang Auto trước khi khóa nét." to "フォーカスロックの前にAFをオートへ切り替えてください。",
@@ -535,7 +513,6 @@ private val fullJapaneseUi = mapOf(
     "Shutter button" to "シャッターボタン",
     "Watermark" to "ウォーターマーク",
     "Màu khung" to "枠線の色",
-    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "LUT .cubeは保存時に3D補間を使用します。",
     "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp。" to "フィルターの色調をプレビューします。撮影後に写真へ適用されます。",
     "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "フィルターの色調をプレビューします。撮影後に写真へ適用されます。",
     "TAP AF · HOLD LOCK" to "タップでAF · 長押しでロック",
@@ -564,7 +541,7 @@ private val fullJapaneseUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "カメラ、ズーム、有効な機能の設定を復元しました。",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "バックアップを作成できません。保存先を確認して再試行してください。",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "復元できません。有効なFujifilm Modeバックアップファイルを選択してください。",
-    "Lưu ý: tệp này lưu cấu hình và tham chiếu LUT/frame/ảnh nút chụp; không nhúng các tệp ảnh/LUT gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại những tệp tùy chỉnh và cấp quyền đọc chúng." to "このファイルには設定とLUT・フレーム・シャッターボタン画像への参照が保存されます。元ファイル自体は含まれません。再インストールや機種変更後はカスタム素材を再インポートし、読み取り権限を付与してください。",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "このファイルには設定とLUT・フレーム・シャッターボタン画像への参照が保存されます。元ファイル自体は含まれません。再インストールや機種変更後はカスタム素材を再インポートし、読み取り権限を付与してください。",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "カメラのマルチフレームHDR拡張またはUltra HDR JPEG_Rを優先します。どちらも非対応の場合、GPUまたはCPUで単一画像のトーンマッピングを行います。白飛びしたディテールは復元できません。",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "カメラが対応する最大JPEG解像度で撮影し、メモリが許す場合はGPUで2倍シャープ化します。大きな画像や非対応GPUではCPUに切り替えます。センサー以上のディテールは生成されません。"
 )
@@ -574,10 +551,7 @@ private val fullKoreanUi = mapOf(
     "EV không được hỗ trợ" to "EV를 사용할 수 없음", "AF tự động" to "AF 자동",
     "Ấm" to "따뜻하게", "Lạnh" to "차갑게", "Focus locked" to "초점 잠금",
     "Tông màu tự động" to "자동 화이트 밸런스", "LENS TRANSITION" to "렌즈 전환 중",
-    "FILM WASH" to "필름 워시", "Bộ lọc & LUT" to "필터 및 LUT",
-    "Không dùng bộ lọc · Ảnh gốc" to "필터 사용 안 함 · 원본 사진",
-    "LUT .cube của bạn" to "내 .cube LUT", "Nhập LUT" to "LUT 가져오기",
-    "Chưa có LUT. Mở Contents Management để nhập tệp .cube." to "LUT가 없습니다. 콘텐츠 관리에서 .cube 파일을 가져오세요.",
+    "FILM WASH" to "필름 워시", "Không dùng bộ lọc · Ảnh gốc" to "필터 사용 안 함 · 원본 사진",
     "Mở Contents Management" to "콘텐츠 관리 열기",
     "Nhấn để chọn áp dụng sau khi chụp" to "탭하여 선택하고 촬영 후 적용",
     "✓ ĐANG DÙNG" to "✓ 사용 중", "Xem trước · áp dụng ảnh" to "미리보기 · 사진에 적용",
@@ -603,10 +577,8 @@ private val fullKoreanUi = mapOf(
     "Chọn frame tại đây. Frame được đóng lên ảnh sau khi chụp; không còn nút Frame ở màn hình chụp." to "여기서 프레임을 선택하세요. 촬영 후 사진에 합성되며 카메라 화면에는 프레임 버튼이 표시되지 않습니다.",
     "Màu frame" to "프레임 색상", "Transparent bỏ viền và panel của frame dựng sẵn; với frame PNG sẽ giữ nguyên độ trong suốt gốc." to "투명을 선택하면 기본 프레임 테두리와 배경이 제거되고 가져온 PNG의 투명도는 유지됩니다.",
     "Muốn thêm frame PNG/JPG, vào Contents Management → Frame Manage → Import Frame." to "PNG/JPG 프레임을 추가하려면 콘텐츠 관리 → 프레임 관리 → 프레임 가져오기를 여세요.",
-    "Contents Management" to "콘텐츠 관리", "LUT Manage" to "LUT 관리자",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to ".cube 파일을 가져와 색상 LUT를 관리합니다.",
-    "Frame Manage" to "프레임 관리자", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPG 오버레이 프레임을 가져옵니다.",
-    "Xóa LUT?" to "LUT를 삭제할까요?", "Xóa" to "삭제", "Hủy" to "취소",
+    "Contents Management" to "콘텐츠 관리", "Frame Manage" to "프레임 관리자", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPG 오버레이 프레임을 가져옵니다.",
+    "Xóa" to "삭제", "Hủy" to "취소",
     "Album · Fujifilm Mode" to "앨범 · Fujifilm Mode", "Đang tải ảnh…" to "사진 불러오는 중…",
     "Đang tải ảnh..." to "사진 불러오는 중…", "Đóng" to "닫기",
     "Chọn frame để xem trước và đóng lên ảnh sau khi chụp." to "프레임을 선택하세요. 촬영 후 사진에 합성됩니다.",
@@ -629,7 +601,6 @@ private val fullKoreanUi = mapOf(
     "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "이 도구에서 뷰파인더 오버레이를 직접 제어합니다.",
     "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "카메라 정보는 Camera2를 통해 기기에서 직접 가져옵니다.",
     "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "카메라 ID를 읽을 수 없습니다. 앱에 카메라 권한을 허용하세요.",
-    "Chỉ hỗ trợ LUT định dạng .cube." to ".cube 형식 LUT만 지원합니다.",
     "Camera này không hỗ trợ phơi sáng dài." to "이 카메라는 장시간 노출을 지원하지 않습니다.",
     "Đang phơi sáng vui lòng để điện thoại cố định" to "노출 중입니다. 휴대전화를 고정해 주세요.",
     "Chuyển AF sang Auto trước khi khóa nét." to "초점을 잠그기 전에 AF를 자동으로 전환하세요.",
@@ -646,7 +617,6 @@ private val fullKoreanUi = mapOf(
     "Shutter button" to "셔터 버튼",
     "Watermark" to "워터마크",
     "Màu khung" to "테두리 색상",
-    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "LUT .cube는 저장할 때 3D 보간을 사용합니다.",
     "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "필터 색감을 미리 봅니다. 촬영 후 사진에 적용됩니다.",
     "TAP AF · HOLD LOCK" to "탭하여 AF · 길게 눌러 초점 잠금",
     "ĐANG DÙNG" to "사용 중",
@@ -674,7 +644,7 @@ private val fullKoreanUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "카메라, 줌 및 활성화된 기능 설정을 복원했습니다.",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "백업을 만들 수 없습니다. 저장 위치를 확인한 후 다시 시도하세요.",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "복원할 수 없습니다. 유효한 Fujifilm Mode 백업 파일을 선택하세요.",
-    "Lưu ý: tệp này lưu cấu hình và tham chiếu LUT/frame/ảnh nút chụp; không nhúng các tệp ảnh/LUT gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại những tệp tùy chỉnh và cấp quyền đọc chúng." to "이 파일에는 설정과 LUT·프레임·셔터 버튼 이미지 참조만 저장되며 원본 에셋은 포함되지 않습니다. 재설치하거나 기기를 변경한 후에는 사용자 지정 에셋을 다시 가져오고 읽기 권한을 부여해야 합니다.",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "이 파일에는 설정과 LUT·프레임·셔터 버튼 이미지 참조만 저장되며 원본 에셋은 포함되지 않습니다. 재설치하거나 기기를 변경한 후에는 사용자 지정 에셋을 다시 가져오고 읽기 권한을 부여해야 합니다.",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "카메라의 멀티 프레임 HDR 확장 또는 Ultra HDR JPEG_R을 우선 사용합니다. 둘 다 지원하지 않으면 GPU 또는 CPU로 단일 이미지 톤 매핑을 수행합니다. 날아간 하이라이트 디테일은 복원할 수 없습니다.",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "카메라가 지원하는 최대 JPEG 해상도로 촬영한 뒤 메모리가 허용하면 GPU로 2배 선명화합니다. 큰 이미지나 미지원 GPU에서는 CPU로 전환합니다. 센서 이상의 세부 정보를 생성하지는 않습니다."
 )
@@ -684,10 +654,7 @@ private val fullChineseUi = mapOf(
     "EV không được hỗ trợ" to "不支持 EV", "AF tự động" to "自动 AF",
     "Ấm" to "暖色", "Lạnh" to "冷色", "Focus locked" to "已锁定对焦",
     "Tông màu tự động" to "自动白平衡", "LENS TRANSITION" to "镜头切换中",
-    "FILM WASH" to "胶片显影", "Bộ lọc & LUT" to "滤镜与 LUT",
-    "Không dùng bộ lọc · Ảnh gốc" to "不使用滤镜 · 原图",
-    "LUT .cube của bạn" to "你的 .cube LUT", "Nhập LUT" to "导入 LUT",
-    "Chưa có LUT. Mở Contents Management để nhập tệp .cube." to "暂无 LUT。请打开内容管理导入 .cube 文件。",
+    "FILM WASH" to "胶片显影", "Không dùng bộ lọc · Ảnh gốc" to "不使用滤镜 · 原图",
     "Mở Contents Management" to "打开内容管理",
     "Nhấn để chọn áp dụng sau khi chụp" to "点击选择并在拍摄后应用",
     "✓ ĐANG DÙNG" to "✓ 正在使用", "Xem trước · áp dụng ảnh" to "预览 · 应用到照片",
@@ -713,10 +680,8 @@ private val fullChineseUi = mapOf(
     "Chọn frame tại đây. Frame được đóng lên ảnh sau khi chụp; không còn nút Frame ở màn hình chụp." to "在此选择边框。拍摄后会合成到照片中，拍摄界面不再显示边框按钮。",
     "Màu frame" to "边框颜色", "Transparent bỏ viền và panel của frame dựng sẵn; với frame PNG sẽ giữ nguyên độ trong suốt gốc." to "透明模式会移除内置边框和底板，并保留导入 PNG 的原始透明度。",
     "Muốn thêm frame PNG/JPG, vào Contents Management → Frame Manage → Import Frame." to "添加 PNG/JPG 边框，请打开内容管理 → 边框管理 → 导入边框。",
-    "Contents Management" to "内容管理", "LUT Manage" to "LUT 管理",
-    "Nhập tệp .cube để quản lý hồ sơ màu." to "导入 .cube 文件以管理颜色配置。",
-    "Frame Manage" to "边框管理", "Nhập khung phủ PNG/JPG để quản lý." to "导入 PNG/JPG 覆盖边框。",
-    "Xóa LUT?" to "删除 LUT？", "Xóa" to "删除", "Hủy" to "取消",
+    "Contents Management" to "内容管理", "Frame Manage" to "边框管理", "Nhập khung phủ PNG/JPG để quản lý." to "导入 PNG/JPG 覆盖边框。",
+    "Xóa" to "删除", "Hủy" to "取消",
     "Album · Fujifilm Mode" to "相册 · Fujifilm Mode", "Đang tải ảnh…" to "正在加载照片…",
     "Đang tải ảnh..." to "正在加载照片…", "Đóng" to "关闭",
     "Chọn frame để xem trước và đóng lên ảnh sau khi chụp." to "选择边框预览；拍摄后会合成到照片中。",
@@ -739,7 +704,6 @@ private val fullChineseUi = mapOf(
     "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "这些工具可直接控制取景器辅助显示。",
     "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "相机信息通过 Camera2 从设备直接读取。",
     "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "无法读取相机 ID，请授予应用相机权限。",
-    "Chỉ hỗ trợ LUT định dạng .cube." to "仅支持 .cube 格式的 LUT。",
     "Camera này không hỗ trợ phơi sáng dài." to "此相机不支持长时间曝光。",
     "Đang phơi sáng vui lòng để điện thoại cố định" to "正在曝光，请保持手机稳定。",
     "Chuyển AF sang Auto trước khi khóa nét." to "锁定焦点前请先将 AF 切换为自动。",
@@ -756,7 +720,6 @@ private val fullChineseUi = mapOf(
     "Shutter button" to "快门按钮",
     "Watermark" to "水印",
     "Màu khung" to "边框颜色",
-    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "保存照片时，LUT .cube 使用 3D 插值。",
     "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "选择滤镜预览色调；滤镜会在拍摄后应用到照片。",
     "TAP AF · HOLD LOCK" to "点击 AF · 长按锁定",
     "ĐANG DÙNG" to "正在使用",
@@ -784,7 +747,7 @@ private val fullChineseUi = mapOf(
     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to "相机、变焦和已启用功能的设置已恢复。",
     "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to "无法创建备份。请检查保存位置后重试。",
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "无法恢复。请选择有效的 Fujifilm Mode 备份文件。",
-    "Lưu ý: tệp này lưu cấu hình và tham chiếu LUT/frame/ảnh nút chụp; không nhúng các tệp ảnh/LUT gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại những tệp tùy chỉnh và cấp quyền đọc chúng." to "此文件保存设置以及 LUT、边框和快门按钮图片的引用，不会包含原始素材。重新安装应用或更换设备后，需要重新导入自定义素材并授予读取权限。",
+    "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "此文件保存设置以及 LUT、边框和快门按钮图片的引用，不会包含原始素材。重新安装应用或更换设备后，需要重新导入自定义素材并授予读取权限。",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "优先使用相机多帧 HDR 扩展或 Ultra HDR JPEG_R。如果两者均不支持，则使用 GPU 或 CPU 对单张图像进行软件色调映射；无法恢复已经过曝丢失的细节。",
     "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "先以相机支持的最高 JPEG 分辨率拍摄，再在内存允许时使用 GPU 进行 2 倍锐化；大图或 GPU 不兼容时改用 CPU。不会生成超出传感器能力的细节。"
 )
@@ -802,7 +765,6 @@ private fun translateFullUiText(value: String, language: String): String? {
         language.startsWith("ja") -> listOf(
             "Camera ID " to "カメラID ", "ISO " to "ISO ", "Shutter " to "シャッター ",
             "Tông màu " to "色温度 ", "Auto sẽ lấy tên model của điện thoại: " to "自動では端末モデル名を使用：",
-            "Đã nhập LUT: " to "LUTを読み込みました：",
             "Không thể khởi tạo HDR hoặc camera: " to "HDRまたはカメラを初期化できません：",
             "Bộ lọc: " to "フィルター：", "AI BỐ CỤC · " to "AI構図 · ",
             "Lỗi chụp ảnh:" to "撮影エラー：", "Không mở được camera:" to "カメラを開けません：",
@@ -811,7 +773,6 @@ private fun translateFullUiText(value: String, language: String): String? {
         language.startsWith("ko") -> listOf(
             "Camera ID " to "카메라 ID ", "ISO " to "ISO ", "Shutter " to "셔터 ",
             "Tông màu " to "색온도 ", "Auto sẽ lấy tên model của điện thoại: " to "자동으로 휴대전화 모델을 사용합니다: ",
-            "Đã nhập LUT: " to "LUT를 가져왔습니다: ",
             "Không thể khởi tạo HDR hoặc camera: " to "HDR 또는 카메라를 초기화할 수 없습니다: ",
             "Bộ lọc: " to "필터: ", "AI BỐ CỤC · " to "AI 구도 · ",
             "Lỗi chụp ảnh:" to "촬영 오류:", "Không mở được camera:" to "카메라를 열 수 없습니다:",
@@ -820,7 +781,6 @@ private fun translateFullUiText(value: String, language: String): String? {
         language.startsWith("zh") -> listOf(
             "Camera ID " to "相机 ID ", "ISO " to "ISO ", "Shutter " to "快门 ",
             "Tông màu " to "色温 ", "Auto sẽ lấy tên model của điện thoại: " to "自动使用手机型号：",
-            "Đã nhập LUT: " to "已导入 LUT：",
             "Không thể khởi tạo HDR hoặc camera: " to "无法初始化 HDR 或相机：",
             "Bộ lọc: " to "滤镜：", "AI BỐ CỤC · " to "AI 构图 · ",
             "Lỗi chụp ảnh:" to "拍摄错误：", "Không mở được camera:" to "无法打开相机：",
@@ -829,7 +789,6 @@ private fun translateFullUiText(value: String, language: String): String? {
         else -> listOf(
             "Camera ID " to "Camera ID ", "ISO " to "ISO ", "Shutter " to "Shutter ",
             "Tông màu " to "Color temperature ", "Auto sẽ lấy tên model của điện thoại: " to "Auto uses phone model: ",
-            "Đã nhập LUT: " to "Imported LUT: ",
             "Không thể khởi tạo HDR hoặc camera: " to "Could not initialize HDR or camera: ",
             "Bộ lọc: " to "Filter: ", "AI BỐ CỤC · " to "AI COMPOSITION · ",
             "Lỗi chụp ảnh:" to "Capture error:", "Không mở được camera:" to "Could not open camera:",
@@ -838,15 +797,6 @@ private fun translateFullUiText(value: String, language: String): String? {
     }
     dynamic.firstOrNull { value.startsWith(it.first) }?.let {
         return it.second + value.removePrefix(it.first)
-    }
-    if (value.startsWith("Bạn chắc chắn muốn xóa LUT ")) {
-        val lutName = value.substringAfter("Bạn chắc chắn muốn xóa LUT ").substringBefore(" khỏi danh sách đã nhập?")
-        return when {
-            language.startsWith("ja") -> "LUT「$lutName」をインポート済みリストから削除しますか？"
-            language.startsWith("ko") -> "가져온 목록에서 LUT \"$lutName\"을(를) 삭제하시겠습니까?"
-            language.startsWith("zh") -> "确定从已导入列表中删除 LUT「$lutName」吗？"
-            else -> "Delete LUT \"$lutName\" from the imported list?"
-        }
     }
     Regex("""^Đã nhập LUT: (.+)$""").matchEntire(value)?.let { match ->
         val name = match.groupValues[1]

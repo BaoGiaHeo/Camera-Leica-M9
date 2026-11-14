@@ -179,11 +179,13 @@ internal object HdmpAiEngine {
         var options: OrtSession.SessionOptions? = null
         return try {
             val modelFile = verifiedModelFile(context, spec) ?: return false
-            sourceStream = FileInputStream(source)
-            decoder = BitmapRegionDecoder.newInstance(sourceStream, false) ?: return false
+            val openedStream = FileInputStream(source)
+            sourceStream = openedStream
+            val openedDecoder = BitmapRegionDecoder.newInstance(openedStream, false) ?: return false
+            decoder = openedDecoder
 
-            val width = decoder.width
-            val height = decoder.height
+            val width = openedDecoder.width
+            val height = openedDecoder.height
             val pixelCount = width.toLong() * height.toLong()
             val outputBytes = pixelCount * 2L
             val safeHeap = (Runtime.getRuntime().maxMemory().toDouble() * MAX_OUTPUT_HEAP_FRACTION).toLong()
@@ -195,9 +197,10 @@ internal object HdmpAiEngine {
                 setIntraOpNumThreads(workerCount.coerceIn(1, 8))
                 setInterOpNumThreads(1)
             }
-            session = env.createSession(modelFile.absolutePath, options)
-            val inputName = session.inputNames.firstOrNull() ?: error("ONNX input missing")
-            val outputName = session.outputNames.firstOrNull() ?: error("ONNX output missing")
+            val openedSession = env.createSession(modelFile.absolutePath, options)
+            session = openedSession
+            val inputName = openedSession.inputNames.firstOrNull() ?: error("ONNX input missing")
+            val outputName = openedSession.outputNames.firstOrNull() ?: error("ONNX output missing")
 
             val rows = ceil(height.toDouble() / CORE_SIZE).toInt()
             val columns = ceil(width.toDouble() / CORE_SIZE).toInt()
@@ -229,7 +232,7 @@ internal object HdmpAiEngine {
                     val regionRight = min(width, patchLeft + TILE_SIZE)
                     val regionBottom = min(height, patchTop + TILE_SIZE)
                     val region = Rect(regionLeft, regionTop, regionRight, regionBottom)
-                    val decoded = decoder.decodeRegion(region, decodeOptions)
+                    val decoded = openedDecoder.decodeRegion(region, decodeOptions)
                         ?: error("Unable to decode AI tile")
                     try {
                         val regionPixels = IntArray(decoded.width * decoded.height)
@@ -267,7 +270,7 @@ internal object HdmpAiEngine {
                         longArrayOf(1L, 3L, TILE_SIZE.toLong(), TILE_SIZE.toLong())
                     )
                     try {
-                        session.run(mapOf(inputName to inputTensor)).use { result ->
+                        openedSession.run(mapOf(inputName to inputTensor)).use { result ->
                             val outputTensor = result.get(outputName).orElseThrow {
                                 IllegalStateException("ONNX output tensor missing")
                             } as? OnnxTensor ?: error("ONNX output is not a tensor")

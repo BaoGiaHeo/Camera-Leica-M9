@@ -705,7 +705,7 @@ var aiPortraitDepthEnabled by remember {
                             .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
                     }.getOrNull()
                 }.orEmpty()
-                val preferredNrModes = when (noiseReduction) {
+                val preferredNrModes = when (if (uhdCaptureEnabled) "High+" else noiseReduction) {
                     "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
                     "Low" -> listOf(
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST,

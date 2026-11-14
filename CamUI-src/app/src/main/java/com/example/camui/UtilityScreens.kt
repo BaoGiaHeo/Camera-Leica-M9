@@ -1595,7 +1595,7 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
 }
 
 /**
- * Applies a built-in film-inspired look or an imported .cube LUT to the saved photo.
+ * Applies a built-in Fujifilm profile or a retained non-Fujifilm filter to the saved photo.
  * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
  */
 private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?): Boolean {
@@ -1626,7 +1626,7 @@ private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?
 }
 
 /**
- * Render the exact same built-in LUT/pixel transform used by saved-photo processing.
+ * Render the exact same bundled profile/pixel transform used by saved-photo processing.
  * The filter picker uses a shared source bitmap, so switching presets never compounds filters.
  */
 fun renderCameraLookPreview(

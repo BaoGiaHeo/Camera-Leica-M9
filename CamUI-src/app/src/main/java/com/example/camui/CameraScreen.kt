@@ -663,7 +663,7 @@ fun CameraScreen(
                 if (stabilization) applyStabilization(bound, true)
             }
 
-            val preferJpegR = (ultraHdr || (hdrCaptureRequested && !hdrExtensionActive)) &&
+            val preferJpegR = (ultraHdr || hdrCaptureRequested) &&
                 Build.VERSION.SDK_INT >= 34
             preserveUltraHdrOutput = false
             try {

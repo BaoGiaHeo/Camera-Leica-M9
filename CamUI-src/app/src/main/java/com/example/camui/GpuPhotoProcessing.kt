@@ -44,9 +44,10 @@ internal fun tryApplyGpuPhotoEnhancement(
         val height = bounds.outHeight
         if (width <= 0 || height <= 0 || width.toLong() * height.toLong() > 4_000_000L) return false
 
-        source = context.contentResolver.openInputStream(uri)?.use {
+        val sourceBitmap = context.contentResolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it)
         } ?: return false
+        source = sourceBitmap
 
         display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         if (display == EGL14.EGL_NO_DISPLAY) return false
@@ -166,7 +167,7 @@ internal fun tryApplyGpuPhotoEnhancement(
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, source, 0)
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, sourceBitmap, 0)
 
         val positions = floatBuffer(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
         val textureCoords = floatBuffer(floatArrayOf(0f, 1f, 1f, 1f, 0f, 0f, 1f, 0f))
@@ -209,10 +210,11 @@ internal fun tryApplyGpuPhotoEnhancement(
                 pixelArray[bitmapY * width + x] = android.graphics.Color.argb(alpha, red, green, blue)
             }
         }
-        output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        output.setPixels(pixelArray, 0, width, 0, 0, width, height)
+        val rendered = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        output = rendered
+        rendered.setPixels(pixelArray, 0, width, 0, 0, width, height)
         val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
-            output.compress(Bitmap.CompressFormat.JPEG, 98, it)
+            rendered.compress(Bitmap.CompressFormat.JPEG, 98, it)
         } ?: false
         if (!written) return false
         context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->

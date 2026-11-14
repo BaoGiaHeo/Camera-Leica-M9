@@ -2495,7 +2495,10 @@ fun CameraScreen(
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 2.dp),
                             horizontalArrangement = Arrangement.Center) {
                             Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
-                                .clickable { filterDialogVisible = true }
+                                .clickable {
+                                    activeFilter = appPrefs.getString("selected_filter", "None") ?: "None"
+                                    filterDialogVisible = true
+                                }
                                 .padding(horizontal = 18.dp, vertical = 7.dp)) {
                                 Text(
                                     if (activeFilter != "None") "Bộ lọc: " + cameraLookDisplayName(context, activeFilter) else "Bộ lọc",

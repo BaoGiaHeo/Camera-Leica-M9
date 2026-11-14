@@ -304,6 +304,9 @@ fun CameraScreen(
         onDispose { shutterSoundPlayer.release() }
     }
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
+    // Keep the EV thumb independent from delayed per-frame Camera2 results while dragging.
+    var evSliderPosition by remember { mutableFloatStateOf(evIndex.toFloat()) }
+    var evUserAdjusting by remember { mutableStateOf(false) }
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
     var focusDiopter by remember { mutableFloatStateOf(0f) }
@@ -312,7 +315,6 @@ fun CameraScreen(
     var camera2Inventory by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
     var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
-    var activePhysicalCameraId by remember { mutableStateOf<String?>(null) }
     var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
@@ -439,7 +441,6 @@ fun CameraScreen(
         imageCapture = null
         activeCameraDetails = null
         activePhysicalCameraDetails = emptyList()
-        activePhysicalCameraId = null
         liveAperture = null
         liveFocalMm = null
         captureSetupReady = false
@@ -523,9 +524,11 @@ fun CameraScreen(
                             live.focusDiopter?.let { if (focusDiopter != it) focusDiopter = it }
                             live.aperture?.let { if (liveAperture != it) liveAperture = it }
                             live.focalMm?.let { if (liveFocalMm != it) liveFocalMm = it }
-                            live.evIndex?.let { if (evIndex != it) evIndex = it }
-                            if (activePhysicalCameraId != live.activePhysicalCameraId) {
-                                activePhysicalCameraId = live.activePhysicalCameraId
+                            if (!evUserAdjusting) {
+                                live.evIndex?.let {
+                                    if (evIndex != it) evIndex = it
+                                    evSliderPosition = it.toFloat()
+                                }
                             }
                         }
                     }
@@ -752,6 +755,8 @@ fun CameraScreen(
                 boundCameraLandscape = isLandscape
                 boundCameraRatioIdx = ratioIdx
                 evIndex = appPrefs.getInt("pro_ev_index", 0)
+                evSliderPosition = evIndex.toFloat()
+                evUserAdjusting = false
                 val zoomStateOnBind = bound.cameraInfo.zoomState.value
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
                 val restoredZoom = savedZoom.coerceIn(
@@ -1591,12 +1596,6 @@ fun CameraScreen(
                             minZoom = zoomMinForUi,
                             maxZoom = zoomMaxForUi
                         )
-                        val activeCameraIdLabel = cameraInfo2?.cameraId ?: "—"
-                        val hardwareLabel = activeCameraDetails?.hardwareLevel ?: "—"
-                        val physicalIdLabel = activeCameraDetails?.physicalIds
-                            ?.takeIf { it.isNotEmpty() }
-                            ?.joinToString(",")
-                            ?: "không công khai"
                         val apertureForUi = liveAperture ?: activeCameraDetails?.apertures?.firstOrNull()
                         val focalForUi = liveFocalMm ?: activeCameraDetails?.focalLengthsMm?.firstOrNull()
                         val lensInfoLabel = buildList {
@@ -1631,17 +1630,6 @@ fun CameraScreen(
                                     )
                                 }
                             }
-                            Text(
-                                buildString {
-                                    append("Camera ID $activeCameraIdLabel · $hardwareLabel")
-                                    append(" · Physical IDs: $physicalIdLabel")
-                                    append(" · Đang dùng: ${activePhysicalCameraId ?: "auto/không công khai"}")
-                                    if (lensInfoLabel.isNotBlank()) append(" · $lensInfoLabel")
-                                },
-                                color = CamColors.Sub,
-                                fontSize = 8.sp,
-                                maxLines = 1
-                            )
                         }
             
                         val selected = proSel
@@ -1860,11 +1848,21 @@ fun CameraScreen(
                                 if (range != null && range.upper > range.lower) {
                                     Slider(
                                         modifier = Modifier.weight(1f),
-                                        value = evIndex.toFloat().coerceIn(range.lower.toFloat(), range.upper.toFloat()),
+                                        value = evSliderPosition.coerceIn(range.lower.toFloat(), range.upper.toFloat()),
                                         onValueChange = {
+                                            evUserAdjusting = true
+                                            evSliderPosition = it
                                             val value = it.roundToInt()
                                             evIndex = value
                                             camera?.let { c -> runCatching { c.cameraControl.setExposureCompensationIndex(value) } }
+                                        },
+                                        onValueChangeFinished = {
+                                            // Camera2 reports exposure asynchronously; keep the user's
+                                            // position stable until the new exposure has propagated.
+                                            scope.launch {
+                                                delay(500)
+                                                evUserAdjusting = false
+                                            }
                                         },
                                         valueRange = range.lower.toFloat()..range.upper.toFloat(),
                                         steps = (range.upper - range.lower - 1).coerceAtLeast(0),
@@ -1877,7 +1875,12 @@ fun CameraScreen(
                                 Text(evText, color = CamColors.TextColor, fontSize = 11.sp)
                                 Text("AUTO", color = CamColors.Sub, fontSize = 9.sp,
                                     modifier = Modifier.padding(start = 10.dp).clickable {
+                                        evUserAdjusting = false
                                         evIndex = 0
+                                        evSliderPosition = 0f.coerceIn(
+                                            (evRange?.lower ?: 0).toFloat(),
+                                            (evRange?.upper ?: 0).toFloat()
+                                        )
                                         camera?.let { runCatching { it.cameraControl.setExposureCompensationIndex(0) } }
                                     })
                             }

@@ -73,6 +73,7 @@ private val settingItems = listOf(
     SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
     SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
     SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
+    SettingItem("NightShot", "Chụp đêm nhiều khung · Star Trails"),
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
@@ -166,6 +167,15 @@ private fun SettingsDetailPage(
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
     var uhd by remember {
         mutableStateOf(prefs.getBoolean("uhd_capture_enabled", prefs.getBoolean("uhd_coming_soon", false)))
+    }
+    var nightShotMode by remember {
+        mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
+    }
+    var nightShotFrameCount by remember {
+        mutableStateOf(prefs.getInt("nightshot_frame_count", 6).coerceIn(4, 12))
+    }
+    var starTrailExposureSeconds by remember {
+        mutableStateOf(prefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
     }
     var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFFFFFFF") ?: "#FFFFFFFF") }
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
@@ -368,6 +378,116 @@ private fun SettingsDetailPage(
                     val languageTag = if (restoredLanguage == "system") "" else restoredLanguage
                     AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
                 })
+            }
+            "NightShot" -> {
+                Text(
+                    "Chế độ chụp đêm",
+                    color = CamColors.TextColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "Không kéo EV lên cực cao. Night Shot giữ phơi sáng tự động bình thường, chụp nhiều khung hình rồi căn kích thước và gộp trung bình để giảm nhiễu. Hãy giữ máy ổn định trong lúc chụp và xử lý.",
+                    color = CamColors.Sub,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "Tắt" to "off",
+                        "Night Shot" to "night",
+                        "Star Trails" to "star_trails"
+                    ).forEach { (label, value) ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                .background(CamColors.Card).clickable {
+                                    nightShotMode = value
+                                    prefs.edit().putString("nightshot_mode", value).apply()
+                                }.padding(horizontal = 14.dp, vertical = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    label,
+                                    color = if (nightShotMode == value) CamColors.Yellow else Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    when (value) {
+                                        "night" -> "Gộp nhiều ảnh để giảm nhiễu khi chụp thiếu sáng"
+                                        "star_trails" -> "Giữ ảnh liên tục; nhấn nút chụp lần nữa để dừng và ghép vệt sao"
+                                        else -> "Chụp ảnh bình thường"
+                                    },
+                                    color = CamColors.Sub,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(top = 3.dp)
+                                )
+                            }
+                            Text(
+                                if (nightShotMode == value) "✓" else "○",
+                                color = if (nightShotMode == value) CamColors.Yellow else CamColors.Sub,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                if (nightShotMode == "night") {
+                    Spacer(Modifier.padding(5.dp))
+                    Text("Số khung hình", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Nhiều khung hơn giúp giảm nhiễu tốt hơn nhưng mất thêm thời gian chụp và ghép.",
+                        color = CamColors.Sub,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf(4, 6, 8, 12).forEach { count ->
+                            Chip(
+                                "$count ảnh",
+                                nightShotFrameCount == count,
+                                {
+                                    nightShotFrameCount = count
+                                    prefs.edit().putInt("nightshot_frame_count", count).apply()
+                                },
+                                Modifier.width(76.dp)
+                            )
+                        }
+                    }
+                }
+                if (nightShotMode == "star_trails") {
+                    Spacer(Modifier.padding(5.dp))
+                    Text("Thời gian mỗi khung", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Ưu tiên 4–8 giây mỗi khung trên camera có hỗ trợ phơi sáng thủ công. Thiết bị không hỗ trợ sẽ tự dùng phơi sáng tự động.",
+                        color = CamColors.Sub,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf(1, 2, 4, 8).forEach { seconds ->
+                            Chip(
+                                "$seconds giây",
+                                starTrailExposureSeconds == seconds,
+                                {
+                                    starTrailExposureSeconds = seconds
+                                    prefs.edit().putInt("star_trails_exposure_seconds", seconds).apply()
+                                },
+                                Modifier.width(82.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        "Khuyên dùng tripod, khóa nét vào vô cực và tránh đèn flash. Phiên chụp tự dừng ở giới hạn an toàn 120 khung hình.",
+                        color = CamColors.Sub,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+                }
             }
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)

@@ -228,6 +228,33 @@ private fun preferredPhotoJpegSize(
         }
     )
 }
+
+/** Chooses a real RAW_SENSOR output size near 50MP; never interpolates a DNG. */
+private fun preferredPhotoRawSize(
+    context: Context,
+    cameraId: String?,
+    targetAspectRatio: Float,
+    targetPixels: Long = 50_000_000L
+): Size? {
+    if (cameraId.isNullOrBlank()) return null
+    val manager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager ?: return null
+    val sizes = runCatching {
+        manager.getCameraCharacteristics(cameraId)
+            .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            ?.getOutputSizes(ImageFormat.RAW_SENSOR)
+            ?.toList()
+    }.getOrNull().orEmpty().filter { it.width > 0 && it.height > 0 }
+    if (sizes.isEmpty()) return null
+    val atOrBelowTarget = sizes.filter { it.width.toLong() * it.height.toLong() <= targetPixels }
+    val candidates = if (atOrBelowTarget.isNotEmpty()) atOrBelowTarget else sizes
+    return candidates.minWithOrNull(
+        compareBy<Size> {
+            kotlin.math.abs(it.width.toLong() * it.height.toLong() - targetPixels)
+        }.thenBy {
+            kotlin.math.abs(it.width.toFloat() / it.height.toFloat() - targetAspectRatio)
+        }
+    )
+}
 @Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,
@@ -397,28 +424,12 @@ fun CameraScreen(
     var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
     var fhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("fhd_capture_enabled", false)) }
     var uhdPlusCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_plus_capture_enabled", false)) }
-    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, camera) {
+    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
         appPrefs.edit()
             .putBoolean("uhd_capture_enabled", uhdCaptureEnabled)
             .putBoolean("fhd_capture_enabled", fhdCaptureEnabled)
             .putBoolean("uhd_plus_capture_enabled", uhdPlusCaptureEnabled)
             .apply()
-        if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) {
-            ultraHdr = false
-            zoomAnimationJob?.cancel()
-            zoomSel = 1f
-            appPrefs.edit().putFloat("camera_zoom_ratio", 1f).apply()
-            camera?.let { active -> runCatching { active.cameraControl.setZoomRatio(1f) } }
-        }
-    }
-    // UHD is a dedicated 1x capture mode. Enabling it always returns to the main camera.
-    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, camera) {
-        if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) {
-            zoomAnimationJob?.cancel()
-            zoomSel = 1f
-            appPrefs.edit().putFloat("camera_zoom_ratio", 1f).apply()
-            camera?.let { active -> runCatching { active.cameraControl.setZoomRatio(1f) } }
-        }
     }
     var hdrEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
@@ -591,7 +602,7 @@ fun CameraScreen(
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
                 "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
-                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW
                 else -> ImageCapture.OUTPUT_FORMAT_JPEG
             }
             val rawCaptureFormat = if (
@@ -622,11 +633,11 @@ fun CameraScreen(
             // single high-gain/long-shutter exposure, which is not the requested behaviour.
             nightExtensionActive = false
             val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
-                nightShotMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && !rawCaptureActive &&
+                nightShotMode == "off" && !rawCaptureActive &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
-            val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
-                runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR) }
-                    .getOrDefault(false)
+            // HDRbyHDMP is the common software path for all devices and HDMP levels.
+            // Do not delegate to vendor HDR Extension here; it can bypass the dedicated engine.
+            val hdrExtensionAvailable = false
             val hdrExtensionSelector = if (hdrExtensionAvailable) {
                 runCatching {
                     extensionsManager!!.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
@@ -637,7 +648,7 @@ fun CameraScreen(
             var hdrExtensionActive = hdrExtensionSelector != null
             var selector = hdrExtensionSelector ?: baseSelector
             if (hdrCaptureRequested && !hdrExtensionActive) {
-                android.util.Log.i("FUJI_HDR", "Vendor HDR extension unavailable; checking Ultra HDR JPEG_R fallback")
+                android.util.Log.i("FUJI_HDR", "HDRbyHDMP software engine selected for this camera")
             }
             provider.unbindAll()
             camera = null
@@ -719,7 +730,29 @@ fun CameraScreen(
                     uhdPlusCaptureEnabled || (mode == "Photo" && nightShotMode == "night")
                 val isOrdinaryPhotoJpeg = mode == "Photo" && nightShotMode == "off" &&
                     !rawCaptureActive && !isComputationalHighResolution
-                if (isOrdinaryPhotoJpeg) {
+                if (rawCaptureActive) {
+                    val rawAspect = ratio.toFloat().let { if (it < 1f) 1f / it else it }
+                    val nativeRawSize = preferredPhotoRawSize(context, activeFacingId, rawAspect)
+                    if (nativeRawSize != null) {
+                        captureBuilder.setResolutionSelector(
+                            ResolutionSelector.Builder()
+                                .setResolutionStrategy(
+                                    ResolutionStrategy(
+                                        nativeRawSize,
+                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                                    )
+                                )
+                                .build()
+                        )
+                        val rawMp = nativeRawSize.width.toLong() * nativeRawSize.height.toLong() / 1_000_000L
+                        android.util.Log.i("FUJI_RAW", "Selected native RAW_SENSOR ${nativeRawSize.width}x${nativeRawSize.height} (~${rawMp}MP)")
+                        if (rawMp < 48L) {
+                            android.util.Log.w("FUJI_RAW", "Native RAW output is below 50MP; no DNG interpolation will be applied")
+                        }
+                    } else {
+                        android.util.Log.w("FUJI_RAW", "No RAW_SENSOR output size exposed by this camera; keeping CameraX native RAW default")
+                    }
+                } else if (isOrdinaryPhotoJpeg) {
                     val nativePhotoAspect = ratio.toFloat().let { if (it < 1f) 1f / it else it }
                     val nativePhotoSize = preferredPhotoJpegSize(context, activeFacingId, nativePhotoAspect)
                     if (nativePhotoSize != null) {
@@ -935,9 +968,14 @@ fun CameraScreen(
                 evUserAdjusting = false
                 val zoomStateOnBind = bound.cameraInfo.zoomState.value
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
+                val maxSelectableZoom = Camera2Info.maxSelectableZoom(
+                    activeCameraDetails,
+                    activePhysicalCameraDetails,
+                    zoomStateOnBind?.maxZoomRatio ?: 1f
+                )
                 val restoredZoom = savedZoom.coerceIn(
                     zoomStateOnBind?.minZoomRatio ?: 1f,
-                    if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
+                    maxSelectableZoom
                 )
                 zoomSel = restoredZoom
                 runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
@@ -959,7 +997,7 @@ fun CameraScreen(
             // so the post-capture 2x sharpening can still run. Explicit Ultra HDR remains
             // higher priority because its gain map must be preserved without recompression.
             val preferJpegR = !rawCaptureActive &&
-                (ultraHdr || (hdrCaptureRequested && !uhdCaptureEnabled)) &&
+                ultraHdr &&
                 Build.VERSION.SDK_INT >= 34
             preserveUltraHdrOutput = false
             try {
@@ -1707,8 +1745,7 @@ fun CameraScreen(
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val hdmpWorkerCount = when {
-                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm -> 8
-                                    captureUseFhdAlgorithm -> 6
+                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm -> 8
                                     captureUseNightShot -> Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
                                     else -> 0
                                 }
@@ -1730,16 +1767,23 @@ fun CameraScreen(
                                     processingProgress = 56
                                     processingEtaSeconds = -1
                                 }
+                                val softwareHdrProfile = if (
+                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm
+                                ) 10 else 2
                                 val softwareHdrApplied = if (
                                     !captureIsUltraHdr && captureUseSoftwareHdr
                                 ) {
                                     runCatching {
-                                        applySoftwarePhotoEnhancement(
+                                        HdrByHdmpEngine.process(
                                             context,
                                             saved,
-                                            softwareHdr = true,
-                                            uhdSharpening = false
-                                        )
+                                            qualityMultiplier = softwareHdrProfile
+                                        ) { progress ->
+                                            mainExecutor.execute {
+                                                processingLabel = "HDRbyHDMP · profile ${softwareHdrProfile}x · $progress%"
+                                                processingProgress = (56 + progress * 0.08f).roundToInt().coerceIn(56, 64)
+                                            }
+                                        }
                                     }.getOrDefault(false)
                                 } else false
                                 withContext(Dispatchers.Main) { processingProgress = 60 }
@@ -1877,10 +1921,10 @@ fun CameraScreen(
     fun animateZoomTo(targetRatio: Float) {
         val activeCamera = camera ?: return
         val state = activeCamera.cameraInfo.zoomState.value ?: return
-        val safeTarget = targetRatio.coerceIn(
-            state.minZoomRatio,
-            if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, state.maxZoomRatio)
+        val selectableMax = Camera2Info.maxSelectableZoom(
+            activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio
         )
+        val safeTarget = targetRatio.coerceIn(state.minZoomRatio, selectableMax)
         val start = state.zoomRatio
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
             (start >= 0.98f && safeTarget < 0.98f)
@@ -2016,7 +2060,9 @@ fun CameraScreen(
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()
                                         val zoomState = camera?.cameraInfo?.zoomState?.value ?: return@detectTransformGestures
-                                        val maxZoom = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, zoomState.maxZoomRatio)
+                                        val maxZoom = Camera2Info.maxSelectableZoom(
+                                            activeCameraDetails, activePhysicalCameraDetails, zoomState.maxZoomRatio
+                                        )
                                         val nextZoom = (zoomState.zoomRatio * zoomChange)
                                             .coerceIn(zoomState.minZoomRatio, maxZoom)
                                         camera?.cameraControl?.setZoomRatio(nextZoom)
@@ -2200,13 +2246,18 @@ fun CameraScreen(
                         // Lens quick-select values come from the physical cameras exposed by
                         // this logical CameraX camera, then are clamped to its real zoom range.
                         val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
-                        val zoomMaxForUi = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
                         val zoomMinForUi = zoomStateForUi?.minZoomRatio ?: 1f
-                        val zoomSteps = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) listOf(1f) else Camera2Info.opticalZoomStops(
+                        val zoomMaxForUi = Camera2Info.maxSelectableZoom(
+                            activeCameraDetails,
+                            activePhysicalCameraDetails,
+                            zoomStateForUi?.maxZoomRatio ?: 1f
+                        )
+                        val zoomSteps = Camera2Info.opticalZoomStops(
                             logical = activeCameraDetails,
                             physical = activePhysicalCameraDetails,
                             minZoom = zoomMinForUi,
-                            maxZoom = zoomMaxForUi
+                            maxZoom = zoomMaxForUi,
+                            quickMaxZoom = zoomMaxForUi
                         )
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally) {

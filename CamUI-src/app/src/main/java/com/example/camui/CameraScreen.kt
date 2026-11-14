@@ -1275,6 +1275,9 @@ fun CameraScreen(
                 object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                         val saved = result.savedUri
+                        if (captureNightShotExtension) {
+                            nightShotCaptureInProgress = false
+                        }
                         if (saved != null) {
                             val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
                             val focal = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)

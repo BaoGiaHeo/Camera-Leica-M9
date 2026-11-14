@@ -35,7 +35,7 @@ fun Modifier.animaTContent(): Modifier = animateContentSize(
     animationSpec = spring(dampingRatio = 0.86f, stiffness = 460f)
 )
 
-fun Modifier.animaTClickable(onClick: () -> Unit, enabled: Boolean = true): Modifier = composed {
+fun Modifier.animaTClickable(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(

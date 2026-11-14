@@ -1777,14 +1777,14 @@ fun CameraScreen(
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh chụp gốc vẫn được giữ."
                                         captureIsUltraHdr && orientationLabelFixed ->
-                                            "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR."
+                                            "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, bộ lọc màu, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR."
                                         captureIsUltraHdr ->
                                             "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map, vui lòng kiểm tra hướng ảnh trong thư viện."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
                                         stamped && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và có watermark."
                                         stamped -> "Watermark đã đóng nhưng tỉ lệ/hướng ảnh chưa được xác minh."
                                         watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
-                                        lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc/LUT."
+                                        lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc màu."
                                         lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
                                         orientationLabelFixed && aiSuperResolutionApplied ->
                                             "Đã lưu ảnh đúng hướng · Real-ESRGAN NCNN x2 đã làm nét bằng GPU/CPU."
@@ -2692,7 +2692,7 @@ fun CameraScreen(
                 onDismiss = { filterDialogVisible = false },
                 onSelectFilter = { selected ->
                     activeFilter = selected
-                    appPrefs.edit().putString("selected_filter", selected).remove("selected_lut_uri").apply()
+                    appPrefs.edit().putString("selected_filter", selected).apply()
                 }
             )
         }
@@ -2787,26 +2787,57 @@ private fun FilterLookPreviewImage(
     maxDimension: Int
 ) {
     val context = LocalContext.current
-    val preview by produceState<ImageBitmap?>(null, source, preset, maxDimension) {
-        value = withContext(Dispatchers.Default) {
-            renderCameraLookPreview(context, source, preset, maxDimension)?.asImageBitmap()
+    val renderedState by produceState(
+        initialValue = false to null as ImageBitmap?,
+        source,
+        preset,
+        maxDimension
+    ) {
+        val rendered = withContext(Dispatchers.Default) {
+            renderCameraLookPreview(context, source, preset, maxDimension)
         }
+        value = true to rendered?.asImageBitmap()
     }
-    val image = preview
-    if (image != null) {
-        Image(
-            bitmap = image,
-            contentDescription = "$preset preview",
-            modifier = modifier,
-            contentScale = ContentScale.Crop
-        )
-    } else {
-        Image(
-            bitmap = source.asImageBitmap(),
-            contentDescription = "Preview source",
-            modifier = modifier,
-            contentScale = ContentScale.Crop
-        )
+    val preview = renderedState.second
+    when {
+        preview != null -> {
+            Image(
+                bitmap = preview,
+                contentDescription = "$preset preview",
+                modifier = modifier,
+                contentScale = ContentScale.Crop
+            )
+        }
+        renderedState.first -> {
+            Box(
+                modifier.clip(RoundedCornerShape(8.dp)).background(CamColors.Card),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Không thể tạo preview cho bộ lọc này",
+                    color = CamColors.Sub,
+                    fontSize = 10.sp
+                )
+            }
+        }
+        else -> {
+            Box(modifier) {
+                Image(
+                    bitmap = source.asImageBitmap(),
+                    contentDescription = "Preview source while rendering $preset",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Text(
+                    "Đang tạo preview…",
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                        .background(Color(0xAA000000))
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                )
+            }
+        }
     }
 }
 
@@ -2881,7 +2912,7 @@ private fun FilterLookDialog(
                     "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
                     "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass"
                 )) {
-                    "LUT 3D từ bộ mô phỏng phim · preview và JPEG dùng cùng phép biến đổi."
+                    "Profile Fujifilm 3D · preview và ảnh JPEG dùng cùng phép biến đổi."
                 } else {
                     "Preview dùng cùng phép biến đổi với ảnh lưu sau khi chụp."
                 },
@@ -2953,11 +2984,14 @@ private fun FilterLookDialog(
     }
 }
 
+// These 11 profiles match the unique Fujifilm looks in TingfengLuo's profile pack.
+// The matching *wrapper.xmp files only select these profiles; they are not extra looks.
 private val cameraLookGroups = listOf(
     "Fujifilm Film Simulation" to listOf(
         "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
-        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass", "Acros"
+        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass"
     ),
+    "Fujifilm Extras" to listOf("Acros"),
     "Cổ điển" to listOf("Kodak Portra 400", "Agfa", "Kodak Gold", "Fuji 400"),
     "Leica" to listOf("Leica Vivid", "Leica Natural", "Leica Mono"),
     "Hasselblad" to listOf("Hasselblad HNCS"),
@@ -2965,7 +2999,6 @@ private val cameraLookGroups = listOf(
     "Sony" to listOf("Sony S-Cinetone", "Sony S-Log3"),
     "Log" to listOf("Cinematic Log")
 )
-
 
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {
     val options = CaptureRequestOptions.Builder()

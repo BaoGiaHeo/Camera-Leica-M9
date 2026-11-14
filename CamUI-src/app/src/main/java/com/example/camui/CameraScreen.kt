@@ -309,6 +309,7 @@ fun CameraScreen(
     var photoViewerVisible by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    var captureSetupReady by remember { mutableStateOf(false) }
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val appPrefs = remember {
@@ -383,6 +384,8 @@ fun CameraScreen(
         // Disable shutter immediately while the old UseCaseGroup is being replaced.
         camera = null
         imageCapture = null
+        captureSetupReady = false
+        preserveUltraHdrOutput = false
         previewUseCase = null
         analysisUseCase = null
         val future = ProcessCameraProvider.getInstance(context)
@@ -679,22 +682,25 @@ fun CameraScreen(
             try {
                 val requestedFormat = if (preferJpegR) ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
                     else ImageCapture.OUTPUT_FORMAT_JPEG
+                var actualCaptureFormat = requestedFormat
                 try {
                     bindCapture(requestedFormat)
                 } catch (formatError: Exception) {
                     if (hdrExtensionActive && preferJpegR) {
                         android.util.Log.w("FUJI_HDR", "HDR extension does not accept JPEG_R; retrying as JPEG", formatError)
                         provider.unbindAll()
-                        bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG)
+                        actualCaptureFormat = ImageCapture.OUTPUT_FORMAT_JPEG
+                        bindCapture(actualCaptureFormat)
                     } else throw formatError
                 }
 
                 if (preferJpegR) {
-                    val jpegRSupported = runCatching {
-                        ImageCapture.getImageCaptureCapabilities(camera!!.cameraInfo)
-                            .supportedOutputFormats
-                            .contains(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
-                    }.getOrDefault(false)
+                    val jpegRSupported = actualCaptureFormat == ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR &&
+                        runCatching {
+                            ImageCapture.getImageCaptureCapabilities(camera!!.cameraInfo)
+                                .supportedOutputFormats
+                                .contains(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
+                        }.getOrDefault(false)
                     if (jpegRSupported) {
                         preserveUltraHdrOutput = true
                     }
@@ -738,6 +744,7 @@ fun CameraScreen(
                     localizedToast(context, "Không mở được camera: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
+            captureSetupReady = camera != null && imageCapture != null
             }, mainExecutor)
         }, mainExecutor)
     }
@@ -805,7 +812,9 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
-        if (camera == null || imageCapture == null || nightExposureInProgress || isProcessing) return
+        if (!captureSetupReady || camera == null || imageCapture == null ||
+            nightExposureInProgress || isProcessing
+        ) return
         scope.launch {
             if (timerSec > 0) {
                 for (s in timerSec downTo 1) {

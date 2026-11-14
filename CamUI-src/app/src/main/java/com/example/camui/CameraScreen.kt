@@ -1500,8 +1500,11 @@ fun CameraScreen(
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/RAW")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
-            val captureNightStartedAtMillis = System.currentTimeMillis()
-            if (captureUseNightShot) nightShotCaptureInProgress = true
+            if (captureUseNightShot) {
+                nightShotCaptureInProgress = true
+                nightShotCapturedFrameCount = 0
+                nightShotTargetFrameCount = captureNightTargetFrames
+            }
             val output = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -1583,25 +1586,30 @@ fun CameraScreen(
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
-                                            val maxFrames = if (captureUseNightShot) {
-                                                (captureNightDurationSeconds * 1000L / 200L).toInt().coerceIn(2, 96)
-                                            } else 5
-                                            val deadline = if (captureUseNightShot) {
-                                                captureNightStartedAtMillis + captureNightDurationSeconds * 1000L
-                                            } else Long.MAX_VALUE
-                                            var nextFrameDueAt = System.currentTimeMillis() + 200L
-                                            while (stackedFrames.size < maxFrames &&
-                                                (!captureUseNightShot || System.currentTimeMillis() < deadline)
-                                            ) {
-                                                if (captureUseNightShot) {
-                                                    val waitMs = nextFrameDueAt - System.currentTimeMillis()
-                                                    if (waitMs > 0L) delay(waitMs)
-                                                    if (System.currentTimeMillis() >= deadline) break
+                                            val maxFrames = if (captureUseNightShot) captureNightTargetFrames else 5
+                                            if (captureUseNightShot) {
+                                                withContext(Dispatchers.Main) {
+                                                    nightShotCapturedFrameCount = stackedFrames.size
+                                                    nightShotTargetFrameCount = maxFrames
+                                                }
+                                            }
+                                            // CameraX ImageCapture serializes still requests. Avoid any
+                                            // artificial 200ms sleep: issue the next request immediately
+                                            // after the previous callback and retain every valid frame.
+                                            // Target counts represent 30 FPS over the selected time window,
+                                            // but elapsed time is limited by the camera HAL and file pipeline.
+                                            var consecutiveCaptureFailures = 0
+                                            val burstStartedNanos = SystemClock.elapsedRealtimeNanos()
+                                            var stoppedForStorage = false
+                                            while (stackedFrames.size < maxFrames) {
+                                                if (captureUseNightShot && context.cacheDir.usableSpace < 256L * 1024L * 1024L) {
+                                                    stoppedForStorage = true
+                                                    break
                                                 }
                                                 val frameNumber = stackedFrames.size + 1
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = if (captureUseNightShot) {
-                                                        "Night Shot: khung $frameNumber/$maxFrames · nhịp 0,2s"
+                                                        "Night Shot: khung $frameNumber/$maxFrames · 30 FPS mục tiêu"
                                                     } else {
                                                         "Multi-frame: chụp khung $frameNumber/5"
                                                     }
@@ -1618,15 +1626,29 @@ fun CameraScreen(
                                                 )
                                                 if (!captured) {
                                                     runCatching { nextFrame.delete() }
-                                                    break
+                                                    consecutiveCaptureFailures++
+                                                    android.util.Log.w(
+                                                        "FUJI_NIGHTSHOT",
+                                                        "Capture attempt failed (" + consecutiveCaptureFailures + "/3); keeping " + stackedFrames.size + " valid frames"
+                                                    )
+                                                    if (consecutiveCaptureFailures >= 3) break
+                                                    continue
                                                 }
+                                                consecutiveCaptureFailures = 0
                                                 stackedFrames.add(nextFrame)
                                                 if (captureUseNightShot) {
-                                                    nextFrameDueAt += 200L
-                                                    if (nextFrameDueAt <= System.currentTimeMillis()) {
-                                                        nextFrameDueAt = System.currentTimeMillis() + 200L
+                                                    withContext(Dispatchers.Main) {
+                                                        nightShotCapturedFrameCount = stackedFrames.size
                                                     }
                                                 }
+                                            }
+                                            val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - burstStartedNanos) / 1_000_000L).coerceAtLeast(1L)
+                                            if (captureUseNightShot) {
+                                                val achievedFps = stackedFrames.size * 1000.0 / burstElapsedMs
+                                                android.util.Log.i("FUJI_NIGHTSHOT", "Collected " + stackedFrames.size + "/" + maxFrames + " frames in " + burstElapsedMs + "ms; approx " + "%.1f".format(Locale.US, achievedFps) + " FPS")
+                                            }
+                                            if (stoppedForStorage) {
+                                                android.util.Log.w("FUJI_NIGHTSHOT", "Stopped early to protect free cache storage; processing " + stackedFrames.size + " frames")
                                             }
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
@@ -1677,7 +1699,7 @@ fun CameraScreen(
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val hdmpWorkerCount = when {
-                                    captureUseUhdAlgorithm -> 8
+                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm -> 8
                                     captureUseFhdAlgorithm -> 6
                                     captureUseNightShot -> Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
                                     else -> 0
@@ -1733,14 +1755,16 @@ fun CameraScreen(
                                 }.getOrDefault(false)
 
                                 val outputResolutionApplied = if (
-                                    !captureIsUltraHdr && captureAtOneX &&
+                                    !captureIsUltraHdr && (captureUseNightShot || captureAtOneX) &&
                                     !captureRawOnly && !captureRawPlus &&
-                                    (captureUseUhdAlgorithm || captureUseFhdAlgorithm || (!captureUseNightShot && noiseReduction != "Off"))
+                                    (captureUseNightShot || captureUseUhdPlusAlgorithm ||
+                                        captureUseUhdAlgorithm || captureUseFhdAlgorithm)
                                 ) {
                                     val targetPixels = when {
+                                        captureUseNightShot -> 60_000_000L
+                                        captureUseUhdPlusAlgorithm -> 250_000_000L
                                         captureUseUhdAlgorithm -> 108_000_000L
-                                        captureUseFhdAlgorithm -> 60_000_000L
-                                        else -> 211_000_000L
+                                        else -> 60_000_000L
                                     }
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "Đang nội suy thuật toán lên ${targetPixels / 1_000_000L}MP"
@@ -1774,12 +1798,14 @@ fun CameraScreen(
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
-                                            if (hdmpApplied) "Đã lưu Night Shot · đã căn chỉnh, ghép khung và HDMP xử lý ảnh."
-                                            else "Đã lưu Night Shot · đã ghép khung; HDMP giữ ảnh gốc vì xử lý không thành công."
+                                            if (hdmpApplied && outputResolutionApplied) "Đã lưu Night Shot · đã ghép " + nightShotCapturedFrameCount + " khung, HDMP tối đa 60MP."
+                                            else "Đã lưu Night Shot · đã ghép khung; ảnh gốc vẫn được giữ nếu HDMP không khả dụng."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
                                             "NightShot đã xử lý bằng chế độ NIGHT của camera."
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
+                                        captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
+                                            "Đã lưu HDMP UHD+ 250MP · phục hồi vi chi tiết bằng 8 tác vụ."
                                         captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
                                             "Đã lưu UHD 108MP · HDMP xử lý bằng 8 tác vụ và nội suy thuật toán."
                                         captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
@@ -2678,7 +2704,12 @@ stabilization = stabilization,
                 ) {
                     Text("NightShot · ĐANG CHỤP", color = CamColors.Yellow,
                         fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("Giữ máy ổn định · màn hình sẽ luôn sáng đến khi lưu ảnh xong",
+                    Text(
+                        "$nightShotCapturedFrameCount/$nightShotTargetFrameCount khung hình · 30 FPS mục tiêu",
+                        color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 7.dp)
+                    )
+                    Text("Giữ máy ổn định · xử lý HDMP sau khi thu ảnh",
                         color = CamColors.Sub, fontSize = 11.sp,
                         modifier = Modifier.padding(top = 5.dp))
                 }

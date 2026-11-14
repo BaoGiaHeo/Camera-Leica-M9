@@ -198,13 +198,10 @@ object NcnnSuperResolution {
             ExifInterface.TAG_SOFTWARE,
             ExifInterface.TAG_EXPOSURE_TIME,
             ExifInterface.TAG_F_NUMBER,
-            ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY,
             ExifInterface.TAG_ISO_SPEED_RATINGS,
             ExifInterface.TAG_FOCAL_LENGTH,
             ExifInterface.TAG_WHITE_BALANCE,
             ExifInterface.TAG_FLASH,
-            ExifInterface.TAG_LENS_MAKE,
-            ExifInterface.TAG_LENS_MODEL,
             ExifInterface.TAG_IMAGE_DESCRIPTION,
             ExifInterface.TAG_USER_COMMENT
         )

@@ -75,7 +75,7 @@ private val settingItems = listOf(
     SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
-    SettingItem("Backup & Restore", "Camera · Zoom · Enabled features"),
+    SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
     SettingItem("About", "Fujifilm Mode · app-debug")
 )
 
@@ -137,9 +137,9 @@ fun SettingsScreen(
                     item { SectionTitle("Capture") }
                     items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
                     item { SectionTitle("Imaging") }
-                    items(settingItems.drop(3).filter { it.title != "Backup & Restore" }) { item -> SettingCard(item) { selectedPage = item.title } }
-                    item { SectionTitle("Data") }
-                    item { SettingCard(settingItems.first { it.title == "Backup & Restore" }) { selectedPage = "Backup & Restore" } }
+                    items(settingItems.drop(3).filter { it.title != "Sao lưu & Khôi phục" }) { item -> SettingCard(item) { selectedPage = item.title } }
+                    item { SectionTitle("Dữ liệu") }
+                    item { SettingCard(settingItems.first { it.title == "Sao lưu & Khôi phục" }) { selectedPage = "Sao lưu & Khôi phục" } }
                 }
             }
         }
@@ -358,7 +358,7 @@ private fun SettingsDetailPage(
                 Text("Japan = 日本語 · Korea = 한국어 · China = 简体中文",
                     color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
-            "Backup & Restore" -> {
+            "Sao lưu & Khôi phục" -> {
                 BackupRestorePanel(onRestoreComplete = {
                     onRatio(prefs.getInt("capture_ratio_index", 1).coerceIn(0, 4))
                     onShowGrid(prefs.getBoolean("viewfinder_grid_enabled", true))
@@ -370,7 +370,7 @@ private fun SettingsDetailPage(
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
                     "HDR · Multi-frame",
-                    "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, app dùng Software HDR bằng OpenGL ES hoặc CPU (tone-mapping một ảnh; không khôi phục được vùng đã cháy sáng).",
+                    "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng.",
                     hdr
                 ) {
                     hdr = it
@@ -381,7 +381,7 @@ private fun SettingsDetailPage(
                 }
                 SettingsSwitch(
                     "UHD · Độ phân giải tối đa",
-                    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng shader GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến.",
+                    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến.",
                     uhd
                 ) {
                     uhd = it

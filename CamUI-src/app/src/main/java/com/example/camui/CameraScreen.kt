@@ -256,27 +256,35 @@ fun CameraScreen(
         if (!hasCam) permissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    var mode by remember { mutableStateOf("Photo") }
-    var front by remember { mutableStateOf(false) }
-    var flash by remember { mutableIntStateOf(ImageCapture.FLASH_MODE_OFF) }
-    var timerSec by remember { mutableIntStateOf(0) }
+    val appPrefs = remember {
+        context.getSharedPreferences("fujifilm_settings", 0).also { prefs ->
+            if (!prefs.getBoolean("shutter_effect_v2_migrated", false)) {
+                prefs.edit().putString("shutter_effect", "Film Wash")
+                    .putBoolean("shutter_effect_v2_migrated", true).apply()
+            }
+        }
+    }
+    var mode by remember { mutableStateOf(appPrefs.getString("camera_mode", "Photo") ?: "Photo") }
+    var front by remember { mutableStateOf(appPrefs.getBoolean("camera_front_facing", false)) }
+    var flash by remember { mutableIntStateOf(appPrefs.getInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF)) }
+    var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
-    var zoomSel by remember { mutableFloatStateOf(1f) }
+    var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     var zoomAnimationJob by remember { mutableStateOf<Job?>(null) }
     var lensTransitionVisible by remember { mutableStateOf(false) }
     var lensTransitionLabel by remember { mutableStateOf("") }
     val lensTransitionPulse = remember { Animatable(0f) }
-    var metering by remember { mutableIntStateOf(0) }
-    var ultraHdr by remember { mutableStateOf(false) }
-    var stabilization by remember { mutableStateOf(false) }
-    var renderEngine by remember { mutableStateOf("Performance") }
-    var proSel by remember { mutableStateOf<String?>(null) }
+    var metering by remember { mutableIntStateOf(appPrefs.getInt("camera_metering_index", 0).coerceIn(0, 3)) }
+    var ultraHdr by remember { mutableStateOf(appPrefs.getBoolean("ultra_hdr_enabled", false)) }
+    var stabilization by remember { mutableStateOf(appPrefs.getBoolean("camera_stabilization_enabled", false)) }
+    var renderEngine by remember { mutableStateOf(appPrefs.getString("camera_render_engine", "Performance") ?: "Performance") }
+    var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)) }
     var focusLocked by remember { mutableStateOf(false) }
-    var manualIsoEnabled by remember { mutableStateOf(false) }
-    var manualShutterEnabled by remember { mutableStateOf(false) }
-    var manualColorTempEnabled by remember { mutableStateOf(false) }
-    var manualColorTemp by remember { mutableIntStateOf(5200) }
+    var manualIsoEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_iso_enabled", false)) }
+    var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
+    var manualColorTempEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_wb_enabled", false)) }
+    var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2000, 10000)) }
     var manualCaptureRevision by remember { mutableIntStateOf(0) }
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
@@ -293,14 +301,14 @@ fun CameraScreen(
     DisposableEffect(shutterSoundPlayer) {
         onDispose { shutterSoundPlayer.release() }
     }
-    var evIndex by remember { mutableIntStateOf(0) }
+    var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
     var focusDiopter by remember { mutableFloatStateOf(0f) }
-    var manualExposure by remember { mutableStateOf(false) }
-    var manualIso by remember { mutableIntStateOf(400) }
-    var manualShutterNs by remember { mutableLongStateOf(10_000_000L) }
-    var manualFocus by remember { mutableFloatStateOf(0f) }
+    var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
+    var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
+    var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
+    var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
@@ -312,17 +320,6 @@ fun CameraScreen(
     var captureSetupReady by remember { mutableStateOf(false) }
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
-    val appPrefs = remember {
-        context.getSharedPreferences("fujifilm_settings", 0).also { prefs ->
-            // Migrate earlier default/invert shutter preferences to the requested film-development effect.
-            if (!prefs.getBoolean("shutter_effect_v2_migrated", false)) {
-                prefs.edit()
-                    .putString("shutter_effect", "Film Wash")
-                    .putBoolean("shutter_effect_v2_migrated", true)
-                    .apply()
-            }
-        }
-    }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val uhdCaptureEnabled = appPrefs.getBoolean("uhd_capture_enabled", false)
@@ -330,6 +327,7 @@ fun CameraScreen(
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
     }
     var preserveUltraHdrOutput by remember { mutableStateOf(false) }
+    var softwareHdrFallback by remember { mutableStateOf(false) }
     var nightCaptureSeconds by remember { mutableIntStateOf(0) }
     var lowLightDetected by remember { mutableStateOf(false) }
     var nightExposureInProgress by remember { mutableStateOf(false) }
@@ -351,6 +349,36 @@ fun CameraScreen(
     }
     DisposableEffect(faceDetector) {
         onDispose { faceDetector?.close() }
+    }
+    LaunchedEffect(
+        mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
+        manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
+        manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex
+    ) {
+        appPrefs.edit()
+            .putString("camera_mode", mode)
+            .putBoolean("camera_front_facing", front)
+            .putInt("camera_flash_mode", flash)
+            .putInt("camera_timer_seconds", timerSec)
+            .putBoolean("ultra_hdr_enabled", ultraHdr)
+            .putBoolean("camera_stabilization_enabled", stabilization)
+            .putString("camera_render_engine", renderEngine)
+            .putInt("camera_metering_index", metering)
+            .putBoolean("pro_manual_exposure_enabled", manualExposure)
+            .putBoolean("pro_manual_iso_enabled", manualIsoEnabled)
+            .putBoolean("pro_manual_shutter_enabled", manualShutterEnabled)
+            .putBoolean("pro_manual_wb_enabled", manualColorTempEnabled)
+            .putInt("pro_manual_wb_kelvin", manualColorTemp)
+            .putInt("pro_manual_iso", manualIso)
+            .putLong("pro_manual_shutter_ns", manualShutterNs)
+            .putFloat("pro_manual_focus", manualFocus)
+            .putString("pro_selected_control", proSel)
+            .putInt("pro_ev_index", evIndex)
+            .apply()
+    }
+    LaunchedEffect(zoomSel) {
+        delay(250)
+        appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
     }
     val shutterButtonImageUri = appPrefs.getString("shutter_button_image_uri", null)
     LaunchedEffect(shutterButtonImageUri) {
@@ -416,6 +444,7 @@ fun CameraScreen(
             // Limited/Legacy devices use the JPEG_R path instead so histogram/AI still work.
             val analysisCompatibleHardware = hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL ||
                 hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3
+            softwareHdrFallback = false
             val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
@@ -660,8 +689,15 @@ fun CameraScreen(
                 boundCameraRotation = rotation
                 boundCameraLandscape = isLandscape
                 boundCameraRatioIdx = ratioIdx
-                evIndex = 0
-                zoomSel = 1f
+                evIndex = appPrefs.getInt("pro_ev_index", 0)
+                val zoomStateOnBind = bound.cameraInfo.zoomState.value
+                val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
+                val restoredZoom = savedZoom.coerceIn(
+                    zoomStateOnBind?.minZoomRatio ?: 1f,
+                    min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
+                )
+                zoomSel = restoredZoom
+                runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
                 val capabilities = runCatching {
                     Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(
                         CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES
@@ -685,6 +721,14 @@ fun CameraScreen(
                 var actualCaptureFormat = requestedFormat
                 try {
                     bindCapture(requestedFormat)
+                    if (!preferJpegR && hdrCaptureRequested && !hdrExtensionActive) {
+                        softwareHdrFallback = true
+                        localizedToast(
+                            context,
+                            "Đang dùng Software HDR bằng CPU vì thiết bị không cung cấp HDR Extension.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 } catch (formatError: Exception) {
                     if (hdrExtensionActive && preferJpegR) {
                         android.util.Log.w("FUJI_HDR", "HDR extension does not accept JPEG_R; retrying as JPEG", formatError)
@@ -707,13 +751,13 @@ fun CameraScreen(
                     if (!jpegRSupported && !hdrExtensionActive) {
                         preserveUltraHdrOutput = false
                         ultraHdr = false
-                        if (hdrCaptureRequested) {
-                            hdrEnabled = false
-                            appPrefs.edit().putBoolean("hdr_enabled", false).apply()
-                        }
-                        localizedToast(context,
-                            "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR.",
-                            Toast.LENGTH_LONG).show()
+                        softwareHdrFallback = hdrCaptureRequested
+                        localizedToast(
+                            context,
+                            if (hdrCaptureRequested) "Thiết bị không có HDR phần cứng; sẽ dùng Software HDR bằng CPU sau khi chụp."
+                            else "Camera không hỗ trợ Ultra HDR; đã chuyển về JPEG thường.",
+                            Toast.LENGTH_LONG
+                        ).show()
                         provider.unbindAll()
                         bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG)
                     } else if (!jpegRSupported && hdrExtensionActive) {
@@ -751,11 +795,10 @@ fun CameraScreen(
                                 }.getOrDefault(false)
                         preserveUltraHdrOutput = fallbackJpegRSupported
                         if (hdrCaptureRequested && !fallbackJpegRSupported) {
-                            hdrEnabled = false
-                            appPrefs.edit().putBoolean("hdr_enabled", false).apply()
+                            softwareHdrFallback = true
                             localizedToast(
                                 context,
-                                "HDR Extension không thể ghép với luồng camera; thiết bị cũng không hỗ trợ Ultra HDR. Đã tắt HDR để giữ camera ổn định.",
+                                "HDR Extension không ghép được với camera này; đang chuyển sang Software HDR xử lý bằng CPU.",
                                 Toast.LENGTH_LONG
                             ).show()
                         } else if (hdrCaptureRequested) {
@@ -778,9 +821,13 @@ fun CameraScreen(
                 } else if (ultraHdr || hdrCaptureRequested) {
                     preserveUltraHdrOutput = false
                     ultraHdr = false
+                    softwareHdrFallback = hdrCaptureRequested
                     if (hdrCaptureRequested) {
-                        hdrEnabled = false
-                        appPrefs.edit().putBoolean("hdr_enabled", false).apply()
+                        localizedToast(
+                            context,
+                            "Camera không hỗ trợ HDR phần cứng; đang dùng Software HDR bằng CPU.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                     provider.unbindAll()
                     runCatching { bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG) }
@@ -879,6 +926,8 @@ fun CameraScreen(
             val capture = imageCapture ?: return@launch
             val activeCamera = camera ?: return@launch
             val captureIsUltraHdr = preserveUltraHdrOutput
+            val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
+            val captureUseUhdSharpening = uhdCaptureEnabled
             if (nightCaptureSeconds > 0 && mode == "Photo") {
                 nightExposureInProgress = true
                 nightExposureRemaining = nightCaptureSeconds
@@ -992,6 +1041,9 @@ fun CameraScreen(
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
+                                captureUseSoftwareHdr && captureUseUhdSharpening -> "Đang xử lý Software HDR + tăng độ nét UHD"
+                                captureUseSoftwareHdr -> "Đang xử lý Software HDR bằng CPU"
+                                captureUseUhdSharpening -> "Đang tăng độ nét UHD bằng CPU"
                                 supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
                                 else -> "Ảnh đang được xử lý"
                             }
@@ -1015,6 +1067,19 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
+                                val softwareEnhancementApplied = if (
+                                    !captureIsUltraHdr && (captureUseSoftwareHdr || captureUseUhdSharpening)
+                                ) {
+                                    runCatching {
+                                        applySoftwarePhotoEnhancement(
+                                            context,
+                                            saved,
+                                            softwareHdr = captureUseSoftwareHdr,
+                                            uhdSharpening = captureUseUhdSharpening
+                                        )
+                                    }.getOrDefault(false)
+                                } else false
+                                withContext(Dispatchers.Main) { processingProgress = 43 }
                                 val lookApplied = if (captureIsUltraHdr) false else
                                     runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
                                 val frameApplied = if (captureIsUltraHdr) false else
@@ -1050,7 +1115,12 @@ fun CameraScreen(
                                         watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
                                         lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc/LUT."
                                         lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
-                                        orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
+                                        orientationLabelFixed -> if (softwareEnhancementApplied) {
+                                            "Đã lưu ảnh đúng tỉ lệ; đã áp dụng " + listOfNotNull(
+                                                "Software HDR".takeIf { captureUseSoftwareHdr },
+                                                "UHD Sharpen 2×".takeIf { captureUseUhdSharpening }
+                                            ).joinToString(" + ") + "."
+                                        } else "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
                                     val finalMessage = if (captureIsUltraHdr) message
@@ -1115,6 +1185,7 @@ fun CameraScreen(
                 activeCamera.cameraControl.setZoomRatio(value)
                 zoomSel = value
             }
+            appPrefs.edit().putFloat("camera_zoom_ratio", safeTarget).apply()
         }
     }
 
@@ -1254,6 +1325,7 @@ fun CameraScreen(
                                             .coerceIn(zoomState.minZoomRatio, maxZoom)
                                         camera?.cameraControl?.setZoomRatio(nextZoom)
                                         zoomSel = nextZoom
+                                        appPrefs.edit().putFloat("camera_zoom_ratio", nextZoom).apply()
                                     }
                                 }
                                 .pointerInput(camera, metering, mode) {

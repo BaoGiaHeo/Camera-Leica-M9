@@ -222,11 +222,10 @@ private fun preferredPhotoJpegSize(
     val candidates = if (lowerOrEqual.isNotEmpty()) lowerOrEqual else sizes
     return candidates.minWithOrNull(
         compareBy<Size> {
-            val pixels = it.width.toLong() * it.height.toLong()
-            val pixelError = kotlin.math.abs(pixels - targetPixels).toDouble() / targetPixels.toDouble()
-            val aspectError = kotlin.math.abs(it.width.toFloat() / it.height.toFloat() - targetAspectRatio)
-            pixelError + aspectError * 2.0
-        }.thenByDescending { it.width.toLong() * it.height.toLong() }
+            kotlin.math.abs(it.width.toLong() * it.height.toLong() - targetPixels)
+        }.thenBy {
+            kotlin.math.abs(it.width.toFloat() / it.height.toFloat() - targetAspectRatio)
+        }
     )
 }
 @Composable

@@ -1333,11 +1333,19 @@ fun CameraScreen(
                                                             manualIso = (lo + f * (hi - lo)).roundToInt().coerceIn(lo, hi)
                                                             manualIsoEnabled = true
                                                             manualExposure = true
+                                                            camera?.let { active ->
+                                                                val previewExposure = if (manualShutterEnabled) {
+                                                                    manualShutterNs
+                                                                } else {
+                                                                    shutterNs.takeIf { it > 0L } ?: 16_666_667L
+                                                                }
+                                                                runCatching { applyManualExposure(active, manualIso, previewExposure) }
+                                                            }
                                                         },
                                                         onValueChangeFinished = { manualCaptureRevision++ },
                                                         colors = cameraSliderColors()
                                                     )
-                                                } else Text("ISO không được camera hỗ trợ", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                                } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else CamColors.Yellow,
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
                                                         manualIsoEnabled = false
@@ -1363,11 +1371,15 @@ fun CameraScreen(
                                                             manualShutterNs = shutterFromFraction(f, lo, hi).coerceAtMost(1_000_000_000L)
                                                             manualShutterEnabled = true
                                                             manualExposure = true
+                                                            camera?.let { active ->
+                                                                val previewIso = if (manualIsoEnabled) manualIso else iso.takeIf { it > 0 } ?: 400
+                                                                runCatching { applyManualExposure(active, previewIso, manualShutterNs) }
+                                                            }
                                                         },
                                                         onValueChangeFinished = { manualCaptureRevision++ },
                                                         colors = cameraSliderColors()
                                                     )
-                                                } else Text("Shutter không được camera hỗ trợ", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                                } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else CamColors.Yellow,
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
                                                         manualShutterEnabled = false

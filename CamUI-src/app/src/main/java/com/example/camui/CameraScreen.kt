@@ -2681,7 +2681,7 @@ fun CameraScreen(
                     Text(processingLabel, color = Color.White, fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text(
-                        if (etaText.isNotEmpty()) "$" + "{etaText} · $" + "{visibleProgress}%" else "$" + "{visibleProgress}%",
+                        if (etaText.isNotEmpty()) "${etaText} · ${visibleProgress}%" else "${visibleProgress}%",
                         color = CamColors.Yellow, fontSize = 11.sp, fontWeight = FontWeight.Bold
                     )
                 }

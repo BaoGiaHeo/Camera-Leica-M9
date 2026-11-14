@@ -36,6 +36,8 @@ fun HdmpBottomSheet(
     onUhdEnabledChange: (Boolean) -> Unit,
     fhdEnabled: Boolean,
     onFhdEnabledChange: (Boolean) -> Unit,
+    uhdPlusEnabled: Boolean,
+    onUhdPlusEnabledChange: (Boolean) -> Unit,
     nightShotEnabled: Boolean,
     nightShotDurationSeconds: Int,
     onCycleNightShot: () -> Unit
@@ -61,7 +63,7 @@ fun HdmpBottomSheet(
         ) {
             Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Bộ máy xử lý ảnh thuật toán do Fujifilm Mode tự phát triển. Không dùng AI hoặc mô hình học máy.",
+                "HDMP xử lý đa tầng: khử nhiễu theo cạnh, phục hồi vi chi tiết và tăng nét có kiểm soát. Bản hiện tại dùng xử lý ảnh cổ điển, chưa phải mô hình AI tạo sinh.",
                 color = HdmpMuted, fontSize = 12.sp
             )
             HdmpToggleRow(
@@ -78,6 +80,13 @@ fun HdmpBottomSheet(
                 status = if (fhdEnabled) "FHD · ĐANG BẬT · 6 TÁC VỤ" else "FHD · TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
+            HdmpToggleRow(
+                title = "UHD+ · TỐI ĐA 250MP",
+                detail = "Tăng cường micro-detail, phục hồi cạnh, khử nhiễu thích ứng và nội suy tối đa 250MP bằng 8 tác vụ. Cần đủ RAM; 250MP là kích thước đầu ra, không phải 250MP chi tiết quang học.",
+                enabled = uhdPlusEnabled, onEnabledChange = onUhdPlusEnabledChange,
+                status = if (uhdPlusEnabled) "UHD+ · ĐANG BẬT · 8 TÁC VỤ" else "UHD+ · TẮT"
+            )
+            HorizontalDivider(color = Color(0xFF333333))
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF202020)).animaTClickable(onClick = onCycleNightShot).padding(13.dp),
@@ -86,7 +95,7 @@ fun HdmpBottomSheet(
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Night Shot", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Chạm lần lượt: 5s → 10s → 3s → Tắt. Chụp theo nhịp mục tiêu 0,2 giây/khung rồi HDMP căn chỉnh và ghép ảnh.",
+                        "Chạm lần lượt: 5s → 10s → 3s → Tắt. Mục tiêu 30 FPS: 5s/150 khung, 10s/300 khung, 3s/90 khung. Tự thu nhanh nhất camera cho phép rồi mới căn chỉnh và ghép; đầu ra tối đa 60MP.",
                         color = HdmpMuted, fontSize = 11.sp, lineHeight = 15.sp
                     )
                     Text(
@@ -109,7 +118,7 @@ fun HdmpBottomSheet(
             ) {
                 Text("Cách phân bổ xử lý", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "UHD dùng 8 luồng tác vụ, FHD dùng 6 luồng tác vụ. Số pixel đầu ra do nội suy không đồng nghĩa với chi tiết quang học mới; tốc độ thực tế phụ thuộc camera, CPU, RAM và nhiệt độ thiết bị.",
+                    "FHD dùng 6 tác vụ; UHD/UHD+ dùng 8 tác vụ. Night Shot giới hạn 60MP. Photo thường không chạy HDMP. Tốc độ burst và mức chi tiết thực tế phụ thuộc cảm biến, CPU, RAM và nhiệt độ; hệ thống không nhân bản khung hình để đủ số.",
                     color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
                 )
             }

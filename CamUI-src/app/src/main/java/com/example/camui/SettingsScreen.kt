@@ -515,8 +515,11 @@ private fun SettingsDetailPage(
                 }
                 Spacer(Modifier.padding(5.dp))
                 Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                Text("Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL.",
-                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
+                Text(
+                    "NAFNet-SIDD AI chạy trực tiếp trên điện thoại sau khi chụp, giữ nguyên kích thước ảnh lưu. Off tắt AI; Low / Medium / High điều chỉnh độ mạnh. Ultra HDR được giữ nguyên gain map nên bỏ qua hậu kỳ AI.",
+                    color = CamColors.Sub, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
+                )
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("Off", "Low", "Medium", "High").forEach { option ->

@@ -90,6 +90,19 @@ jobs:
             -o "$MODEL_DIR/realesr-animevideov3-x2.bin"
           test -s "$MODEL_DIR/realesr-animevideov3-x2.param"
           test -s "$MODEL_DIR/realesr-animevideov3-x2.bin"
+
+          # Official Megvii NAFNet-SIDD width-32 checkpoint exported to ONNX.
+          # FP32 keeps the model compatible with ONNX Runtime CPU fallback on arm64.
+          NAFNET_URL="https://huggingface.co/tomfl/obscura-models/resolve/main/nafnet-sidd-w32.onnx?download=true"
+          curl -fL --retry 4 --retry-delay 2 "$NAFNET_URL" -o "$MODEL_DIR/nafnet-sidd-w32.onnx"
+          echo "092dc37894ee36f3ceef1359f73b0e566a24c9194138458cfd92b56d8f74647a  $MODEL_DIR/nafnet-sidd-w32.onnx" | sha256sum -c -
+          cat > "$MODEL_DIR/NAFNET_MODEL_NOTICE.txt" <<'NAFNOTICE'
+          NAFNet-SIDD width-32 image denoising model, ONNX opset 17.
+          Weights are derived from the official Megvii NAFNet SIDD width-32 checkpoint.
+          ONNX export and model distribution: https://huggingface.co/tomfl/obscura-models
+          Model license: MIT. Original implementation: https://github.com/megvii-research/NAFNet
+          Inference runs locally with ONNX Runtime; photos are not uploaded.
+          NAFNOTICE
           cat > "$MODEL_DIR/REAL_ESRGAN_MODEL_NOTICE.txt" <<'NOTICE'
           Real-ESRGAN NCNN animevideov3 x2 model
           Model files are pinned to Hugging Face revision b8b8b5d of edgetools/realesrgan.
@@ -97,7 +110,7 @@ jobs:
           License: BSD-3-Clause. See https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE
           NOTICE
           echo "NCNN and model files provisioned:"
-          ls -lh "$JNI_DIR" "$MODEL_DIR"/realesr-animevideov3-x2.*
+          ls -lh "$JNI_DIR" "$MODEL_DIR"/realesr-animevideov3-x2.* "$MODEL_DIR/nafnet-sidd-w32.onnx"
 
       - name: Build debug APK
         working-directory: CamUI-src

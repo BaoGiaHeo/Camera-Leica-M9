@@ -88,4 +88,6 @@ dependencies {
     implementation("androidx.camera:camera-extensions:$camerax")
     // Bundled on-device ML Kit model: no first-run model download required for framing guidance.
     implementation("com.google.mlkit:face-detection:16.1.7")
+    // NAFNet-SIDD image denoising with NNAPI acceleration and CPU fallback.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.32.0")
 }

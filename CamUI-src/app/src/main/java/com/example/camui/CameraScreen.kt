@@ -619,20 +619,22 @@ fun CameraScreen(
                             .build()
                     )
                 }
-                val requestedNrMode = when (noiseReduction) {
-                    "Off" -> CaptureRequest.NOISE_REDUCTION_MODE_OFF
-                    "Low" -> CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL
-                    "High" -> CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
-                    else -> CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                }
+                // NAFNet performs the main denoising pass after the JPEG is saved.
+                // Disable vendor NR when possible to avoid stacking two aggressive smoothers.
                 val availableNrModes = activeFacingId?.let { id ->
                     runCatching {
                         cameraManager.getCameraCharacteristics(id)
                             .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
                     }.getOrNull()
                 }.orEmpty()
-                val effectiveNrMode = requestedNrMode.takeIf { it in availableNrModes }
-                    ?: availableNrModes.firstOrNull()
+                val effectiveNrMode = when {
+                    CaptureRequest.NOISE_REDUCTION_MODE_OFF in availableNrModes ->
+                        CaptureRequest.NOISE_REDUCTION_MODE_OFF
+                    noiseReduction != "Off" &&
+                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL in availableNrModes ->
+                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL
+                    else -> null
+                }
                 if (effectiveNrMode != null && !hdrExtensionActive && !nightExtensionActive) {
                     Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(
                         CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
@@ -1287,6 +1289,7 @@ fun CameraScreen(
             val captureIsUltraHdr = preserveUltraHdrOutput
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureUseUhdAi = uhdCaptureEnabled
+            val captureNoiseReduction = noiseReduction
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
             val captureNightShotExtension = nightExtensionActive
             val captureNightFrameCount = nightShotFrameCount.coerceIn(4, 12)
@@ -1478,6 +1481,39 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
+                                val aiDenoiseApplied = if (
+                                    !captureIsUltraHdr && captureNoiseReduction != "Off"
+                                ) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "NAFNet AI đang khử nhiễu · $captureNoiseReduction"
+                                        processingProgress = 36
+                                        processingEtaSeconds = -1
+                                    }
+                                    val strength = when (captureNoiseReduction) {
+                                        "Low" -> 0.40f
+                                        "High" -> 1.00f
+                                        else -> 0.70f
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, strength) { progress ->
+                                                mainExecutor.execute {
+                                                    processingProgress = (36 + progress * 0.19f)
+                                                        .toInt().coerceIn(36, 55)
+                                                    processingLabel = "NAFNet AI đang khử nhiễu · $captureNoiseReduction"
+                                                }
+                                            }
+                                        }.onFailure {
+                                            android.util.Log.e("FUJI_NAFNET", "NAFNet denoising failed; keep captured original", it)
+                                        }.getOrDefault(false)
+                                    }
+                                } else false
+                                withContext(Dispatchers.Main) {
+                                    processingProgress = 56
+                                    if (captureNoiseReduction != "Off" && !aiDenoiseApplied && !captureIsUltraHdr) {
+                                        processingLabel = "NAFNet không khả dụng · giữ ảnh gốc"
+                                    }
+                                }
                                 val softwareHdrApplied = if (
                                     !captureIsUltraHdr && captureUseSoftwareHdr
                                 ) {
@@ -1490,7 +1526,7 @@ fun CameraScreen(
                                         )
                                     }.getOrDefault(false)
                                 } else false
-                                withContext(Dispatchers.Main) { processingProgress = 43 }
+                                withContext(Dispatchers.Main) { processingProgress = 60 }
                                 val lookApplied = if (captureIsUltraHdr) false else
                                     runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
                                 val frameApplied = if (captureIsUltraHdr) false else
@@ -1582,6 +1618,12 @@ fun CameraScreen(
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
+                                        captureUseNightShot && nightShotMerged && aiDenoiseApplied && orientationLabelFixed ->
+                                            "Đã lưu NightShot · gộp nhiều khung và khử nhiễu AI NAFNet."
+                                        aiDenoiseApplied && orientationLabelFixed ->
+                                            "Đã lưu ảnh đúng hướng · AI NAFNet đã khử nhiễu ($captureNoiseReduction)."
+                                        captureNoiseReduction != "Off" && !aiDenoiseApplied && !captureIsUltraHdr ->
+                                            "Ảnh đã lưu · NAFNet không chạy được nên giữ ảnh chụp gốc, chưa áp dụng khử nhiễu AI."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
                                             "NightShot đã gộp nhiều khung hình và giảm nhiễu; ảnh đã được lưu đúng hướng."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->

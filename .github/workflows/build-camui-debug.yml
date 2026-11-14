@@ -32,8 +32,6 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Install NDK/CMake and provision NCNN Vulkan + Real-ESRGAN x2 model
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
         run: |
           set -euo pipefail
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"

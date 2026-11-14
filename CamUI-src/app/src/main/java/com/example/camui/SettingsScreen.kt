@@ -320,7 +320,7 @@ var nightShotMode by remember {
                     Text("Đã chọn ảnh cho nút chụp.",
                         color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
                     Text("Dùng nút màu", color = CamColors.Yellow, fontSize = 12.sp,
-                        modifier = Modifier.clickable {
+                        modifier = Modifier.animaTClickable {
                             shutterButtonImageUri = null
                             prefs.edit().remove("shutter_button_image_uri").apply()
                         }.padding(vertical = 7.dp))
@@ -348,7 +348,7 @@ var nightShotMode by remember {
                             .background(if (selectedLanguage == id) Color(0x553F3822) else CamColors.Card)
                             .border(1.dp, if (selectedLanguage == id) CamColors.Yellow else CamColors.Stroke,
                                 RoundedCornerShape(13.dp))
-                            .clickable {
+                            .animaTClickable {
                                 selectedLanguage = id
                                 prefs.edit().putString("app_language", id).apply()
                                 AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
@@ -397,7 +397,7 @@ var nightShotMode by remember {
                     ).forEach { (label, value) ->
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                                .background(CamColors.Card).clickable {
+                                .background(CamColors.Card).animaTClickable {
                                     nightShotMode = value
                                     prefs.edit().putString("nightshot_mode", value).apply()
                                 }.padding(horizontal = 14.dp, vertical = 13.dp),
@@ -540,7 +540,7 @@ var nightShotMode by remember {
                 Text("Người làm App: Baoaka06", color = CamColors.TextColor, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 18.dp))
                 Text("TikTok: @baoaka06", color = CamColors.Yellow, fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 8.dp).clickable {
+                    modifier = Modifier.padding(top = 8.dp).animaTClickable {
                         runCatching {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
                         }
@@ -597,7 +597,7 @@ private fun SectionTitle(text: String) {
 private fun SettingCard(item: SettingItem, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CamColors.Card)
-            .clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
+            .animaTClickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {

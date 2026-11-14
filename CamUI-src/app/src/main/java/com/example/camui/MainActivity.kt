@@ -22,14 +22,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : AppCompatActivity() {
+    private fun hideStatusBar() {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.statusBars())
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        hideStatusBar()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideStatusBar()
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
+        hideStatusBar()
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         setContent {
             CamTheme {
@@ -44,15 +63,7 @@ class MainActivity : AppCompatActivity() {
                     targetState = page,
                     modifier = Modifier.fillMaxSize(),
                     // Each destination rises from a slightly smaller card and expands to full screen.
-                    transitionSpec = {
-                        (fadeIn(tween(260)) + scaleIn(
-                            initialScale = 0.86f,
-                            animationSpec = spring(dampingRatio = 0.78f, stiffness = 420f)
-                        )) togetherWith (fadeOut(tween(150)) + scaleOut(
-                            targetScale = 0.94f,
-                            animationSpec = tween(170)
-                        ))
-                    },
+                    transitionSpec = { AnimaT.enter() togetherWith AnimaT.exit() },
                     label = "Fujifilm Mode page transition"
                 ) { targetPage ->
                 when (targetPage) {

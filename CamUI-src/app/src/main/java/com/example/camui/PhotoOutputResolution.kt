@@ -18,9 +18,9 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/** Algorithmic pixel-count interpolation; output pixels do not create optical detail. */
+/** HDMP algorithmic resampling; output pixel count is capped at the requested target. */
 object PhotoOutputResolution {
- private const val TAG = "FUJI_211MP"
+ private const val TAG = "FUJI_HDMP_RESAMPLE"
  fun interpolateToMp(context: Context, uri: Uri, targetPixels: Long): Boolean {
   require(targetPixels in 10_000_000L..240_000_000L) { "Unsupported output pixel target" }
   val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
@@ -40,10 +40,10 @@ object PhotoOutputResolution {
    val src = source!!
    val sourcePixels = src.width.toLong() * src.height.toLong()
    require(sourcePixels > 0L) { "Invalid source size" }
-   if (sourcePixels >= targetPixels) return true
+   if (sourcePixels == targetPixels) return true
    val scale = sqrt(targetPixels.toDouble() / sourcePixels.toDouble())
-   var width = (src.width * scale).roundToInt().coerceAtLeast(src.width)
-   var height = (src.height * scale).roundToInt().coerceAtLeast(src.height)
+   var width = (src.width * scale).roundToInt().coerceAtLeast(1)
+   var height = (src.height * scale).roundToInt().coerceAtLeast(1)
    while (width.toLong() * height.toLong() > targetPixels) {
     if (width >= height) width-- else height--
    }

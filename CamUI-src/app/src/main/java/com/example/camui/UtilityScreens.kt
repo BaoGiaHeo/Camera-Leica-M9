@@ -551,7 +551,7 @@ private fun CameraFrameTemplateCard(
         modifier.clip(RoundedCornerShape(12.dp))
             .background(if (selected) Color(0x553F3822) else CamColors.Card)
             .border(1.dp, if (selected) CamColors.Yellow else CamColors.Stroke, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .animaTClickable(onClick = onClick)
             .padding(7.dp)
     ) {
         Box(
@@ -664,7 +664,7 @@ private fun WatermarkTemplateCard(
                 color = if (selected) CamColors.Yellow else Color(0x334C535B),
                 shape = RoundedCornerShape(13.dp)
             )
-            .clickable(onClick = onClick)
+            .animaTClickable(onClick = onClick)
             .padding(7.dp)
     ) {
         Box(
@@ -2433,7 +2433,7 @@ fun AlbumScreen(onBack: () -> Unit) {
                 }
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp))
-                        .background(CamColors.Card).clickable { selectedPhoto = entry.uri }
+                        .background(CamColors.Card).animaTClickable { selectedPhoto = entry.uri }
                 ) {
                     if (bitmap != null) {
                         Image(bitmap!!, "Photo thumbnail", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -2465,7 +2465,7 @@ fun AlbumScreen(onBack: () -> Unit) {
                 Text("Đóng", color = Color.White,
                     modifier = Modifier.align(Alignment.TopEnd).padding(20.dp)
                         .clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
-                        .clickable { selectedPhoto = null; selectedBitmap = null }.padding(12.dp))
+                        .animaTClickable { selectedPhoto = null; selectedBitmap = null }.padding(12.dp))
             }
         }
     }
@@ -2705,7 +2705,7 @@ fun CameraFrameDialog(
                 verticalAlignment = Alignment.CenterVertically) {
                 Text("Photo Frames", color = CamColors.TextColor, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Text("Đóng", color = CamColors.Yellow,
-                    modifier = Modifier.clickable(onClick = onDismiss).padding(6.dp), fontSize = 12.sp)
+                    modifier = Modifier.animaTClickable(onClick = onDismiss).padding(6.dp), fontSize = 12.sp)
             }
             Text("Chọn frame để xem trước và đóng lên ảnh sau khi chụp.",
                 color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
@@ -2717,7 +2717,7 @@ fun CameraFrameDialog(
                                 .background(if (selectedTemplate == id) Color(0x553F3822) else CamColors.Card)
                                 .border(1.dp, if (selectedTemplate == id) CamColors.Yellow else CamColors.Stroke,
                                     RoundedCornerShape(11.dp))
-                                .clickable { onSelectTemplate(id) }.padding(10.dp)
+                                .animaTClickable { onSelectTemplate(id) }.padding(10.dp)
                         ) {
                             Text(label, color = if (selectedTemplate == id) CamColors.Yellow else CamColors.TextColor,
                                 fontWeight = FontWeight.SemiBold, fontSize = 11.sp)

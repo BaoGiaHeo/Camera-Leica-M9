@@ -169,8 +169,8 @@ private fun SettingsDetailPage(
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
-    var nightShotFrameCount by remember {
-        mutableStateOf(prefs.getInt("nightshot_frame_count", 6).coerceIn(4, 12))
+    var nightShotDurationSeconds by remember {
+        mutableStateOf(prefs.getInt("nightshot_duration_seconds", 5).let { if (it in listOf(5, 10, 3)) it else 5 })
     }
     var starTrailExposureSeconds by remember {
         mutableStateOf(prefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
@@ -384,7 +384,7 @@ var nightShotMode by remember {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Night Shot không đẩy EV và không dùng chế độ NIGHT làm tăng sáng một khung. Camera giữ AE bình thường ở EV 0, chụp 4–12 khung, căn chỉnh rồi gộp để giảm nhiễu. Giữ máy yên đến khi ảnh được lưu.",
+                    "NightShot giữ AE ở EV 0, liên tục thu khung trong 5s, 10s hoặc 3s (tối đa 96 khung mục tiêu), sau đó căn chỉnh, gộp và khử nhiễu AI. Số khung thực tế phụ thuộc tốc độ camera; giữ máy yên đến khi ảnh được lưu.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -430,9 +430,9 @@ var nightShotMode by remember {
                 }
                 if (nightShotMode == "night") {
                     Spacer(Modifier.padding(5.dp))
-                    Text("Số khung hình", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                    Text("Thời lượng thu khung", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Nhiều khung hơn giúp giảm nhiễu tốt hơn nhưng mất thêm thời gian chụp và ghép.",
+                        "Camera liên tục chụp trong khoảng thời gian đã chọn; số khung thực tế tùy tốc độ cảm biến và giới hạn CameraX.",
                         color = CamColors.Sub,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
@@ -441,15 +441,15 @@ var nightShotMode by remember {
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        listOf(4, 6, 8, 12).forEach { count ->
+                        listOf(5, 10, 3).forEach { seconds ->
                             Chip(
-                                "$count ảnh",
-                                nightShotFrameCount == count,
+                                "$seconds giây",
+                                nightShotDurationSeconds == seconds,
                                 {
-                                    nightShotFrameCount = count
-                                    prefs.edit().putInt("nightshot_frame_count", count).apply()
+                                    nightShotDurationSeconds = seconds
+                                    prefs.edit().putInt("nightshot_duration_seconds", seconds).apply()
                                 },
-                                Modifier.width(76.dp)
+                                Modifier.width(82.dp)
                             )
                         }
                     }

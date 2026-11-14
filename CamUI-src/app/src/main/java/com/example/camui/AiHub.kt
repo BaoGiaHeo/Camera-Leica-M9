@@ -38,6 +38,8 @@ fun AiHubBottomSheet(
     onDirectorChanged: (Boolean) -> Unit,
     uhdEnabled: Boolean,
     onUhdEnabledChange: (Boolean) -> Unit,
+    fhdEnabled: Boolean,
+    onFhdEnabledChange: (Boolean) -> Unit,
 portraitEnabled: Boolean,
     onPortraitChanged: (Boolean) -> Unit
 ) {
@@ -94,10 +96,18 @@ portraitEnabled: Boolean,
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
                 title = "UHD · AI Photo 211MP",
-                detail = "Khóa zoom 1x, NAFNet khử nhiễu mạnh và Real-ESRGAN x4plus dành cho ảnh chụp, xử lý tile qua NCNN/Vulkan; CPU tối đa 8 luồng khi cần. Đầu ra mục tiêu khoảng 211MP.",
+                detail = "Khóa zoom 1x, ghép 5 khung, NAFNet khử nhiễu và Real-ESRGAN x4plus. Độ phân giải đầu ra tự điều chỉnh theo RAM trống nếu cần.",
                 enabled = uhdEnabled,
                 onEnabledChange = onUhdEnabledChange,
-                status = if (uhdEnabled) "AI PHOTO · 211MP · ĐANG BẬT" else "AI PHOTO · SẴN SÀNG"
+                status = if (uhdEnabled) "UHD AI · ĐANG BẬT" else "UHD AI · SẴN SÀNG"
+            )
+            HorizontalDivider(color = Color(0xFF333333))
+            AiHubToggleRow(
+                title = "FHD · AI Photo 108MP",
+                detail = "Khóa zoom 1x, ghép 5 khung từ camera (12.5MP/khung nếu cảm biến cung cấp), NAFNet khử nhiễu và Real-ESRGAN x4plus lên mục tiêu 108MP.",
+                enabled = fhdEnabled,
+                onEnabledChange = onFhdEnabledChange,
+                status = if (fhdEnabled) "FHD AI · 108MP · ĐANG BẬT" else "FHD AI · SẴN SÀNG"
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
@@ -121,7 +131,7 @@ portraitEnabled: Boolean,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "UHD dùng NAFNet và Real-ESRGAN x4plus cho ảnh chụp; khi UHD tắt, ảnh 1x được nội suy đến mục tiêu 211MP (tăng số pixel, không tăng chi tiết quang học). AI Bố cục/Tạo dáng dùng Pose Detection 33 điểm; AI Director phân tích nhãn cảnh trên thiết bị. Moondream VLM và AI xóa phông chiều sâu chưa tích hợp.",
+                    "UHD/FHD ghép 5 khung, chạy NAFNet và Real-ESRGAN x4plus; UHD tự hạ mục tiêu nếu RAM trống không đủ. Khi hai chế độ tắt, ảnh 1x có thể nội suy đến 211MP (tăng số pixel, không tăng chi tiết quang học). AI Bố cục/Tạo dáng dùng Pose Detection 33 điểm; AI Director phân tích nhãn cảnh trên thiết bị. Moondream VLM và AI xóa phông chiều sâu chưa tích hợp.",
                     color = AiHubMuted,
                     fontSize = 11.sp,
                     lineHeight = 16.sp

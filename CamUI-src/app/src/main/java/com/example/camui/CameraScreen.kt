@@ -1779,22 +1779,52 @@ fun CameraScreen(
                                     captureUseNightShot -> Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
                                     else -> 0
                                 }
+val hdmpAiResult = if (hdmpWorkerCount > 0) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "HDMP AI · kiểm tra model và chuẩn bị xử lý ảnh"
+                                        processingProgress = 35
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        HdmpAiEngine.process(context, saved, hdmpWorkerCount) { model, progress ->
+                                            mainExecutor.execute {
+                                                val aiModelLabel = when (model) {
+                                                    HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI · NAFNet width64"
+                                                    HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI · NAFNetLib width32 dự phòng"
+                                                    HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP AI · chuyển an toàn sang HDMP cơ bản"
+                                                }
+                                                processingLabel = "$aiModelLabel · $progress%"
+                                                processingProgress = (35 + progress * 0.09f).roundToInt().coerceIn(35, 44)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    HdmpAiEngine.Result(
+                                        HdmpAiEngine.Model.CLASSICAL_ONLY,
+                                        false,
+                                        "AI không được yêu cầu ở chế độ chụp này."
+                                    )
+                                }
                                 val hdmpApplied = if (hdmpWorkerCount > 0) {
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "HDMP · khử nhiễu, làm nét, tăng chi tiết · $hdmpWorkerCount tác vụ"
-                                        processingProgress = 38
+                                        val aiLabel = when (hdmpAiResult.model) {
+                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> "NAFNet width64"
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "NAFNetLib width32 dự phòng"
+                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP cơ bản (AI không khả dụng)"
+                                        }
+                                        processingLabel = "$aiLabel · HDMP kiểm tra và hoàn tất · $hdmpWorkerCount tác vụ"
+                                        processingProgress = 44
                                     }
                                     withContext(Dispatchers.IO) {
                                         HdmpEngine.process(context, saved, hdmpWorkerCount) { progress ->
                                             mainExecutor.execute {
                                                 processingLabel = "HDMP · xử lý ảnh $progress%"
-                                                processingProgress = (38 + progress * 0.18f).roundToInt().coerceIn(38, 56)
+                                                processingProgress = (44 + progress * 0.16f).roundToInt().coerceIn(44, 60)
                                             }
                                         }
                                     }
                                 } else false
                                 withContext(Dispatchers.Main) {
-                                    processingProgress = 56
+                                    processingProgress = 60
                                     processingEtaSeconds = -1
                                 }
                                 val softwareHdrProfile = if (
@@ -1811,12 +1841,12 @@ fun CameraScreen(
                                         ) { progress ->
                                             mainExecutor.execute {
                                                 processingLabel = "HDRbyHDMP · profile ${softwareHdrProfile}x · $progress%"
-                                                processingProgress = (56 + progress * 0.08f).roundToInt().coerceIn(56, 64)
+                                                processingProgress = (60 + progress * 0.06f).roundToInt().coerceIn(60, 66)
                                             }
                                         }
                                     }.getOrDefault(false)
                                 } else false
-                                withContext(Dispatchers.Main) { processingProgress = 60 }
+                                withContext(Dispatchers.Main) { processingProgress = 66 }
                                 // Keep a clean pre-filter image as the reference for every picker preview.
                                 val unfilteredPreview = if (captureIsUltraHdr) null else runCatching {
                                     decodeUprightBitmap(context, saved, maxDimension = 640)
@@ -1889,11 +1919,11 @@ fun CameraScreen(
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
                                         captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu HDMP UHD+ 250MP · phục hồi vi chi tiết bằng 8 tác vụ."
+                                            "Đã xuất ảnh UHD+ kích thước 250MP · HDMP xử lý ảnh nguồn trước khi nội suy."
                                         captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu UHD 108MP · HDMP xử lý bằng 8 tác vụ và nội suy thuật toán."
+                                            "Đã xuất ảnh UHD kích thước 108MP · HDMP xử lý ảnh nguồn trước khi nội suy."
                                         captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu FHD tối đa 60MP · HDMP xử lý bằng 6 tác vụ và nội suy thuật toán."
+                                            "Đã xuất ảnh FHD kích thước tối đa 60MP · HDMP xử lý ảnh nguồn trước khi nội suy."
                                         captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
                                         captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
@@ -1909,7 +1939,14 @@ fun CameraScreen(
                                     }
                                     val finalMessage = if (captureIsUltraHdr) message
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
-                                    localizedToast(context, finalMessage, Toast.LENGTH_SHORT).show()
+                                    val aiStatusSuffix = if (hdmpWorkerCount > 0) {
+                                        when (hdmpAiResult.model) {
+                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> " HDMP AI: NAFNet width64 đã chạy."
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> " HDMP AI: đã tự chuyển sang NAFNetLib width32."
+                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI chưa chạy được; ảnh được xử lý bằng HDMP cơ bản, không báo AI thành công."
+                                        }
+                                    } else ""
+                                    localizedToast(context, finalMessage + aiStatusSuffix, Toast.LENGTH_LONG).show()
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {

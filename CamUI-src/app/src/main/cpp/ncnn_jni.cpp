@@ -201,9 +201,9 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
     if (useVulkan) {
         const ncnn::VulkanDevice* device = ncnn::get_gpu_device(0);
         if (device) {
-            option.use_fp16_storage = device->support_fp16_storage();
-            option.use_fp16_packed = device->support_fp16_storage();
-            option.use_fp16_arithmetic = device->support_fp16_storage();
+            option.use_fp16_storage = device->info.support_fp16_storage();
+            option.use_fp16_packed = device->info.support_fp16_storage();
+            option.use_fp16_arithmetic = device->info.support_fp16_storage();
         }
     }
     net.opt = option;

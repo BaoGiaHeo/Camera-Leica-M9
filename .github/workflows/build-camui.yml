@@ -54,6 +54,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: .github/workflows/build-camui.yml
 
       - name: Export and smoke-test NAFNet primary and fallback models
         env:
@@ -94,6 +95,30 @@ jobs:
       - name: Build debug APK
         working-directory: CamUI
         run: gradle assembleDebug --stacktrace
+
+      - name: Verify APK contains both hash-pinned HDMP AI models
+        working-directory: CamUI
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          apks = glob.glob("app/build/outputs/apk/debug/*.apk")
+          assert apks, "Debug APK was not produced"
+          required = {
+              "assets/models/nafnet_sidd_width64.onnx",
+              "assets/models/nafnetlib_sidd_width32.onnx",
+              "assets/models/manifest.sha256",
+          }
+          with zipfile.ZipFile(apks[0]) as apk:
+              names = set(apk.namelist())
+              missing = sorted(required - names)
+              assert not missing, f"APK missing HDMP AI assets: {missing}"
+              for name in sorted(required):
+                  info = apk.getinfo(name)
+                  assert info.file_size > 0, f"Empty APK asset: {name}"
+                  print(f"{name}: {info.file_size:,} bytes")
+          PY
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

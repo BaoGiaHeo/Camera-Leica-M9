@@ -57,4 +57,6 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
+    // Bundled on-device ML Kit model: no first-run model download required for framing guidance.
+    implementation("com.google.mlkit:face-detection:16.1.7")
 }

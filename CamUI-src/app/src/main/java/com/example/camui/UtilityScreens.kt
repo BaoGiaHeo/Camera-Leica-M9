@@ -157,13 +157,6 @@ private fun LiquidGlassWatermarkPreview(
             drawOval(Color(0xFF324C42),
                 topLeft = Offset(size.width * 0.40f, size.height * 0.59f),
                 size = androidx.compose.ui.geometry.Size(size.width * 0.82f, size.height * 0.58f))
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.08f),
-                topLeft = Offset(size.width * 0.035f, size.height * 0.06f),
-                size = androidx.compose.ui.geometry.Size(size.width * 0.93f, size.height * 0.88f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.minDimension * (0.03f + corner * 0.06f)),
-                style = Stroke(width = 1.2f + rim * 1.4f)
-            )
         }
         val isCenter = template == "center_logo"
         val panelShape = RoundedCornerShape((12f + corner * 14f + gooey * 5f).dp)
@@ -418,7 +411,7 @@ private fun ShutterSoundSettingsPanel() {
                 TextButton(onClick = { openSoundSource(option.third) }) { Text("Mở nghe thử") }
             }
         }
-        Text("Soundsnap mở trang nghe thử/tải. Sau khi tải MP3 hợp lệ, dùng Import MP3 để lưu ngoại tuyến và gán làm âm thanh chụp.",
+        Text("Preview Fujifilm mở trang Soundsnap để nghe thử. Muốn dùng trong app, tải MP3 theo tài khoản/quyền sử dụng của bạn rồi chọn Import MP3.",
             color = CamColors.Sub, fontSize = 9.sp, modifier = Modifier.padding(top = 2.dp, bottom = 6.dp))
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -962,11 +955,6 @@ private fun WatermarkTemplateCard(
                     Offset(size.width, size.height * 0.52f), strokeWidth = size.height * 0.25f)
                 drawLine(Color(0xFF31483E), Offset(0f, size.height * 0.82f),
                     Offset(size.width, size.height * 0.72f), strokeWidth = size.height * 0.32f)
-                if (frameStyle != "Transparent") {
-                    drawRect(frameColor, topLeft = Offset(3f, 3f),
-                        size = androidx.compose.ui.geometry.Size(size.width - 6f, size.height - 6f),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(2.2f))
-                }
             }
             when (id) {
                 "standard1" -> Column(
@@ -1874,7 +1862,7 @@ fun applyCameraWatermark(
                 }
                 fitText(timeLine, datePaint, right,
                     plate.top + plate.height() * 0.78f,
-                    plate.width() * 0.53f, sharedTextSize * 0.80f)
+                    plate.width() * 0.53f, sharedTextSize * 0.88f)
                 titlePaint.textAlign = Paint.Align.LEFT
                 detailPaint.textAlign = Paint.Align.LEFT
             }

@@ -82,6 +82,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterCenterFocus
 import androidx.compose.material.icons.filled.FlashAuto
@@ -131,6 +132,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetector
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -317,6 +323,38 @@ fun CameraScreen(
     }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
+    val uhdCaptureEnabled = appPrefs.getBoolean("uhd_capture_enabled", false)
+    var nightCaptureSeconds by remember { mutableIntStateOf(0) }
+    var lowLightDetected by remember { mutableStateOf(false) }
+    var aiCompositionEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("ai_composition_enabled", false))
+    }
+    var aiCompositionHint by remember { mutableStateOf("Chưa thấy khuôn mặt") }
+    var selectedFrameTemplate by remember {
+        mutableStateOf(appPrefs.getString("selected_frame_template", "none") ?: "none")
+    }
+    var selectedFrameStyle by remember {
+        mutableStateOf(appPrefs.getString("frame_style", "White") ?: "White")
+    }
+    var showFrameDialog by remember { mutableStateOf(false) }
+    val importedFrameUris = remember {
+        context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
+            .getStringSet("frames", emptySet())?.toList()?.sorted() ?: emptyList()
+    }
+    val faceDetector: FaceDetector? = remember(aiCompositionEnabled) {
+        if (aiCompositionEnabled) {
+            val options = FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+                .enableTracking()
+                .build()
+            FaceDetection.getClient(options)
+        } else null
+    }
+    DisposableEffect(faceDetector) {
+        onDispose { faceDetector?.close() }
+    }
     val shutterButtonImageUri = appPrefs.getString("shutter_button_image_uri", null)
     LaunchedEffect(shutterButtonImageUri) {
         shutterButtonBitmap = if (shutterButtonImageUri.isNullOrBlank()) null else withContext(Dispatchers.IO) {
@@ -340,7 +378,10 @@ fun CameraScreen(
 
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
-    LaunchedEffect(hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine, manualCaptureRevision) {
+    LaunchedEffect(
+        hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
+        manualCaptureRevision, uhdCaptureEnabled, nightCaptureSeconds, aiCompositionEnabled
+    ) {
         if (!hasCam) return@LaunchedEffect
         val bindGeneration = ++cameraBindGeneration
         // Disable shutter immediately while the old UseCaseGroup is being replaced.
@@ -408,7 +449,7 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, captureExposure)
                         .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(captureExposure, 10_000_000L))
                 }
-                if (imageQuality == "Best") {
+                if (imageQuality == "Best" || uhdCaptureEnabled) {
                     captureBuilder.setResolutionSelector(
                         ResolutionSelector.Builder()
                             .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
@@ -441,6 +482,32 @@ fun CameraScreen(
                         CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
                     )
                 }
+                if (nightCaptureSeconds > 0 && mode == "Photo") {
+                    val characteristics = activeFacingId?.let { id ->
+                        runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
+                    }
+                    val capabilities = characteristics?.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                    val exposureRange = characteristics?.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+                    val sensitivityRange = characteristics?.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+                    if (capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true &&
+                        exposureRange != null && sensitivityRange != null
+                    ) {
+                        val requestedExposure = nightCaptureSeconds * 1_000_000_000L
+                        val exposureNs = requestedExposure.coerceIn(exposureRange.lower, exposureRange.upper)
+                        val nightIso = 800.coerceIn(sensitivityRange.lower, sensitivityRange.upper)
+                        Camera2Interop.Extender(captureBuilder)
+                            .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                            .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, nightIso)
+                            .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureNs)
+                            .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(exposureNs, 10_000_000L))
+                    } else {
+                        scope.launch(Dispatchers.Main) {
+                            Toast.makeText(context, "Camera không hỗ trợ phơi sáng thủ công để chụp đêm.", Toast.LENGTH_LONG).show()
+                        }
+                        nightCaptureSeconds = 0
+                    }
+                }
                 val capture = captureBuilder.build()
                 capture.flashMode = flash
 
@@ -451,6 +518,7 @@ fun CameraScreen(
                 previewUseCase = preview
                 analysisUseCase = analysis
                 var lastAnalysis = 0L
+                var lastAiAnalysis = 0L
                 analysis.setAnalyzer(analysisExecutor) { image ->
                     try {
                         val now = System.currentTimeMillis()
@@ -462,6 +530,8 @@ fun CameraScreen(
                             val edges = ArrayList<Offset>(250)
                             val rowStride = plane.rowStride
                             val pixelStride = plane.pixelStride
+                            var luminanceSum = 0L
+                            var sampleCount = 0
                             var y = 8
                             while (y < image.height - 1) {
                                 var x = 8
@@ -469,6 +539,8 @@ fun CameraScreen(
                                     val index = y * rowStride + x * pixelStride
                                     val value = buffer.get(index).toInt() and 0xFF
                                     bins[value shr 2]++
+                                    luminanceSum += value
+                                    sampleCount++
                                     if (focusPeakingEnabled.value && x > 1 && y > 1 && index < buffer.limit()) {
                                         val leftIndex = index - pixelStride
                                         val upIndex = index - rowStride
@@ -492,9 +564,46 @@ fun CameraScreen(
                                 }
                                 y += 8
                             }
+                            val meanLuma = if (sampleCount > 0) (luminanceSum / sampleCount).toInt() else 255
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
                                 peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
+                                lowLightDetected = meanLuma < 52
+                            }
+                        }
+
+                        if (aiCompositionEnabled && faceDetector != null && now - lastAiAnalysis > 550) {
+                            lastAiAnalysis = now
+                            val mediaImage = image.image
+                            if (mediaImage != null) {
+                                try {
+                                    val input = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+                                    val faces = Tasks.await(faceDetector.process(input), 600, TimeUnit.MILLISECONDS)
+                                    val largest = faces.maxByOrNull {
+                                        it.boundingBox.width().toLong() * it.boundingBox.height().toLong()
+                                    }
+                                    val hint = if (largest == null) {
+                                        "Chưa thấy khuôn mặt · thử đặt chủ thể vào 1/3"
+                                    } else {
+                                        val bounds = largest.boundingBox
+                                        val rotation = image.imageInfo.rotationDegrees
+                                        val centerX = when (rotation) {
+                                            90 -> 1f - bounds.exactCenterY() / image.height.coerceAtLeast(1)
+                                            180 -> 1f - bounds.exactCenterX() / image.width.coerceAtLeast(1)
+                                            270 -> bounds.exactCenterY() / image.height.coerceAtLeast(1)
+                                            else -> bounds.exactCenterX() / image.width.coerceAtLeast(1)
+                                        }.coerceIn(0f, 1f)
+                                        val visibleCenterX = if (front) 1f - centerX else centerX
+                                        when {
+                                            visibleCenterX < 0.38f -> "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải"
+                                            visibleCenterX > 0.62f -> "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái"
+                                            else -> "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3"
+                                        }
+                                    }
+                                    scope.launch(Dispatchers.Main) { aiCompositionHint = hint }
+                                } catch (error: Exception) {
+                                    android.util.Log.w("FUJI_AI_COMPOSITION", "Face analysis skipped", error)
+                                }
                             }
                         }
                     } finally {
@@ -761,7 +870,8 @@ fun CameraScreen(
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
                                 val lookApplied = runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
-                                withContext(Dispatchers.Main) { processingProgress = 62 }
+                                val frameApplied = runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
+                                withContext(Dispatchers.Main) { processingProgress = 72 }
                                 val stamped = runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
@@ -790,7 +900,8 @@ fun CameraScreen(
                                         orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
-                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    val finalMessage = if (frameApplied) "$message Frame đã được áp dụng." else message
+                                    Toast.makeText(context, finalMessage, Toast.LENGTH_SHORT).show()
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {
@@ -932,6 +1043,28 @@ fun CameraScreen(
                             onClick = { showQuick = !showQuick },
                             tint = if (showQuick) CamColors.Yellow else Color.White
                         )
+                        if (mode == "Photo" && (lowLightDetected || nightCaptureSeconds > 0)) {
+                            CircleBtn(
+                                Icons.Default.Bedtime,
+                                if (nightCaptureSeconds > 0) "Chụp đêm ${nightCaptureSeconds}s · nhấn đổi thời lượng" else "Phát hiện thiếu sáng · bật chụp đêm",
+                                onClick = {
+                                    val maxSeconds = ((shutterRange?.upper ?: 0L) / 1_000_000_000L).toInt()
+                                    val choices = listOf(2, 4, 8).map { it.coerceAtMost(maxSeconds) }
+                                        .distinct().filter { it >= 1 }
+                                    if (!manualSensorSupported || choices.isEmpty()) {
+                                        Toast.makeText(context, "Camera này không hỗ trợ phơi sáng dài.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val currentIndex = choices.indexOf(nightCaptureSeconds)
+                                        nightCaptureSeconds = when {
+                                            nightCaptureSeconds == 0 -> choices.first()
+                                            currentIndex < 0 || currentIndex == choices.lastIndex -> 0
+                                            else -> choices[currentIndex + 1]
+                                        }
+                                    }
+                                },
+                                tint = if (nightCaptureSeconds > 0) CamColors.Yellow else Color.White
+                            )
+                        }
                     }
     }
 
@@ -1038,6 +1171,36 @@ fun CameraScreen(
                                         )
                                     }
                                 }
+                            }
+                            if (selectedFrameTemplate != "none" && !selectedFrameTemplate.startsWith("custom|")) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    if (selectedFrameStyle != "Transparent") {
+                                        val inset = size.minDimension * 0.035f
+                                        val frameColor = if (selectedFrameStyle == "Black") Color.Black else Color.White
+                                        val stroke = (size.minDimension * 0.003f).coerceAtLeast(1.5f)
+                                        drawRect(frameColor, topLeft = Offset(inset, inset),
+                                            size = DrawSize(size.width - inset * 2f, size.height - inset * 2f),
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                                        if (selectedFrameTemplate == "classic" || selectedFrameTemplate == "double" ||
+                                            selectedFrameTemplate == "expo_around"
+                                        ) {
+                                            drawRect(frameColor.copy(alpha = 0.85f),
+                                                topLeft = Offset(inset * 1.55f, inset * 1.55f),
+                                                size = DrawSize(size.width - inset * 3.1f, size.height - inset * 3.1f),
+                                                style = androidx.compose.ui.graphics.drawscope.Stroke(stroke * 0.55f))
+                                        }
+                                    }
+                                }
+                            }
+                            if (aiCompositionEnabled) {
+                                Text(
+                                    "AI BỐ CỤC · $aiCompositionHint",
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
+                                        .clip(RoundedCornerShape(7.dp)).background(Color(0xAA000000))
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                )
                             }
                             FilmWashLabel(
                                 progress = filmWashProgress.value,
@@ -1399,8 +1562,15 @@ fun CameraScreen(
                                 }
                             }
                         }
-                        Row(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 2.dp),
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 2.dp),
                             horizontalArrangement = Arrangement.Center) {
+                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
+                                .clickable { showFrameDialog = true }
+                                .padding(horizontal = 13.dp, vertical = 7.dp)) {
+                                Text("Frame", color = if (selectedFrameTemplate != "none") CamColors.Yellow else Color.White,
+                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            Spacer(Modifier.width(6.dp))
                             Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
                                 .clickable { filterDialogVisible = true }
                                 .padding(horizontal = 18.dp, vertical = 7.dp)) {
@@ -1421,10 +1591,16 @@ fun CameraScreen(
                                 )
                             }
                             Spacer(Modifier.width(8.dp))
-                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x552B2B2B))
-                                .padding(horizontal = 14.dp, vertical = 7.dp)) {
-                                Text("AI Bố cục · Sắp ra mắt",
-                                    color = Color(0xFF777777), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Box(Modifier.clip(RoundedCornerShape(16.dp))
+                                .background(if (aiCompositionEnabled) Color(0x66F5C842) else CamColors.Glass)
+                                .clickable {
+                                    aiCompositionEnabled = !aiCompositionEnabled
+                                    appPrefs.edit().putBoolean("ai_composition_enabled", aiCompositionEnabled).apply()
+                                }
+                                .padding(horizontal = 13.dp, vertical = 7.dp)) {
+                                Text(if (aiCompositionEnabled) "AI Bố cục ✓" else "AI Bố cục",
+                                    color = if (aiCompositionEnabled) CamColors.Yellow else CamColors.TextColor,
+                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
         }
@@ -1515,6 +1691,23 @@ fun CameraScreen(
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                 }
             }
+        }
+
+        if (showFrameDialog) {
+            CameraFrameDialog(
+                selectedTemplate = selectedFrameTemplate,
+                selectedStyle = selectedFrameStyle,
+                customFrames = importedFrameUris,
+                onSelectTemplate = {
+                    selectedFrameTemplate = it
+                    appPrefs.edit().putString("selected_frame_template", it).apply()
+                },
+                onSelectStyle = {
+                    selectedFrameStyle = it
+                    appPrefs.edit().putString("frame_style", it).apply()
+                },
+                onDismiss = { showFrameDialog = false }
+            )
         }
 
         if (filterDialogVisible) {

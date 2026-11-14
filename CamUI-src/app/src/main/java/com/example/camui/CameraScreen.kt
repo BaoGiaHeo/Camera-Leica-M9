@@ -2498,7 +2498,7 @@ fun CameraScreen(
                                 .clickable { filterDialogVisible = true }
                                 .padding(horizontal = 18.dp, vertical = 7.dp)) {
                                 Text(
-                                    if (activeFilter != "None") "Bộ lọc: $activeFilter" else "Bộ lọc",
+                                    if (activeFilter != "None") "Bộ lọc: " + cameraLookDisplayName(context, activeFilter) else "Bộ lọc",
                                     color = if (activeFilter != "None") CamColors.Yellow else Color.White,
                                     fontSize = 11.sp, fontWeight = FontWeight.SemiBold
                                 )
@@ -2848,11 +2848,50 @@ private fun FilterLookDialog(
     onDismiss: () -> Unit,
     onSelectFilter: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var category by remember { mutableStateOf("Tất cả") }
-    val categories = listOf("Tất cả") + cameraLookGroups.map { it.first }
-    val allPresets = cameraLookGroups.flatMap { it.second }
-    val visiblePresets = if (category == "Tất cả") allPresets
-        else cameraLookGroups.firstOrNull { it.first == category }?.second.orEmpty()
+    var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
+    var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
+    var isImportingLut by remember { mutableStateOf(false) }
+
+    val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isImportingLut = true
+                try {
+                    val imported = withContext(Dispatchers.IO) {
+                        importCustomCameraLuts(context, uri)
+                    }
+                    importedLuts = loadCustomCameraLuts(context)
+                    activeLutIds = activeCustomCameraLutIds(context)
+                    Toast.makeText(
+                        context,
+                        "Đã nhập " + imported.size + " LUT. Vào Content Manager để Add LUT vào bộ lọc.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (failure: Throwable) {
+                    Toast.makeText(
+                        context,
+                        "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    isImportingLut = false
+                }
+            }
+        }
+    }
+
+    val activeCustomLuts = importedLuts.filter { activeLutIds.contains(it.id) }
+    val builtInPresets = cameraLookGroups.flatMap { it.second }
+    val categories = listOf("Tất cả") + cameraLookGroups.map { it.first } + "LUT"
+    val visiblePresets = when (category) {
+        "Tất cả" -> builtInPresets + activeCustomLuts.map { customCameraLutPreset(it.id) }
+        "LUT" -> activeCustomLuts.map { customCameraLutPreset(it.id) }
+        else -> cameraLookGroups.firstOrNull { it.first == category }?.second.orEmpty()
+    }
+    val activeFilterName = cameraLookDisplayName(context, activeFilter)
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
@@ -2880,7 +2919,7 @@ private fun FilterLookDialog(
             }
 
             Text(
-                if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · $activeFilter",
+                if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
                 color = CamColors.Yellow,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -2898,7 +2937,7 @@ private fun FilterLookDialog(
                 )
                 if (activeFilter != "None") {
                     Text(
-                        activeFilter,
+                        activeFilterName,
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -2908,68 +2947,104 @@ private fun FilterLookDialog(
                 }
             }
             Text(
-                if (activeFilter in listOf(
-                    "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
-                    "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass"
-                )) {
-                    "Profile Fujifilm 3D · preview và ảnh JPEG dùng cùng phép biến đổi."
-                } else {
-                    "Preview dùng cùng phép biến đổi với ảnh lưu sau khi chụp."
+                when {
+                    activeFilter.startsWith("camera_lut:") ->
+                        "LUT đã nhập · preview và ảnh JPEG dùng cùng phép biến đổi 3D."
+                    activeFilter in listOf(
+                        "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
+                        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass"
+                    ) -> "Profile Fujifilm 3D · preview và ảnh JPEG dùng cùng phép biến đổi."
+                    else -> "Preview dùng cùng phép biến đổi với ảnh lưu sau khi chụp."
                 },
                 color = CamColors.Sub,
                 fontSize = 10.sp,
                 modifier = Modifier.padding(top = 7.dp, bottom = 8.dp)
             )
             Text(
-                "Danh sách bộ lọc · $category",
+                "Danh sách bộ lọc · " + category,
                 color = CamColors.Sub,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(bottom = 7.dp)
             )
-            Column(
-                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
-            ) {
-                visiblePresets.chunked(2).forEach { pair ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        pair.forEach { preset ->
-                            val selected = activeFilter == preset
-                            Column(
-                                Modifier.weight(1f).padding(bottom = 8.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (selected) Color(0xFF393326) else CamColors.Card)
-                                    .clickable { onSelectFilter(preset) }.padding(7.dp)
-                            ) {
-                                Box(
-                                    Modifier.fillMaxWidth().height(76.dp)
-                                        .clip(RoundedCornerShape(8.dp))
+
+            if (category == "LUT" && activeCustomLuts.isEmpty()) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(CamColors.Card).padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (importedLuts.isEmpty()) {
+                        Text(
+                            "Chưa có LUT. Có thể nhập Xiaomi .zip hoặc Blackmagic .cube tại đây.",
+                            color = CamColors.Sub,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            if (isImportingLut) "Đang nhập LUT…" else "＋ Import LUT",
+                            color = CamColors.Yellow,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable(enabled = !isImportingLut) {
+                                lutPicker.launch(arrayOf("*/*"))
+                            }.padding(12.dp)
+                        )
+                    } else {
+                        Text(
+                            "LUT đã nhập. Mở Content Manager → LUT Manage rồi nhấn Add để đưa LUT vào bộ lọc.",
+                            color = CamColors.Sub,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+                ) {
+                    visiblePresets.chunked(2).forEach { pair ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            pair.forEach { preset ->
+                                val selected = activeFilter == preset
+                                val itemName = cameraLookDisplayName(context, preset)
+                                Column(
+                                    Modifier.weight(1f).padding(bottom = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (selected) Color(0xFF393326) else CamColors.Card)
+                                        .clickable { onSelectFilter(preset) }.padding(7.dp)
                                 ) {
-                                    FilterLookPreviewImage(
-                                        source = previewSource,
-                                        preset = preset,
-                                        modifier = Modifier.fillMaxSize(),
-                                        maxDimension = 192
-                                    )
-                                    if (selected) {
-                                        Text(
-                                            "✓ ĐANG CHỌN",
-                                            color = Color.White,
-                                            fontSize = 9.sp,
-                                            modifier = Modifier.align(Alignment.BottomStart)
-                                                .background(Color(0xAA000000)).padding(4.dp)
+                                    Box(
+                                        Modifier.fillMaxWidth().height(76.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                    ) {
+                                        FilterLookPreviewImage(
+                                            source = previewSource,
+                                            preset = preset,
+                                            modifier = Modifier.fillMaxSize(),
+                                            maxDimension = 192
                                         )
+                                        if (selected) {
+                                            Text(
+                                                "✓ ĐANG CHỌN",
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                modifier = Modifier.align(Alignment.BottomStart)
+                                                    .background(Color(0xAA000000)).padding(4.dp)
+                                            )
+                                        }
                                     }
+                                    Text(
+                                        itemName,
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(top = 7.dp)
+                                    )
+                                    Text("Chạm để preview", color = CamColors.Sub, fontSize = 9.sp)
                                 }
-                                Text(
-                                    preset,
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = 7.dp)
-                                )
-                                Text("Chạm để preview", color = CamColors.Sub, fontSize = 9.sp)
                             }
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }

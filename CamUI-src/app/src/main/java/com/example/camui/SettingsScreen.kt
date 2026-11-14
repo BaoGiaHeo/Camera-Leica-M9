@@ -2,9 +2,6 @@ package com.example.camui
 
 import android.content.Context
 import android.content.Intent
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
-import android.graphics.ImageFormat
 import android.net.Uri
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -41,7 +38,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +53,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private data class SettingItem(val title: String, val subtitle: String)
 private data class CameraLensRow(
@@ -204,67 +205,7 @@ var nightShotMode by remember {
                 SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusPeaking, onFocusPeaking)
             }
             "Focus & Lens" -> {
-                Text("Thông tin camera do Camera2 đọc trực tiếp từ thiết bị.",
-                    color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
-                val cameraRows = remember {
-                    runCatching {
-                        val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                        manager.cameraIdList.map { id ->
-                            val c = manager.getCameraCharacteristics(id)
-                            val facing = when (c.get(CameraCharacteristics.LENS_FACING)) {
-                                CameraCharacteristics.LENS_FACING_BACK -> "Sau"
-                                CameraCharacteristics.LENS_FACING_FRONT -> "Trước"
-                                CameraCharacteristics.LENS_FACING_EXTERNAL -> "Ngoài"
-                                else -> "Không rõ"
-                            }
-                            val focal = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
-                                ?.joinToString(" / ") { "%.1f mm".format(it) } ?: "Không công bố"
-                            val aperture = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
-                                ?.joinToString(" / ") { "f/%.1f".format(it) } ?: "Không công bố"
-                            val physical = c.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-                                ?.let { "%.2f × %.2f mm".format(it.width, it.height) } ?: "Không công bố"
-                            val size = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-                                ?.getOutputSizes(ImageFormat.JPEG)?.maxByOrNull { it.width.toLong() * it.height }
-                                ?.let { "${it.width} × ${it.height}" } ?: "Không công bố"
-                            val oisSupported = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
-                                ?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true
-                            val eisSupported = c.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
-                                ?.contains(CameraCharacteristics.CONTROL_VIDEO_STABILIZATION_MODE_ON) == true
-                            // CameraManager.cameraIdList is rendered one row per available camera above.
-                            // The physical-ID characteristics key is not present in this project's compile SDK.
-                            val physicalIds = "Xem danh sách Camera ID ở trên"
-                            CameraLensRow(
-                                id, facing, focal, aperture, physical, size,
-                                if (oisSupported) "Có" else "Không công bố",
-                                if (eisSupported) "Có" else "Không công bố",
-                                physicalIds
-                            )
-                        }
-                    }.getOrDefault(emptyList())
-                }
-                if (cameraRows.isEmpty()) {
-                    Text("Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng.",
-                        color = CamColors.Sub, fontSize = 12.sp)
-                } else {
-                    cameraRows.forEach { row ->
-                        InfoCard("Camera ID ${row.id}", "Camera ${row.facing}") {
-                            InfoLine("Focal length", row.focal)
-                            InfoLine("Khẩu độ", row.aperture)
-                            InfoLine("Kích thước cảm biến", row.sensor)
-                            InfoLine("JPEG tối đa", row.maxOutput)
-                            InfoLine("OIS", row.ois)
-                            InfoLine("EIS", row.eis)
-                            InfoLine("Physical camera IDs", row.physicalIds)
-                        }
-                    }
-                }
-                Text("Thông tin tên mã cảm biến không được Android Camera2 công bố thống nhất trên mọi thiết bị; ứng dụng hiển thị kích thước cảm biến và độ phân giải tối đa mà hệ thống cung cấp.",
-                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
-                Spacer(Modifier.padding(6.dp))
-                InfoCard("Additional lens tools", "Coming soon") {
-                    Text("Lens calibration · EIS+ · sensor diagnostics",
-                        color = CamColors.Sub, fontSize = 11.sp)
-                }
+                CameraHardwareScannerPanel()
             }
             "Capture & Quality" -> {
                 Text("Aspect Ratio", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
@@ -547,6 +488,151 @@ var nightShotMode by remember {
                     })
                 Text("Version 1.1 experimental · Debug build", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun CameraHardwareScannerPanel() {
+    val context = LocalContext.current
+    var refreshToken by remember { mutableStateOf(0) }
+    var report by remember { mutableStateOf<CameraHardwareReport?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(refreshToken) {
+        loading = true
+        val result = withContext(Dispatchers.IO) {
+            runCatching { CameraHardwareScanner.scan(context) }
+        }
+        report = result.getOrNull()
+        errorMessage = result.exceptionOrNull()?.message
+        loading = false
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Quét Camera2 công khai, Physical Camera và vendor metadata được HAL công bố.",
+            color = CamColors.Sub,
+            fontSize = 12.sp
+        )
+        Button(
+            onClick = { refreshToken++ },
+            enabled = !loading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (loading) "Đang quét camera…" else "Quét lại phần cứng camera")
+        }
+
+        if (loading && report == null) {
+            Text("Đang đọc CameraCharacteristics…", color = CamColors.Sub, fontSize = 12.sp)
+        }
+
+        errorMessage?.let {
+            InfoCard("Không thể hoàn tất quét", "Camera2 access") {
+                Text(it, color = CamColors.Sub, fontSize = 11.sp)
+            }
+        }
+
+        report?.let { scan ->
+            InfoCard(
+                "Camera Hardware Scanner",
+                "${scan.manufacturer} ${scan.model} · Android API ${scan.androidSdk}"
+            ) {
+                InfoLine("Camera ID công khai", scan.publicIdCount.toString())
+                InfoLine("Physical ID được công bố", scan.physicalIdCount.toString())
+                InfoLine("Tổng mục đã đọc", scan.entries.size.toString())
+                InfoLine("Vendor metadata keys", scan.vendorMetadataKeys.size.toString())
+                InfoLine("Nhóm camera chạy đồng thời", scan.concurrentCameraSetCount.toString())
+                InfoLine("ID không đọc được", scan.unreadableIds.size.toString())
+            }
+
+            if (scan.entries.isEmpty()) {
+                InfoCard("Chưa tìm thấy camera", "Camera2") {
+                    Text(
+                        "Không có Camera ID nào được hệ thống công khai cho ứng dụng. Hãy kiểm tra quyền Camera và thử quét lại.",
+                        color = CamColors.Sub,
+                        fontSize = 11.sp
+                    )
+                }
+            } else {
+                scan.entries.forEach { camera ->
+                    InfoCard(
+                        "Camera ID ${camera.id}",
+                        "${camera.lensRole} · ${camera.source}"
+                    ) {
+                        InfoLine("Hướng", camera.facing)
+                        InfoLine("Tiêu cự", camera.focalLengths)
+                        InfoLine(
+                            "Tương đương 35mm",
+                            camera.equivalent35mm?.let {
+                                String.format(java.util.Locale.US, "%.1f mm", it)
+                            } ?: "Không công bố"
+                        )
+                        InfoLine("Sensor pixel array", camera.sensorPixels)
+                        InfoLine("Kích thước cảm biến", camera.sensorSizeMm)
+                        InfoLine("JPEG lớn nhất", camera.jpegMax)
+                        InfoLine("RAW_SENSOR lớn nhất", camera.rawMax)
+                        InfoLine("Hardware level", camera.hardwareLevel)
+                        InfoLine(
+                            "Zoom số tối đa",
+                            camera.maxDigitalZoom?.let {
+                                String.format(java.util.Locale.US, "%.1fx", it)
+                            } ?: "Không công bố"
+                        )
+                        if (camera.parentId != null) {
+                            InfoLine("Logical parent", camera.parentId)
+                        }
+                        if (camera.physicalIds.isNotEmpty()) {
+                            InfoLine("Physical children", camera.physicalIds.joinToString())
+                        }
+                        if (camera.vendorMetadataKeys.isNotEmpty()) {
+                            Text(
+                                "Vendor keys: " + camera.vendorMetadataKeys.take(8).joinToString(),
+                                color = CamColors.Sub,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(top = 5.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            InfoCard(
+                "Vendor metadata mở rộng",
+                "Key riêng của OEM được HAL công bố trên camera truy cập được"
+            ) {
+                if (scan.vendorMetadataKeys.isEmpty()) {
+                    Text(
+                        "Không có vendor key ngoài namespace Android được công bố trong metadata đọc được.",
+                        color = CamColors.Sub,
+                        fontSize = 11.sp
+                    )
+                } else {
+                    scan.vendorMetadataKeys.take(30).forEach {
+                        Text(it, color = CamColors.TextColor, fontSize = 10.sp)
+                    }
+                    if (scan.vendorMetadataKeys.size > 30) {
+                        Text(
+                            "Còn ${scan.vendorMetadataKeys.size - 30} key khác.",
+                            color = CamColors.Sub,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+
+            InfoCard(
+                "Camera ID OEM không công khai",
+                "Giới hạn truy cập của Android"
+            ) {
+                Text(
+                    "Scanner đã kiểm tra Logical Camera, các Physical ID mà OEM đưa vào metadata và vendor metadata có thể đọc được. Camera ID bị camera service/firmware ẩn hoàn toàn không thể được liệt kê bằng API Android công khai; muốn truy cập cần OEM/system API hoặc quyền hệ thống. App không tạo ID giả và không dùng root/hidden-API reflection để vượt giới hạn.",
+                    color = CamColors.Sub,
+                    fontSize = 11.sp
+                )
             }
         }
     }

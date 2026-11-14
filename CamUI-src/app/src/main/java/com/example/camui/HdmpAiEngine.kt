@@ -172,18 +172,15 @@ internal object HdmpAiEngine {
         model: Model,
         onProgress: (Model, Int) -> Unit
     ): Boolean {
+        var sourceStream: FileInputStream? = null
         var decoder: BitmapRegionDecoder? = null
         var outputBitmap: Bitmap? = null
         var session: OrtSession? = null
         var options: OrtSession.SessionOptions? = null
         return try {
             val modelFile = verifiedModelFile(context, spec) ?: return false
-            val inputStream = FileInputStream(source)
-            decoder = try {
-                BitmapRegionDecoder.newInstance(inputStream, false)
-            } finally {
-                inputStream.close()
-            } ?: return false
+            sourceStream = FileInputStream(source)
+            decoder = BitmapRegionDecoder.newInstance(sourceStream, false) ?: return false
 
             val width = decoder.width
             val height = decoder.height
@@ -310,8 +307,11 @@ internal object HdmpAiEngine {
                     }
 
                     tileIndex++
-                    runCatching {
-                        onProgress(model, (tileIndex * 100 / totalTiles).coerceIn(0, 100))
+                    val progressStep = (totalTiles / 100).coerceAtLeast(1)
+                    if (tileIndex == totalTiles || tileIndex % progressStep == 0) {
+                        runCatching {
+                            onProgress(model, (tileIndex * 100 / totalTiles).coerceIn(0, 100))
+                        }
                     }
                 }
             }
@@ -342,6 +342,7 @@ internal object HdmpAiEngine {
             runCatching { session?.close() }
             runCatching { options?.close() }
             runCatching { decoder?.recycle() }
+            runCatching { sourceStream?.close() }
             outputBitmap?.let { if (!it.isRecycled) it.recycle() }
         }
     }

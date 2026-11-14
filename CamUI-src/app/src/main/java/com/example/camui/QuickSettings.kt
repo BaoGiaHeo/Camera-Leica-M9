@@ -69,7 +69,7 @@ stabilization: Boolean,
         }
         Row(
             Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp))
-                .background(CamColors.Chip).clickable(onClick = onSettings).padding(horizontal = 15.dp),
+                .background(CamColors.Chip).animaTClickable(onSettings).padding(horizontal = 15.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -90,7 +90,7 @@ private fun FeatureCard(
     Column(
         modifier.height(72.dp).clip(RoundedCornerShape(14.dp))
             .background(if (selected) CamColors.Yellow else CamColors.Chip)
-            .clickable(onClick = onClick).padding(10.dp),
+            .animaTClickable(onClick).padding(10.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Text(title, color = if (selected) Color.Black else Color.White,
@@ -109,7 +109,7 @@ private fun SmallCard(
     modifier: Modifier = Modifier
 ) {
     Box(modifier.height(66.dp).clip(RoundedCornerShape(14.dp)).background(CamColors.Chip)
-        .clickable(onClick = onClick).padding(10.dp)) {
+        .animaTClickable(onClick).padding(10.dp)) {
         Column(Modifier.align(Alignment.BottomStart)) {
             Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
             if (subtitle != null) Text(subtitle, color = CamColors.Sub, fontSize = 9.sp)

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "net.h"
+#include "gpu.h"
 
 namespace {
 constexpr const char* kTag = "FUJI_NCNN_SR";
@@ -183,10 +184,10 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
 
     // Vulkan is preferred. NCNN handles unsupported FP16 paths by falling back to
     // the available device features; CPU inference remains available as a safe fallback.
-    ncnn::create_gpu_instance();
-    vulkan.created = true;
-    const int gpuCount = ncnn::get_gpu_count();
-    const bool useVulkan = gpuCount > 0;
+    const int gpuInitResult = ncnn::create_gpu_instance();
+    vulkan.created = (gpuInitResult == 0);
+    const int gpuCount = vulkan.created ? ncnn::get_gpu_count() : 0;
+    const bool useVulkan = gpuInitResult == 0 && gpuCount > 0;
     if (!useVulkan) {
         LOGW("No Vulkan device found; using NCNN CPU inference");
     }
@@ -276,9 +277,8 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
             }
             input.substract_mean_normalize(nullptr, normValues);
 
+            // Vulkan/FP16/thread settings are attached to net.opt before create_extractor().
             ncnn::Extractor extractor = net.create_extractor();
-            extractor.set_num_threads(option.num_threads);
-            extractor.set_vulkan_compute(useVulkan);
             if (extractor.input("data", input) != 0) {
                 LOGE("NCNN input layer 'data' failed");
                 return JNI_FALSE;

@@ -2,6 +2,9 @@ package com.example.camui
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.ContentUris
 import android.content.Context
 import android.graphics.Point
@@ -10,6 +13,7 @@ import android.graphics.ImageFormat
 import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.os.Build
+import android.os.BatteryManager
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.camera2.CameraCharacteristics
@@ -78,7 +82,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -125,6 +129,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -245,6 +250,30 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+
+    var batteryPercent by remember { mutableIntStateOf(-1) }
+    DisposableEffect(context) {
+        fun updateBattery(intent: Intent?) {
+            val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+            if (level >= 0 && scale > 0) {
+                batteryPercent = (level * 100f / scale).roundToInt().coerceIn(0, 100)
+            }
+        }
+        val batteryReceiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context?, intent: Intent?) {
+                updateBattery(intent)
+            }
+        }
+        val sticky = ContextCompat.registerReceiver(
+            context,
+            batteryReceiver,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        updateBattery(sticky)
+        onDispose { runCatching { context.unregisterReceiver(batteryReceiver) } }
+    }
 
     var hasCam by remember {
         mutableStateOf(
@@ -388,7 +417,7 @@ fun CameraScreen(
     var starTrailTimerJob by remember { mutableStateOf<Job?>(null) }
     var starTrailExposureStatus by remember { mutableStateOf("Đang kiểm tra hỗ trợ phơi sáng") }
     var lowLightDetected by remember { mutableStateOf(false) }
-    var showAiHub by remember { mutableStateOf(false) }
+    var showHdmp by remember { mutableStateOf(false) }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
@@ -1834,32 +1863,6 @@ fun CameraScreen(
                                 onClick = onOpenSettings,
                                 tint = CamColors.Yellow
                             )
-                        } else if (mode == "Photo" && (lowLightDetected || nightShotMode == "night")) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircleBtn(
-                                    Icons.Default.Bedtime,
-                                    if (nightShotMode == "night") "NightShot ${nightShotDurationSeconds}s" else "NightShot",
-                                    onClick = {
-                                        if (nightShotMode != "night") {
-                                            nightShotMode = "night"
-                                            nightShotDurationSeconds = 5
-                                        } else {
-                                            nightShotDurationSeconds = when (nightShotDurationSeconds) {
-                                                5 -> 10
-                                                10 -> 3
-                                                else -> 5
-                                            }
-                                        }
-                                    },
-                                    tint = CamColors.Yellow
-                                )
-                                Text(
-                                    if (nightShotMode == "night") "${nightShotDurationSeconds}s" else "Night",
-                                    color = CamColors.Yellow, fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(start = 3.dp)
-                                )
-                            }
                         }
                     }
     }
@@ -1991,6 +1994,49 @@ fun CameraScreen(
                                     .clip(RoundedCornerShape(6.dp)).background(Color(0x66000000))
                                     .padding(horizontal = 6.dp, vertical = 4.dp)
                             )
+                            if (batteryPercent >= 0) {
+                                Row(
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 29.dp, end = 7.dp)
+                                        .clip(RoundedCornerShape(6.dp)).background(Color(0x66000000))
+                                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Canvas(Modifier.size(width = 14.dp, height = 10.dp)) {
+                                        val bodyWidth = size.width * 0.82f
+                                        val inset = 1.dp.toPx()
+                                        val radius = androidx.compose.ui.geometry.CornerRadius(1.5.dp.toPx())
+                                        drawRoundRect(
+                                            color = Color.White.copy(alpha = 0.92f),
+                                            topLeft = Offset.Zero,
+                                            size = DrawSize(bodyWidth, size.height),
+                                            cornerRadius = radius,
+                                            style = Stroke(width = 1.dp.toPx())
+                                        )
+                                        val innerWidth = ((bodyWidth - inset * 3f).coerceAtLeast(0f)) *
+                                            (batteryPercent / 100f)
+                                        drawRoundRect(
+                                            color = Color.White,
+                                            topLeft = Offset(inset, inset),
+                                            size = DrawSize(innerWidth, (size.height - inset * 2f).coerceAtLeast(0f)),
+                                            cornerRadius = radius
+                                        )
+                                        drawRoundRect(
+                                            color = Color.White.copy(alpha = 0.92f),
+                                            topLeft = Offset(size.width * 0.86f, size.height * 0.31f),
+                                            size = DrawSize(size.width * 0.12f, size.height * 0.38f),
+                                            cornerRadius = radius
+                                        )
+                                    }
+                                    Text(
+                                        "$batteryPercent%",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        lineHeight = 10.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
                             LensTransitionOverlay(
                                 visible = lensTransitionVisible,
                                 lensLabel = lensTransitionLabel,
@@ -2004,7 +2050,7 @@ fun CameraScreen(
                                     "Cần cấp quyền Camera\n(chạm để cấp)",
                                     color = Color.White, textAlign = TextAlign.Center,
                                     modifier = Modifier.align(Alignment.Center)
-                                        .clickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
+                                        .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
                                 )
                             }
                         }
@@ -2042,7 +2088,7 @@ fun CameraScreen(
                                         fontSize = 12.sp,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .clickable {
+                                            .animaTClickable {
                                                 val next = z.coerceIn(zoomMinForUi, zoomMaxForUi)
                                                 animateZoomTo(next)
                                             }.padding(horizontal = 5.dp, vertical = 3.dp)
@@ -2104,7 +2150,7 @@ fun CameraScreen(
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else CamColors.Yellow,
-                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
+                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualIsoEnabled = false
                                                         manualExposure = manualShutterEnabled
                                                         manualCaptureRevision++
@@ -2138,7 +2184,7 @@ fun CameraScreen(
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else CamColors.Yellow,
-                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
+                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualShutterEnabled = false
                                                         manualExposure = manualIsoEnabled
                                                         manualCaptureRevision++
@@ -2164,7 +2210,7 @@ fun CameraScreen(
                                                     )
                                                 } else Text("AF tự động", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
                                                 Text("AUTO", color = CamColors.Yellow, fontSize = 10.sp,
-                                                    modifier = Modifier.padding(start = 8.dp).clickable {
+                                                    modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualFocus = 0f
                                                         focusLocked = false
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
@@ -2189,7 +2235,7 @@ fun CameraScreen(
                                                 )
                                                 Text("Lạnh", color = CamColors.Sub, fontSize = 9.sp)
                                                 Text("AUTO", color = if (manualColorTempEnabled) CamColors.Sub else CamColors.Yellow,
-                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).clickable {
+                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualColorTempEnabled = false
                                                         camera?.let { runCatching { applyAutoWhiteBalance(it) } }
                                                     })
@@ -2217,7 +2263,7 @@ fun CameraScreen(
                                     Column(
                                         Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(CamColors.Glass)
                                             .border(0.5.dp, if (active) CamColors.Yellow else CamColors.Stroke, RoundedCornerShape(11.dp))
-                                            .clickable {
+                                            .animaTClickable {
                                                 if (key == "AUTO") {
                                                     manualExposure = false
                                                     manualIsoEnabled = false
@@ -2313,7 +2359,7 @@ fun CameraScreen(
                                 }
                                 Text(evText, color = CamColors.TextColor, fontSize = 11.sp)
                                 Text("AUTO", color = CamColors.Sub, fontSize = 9.sp,
-                                    modifier = Modifier.padding(start = 10.dp).clickable {
+                                    modifier = Modifier.padding(start = 10.dp).animaTClickable {
                                         evUserAdjusting = false
                                         evIndex = 0
                                         evSliderPosition = 0f.coerceIn(
@@ -2328,7 +2374,7 @@ fun CameraScreen(
                         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(52.dp).clip(RoundedCornerShape(13.dp)).background(CamColors.Glass)
-                                .clickable { onOpenAlbum() }, contentAlignment = Alignment.Center) {
+                                .animaTClickable { onOpenAlbum() }, contentAlignment = Alignment.Center) {
                                 val image = thumb
                                 if (image != null) Image(image, "Mở ảnh vừa chụp", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                 else Icon(Icons.Default.PhotoLibrary, "Mở album", tint = Color.White)
@@ -2336,7 +2382,7 @@ fun CameraScreen(
                             Box(Modifier.size(72.dp).border(4.dp, Color.White, CircleShape)
                                 .padding(7.dp).clip(CircleShape)
                                 .background(if (starTrailCaptureInProgress) Color(0xFFE53935) else CamColors.Shutter)
-                                .clickable { takePhoto() },
+                                .animaTClickable { takePhoto() },
                                 contentAlignment = Alignment.Center) {
                                 if (starTrailCaptureInProgress) {
                                     Icon(Icons.Default.Close, "Dừng Star Trails",
@@ -2356,7 +2402,7 @@ fun CameraScreen(
                                 Box(Modifier.padding(horizontal = 4.dp).width(92.dp).height(36.dp)
                                     .clip(RoundedCornerShape(22.dp))
                                     .background(if (active) CamColors.Yellow else CamColors.Glass)
-                                    .clickable {
+                                    .animaTClickable {
                                         mode = item
                                         if (item == "Photo") {
                                             proSel = null
@@ -2379,7 +2425,7 @@ fun CameraScreen(
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 2.dp),
                             horizontalArrangement = Arrangement.Center) {
                             Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
-                                .clickable {
+                                .animaTClickable {
                                     if (activeFilter != "None") {
                                         activeFilter = "None"
                                         appPrefs.edit().putString("selected_filter", "None").apply()
@@ -2397,18 +2443,18 @@ fun CameraScreen(
                             }
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(if (uhdCaptureEnabled || fhdCaptureEnabled) Color(0x66F5C842) else CamColors.Glass)
-                                .clickable { showAiHub = true }
+                                .background(if (uhdCaptureEnabled || fhdCaptureEnabled || nightShotMode == "night") Color(0x66F5C842) else CamColors.Glass)
+                                .animaTClickable { showHdmp = true }
                                 .padding(horizontal = 15.dp, vertical = 7.dp)) {
                                 Text("HDMP",
-                                    color = if (uhdCaptureEnabled || fhdCaptureEnabled) CamColors.Yellow else CamColors.TextColor,
+                                    color = if (uhdCaptureEnabled || fhdCaptureEnabled || nightShotMode == "night") CamColors.Yellow else CamColors.TextColor,
                                     fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
         }
     }
 
-    Box(Modifier.fillMaxSize().background(CamColors.Bg).systemBarsPadding()) {
+    Box(Modifier.fillMaxSize().background(CamColors.Bg).navigationBarsPadding().animaTContent()) {
         // A subtle scale/fade pulse makes the reflow feel deliberate without rotating text.
         val orientationMotion = Modifier.graphicsLayer {
             val pulse = kotlin.math.sin(orientationProgress * Math.PI).toFloat()
@@ -2577,9 +2623,9 @@ stabilization = stabilization,
             )
         }
 
-        if (showAiHub) {
-            AiHubBottomSheet(
-                onDismiss = { showAiHub = false },
+        if (showHdmp) {
+            HdmpBottomSheet(
+                onDismiss = { showHdmp = false },
                 uhdEnabled = uhdCaptureEnabled,
                 onUhdEnabledChange = {
                     uhdCaptureEnabled = it
@@ -2589,6 +2635,23 @@ stabilization = stabilization,
                 onFhdEnabledChange = {
                     fhdCaptureEnabled = it
                     if (it) uhdCaptureEnabled = false
+                },
+                nightShotEnabled = nightShotMode == "night",
+                nightShotDurationSeconds = nightShotDurationSeconds,
+                onCycleNightShot = {
+                    if (nightShotMode != "night") {
+                        nightShotMode = "night"
+                        nightShotDurationSeconds = 5
+                    } else {
+                        when (nightShotDurationSeconds) {
+                            5 -> nightShotDurationSeconds = 10
+                            10 -> nightShotDurationSeconds = 3
+                            else -> {
+                                nightShotMode = "off"
+                                nightShotDurationSeconds = 5
+                            }
+                        }
+                    }
                 }
             )
         }
@@ -2907,7 +2970,7 @@ private fun FilterLookDialog(
                                     Modifier.weight(1f).padding(bottom = 8.dp)
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(if (selected) Color(0xFF393326) else CamColors.Card)
-                                        .clickable { onSelectFilter(preset) }.padding(7.dp)
+                                        .animaTClickable { onSelectFilter(preset) }.padding(7.dp)
                                 ) {
                                     Box(
                                         Modifier.fillMaxWidth().height(76.dp)

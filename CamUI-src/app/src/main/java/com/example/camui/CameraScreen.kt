@@ -1490,9 +1490,10 @@ var aiPortraitDepthEnabled by remember {
                 kotlin.math.abs(zoomSel - 1f) < 0.08f
             val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus && !captureRawOnly
             val captureUseFhdAi = fhdCaptureEnabled && !captureRawPlus && !captureRawOnly
-            val captureUseAiSuperResolution = captureUseUhdAi || captureUseFhdAi
             val captureUseFilmAi = activeFilter != "None" && !captureRawPlus && !captureRawOnly
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
+            val captureUseAiSuperResolution =
+                captureUseUhdAi || captureUseFhdAi || captureUseNightShot
             val captureNightShotExtension = nightExtensionActive
             val captureNightDurationSeconds = nightShotDurationSeconds.coerceIn(3, 10)
             val captureUseFiveFrameStack = captureUseUhdAi || captureUseFhdAi
@@ -1929,6 +1930,9 @@ var aiPortraitDepthEnabled by remember {
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
+                                        captureUseNightShot && nightShotMerged && aiDenoiseApplied &&
+                                            aiSuperResolutionApplied && orientationLabelFixed ->
+                                            "Đã lưu NightShot · gộp nhiều khung, NAFNet khử nhiễu và Real-ESRGAN x4plus · ${aiOutputMegapixels}MP."
                                         captureUseNightShot && nightShotMerged && aiDenoiseApplied && orientationLabelFixed ->
                                             "Đã lưu NightShot · gộp nhiều khung và khử nhiễu AI NAFNet."
                                         captureUseFhdAi && aiSuperResolutionApplied && orientationLabelFixed ->

@@ -551,7 +551,7 @@ private fun CameraFrameTemplateCard(
         modifier.clip(RoundedCornerShape(12.dp))
             .background(if (selected) Color(0x553F3822) else CamColors.Card)
             .border(1.dp, if (selected) CamColors.Yellow else CamColors.Stroke, RoundedCornerShape(12.dp))
-            .animaTClickable(onClick)
+            .animaTClickable(onClick = onClick)
             .padding(7.dp)
     ) {
         Box(
@@ -664,7 +664,7 @@ private fun WatermarkTemplateCard(
                 color = if (selected) CamColors.Yellow else Color(0x334C535B),
                 shape = RoundedCornerShape(13.dp)
             )
-            .animaTClickable(onClick)
+            .animaTClickable(onClick = onClick)
             .padding(7.dp)
     ) {
         Box(
@@ -2705,7 +2705,7 @@ fun CameraFrameDialog(
                 verticalAlignment = Alignment.CenterVertically) {
                 Text("Photo Frames", color = CamColors.TextColor, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Text("Đóng", color = CamColors.Yellow,
-                    modifier = Modifier.animaTClickable(onDismiss).padding(6.dp), fontSize = 12.sp)
+                    modifier = Modifier.animaTClickable(onClick = onDismiss).padding(6.dp), fontSize = 12.sp)
             }
             Text("Chọn frame để xem trước và đóng lên ảnh sau khi chụp.",
                 color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))

@@ -713,7 +713,10 @@ fun CameraScreen(
                 if (stabilization) applyStabilization(bound, true)
             }
 
-            val preferJpegR = (ultraHdr || hdrCaptureRequested) &&
+            // When UHD sharpening is requested, prefer OEM HDR JPEG (or software HDR)
+            // so the post-capture 2x sharpening can still run. Explicit Ultra HDR remains
+            // higher priority because its gain map must be preserved without recompression.
+            val preferJpegR = (ultraHdr || (hdrCaptureRequested && !uhdCaptureEnabled)) &&
                 Build.VERSION.SDK_INT >= 34
             preserveUltraHdrOutput = false
             try {
@@ -1107,7 +1110,7 @@ fun CameraScreen(
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
                                         captureIsUltraHdr && orientationLabelFixed ->
-                                            "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và xử lý xoay pixel được bỏ qua để bảo toàn HDR."
+                                            "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR."
                                         captureIsUltraHdr ->
                                             "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map, vui lòng kiểm tra hướng ảnh trong thư viện."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."

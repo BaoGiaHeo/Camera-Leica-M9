@@ -326,21 +326,12 @@ fun CameraScreen(
     val uhdCaptureEnabled = appPrefs.getBoolean("uhd_capture_enabled", false)
     var nightCaptureSeconds by remember { mutableIntStateOf(0) }
     var lowLightDetected by remember { mutableStateOf(false) }
+    var nightExposureInProgress by remember { mutableStateOf(false) }
+    var nightExposureRemaining by remember { mutableIntStateOf(0) }
     var aiCompositionEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("ai_composition_enabled", false))
     }
     var aiCompositionHint by remember { mutableStateOf("Chưa thấy khuôn mặt") }
-    var selectedFrameTemplate by remember {
-        mutableStateOf(appPrefs.getString("selected_frame_template", "none") ?: "none")
-    }
-    var selectedFrameStyle by remember {
-        mutableStateOf(appPrefs.getString("frame_style", "White") ?: "White")
-    }
-    var showFrameDialog by remember { mutableStateOf(false) }
-    val importedFrameUris = remember {
-        context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
-            .getStringSet("frames", emptySet())?.toList()?.sorted() ?: emptyList()
-    }
     val faceDetector: FaceDetector? = remember(aiCompositionEnabled) {
         if (aiCompositionEnabled) {
             val options = FaceDetectorOptions.Builder()
@@ -744,7 +735,7 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
-        if (camera == null || imageCapture == null) return
+        if (camera == null || imageCapture == null || nightExposureInProgress || isProcessing) return
         scope.launch {
             if (timerSec > 0) {
                 for (s in timerSec downTo 1) {
@@ -757,6 +748,22 @@ fun CameraScreen(
             // or switch lenses while the countdown is running.
             val capture = imageCapture ?: return@launch
             val activeCamera = camera ?: return@launch
+            if (nightCaptureSeconds > 0 && mode == "Photo") {
+                nightExposureInProgress = true
+                nightExposureRemaining = nightCaptureSeconds
+                Toast.makeText(
+                    context,
+                    "Đang phơi sáng vui lòng để điện thoại cố định",
+                    Toast.LENGTH_SHORT
+                ).show()
+                scope.launch {
+                    for (second in nightCaptureSeconds downTo 1) {
+                        if (!nightExposureInProgress) break
+                        nightExposureRemaining = second
+                        delay(1000)
+                    }
+                }
+            }
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
                 runCatching { shutterSoundPlayer.play(MediaActionSound.SHUTTER_CLICK) }
@@ -833,6 +840,8 @@ fun CameraScreen(
                 ContextCompat.getMainExecutor(context),
                 object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                        nightExposureInProgress = false
+                        nightExposureRemaining = 0
                         val saved = result.savedUri
                         if (saved != null) {
                             val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -914,6 +923,8 @@ fun CameraScreen(
                         }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
+                        nightExposureInProgress = false
+                        nightExposureRemaining = 0
                         runCatching {
                             camera?.let { Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions() }
                         }
@@ -1061,6 +1072,13 @@ fun CameraScreen(
                                             currentIndex < 0 || currentIndex == choices.lastIndex -> 0
                                             else -> choices[currentIndex + 1]
                                         }
+                                        if (nightCaptureSeconds > 0) {
+                                            Toast.makeText(
+                                                context,
+                                                "Đang phơi sáng vui lòng để điện thoại cố định",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
                                     }
                                     },
                                     tint = if (nightCaptureSeconds > 0) CamColors.Yellow else Color.White
@@ -1176,26 +1194,6 @@ fun CameraScreen(
                                             Offset(0f, size.height * 0.84f),
                                             DrawSize(size.width, size.height * 0.16f)
                                         )
-                                    }
-                                }
-                            }
-                            if (selectedFrameTemplate != "none" && !selectedFrameTemplate.startsWith("custom|")) {
-                                Canvas(Modifier.fillMaxSize()) {
-                                    if (selectedFrameStyle != "Transparent") {
-                                        val inset = size.minDimension * 0.035f
-                                        val frameColor = if (selectedFrameStyle == "Black") Color.Black else Color.White
-                                        val stroke = (size.minDimension * 0.003f).coerceAtLeast(1.5f)
-                                        drawRect(frameColor, topLeft = Offset(inset, inset),
-                                            size = DrawSize(size.width - inset * 2f, size.height - inset * 2f),
-                                            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                                        if (selectedFrameTemplate == "classic" || selectedFrameTemplate == "double" ||
-                                            selectedFrameTemplate == "expo_around"
-                                        ) {
-                                            drawRect(frameColor.copy(alpha = 0.85f),
-                                                topLeft = Offset(inset * 1.55f, inset * 1.55f),
-                                                size = DrawSize(size.width - inset * 3.1f, size.height - inset * 3.1f),
-                                                style = androidx.compose.ui.graphics.drawscope.Stroke(stroke * 0.55f))
-                                        }
                                     }
                                 }
                             }
@@ -1572,13 +1570,6 @@ fun CameraScreen(
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 2.dp),
                             horizontalArrangement = Arrangement.Center) {
                             Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
-                                .clickable { showFrameDialog = true }
-                                .padding(horizontal = 13.dp, vertical = 7.dp)) {
-                                Text("Frame", color = if (selectedFrameTemplate != "none") CamColors.Yellow else Color.White,
-                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            Spacer(Modifier.width(6.dp))
-                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
                                 .clickable { filterDialogVisible = true }
                                 .padding(horizontal = 18.dp, vertical = 7.dp)) {
                                 Text(
@@ -1601,8 +1592,16 @@ fun CameraScreen(
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
                                 .background(if (aiCompositionEnabled) Color(0x66F5C842) else CamColors.Glass)
                                 .clickable {
-                                    aiCompositionEnabled = !aiCompositionEnabled
-                                    appPrefs.edit().putBoolean("ai_composition_enabled", aiCompositionEnabled).apply()
+                                    val enableAi = !aiCompositionEnabled
+                                    aiCompositionEnabled = enableAi
+                                    appPrefs.edit().putBoolean("ai_composition_enabled", enableAi).apply()
+                                    if (enableAi) {
+                                        Toast.makeText(
+                                            context,
+                                            "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                                 .padding(horizontal = 13.dp, vertical = 7.dp)) {
                                 Text(if (aiCompositionEnabled) "AI Bố cục ✓" else "AI Bố cục",
@@ -1684,6 +1683,29 @@ fun CameraScreen(
             Text("$countdown", color = Color.White, fontSize = 88.sp,
                 fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
         }
+        if (nightExposureInProgress) {
+            Box(
+                Modifier.fillMaxSize().background(Color(0xB8000000)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xE61A1A1A)).padding(horizontal = 26.dp, vertical = 24.dp)
+                ) {
+                    Icon(Icons.Default.Bedtime, contentDescription = null,
+                        tint = CamColors.Yellow, modifier = Modifier.size(38.dp))
+                    Text("Đang phơi sáng", color = Color.White, fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+                    Text("Vui lòng để điện thoại cố định", color = CamColors.Sub, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 5.dp))
+                    Text("${nightExposureRemaining}s", color = CamColors.Yellow, fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 9.dp))
+                    Text("Không rung máy cho đến khi hoàn tất", color = CamColors.Sub, fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 3.dp))
+                }
+            }
+        }
         if (isProcessing) {
             Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp, vertical = 18.dp)
                 .fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CamColors.Panel).padding(14.dp)) {
@@ -1698,23 +1720,6 @@ fun CameraScreen(
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                 }
             }
-        }
-
-        if (showFrameDialog) {
-            CameraFrameDialog(
-                selectedTemplate = selectedFrameTemplate,
-                selectedStyle = selectedFrameStyle,
-                customFrames = importedFrameUris,
-                onSelectTemplate = {
-                    selectedFrameTemplate = it
-                    appPrefs.edit().putString("selected_frame_template", it).apply()
-                },
-                onSelectStyle = {
-                    selectedFrameStyle = it
-                    appPrefs.edit().putString("frame_style", it).apply()
-                },
-                onDismiss = { showFrameDialog = false }
-            )
         }
 
         if (filterDialogVisible) {

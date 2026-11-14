@@ -229,7 +229,7 @@ object NafNetDenoiser {
                 )
                 finalBitmap.recycle()
                 finalBitmap = restoredSize
-                Log.i(TAG, "Large JPEG processed within RAM budget and restored to \${originalWidth}x\${originalHeight}")
+                Log.i(TAG, "Large JPEG processed within RAM budget and restored to " + originalWidth + "x" + originalHeight)
             }
 
             FileOutputStream(tempOutput).use { output ->

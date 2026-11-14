@@ -19,6 +19,9 @@ import android.graphics.RectF
 import android.media.ExifInterface
 import android.media.MediaActionSound
 import android.media.MediaPlayer
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.net.Uri
 import android.provider.MediaStore
 import android.content.ContentUris
@@ -72,6 +75,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
@@ -223,6 +227,7 @@ private fun ShutterSoundSettingsPanel() {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var isDownloading by remember { mutableStateOf(false) }
     var isImporting by remember { mutableStateOf(false) }
+    var previewUrl by remember { mutableStateOf<String?>(null) }
 
     val systemPreview = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
@@ -254,11 +259,8 @@ private fun ShutterSoundSettingsPanel() {
     }
 
     fun openSoundSource(url: String) {
-        runCatching {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        }.onFailure {
-            Toast.makeText(context, "Không thể mở trang âm thanh.", Toast.LENGTH_SHORT).show()
-        }
+        // Keep the preview inside Toolbox so users can listen without leaving the camera app.
+        previewUrl = url
     }
 
     val importMp3Launcher = rememberLauncherForActivityResult(
@@ -408,7 +410,7 @@ private fun ShutterSoundSettingsPanel() {
                     Text(option.first, color = Color.White, fontSize = 12.sp)
                     Text(option.second, color = CamColors.Sub, fontSize = 9.sp, maxLines = 2)
                 }
-                TextButton(onClick = { openSoundSource(option.third) }) { Text("Mở nghe thử") }
+                TextButton(onClick = { openSoundSource(option.third) }) { Text("Nghe thử") }
             }
         }
         Text("Preview Fujifilm mở trang Soundsnap để nghe thử. Muốn dùng trong app, tải MP3 theo tài khoản/quyền sử dụng của bạn rồi chọn Import MP3.",
@@ -475,6 +477,62 @@ private fun ShutterSoundSettingsPanel() {
             }
         )
     }
+
+    previewUrl?.let { previewPage ->
+        val previewWebView = remember(previewPage) {
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.mediaPlaybackRequiresUserGesture = true
+                webViewClient = WebViewClient()
+                webChromeClient = WebChromeClient()
+                loadUrl(previewPage)
+            }
+        }
+        DisposableEffect(previewWebView) {
+            onDispose {
+                runCatching {
+                    previewWebView.stopLoading()
+                    previewWebView.loadUrl("about:blank")
+                    previewWebView.destroy()
+                }
+            }
+        }
+        Dialog(
+            onDismissRequest = { previewUrl = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 20.dp)
+                    .height(650.dp).clip(RoundedCornerShape(16.dp))
+                    .background(CamColors.Card).padding(10.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Preview âm thanh · Soundsnap",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { previewUrl = null }) { Text("Đóng") }
+                }
+                AndroidView(
+                    factory = { previewWebView },
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                )
+                Text(
+                    "Để dùng âm thanh này khi chụp, hãy tải MP3 theo quyền sử dụng của bạn rồi chọn Import MP3.",
+                    color = CamColors.Sub,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 7.dp)
+                )
+            }
+        }
+    }
+
 }
 
 @Composable

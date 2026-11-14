@@ -436,6 +436,13 @@ private val fullEnglishUi = mapOf(
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI is still under development. Errors or unexpected results may occur while using this feature.",
     "HDR · Multi-frame" to "HDR · Multi-frame"
+    "Timer" to "Timer",
+    "Quick settings" to "Quick settings",
+    "Đổi camera" to "Switch camera",
+    "Đóng ảnh" to "Close photo",
+    "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "This camera supports neither Ultra HDR nor the HDR extension; switched to standard JPEG.",
+    "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "Multi-frame HDR is active. This camera does not support JPEG_R, so the photo will be saved as JPEG.",
+    "No photos yet" to "No photos yet"
 )
 
 private val fullJapaneseUi = mapOf(
@@ -526,6 +533,12 @@ private val fullJapaneseUi = mapOf(
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI機能は開発中です。使用中にエラーが発生したり、期待と異なる結果になる場合があります。",
     "HDR · Multi-frame" to "HDR · マルチフレーム"
+    "Timer" to "タイマー",
+    "Quick settings" to "クイック設定",
+    "Đổi camera" to "カメラ切替",
+    "Đóng ảnh" to "写真を閉じる",
+    "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "このカメラはUltra HDRにもHDR拡張にも対応していません。標準JPEGに切り替えました。",
+    "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "マルチフレームHDRは有効です。このカメラはJPEG_Rに対応していないため、写真はJPEGで保存されます。"
 )
 
 private val fullKoreanUi = mapOf(
@@ -616,6 +629,12 @@ private val fullKoreanUi = mapOf(
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI 기능은 개발 중입니다. 사용 중 오류가 발생하거나 예상과 다른 결과가 나올 수 있습니다.",
     "HDR · Multi-frame" to "HDR · 멀티 프레임"
+    "Timer" to "타이머",
+    "Quick settings" to "빠른 설정",
+    "Đổi camera" to "카메라 전환",
+    "Đóng ảnh" to "사진 닫기",
+    "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "이 카메라는 Ultra HDR 및 HDR 확장을 지원하지 않아 일반 JPEG로 전환했습니다.",
+    "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "멀티 프레임 HDR이 활성화되었습니다. 이 카메라는 JPEG_R을 지원하지 않아 JPEG로 저장됩니다."
 )
 
 private val fullChineseUi = mapOf(
@@ -706,6 +725,12 @@ private val fullChineseUi = mapOf(
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI 功能仍在开发中，使用过程中可能出现错误或结果不符合预期。",
     "HDR · Multi-frame" to "HDR · 多帧"
+    "Timer" to "定时器",
+    "Quick settings" to "快捷设置",
+    "Đổi camera" to "切换相机",
+    "Đóng ảnh" to "关闭照片",
+    "Camera không hỗ trợ Ultra HDR hoặc HDR Extension; đã chuyển về JPEG SDR." to "此相机不支持 Ultra HDR 或 HDR 扩展，已切换为标准 JPEG。",
+    "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to "多帧 HDR 已启用。此相机不支持 JPEG_R，因此照片将以 JPEG 格式保存。"
 )
 
 private fun translateFullUiText(value: String, language: String): String? {
@@ -721,6 +746,8 @@ private fun translateFullUiText(value: String, language: String): String? {
         language.startsWith("ja") -> listOf(
             "Camera ID " to "カメラID ", "ISO " to "ISO ", "Shutter " to "シャッター ",
             "Tông màu " to "色温度 ", "Auto sẽ lấy tên model của điện thoại: " to "自動では端末モデル名を使用：",
+            "Đã nhập LUT: " to "LUTを読み込みました：",
+            "Không thể khởi tạo HDR hoặc camera: " to "HDRまたはカメラを初期化できません：",
             "Bộ lọc: " to "フィルター：", "AI BỐ CỤC · " to "AI構図 · ",
             "Lỗi chụp ảnh:" to "撮影エラー：", "Không mở được camera:" to "カメラを開けません：",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDRを有効化またはカメラを初期化できません："
@@ -728,6 +755,8 @@ private fun translateFullUiText(value: String, language: String): String? {
         language.startsWith("ko") -> listOf(
             "Camera ID " to "카메라 ID ", "ISO " to "ISO ", "Shutter " to "셔터 ",
             "Tông màu " to "색온도 ", "Auto sẽ lấy tên model của điện thoại: " to "자동으로 휴대전화 모델을 사용합니다: ",
+            "Đã nhập LUT: " to "LUT를 가져왔습니다: ",
+            "Không thể khởi tạo HDR hoặc camera: " to "HDR 또는 카메라를 초기화할 수 없습니다: ",
             "Bộ lọc: " to "필터: ", "AI BỐ CỤC · " to "AI 구도 · ",
             "Lỗi chụp ảnh:" to "촬영 오류:", "Không mở được camera:" to "카메라를 열 수 없습니다:",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDR을 켜거나 카메라를 초기화할 수 없습니다:"
@@ -735,6 +764,8 @@ private fun translateFullUiText(value: String, language: String): String? {
         language.startsWith("zh") -> listOf(
             "Camera ID " to "相机 ID ", "ISO " to "ISO ", "Shutter " to "快门 ",
             "Tông màu " to "色温 ", "Auto sẽ lấy tên model của điện thoại: " to "自动使用手机型号：",
+            "Đã nhập LUT: " to "已导入 LUT：",
+            "Không thể khởi tạo HDR hoặc camera: " to "无法初始化 HDR 或相机：",
             "Bộ lọc: " to "滤镜：", "AI BỐ CỤC · " to "AI 构图 · ",
             "Lỗi chụp ảnh:" to "拍摄错误：", "Không mở được camera:" to "无法打开相机：",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "无法启用 Ultra HDR 或初始化相机："
@@ -742,6 +773,8 @@ private fun translateFullUiText(value: String, language: String): String? {
         else -> listOf(
             "Camera ID " to "Camera ID ", "ISO " to "ISO ", "Shutter " to "Shutter ",
             "Tông màu " to "Color temperature ", "Auto sẽ lấy tên model của điện thoại: " to "Auto uses phone model: ",
+            "Đã nhập LUT: " to "Imported LUT: ",
+            "Không thể khởi tạo HDR hoặc camera: " to "Could not initialize HDR or camera: ",
             "Bộ lọc: " to "Filter: ", "AI BỐ CỤC · " to "AI COMPOSITION · ",
             "Lỗi chụp ảnh:" to "Capture error:", "Không mở được camera:" to "Could not open camera:",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Could not enable Ultra HDR or initialize camera:"
@@ -749,6 +782,20 @@ private fun translateFullUiText(value: String, language: String): String? {
     }
     dynamic.firstOrNull { value.startsWith(it.first) }?.let {
         return it.second + value.removePrefix(it.first)
+    }
+    if (value.startsWith("Bạn chắc chắn muốn xóa LUT ")) {
+        val lutName = value.substringAfter("Bạn chắc chắn muốn xóa LUT ").substringBefore(" khỏi danh sách đã nhập?")
+        return when {
+            language.startsWith("ja") -> "LUT「$lutName」をインポート済みリストから削除しますか？"
+            language.startsWith("ko") -> "가져온 목록에서 LUT \"$lutName\"을(를) 삭제하시겠습니까?"
+            language.startsWith("zh") -> "确定从已导入列表中删除 LUT「$lutName」吗？"
+            else -> "Delete LUT \"$lutName\" from the imported list?"
+        }
+    }
+    Regex("""^Đã nhập LUT: (.+)$""").matchEntire(value)?.let { match ->
+        val name = match.groupValues[1]
+        val prefix = dynamic.firstOrNull { it.first == "Đã nhập LUT: " }?.second ?: "Imported LUT: "
+        return prefix + name
     }
     Regex("""^(\\d+) ảnh$""").matchEntire(value)?.let { match ->
         val count = match.groupValues[1]

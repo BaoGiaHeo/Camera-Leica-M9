@@ -71,11 +71,11 @@ class MainActivity : AppCompatActivity() {
                     "toolbox" -> ToolboxScreen(
                         onBack = { page = "camera" },
                         showGrid = showGrid,
-                        onShowGrid = { showGrid = it },
+                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
                         showHist = showHist,
-                        onShowHist = { showHist = it },
+                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                         focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it }
+                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
                     )
                     "contents" -> ContentManagementScreen(onBack = { page = "camera" })
                     else -> CameraScreen(
@@ -84,13 +84,13 @@ class MainActivity : AppCompatActivity() {
                         onOpenContentManagement = { page = "contents" },
                         onOpenAlbum = { page = "album" },
                         showGrid = showGrid,
-                        onShowGrid = { showGrid = it },
+                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
                         showHist = showHist,
-                        onShowHist = { showHist = it },
+                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                         focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it },
+                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
                         ratioIdx = ratioIdx,
-                        onRatio = { ratioIdx = it }
+                        onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() }
                     )
                 }
                 }

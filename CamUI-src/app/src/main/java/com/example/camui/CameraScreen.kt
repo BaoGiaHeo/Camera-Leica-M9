@@ -1779,7 +1779,7 @@ fun CameraScreen(
                                     captureUseNightShot -> Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
                                     else -> 0
                                 }
-val hdmpAiResult = if (hdmpWorkerCount > 0) {
+                                val hdmpAiResult = if (hdmpWorkerCount > 0) {
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "HDMP AI · kiểm tra model và chuẩn bị xử lý ảnh"
                                         processingProgress = 35

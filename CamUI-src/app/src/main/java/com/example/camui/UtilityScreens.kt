@@ -1394,14 +1394,17 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
                 }
                 "polaroid" -> {
                     val band = RectF(margin, margin, output.width - margin, output.height - margin)
-                    if (!transparent) {
-                        fillPaint.alpha = 255
-                        canvas.drawRect(band, fillPaint)
-                    }
                     val imageInset = margin * 0.55f
                     val imageArea = RectF(band.left + imageInset, band.top + imageInset,
                         band.right - imageInset, band.bottom - margin * 2.35f)
-                    // The inset is a hairline, not an opaque mask: the original photo remains visible.
+                    // Paint only the outside strips. Never fill the whole photo rectangle.
+                    if (!transparent) {
+                        fillPaint.alpha = 255
+                        canvas.drawRect(RectF(band.left, band.top, band.right, imageArea.top), fillPaint)
+                        canvas.drawRect(RectF(band.left, imageArea.top, imageArea.left, imageArea.bottom), fillPaint)
+                        canvas.drawRect(RectF(imageArea.right, imageArea.top, band.right, imageArea.bottom), fillPaint)
+                        canvas.drawRect(RectF(band.left, imageArea.bottom, band.right, band.bottom), fillPaint)
+                    }
                     border(imageArea, stroke * 0.55f)
                     textPaint.textAlign = Paint.Align.CENTER
                     canvas.drawText("INSTANT  /  FUJIFILM", output.width / 2f,
@@ -1414,7 +1417,9 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
                     textPaint.textSize = (minSide * 0.045f).coerceIn(24f, 76f)
                     canvas.drawText("FUJIFILM", output.width / 2f, output.height * 0.52f, textPaint)
                     textPaint.textSize = (minSide * 0.014f).coerceIn(11f, 28f)
+                    detailPaint.textAlign = Paint.Align.CENTER
                     canvas.drawText("X SERIES", output.width / 2f, output.height * 0.55f, detailPaint)
+                    detailPaint.textAlign = Paint.Align.LEFT
                     textPaint.textAlign = Paint.Align.LEFT
                 }
                 "expo_left", "expo_right" -> {
@@ -1436,7 +1441,7 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
                 "expo_around" -> {
                     border(outer, stroke * 1.2f)
                     border(inner, stroke * 0.45f)
-                    caption("EXPO", "CAMERA NOTES  •  ${java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US).format(java.util.Date())}")
+                    caption("EXPO", "EXPO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US).format(java.util.Date())}")
                 }
                 "double" -> {
                     border(outer, stroke * 1.8f)
@@ -1511,7 +1516,7 @@ fun CameraFrameDialog(
                         ) {
                             Text(label, color = if (selectedTemplate == id) CamColors.Yellow else CamColors.TextColor,
                                 fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-                            Text(if (id.startsWith("custom|")) "PNG/JPG đã nhập" else "Frame dựng sẵn",
+                            Text(if (id.startsWith("custom|")) "PNG trong suốt khuyên dùng · JPG có thể che ảnh" else "Frame dựng sẵn",
                                 color = CamColors.Sub, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
                         }
                     }

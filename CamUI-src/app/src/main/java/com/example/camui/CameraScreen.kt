@@ -137,17 +137,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.android.gms.tasks.Tasks
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceDetectorOptions
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetector
-import com.google.mlkit.vision.pose.PoseDetection
-import com.google.mlkit.vision.pose.PoseLandmark
-import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
-import com.google.mlkit.vision.label.ImageLabeling
-import com.google.mlkit.vision.label.ImageLabeler
-import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -399,58 +388,7 @@ fun CameraScreen(
     var starTrailTimerJob by remember { mutableStateOf<Job?>(null) }
     var starTrailExposureStatus by remember { mutableStateOf("Đang kiểm tra hỗ trợ phơi sáng") }
     var lowLightDetected by remember { mutableStateOf(false) }
-    var aiCompositionEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("ai_composition_enabled", false))
-    }
     var showAiHub by remember { mutableStateOf(false) }
-    var aiDirectorVlmEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("ai_director_vlm_enabled", false))
-    }
-var aiPortraitDepthEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("ai_portrait_depth_enabled", false))
-    }
-    LaunchedEffect(aiCompositionEnabled, aiDirectorVlmEnabled, aiPortraitDepthEnabled) {
-        appPrefs.edit()
-            .putBoolean("ai_composition_enabled", aiCompositionEnabled)
-            .putBoolean("ai_director_vlm_enabled", aiDirectorVlmEnabled)
-            .putBoolean("ai_portrait_depth_enabled", aiPortraitDepthEnabled)
-            .apply()
-    }
-    var aiCompositionHint by remember { mutableStateOf("Đang phân tích bố cục và tư thế") }
-    var aiDirectorHint by remember { mutableStateOf("Đang phân tích khung cảnh") }
-    val poseDetector = remember(aiCompositionEnabled) {
-        if (aiCompositionEnabled) {
-            PoseDetection.getClient(
-                PoseDetectorOptions.Builder()
-                    .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
-                    .build()
-            )
-        } else null
-    }
-    DisposableEffect(poseDetector) {
-        onDispose { poseDetector?.close() }
-    }
-    val directorImageLabeler: ImageLabeler? = remember(aiDirectorVlmEnabled) {
-        if (aiDirectorVlmEnabled) ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
-        else null
-    }
-    DisposableEffect(directorImageLabeler) {
-        onDispose { directorImageLabeler?.close() }
-    }
-    val faceDetector: FaceDetector? = remember(aiCompositionEnabled) {
-        if (aiCompositionEnabled) {
-            val options = FaceDetectorOptions.Builder()
-                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
-                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-                .enableTracking()
-                .build()
-            FaceDetection.getClient(options)
-        } else null
-    }
-    DisposableEffect(faceDetector) {
-        onDispose { faceDetector?.close() }
-    }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
@@ -531,7 +469,7 @@ var aiPortraitDepthEnabled by remember {
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, hdrEnabled, nightShotMode,
-        starTrailExposureSeconds, aiCompositionEnabled, mode
+        starTrailExposureSeconds, mode
     ) {
         if (!hasCam) return@LaunchedEffect
         val discoveredCamera2 = if (camera2Inventory.isNotEmpty()) {
@@ -614,7 +552,7 @@ var aiPortraitDepthEnabled by remember {
                 }.getOrNull()
             }
             // HDR Extension is enabled only when the camera can also keep ImageAnalysis.
-            // Limited/Legacy devices use the JPEG_R path instead so histogram/AI still work.
+            // Limited/Legacy devices use the JPEG_R path instead so histogram and metering remain available.
             val analysisCompatibleHardware = hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL ||
                 hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3
             softwareHdrFallback = false
@@ -721,14 +659,14 @@ var aiPortraitDepthEnabled by remember {
                     )
                 }
                 // Off/Low/Medium/High use only the active camera's ISP noise reduction.
-                // High+ adds the strongest NAFNet pass after capture while retaining light ISP NR.
+                // HDMP uses multi-frame averaging; the camera ISP may still apply its standard noise reduction.
                 val availableNrModes = activeFacingId?.let { id ->
                     runCatching {
                         cameraManager.getCameraCharacteristics(id)
                             .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
                     }.getOrNull()
                 }.orEmpty()
-                val preferredNrModes = when (if (uhdCaptureEnabled || fhdCaptureEnabled) "High+" else noiseReduction) {
+                val preferredNrModes = when (noiseReduction) {
                     "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
                     "Low" -> listOf(
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST,
@@ -739,11 +677,6 @@ var aiPortraitDepthEnabled by remember {
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST
                     )
                     "High" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                    )
-                    "High+" -> listOf(
                         CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
                         CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST
@@ -813,9 +746,7 @@ var aiPortraitDepthEnabled by remember {
                 previewUseCase = preview
                 analysisUseCase = analysis
                 var lastAnalysis = 0L
-                var lastAiAnalysis = 0L
-                var lastAiDirectorAnalysis = 0L
-                analysis.setAnalyzer(analysisExecutor) { image ->
+                                analysis.setAnalyzer(analysisExecutor) { image ->
                     try {
                         val now = System.currentTimeMillis()
                         if (now - lastAnalysis > 140) {
@@ -868,103 +799,6 @@ var aiPortraitDepthEnabled by remember {
                             }
                         }
 
-                        if (aiCompositionEnabled && faceDetector != null && now - lastAiAnalysis > 550) {
-                            lastAiAnalysis = now
-                            val mediaImage = image.image
-                            if (mediaImage != null) {
-                                try {
-                                    val input = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
-                                    val faces = Tasks.await(faceDetector.process(input), 600, TimeUnit.MILLISECONDS)
-                                    val largest = faces.maxByOrNull {
-                                        it.boundingBox.width().toLong() * it.boundingBox.height().toLong()
-                                    }
-                                    val pose = poseDetector?.let { detector ->
-                                        runCatching {
-                                            Tasks.await(detector.process(input), 700, TimeUnit.MILLISECONDS)
-                                        }.getOrNull()
-                                    }
-                                    val leftShoulder = pose?.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)
-                                    val rightShoulder = pose?.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER)
-                                    val leftWrist = pose?.getPoseLandmark(PoseLandmark.LEFT_WRIST)
-                                    val rightWrist = pose?.getPoseLandmark(PoseLandmark.RIGHT_WRIST)
-                                    val poseHint = if (pose?.allPoseLandmarks.orEmpty().size >= 12) {
-                                        val shoulderTilt = if (leftShoulder != null && rightShoulder != null) {
-                                            kotlin.math.abs(leftShoulder.position.y - rightShoulder.position.y)
-                                        } else 0f
-                                        when {
-                                            leftShoulder != null && rightShoulder != null &&
-                                                leftWrist != null && rightWrist != null &&
-                                                leftWrist.position.y < leftShoulder.position.y &&
-                                                rightWrist.position.y < rightShoulder.position.y ->
-                                                "Tư thế giơ hai tay · lùi máy để đủ khoảng trống"
-                                            shoulderTilt > image.height * 0.06f ->
-                                                "Vai đang nghiêng · chỉnh vai cân bằng hoặc xoay 15°"
-                                            else -> "Đã nhận diện 33 điểm cơ thể · thả lỏng vai và tay"
-                                        }
-                                    } else null
-                                    val hint = poseHint ?: if (largest == null) {
-                                        "Chưa thấy chủ thể · thử đặt vào một phần ba khung hình"
-                                    } else {
-                                        val bounds = largest.boundingBox
-                                        val rotation = image.imageInfo.rotationDegrees
-                                        val centerX = when (rotation) {
-                                            90 -> 1f - bounds.exactCenterY() / image.height.coerceAtLeast(1)
-                                            180 -> 1f - bounds.exactCenterX() / image.width.coerceAtLeast(1)
-                                            270 -> bounds.exactCenterY() / image.height.coerceAtLeast(1)
-                                            else -> bounds.exactCenterX() / image.width.coerceAtLeast(1)
-                                        }.coerceIn(0f, 1f)
-                                        val visibleCenterX = if (front) 1f - centerX else centerX
-                                        when {
-                                            visibleCenterX < 0.38f -> "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải"
-                                            visibleCenterX > 0.62f -> "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái"
-                                            else -> "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3"
-                                        }
-                                    }
-                                    scope.launch(Dispatchers.Main) { aiCompositionHint = hint }
-                                } catch (error: Exception) {
-                                    android.util.Log.w("FUJI_AI_COMPOSITION", "Face analysis skipped", error)
-                                }
-                            }
-                        }
-
-                        if (aiDirectorVlmEnabled && directorImageLabeler != null &&
-                            now - lastAiDirectorAnalysis > 1400
-                        ) {
-                            lastAiDirectorAnalysis = now
-                            val mediaImage = image.image
-                            if (mediaImage != null) {
-                                try {
-                                    val input = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
-                                    val labels = Tasks.await(
-                                        directorImageLabeler.process(input),
-                                        900,
-                                        TimeUnit.MILLISECONDS
-                                    )
-                                    val sceneLabels = labels
-                                        .filter { it.confidence >= 0.45f }
-                                        .sortedByDescending { it.confidence }
-                                        .map { it.text.lowercase(Locale.ROOT) }
-                                    val directorHint = when {
-                                        sceneLabels.any { it.contains("person") || it.contains("human") } ->
-                                            "Cảnh chân dung · lấy nét mắt, chừa khoảng trống theo hướng nhìn"
-                                        sceneLabels.any { it.contains("food") || it.contains("dish") } ->
-                                            "Cảnh đồ ăn · thử góc 45° hoặc chụp từ trên xuống"
-                                        sceneLabels.any { it.contains("building") || it.contains("architecture") } ->
-                                            "Cảnh kiến trúc · giữ đường thẳng đứng và cân đường chân trời"
-                                        sceneLabels.any { it.contains("mountain") || it.contains("sky") || it.contains("landscape") } ->
-                                            "Cảnh phong cảnh · đặt đường chân trời ở 1/3 khung hình"
-                                        sceneLabels.any { it.contains("plant") || it.contains("flower") || it.contains("animal") } ->
-                                            "Chủ thể thiên nhiên · tiến gần và tách nền để nổi bật chi tiết"
-                                        sceneLabels.any { it.contains("car") || it.contains("vehicle") } ->
-                                            "Cảnh chuyển động · chừa khoảng trống phía trước chủ thể"
-                                        else -> "Giữ chủ thể rõ, tránh nền rối và kiểm tra ánh sáng"
-                                    }
-                                    scope.launch(Dispatchers.Main) { aiDirectorHint = directorHint }
-                                } catch (error: Exception) {
-                                    android.util.Log.w("FUJI_AI_DIRECTOR", "Scene labeling skipped", error)
-                                }
-                            }
-                        }
                     } finally {
                         image.close()
                     }
@@ -1488,20 +1322,12 @@ var aiPortraitDepthEnabled by remember {
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureAtOneX = uhdCaptureEnabled || fhdCaptureEnabled ||
                 kotlin.math.abs(zoomSel - 1f) < 0.08f
-            val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus && !captureRawOnly
-            val captureUseFhdAi = fhdCaptureEnabled && !captureRawPlus && !captureRawOnly
-            val captureUseFilmAi = activeFilter != "None" && !captureRawPlus && !captureRawOnly
+            val captureUseUhdAlgorithm = uhdCaptureEnabled && !captureRawPlus && !captureRawOnly
+            val captureUseFhdAlgorithm = fhdCaptureEnabled && !captureRawPlus && !captureRawOnly
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
-            val captureUseAiSuperResolution =
-                captureUseUhdAi || captureUseFhdAi || captureUseNightShot
             val captureNightShotExtension = nightExtensionActive
             val captureNightDurationSeconds = nightShotDurationSeconds.coerceIn(3, 10)
-            val captureUseFiveFrameStack = captureUseUhdAi || captureUseFhdAi
-            val captureNoiseReduction = when {
-                captureRawPlus -> "Off"
-                captureUseAiSuperResolution || captureUseNightShot -> "High+"
-                else -> noiseReduction
-            }
+            val captureUseFiveFrameStack = captureUseUhdAlgorithm || captureUseFhdAlgorithm
             if (captureUseNightShot) {
                 localizedToast(
                     context,
@@ -1642,11 +1468,10 @@ var aiPortraitDepthEnabled by remember {
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseNightShot -> "NightShot đang xử lý, vui lòng giữ máy"
-                                captureUseUhdAi -> "UHD · ghép 5 khung + AI Photo"
-                                captureUseFhdAi -> "FHD · ghép 5 khung + AI Photo 108MP"
-                                captureUseFilmAi -> "AI đang tối ưu ảnh trước khi áp dụng bộ lọc"
+                                captureUseUhdAlgorithm -> "UHD · ghép 5 khung + nội suy 211MP"
+                                captureUseFhdAlgorithm -> "FHD · ghép 5 khung + nội suy 108MP"
+                                false -> "Đang áp dụng bộ lọc màu"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
-                                supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
                                 else -> "Ảnh đang được xử lý"
                             }
                             runCatching {
@@ -1741,60 +1566,9 @@ var aiPortraitDepthEnabled by remember {
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
-                                val aiDenoiseApplied = if (
-                                    !captureIsUltraHdr && (captureNoiseReduction == "High+" || captureUseFilmAi)
-                                ) {
-                                    val sourceBytes = runCatching {
-                                        context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
-                                    }.getOrNull()?.takeIf { it > 0L } ?: 12L * 1024L * 1024L
-                                    val estimatedDenoiseSeconds = (
-                                        12.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 1.6
-                                    ).toInt().coerceIn(15, 180)
-                                    val denoiseStartedAtMillis = System.currentTimeMillis()
-                                    withContext(Dispatchers.Main) {
-                                        processingLabel = "Nhiễu đang được xử lý"
-                                        noiseReductionProgress = 0
-                                        processingProgress = 36
-                                        processingEtaSeconds = estimatedDenoiseSeconds
-                                    }
-                                    withContext(Dispatchers.IO) {
-                                        runCatching {
-                                            // Mild blend for filter-only AI; stronger denoising in UHD mode.
-                                            val naturalStrength = if (
-                                                captureUseUhdAi || captureUseFhdAi || captureUseNightShot
-                                            ) 0.82f else 0.38f
-                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, naturalStrength) { progress ->
-                                                mainExecutor.execute {
-                                                    val safeProgress = progress.coerceIn(0, 100)
-                                                    val elapsedSeconds = (
-                                                        (System.currentTimeMillis() - denoiseStartedAtMillis) / 1000L
-                                                    ).toInt()
-                                                    val fraction = safeProgress / 100f
-                                                    val remainingSeconds = when {
-                                                        safeProgress >= 100 -> 0
-                                                        safeProgress >= 3 -> (
-                                                            elapsedSeconds / fraction * (1f - fraction)
-                                                        ).toInt().coerceAtLeast(1)
-                                                        else -> (estimatedDenoiseSeconds - elapsedSeconds).coerceAtLeast(1)
-                                                    }
-                                                    noiseReductionProgress = safeProgress
-                                                    processingProgress = (36 + safeProgress * 0.19f)
-                                                        .toInt().coerceIn(36, 55)
-                                                    processingEtaSeconds = remainingSeconds.coerceIn(0, 600)
-                                                    processingLabel = "Nhiễu đang được xử lý"
-                                                }
-                                            }
-                                        }.onFailure {
-                                            android.util.Log.e("FUJI_NAFNET", "NAFNet denoising failed; keep captured original", it)
-                                        }.getOrDefault(false)
-                                    }
-                                } else false
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 56
                                     processingEtaSeconds = -1
-                                    if (captureNoiseReduction == "High+" && !aiDenoiseApplied && !captureIsUltraHdr) {
-                                        processingLabel = "NAFNet không khả dụng · giữ ảnh gốc"
-                                    }
                                 }
                                 val softwareHdrApplied = if (
                                     !captureIsUltraHdr && captureUseSoftwareHdr
@@ -1828,87 +1602,26 @@ var aiPortraitDepthEnabled by remember {
                                     )
                                 }.getOrDefault(false)
 
-                                var aiOutputMegapixels = 0L
-                                val aiSuperResolutionApplied = if (!captureIsUltraHdr && captureUseAiSuperResolution) {
-                                    withContext(Dispatchers.Main) {
-                                        processingLabel = "AI đang xử lý, vui lòng chờ"
-                                        processingProgress = 78
-                                    }
-                                    // Estimate duration from the captured JPEG size. This is an
-                                    // on-device estimate, not a fixed promise: it adapts while the
-                                    // native tiled inference is running and stops at 95% until done.
-                                    val sourceBytes = runCatching {
-                                        context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
-                                    }.getOrNull()?.takeIf { it > 0L } ?: 12L * 1024L * 1024L
-                                    val estimatedAiSeconds = (
-                                        35.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 2.4
-                                    ).toInt().coerceIn(35, 300)
-                                    var aiRenderFinished = false
-                                    val progressTicker = scope.launch {
-                                        val startedAt = System.currentTimeMillis()
-                                        while (!aiRenderFinished) {
-                                            val elapsedSeconds = ((System.currentTimeMillis() - startedAt) / 1000L).toInt()
-                                            val fraction = (elapsedSeconds.toFloat() / estimatedAiSeconds).coerceIn(0f, 1f)
-                                            processingProgress = (78 + fraction * 17f).toInt().coerceIn(78, 95)
-                                            processingEtaSeconds = (estimatedAiSeconds - elapsedSeconds).coerceAtLeast(1)
-                                            delay(500)
-                                        }
-                                    }
-                                    val aiResult = try {
-                                        runCatching {
-                                            NcnnSuperResolution.enhanceCapturedPhoto(
-                                                context, saved,
-                                                if (captureUseUhdAi) 211_000_000L else 108_000_000L
-                                            )
-                                        }.onFailure {
-                                            android.util.Log.e("FUJI_NCNN_SR", "AI enhancement failed", it)
-                                        }.getOrDefault(false)
-                                    } finally {
-                                        aiRenderFinished = true
-                                        progressTicker.cancel()
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        processingProgress = 96
-                                        processingEtaSeconds = 2
-                                    }
-                                    if (aiResult) aiOutputMegapixels = NcnnSuperResolution.lastOutputMegapixels()
-                                    aiResult
-                                } else false
-
-                                // The existing GPU/CPU sharpener remains as a safe fallback if NCNN
-                                // cannot initialize Vulkan, the model asset is unavailable, or inference fails.
-                                val softwareSharpenFallback = if (
-                                    !captureIsUltraHdr && (captureUseAiSuperResolution || captureUseNightShot) && !aiSuperResolutionApplied
+                                val outputResolutionApplied = if (
+                                    !captureIsUltraHdr && captureAtOneX &&
+                                    !captureRawOnly && !captureRawPlus &&
+                                    (captureUseUhdAlgorithm || captureUseFhdAlgorithm || (!captureUseNightShot && noiseReduction != "Off"))
                                 ) {
+                                    val targetPixels = when {
+                                        captureUseUhdAlgorithm -> 211_000_000L
+                                        captureUseFhdAlgorithm -> 108_000_000L
+                                        else -> 211_000_000L
+                                    }
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "AI không khả dụng · chuyển sang làm nét GPU/CPU"
+                                        processingLabel = "Đang nội suy thuật toán lên ${targetPixels / 1_000_000L}MP"
                                         processingProgress = 84
-                                    processingEtaSeconds = 3
-                                    }
-                                    runCatching {
-                                        applySoftwarePhotoEnhancement(
-                                            context,
-                                            saved,
-                                            softwareHdr = false,
-                                            uhdSharpening = true
-                                        )
-                                    }.getOrDefault(false)
-                                } else false
-
-                                val output211MpApplied = if (
-                                    !captureIsUltraHdr && !captureUseAiSuperResolution && captureAtOneX &&
-                                    !captureRawOnly && !captureRawPlus
-                                ) {
-                                    withContext(Dispatchers.Main) {
-                                        processingLabel = "Đang nội suy ảnh lên 211MP"
-                                        processingProgress = 94
                                         processingEtaSeconds = -1
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
-                                            PhotoOutputResolution.interpolateTo211Mp(context, saved)
+                                            PhotoOutputResolution.interpolateToMp(context, saved, targetPixels)
                                         }.onFailure {
-                                            android.util.Log.e("FUJI_211MP", "211MP interpolation failed; keep original", it)
+                                            android.util.Log.e("FUJI_HDMP", "Algorithmic interpolation failed; keep source", it)
                                         }.getOrDefault(false)
                                     }
                                 } else false
@@ -1930,44 +1643,26 @@ var aiPortraitDepthEnabled by remember {
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
-                                        captureUseNightShot && nightShotMerged && aiDenoiseApplied &&
-                                            aiSuperResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu NightShot · gộp nhiều khung, NAFNet khử nhiễu và Real-ESRGAN x4plus · ${aiOutputMegapixels}MP."
-                                        captureUseNightShot && nightShotMerged && aiDenoiseApplied && orientationLabelFixed ->
-                                            "Đã lưu NightShot · gộp nhiều khung và khử nhiễu AI NAFNet."
-                                        captureUseFhdAi && aiSuperResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu FHD · ghép 5 khung, NAFNet khử nhiễu và Real-ESRGAN x4plus · ${aiOutputMegapixels}MP."
-                                        captureUseUhdAi && aiSuperResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu UHD · ghép 5 khung, NAFNet khử nhiễu và Real-ESRGAN x4plus · ${aiOutputMegapixels}MP."
-                                        aiDenoiseApplied && orientationLabelFixed ->
-                                            "Đã lưu ảnh đúng hướng · AI NAFNet đã khử nhiễu ($captureNoiseReduction)."
-                                        captureNoiseReduction != "Off" && !aiDenoiseApplied && !captureIsUltraHdr ->
-                                            "Ảnh đã lưu · NAFNet không chạy được nên giữ ảnh chụp gốc, chưa áp dụng khử nhiễu AI."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
-                                            "NightShot đã gộp nhiều khung hình và giảm nhiễu; ảnh đã được lưu đúng hướng."
+                                            "Đã lưu NightShot · căn chỉnh và trung bình nhiều khung để giảm nhiễu."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
                                             "NightShot đã xử lý bằng chế độ NIGHT của camera."
                                         captureUseNightShot && orientationLabelFixed ->
-                                            "NightShot không ghép đủ khung hình; ảnh chụp gốc vẫn được giữ."
-                                        captureIsUltraHdr && orientationLabelFixed ->
-                                            "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, bộ lọc màu, frame và sharpen UHD hậu kỳ được bỏ qua để bảo toàn HDR."
-                                        captureIsUltraHdr ->
-                                            "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map, vui lòng kiểm tra hướng ảnh trong thư viện."
+                                            "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
+                                        captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
+                                            "Đã lưu UHD · ghép 5 khung và nội suy thuật toán khoảng 211MP."
+                                        captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
+                                            "Đã lưu FHD · ghép 5 khung và nội suy thuật toán khoảng 108MP."
+                                        captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
+                                        captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
                                         stamped && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và có watermark."
                                         stamped -> "Watermark đã đóng nhưng tỉ lệ/hướng ảnh chưa được xác minh."
                                         watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
                                         lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc màu."
                                         lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
-                                        orientationLabelFixed && aiSuperResolutionApplied ->
-                                            "Đã lưu ảnh đúng hướng · Real-ESRGAN x4plus AI Photo, đầu ra mục tiêu khoảng 211MP."
-                                        orientationLabelFixed && output211MpApplied ->
-                                            "Đã lưu ảnh 211MP · nội suy độ phân giải, không làm tăng chi tiết quang học."
-                                        orientationLabelFixed && (softwareHdrApplied || softwareSharpenFallback) ->
-                                            "Đã lưu ảnh đúng hướng; đã áp dụng " + listOfNotNull(
-                                                "Software HDR".takeIf { softwareHdrApplied },
-                                                "GPU/CPU Sharpen 2×".takeIf { softwareSharpenFallback }
-                                            ).joinToString(" + ") + "."
+                                        orientationLabelFixed && outputResolutionApplied -> "Đã lưu ảnh nội suy thuật toán; số pixel tăng, không tăng chi tiết quang học."
+                                        orientationLabelFixed && softwareHdrApplied -> "Đã lưu ảnh đúng hướng; đã áp dụng Software HDR."
                                         orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
@@ -2259,26 +1954,6 @@ var aiPortraitDepthEnabled by remember {
                                         )
                                     }
                                 }
-                            }
-                            if (aiCompositionEnabled) {
-                                Text(
-                                    "AI BỐ CỤC · $aiCompositionHint",
-                                    color = Color.White,
-                                    fontSize = 8.sp,
-                                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
-                                        .clip(RoundedCornerShape(7.dp)).background(Color(0xAA000000))
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                )
-                            }
-                            if (aiDirectorVlmEnabled) {
-                                Text(
-                                    "AI DIRECTOR · $aiDirectorHint",
-                                    color = Color.White,
-                                    fontSize = 8.sp,
-                                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
-                                        .clip(RoundedCornerShape(7.dp)).background(Color(0xAA000000))
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                )
                             }
                             FilmWashLabel(
                                 progress = filmWashProgress.value,
@@ -2722,15 +2397,11 @@ var aiPortraitDepthEnabled by remember {
                             }
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    if (aiCompositionEnabled || aiDirectorVlmEnabled || uhdCaptureEnabled || aiPortraitDepthEnabled)
-                                        Color(0x66F5C842) else CamColors.Glass
-                                )
+                                .background(if (uhdCaptureEnabled || fhdCaptureEnabled) Color(0x66F5C842) else CamColors.Glass)
                                 .clickable { showAiHub = true }
                                 .padding(horizontal = 15.dp, vertical = 7.dp)) {
-                                Text("✨ AI",
-                                    color = if (aiCompositionEnabled || aiDirectorVlmEnabled || uhdCaptureEnabled || aiPortraitDepthEnabled)
-                                        CamColors.Yellow else CamColors.TextColor,
+                                Text("HDMP",
+                                    color = if (uhdCaptureEnabled || fhdCaptureEnabled) CamColors.Yellow else CamColors.TextColor,
                                     fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -2909,10 +2580,6 @@ stabilization = stabilization,
         if (showAiHub) {
             AiHubBottomSheet(
                 onDismiss = { showAiHub = false },
-                compositionEnabled = aiCompositionEnabled,
-                onCompositionChanged = { aiCompositionEnabled = it },
-                directorEnabled = aiDirectorVlmEnabled,
-                onDirectorChanged = { aiDirectorVlmEnabled = it },
                 uhdEnabled = uhdCaptureEnabled,
                 onUhdEnabledChange = {
                     uhdCaptureEnabled = it
@@ -2922,9 +2589,7 @@ stabilization = stabilization,
                 onFhdEnabledChange = {
                     fhdCaptureEnabled = it
                     if (it) uhdCaptureEnabled = false
-                },
-                portraitEnabled = aiPortraitDepthEnabled,
-                onPortraitChanged = { aiPortraitDepthEnabled = it }
+                }
             )
         }
 

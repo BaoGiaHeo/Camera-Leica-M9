@@ -349,8 +349,15 @@ fun CameraScreen(
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val rawCaptureMode = appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg"
     var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
-    LaunchedEffect(uhdCaptureEnabled) {
+    LaunchedEffect(uhdCaptureEnabled, camera) {
         appPrefs.edit().putBoolean("uhd_capture_enabled", uhdCaptureEnabled).apply()
+        if (uhdCaptureEnabled) {
+            ultraHdr = false
+            zoomAnimationJob?.cancel()
+            zoomSel = 1f
+            appPrefs.edit().putFloat("camera_zoom_ratio", 1f).apply()
+            camera?.let { active -> runCatching { active.cameraControl.setZoomRatio(1f) } }
+        }
     }
     // UHD is a dedicated 1x capture mode. Enabling it always returns to the main camera.
     LaunchedEffect(uhdCaptureEnabled, camera) {
@@ -712,7 +719,7 @@ var aiPortraitDepthEnabled by remember {
                             .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
                     }.getOrNull()
                 }.orEmpty()
-                val preferredNrModes = when (noiseReduction) {
+                val preferredNrModes = when (if (uhdCaptureEnabled) "High+" else noiseReduction) {
                     "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
                     "Low" -> listOf(
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST,
@@ -728,6 +735,7 @@ var aiPortraitDepthEnabled by remember {
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST
                     )
                     "High+" -> listOf(
+                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
                         CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST
                     )
@@ -1467,8 +1475,9 @@ var aiPortraitDepthEnabled by remember {
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus
-            val captureUseFilmAi = activeFilter != "None" && !captureRawPlus
+            val captureAtOneX = kotlin.math.abs(zoomSel - 1f) < 0.08f
+            val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus && !captureRawOnly
+            val captureUseFilmAi = activeFilter != "None" && !captureRawPlus && !captureRawOnly
             // UHD forces the strongest available AI denoising pass regardless of the manual NR setting.
             val captureNoiseReduction = when {
                 captureRawPlus -> "Off"
@@ -1718,7 +1727,7 @@ var aiPortraitDepthEnabled by remember {
                                     withContext(Dispatchers.IO) {
                                         runCatching {
                                             // Mild blend for filter-only AI; stronger denoising in UHD mode.
-                                            val naturalStrength = if (captureUseUhdAi) 0.78f else 0.34f
+                                            val naturalStrength = if (captureUseUhdAi) 0.82f else 0.38f
                                             NafNetDenoiser.enhanceCapturedPhoto(context, saved, naturalStrength) { progress ->
                                                 mainExecutor.execute {
                                                     val safeProgress = progress.coerceIn(0, 100)
@@ -1796,8 +1805,8 @@ var aiPortraitDepthEnabled by remember {
                                         context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
                                     }.getOrNull()?.takeIf { it > 0L } ?: 12L * 1024L * 1024L
                                     val estimatedAiSeconds = (
-                                        18.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 1.25
-                                    ).toInt().coerceIn(20, 120)
+                                        35.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 2.4
+                                    ).toInt().coerceIn(35, 300)
                                     var aiRenderFinished = false
                                     val progressTicker = scope.launch {
                                         val startedAt = System.currentTimeMillis()
@@ -1846,6 +1855,24 @@ var aiPortraitDepthEnabled by remember {
                                     }.getOrDefault(false)
                                 } else false
 
+                                val output211MpApplied = if (
+                                    !captureIsUltraHdr && !captureUseUhdAi && captureAtOneX &&
+                                    !captureRawOnly && !captureRawPlus
+                                ) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "Đang nội suy ảnh lên 211MP"
+                                        processingProgress = 94
+                                        processingEtaSeconds = -1
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            PhotoOutputResolution.interpolateTo211Mp(context, saved)
+                                        }.onFailure {
+                                            android.util.Log.e("FUJI_211MP", "211MP interpolation failed; keep original", it)
+                                        }.getOrDefault(false)
+                                    }
+                                } else false
+
                                 val metadataPublished = runCatching {
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
                                     else finalizeCapturedImageMetadata(context, saved)
@@ -1886,7 +1913,9 @@ var aiPortraitDepthEnabled by remember {
                                         lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc màu."
                                         lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
                                         orientationLabelFixed && aiSuperResolutionApplied ->
-                                            "Đã lưu ảnh đúng hướng · Real-ESRGAN NCNN x2 đã làm nét bằng GPU/CPU."
+                                            "Đã lưu ảnh đúng hướng · Real-ESRGAN x4plus AI Photo, đầu ra mục tiêu khoảng 211MP."
+                                        orientationLabelFixed && output211MpApplied ->
+                                            "Đã lưu ảnh 211MP · nội suy độ phân giải, không làm tăng chi tiết quang học."
                                         orientationLabelFixed && (softwareHdrApplied || softwareSharpenFallback) ->
                                             "Đã lưu ảnh đúng hướng; đã áp dụng " + listOfNotNull(
                                                 "Software HDR".takeIf { softwareHdrApplied },

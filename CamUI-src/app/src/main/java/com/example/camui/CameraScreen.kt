@@ -307,6 +307,11 @@ fun CameraScreen(
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
     var focusDiopter by remember { mutableFloatStateOf(0f) }
+    var liveAperture by remember { mutableStateOf<Float?>(null) }
+    var liveFocalMm by remember { mutableStateOf<Float?>(null) }
+    var camera2Inventory by remember { mutableStateOf(emptyList<CamDetails>()) }
+    var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
+    var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
     var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
@@ -414,10 +419,27 @@ fun CameraScreen(
         manualCaptureRevision, uhdCaptureEnabled, hdrEnabled, nightCaptureSeconds, aiCompositionEnabled, mode
     ) {
         if (!hasCam) return@LaunchedEffect
+        val discoveredCamera2 = if (camera2Inventory.isNotEmpty()) {
+            camera2Inventory
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { Camera2Info.listCameras(context) }.getOrDefault(emptyList())
+            }.also { camera2Inventory = it }
+        }
+        if (discoveredCamera2.isNotEmpty()) {
+            android.util.Log.i(
+                "FUJI_CAMERA2",
+                "Discovered ${discoveredCamera2.size} logical/physical camera entries"
+            )
+        }
         val bindGeneration = ++cameraBindGeneration
         // Disable shutter immediately while the old UseCaseGroup is being replaced.
         camera = null
         imageCapture = null
+        activeCameraDetails = null
+        activePhysicalCameraDetails = emptyList()
+        liveAperture = null
+        liveFocalMm = null
         captureSetupReady = false
         preserveUltraHdrOutput = false
         previewUseCase = null
@@ -480,6 +502,9 @@ fun CameraScreen(
                 3 -> Rational(1, 1)
                 else -> if (isLandscape) Rational(21, 9) else Rational(9, 21)
             }
+            // Updated after CameraX binds so live capture results use the actual logical camera,
+            // not the first camera ID returned by CameraManager.
+            var activeCameraCharacteristics: CameraCharacteristics? = null
 
             fun bindCapture(outputFormat: Int) {
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
@@ -490,9 +515,13 @@ fun CameraScreen(
                             request: CaptureRequest,
                             result: TotalCaptureResult
                         ) {
-                            result.get(CaptureResult.SENSOR_SENSITIVITY)?.let { iso = it }
-                            result.get(CaptureResult.SENSOR_EXPOSURE_TIME)?.let { shutterNs = it }
-                            result.get(CaptureResult.LENS_FOCUS_DISTANCE)?.let { focusDiopter = it }
+                            val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            live.iso?.let { if (iso != it) iso = it }
+                            live.shutterNs?.let { if (shutterNs != it) shutterNs = it }
+                            live.focusDiopter?.let { if (focusDiopter != it) focusDiopter = it }
+                            live.aperture?.let { if (liveAperture != it) liveAperture = it }
+                            live.focalMm?.let { if (liveFocalMm != it) liveFocalMm = it }
+                            live.evIndex?.let { if (evIndex != it) evIndex = it }
                         }
                     }
                 )
@@ -692,6 +721,28 @@ fun CameraScreen(
                 val bound = provider.bindToLifecycle(lifecycleOwner, selector, group)
                 camera = bound
                 imageCapture = capture
+
+                val actualCamera2Info = runCatching {
+                    Camera2CameraInfo.from(bound.cameraInfo)
+                }.getOrNull()
+                val actualCameraId = actualCamera2Info?.cameraId
+                activeCameraCharacteristics = actualCameraId?.let { id ->
+                    runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
+                }
+                activeCameraDetails = discoveredCamera2.firstOrNull {
+                    it.id == actualCameraId && it.parentId == null
+                }
+                activePhysicalCameraDetails = discoveredCamera2.filter {
+                    it.parentId == actualCameraId
+                }
+                liveAperture = activeCameraDetails?.apertures?.firstOrNull()
+                liveFocalMm = activeCameraDetails?.focalLengthsMm?.firstOrNull()
+                android.util.Log.i(
+                    "FUJI_CAMERA2_ACTIVE",
+                    "CameraX bound cameraId=${actualCameraId ?: "unknown"}, " +
+                        "hardware=${activeCameraDetails?.hardwareLevel ?: "unknown"}, " +
+                        "physicalIds=${activeCameraDetails?.physicalIds ?: emptySet<String>()}"
+                )
                 boundCameraRotation = rotation
                 boundCameraLandscape = isLandscape
                 boundCameraRatioIdx = ratioIdx
@@ -1524,33 +1575,67 @@ fun CameraScreen(
 
     val controlsContent: @Composable (Modifier) -> Unit = { controlsModifier ->
         Column(controlsModifier) {
-                        // Only show values exposed by this camera's zoom range.
+                        // Lens quick-select values come from the physical cameras exposed by
+                        // this logical CameraX camera, then are clamped to its real zoom range.
                         val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
                         val zoomMaxForUi = min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
                         val zoomMinForUi = zoomStateForUi?.minZoomRatio ?: 1f
-                        val zoomSteps = listOf(0.6f, 0.7f, 1f, 2f)
-                            .filter { it >= zoomMinForUi - 0.01f && it <= zoomMaxForUi + 0.01f }
-                            .ifEmpty { listOf(zoomMinForUi.coerceAtMost(2f)) }
+                        val zoomSteps = Camera2Info.opticalZoomStops(
+                            logical = activeCameraDetails,
+                            physical = activePhysicalCameraDetails,
+                            minZoom = zoomMinForUi,
+                            maxZoom = zoomMaxForUi
+                        )
                         val activeCameraIdLabel = cameraInfo2?.cameraId ?: "—"
-                        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                            zoomSteps.forEach { z ->
-                                val selectedZoom = abs(zoomSel - z) < 0.08f
-                                val label = if (z < 1f) String.format(Locale.US, "%.1f×", z) else "${z.toInt()}×"
-                                Text(label,
-                                    color = if (selectedZoom) CamColors.Yellow else CamColors.TextColor,
-                                    fontWeight = if (selectedZoom) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            val next = z.coerceIn(zoomMinForUi, zoomMaxForUi)
-                                            animateZoomTo(next)
-                                        }.padding(horizontal = 5.dp, vertical = 3.dp)
-                                )
+                        val hardwareLabel = activeCameraDetails?.hardwareLevel ?: "—"
+                        val physicalIdLabel = activeCameraDetails?.physicalIds
+                            ?.takeIf { it.isNotEmpty() }
+                            ?.joinToString(",")
+                            ?: "không công khai"
+                        val apertureForUi = liveAperture ?: activeCameraDetails?.apertures?.firstOrNull()
+                        val focalForUi = liveFocalMm ?: activeCameraDetails?.focalLengthsMm?.firstOrNull()
+                        val lensInfoLabel = buildList {
+                            apertureForUi?.let { add(String.format(Locale.US, "f/%.1f", it)) }
+                            focalForUi?.let { add(String.format(Locale.US, "%.1fmm", it)) }
+                            activeCameraDetails?.eq35Mm?.let {
+                                add(String.format(Locale.US, "eq %.0fmm", it))
                             }
-                            Text("Camera ID $activeCameraIdLabel", color = CamColors.Sub, fontSize = 8.sp,
-                                modifier = Modifier.padding(start = 5.dp))
+                        }.joinToString(" · ")
+                        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally) {
+                            Row(Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically) {
+                                zoomSteps.forEach { z ->
+                                    val selectedZoom = abs(zoomSel - z) < 0.08f
+                                    val label = if (z < 1f || abs(z - z.toInt()) > 0.01f) {
+                                        String.format(Locale.US, "%.1f×", z)
+                                    } else {
+                                        "${z.toInt()}×"
+                                    }
+                                    Text(label,
+                                        color = if (selectedZoom) CamColors.Yellow else CamColors.TextColor,
+                                        fontWeight = if (selectedZoom) FontWeight.Bold else FontWeight.Medium,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                val next = z.coerceIn(zoomMinForUi, zoomMaxForUi)
+                                                animateZoomTo(next)
+                                            }.padding(horizontal = 5.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                buildString {
+                                    append("Camera ID $activeCameraIdLabel · $hardwareLabel")
+                                    append(" · Physical: $physicalIdLabel")
+                                    if (lensInfoLabel.isNotBlank()) append(" · $lensInfoLabel")
+                                },
+                                color = CamColors.Sub,
+                                fontSize = 8.sp,
+                                maxLines = 1
+                            )
                         }
             
                         val selected = proSel

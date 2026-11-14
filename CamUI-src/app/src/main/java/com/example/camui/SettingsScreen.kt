@@ -365,7 +365,7 @@ private fun SettingsDetailPage(
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
                     "HDR · Multi-frame",
-                    "Ưu tiên HDR nhiều mức phơi sáng từ CameraX/OEM. Nếu máy không có HDR Extension, ứng dụng thử Ultra HDR JPEG_R khi camera hỗ trợ. Quá trình hợp nhất dùng pipeline xử lý của thiết bị; Android không cho ứng dụng ép chọn riêng GPU hay CPU.",
+                    "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, app dùng Software HDR bằng OpenGL ES hoặc CPU (tone-mapping một ảnh; không khôi phục được vùng đã cháy sáng).",
                     hdr
                 ) {
                     hdr = it
@@ -376,7 +376,7 @@ private fun SettingsDetailPage(
                 }
                 SettingsSwitch(
                     "UHD · Độ phân giải tối đa",
-                    "Yêu cầu CameraX chọn kích thước JPEG lớn nhất mà camera đang dùng hỗ trợ; không nội suy vượt cảm biến.",
+                    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng shader GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến.",
                     uhd
                 ) {
                     uhd = it

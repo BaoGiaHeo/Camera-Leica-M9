@@ -7,6 +7,7 @@ import android.content.Context
 import android.graphics.Point
 import android.graphics.ImageFormat
 import android.media.MediaActionSound
+import android.media.MediaPlayer
 import android.os.Build
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -194,6 +195,32 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
+private fun playConfiguredShutterSound(
+    prefs: android.content.SharedPreferences,
+    systemPlayer: MediaActionSound
+) {
+    val selected = prefs.getString("shutter_sound_selected", "system")
+    val filePath = prefs.getString("shutter_sound_file_path", null)
+    if (selected == "local" && !filePath.isNullOrBlank() && File(filePath).isFile) {
+        val player = MediaPlayer()
+        try {
+            player.setDataSource(filePath)
+            player.setOnPreparedListener { prepared -> prepared.start() }
+            player.setOnCompletionListener { completed -> completed.release() }
+            player.setOnErrorListener { failed, _, _ ->
+                failed.release()
+                true
+            }
+            player.prepareAsync()
+            return
+        } catch (failure: Throwable) {
+            runCatching { player.release() }
+            android.util.Log.w("FUJI_SHUTTER_SOUND", "Custom MP3 failed; using system shutter sound", failure)
+        }
+    }
+    runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+}
+
 @Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,
@@ -298,6 +325,7 @@ fun CameraScreen(
     val filmWashProgress = remember { Animatable(0f) }
     var isProcessing by remember { mutableStateOf(false) }
     var processingProgress by remember { mutableIntStateOf(0) }
+    var noiseReductionProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
     val shutterSoundPlayer = remember {
@@ -647,22 +675,40 @@ fun CameraScreen(
                             .build()
                     )
                 }
-                // NAFNet performs the main denoising pass after the JPEG is saved.
-                // Disable vendor NR when possible to avoid stacking two aggressive smoothers.
+                // Off/Low/Medium/High use only the active camera's ISP noise reduction.
+                // High+ adds the strongest NAFNet pass after capture while retaining light ISP NR.
                 val availableNrModes = activeFacingId?.let { id ->
                     runCatching {
                         cameraManager.getCameraCharacteristics(id)
                             .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
                     }.getOrNull()
                 }.orEmpty()
-                val effectiveNrMode = when {
-                    CaptureRequest.NOISE_REDUCTION_MODE_OFF in availableNrModes ->
-                        CaptureRequest.NOISE_REDUCTION_MODE_OFF
-                    noiseReduction != "Off" &&
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL in availableNrModes ->
+                val preferredNrModes = when (noiseReduction) {
+                    "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
+                    "Low" -> listOf(
+                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
                         CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL
-                    else -> null
+                    )
+                    "Medium" -> listOf(
+                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
+                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
+                    )
+                    "High" -> listOf(
+                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
+                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
+                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
+                    )
+                    "High+" -> listOf(
+                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
+                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
+                    )
+                    else -> listOf(
+                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
+                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
+                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                    )
                 }
+                val effectiveNrMode = preferredNrModes.firstOrNull { it in availableNrModes }
                 if (effectiveNrMode != null && !hdrExtensionActive && !nightExtensionActive) {
                     Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(
                         CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
@@ -1097,7 +1143,7 @@ fun CameraScreen(
         previewUseCase?.targetRotation = captureRotation
         analysisUseCase?.targetRotation = captureRotation
         if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-            runCatching { shutterSoundPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+            playConfiguredShutterSound(appPrefs, shutterSoundPlayer)
         }
 
         val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -1336,7 +1382,7 @@ fun CameraScreen(
             }
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-                runCatching { shutterSoundPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+                playConfiguredShutterSound(appPrefs, shutterSoundPlayer)
             }
             val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
             scope.launch {
@@ -1548,25 +1594,42 @@ fun CameraScreen(
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val aiDenoiseApplied = if (
-                                    !captureIsUltraHdr && captureNoiseReduction != "Off"
+                                    !captureIsUltraHdr && captureNoiseReduction == "High+"
                                 ) {
+                                    val sourceBytes = runCatching {
+                                        context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
+                                    }.getOrNull()?.takeIf { it > 0L } ?: 12L * 1024L * 1024L
+                                    val estimatedDenoiseSeconds = (
+                                        12.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 1.6
+                                    ).toInt().coerceIn(15, 180)
+                                    val denoiseStartedAtMillis = System.currentTimeMillis()
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "NAFNet AI đang khử nhiễu · $captureNoiseReduction"
+                                        processingLabel = "Nhiễu đang được xử lý"
+                                        noiseReductionProgress = 0
                                         processingProgress = 36
-                                        processingEtaSeconds = -1
-                                    }
-                                    val strength = when (captureNoiseReduction) {
-                                        "Low" -> 0.40f
-                                        "High" -> 1.00f
-                                        else -> 0.70f
+                                        processingEtaSeconds = estimatedDenoiseSeconds
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
-                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, strength) { progress ->
+                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, 1.0f) { progress ->
                                                 mainExecutor.execute {
-                                                    processingProgress = (36 + progress * 0.19f)
+                                                    val safeProgress = progress.coerceIn(0, 100)
+                                                    val elapsedSeconds = (
+                                                        (System.currentTimeMillis() - denoiseStartedAtMillis) / 1000L
+                                                    ).toInt()
+                                                    val fraction = safeProgress / 100f
+                                                    val remainingSeconds = when {
+                                                        safeProgress >= 100 -> 0
+                                                        safeProgress >= 3 -> (
+                                                            elapsedSeconds / fraction * (1f - fraction)
+                                                        ).toInt().coerceAtLeast(1)
+                                                        else -> (estimatedDenoiseSeconds - elapsedSeconds).coerceAtLeast(1)
+                                                    }
+                                                    noiseReductionProgress = safeProgress
+                                                    processingProgress = (36 + safeProgress * 0.19f)
                                                         .toInt().coerceIn(36, 55)
-                                                    processingLabel = "NAFNet AI đang khử nhiễu · $captureNoiseReduction"
+                                                    processingEtaSeconds = remainingSeconds.coerceIn(0, 600)
+                                                    processingLabel = "Nhiễu đang được xử lý"
                                                 }
                                             }
                                         }.onFailure {
@@ -1576,7 +1639,8 @@ fun CameraScreen(
                                 } else false
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 56
-                                    if (captureNoiseReduction != "Off" && !aiDenoiseApplied && !captureIsUltraHdr) {
+                                    processingEtaSeconds = -1
+                                    if (captureNoiseReduction == "High+" && !aiDenoiseApplied && !captureIsUltraHdr) {
                                         processingLabel = "NAFNet không khả dụng · giữ ảnh gốc"
                                     }
                                 }
@@ -2604,14 +2668,17 @@ fun CameraScreen(
         if (isProcessing) {
             Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp, vertical = 18.dp)
                 .fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CamColors.Panel).padding(14.dp)) {
+                val visibleProgress = if (processingLabel == "Nhiễu đang được xử lý") {
+                    noiseReductionProgress
+                } else processingProgress
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(processingLabel, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    Text("$processingProgress%", color = CamColors.Yellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("$visibleProgress%", color = CamColors.Yellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
-                    drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * processingProgress / 100f, size.height),
+                    drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                 }
                 if (processingEtaSeconds >= 0) {

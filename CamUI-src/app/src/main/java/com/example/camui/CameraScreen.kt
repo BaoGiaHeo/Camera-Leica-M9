@@ -328,7 +328,7 @@ fun CameraScreen(
     }
     var preserveUltraHdrOutput by remember { mutableStateOf(false) }
     var softwareHdrFallback by remember { mutableStateOf(false) }
-    var nightCaptureSeconds by remember { mutableIntStateOf(0) }
+    var nightCaptureSeconds by remember { mutableIntStateOf(appPrefs.getInt("night_capture_seconds", 0).coerceIn(0, 8)) }
     var lowLightDetected by remember { mutableStateOf(false) }
     var nightExposureInProgress by remember { mutableStateOf(false) }
     var nightExposureRemaining by remember { mutableIntStateOf(0) }
@@ -351,7 +351,7 @@ fun CameraScreen(
         onDispose { faceDetector?.close() }
     }
     LaunchedEffect(
-        mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
+        mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering, nightCaptureSeconds,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex
     ) {
@@ -364,6 +364,7 @@ fun CameraScreen(
             .putBoolean("camera_stabilization_enabled", stabilization)
             .putString("camera_render_engine", renderEngine)
             .putInt("camera_metering_index", metering)
+            .putInt("night_capture_seconds", nightCaptureSeconds)
             .putBoolean("pro_manual_exposure_enabled", manualExposure)
             .putBoolean("pro_manual_iso_enabled", manualIsoEnabled)
             .putBoolean("pro_manual_shutter_enabled", manualShutterEnabled)

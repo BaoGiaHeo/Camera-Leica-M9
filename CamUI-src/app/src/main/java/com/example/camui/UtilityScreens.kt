@@ -998,7 +998,7 @@ private fun WatermarkTemplateCard(
                         .padding(horizontal = 6.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("REDMI Turbo 4 Pro", color = textColor, fontSize = 6.sp,
+                    Text(android.os.Build.MODEL, color = textColor, fontSize = 6.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.43f), maxLines = 1)
                     Column(Modifier.weight(0.57f), horizontalAlignment = Alignment.End) {
                         Text("23mm · f/2.0 · 1/125s · ISO 400", color = textColor,

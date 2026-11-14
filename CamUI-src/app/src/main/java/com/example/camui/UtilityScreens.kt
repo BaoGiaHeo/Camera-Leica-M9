@@ -117,6 +117,7 @@ fun ToolboxScreen(
         ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
         ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
             focusPeaking, onFocusPeaking)
+        CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         ToolToggle("Enable Watermark", "Khung ảnh phong cách rangefinder, không có logo thương hiệu",
@@ -218,6 +219,201 @@ fun ToolboxScreen(
             shutterSound = it
             prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
         }
+    }
+}
+
+
+@Composable
+private fun CameraFrameSettingsPanel() {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    val contentPrefs = remember { context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE) }
+    var selectedTemplate by remember {
+        mutableStateOf(prefs.getString("selected_frame_template", "none") ?: "none")
+    }
+    var selectedStyle by remember {
+        mutableStateOf(prefs.getString("frame_style", "White") ?: "White")
+    }
+    val customFrames = remember {
+        mutableStateListOf<String>().apply {
+            addAll(contentPrefs.getStringSet("frames", emptySet())?.toList()?.sorted() ?: emptyList())
+        }
+    }
+    val builtIn = listOf(
+        "none" to "Tắt frame",
+        "classic" to "Classic Card",
+        "clean" to "Clean Corners",
+        "film" to "35mm Film",
+        "polaroid" to "Instant / Polaroid",
+        "logo" to "Center Logo",
+        "expo_around" to "Expo Around",
+        "expo_left" to "Expo Left",
+        "expo_right" to "Expo Right",
+        "double" to "Double Line"
+    )
+    val allFrames = builtIn + customFrames.map { uri ->
+        "custom|$uri" to documentDisplayName(context, Uri.parse(uri))
+    }
+
+    Spacer(Modifier.height(20.dp))
+    Text("Photo Frame", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+    Text(
+        "Chọn frame tại đây. Frame được đóng lên ảnh sau khi chụp; không còn nút Frame ở màn hình chụp.",
+        color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+    )
+    allFrames.chunked(2).forEach { row ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            row.forEach { (id, title) ->
+                CameraFrameTemplateCard(
+                    id = id,
+                    title = title,
+                    frameStyle = selectedStyle,
+                    selected = selectedTemplate == id,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        selectedTemplate = id
+                        prefs.edit().putString("selected_frame_template", id).apply()
+                    }
+                )
+            }
+            if (row.size == 1) Spacer(Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+    Text("Màu frame", color = CamColors.Sub, fontSize = 12.sp,
+        modifier = Modifier.padding(top = 5.dp, bottom = 7.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("White", "Black", "Transparent").forEach { style ->
+            Chip(style, selectedStyle == style, {
+                selectedStyle = style
+                prefs.edit().putString("frame_style", style).apply()
+            }, Modifier.weight(1f))
+        }
+    }
+    Text(
+        "Transparent bỏ viền và panel của frame dựng sẵn; với frame PNG sẽ giữ nguyên độ trong suốt gốc.",
+        color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp)
+    )
+    if (customFrames.isEmpty()) {
+        Text("Muốn thêm frame PNG/JPG, vào Contents Management → Frame Manage → Import Frame.",
+            color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+@Composable
+private fun CameraFrameTemplateCard(
+    id: String,
+    title: String,
+    frameStyle: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val lineColor = when (frameStyle) {
+        "Black" -> Color.Black
+        "Transparent" -> Color.Transparent
+        else -> Color.White
+    }
+    val fillColor = when (frameStyle) {
+        "Black" -> Color.Black
+        "White" -> Color.White
+        else -> Color.Transparent
+    }
+    val textColor = if (frameStyle == "White") Color.Black else Color.White
+    Column(
+        modifier.clip(RoundedCornerShape(12.dp))
+            .background(if (selected) Color(0x553F3822) else CamColors.Card)
+            .border(1.dp, if (selected) CamColors.Yellow else CamColors.Stroke, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(7.dp)
+    ) {
+        Box(
+            Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(7.dp))
+                .background(Color(0xFF536C60))
+        ) {
+            ComposeCanvas(Modifier.fillMaxSize()) {
+                drawRect(Color(0xFF748678))
+                drawCircle(Color(0xFFFFD79A), size.minDimension * 0.10f,
+                    Offset(size.width * 0.78f, size.height * 0.24f))
+                drawLine(Color(0xFF344D41), Offset(0f, size.height * 0.64f),
+                    Offset(size.width, size.height * 0.57f), size.height * 0.22f)
+                drawLine(Color(0xFF293B32), Offset(0f, size.height * 0.86f),
+                    Offset(size.width, size.height * 0.76f), size.height * 0.23f)
+                if (!id.startsWith("custom|") && id != "none" && frameStyle != "Transparent") {
+                    val inset = size.minDimension * 0.075f
+                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = (size.minDimension * 0.025f).coerceAtLeast(1.2f)
+                    )
+                    when (id) {
+                        "clean" -> {
+                            val arm = size.minDimension * 0.16f
+                            for (sx in listOf(1f, -1f)) for (sy in listOf(1f, -1f)) {
+                                val x = if (sx > 0f) inset else size.width - inset
+                                val y = if (sy > 0f) inset else size.height - inset
+                                drawLine(lineColor, Offset(x, y), Offset(x + arm * sx, y), strokeWidth = stroke.width)
+                                drawLine(lineColor, Offset(x, y), Offset(x, y + arm * sy), strokeWidth = stroke.width)
+                            }
+                        }
+                        "film" -> {
+                            drawRect(lineColor, topLeft = Offset(inset, inset),
+                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
+                                style = stroke)
+                            val holeW = size.width * 0.045f
+                            for (n in 0..8) {
+                                val x = size.width * 0.08f + n * size.width * 0.105f
+                                drawRoundRect(lineColor, Offset(x, 2f), androidx.compose.ui.geometry.Size(holeW, 4f))
+                                drawRoundRect(lineColor, Offset(x, size.height - 6f), androidx.compose.ui.geometry.Size(holeW, 4f))
+                            }
+                        }
+                        "logo" -> {
+                            drawRect(lineColor, topLeft = Offset(inset, inset),
+                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
+                                style = stroke)
+                            drawLine(lineColor, Offset(size.width * 0.34f, size.height * 0.50f),
+                                Offset(size.width * 0.66f, size.height * 0.50f), strokeWidth = stroke.width)
+                        }
+                        "expo_left", "expo_right" -> {
+                            val band = size.width * 0.10f
+                            drawRect(fillColor, topLeft = Offset(if (id == "expo_left") 0f else size.width - band, 0f),
+                                size = androidx.compose.ui.geometry.Size(band, size.height))
+                            drawRect(lineColor, topLeft = Offset(inset, inset),
+                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
+                                style = stroke)
+                        }
+                        "polaroid" -> {
+                            drawRect(fillColor, topLeft = Offset(inset, inset),
+                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2))
+                            drawRect(Color(0xFF748678), topLeft = Offset(inset * 1.6f, inset * 1.6f),
+                                size = androidx.compose.ui.geometry.Size(size.width - inset * 3.2f, size.height - inset * 4f))
+                        }
+                        else -> {
+                            drawRect(lineColor, topLeft = Offset(inset, inset),
+                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
+                                style = stroke)
+                            if (id == "double" || id == "expo_around") {
+                                drawRect(lineColor, topLeft = Offset(inset * 1.8f, inset * 1.8f),
+                                    size = androidx.compose.ui.geometry.Size(size.width - inset * 3.6f, size.height - inset * 3.6f),
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke.width * 0.65f))
+                            }
+                        }
+                    }
+                }
+            }
+            if (id.startsWith("custom|")) {
+                Text("PNG / JPG", color = Color.White, fontSize = 8.sp,
+                    modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xAA000000))
+                        .padding(horizontal = 4.dp, vertical = 2.dp))
+            }
+            if (id == "none") {
+                Text("ORIGINAL", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Center).background(Color(0xAA000000)).padding(5.dp))
+            }
+        }
+        Text(title, color = if (selected) CamColors.Yellow else CamColors.TextColor,
+            fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            modifier = Modifier.padding(top = 6.dp))
+        Text(if (id.startsWith("custom|")) "Imported frame" else "Preview · $frameStyle",
+            color = CamColors.Sub, fontSize = 9.sp, maxLines = 1)
     }
 }
 

@@ -42,7 +42,7 @@ android {
 }
 
 dependencies {
-    val camerax = "1.4.0"
+    val camerax = "1.6.2"
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
@@ -58,6 +58,7 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-extensions:$camerax")
     // Bundled on-device ML Kit model: no first-run model download required for framing guidance.
     implementation("com.google.mlkit:face-detection:16.1.7")
 }

@@ -364,6 +364,9 @@ private fun SettingsDetailPage(
                     onShowGrid(prefs.getBoolean("viewfinder_grid_enabled", true))
                     onShowHist(prefs.getBoolean("viewfinder_histogram_enabled", true))
                     onFocusPeaking(prefs.getBoolean("viewfinder_focus_peaking_enabled", false))
+                    val restoredLanguage = prefs.getString("app_language", "system") ?: "system"
+                    val languageTag = if (restoredLanguage == "system") "" else restoredLanguage
+                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
                 })
             }
             "Photo Mode Setting" -> {

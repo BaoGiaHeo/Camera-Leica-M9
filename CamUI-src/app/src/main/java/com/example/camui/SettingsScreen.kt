@@ -158,7 +158,9 @@ private fun SettingsDetailPage(
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_coming_soon", false)) }
-    var uhd by remember { mutableStateOf(prefs.getBoolean("uhd_coming_soon", false)) }
+    var uhd by remember {
+        mutableStateOf(prefs.getBoolean("uhd_capture_enabled", prefs.getBoolean("uhd_coming_soon", false)))
+    }
     var selectedBackground by remember { mutableStateOf(prefs.getString("app_background_color", "#121212") ?: "#121212") }
     var backgroundImageUri by remember { mutableStateOf(prefs.getString("app_background_image_uri", null)) }
     var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFFFFFFF") ?: "#FFFFFFFF") }
@@ -289,7 +291,7 @@ private fun SettingsDetailPage(
             }
             "Appearance" -> {
                 Text("App background", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                Text("Chọn màu nền tối hoặc dùng ảnh trong máy làm hình nền. Ảnh được phủ lớp tối để chữ và nút camera vẫn dễ đọc.",
+                Text("Ảnh bạn chọn sẽ làm nền chung cho camera, cài đặt, album và các công cụ. Các bảng điều khiển sẽ bán trong suốt để không che kín hình nền.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -365,9 +367,16 @@ private fun SettingsDetailPage(
                     hdr = it
                     prefs.edit().putBoolean("hdr_coming_soon", it).apply()
                 }
-                SettingsSwitch("UHD · SUPIR AI Render", "Coming soon · SUPIR cần SDXL + LLaVA và GPU ngoài; APK hiện chưa chạy AI render trên máy", uhd) {
+                SettingsSwitch(
+                    "UHD · Độ phân giải tối đa",
+                    "Yêu cầu CameraX chọn kích thước JPEG lớn nhất mà camera đang dùng hỗ trợ; không nội suy vượt cảm biến.",
+                    uhd
+                ) {
                     uhd = it
-                    prefs.edit().putBoolean("uhd_coming_soon", it).apply()
+                    prefs.edit()
+                        .putBoolean("uhd_capture_enabled", it)
+                        .putBoolean("uhd_coming_soon", false)
+                        .apply()
                 }
                 Spacer(Modifier.padding(5.dp))
                 Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)

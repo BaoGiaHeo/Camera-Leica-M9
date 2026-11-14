@@ -46,10 +46,13 @@ object CamColors {
     var TextColor by mutableStateOf(Color.White)
     var Sub by mutableStateOf(Color(0xFF9E9E9E))
     var BackgroundImageUri by mutableStateOf<String?>(null)
-    val Card = Color(0xFF1E1E1E)
-    val Glass = Color(0xD92A2A2A)
-    val Panel = Color(0xF21A1A1A)
-    val Chip = Color(0xFF2A2A2A)
+    var ImageBackgroundEnabled by mutableStateOf(false)
+
+    // Keep controls readable without hiding a user-selected photo background.
+    val Card get() = if (ImageBackgroundEnabled) Color(0x8F101010) else Color(0xFF1E1E1E)
+    val Glass get() = if (ImageBackgroundEnabled) Color(0x882A2A2A) else Color(0xD92A2A2A)
+    val Panel get() = if (ImageBackgroundEnabled) Color(0xB51A1A1A) else Color(0xF21A1A1A)
+    val Chip get() = if (ImageBackgroundEnabled) Color(0x882A2A2A) else Color(0xFF2A2A2A)
     val Yellow = Color(0xFFF5C842)
     val Stroke = Color(0x33FFFFFF)
 }
@@ -85,7 +88,9 @@ fun CamTheme(content: @Composable () -> Unit) {
     val bgBitmap by produceState<ImageBitmap?>(initialValue = null, bgUriText) {
         value = if (bgUriText.isNullOrBlank()) null else withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.loadThumbnail(Uri.parse(bgUriText), Size(1600, 1600), null).asImageBitmap()
+                context.contentResolver.loadThumbnail(Uri.parse(bgUriText), Size(2048, 2048), null).asImageBitmap()
+            }.onFailure {
+                android.util.Log.e("FUJI_BACKGROUND", "Could not load selected app background", it)
             }.getOrNull()
         }
     }
@@ -96,8 +101,9 @@ fun CamTheme(content: @Composable () -> Unit) {
                 android.graphics.Color.green(chosenBg.toArgb()) * 0.587f +
                 android.graphics.Color.blue(chosenBg.toArgb()) * 0.114f
             ) > 185f
-        // A selected photo replaces the app-wide base background. Keep screen root
-        // surfaces transparent so the image remains visible across every destination.
+        CamColors.ImageBackgroundEnabled = bgBitmap != null
+        // A selected photo becomes the shared background for camera, settings, tools,
+        // contents management and album screens. Translucent card tokens let it remain visible.
         CamColors.Bg = if (bgBitmap != null) Color.Transparent else chosenBg
         CamColors.TextColor = if (isLightBackground) Color(0xFF171717) else Color.White
         CamColors.Sub = if (isLightBackground) Color(0xFF626262) else Color(0xFF9E9E9E)

@@ -1167,7 +1167,7 @@ fun CameraScreen(
                                             else -> choices[currentIndex + 1]
                                         }
                                         if (nightCaptureSeconds > 0) {
-                                            Toast.makeText(
+                                            localizedToast(
                                                 context,
                                                 "Đang phơi sáng vui lòng để điện thoại cố định",
                                                 Toast.LENGTH_SHORT
@@ -1702,7 +1702,7 @@ fun CameraScreen(
                                     aiCompositionEnabled = enableAi
                                     appPrefs.edit().putBoolean("ai_composition_enabled", enableAi).apply()
                                     if (enableAi) {
-                                        Toast.makeText(
+                                        localizedToast(
                                             context,
                                             "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn",
                                             Toast.LENGTH_LONG

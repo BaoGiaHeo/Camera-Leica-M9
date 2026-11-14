@@ -329,7 +329,7 @@ object NafNetDenoiser {
             ortEnvironment = environment
             val options = OrtSession.SessionOptions()
             try {
-                options.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(2, 4))
+                options.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(2, 8))
                 val accelerated = runCatching {
                     options.addNnapi()
                     environment.createSession(modelFile.absolutePath, options)
@@ -344,7 +344,7 @@ object NafNetDenoiser {
 
             val cpuOptions = OrtSession.SessionOptions()
             try {
-                cpuOptions.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(2, 4))
+                cpuOptions.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(2, 8))
                 val cpuSession = environment.createSession(modelFile.absolutePath, cpuOptions)
                 usesNnapi = false
                 ortSession = cpuSession

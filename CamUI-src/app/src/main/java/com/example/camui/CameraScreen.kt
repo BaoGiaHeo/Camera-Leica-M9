@@ -346,6 +346,15 @@ fun CameraScreen(
     LaunchedEffect(uhdCaptureEnabled) {
         appPrefs.edit().putBoolean("uhd_capture_enabled", uhdCaptureEnabled).apply()
     }
+    // UHD is a dedicated 1x capture mode. Enabling it always returns to the main camera.
+    LaunchedEffect(uhdCaptureEnabled, camera) {
+        if (uhdCaptureEnabled) {
+            zoomAnimationJob?.cancel()
+            zoomSel = 1f
+            appPrefs.edit().putFloat("camera_zoom_ratio", 1f).apply()
+            camera?.let { active -> runCatching { active.cameraControl.setZoomRatio(1f) } }
+        }
+    }
     var hdrEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
     }
@@ -896,7 +905,7 @@ var aiPortraitDepthEnabled by remember {
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
                 val restoredZoom = savedZoom.coerceIn(
                     zoomStateOnBind?.minZoomRatio ?: 1f,
-                    min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
+                    if (uhdCaptureEnabled) 1f else min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
                 )
                 zoomSel = restoredZoom
                 runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
@@ -1369,7 +1378,13 @@ var aiPortraitDepthEnabled by remember {
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus
-            val captureNoiseReduction = if (captureRawPlus) "Off" else noiseReduction
+            val captureUseFilmAi = activeFilter != "None" && !captureRawPlus
+            // UHD forces the strongest available AI denoising pass regardless of the manual NR setting.
+            val captureNoiseReduction = when {
+                captureRawPlus -> "Off"
+                uhdCaptureEnabled -> "High+"
+                else -> noiseReduction
+            }
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
             val captureNightShotExtension = nightExtensionActive
             val captureNightFrameCount = nightShotFrameCount.coerceIn(4, 12)
@@ -1512,9 +1527,10 @@ var aiPortraitDepthEnabled by remember {
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
-                                captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 captureUseNightShot -> "NightShot đang xử lý, vui lòng giữ máy"
-                                captureUseUhdAi -> "AI đang xử lý, vui lòng chờ"
+                                captureUseUhdAi -> "UHD · AI khử nhiễu và siêu phân giải"
+                                captureUseFilmAi -> "AI đang tối ưu ảnh trước khi áp dụng bộ lọc"
+                                captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
                                 else -> "Ảnh đang được xử lý"
                             }
@@ -1594,7 +1610,7 @@ var aiPortraitDepthEnabled by remember {
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val aiDenoiseApplied = if (
-                                    !captureIsUltraHdr && captureNoiseReduction == "High+"
+                                    !captureIsUltraHdr && (captureNoiseReduction == "High+" || captureUseFilmAi)
                                 ) {
                                     val sourceBytes = runCatching {
                                         context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
@@ -1611,7 +1627,9 @@ var aiPortraitDepthEnabled by remember {
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
-                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, 1.0f) { progress ->
+                                            // Mild blend for filter-only AI; stronger denoising in UHD mode.
+                                            val naturalStrength = if (captureUseUhdAi) 0.78f else 0.34f
+                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, naturalStrength) { progress ->
                                                 mainExecutor.execute {
                                                     val safeProgress = progress.coerceIn(0, 100)
                                                     val elapsedSeconds = (
@@ -1833,7 +1851,7 @@ var aiPortraitDepthEnabled by remember {
         val state = activeCamera.cameraInfo.zoomState.value ?: return
         val safeTarget = targetRatio.coerceIn(
             state.minZoomRatio,
-            min(2f, state.maxZoomRatio)
+            if (uhdCaptureEnabled) 1f else min(2f, state.maxZoomRatio)
         )
         val start = state.zoomRatio
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
@@ -1972,7 +1990,7 @@ var aiPortraitDepthEnabled by remember {
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()
                                         val zoomState = camera?.cameraInfo?.zoomState?.value ?: return@detectTransformGestures
-                                        val maxZoom = min(2f, zoomState.maxZoomRatio)
+                                        val maxZoom = if (uhdCaptureEnabled) 1f else min(2f, zoomState.maxZoomRatio)
                                         val nextZoom = (zoomState.zoomRatio * zoomChange)
                                             .coerceIn(zoomState.minZoomRatio, maxZoom)
                                         camera?.cameraControl?.setZoomRatio(nextZoom)
@@ -2123,9 +2141,9 @@ var aiPortraitDepthEnabled by remember {
                         // Lens quick-select values come from the physical cameras exposed by
                         // this logical CameraX camera, then are clamped to its real zoom range.
                         val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
-                        val zoomMaxForUi = min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
+                        val zoomMaxForUi = if (uhdCaptureEnabled) 1f else min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
                         val zoomMinForUi = zoomStateForUi?.minZoomRatio ?: 1f
-                        val zoomSteps = Camera2Info.opticalZoomStops(
+                        val zoomSteps = if (uhdCaptureEnabled) listOf(1f) else Camera2Info.opticalZoomStops(
                             logical = activeCameraDetails,
                             physical = activePhysicalCameraDetails,
                             minZoom = zoomMinForUi,
@@ -2487,8 +2505,13 @@ var aiPortraitDepthEnabled by remember {
                             horizontalArrangement = Arrangement.Center) {
                             Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
                                 .clickable {
-                                    activeFilter = appPrefs.getString("selected_filter", "None") ?: "None"
-                                    filterDialogVisible = true
+                                    if (activeFilter != "None") {
+                                        activeFilter = "None"
+                                        appPrefs.edit().putString("selected_filter", "None").apply()
+                                    } else {
+                                        activeFilter = appPrefs.getString("selected_filter", "None") ?: "None"
+                                        filterDialogVisible = true
+                                    }
                                 }
                                 .padding(horizontal = 18.dp, vertical = 7.dp)) {
                                 Text(
@@ -2676,8 +2699,9 @@ stabilization = stabilization,
                 activeFilter = activeFilter,
                 onDismiss = { filterDialogVisible = false },
                 onSelectFilter = { selected ->
-                    activeFilter = selected
-                    appPrefs.edit().putString("selected_filter", selected).apply()
+                    val nextFilter = if (selected == activeFilter) "None" else selected
+                    activeFilter = nextFilter
+                    appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 }
             )
         }

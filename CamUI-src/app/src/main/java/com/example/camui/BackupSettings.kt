@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,7 +65,7 @@ fun BackupRestorePanel(onRestoreComplete: () -> Unit = {}) {
                 busy = false
                 status = if (result.isSuccess) "Đã xuất bản sao lưu cài đặt." else
                     "Sao lưu thất bại: ${result.exceptionOrNull()?.message ?: "lỗi không xác định"}"
-                Toast.makeText(context, status, Toast.LENGTH_LONG).show()
+                localizedToast(context, status, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -98,7 +97,7 @@ fun BackupRestorePanel(onRestoreComplete: () -> Unit = {}) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Backup & Restore", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Text("Sao lưu & Khôi phục", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(
             "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật.",
             color = CamColors.Sub, fontSize = 12.sp

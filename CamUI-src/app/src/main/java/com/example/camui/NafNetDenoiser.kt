@@ -275,7 +275,7 @@ object NafNetDenoiser {
             Log.i(
                 TAG,
                 "NAFNet-SIDD denoising completed strength=$strengthValue " +
-                    "size=\${originalWidth}x\${originalHeight} backend=\${if (usesNnapi) "NNAPI/CPU" else "CPU"}"
+                    "size=" + originalWidth + "x" + originalHeight + " backend=" + (if (usesNnapi) "NNAPI/CPU" else "CPU")
             )
             onProgress(100)
             true

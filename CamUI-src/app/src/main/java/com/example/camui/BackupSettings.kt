@@ -64,7 +64,7 @@ fun BackupRestorePanel(onRestoreComplete: () -> Unit = {}) {
                 }
                 busy = false
                 status = if (result.isSuccess) "Đã xuất bản sao lưu cài đặt." else
-                    "Sao lưu thất bại: ${result.exceptionOrNull()?.message ?: "lỗi không xác định"}"
+                    "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại."
                 localizedToast(context, status, Toast.LENGTH_LONG).show()
             }
         }
@@ -89,9 +89,9 @@ fun BackupRestorePanel(onRestoreComplete: () -> Unit = {}) {
                 status = if (result.isSuccess) {
                     "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật."
                 } else {
-                    "Khôi phục thất bại: ${result.exceptionOrNull()?.message ?: "tệp sao lưu không hợp lệ"}"
+                    "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ."
                 }
-                Toast.makeText(context, status, Toast.LENGTH_LONG).show()
+                localizedToast(context, status, Toast.LENGTH_LONG).show()
             }
         }
     }

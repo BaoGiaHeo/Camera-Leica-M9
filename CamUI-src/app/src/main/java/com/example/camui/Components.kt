@@ -150,7 +150,44 @@ private val englishUi = mapOf(
     "Tắt frame" to "Off", "Classic Card" to "Classic Card", "Clean Corners" to "Clean Corners",
     "35mm Film" to "35mm Film", "Instant / Polaroid" to "Instant / Polaroid",
     "Center Logo" to "Center Logo", "Expo Around" to "Expo Around",
-    "Expo Left" to "Expo Left", "Expo Right" to "Expo Right", "Double Line" to "Double Line"
+    "Expo Left" to "Expo Left", "Expo Right" to "Expo Right", "Double Line" to "Double Line",
+    "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "These tools control the live viewfinder overlays.",
+    "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "Camera information is read directly from the device through Camera2.",
+    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "Could not read Camera IDs. Grant camera permission to the app.",
+    "Aspect Ratio" to "Aspect Ratio", "Image Quality" to "Image Quality",
+    "Ảnh được lưu vào Pictures/FujifilmMode." to "Photos are saved to Pictures/FujifilmMode.",
+    "Capture Quality" to "Capture Quality", "Noise Reduction" to "Noise Reduction",
+    "Shutter" to "Shutter", "Hiệu ứng khi bấm chụp" to "Shutter effect",
+    "Mẫu watermark · chọn riêng từng kiểu" to "Watermark templates · select a style",
+    "Màu khung" to "Frame color", "Model tùy chỉnh" to "Custom model",
+    "Auto sẽ lấy tên model của điện thoại: " to "Auto uses the phone model: ",
+    "Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng."
+        to "The custom model name is stored in app data until app data is cleared or the app is uninstalled.",
+    "Watermark được đóng trực tiếp lên ảnh sau khi chụp. Thông số mm, khẩu độ, shutter và ISO lấy từ camera đang hoạt động khi HAL có cung cấp."
+        to "The watermark is embedded after capture. Focal length, aperture, shutter and ISO are read from the active camera when exposed by the HAL.",
+    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "Change the shutter button color or use a PNG/JPG image.",
+    "Đã chọn ảnh cho nút chụp." to "Shutter image selected.",
+    "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "Choose the interface language. The app will reload after the change.",
+    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "Off requests no camera noise reduction; actual support depends on the Camera2 HAL.",
+    "Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn."
+        to "Best uses the highest JPEG quality. Actual resolution depends on the output sizes exposed by the active Camera2/CameraX camera.",
+    "Người làm App: Baoaka06" to "Developer: Baoaka06",
+    "Frame Manage" to "Frame Manager", "LUT Manage" to "LUT Manager",
+    "Nhập tệp .cube để quản lý hồ sơ màu." to "Import .cube files to manage color profiles.",
+    "Nhập khung phủ PNG/JPG để quản lý." to "Import PNG/JPG overlay frames.",
+    "Chưa có LUT nào được nhập." to "No LUTs imported yet.",
+    "Chưa có frame nào được nhập." to "No frames imported yet.",
+    "Đang tải ảnh…" to "Loading photo…", "Đang tải ảnh..." to "Loading photo...",
+    "Đóng" to "Close", "Chọn frame để xem trước và đóng lên ảnh sau khi chụp." to "Select a frame preview; it will be embedded after capture.",
+    "Frame dựng sẵn" to "Built-in frame", "Imported frame" to "Imported frame",
+    "PNG trong suốt khuyên dùng · JPG có thể che ảnh" to "Transparent PNG recommended · JPG may cover the photo",
+    "Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ." to "Transparent removes the frame border and backing panel; text and PNG artwork remain.",
+    "Áp dụng frame" to "Apply frame",
+    "Lens calibration · EIS+ · sensor diagnostics" to "Lens calibration · EIS+ · sensor diagnostics",
+    "Fujifilm Mode (app-debug)" to "Fujifilm Mode (app-debug)",
+    "Version 1.1 experimental · Debug build" to "Version 1.1 experimental · Debug build",
+    "Chưa có ảnh trong Pictures/FujifilmMode." to "No photos in Pictures/FujifilmMode yet.",
+    "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes."
 )
 
 private val japaneseUi = mapOf(
@@ -174,7 +211,28 @@ private val japaneseUi = mapOf(
     "Đang phơi sáng" to "露光中", "Vui lòng để điện thoại cố định" to "スマートフォンを動かさないでください",
     "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまで動かさないでください",
     "Đang phơi sáng vui lòng để điện thoại cố định" to "露光中です。スマートフォンを固定してください。",
-    "Photo Frame" to "フォトフレーム", "Tắt frame" to "フレームなし"
+    "Photo Frame" to "フォトフレーム", "Tắt frame" to "フレームなし",
+    "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "これらのツールでファインダーの表示を操作します。",
+    "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "カメラ情報はCamera2を通じて端末から直接取得します。",
+    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "カメラIDを取得できません。カメラ権限を許可してください。",
+    "Aspect Ratio" to "アスペクト比", "Image Quality" to "画質",
+    "Ảnh được lưu vào Pictures/FujifilmMode." to "写真はPictures/FujifilmModeに保存されます。",
+    "Capture Quality" to "撮影画質", "Noise Reduction" to "ノイズ低減",
+    "Shutter" to "シャッター", "Hiệu ứng khi bấm chụp" to "シャッター効果",
+    "Mẫu watermark · chọn riêng từng kiểu" to "ウォーターマークのテンプレート",
+    "Model tùy chỉnh" to "カスタムモデル",
+    "Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng。"
+        to "カスタムモデル名はアプリデータを消去するかアプリをアンインストールするまで保存されます。",
+    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "シャッターボタンの色を変更するか、PNG/JPG画像を使用します。",
+    "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "表示言語を選択します。変更後、アプリの画面を再読み込みします。",
+    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "オフにするとカメラのノイズ低減を要求しません。対応状況はCamera2 HALによって異なります。",
+    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút。" to "シャッターボタンの色を変更するか、PNG/JPG画像を使用します。",
+    "Frame Manage" to "フレーム管理", "LUT Manage" to "LUT管理",
+    "Nhập tệp .cube để quản lý hồ sơ màu." to ".cubeファイルを読み込んでカラーLUTを管理します。",
+    "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPGのオーバーレイフレームを読み込みます。",
+    "Đóng" to "閉じる", "Áp dụng frame" to "フレームを適用",
+    "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまでスマートフォンを動かさないでください。",
+    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng。" to "カメラIDを取得できません。カメラ権限を許可してください。"
 )
 
 private val koreanUi = mapOf(
@@ -197,7 +255,26 @@ private val koreanUi = mapOf(
     "Đang phơi sáng" to "노출 중", "Vui lòng để điện thoại cố định" to "휴대전화를 고정해 주세요",
     "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 움직이지 마세요",
     "Đang phơi sáng vui lòng để điện thoại cố định" to "노출 중입니다. 휴대전화를 움직이지 마세요.",
-    "Photo Frame" to "사진 프레임", "Tắt frame" to "프레임 끄기"
+    "Photo Frame" to "사진 프레임", "Tắt frame" to "프레임 끄기",
+    "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "이 도구에서 뷰파인더 오버레이를 제어합니다.",
+    "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "카메라 정보는 Camera2를 통해 기기에서 직접 가져옵니다.",
+    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "카메라 ID를 읽을 수 없습니다. 카메라 권한을 허용하세요.",
+    "Aspect Ratio" to "화면 비율", "Image Quality" to "이미지 품질",
+    "Ảnh được lưu vào Pictures/FujifilmMode." to "사진은 Pictures/FujifilmMode에 저장됩니다.",
+    "Capture Quality" to "촬영 품질", "Noise Reduction" to "노이즈 감소",
+    "Shutter" to "셔터", "Hiệu ứng khi bấm chụp" to "셔터 효과",
+    "Mẫu watermark · chọn riêng từng kiểu" to "워터마크 템플릿",
+    "Model tùy chỉnh" to "사용자 지정 모델",
+    "Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng."
+        to "사용자 지정 모델 이름은 앱 데이터를 삭제하거나 앱을 제거할 때까지 저장됩니다.",
+    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "셔터 버튼 색상을 변경하거나 PNG/JPG 이미지를 사용하세요.",
+    "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "표시 언어를 선택하세요. 변경 후 앱 화면이 다시 로드됩니다.",
+    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "끄면 카메라에 노이즈 감소를 끄도록 요청합니다. 지원 여부는 Camera2 HAL에 따라 다릅니다.",
+    "Frame Manage" to "프레임 관리", "LUT Manage" to "LUT 관리",
+    "Nhập tệp .cube để quản lý hồ sơ màu." to ".cube 파일을 가져와 색상 LUT를 관리합니다.",
+    "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPG 오버레이 프레임을 가져옵니다.",
+    "Đóng" to "닫기", "Áp dụng frame" to "프레임 적용",
+    "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 휴대전화를 움직이지 마세요."
 )
 
 private val chineseUi = mapOf(
@@ -220,7 +297,26 @@ private val chineseUi = mapOf(
     "Đang phơi sáng" to "正在曝光", "Vui lòng để điện thoại cố định" to "请保持手机稳定",
     "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机",
     "Đang phơi sáng vui lòng để điện thoại cố định" to "正在曝光，请保持手机稳定。",
-    "Photo Frame" to "照片边框", "Tắt frame" to "关闭边框"
+    "Photo Frame" to "照片边框", "Tắt frame" to "关闭边框",
+    "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "这些工具用于控制取景器辅助显示。",
+    "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "相机信息通过 Camera2 从设备直接读取。",
+    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "无法读取相机 ID，请授予应用相机权限。",
+    "Aspect Ratio" to "画面比例", "Image Quality" to "图像质量",
+    "Ảnh được lưu vào Pictures/FujifilmMode." to "照片保存到 Pictures/FujifilmMode。",
+    "Capture Quality" to "拍摄质量", "Noise Reduction" to "降噪",
+    "Shutter" to "快门", "Hiệu ứng khi bấm chụp" to "快门效果",
+    "Mẫu watermark · chọn riêng từng kiểu" to "水印模板",
+    "Model tùy chỉnh" to "自定义型号",
+    "Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng."
+        to "自定义型号会保存在应用数据中，直到清除数据或卸载应用。",
+    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "更改快门按钮颜色，或使用 PNG/JPG 图片。",
+    "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "选择界面语言。更改后应用将重新加载界面。",
+    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "关闭会请求相机停用降噪，实际支持情况取决于 Camera2 HAL。",
+    "Frame Manage" to "边框管理", "LUT Manage" to "LUT 管理",
+    "Nhập tệp .cube để quản lý hồ sơ màu." to "导入 .cube 文件以管理颜色配置。",
+    "Nhập khung phủ PNG/JPG để quản lý." to "导入 PNG/JPG 覆盖边框。",
+    "Đóng" to "关闭", "Áp dụng frame" to "应用边框",
+    "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机。"
 )
 
 private fun translateUiText(value: String, language: String): String {

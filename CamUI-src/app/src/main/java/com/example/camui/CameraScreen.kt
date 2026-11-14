@@ -1986,7 +1986,7 @@ var aiPortraitDepthEnabled by remember {
                                 .aspectRatio(previewAspectRatio)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.Black)
-                                .pointerInput(camera) {
+                                .pointerInput(camera, uhdCaptureEnabled) {
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()
                                         val zoomState = camera?.cameraInfo?.zoomState?.value ?: return@detectTransformGestures

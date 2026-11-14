@@ -139,6 +139,7 @@ fun ToolboxScreen(
                 rowItems.forEach { (id, title, subtitle) ->
                     WatermarkTemplateCard(
                         id = id, title = title, subtitle = subtitle,
+                        frameStyle = watermarkStyle,
                         selected = watermarkTemplate == id,
                         onClick = {
                             watermarkTemplate = id
@@ -227,6 +228,7 @@ private fun WatermarkTemplateCard(
     id: String,
     title: String,
     subtitle: String,
+    frameStyle: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -247,6 +249,17 @@ private fun WatermarkTemplateCard(
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF475550))
         ) {
+            val frameColor = when (frameStyle) {
+                "Black" -> Color.Black
+                "Transparent" -> Color.Transparent
+                else -> Color.White
+            }
+            val panelColor = when (frameStyle) {
+                "White" -> Color.White
+                "Black" -> Color.Black
+                else -> Color.Transparent
+            }
+            val textColor = if (frameStyle == "White") Color.Black else Color.White
             ComposeCanvas(Modifier.fillMaxSize()) {
                 drawRect(Color(0xFF697A70))
                 drawCircle(Color(0xFFFFD8A0), size.minDimension * 0.13f,
@@ -255,51 +268,54 @@ private fun WatermarkTemplateCard(
                     Offset(size.width, size.height * 0.52f), strokeWidth = size.height * 0.25f)
                 drawLine(Color(0xFF31483E), Offset(0f, size.height * 0.82f),
                     Offset(size.width, size.height * 0.72f), strokeWidth = size.height * 0.32f)
+                if (frameStyle != "Transparent") {
+                    drawRect(frameColor, topLeft = Offset(3f, 3f),
+                        size = androidx.compose.ui.geometry.Size(size.width - 6f, size.height - 6f),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(2.2f))
+                }
             }
             when (id) {
                 "standard1" -> Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color(0xD9000000)).padding(horizontal = 6.dp, vertical = 4.dp)
+                        .background(panelColor).padding(horizontal = 6.dp, vertical = 4.dp)
                 ) {
-                    Text("FUJIFILM X", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    Text("FUJIFILM X", color = textColor, fontSize = 7.sp, fontWeight = FontWeight.Bold)
                     Text("23mm  •  f/2  •  1/125  •  ISO 400",
-                        color = Color.White.copy(alpha = 0.82f), fontSize = 5.5.sp, maxLines = 1)
+                        color = textColor.copy(alpha = 0.82f), fontSize = 5.5.sp, maxLines = 1)
                 }
                 "standard2" -> Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
-                        .background(Color(0xEEFFFFFF), RoundedCornerShape(4.dp)).padding(5.dp)
+                        .background(panelColor, RoundedCornerShape(4.dp)).padding(5.dp)
                 ) {
-                    Text("FUJIFILM  /  X SERIES", color = Color(0xFF202020),
+                    Text("FUJIFILM  /  X SERIES", color = textColor,
                         fontSize = 6.5.sp, fontWeight = FontWeight.Bold)
-                    Text("23mm  ·  f/2.0  ·  ISO 400", color = Color(0xFF353535), fontSize = 5.5.sp)
+                    Text("23mm  ·  f/2.0  ·  ISO 400", color = textColor.copy(alpha = 0.82f), fontSize = 5.5.sp)
                 }
                 "blur" -> Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color(0xAA17201D)).padding(6.dp)
+                        .background(panelColor.copy(alpha = if (frameStyle == "Transparent") 0f else 0.85f)).padding(6.dp)
                 ) {
-                    Text("X SERIES", color = Color.White, fontSize = 6.sp, fontWeight = FontWeight.Bold)
-                    Text("23mm   f/2.0   ISO 400", color = Color.White, fontSize = 5.5.sp)
+                    Text("X SERIES", color = textColor, fontSize = 6.sp, fontWeight = FontWeight.Bold)
+                    Text("23mm   f/2.0   ISO 400", color = textColor, fontSize = 5.5.sp)
                 }
                 "normal1" -> Column(
                     Modifier.align(Alignment.BottomEnd).padding(6.dp),
                     horizontalAlignment = Alignment.End
                 ) {
-                    Text("23mm  f/2.0", color = Color.White, fontSize = 6.sp, fontWeight = FontWeight.Bold)
-                    Text("1/125  ISO 400", color = Color.White, fontSize = 5.5.sp)
+                    Text("23mm  f/2.0", color = textColor, fontSize = 6.sp, fontWeight = FontWeight.Bold)
+                    Text("1/125  ISO 400", color = textColor, fontSize = 5.5.sp)
                 }
                 "normal2" -> Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
-                    Text("FUJIFILM MODE", color = Color(0xFFFFB15F), fontSize = 6.5.sp,
-                        fontWeight = FontWeight.Bold)
-                    Text("2026.11.13  •  18:42", color = Color.White, fontSize = 5.5.sp)
+                    Text("2026.11.13  •  18:42", color = textColor, fontSize = 5.5.sp)
                 }
                 else -> Column(
                     Modifier.align(Alignment.Center).padding(5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("FUJIFILM", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("FUJIFILM", color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Box(Modifier.padding(vertical = 3.dp).fillMaxWidth(0.62f).height(1.dp)
-                        .background(Color.White.copy(alpha = 0.8f)))
-                    Text("X SERIES", color = Color.White, fontSize = 5.5.sp, letterSpacing = 1.sp)
+                        .background(frameColor.copy(alpha = 0.8f)))
+                    Text("X SERIES", color = textColor, fontSize = 5.5.sp, letterSpacing = 1.sp)
                 }
             }
         }
@@ -829,10 +845,14 @@ fun applyCameraWatermark(
         val showModel = prefs.getBoolean("watermark_show_model", true)
         val showSpecs = prefs.getBoolean("watermark_show_specs", true)
 
-        // Text and backing plate stay readable; the selected color controls only the frame.
+        // Frame, backing plate and type all follow the selected watermark style.
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
-        val panelColor = if (frameStyle == "Transparent") AndroidColor.TRANSPARENT
-            else AndroidColor.argb(166, 8, 12, 11)
+        val textColor = if (frameStyle == "White") AndroidColor.BLACK else AndroidColor.WHITE
+        val panelColor = when (frameStyle) {
+            "White" -> AndroidColor.argb(238, 255, 255, 255)
+            "Black" -> AndroidColor.argb(220, 8, 8, 8)
+            else -> AndroidColor.TRANSPARENT
+        }
         val minSide = minOf(output.width, output.height).toFloat()
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         val model = prefs.getString("watermark_custom_model", "")?.trim()
@@ -844,16 +864,16 @@ fun applyCameraWatermark(
             .format(java.util.Date()).takeIf { showTime }.orEmpty()
 
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.WHITE
+            color = textColor
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.WHITE
+            color = textColor
             alpha = 235
             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.rgb(239, 164, 91)
+            color = textColor
             typeface = android.graphics.Typeface.create("sans-serif-bold", android.graphics.Typeface.NORMAL)
         }
         fun fitText(value: String, paint: Paint, x: Float, baseline: Float, maxWidth: Float, baseSize: Float) {
@@ -928,8 +948,6 @@ fun applyCameraWatermark(
                 detailPaint.textAlign = Paint.Align.LEFT
             }
             "normal2" -> {
-                accentPaint.textSize = (minSide * 0.020f).coerceIn(16f, 42f)
-                canvas.drawText("FUJIFILM MODE", margin, output.height - margin * 2.05f, accentPaint)
                 val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
                 optionalLines.forEachIndexed { index, line ->
                     fitText(line, detailPaint, margin,

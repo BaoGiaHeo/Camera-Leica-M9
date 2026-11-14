@@ -105,12 +105,13 @@ fun CircleBtn(
     size: Dp = 46.dp,
     tint: Color = Color.White
 ) {
+    val context = LocalContext.current
     Box(
         Modifier.size(size).clip(CircleShape).background(CamColors.Glass)
             .border(0.5.dp, CamColors.Stroke, CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = desc, tint = tint)
+        Icon(icon, contentDescription = localizedUiText(context, desc), tint = tint)
     }
 }
 
@@ -730,6 +731,19 @@ private fun translateUiText(value: String, language: String): String {
     return translated
 }
 
+fun localizedUiText(context: Context, value: String): String {
+    val preference = context.getSharedPreferences("fujifilm_settings", 0)
+        .getString("app_language", "system") ?: "system"
+    val language = if (preference == "system") {
+        context.resources.configuration.locales[0]?.language ?: "en"
+    } else preference
+    return translateUiText(value, language)
+}
+
+fun localizedToast(context: Context, value: String, duration: Int): Toast {
+    return Toast.makeText(context, localizedUiText(context, value), duration)
+}
+
 /**
  * Central localized Text wrapper for the camera UI. A selected app language is read
  * from preferences; AppCompat applies the same locale to the activity/resources.
@@ -755,12 +769,9 @@ fun Text(
     style: TextStyle = LocalTextStyle.current
 ) {
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val preference = context.getSharedPreferences("fujifilm_settings", 0)
-        .getString("app_language", "system") ?: "system"
-    val language = if (preference == "system") configuration.locales[0].language else preference
+    val localized = localizedUiText(context, text)
     MaterialText(
-        text = translateUiText(text, language),
+        text = localized,
         modifier = modifier,
         color = color,
         fontSize = fontSize,

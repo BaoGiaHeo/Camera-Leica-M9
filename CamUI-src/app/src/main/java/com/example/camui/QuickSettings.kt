@@ -69,7 +69,7 @@ fun QuickPanel(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             SmallCard("Metering", metering, null, onMetering, Modifier.weight(1f))
             SmallCard("Toolbox", "Assistive tools", Icons.Default.Palette, onToolbox, Modifier.weight(1f))
-            SmallCard("Contents", "LUT / Frames", Icons.Default.Tune, onContentManagement, Modifier.weight(1f))
+            SmallCard("Contents", "Frames", Icons.Default.Tune, onContentManagement, Modifier.weight(1f))
         }
         Row(
             Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp))

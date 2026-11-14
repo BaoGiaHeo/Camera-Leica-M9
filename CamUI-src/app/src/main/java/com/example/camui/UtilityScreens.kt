@@ -1528,11 +1528,6 @@ private fun parseCubeLutText(text: String): CubeLut? {
     }.getOrNull()
 }
 
-private fun readCubeLut(context: Context, uri: Uri): CubeLut? =
-    runCatching {
-        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { parseCubeLutText(it.readText()) }
-    }.getOrNull()
-
 private val filmSimulationAssets = mapOf(
     "Provia" to "film_sims/provia.cube",
     "Velvia" to "film_sims/velvia.cube",
@@ -1600,7 +1595,7 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
 }
 
 /**
- * Applies a built-in film-inspired look or an imported .cube LUT to the saved photo.
+ * Applies a built-in Fujifilm profile or a retained non-Fujifilm filter to the saved photo.
  * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
  */
 private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?): Boolean {
@@ -1631,7 +1626,7 @@ private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?
 }
 
 /**
- * Render the exact same built-in LUT/pixel transform used by saved-photo processing.
+ * Render the exact same bundled profile/pixel transform used by saved-photo processing.
  * The filter picker uses a shared source bitmap, so switching presets never compounds filters.
  */
 fun renderCameraLookPreview(
@@ -1733,22 +1728,24 @@ fun createFilmLookPreviewSample(): Bitmap {
 fun applyCameraLook(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val preset = prefs.getString("selected_filter", "None") ?: "None"
-    val lutUriText = prefs.getString("selected_lut_uri", null)
-    if (preset == "None" && lutUriText.isNullOrBlank()) return false
+    if (preset == "None") return false
 
     return runCatching {
-        val builtInCube = readFilmSimulationLut(context, preset)
-        val cube = builtInCube ?: lutUriText?.let { readCubeLut(context, Uri.parse(it)) }
-        if (preset in filmSimulationAssets && builtInCube == null) {
+        // Fujifilm's 11 bundled 32³ sRGB profiles use the same CubeLut renderer as
+        // filter-picker previews. Other retained presets use their matching pixel transform.
+        val cube = readFilmSimulationLut(context, preset)
+        if (preset in filmSimulationAssets && cube == null) {
             android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
             return@runCatching false
         }
-        if (!lutUriText.isNullOrBlank() && preset == "None" && cube == null) return@runCatching false
+
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
         if (!applyCameraLookPixels(bitmap, preset, cube)) return@runCatching false
-        context.contentResolver.openOutputStream(uri, "wt")?.use {
+        val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
-        } ?: return@runCatching false
+        } ?: false
+        if (!written) return@runCatching false
+
         context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
             ExifInterface(descriptor.fileDescriptor).apply {
                 setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
@@ -1757,6 +1754,8 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         }
         setMediaStoreOrientationUpright(context, uri)
         true
+    }.onFailure {
+        android.util.Log.e("FUJI_FILTER", "Could not apply selected filter", it)
     }.getOrDefault(false)
 }
 
@@ -2277,30 +2276,12 @@ private fun applyWatermarkBoxBlur(bitmap: Bitmap, radius: Int, passes: Int) {
 fun ContentManagementScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_contents", 0) }
-    val luts = remember { mutableStateListOf<String>().apply {
-        addAll(prefs.getStringSet("luts", emptySet()) ?: emptySet())
-    } }
-    val frames = remember { mutableStateListOf<String>().apply {
-        addAll(prefs.getStringSet("frames", emptySet()) ?: emptySet())
-    } }
-    var pendingDeleteLut by remember { mutableStateOf<String?>(null) }
-
-    val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            val name = documentDisplayName(context, uri)
-            if (!name.endsWith(".cube", ignoreCase = true)) {
-                localizedToast(context, "Chỉ hỗ trợ LUT định dạng .cube.", Toast.LENGTH_LONG).show()
-            } else {
-                val value = uri.toString()
-                if (!luts.contains(value)) luts.add(value)
-                prefs.edit().putStringSet("luts", luts.toSet()).apply()
-                localizedToast(context, "Đã nhập LUT: $name", Toast.LENGTH_SHORT).show()
-            }
+    val frames = remember {
+        mutableStateListOf<String>().apply {
+            addAll(prefs.getStringSet("frames", emptySet()) ?: emptySet())
         }
     }
+
     val framePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
@@ -2312,35 +2293,28 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Column(
+        Modifier.fillMaxSize().background(CamColors.Bg)
+            .verticalScroll(rememberScrollState()).padding(16.dp)
+    ) {
         PageHeader("Contents Management", onBack)
-        Text("LUT Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        Text("Nhập tệp .cube để quản lý hồ sơ màu.", color = CamColors.Sub, fontSize = 12.sp,
-            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
-        Button(onClick = { lutPicker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Text("Import LUT")
-        }
-        if (luts.isEmpty()) EmptyNote("Chưa có LUT nào được nhập.")
-        else {
-            Column {
-                luts.forEach { value ->
-                    val name = documentDisplayName(context, Uri.parse(value))
-                    ManagedItem(name, onDelete = { pendingDeleteLut = value })
-                }
-            }
-        }
-        Spacer(Modifier.height(18.dp))
         Text("Frame Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        Text("Nhập khung phủ PNG/JPG để quản lý.", color = CamColors.Sub, fontSize = 12.sp,
-            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
-        Button(onClick = { framePicker.launch(arrayOf("image/png", "image/jpeg")) },
-            modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Nhập khung phủ PNG/JPG để quản lý.",
+            color = CamColors.Sub,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+        )
+        Button(
+            onClick = { framePicker.launch(arrayOf("image/png", "image/jpeg")) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Text("Import Frame")
         }
-        if (frames.isEmpty()) EmptyNote("Chưa có frame nào được nhập.")
-        else {
+        if (frames.isEmpty()) {
+            EmptyNote("Chưa có frame nào được nhập.")
+        } else {
             Column {
                 frames.forEach { value ->
                     val name = documentDisplayName(context, Uri.parse(value))
@@ -2351,28 +2325,6 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                 }
             }
         }
-    }
-    pendingDeleteLut?.let { value ->
-        val name = documentDisplayName(context, Uri.parse(value))
-        AlertDialog(
-            onDismissRequest = { pendingDeleteLut = null },
-            title = { Text("Xóa LUT?") },
-            text = { Text("Bạn chắc chắn muốn xóa LUT \"$name\" khỏi danh sách đã nhập?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    luts.remove(value)
-                    prefs.edit().putStringSet("luts", luts.toSet()).apply()
-                    val appPrefs = context.getSharedPreferences("fujifilm_settings", 0)
-                    if (appPrefs.getString("selected_lut_uri", null) == value) {
-                        appPrefs.edit().remove("selected_lut_uri").apply()
-                    }
-                    pendingDeleteLut = null
-                }) { Text("Xóa") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteLut = null }) { Text("Hủy") }
-            }
-        )
     }
 }
 

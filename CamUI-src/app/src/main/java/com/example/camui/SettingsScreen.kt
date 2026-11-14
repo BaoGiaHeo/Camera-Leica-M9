@@ -57,18 +57,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private data class SettingItem(val title: String, val subtitle: String)
-private data class CameraLensRow(
-    val id: String,
-    val facing: String,
-    val focal: String,
-    val aperture: String,
-    val sensor: String,
-    val maxOutput: String,
-    val ois: String,
-    val eis: String,
-    val physicalIds: String
-)
-
 private val settingItems = listOf(
     SettingItem("Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
     SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),

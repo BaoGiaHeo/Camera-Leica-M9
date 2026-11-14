@@ -91,7 +91,7 @@ fun CamTheme(content: @Composable () -> Unit) {
             surface = CamColors.Card
         )
     ) {
-        Box(Modifier.fillMaxSize().background(CamColors.Bg)) {
+        Box(Modifier.fillMaxSize().background(CamColors.Bg).animaTContent()) {
             content()
         }
     }

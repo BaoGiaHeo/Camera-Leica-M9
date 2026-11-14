@@ -1433,10 +1433,8 @@ private data class CubeLut(
     }
 }
 
-private fun readCubeLut(context: Context, uri: Uri): CubeLut? {
+private fun parseCubeLutText(text: String): CubeLut? {
     return runCatching {
-        val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            ?: return@runCatching null
         var size = 0
         val min = floatArrayOf(0f, 0f, 0f)
         val max = floatArrayOf(1f, 1f, 1f)
@@ -1450,11 +1448,9 @@ private fun readCubeLut(context: Context, uri: Uri): CubeLut? {
                 "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: 0
                 "DOMAIN_MIN" -> if (parts.size >= 4) for (i in 0..2) min[i] = parts[i + 1].toFloat()
                 "DOMAIN_MAX" -> if (parts.size >= 4) for (i in 0..2) max[i] = parts[i + 1].toFloat()
-                else -> {
-                    if (parts.size >= 3) {
-                        val rgb = parts.take(3).mapNotNull { it.toFloatOrNull() }
-                        if (rgb.size == 3) rows.add(floatArrayOf(rgb[0], rgb[1], rgb[2]))
-                    }
+                else -> if (parts.size >= 3) {
+                    val rgb = parts.take(3).mapNotNull { it.toFloatOrNull() }
+                    if (rgb.size == 3) rows.add(floatArrayOf(rgb[0], rgb[1], rgb[2]))
                 }
             }
         }
@@ -1467,6 +1463,41 @@ private fun readCubeLut(context: Context, uri: Uri): CubeLut? {
             }
         })
     }.getOrNull()
+}
+
+private fun readCubeLut(context: Context, uri: Uri): CubeLut? =
+    runCatching {
+        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { parseCubeLutText(it.readText()) }
+    }.getOrNull()
+
+private val filmSimulationAssets = mapOf(
+    "Provia" to "film_sims/provia.cube",
+    "Velvia" to "film_sims/velvia.cube",
+    "Astia" to "film_sims/astia.cube",
+    "Classic Chrome" to "film_sims/classic_chrome.cube",
+    "Classic Neg" to "film_sims/classic_neg.cube",
+    "Eterna" to "film_sims/eterna.cube",
+    "Pro Neg Std" to "film_sims/pro_neg_std.cube",
+    "Pro Neg Hi" to "film_sims/pro_neg_hi.cube",
+    "Nostalgic Neg" to "film_sims/nostalgic_neg.cube",
+    "Reala Ace" to "film_sims/reala_ace.cube",
+    "Bleach Bypass" to "film_sims/bleach_bypass.cube"
+)
+
+private val filmSimulationCache = mutableMapOf<String, CubeLut>()
+
+private fun readFilmSimulationLut(context: Context, preset: String): CubeLut? {
+    val assetPath = filmSimulationAssets[preset] ?: return null
+    synchronized(filmSimulationCache) {
+        filmSimulationCache[preset]?.let { return it }
+    }
+    val parsed = runCatching {
+        context.assets.open(assetPath).bufferedReader().use { parseCubeLutText(it.readText()) }
+    }.getOrNull() ?: return null
+    synchronized(filmSimulationCache) {
+        filmSimulationCache[preset] = parsed
+    }
+    return parsed
 }
 
 private fun clamp8(value: Float): Int = value.toInt().coerceIn(0, 255)
@@ -1487,11 +1518,6 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
         b = (b - 128f) * amount + 128f
     }
     when (name) {
-        "Provia" -> { saturation(1.08f); contrast(1.04f) }
-        "Velvia" -> { saturation(1.42f); contrast(1.12f) }
-        "Astia" -> { saturation(0.92f); contrast(0.94f); r += 7f; b -= 3f }
-        "Classic Neg" -> { saturation(1.16f); contrast(1.18f); r += 5f; b -= 6f }
-        "Eterna" -> { saturation(0.72f); contrast(0.86f); r += 4f; b += 3f }
         "Acros" -> { r = luma; g = luma; b = luma; contrast(1.22f) }
         "Kodak Portra 400" -> { saturation(0.88f); contrast(0.94f); r += 8f; g += 3f; b -= 5f }
         "Agfa" -> { saturation(1.2f); r += 7f; g += 2f; b -= 5f }
@@ -1514,6 +1540,133 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
  * Applies a built-in film-inspired look or an imported .cube LUT to the saved photo.
  * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
  */
+private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?): Boolean {
+    if (preset in filmSimulationAssets && cube == null) return false
+    val row = IntArray(bitmap.width)
+    for (y in 0 until bitmap.height) {
+        bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
+        for (x in row.indices) {
+            val pixel = row[x]
+            val alpha = AndroidColor.alpha(pixel)
+            val red = AndroidColor.red(pixel).toFloat()
+            val green = AndroidColor.green(pixel).toFloat()
+            val blue = AndroidColor.blue(pixel).toFloat()
+            val mapped = cube?.sample(red / 255f, green / 255f, blue / 255f)
+                ?: transformPreset(preset, red, green, blue).let {
+                    Triple(it.first / 255f, it.second / 255f, it.third / 255f)
+                }
+            row[x] = AndroidColor.argb(
+                alpha,
+                clamp8(mapped.first * 255f),
+                clamp8(mapped.second * 255f),
+                clamp8(mapped.third * 255f)
+            )
+        }
+        bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
+    }
+    return true
+}
+
+/**
+ * Render the exact same built-in LUT/pixel transform used by saved-photo processing.
+ * The filter picker uses a shared source bitmap, so switching presets never compounds filters.
+ */
+fun renderCameraLookPreview(
+    context: Context,
+    source: Bitmap,
+    preset: String,
+    maxDimension: Int = 180
+): Bitmap? {
+    return runCatching {
+        val maxSide = maxOf(source.width, source.height).coerceAtLeast(1)
+        val scale = minOf(1f, maxDimension.toFloat() / maxSide)
+        val scaled = if (scale < 0.999f) {
+            Bitmap.createScaledBitmap(
+                source,
+                (source.width * scale).toInt().coerceAtLeast(1),
+                (source.height * scale).toInt().coerceAtLeast(1),
+                true
+            )
+        } else source
+        val output = scaled.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching null
+        if (scaled !== source) scaled.recycle()
+        val cube = readFilmSimulationLut(context, preset)
+        if (!applyCameraLookPixels(output, preset, cube)) {
+            output.recycle()
+            return@runCatching null
+        }
+        output
+    }.getOrNull()
+}
+
+/** A built-in color-rich reference scene is shown until the first unfiltered capture is available. */
+fun createFilmLookPreviewSample(): Bitmap {
+    val width = 480
+    val height = 300
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    paint.shader = LinearGradient(
+        0f, 0f, 0f, height.toFloat(),
+        intArrayOf(AndroidColor.rgb(111, 168, 205), AndroidColor.rgb(233, 202, 161), AndroidColor.rgb(245, 220, 180)),
+        null, Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+    paint.shader = null
+
+    paint.color = AndroidColor.rgb(255, 226, 163)
+    canvas.drawCircle(385f, 64f, 29f, paint)
+
+    val distant = Path().apply {
+        moveTo(0f, 190f); lineTo(74f, 92f); lineTo(130f, 173f)
+        lineTo(213f, 80f); lineTo(305f, 185f); lineTo(390f, 112f)
+        lineTo(480f, 186f); lineTo(480f, 300f); lineTo(0f, 300f); close()
+    }
+    paint.color = AndroidColor.rgb(113, 125, 139)
+    canvas.drawPath(distant, paint)
+    val near = Path().apply {
+        moveTo(0f, 222f); lineTo(115f, 148f); lineTo(208f, 224f)
+        lineTo(324f, 143f); lineTo(480f, 229f); lineTo(480f, 300f); lineTo(0f, 300f); close()
+    }
+    paint.color = AndroidColor.rgb(82, 119, 91)
+    canvas.drawPath(near, paint)
+
+    paint.shader = LinearGradient(0f, 218f, 0f, 300f,
+        AndroidColor.rgb(83, 125, 83), AndroidColor.rgb(38, 75, 58), Shader.TileMode.CLAMP)
+    canvas.drawRect(0f, 218f, width.toFloat(), height.toFloat(), paint)
+    paint.shader = null
+
+    // Colorful still-life subject: skin tones, fabric, flowers, foliage and warm highlights.
+    paint.color = AndroidColor.rgb(203, 145, 100)
+    canvas.drawCircle(218f, 177f, 28f, paint)
+    paint.color = AndroidColor.rgb(58, 89, 116)
+    canvas.drawRoundRect(RectF(178f, 204f, 260f, 300f), 15f, 15f, paint)
+    paint.color = AndroidColor.rgb(231, 190, 145)
+    canvas.drawOval(RectF(203f, 165f, 230f, 190f), paint)
+    paint.color = AndroidColor.rgb(59, 45, 42)
+    canvas.drawOval(RectF(197f, 149f, 240f, 173f), paint)
+
+    paint.color = AndroidColor.rgb(168, 78, 58)
+    canvas.drawRoundRect(RectF(55f, 208f, 115f, 270f), 8f, 8f, paint)
+    paint.color = AndroidColor.rgb(231, 178, 100)
+    canvas.drawRect(62f, 216f, 108f, 228f, paint)
+    paint.color = AndroidColor.rgb(78, 112, 73)
+    canvas.drawRect(330f, 205f, 338f, 270f, paint)
+    paint.color = AndroidColor.rgb(55, 98, 65)
+    canvas.drawCircle(334f, 183f, 35f, paint)
+    paint.color = AndroidColor.rgb(231, 142, 105)
+    canvas.drawCircle(315f, 178f, 10f, paint)
+    paint.color = AndroidColor.rgb(247, 210, 120)
+    canvas.drawCircle(350f, 158f, 11f, paint)
+    paint.color = AndroidColor.rgb(217, 226, 205)
+    canvas.drawRect(12f, 18f, 104f, 42f, paint)
+    paint.color = AndroidColor.rgb(40, 47, 50)
+    paint.textSize = 14f
+    paint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+    canvas.drawText("FUJI FILM LOOK", 19f, 35f, paint)
+    return bitmap
+}
+
 fun applyCameraLook(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val preset = prefs.getString("selected_filter", "None") ?: "None"
@@ -1521,28 +1674,15 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
     if (preset == "None" && lutUriText.isNullOrBlank()) return false
 
     return runCatching {
-        val cube = lutUriText?.let { readCubeLut(context, Uri.parse(it)) }
-        if (!lutUriText.isNullOrBlank() && cube == null) return@runCatching false
-        val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        val row = IntArray(bitmap.width)
-        for (y in 0 until bitmap.height) {
-            bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
-            for (x in row.indices) {
-                val pixel = row[x]
-                val a = android.graphics.Color.alpha(pixel)
-                val red = android.graphics.Color.red(pixel).toFloat()
-                val green = android.graphics.Color.green(pixel).toFloat()
-                val blue = android.graphics.Color.blue(pixel).toFloat()
-                val mapped = cube?.sample(red / 255f, green / 255f, blue / 255f)
-                    ?: transformPreset(preset, red, green, blue).let {
-                        Triple(it.first / 255f, it.second / 255f, it.third / 255f)
-                    }
-                row[x] = android.graphics.Color.argb(
-                    a, clamp8(mapped.first * 255f), clamp8(mapped.second * 255f), clamp8(mapped.third * 255f)
-                )
-            }
-            bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
+        val builtInCube = readFilmSimulationLut(context, preset)
+        val cube = builtInCube ?: lutUriText?.let { readCubeLut(context, Uri.parse(it)) }
+        if (preset in filmSimulationAssets && builtInCube == null) {
+            android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
+            return@runCatching false
         }
+        if (!lutUriText.isNullOrBlank() && preset == "None" && cube == null) return@runCatching false
+        val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
+        if (!applyCameraLookPixels(bitmap, preset, cube)) return@runCatching false
         context.contentResolver.openOutputStream(uri, "wt")?.use {
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
         } ?: return@runCatching false

@@ -7,13 +7,27 @@ plugins {
 android {
     namespace = "com.example.camui"
     compileSdk = 36
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.fujifilm.mode"
         minSdk = 30
         targetSdk = 35
         versionCode = 3
-        versionName = "1.2-experimental"
+        versionName = "1.3-experimental"
+
+        // The shipped NCNN Vulkan package is currently prepared for 64-bit Android.
+        // This covers modern Snapdragon/Adreno and other arm64 Vulkan devices.
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=c++_shared")
+                cppFlags += listOf("-std=c++17")
+            }
+        }
     }
 
     buildTypes {
@@ -38,6 +52,19 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 }
 

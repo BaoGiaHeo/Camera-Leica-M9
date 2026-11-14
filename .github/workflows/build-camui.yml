@@ -72,7 +72,7 @@ jobs:
           unzip -q "$WORK_DIR/ncnn-android-vulkan.zip" -d "$WORK_DIR/unpacked"
 
           NCNN_SO="$(find "$WORK_DIR/unpacked" -type f -name libncnn.so | grep '/arm64-v8a/' | head -n 1 || true)"
-          NCNN_NET_H="$(find "$WORK_DIR/unpacked" -type f -name net.h | head -n 1 || true)"
+          NCNN_NET_H="$(find "$WORK_DIR/unpacked" -type f -path '*/arm64-v8a/*/net.h' | head -n 1 || true)"
           echo "NCNN shared library: ${NCNN_SO:-NOT FOUND}"
           echo "NCNN net.h: ${NCNN_NET_H:-NOT FOUND}"
           if [ -z "$NCNN_NET_H" ]; then

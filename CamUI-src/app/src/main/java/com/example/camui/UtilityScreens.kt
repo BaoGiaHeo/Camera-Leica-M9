@@ -1284,7 +1284,7 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
         val canvas = Canvas(output)
         val style = prefs.getString("frame_style", "White") ?: "White"
         val frameColor = if (style == "Black") AndroidColor.BLACK else AndroidColor.WHITE
-        val textColor = if (style == "Black") AndroidColor.WHITE else AndroidColor.BLACK
+        val textColor = if (style == "Black" || transparent) AndroidColor.WHITE else AndroidColor.BLACK
         val minSide = minOf(output.width, output.height).toFloat()
         val margin = (minSide * 0.035f).coerceAtLeast(16f)
         val stroke = (minSide * 0.0032f).coerceAtLeast(2f)

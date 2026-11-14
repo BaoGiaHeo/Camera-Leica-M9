@@ -153,6 +153,8 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1634,49 +1636,70 @@ fun CameraScreen(
                                                     nightShotTargetFrameCount = maxFrames
                                                 }
                                             }
-                                            // CameraX ImageCapture serializes still requests. Avoid any
-                                            // artificial 200ms sleep: issue the next request immediately
-                                            // after the previous callback and retain every valid frame.
-                                            // Stop at the selected 3/5/10s deadline; if the camera cannot
-                                            // reach 90/150/300 frames, process the real partial stack.
+                                            // Keep two still requests in flight. CameraX still serializes sensor
+                                            // exposures internally, but a small bounded queue overlaps its
+                                            // JPEG/file callback work and avoids an idle gap between requests.
+                                            // The device's actual sensor/ISP throughput remains authoritative.
                                             var consecutiveCaptureFailures = 0
-                                            val burstStartedNanos = SystemClock.elapsedRealtimeNanos()
                                             var stoppedForStorage = false
-                                            while (stackedFrames.size < maxFrames &&
-                                                (!captureUseNightShot || SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)
-                                            ) {
-                                                if (captureUseNightShot && context.cacheDir.usableSpace < 256L * 1024L * 1024L) {
-                                                    stoppedForStorage = true
-                                                    break
-                                                }
-                                                val frameNumber = stackedFrames.size + 1
-                                                withContext(Dispatchers.Main) {
-                                                    processingLabel = if (captureUseNightShot) {
-                                                        "Night Shot: khung $frameNumber/$maxFrames · 30 FPS mục tiêu"
-                                                    } else {
-                                                        "Multi-frame: chụp khung $frameNumber/5"
+                                            var stopSubmitting = false
+                                            var nextFrameNumber = stackedFrames.size + 1
+                                            val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, Boolean>>>()
+                                            val maxInFlightCaptures = if (captureUseNightShot) 2 else 1
+
+                                            while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
+                                                while (!stopSubmitting &&
+                                                    pendingCaptures.size < maxInFlightCaptures &&
+                                                    stackedFrames.size + pendingCaptures.size < maxFrames &&
+                                                    (!captureUseNightShot ||
+                                                        SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)
+                                                ) {
+                                                    if (captureUseNightShot &&
+                                                        context.cacheDir.usableSpace < 256L * 1024L * 1024L
+                                                    ) {
+                                                        stoppedForStorage = true
+                                                        stopSubmitting = true
+                                                        break
                                                     }
-                                                    processingProgress = if (captureUseNightShot) {
-                                                        (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
-                                                    } else (8 + stackedFrames.size * 3).coerceAtMost(24)
+                                                    val frameNumber = nextFrameNumber++
+                                                    val nextFrame = File(
+                                                        context.cacheDir,
+                                                        "fuji-stack-" + System.nanoTime() + "-" + frameNumber + ".jpg"
+                                                    )
+                                                    pendingCaptures.addLast(async(Dispatchers.IO) {
+                                                        val captured = NightShotProcessor.captureFrameToFile(
+                                                            capture, nextFrame, mainExecutor
+                                                        )
+                                                        Triple(frameNumber, nextFrame, captured)
+                                                    })
+                                                    withContext(Dispatchers.Main) {
+                                                        val expectedFrame = stackedFrames.size + pendingCaptures.size
+                                                        processingLabel = if (captureUseNightShot) {
+                                                            "Night Shot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
+                                                        } else {
+                                                            "Multi-frame: chụp khung $expectedFrame/5"
+                                                        }
+                                                        processingProgress = if (captureUseNightShot) {
+                                                            (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
+                                                        } else (8 + stackedFrames.size * 3).coerceAtMost(24)
+                                                    }
                                                 }
-                                                val nextFrame = File(
-                                                    context.cacheDir,
-                                                    "fuji-stack-" + System.nanoTime() + "-" + frameNumber + ".jpg"
-                                                )
-                                                val captured = NightShotProcessor.captureFrameToFile(
-                                                    capture, nextFrame, mainExecutor
-                                                )
+
+                                                if (pendingCaptures.isEmpty()) break
+                                                val (frameNumber, nextFrame, captured) = pendingCaptures.removeFirst().await()
                                                 if (!captured) {
                                                     runCatching { nextFrame.delete() }
                                                     consecutiveCaptureFailures++
                                                     android.util.Log.w(
                                                         "FUJI_NIGHTSHOT",
-                                                        "Capture attempt failed (" + consecutiveCaptureFailures + "/3); keeping " + stackedFrames.size + " valid frames"
+                                                        "Capture attempt failed (frame " + frameNumber + ", " +
+                                                            consecutiveCaptureFailures + "/3); keeping " +
+                                                            stackedFrames.size + " valid frames"
                                                     )
-                                                    if (consecutiveCaptureFailures >= 3) break
+                                                    if (consecutiveCaptureFailures >= 3) stopSubmitting = true
                                                     continue
                                                 }
+
                                                 consecutiveCaptureFailures = 0
                                                 stackedFrames.add(nextFrame)
                                                 if (captureUseNightShot) {
@@ -1685,10 +1708,17 @@ fun CameraScreen(
                                                     }
                                                 }
                                             }
+
                                             val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - captureNightStartedAtNanos) / 1_000_000L).coerceAtLeast(1L)
                                             if (captureUseNightShot) {
                                                 val achievedFps = stackedFrames.size * 1000.0 / burstElapsedMs
-                                                android.util.Log.i("FUJI_NIGHTSHOT", "Collected " + stackedFrames.size + "/" + maxFrames + " frames in " + burstElapsedMs + "ms; approx " + "%.1f".format(Locale.US, achievedFps) + " FPS")
+                                                android.util.Log.i(
+                                                    "FUJI_NIGHTSHOT",
+                                                    "Collected " + stackedFrames.size + "/" + maxFrames +
+                                                        " frames in " + burstElapsedMs + "ms; approx " +
+                                                        "%.1f".format(Locale.US, achievedFps) +
+                                                        " FPS; bounded in-flight queue=" + maxInFlightCaptures
+                                                )
                                             }
                                             if (stoppedForStorage) {
                                                 android.util.Log.w("FUJI_NIGHTSHOT", "Stopped early to protect free cache storage; processing " + stackedFrames.size + " frames")

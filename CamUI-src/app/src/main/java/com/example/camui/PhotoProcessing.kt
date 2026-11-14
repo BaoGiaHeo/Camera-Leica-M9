@@ -53,7 +53,7 @@ fun applySoftwarePhotoEnhancement(
         var currentRow = IntArray(width)
         var nextRow = IntArray(width)
         val outputRow = IntArray(width)
-        val sharpenAmount = if (uhdSharpening) 2.0f else 0f
+        val sharpenAmount = if (uhdSharpening) 0.28f else 0f
 
         fun luminance(pixel: Int): Float {
             val r = android.graphics.Color.red(pixel) / 255f
@@ -93,7 +93,7 @@ fun applySoftwarePhotoEnhancement(
                     val up = luminance(previousRow[x])
                     val down = luminance(nextRow[x])
                     val localBlur = (left + right + up + down) * 0.25f
-                    val detail = centerLuma - localBlur
+                    val detail = (centerLuma - localBlur).coerceIn(-0.04f, 0.04f)
                     targetLuma = (targetLuma + detail * sharpenAmount).coerceIn(0f, 1f)
                 }
 

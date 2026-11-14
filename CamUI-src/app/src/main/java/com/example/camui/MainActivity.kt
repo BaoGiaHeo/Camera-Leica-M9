@@ -30,13 +30,14 @@ class MainActivity : AppCompatActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
+        val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         setContent {
             CamTheme {
                 var page by remember { mutableStateOf("camera") }
-                var showGrid by remember { mutableStateOf(true) }
-                var showHist by remember { mutableStateOf(true) }
-                var focusPeaking by remember { mutableStateOf(false) }
-                var ratioIdx by remember { mutableIntStateOf(1) }
+                var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
+                var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }
+                var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
+                var ratioIdx by remember { mutableIntStateOf(settingsPrefs.getInt("capture_ratio_index", 1).coerceIn(0, 4)) }
 
                 BackHandler(enabled = page != "camera") { page = "camera" }
                 AnimatedContent(
@@ -59,13 +60,13 @@ class MainActivity : AppCompatActivity() {
                     "settings" -> SettingsScreen(
                         onBack = { page = "camera" },
                         ratioIdx = ratioIdx,
-                        onRatio = { ratioIdx = it },
+                        onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
                         showGrid = showGrid,
-                        onShowGrid = { showGrid = it },
+                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
                         showHist = showHist,
-                        onShowHist = { showHist = it },
+                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                         focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it }
+                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
                     )
                     "toolbox" -> ToolboxScreen(
                         onBack = { page = "camera" },

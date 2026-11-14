@@ -310,8 +310,6 @@ fun CameraScreen(
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
     var focusDiopter by remember { mutableFloatStateOf(0f) }
-    var liveAperture by remember { mutableStateOf<Float?>(null) }
-    var liveFocalMm by remember { mutableStateOf<Float?>(null) }
     var camera2Inventory by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
     var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
@@ -441,8 +439,6 @@ fun CameraScreen(
         imageCapture = null
         activeCameraDetails = null
         activePhysicalCameraDetails = emptyList()
-        liveAperture = null
-        liveFocalMm = null
         captureSetupReady = false
         preserveUltraHdrOutput = false
         previewUseCase = null
@@ -522,8 +518,6 @@ fun CameraScreen(
                             live.iso?.let { if (iso != it) iso = it }
                             live.shutterNs?.let { if (shutterNs != it) shutterNs = it }
                             live.focusDiopter?.let { if (focusDiopter != it) focusDiopter = it }
-                            live.aperture?.let { if (liveAperture != it) liveAperture = it }
-                            live.focalMm?.let { if (liveFocalMm != it) liveFocalMm = it }
                             if (!evUserAdjusting) {
                                 live.evIndex?.let {
                                     if (evIndex != it) evIndex = it
@@ -743,8 +737,6 @@ fun CameraScreen(
                 activePhysicalCameraDetails = discoveredCamera2.filter {
                     it.parentId == actualCameraId
                 }
-                liveAperture = activeCameraDetails?.apertures?.firstOrNull()
-                liveFocalMm = activeCameraDetails?.focalLengthsMm?.firstOrNull()
                 android.util.Log.i(
                     "FUJI_CAMERA2_ACTIVE",
                     "CameraX bound cameraId=${actualCameraId ?: "unknown"}, " +
@@ -1596,15 +1588,6 @@ fun CameraScreen(
                             minZoom = zoomMinForUi,
                             maxZoom = zoomMaxForUi
                         )
-                        val apertureForUi = liveAperture ?: activeCameraDetails?.apertures?.firstOrNull()
-                        val focalForUi = liveFocalMm ?: activeCameraDetails?.focalLengthsMm?.firstOrNull()
-                        val lensInfoLabel = buildList {
-                            apertureForUi?.let { add(String.format(Locale.US, "f/%.1f", it)) }
-                            focalForUi?.let { add(String.format(Locale.US, "%.1fmm", it)) }
-                            activeCameraDetails?.eq35Mm?.let {
-                                add(String.format(Locale.US, "eq %.0fmm", it))
-                            }
-                        }.joinToString(" · ")
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally) {
                             Row(Modifier.fillMaxWidth(),

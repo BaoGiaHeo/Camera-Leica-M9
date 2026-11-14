@@ -7,7 +7,6 @@ plugins {
 android {
     namespace = "com.example.camui"
     compileSdk = 36
-    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.fujifilm.mode"
@@ -16,18 +15,6 @@ android {
         versionCode = 3
         versionName = "1.3-experimental"
 
-        // The shipped NCNN Vulkan package is currently prepared for 64-bit Android.
-        // This covers modern Snapdragon/Adreno and other arm64 Vulkan devices.
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
-
-        externalNativeBuild {
-            cmake {
-                arguments += listOf("-DANDROID_STL=c++_shared")
-                cppFlags += listOf("-std=c++17")
-            }
-        }
     }
 
     buildTypes {
@@ -52,13 +39,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
     }
 
     packaging {
@@ -87,11 +67,4 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
     implementation("androidx.camera:camera-extensions:$camerax")
-    // Bundled on-device ML Kit model: no first-run model download required for framing guidance.
-    implementation("com.google.mlkit:face-detection:16.1.7")
-    // On-device 33-landmark body pose and scene-label inference for the AI camera assistant.
-    implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
-    implementation("com.google.mlkit:image-labeling:17.0.9")
-    // NAFNet-SIDD image denoising with NNAPI acceleration and CPU fallback.
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.32.0")
 }

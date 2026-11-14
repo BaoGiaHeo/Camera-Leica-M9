@@ -535,17 +535,17 @@ private fun SettingsDetailPage(
                 Spacer(Modifier.padding(5.dp))
                 Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "NAFNet-SIDD AI chạy trực tiếp trên điện thoại sau khi chụp, giữ nguyên kích thước ảnh lưu. Off tắt AI; Low / Medium / High điều chỉnh độ mạnh. Ultra HDR được giữ nguyên gain map nên bỏ qua hậu kỳ AI.",
+                    "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2). High+ mới chạy NAFNet-SIDD AI với mức xử lý mạnh nhất sau khi chụp; thời gian phụ thuộc độ phân giải và phần cứng. Ultra HDR bỏ qua NAFNet.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("Off", "Low", "Medium", "High").forEach { option ->
+                    listOf("Off", "Low", "Medium", "High", "High+").forEach { option ->
                         Chip(option, noiseReduction == option, {
                             noiseReduction = option
                             prefs.edit().putString("noise_reduction", option).apply()
-                        }, Modifier.width(75.dp))
+                        }, Modifier.width(if (option == "High+") 82.dp else 75.dp))
                     }
                 }
             }

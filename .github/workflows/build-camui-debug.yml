@@ -115,7 +115,7 @@ jobs:
           License: BSD-3-Clause. See https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE
           NOTICE
           echo "NCNN and model files provisioned:"
-          ls -lh "$JNI_DIR" "$MODEL_DIR"/realesr-animevideov3-x2.* "$MODEL_DIR/nafnet-sidd-w32.onnx"
+          ls -lh "$JNI_DIR" "${MODEL_DIR}"/realesrgan-x4plus.* "${MODEL_DIR}/nafnet-sidd-w32.onnx" "${MODEL_DIR}/pose_landmarker_lite.task"
 
       - name: Build debug APK
         working-directory: CamUI-src

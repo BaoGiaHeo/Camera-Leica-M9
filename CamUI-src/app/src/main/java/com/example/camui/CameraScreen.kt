@@ -721,6 +721,7 @@ var aiPortraitDepthEnabled by remember {
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST
                     )
                     "High+" -> listOf(
+                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
                         CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST
                     )
@@ -1754,8 +1755,8 @@ var aiPortraitDepthEnabled by remember {
                                         context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
                                     }.getOrNull()?.takeIf { it > 0L } ?: 12L * 1024L * 1024L
                                     val estimatedAiSeconds = (
-                                        18.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 1.25
-                                    ).toInt().coerceIn(20, 120)
+                                        35.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 2.4
+                                    ).toInt().coerceIn(35, 300)
                                     var aiRenderFinished = false
                                     val progressTicker = scope.launch {
                                         val startedAt = System.currentTimeMillis()

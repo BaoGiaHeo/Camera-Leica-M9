@@ -27,7 +27,7 @@ object NcnnSuperResolution {
     private const val MODEL_BIN = "realesrgan-x4plus.bin"
     private const val TARGET_MODEL_INPUT_PIXELS = 13_187_500L
     private const val TARGET_OUTPUT_PIXELS = 211_000_000L
-    private const val TILE_SIZE = 192
+    private const val TILE_SIZE = 256
 
     init {
         System.loadLibrary("fujisr")

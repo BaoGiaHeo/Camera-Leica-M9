@@ -935,11 +935,6 @@ private fun WatermarkTemplateCard(
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF475550))
         ) {
-            val frameColor = when (frameStyle) {
-                "Black" -> Color.Black
-                "Transparent" -> Color.Transparent
-                else -> Color.White
-            }
             val panelColor = when (frameStyle) {
                 "White" -> Color.White
                 "Black" -> Color.Black

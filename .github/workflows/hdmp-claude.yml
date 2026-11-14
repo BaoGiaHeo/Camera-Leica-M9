@@ -1,8 +1,3 @@
-# File: .github/workflows/hdmp-claude.yml
-# Workflow name: HDMP - Claude sua code va build APK
-# Chay: tu dong khi tao/sua file nay tren nhanh chinh, hoac Actions > chon workflow > Run workflow
-# Can secret: ANTHROPIC_API_KEY (hoac CLAUDE_CODE_OAUTH_TOKEN)
-
 name: HDMP - Claude sua code va build APK
 
 on:

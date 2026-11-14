@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.fujifilm.mode"
-        minSdk = 30
+        minSdk = 29
         targetSdk = 35
         versionCode = 3
         versionName = "1.3-experimental"

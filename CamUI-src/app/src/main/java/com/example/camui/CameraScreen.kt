@@ -396,6 +396,24 @@ fun CameraScreen(
     var aiCompositionEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("ai_composition_enabled", false))
     }
+    var showAiHub by remember { mutableStateOf(false) }
+    var aiDirectorVlmEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("ai_director_vlm_enabled", false))
+    }
+    var aiHdrUhdEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("ai_hdr_uhd_enabled", false))
+    }
+    var aiPortraitDepthEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("ai_portrait_depth_enabled", false))
+    }
+    LaunchedEffect(aiCompositionEnabled, aiDirectorVlmEnabled, aiHdrUhdEnabled, aiPortraitDepthEnabled) {
+        appPrefs.edit()
+            .putBoolean("ai_composition_enabled", aiCompositionEnabled)
+            .putBoolean("ai_director_vlm_enabled", aiDirectorVlmEnabled)
+            .putBoolean("ai_hdr_uhd_enabled", aiHdrUhdEnabled)
+            .putBoolean("ai_portrait_depth_enabled", aiPortraitDepthEnabled)
+            .apply()
+    }
     var aiCompositionHint by remember { mutableStateOf("Chưa thấy khuôn mặt") }
     val faceDetector: FaceDetector? = remember(aiCompositionEnabled) {
         if (aiCompositionEnabled) {
@@ -2508,23 +2526,16 @@ fun CameraScreen(
                             }
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(if (aiCompositionEnabled) Color(0x66F5C842) else CamColors.Glass)
-                                .clickable {
-                                    val enableAi = !aiCompositionEnabled
-                                    aiCompositionEnabled = enableAi
-                                    appPrefs.edit().putBoolean("ai_composition_enabled", enableAi).apply()
-                                    if (enableAi) {
-                                        localizedToast(
-                                            context,
-                                            "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                }
-                                .padding(horizontal = 13.dp, vertical = 7.dp)) {
-                                Text(if (aiCompositionEnabled) "AI Bố cục ✓" else "AI Bố cục",
-                                    color = if (aiCompositionEnabled) CamColors.Yellow else CamColors.TextColor,
-                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                .background(
+                                    if (aiCompositionEnabled || aiDirectorVlmEnabled || aiHdrUhdEnabled || aiPortraitDepthEnabled)
+                                        Color(0x66F5C842) else CamColors.Glass
+                                )
+                                .clickable { showAiHub = true }
+                                .padding(horizontal = 15.dp, vertical = 7.dp)) {
+                                Text("✨ AI",
+                                    color = if (aiCompositionEnabled || aiDirectorVlmEnabled || aiHdrUhdEnabled || aiPortraitDepthEnabled)
+                                        CamColors.Yellow else CamColors.TextColor,
+                                    fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
         }
@@ -2697,6 +2708,20 @@ fun CameraScreen(
                     activeFilter = selected
                     appPrefs.edit().putString("selected_filter", selected).apply()
                 }
+            )
+        }
+
+        if (showAiHub) {
+            AiHubBottomSheet(
+                onDismiss = { showAiHub = false },
+                compositionEnabled = aiCompositionEnabled,
+                onCompositionChanged = { aiCompositionEnabled = it },
+                directorEnabled = aiDirectorVlmEnabled,
+                onDirectorChanged = { aiDirectorVlmEnabled = it },
+                hdrUhdEnabled = aiHdrUhdEnabled,
+                onHdrUhdChanged = { aiHdrUhdEnabled = it },
+                portraitEnabled = aiPortraitDepthEnabled,
+                onPortraitChanged = { aiPortraitDepthEnabled = it }
             )
         }
 

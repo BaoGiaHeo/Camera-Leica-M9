@@ -58,7 +58,7 @@ data class LiveReading(
             if (ns <= 0L) return "—"
             val seconds = ns / 1_000_000_000.0
             return if (seconds >= 0.5) {
-                String.format(Locale.US, "%.1f\" ", seconds).trim()
+                String.format(Locale.US, "%.1f", seconds) + "\""
             } else {
                 "1/${(1.0 / seconds).roundToInt()}"
             }

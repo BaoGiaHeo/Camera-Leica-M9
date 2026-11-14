@@ -47,13 +47,13 @@ object NcnnSuperResolution {
      * encoding succeeds.
      */
     fun enhanceCapturedPhoto(context: Context, uri: Uri): Boolean {
-        val tempOutput = File(
-            context.cacheDir,
-            "fuji-ai-${SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())}.jpg"
-        )
+        val uniqueName = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val tempOutput = File(context.cacheDir, "fuji-ai-$uniqueName.jpg")
+        val originalBackup = File(context.cacheDir, "fuji-original-$uniqueName.jpg")
         var sourceBitmap: Bitmap? = null
         var modelInput: Bitmap? = null
         var outputBitmap: Bitmap? = null
+        var replacementStarted = false
 
         return try {
             val paramFile = copyModelAsset(context, MODEL_PARAM)
@@ -119,6 +119,16 @@ object NcnnSuperResolution {
 
             // Reapply the important camera EXIF tags after Bitmap JPEG encoding.
             writeImportantExif(tempOutput, originalExif)
+
+            // Keep a byte-for-byte rollback copy until MediaStore publication completes.
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(originalBackup).use { backup ->
+                    input.copyTo(backup)
+                    backup.fd.sync()
+                }
+            } ?: error("Cannot create rollback copy of the original camera JPEG")
+
+            replacementStarted = true
             val copied = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
                 tempOutput.inputStream().use { input -> input.copyTo(output) }
                 true
@@ -142,13 +152,23 @@ object NcnnSuperResolution {
             Log.i(TAG, "Real-ESRGAN x2 saved: ${outputWidth}x${outputHeight}")
             true
         } catch (error: Throwable) {
-            Log.e(TAG, "AI super-resolution failed; keep camera JPEG if output was not committed", error)
+            if (replacementStarted && originalBackup.exists()) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                        originalBackup.inputStream().use { input -> input.copyTo(output) }
+                    } ?: error("Cannot restore the original MediaStore JPEG")
+                }.onFailure {
+                    Log.e(TAG, "Rollback of original JPEG failed", it)
+                }
+            }
+            Log.e(TAG, "AI super-resolution failed; original camera JPEG rollback was attempted", error)
             false
         } finally {
             sourceBitmap?.let { if (!it.isRecycled) it.recycle() }
             modelInput?.let { if (!it.isRecycled) it.recycle() }
             outputBitmap?.let { if (!it.isRecycled) it.recycle() }
             runCatching { tempOutput.delete() }
+            runCatching { originalBackup.delete() }
         }
     }
 

@@ -351,6 +351,7 @@ fun CameraScreen(
         mutableIntStateOf(appPrefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
     }
     var nightExtensionActive by remember { mutableStateOf(false) }
+    var nightShotCaptureInProgress by remember { mutableStateOf(false) }
     var starTrailCaptureInProgress by remember { mutableStateOf(false) }
     var starTrailStopRequested by remember { mutableStateOf(false) }
     var starTrailFrameCount by remember { mutableIntStateOf(0) }
@@ -501,7 +502,8 @@ fun CameraScreen(
                 }.getOrNull()
             } else null
             nightExtensionActive = nightExtensionSelector != null
-            val hdrCaptureRequested = hdrEnabled && mode == "Photo" && !nightExtensionActive &&
+            val hdrCaptureRequested = hdrEnabled && mode == "Photo"" &&
+                !nightExtensionActive && nightShotMode != "star_trails" &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
                 runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR) }
@@ -606,7 +608,7 @@ fun CameraScreen(
                 }.orEmpty()
                 val effectiveNrMode = requestedNrMode.takeIf { it in availableNrModes }
                     ?: availableNrModes.firstOrNull()
-                if (effectiveNrMode != null && !hdrExtensionActive) {
+                if (effectiveNrMode != null && !hdrExtensionActive && !nightExtensionActive) {
                     Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(
                         CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
                     )
@@ -623,8 +625,12 @@ fun CameraScreen(
                     if (capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true &&
                         exposureRange != null && sensitivityRange != null
                     ) {
+                        val maxFrameDuration = characteristics.get(CameraCharacteristics.SENSOR_INFO_MAX_FRAME_DURATION)
+                            ?: Long.MAX_VALUE
+                        val maxSafeExposure = minOf(exposureRange.upper, maxFrameDuration)
+                            .coerceAtLeast(exposureRange.lower)
                         val requestedExposure = starTrailExposureSeconds.toLong() * 1_000_000_000L
-                        val exposureNs = requestedExposure.coerceIn(exposureRange.lower, exposureRange.upper)
+                        val exposureNs = requestedExposure.coerceIn(exposureRange.lower, maxSafeExposure)
                         val trailIso = 800.coerceIn(sensitivityRange.lower, sensitivityRange.upper)
                         Camera2Interop.Extender(captureBuilder)
                             .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
@@ -1112,7 +1118,7 @@ fun CameraScreen(
                     } else {
                         localizedToast(
                             context,
-                            "Không thể ghép vệt sao. Ảnh gốc trong phiên vẫn còn trong bộ nhớ tạm cho đến khi thoát phiên.",
+                            "Không thể ghép vệt sao từ phiên này. Hãy thử lại với máy ổn định hơn.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -1158,7 +1164,7 @@ fun CameraScreen(
             return
         }
         if (!captureSetupReady || camera == null || imageCapture == null ||
-            isProcessing || starTrailCaptureInProgress
+            isProcessing || nightShotCaptureInProgress || starTrailCaptureInProgress
         ) return
         if (mode == "Photo" && nightShotMode == "star_trails") {
             val activeCapture = imageCapture ?: return
@@ -1257,6 +1263,7 @@ fun CameraScreen(
                 // and EXIF/MediaStore dimensions have been normalized.
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
+            if (captureUseNightShot) nightShotCaptureInProgress = true
             val output = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -1267,6 +1274,7 @@ fun CameraScreen(
                 ContextCompat.getMainExecutor(context),
                 object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                        nightShotCaptureInProgress = false
                         val saved = result.savedUri
                         if (saved != null) {
                             val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -1358,7 +1366,7 @@ fun CameraScreen(
                                         expectedAspectRatioForCapture
                                     )
                                 }.getOrDefault(false)
-                                withContext(Dispatchers.Main) { processingProgress = 28 }
+                                withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val softwareHdrApplied = if (
                                     !captureIsUltraHdr && captureUseSoftwareHdr
                                 ) {
@@ -1505,6 +1513,7 @@ fun CameraScreen(
                         }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
+                        nightShotCaptureInProgress = false
                         runCatching {
                             camera?.let { Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions() }
                         }
@@ -2284,7 +2293,7 @@ fun CameraScreen(
         }
         if (starTrailCaptureInProgress) {
             Box(
-                Modifier.fillMaxSize().background(Color(0x99000000)),
+                Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 86.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -2310,6 +2319,24 @@ fun CameraScreen(
                     Text("Khuyên dùng tripod và lấy nét vô cực",
                         color = CamColors.Sub, fontSize = 10.sp,
                         modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+        if (nightShotCaptureInProgress) {
+            Box(
+                Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(horizontal = 28.dp, vertical = 86.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clip(RoundedCornerShape(18.dp))
+                        .background(CamColors.Panel).padding(horizontal = 18.dp, vertical = 14.dp)
+                ) {
+                    Text("NightShot · ĐANG CHỤP", color = CamColors.Yellow,
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Giữ máy ổn định cho đến khi báo hoàn tất",
+                        color = CamColors.Sub, fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 5.dp))
                 }
             }
         }

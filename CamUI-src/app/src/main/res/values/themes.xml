@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.CamUI" parent="@android:style/Theme.Material.NoActionBar">
+    <style name="Theme.CamUI" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#F5C842</item>
         <item name="android:windowLightStatusBar">false</item>

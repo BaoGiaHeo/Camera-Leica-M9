@@ -197,32 +197,9 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
-private fun playConfiguredShutterSound(
-    prefs: android.content.SharedPreferences,
-    systemPlayer: MediaActionSound
-) {
-    val selected = prefs.getString("shutter_sound_selected", "system")
-    val filePath = prefs.getString("shutter_sound_file_path", null)
-    if (selected == "local" && !filePath.isNullOrBlank() && File(filePath).isFile) {
-        val player = MediaPlayer()
-        try {
-            player.setDataSource(filePath)
-            player.setOnPreparedListener { prepared -> prepared.start() }
-            player.setOnCompletionListener { completed -> completed.release() }
-            player.setOnErrorListener { failed, _, _ ->
-                failed.release()
-                true
-            }
-            player.prepareAsync()
-            return
-        } catch (failure: Throwable) {
-            runCatching { player.release() }
-            android.util.Log.w("FUJI_SHUTTER_SOUND", "Custom MP3 failed; using system shutter sound", failure)
-        }
-    }
+private fun playConfiguredShutterSound(systemPlayer: MediaActionSound) {
     runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
 }
-
 @Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,
@@ -400,17 +377,13 @@ fun CameraScreen(
     var aiDirectorVlmEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("ai_director_vlm_enabled", false))
     }
-    var aiHdrUhdEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("ai_hdr_uhd_enabled", false))
-    }
-    var aiPortraitDepthEnabled by remember {
+var aiPortraitDepthEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("ai_portrait_depth_enabled", false))
     }
-    LaunchedEffect(aiCompositionEnabled, aiDirectorVlmEnabled, aiHdrUhdEnabled, aiPortraitDepthEnabled) {
+    LaunchedEffect(aiCompositionEnabled, aiDirectorVlmEnabled, aiPortraitDepthEnabled) {
         appPrefs.edit()
             .putBoolean("ai_composition_enabled", aiCompositionEnabled)
             .putBoolean("ai_director_vlm_enabled", aiDirectorVlmEnabled)
-            .putBoolean("ai_hdr_uhd_enabled", aiHdrUhdEnabled)
             .putBoolean("ai_portrait_depth_enabled", aiPortraitDepthEnabled)
             .apply()
     }
@@ -1164,7 +1137,7 @@ fun CameraScreen(
         previewUseCase?.targetRotation = captureRotation
         analysisUseCase?.targetRotation = captureRotation
         if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-            playConfiguredShutterSound(appPrefs, shutterSoundPlayer)
+            playConfiguredShutterSound(shutterSoundPlayer)
         }
 
         val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -1409,7 +1382,7 @@ fun CameraScreen(
             }
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-                playConfiguredShutterSound(appPrefs, shutterSoundPlayer)
+                playConfiguredShutterSound(shutterSoundPlayer)
             }
             val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
             scope.launch {
@@ -2527,13 +2500,13 @@ fun CameraScreen(
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
                                 .background(
-                                    if (aiCompositionEnabled || aiDirectorVlmEnabled || aiHdrUhdEnabled || aiPortraitDepthEnabled)
+                                    if (aiCompositionEnabled || aiDirectorVlmEnabled || uhdCaptureEnabled || aiPortraitDepthEnabled)
                                         Color(0x66F5C842) else CamColors.Glass
                                 )
                                 .clickable { showAiHub = true }
                                 .padding(horizontal = 15.dp, vertical = 7.dp)) {
                                 Text("✨ AI",
-                                    color = if (aiCompositionEnabled || aiDirectorVlmEnabled || aiHdrUhdEnabled || aiPortraitDepthEnabled)
+                                    color = if (aiCompositionEnabled || aiDirectorVlmEnabled || uhdCaptureEnabled || aiPortraitDepthEnabled)
                                         CamColors.Yellow else CamColors.TextColor,
                                     fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -2592,9 +2565,7 @@ fun CameraScreen(
                         ultraHdr = !ultraHdr
                     }
                 },
-                uhdCaptureEnabled = uhdCaptureEnabled,
-                onUhdCapture = { uhdCaptureEnabled = !uhdCaptureEnabled },
-                stabilization = stabilization,
+stabilization = stabilization,
                 onStabilization = {
                     stabilization = !stabilization
                     camera?.let { runCatching { applyStabilization(it, stabilization) } }
@@ -2718,8 +2689,8 @@ fun CameraScreen(
                 onCompositionChanged = { aiCompositionEnabled = it },
                 directorEnabled = aiDirectorVlmEnabled,
                 onDirectorChanged = { aiDirectorVlmEnabled = it },
-                hdrUhdEnabled = aiHdrUhdEnabled,
-                onHdrUhdChanged = { aiHdrUhdEnabled = it },
+                uhdEnabled = uhdCaptureEnabled,
+                onUhdEnabledChange = { uhdCaptureEnabled = it },
                 portraitEnabled = aiPortraitDepthEnabled,
                 onPortraitChanged = { aiPortraitDepthEnabled = it }
             )

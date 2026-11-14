@@ -72,7 +72,7 @@ private val settingItems = listOf(
     SettingItem("Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
     SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
     SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
-    SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
+    SettingItem("Photo Mode Setting", "HDR · Noise reduction"),
     SettingItem("NightShot", "Night Shot · Long Exposure / Star Trails"),
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
@@ -166,10 +166,7 @@ private fun SettingsDetailPage(
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
     var rawCaptureMode by remember { mutableStateOf(prefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
-    var uhd by remember {
-        mutableStateOf(prefs.getBoolean("uhd_capture_enabled", prefs.getBoolean("uhd_coming_soon", false)))
-    }
-    var nightShotMode by remember {
+var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
     var nightShotFrameCount by remember {
@@ -501,17 +498,6 @@ private fun SettingsDetailPage(
                     prefs.edit()
                         .putBoolean("hdr_enabled", it)
                         .putBoolean("hdr_coming_soon", false)
-                        .apply()
-                }
-                SettingsSwitch(
-                    "UHD · Độ phân giải tối đa",
-                    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến.",
-                    uhd
-                ) {
-                    uhd = it
-                    prefs.edit()
-                        .putBoolean("uhd_capture_enabled", it)
-                        .putBoolean("uhd_coming_soon", false)
                         .apply()
                 }
                 Spacer(Modifier.padding(5.dp))

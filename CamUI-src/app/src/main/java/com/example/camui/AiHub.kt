@@ -36,9 +36,9 @@ fun AiHubBottomSheet(
     onCompositionChanged: (Boolean) -> Unit,
     directorEnabled: Boolean,
     onDirectorChanged: (Boolean) -> Unit,
-    hdrUhdEnabled: Boolean,
-    onHdrUhdChanged: (Boolean) -> Unit,
-    portraitEnabled: Boolean,
+    uhdEnabled: Boolean,
+    onUhdEnabledChange: (Boolean) -> Unit,
+portraitEnabled: Boolean,
     onPortraitChanged: (Boolean) -> Unit
 ) {
     ModalBottomSheet(
@@ -93,11 +93,11 @@ fun AiHubBottomSheet(
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
-                title = "AI HDR+ & UHD x10",
-                detail = "App hiện có NightShot nhiều khung và Real-ESRGAN x2; HDR+ burst và x10 chưa được tích hợp.",
-                enabled = hdrUhdEnabled,
-                onEnabledChange = onHdrUhdChanged,
-                status = "Hiện có x2"
+                title = "UHD · AI Super Resolution x2",
+                detail = "Chụp JPEG ở độ phân giải cao nhất camera cung cấp, sau đó chạy Real-ESRGAN x2 qua NCNN/Vulkan; CPU là đường dự phòng khi GPU không phù hợp.",
+                enabled = uhdEnabled,
+                onEnabledChange = onUhdEnabledChange,
+                status = if (uhdEnabled) "AI x2 · ĐANG BẬT" else "AI x2 · SẴN SÀNG"
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
@@ -121,7 +121,7 @@ fun AiHubBottomSheet(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Các công tắc được lưu độc lập. Chỉ AI Bố cục hiện nối với bộ phân tích khuôn mặt sẵn có. Những mô-đun ghi “Chưa tích hợp” chưa chạy inference và sẽ không tạo hiệu ứng giả.",
+                    "UHD điều khiển trực tiếp pipeline Real-ESRGAN x2 hiện có. AI Bố cục dùng bộ nhận diện khuôn mặt. VLM và xóa phông chiều sâu vẫn là mô-đun thử nghiệm, chưa chạy inference.",
                     color = AiHubMuted,
                     fontSize = 11.sp,
                     lineHeight = 16.sp

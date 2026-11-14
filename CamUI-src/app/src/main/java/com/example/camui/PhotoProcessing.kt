@@ -46,10 +46,14 @@ fun applySoftwarePhotoEnhancement(
         val height = working.height
         if (width < 3 || height < 3) return@runCatching false
 
-        val above = IntArray(width)
-        val row = IntArray(width)
-        val below = IntArray(width)
-        val sharpenAmount = if (uhdSharpening) 1.8f else 0f
+        // Keep the original neighboring rows in three reusable buffers. The output row is
+        // written only after its source neighbors are already cached, avoiding recursive
+        // sharpening from rows that were processed a moment earlier.
+        var previousRow = IntArray(width)
+        var currentRow = IntArray(width)
+        var nextRow = IntArray(width)
+        val outputRow = IntArray(width)
+        val sharpenAmount = if (uhdSharpening) 2.0f else 0f
 
         fun luminance(pixel: Int): Float {
             val r = android.graphics.Color.red(pixel) / 255f
@@ -65,13 +69,17 @@ fun applySoftwarePhotoEnhancement(
             return (value + shadowLift - highlightCompression).coerceIn(0f, 1f)
         }
 
-        for (y in 0 until height) {
-            working.getPixels(above, 0, width, 0, (y - 1).coerceAtLeast(0), width, 1)
-            working.getPixels(row, 0, width, 0, y, width, 1)
-            working.getPixels(below, 0, width, 0, (y + 1).coerceAtMost(height - 1), width, 1)
+        working.getPixels(currentRow, 0, width, 0, 0, width, 1)
+        currentRow.copyInto(previousRow)
+        if (height > 1) {
+            working.getPixels(nextRow, 0, width, 0, 1, width, 1)
+        } else {
+            currentRow.copyInto(nextRow)
+        }
 
+        for (y in 0 until height) {
             for (x in 0 until width) {
-                val pixel = row[x]
+                val pixel = currentRow[x]
                 val alpha = android.graphics.Color.alpha(pixel)
                 val red = android.graphics.Color.red(pixel).toFloat()
                 val green = android.graphics.Color.green(pixel).toFloat()
@@ -80,10 +88,10 @@ fun applySoftwarePhotoEnhancement(
 
                 var targetLuma = if (softwareHdr) mapHdr(centerLuma) else centerLuma
                 if (uhdSharpening) {
-                    val left = luminance(row[(x - 1).coerceAtLeast(0)])
-                    val right = luminance(row[(x + 1).coerceAtMost(width - 1)])
-                    val up = luminance(above[x])
-                    val down = luminance(below[x])
+                    val left = luminance(currentRow[(x - 1).coerceAtLeast(0)])
+                    val right = luminance(currentRow[(x + 1).coerceAtMost(width - 1)])
+                    val up = luminance(previousRow[x])
+                    val down = luminance(nextRow[x])
                     val localBlur = (left + right + up + down) * 0.25f
                     val detail = centerLuma - localBlur
                     targetLuma = (targetLuma + detail * sharpenAmount).coerceIn(0f, 1f)
@@ -94,14 +102,26 @@ fun applySoftwarePhotoEnhancement(
                 } else {
                     if (targetLuma > centerLuma) 1f + (targetLuma - centerLuma) * 12f else 1f
                 }
-                row[x] = android.graphics.Color.argb(
+                outputRow[x] = android.graphics.Color.argb(
                     alpha,
                     (red * scale).toInt().coerceIn(0, 255),
                     (green * scale).toInt().coerceIn(0, 255),
                     (blue * scale).toInt().coerceIn(0, 255)
                 )
             }
-            working.setPixels(row, 0, width, 0, y, width, 1)
+            working.setPixels(outputRow, 0, width, 0, y, width, 1)
+
+            if (y + 1 < height) {
+                val recycled = previousRow
+                previousRow = currentRow
+                currentRow = nextRow
+                nextRow = recycled
+                if (y + 2 < height) {
+                    working.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                } else {
+                    currentRow.copyInto(nextRow)
+                }
+            }
         }
 
         val written = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->

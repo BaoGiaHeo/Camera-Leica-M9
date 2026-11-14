@@ -396,9 +396,26 @@ fun CameraScreen(
             val extensionsManager = runCatching { extensionsFuture.get() }.getOrNull()
             val baseSelector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
                 else CameraSelector.DEFAULT_BACK_CAMERA
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val activeFacingId = runCatching {
+                cameraManager.cameraIdList.firstOrNull { id ->
+                    cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) ==
+                        if (front) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
+                }
+            }.getOrNull()
+            val hardwareLevel = activeFacingId?.let { id ->
+                runCatching {
+                    cameraManager.getCameraCharacteristics(id)
+                        .get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
+                }.getOrNull()
+            }
+            // HDR Extension is enabled only when the camera can also keep ImageAnalysis.
+            // Limited/Legacy devices use the JPEG_R path instead so histogram/AI still work.
+            val analysisCompatibleHardware = hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL ||
+                hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3
             val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
-            val hdrExtensionAvailable = hdrCaptureRequested && extensionsManager != null &&
+            val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
                 runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR) }
                     .getOrDefault(false)
             val hdrExtensionSelector = if (hdrExtensionAvailable) {
@@ -481,13 +498,6 @@ fun CameraScreen(
                     "High" -> CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
                     else -> CaptureRequest.NOISE_REDUCTION_MODE_FAST
                 }
-                val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                val activeFacingId = runCatching {
-                    cameraManager.cameraIdList.firstOrNull { id ->
-                        cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) ==
-                            if (front) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
-                    }
-                }.getOrNull()
                 val availableNrModes = activeFacingId?.let { id ->
                     runCatching {
                         cameraManager.getCameraCharacteristics(id)

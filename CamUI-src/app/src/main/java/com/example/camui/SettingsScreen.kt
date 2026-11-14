@@ -384,7 +384,7 @@ var nightShotMode by remember {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "NightShot giữ AE ở EV 0, liên tục thu khung trong 5s, 10s hoặc 3s (tối đa 96 khung mục tiêu), sau đó căn chỉnh, gộp và khử nhiễu AI. Số khung thực tế phụ thuộc tốc độ camera; giữ máy yên đến khi ảnh được lưu.",
+                    "NightShot giữ AE ở EV 0, liên tục thu khung trong 5s, 10s hoặc 3s (tối đa 96 khung mục tiêu), sau đó căn chỉnh và lấy trung bình pixel để giảm nhiễu bằng thuật toán. Số khung thực tế phụ thuộc tốc độ camera; giữ máy yên đến khi ảnh được lưu.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -503,7 +503,7 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "RAW lưu dữ liệu cảm biến thành DNG để hậu kỳ linh hoạt. RAW+ lưu đồng thời DNG và JPEG; JPEG đi theo luồng nhanh, bỏ AI render nặng để giảm thời gian chờ. Chỉ bật được khi camera đang chọn hỗ trợ RAW.",
+                    "RAW lưu dữ liệu cảm biến thành DNG để hậu kỳ linh hoạt. RAW+ lưu đồng thời DNG và JPEG; JPEG được lưu theo luồng chụp thông thường. Chỉ bật được khi camera đang chọn hỗ trợ RAW.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
@@ -521,17 +521,17 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2). High+ mới chạy NAFNet-SIDD AI với mức xử lý mạnh nhất sau khi chụp; thời gian phụ thuộc độ phân giải và phần cứng. Ultra HDR bỏ qua NAFNet.",
+                    "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2); không có xử lý AI sau chụp. Ultra HDR giữ nguyên dữ liệu JPEG_R.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("Off", "Low", "Medium", "High", "High+").forEach { option ->
+                    listOf("Off", "Low", "Medium", "High").forEach { option ->
                         Chip(option, noiseReduction == option, {
                             noiseReduction = option
                             prefs.edit().putString("noise_reduction", option).apply()
-                        }, Modifier.width(if (option == "High+") 82.dp else 75.dp))
+                        }, Modifier.width(75.dp))
                     }
                 }
             }

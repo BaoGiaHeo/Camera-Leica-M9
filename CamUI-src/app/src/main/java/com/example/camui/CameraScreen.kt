@@ -2788,7 +2788,7 @@ private fun FilterLookPreviewImage(
 ) {
     val context = LocalContext.current
     val renderedState by produceState(
-        initialValue = false to null as ImageBitmap?,
+        initialValue = Pair(false, null as ImageBitmap?),
         source,
         preset,
         maxDimension

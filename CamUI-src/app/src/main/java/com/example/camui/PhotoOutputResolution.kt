@@ -22,7 +22,7 @@ import kotlin.math.sqrt
 object PhotoOutputResolution {
  private const val TAG = "FUJI_HDMP_RESAMPLE"
  fun interpolateToMp(context: Context, uri: Uri, targetPixels: Long): Boolean {
-  require(targetPixels in 10_000_000L..240_000_000L) { "Unsupported output pixel target" }
+  require(targetPixels in 10_000_000L..250_000_000L) { "Unsupported output pixel target" }
   val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
   val temp = File(context.cacheDir, "fuji-hdmp-$stamp.jpg")
   val backup = File(context.cacheDir, "fuji-hdmp-original-$stamp.jpg")

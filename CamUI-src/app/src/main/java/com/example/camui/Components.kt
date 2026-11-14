@@ -325,7 +325,7 @@ private val chineseUi = mapOf(
 
 
 private val fullEnglishUi = mapOf(
-    "Cần cấp quyền Camera\\n(chạm để cấp)" to "Camera permission required\\n(tap to grant)",
+    "Cần cấp quyền Camera\n(chạm để cấp)" to "Camera permission required\n(tap to grant)",
     "AF LOCK" to "AF LOCK", "EV không được hỗ trợ" to "EV unavailable",
     "AF tự động" to "AF Auto", "Ấm" to "Warm", "Lạnh" to "Cool",
     "ISO Auto" to "ISO Auto", "Shutter Auto" to "Shutter Auto",
@@ -420,7 +420,7 @@ private val fullEnglishUi = mapOf(
     "Chủ thể" to "Subject", "ISO Auto" to "ISO Auto", "Shutter Auto" to "Shutter Auto",
     "EV không được hỗ trợ" to "EV unavailable", "AF tự động" to "AF Auto",
     "Tông màu tự động" to "Auto white balance", "Ảnh gốc" to "Original photo",
-    "Cần cấp quyền Camera\\n(chạm để cấp)" to "Camera permission required\\n(tap to grant)"
+    "Cần cấp quyền Camera\n(chạm để cấp)" to "Camera permission required\n(tap to grant)"
     "Image Quality" to "Image Quality",
     "Shutter button" to "Shutter button",
     "Watermark" to "Watermark",
@@ -446,7 +446,7 @@ private val fullEnglishUi = mapOf(
 )
 
 private val fullJapaneseUi = mapOf(
-    "Cần cấp quyền Camera\\n(chạm để cấp)" to "カメラ権限が必要です\\n（タップして許可）",
+    "Cần cấp quyền Camera\n(chạm để cấp)" to "カメラ権限が必要です\\n（タップして許可）",
     "EV không được hỗ trợ" to "EVは利用できません", "AF tự động" to "AFオート",
     "Ấm" to "暖色", "Lạnh" to "寒色", "Focus locked" to "フォーカスロック",
     "Tông màu tự động" to "ホワイトバランス：オート", "LENS TRANSITION" to "レンズ切替中",
@@ -542,7 +542,7 @@ private val fullJapaneseUi = mapOf(
 )
 
 private val fullKoreanUi = mapOf(
-    "Cần cấp quyền Camera\\n(chạm để cấp)" to "카메라 권한이 필요합니다\\n(탭하여 허용)",
+    "Cần cấp quyền Camera\n(chạm để cấp)" to "카메라 권한이 필요합니다\\n(탭하여 허용)",
     "EV không được hỗ trợ" to "EV를 사용할 수 없음", "AF tự động" to "AF 자동",
     "Ấm" to "따뜻하게", "Lạnh" to "차갑게", "Focus locked" to "초점 잠금",
     "Tông màu tự động" to "자동 화이트 밸런스", "LENS TRANSITION" to "렌즈 전환 중",
@@ -638,7 +638,7 @@ private val fullKoreanUi = mapOf(
 )
 
 private val fullChineseUi = mapOf(
-    "Cần cấp quyền Camera\\n(chạm để cấp)" to "需要相机权限\\n（点击授权）",
+    "Cần cấp quyền Camera\n(chạm để cấp)" to "需要相机权限\\n（点击授权）",
     "EV không được hỗ trợ" to "不支持 EV", "AF tự động" to "自动 AF",
     "Ấm" to "暖色", "Lạnh" to "冷色", "Focus locked" to "已锁定对焦",
     "Tông màu tự động" to "自动白平衡", "LENS TRANSITION" to "镜头切换中",
@@ -797,7 +797,7 @@ private fun translateFullUiText(value: String, language: String): String? {
         val prefix = dynamic.firstOrNull { it.first == "Đã nhập LUT: " }?.second ?: "Imported LUT: "
         return prefix + name
     }
-    Regex("""^(\\d+) ảnh$""").matchEntire(value)?.let { match ->
+    Regex("""^(\d+) ảnh$""").matchEntire(value)?.let { match ->
         val count = match.groupValues[1]
         return when {
             language.startsWith("ja") -> "$count枚の写真"

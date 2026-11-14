@@ -54,6 +54,60 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
+      - name: Install NDK/CMake and provision NCNN Vulkan + Real-ESRGAN x2 model
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "ndk;27.2.12479018" "cmake;3.22.1"
+
+          NDK_DIR="$ANDROID_HOME/ndk/27.2.12479018"
+          test -d "$NDK_DIR"
+          WORK_DIR="$RUNNER_TEMP/fuji-ncnn"
+          mkdir -p "$WORK_DIR"
+          curl -fL --retry 3 --retry-delay 2 \
+            "https://github.com/Tencent/ncnn/releases/download/20261020/ncnn-20261020-android-vulkan-shared.zip" \
+            -o "$WORK_DIR/ncnn-android-vulkan.zip"
+          unzip -q "$WORK_DIR/ncnn-android-vulkan.zip" -d "$WORK_DIR/unpacked"
+
+          NCNN_SO="$(find "$WORK_DIR/unpacked" -type f -path '*/arm64-v8a/libncnn.so' | head -n 1)"
+          NCNN_NET_H="$(find "$WORK_DIR/unpacked" -type f -path '*/ncnn/net.h' | head -n 1)"
+          test -s "$NCNN_SO"
+          test -s "$NCNN_NET_H"
+
+          MAIN_DIR="CamUI/app/src/main"
+          CPP_DIR="$MAIN_DIR/cpp"
+          JNI_DIR="$MAIN_DIR/jniLibs/arm64-v8a"
+          mkdir -p "$CPP_DIR/third_party/ncnn/include" "$JNI_DIR" "$MAIN_DIR/assets"
+          cp -a "$(dirname "$NCNN_NET_H")/." "$CPP_DIR/third_party/ncnn/include/"
+          cp "$NCNN_SO" "$JNI_DIR/libncnn.so"
+
+          NCNN_CXX="$(find "$WORK_DIR/unpacked" -type f -path '*/arm64-v8a/libc++_shared.so' | head -n 1 || true)"
+          if [ -n "$NCNN_CXX" ]; then
+            cp "$NCNN_CXX" "$JNI_DIR/libc++_shared.so"
+          else
+            cp "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
+              "$JNI_DIR/libc++_shared.so"
+          fi
+
+          MODEL_DIR="$MAIN_DIR/assets"
+          HF_BASE="https://huggingface.co/edgetools/realesrgan/resolve/b8b8b5d"
+          curl -fL --retry 3 "$HF_BASE/realesr-animevideov3-x2.param?download=true" \
+            -o "$MODEL_DIR/realesr-animevideov3-x2.param"
+          curl -fL --retry 3 "$HF_BASE/realesr-animevideov3-x2.bin?download=true" \
+            -o "$MODEL_DIR/realesr-animevideov3-x2.bin"
+          test -s "$MODEL_DIR/realesr-animevideov3-x2.param"
+          test -s "$MODEL_DIR/realesr-animevideov3-x2.bin"
+          cat > "$MODEL_DIR/REAL_ESRGAN_MODEL_NOTICE.txt" <<'NOTICE'
+          Real-ESRGAN NCNN animevideov3 x2 model
+          Model files are pinned to Hugging Face revision b8b8b5d of edgetools/realesrgan.
+          Upstream model family: xinntao/Real-ESRGAN-ncnn-vulkan, NCNN model format.
+          License: BSD-3-Clause. See https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE
+          NOTICE
+          echo "NCNN and model files provisioned:"
+          ls -lh "$JNI_DIR" "$MODEL_DIR"/realesr-animevideov3-x2.*
+
       - name: Build debug APK
         working-directory: CamUI
         run: gradle assembleDebug --stacktrace

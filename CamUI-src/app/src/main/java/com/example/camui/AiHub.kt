@@ -78,26 +78,26 @@ portraitEnabled: Boolean,
             )
             AiHubToggleRow(
                 title = "AI Bố cục & Tạo dáng",
-                detail = "Đang dùng phân tích khuôn mặt để gợi ý bố cục; Pose 33 điểm chưa được nối.",
+                detail = "Nhận diện khuôn mặt và MediaPipe Pose 33 điểm; gợi ý vị trí chủ thể, vai, tay và trọng tâm ngay trên khung ngắm.",
                 enabled = compositionEnabled,
                 onEnabledChange = onCompositionChanged,
                 status = "Face detect"
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
-                title = "Trợ lý Đạo diễn VLM",
-                detail = "Công tắc thử nghiệm. Moondream2 / llama.cpp chưa được đóng gói vào APK.",
+                title = "Trợ lý Đạo diễn AI",
+                detail = "ML Kit Image Labeling phân tích cảnh trên thiết bị, sau đó gợi ý góc chụp và cách căn khung phù hợp với chủ thể.",
                 enabled = directorEnabled,
                 onEnabledChange = onDirectorChanged,
                 status = "Chưa tích hợp"
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
-                title = "UHD · AI Super Resolution x2",
-                detail = "Chụp JPEG ở độ phân giải cao nhất camera cung cấp, sau đó chạy Real-ESRGAN x2 qua NCNN/Vulkan; CPU là đường dự phòng khi GPU không phù hợp.",
+                title = "UHD · AI Photo 211MP",
+                detail = "Khóa zoom 1x, NAFNet khử nhiễu mạnh và Real-ESRGAN x4plus dành cho ảnh chụp chạy theo tile bằng NCNN/Vulkan; CPU tối đa 8 luồng khi cần. Mục tiêu đầu ra khoảng 211MP.",
                 enabled = uhdEnabled,
                 onEnabledChange = onUhdEnabledChange,
-                status = if (uhdEnabled) "AI x2 · ĐANG BẬT" else "AI x2 · SẴN SÀNG"
+                status = if (uhdEnabled) "AI PHOTO · 211MP · ĐANG BẬT" else "AI PHOTO · SẴN SÀNG"
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
@@ -115,13 +115,13 @@ portraitEnabled: Boolean,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    "Ghi chú bản thử nghiệm",
+                    "Trạng thái tích hợp AI",
                     color = AiHubYellow,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "UHD điều khiển trực tiếp pipeline Real-ESRGAN x2 hiện có. AI Bố cục dùng bộ nhận diện khuôn mặt. VLM và xóa phông chiều sâu vẫn là mô-đun thử nghiệm, chưa chạy inference.",
+                    "UHD dùng NAFNet và Real-ESRGAN x4plus ảnh tự nhiên; khi UHD tắt và chụp 1x, ảnh JPEG được nội suy lên khoảng 211MP. AI Director dùng nhận diện cảnh ML Kit; AI Tạo dáng dùng MediaPipe 33 điểm. Moondream VLM và AI xóa phông chiều sâu chưa được tích hợp.",
                     color = AiHubMuted,
                     fontSize = 11.sp,
                     lineHeight = 16.sp

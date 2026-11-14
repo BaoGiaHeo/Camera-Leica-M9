@@ -39,6 +39,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.toBitmap
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -345,6 +346,13 @@ fun CameraScreen(
     var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
     LaunchedEffect(uhdCaptureEnabled) {
         appPrefs.edit().putBoolean("uhd_capture_enabled", uhdCaptureEnabled).apply()
+        if (uhdCaptureEnabled) {
+            ultraHdr = false
+            zoomAnimationJob?.cancel()
+            zoomSel = 1f
+            appPrefs.edit().putFloat("camera_zoom_ratio", 1f).apply()
+            camera?.let { active -> runCatching { active.cameraControl.setZoomRatio(1f) } }
+        }
     }
     var hdrEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
@@ -388,6 +396,26 @@ var aiPortraitDepthEnabled by remember {
             .apply()
     }
     var aiCompositionHint by remember { mutableStateOf("Chưa thấy khuôn mặt") }
+    var aiPoseHint by remember { mutableStateOf("Đang chờ khung hình") }
+    var aiDirectorHint by remember { mutableStateOf("Đang phân tích cảnh…") }
+    var aiPosePoints by remember { mutableStateOf(emptyList<Offset>()) }
+    var cameraAiAssistant by remember { mutableStateOf<CameraAiAssistant?>(null) }
+    val currentCameraAiAssistant = rememberUpdatedState(cameraAiAssistant)
+    LaunchedEffect(aiCompositionEnabled, aiDirectorVlmEnabled) {
+        if (!aiCompositionEnabled && !aiDirectorVlmEnabled) {
+            cameraAiAssistant = null
+            aiPosePoints = emptyList()
+        } else {
+            cameraAiAssistant = withContext(Dispatchers.IO) {
+                runCatching { CameraAiAssistant(context.applicationContext) }
+                    .onFailure { android.util.Log.e("FUJI_AI", "Could not initialize on-device AI assistant", it) }
+                    .getOrNull()
+            }
+        }
+    }
+    DisposableEffect(cameraAiAssistant) {
+        onDispose { cameraAiAssistant?.close() }
+    }
     val faceDetector: FaceDetector? = remember(aiCompositionEnabled) {
         if (aiCompositionEnabled) {
             val options = FaceDetectorOptions.Builder()
@@ -481,7 +509,7 @@ var aiPortraitDepthEnabled by remember {
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         manualCaptureRevision, uhdCaptureEnabled, hdrEnabled, nightShotMode,
-        starTrailExposureSeconds, aiCompositionEnabled, mode
+        starTrailExposureSeconds, aiCompositionEnabled, aiDirectorVlmEnabled, mode
     ) {
         if (!hasCam) return@LaunchedEffect
         val discoveredCamera2 = if (camera2Inventory.isNotEmpty()) {
@@ -760,6 +788,7 @@ var aiPortraitDepthEnabled by remember {
                 analysisUseCase = analysis
                 var lastAnalysis = 0L
                 var lastAiAnalysis = 0L
+                var lastAiVisionAnalysis = 0L
                 analysis.setAnalyzer(analysisExecutor) { image ->
                     try {
                         val now = System.currentTimeMillis()
@@ -844,6 +873,32 @@ var aiPortraitDepthEnabled by remember {
                                     scope.launch(Dispatchers.Main) { aiCompositionHint = hint }
                                 } catch (error: Exception) {
                                     android.util.Log.w("FUJI_AI_COMPOSITION", "Face analysis skipped", error)
+                                }
+                            }
+                        }
+                        if ((aiCompositionEnabled || aiDirectorVlmEnabled) &&
+                            now - lastAiVisionAnalysis > 900
+                        ) {
+                            val assistant = currentCameraAiAssistant.value
+                            if (assistant != null) {
+                                lastAiVisionAnalysis = now
+                                val frameBitmap = runCatching { image.toBitmap() }.getOrNull()
+                                if (frameBitmap != null) {
+                                    val aiResult = runCatching {
+                                        assistant.analyze(frameBitmap, image.imageInfo.rotationDegrees, front)
+                                    }.onFailure {
+                                        android.util.Log.w("FUJI_AI", "Viewfinder AI analysis skipped", it)
+                                    }.getOrNull()
+                                    frameBitmap.recycle()
+                                    if (aiResult != null) {
+                                        mainExecutor.execute {
+                                            if (aiCompositionEnabled) {
+                                                aiPoseHint = aiResult.poseHint
+                                                aiPosePoints = aiResult.posePoints
+                                            }
+                                            if (aiDirectorVlmEnabled) aiDirectorHint = aiResult.sceneHint
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1368,8 +1423,14 @@ var aiPortraitDepthEnabled by remember {
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus
-            val captureNoiseReduction = if (captureRawPlus) "Off" else noiseReduction
+            val captureAtOneX = abs(zoomSel - 1f) < 0.08f
+            val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus && !captureRawOnly
+            val captureUseFilmAi = activeFilter != "None" && !captureRawPlus && !captureRawOnly
+            val captureNoiseReduction = when {
+                captureRawPlus || captureRawOnly -> "Off"
+                uhdCaptureEnabled -> "High+"
+                else -> noiseReduction
+            }
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
             val captureNightShotExtension = nightExtensionActive
             val captureNightFrameCount = nightShotFrameCount.coerceIn(4, 12)
@@ -1514,7 +1575,7 @@ var aiPortraitDepthEnabled by remember {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 captureUseNightShot -> "NightShot đang xử lý, vui lòng giữ máy"
-                                captureUseUhdAi -> "AI đang xử lý, vui lòng chờ"
+                                captureUseUhdAi -> "UHD · AI khử nhiễu và siêu phân giải 211MP"
                                 supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
                                 else -> "Ảnh đang được xử lý"
                             }
@@ -1594,7 +1655,7 @@ var aiPortraitDepthEnabled by remember {
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val aiDenoiseApplied = if (
-                                    !captureIsUltraHdr && captureNoiseReduction == "High+"
+                                    !captureIsUltraHdr && (captureNoiseReduction == "High+" || captureUseFilmAi)
                                 ) {
                                     val sourceBytes = runCatching {
                                         context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
@@ -1611,7 +1672,12 @@ var aiPortraitDepthEnabled by remember {
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
-                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, 1.0f) { progress ->
+                                            val denoiseStrength = when {
+                                                captureUseUhdAi -> 0.82f
+                                                captureUseFilmAi -> 0.38f
+                                                else -> 1.0f
+                                            }
+                                            NafNetDenoiser.enhanceCapturedPhoto(context, saved, denoiseStrength) { progress ->
                                                 mainExecutor.execute {
                                                     val safeProgress = progress.coerceIn(0, 100)
                                                     val elapsedSeconds = (
@@ -1738,6 +1804,23 @@ var aiPortraitDepthEnabled by remember {
                                     }.getOrDefault(false)
                                 } else false
 
+                                val output211MpApplied = if (
+                                    !captureIsUltraHdr && captureAtOneX && !captureUseUhdAi &&
+                                    !captureRawOnly && !captureRawPlus
+                                ) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "Đang nội suy ảnh lên 211MP"
+                                        processingProgress = 94
+                                        processingEtaSeconds = -1
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        runCatching { PhotoOutputResolution.interpolateTo211Mp(context, saved) }
+                                            .onFailure {
+                                                android.util.Log.e("FUJI_211MP", "211MP interpolation failed; keep original", it)
+                                            }.getOrDefault(false)
+                                    }
+                                } else false
+
                                 val metadataPublished = runCatching {
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
                                     else finalizeCapturedImageMetadata(context, saved)
@@ -1778,7 +1861,9 @@ var aiPortraitDepthEnabled by remember {
                                         lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc màu."
                                         lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
                                         orientationLabelFixed && aiSuperResolutionApplied ->
-                                            "Đã lưu ảnh đúng hướng · Real-ESRGAN NCNN x2 đã làm nét bằng GPU/CPU."
+                                            "Đã lưu ảnh đúng hướng · Real-ESRGAN x4plus AI Photo, đầu ra khoảng 211MP."
+                                        orientationLabelFixed && output211MpApplied ->
+                                            "Đã lưu ảnh 211MP · nội suy độ phân giải, không làm tăng chi tiết quang học."
                                         orientationLabelFixed && (softwareHdrApplied || softwareSharpenFallback) ->
                                             "Đã lưu ảnh đúng hướng; đã áp dụng " + listOfNotNull(
                                                 "Software HDR".takeIf { softwareHdrApplied },
@@ -2052,15 +2137,48 @@ var aiPortraitDepthEnabled by remember {
                                     }
                                 }
                             }
-                            if (aiCompositionEnabled) {
-                                Text(
-                                    "AI BỐ CỤC · $aiCompositionHint",
-                                    color = Color.White,
-                                    fontSize = 8.sp,
-                                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
+                            if (aiCompositionEnabled && aiPosePoints.size >= 33) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val links = listOf(
+                                        11 to 13, 13 to 15, 12 to 14, 14 to 16, 11 to 12,
+                                        11 to 23, 12 to 24, 23 to 24, 23 to 25, 25 to 27,
+                                        24 to 26, 26 to 28, 15 to 17, 15 to 19, 16 to 18,
+                                        16 to 20, 27 to 29, 29 to 31, 28 to 30, 30 to 32
+                                    )
+                                    links.forEach { (from, to) ->
+                                        val p1 = aiPosePoints[from]
+                                        val p2 = aiPosePoints[to]
+                                        drawLine(
+                                            Color(0xFFF5C518).copy(alpha = 0.88f),
+                                            Offset(p1.x * size.width, p1.y * size.height),
+                                            Offset(p2.x * size.width, p2.y * size.height),
+                                            strokeWidth = 2.dp.toPx()
+                                        )
+                                    }
+                                    aiPosePoints.forEach { point ->
+                                        drawCircle(
+                                            Color.White,
+                                            radius = 2.2.dp.toPx(),
+                                            center = Offset(point.x * size.width, point.y * size.height)
+                                        )
+                                    }
+                                }
+                            }
+                            if (aiCompositionEnabled || aiDirectorVlmEnabled) {
+                                Column(
+                                    Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
                                         .clip(RoundedCornerShape(7.dp)).background(Color(0xAA000000))
                                         .padding(horizontal = 8.dp, vertical = 5.dp)
-                                )
+                                ) {
+                                    if (aiDirectorVlmEnabled) Text(
+                                        aiDirectorHint, color = Color.White, fontSize = 8.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    if (aiCompositionEnabled) {
+                                        Text("AI BỐ CỤC · $aiCompositionHint", color = Color.White, fontSize = 8.sp)
+                                        Text("POSE 33 · $aiPoseHint", color = CamColors.Yellow, fontSize = 8.sp)
+                                    }
+                                }
                             }
                             FilmWashLabel(
                                 progress = filmWashProgress.value,
@@ -2676,8 +2794,9 @@ stabilization = stabilization,
                 activeFilter = activeFilter,
                 onDismiss = { filterDialogVisible = false },
                 onSelectFilter = { selected ->
-                    activeFilter = selected
-                    appPrefs.edit().putString("selected_filter", selected).apply()
+                    val nextFilter = if (selected == activeFilter) "None" else selected
+                    activeFilter = nextFilter
+                    appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 }
             )
         }

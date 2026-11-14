@@ -428,8 +428,8 @@ fun CameraScreen(
                     android.util.Log.w("FUJI_HDR", "HDR extension selector unavailable", it)
                 }.getOrNull()
             } else null
-            val hdrExtensionActive = hdrExtensionSelector != null
-            val selector = hdrExtensionSelector ?: baseSelector
+            var hdrExtensionActive = hdrExtensionSelector != null
+            var selector = hdrExtensionSelector ?: baseSelector
             if (hdrCaptureRequested && !hdrExtensionActive) {
                 android.util.Log.i("FUJI_HDR", "Vendor HDR extension unavailable; checking Ultra HDR JPEG_R fallback")
             }
@@ -726,10 +726,59 @@ fun CameraScreen(
                     }
                 }
             } catch (e: Exception) {
-                if (ultraHdr || hdrCaptureRequested) {
+                if (hdrExtensionActive) {
+                    // Some FULL/LEVEL_3 implementations still reject the three-use-case
+                    // combination. Drop only the OEM extension and retry the base camera.
+                    android.util.Log.w("FUJI_HDR", "HDR extension bind failed; retrying base camera", e)
+                    hdrExtensionActive = false
+                    selector = baseSelector
+                    provider.unbindAll()
+                    var fallbackFormat = if (preferJpegR) ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
+                        else ImageCapture.OUTPUT_FORMAT_JPEG
+                    var fallbackBound = runCatching { bindCapture(fallbackFormat) }
+                    if (fallbackBound.isFailure && fallbackFormat == ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR) {
+                        provider.unbindAll()
+                        fallbackFormat = ImageCapture.OUTPUT_FORMAT_JPEG
+                        fallbackBound = runCatching { bindCapture(fallbackFormat) }
+                    }
+                    if (fallbackBound.isSuccess && camera != null && imageCapture != null) {
+                        val fallbackJpegRSupported =
+                            fallbackFormat == ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR &&
+                                runCatching {
+                                    ImageCapture.getImageCaptureCapabilities(camera!!.cameraInfo)
+                                        .supportedOutputFormats
+                                        .contains(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
+                                }.getOrDefault(false)
+                        preserveUltraHdrOutput = fallbackJpegRSupported
+                        if (hdrCaptureRequested && !fallbackJpegRSupported) {
+                            hdrEnabled = false
+                            appPrefs.edit().putBoolean("hdr_enabled", false).apply()
+                            localizedToast(
+                                context,
+                                "HDR Extension không thể ghép với luồng camera; thiết bị cũng không hỗ trợ Ultra HDR. Đã tắt HDR để giữ camera ổn định.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else if (hdrCaptureRequested) {
+                            localizedToast(
+                                context,
+                                "HDR Extension không thể ghép với luồng live; đang dùng Ultra HDR JPEG_R thay thế.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        camera = null
+                        imageCapture = null
+                        preserveUltraHdrOutput = false
+                        localizedToast(
+                            context,
+                            "Không thể khởi tạo HDR hoặc camera: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } else if (ultraHdr || hdrCaptureRequested) {
                     preserveUltraHdrOutput = false
                     ultraHdr = false
-                    if (hdrCaptureRequested && !hdrExtensionActive) {
+                    if (hdrCaptureRequested) {
                         hdrEnabled = false
                         appPrefs.edit().putBoolean("hdr_enabled", false).apply()
                     }
@@ -737,10 +786,12 @@ fun CameraScreen(
                     runCatching { bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG) }
                         .onFailure {
                             camera = null
+                            imageCapture = null
                             localizedToast(context, "Không thể khởi tạo HDR hoặc camera: ${it.message}", Toast.LENGTH_LONG).show()
                         }
                 } else {
                     camera = null
+                    imageCapture = null
                     localizedToast(context, "Không mở được camera: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }

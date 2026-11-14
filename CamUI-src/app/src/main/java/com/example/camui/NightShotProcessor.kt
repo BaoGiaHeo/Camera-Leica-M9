@@ -105,6 +105,7 @@ object NightShotProcessor {
         val prefix = if (mode == MergeMode.STAR_TRAILS) "star-" else "night-"
         val tempOutput = File(context.cacheDir, "fuji-" + prefix + System.nanoTime() + ".jpg")
         var base: Bitmap? = null
+        var alignmentReference: Bitmap? = null
         return try {
             val firstExif = readExif(frames.first())
             base = decodeUpright(frames.first(), null, null)
@@ -113,37 +114,60 @@ object NightShotProcessor {
             val height = base!!.height
             val oldRow = IntArray(width)
             val newRow = IntArray(width)
+            // Keep a small, immutable reference image for alignment. Using the changing
+            // accumulated output as a reference would allow drift to build up over a burst.
+            if (mode == MergeMode.NIGHT_AVERAGE) {
+                alignmentReference = makeAlignmentThumbnail(base!!)
+            }
 
             for (frameIndex in 1 until frames.size) {
                 val current = decodeUpright(frames[frameIndex], width, height)
                     ?: error("Could not decode frame " + (frameIndex + 1))
                 try {
+                    val shift = if (mode == MergeMode.NIGHT_AVERAGE) {
+                        estimateGlobalTranslation(alignmentReference!!, current)
+                    } else {
+                        0 to 0
+                    }
+                    val shiftX = shift.first.coerceIn(-width / 12, width / 12)
+                    val shiftY = shift.second.coerceIn(-height / 12, height / 12)
+                    if (mode == MergeMode.NIGHT_AVERAGE && (shiftX != 0 || shiftY != 0)) {
+                        Log.d(TAG, "Aligned frame ${frameIndex + 1}: dx=$shiftX dy=$shiftY")
+                    }
+
                     for (y in 0 until height) {
+                        val sourceY = (y + shiftY).coerceIn(0, height - 1)
                         base!!.getPixels(oldRow, 0, width, 0, y, width, 1)
-                        current.getPixels(newRow, 0, width, 0, y, width, 1)
+                        current.getPixels(newRow, 0, width, 0, sourceY, width, 1)
                         for (x in 0 until width) {
+                            val sourceX = (x + shiftX).coerceIn(0, width - 1)
                             val a = oldRow[x]
-                            val b = newRow[x]
+                            val b = newRow[sourceX]
                             val ar = Color.red(a)
                             val ag = Color.green(a)
                             val ab = Color.blue(a)
                             val br = Color.red(b)
                             val bg = Color.green(b)
                             val bb = Color.blue(b)
-                            val r: Int
-                            val g: Int
-                            val blue: Int
                             if (mode == MergeMode.STAR_TRAILS) {
-                                r = max(ar, br)
-                                g = max(ag, bg)
-                                blue = max(ab, bb)
+                                // Max/lighten accumulation draws the path of stars, while a small
+                                // luminance threshold prevents tiny sensor noise from winning every
+                                // pixel simply because more frames were captured.
+                                val oldLuma = luma(ar, ag, ab)
+                                val newLuma = luma(br, bg, bb)
+                                if (newLuma >= STAR_TRAIL_MIN_LUMA &&
+                                    newLuma >= oldLuma + STAR_TRAIL_MIN_DELTA
+                                ) {
+                                    oldRow[x] = Color.rgb(max(ar, br), max(ag, bg), max(ab, bb))
+                                }
                             } else {
                                 val divisor = frameIndex + 1
-                                r = (ar * frameIndex + br) / divisor
-                                g = (ag * frameIndex + bg) / divisor
-                                blue = (ab * frameIndex + bb) / divisor
+                                oldRow[x] = Color.rgb(
+                                    (ar * frameIndex + br) / divisor,
+                                    (ag * frameIndex + bg) / divisor,
+                                    (ab * frameIndex + bb) / divisor
+                                )
                             }
-                            oldRow[x] = Color.rgb(r, g, blue)
                         }
                         base!!.setPixels(oldRow, 0, width, 0, y, width, 1)
                     }
@@ -176,10 +200,109 @@ object NightShotProcessor {
             Log.e(TAG, "Multi-frame merge failed; original capture remains available", failure)
             false
         } finally {
+            alignmentReference?.recycle()
             base?.recycle()
             runCatching { tempOutput.delete() }
         }
     }
+
+    private const val ALIGNMENT_MAX_DIMENSION = 160
+    private const val ALIGNMENT_MAX_SHIFT = 6
+    private const val STAR_TRAIL_MIN_LUMA = 22
+    private const val STAR_TRAIL_MIN_DELTA = 5
+
+    private fun luma(red: Int, green: Int, blue: Int): Int =
+        (red * 3 + green * 6 + blue) / 10
+
+    private fun makeAlignmentThumbnail(source: Bitmap): Bitmap {
+        val scale = min(
+            1f,
+            ALIGNMENT_MAX_DIMENSION.toFloat() / max(source.width, source.height).toFloat()
+        )
+        val width = (source.width * scale).toInt().coerceAtLeast(32)
+        val height = (source.height * scale).toInt().coerceAtLeast(32)
+        return Bitmap.createScaledBitmap(source, width, height, true)
+    }
+
+    /**
+     * Estimates a small global translation using luminance gradients on a thumbnail.
+     * Gradients are less sensitive to exposure changes between auto-exposed night frames.
+     * The returned shift tells the merger which source pixel to read for each reference pixel.
+     */
+    private fun estimateGlobalTranslation(
+        referenceThumbnail: Bitmap,
+        currentFrame: Bitmap
+    ): Pair<Int, Int> {
+        val thumbnail = makeAlignmentThumbnail(currentFrame)
+        try {
+            val width = referenceThumbnail.width
+            val height = referenceThumbnail.height
+            if (thumbnail.width != width || thumbnail.height != height ||
+                width < 28 || height < 28
+            ) return 0 to 0
+
+            val referencePixels = IntArray(width * height)
+            val currentPixels = IntArray(width * height)
+            referenceThumbnail.getPixels(referencePixels, 0, width, 0, 0, width, height)
+            thumbnail.getPixels(currentPixels, 0, width, 0, 0, width, height)
+
+            var bestDx = 0
+            var bestDy = 0
+            var bestScore = Double.POSITIVE_INFINITY
+            var secondBestScore = Double.POSITIVE_INFINITY
+            val border = ALIGNMENT_MAX_SHIFT + 2
+            val step = if (min(width, height) > 96) 3 else 2
+
+            for (dy in -ALIGNMENT_MAX_SHIFT..ALIGNMENT_MAX_SHIFT) {
+                for (dx in -ALIGNMENT_MAX_SHIFT..ALIGNMENT_MAX_SHIFT) {
+                    var totalError = 0L
+                    var samples = 0
+                    for (y in border until height - border step step) {
+                        for (x in border until width - border - 1 step step) {
+                            val refIndex = y * width + x
+                            val currentIndex = (y + dy) * width + x + dx
+                            val refRight = luma(referencePixels[refIndex + 1])
+                            val refDown = luma(referencePixels[refIndex + width])
+                            val curRight = luma(currentPixels[currentIndex + 1])
+                            val curDown = luma(currentPixels[currentIndex + width])
+                            val refGradient = kotlin.math.abs(
+                                luma(referencePixels[refIndex]) - refRight
+                            ) + kotlin.math.abs(luma(referencePixels[refIndex]) - refDown)
+                            val currentGradient = kotlin.math.abs(
+                                luma(currentPixels[currentIndex]) - curRight
+                            ) + kotlin.math.abs(luma(currentPixels[currentIndex]) - curDown)
+                            totalError += kotlin.math.abs(refGradient - currentGradient).toLong()
+                            samples++
+                        }
+                    }
+                    if (samples == 0) continue
+                    val score = totalError.toDouble() / samples
+                    if (score < bestScore) {
+                        secondBestScore = bestScore
+                        bestScore = score
+                        bestDx = dx
+                        bestDy = dy
+                    } else if (score < secondBestScore) {
+                        secondBestScore = score
+                    }
+                }
+            }
+
+            // On a textureless scene, every offset looks alike. Avoid applying a random shift.
+            if (!bestScore.isFinite() || bestScore < 0.0 ||
+                secondBestScore - bestScore < 0.15
+            ) return 0 to 0
+
+            val scaleX = currentFrame.width.toFloat() / width
+            val scaleY = currentFrame.height.toFloat() / height
+            return (bestDx * scaleX).toInt() to (bestDy * scaleY).toInt()
+        } finally {
+            thumbnail.recycle()
+        }
+    }
+
+    private fun luma(color: Int): Int =
+        luma(Color.red(color), Color.green(color), Color.blue(color))
 
     fun saveStarTrails(context: Context, frames: List<File>): Uri? {
         if (frames.size < 2) return null

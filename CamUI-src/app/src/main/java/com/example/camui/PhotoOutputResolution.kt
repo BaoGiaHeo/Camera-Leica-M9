@@ -29,7 +29,7 @@ object PhotoOutputResolution {
   var source: Bitmap? = null
   var output: Bitmap? = null
   var replacing = false
-  try {
+  return try {
    val tags = readExif(context, uri)
    source = context.contentResolver.openInputStream(uri)?.use { input ->
     BitmapFactory.decodeStream(input, null, BitmapFactory.Options().apply {

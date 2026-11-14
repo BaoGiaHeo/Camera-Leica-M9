@@ -43,7 +43,7 @@ private const val BACKUP_FORMAT = "fujifilm-mode-settings"
 private const val BACKUP_VERSION = 1
 
 @Composable
-fun BackupRestorePanel() {
+fun BackupRestorePanel(onRestoreComplete: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf("Sao lưu cấu hình camera, zoom và các tính năng đã bật.") }
@@ -86,8 +86,9 @@ fun BackupRestorePanel() {
                     }
                 }
                 busy = false
+                if (result.isSuccess) onRestoreComplete()
                 status = if (result.isSuccess) {
-                    "Đã khôi phục cài đặt. Hãy quay lại màn hình camera để áp dụng toàn bộ trạng thái."
+                    "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật."
                 } else {
                     "Khôi phục thất bại: ${result.exceptionOrNull()?.message ?: "tệp sao lưu không hợp lệ"}"
                 }

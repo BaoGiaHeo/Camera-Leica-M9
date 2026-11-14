@@ -1,0 +1,156 @@
+# File: .github/workflows/hdmp-claude.yml
+# Workflow name: HDMP - Claude sua code va build APK
+# Chay: tu dong khi tao/sua file nay tren nhanh chinh, hoac Actions > chon workflow > Run workflow
+# Can secret: ANTHROPIC_API_KEY (hoac CLAUDE_CODE_OAUTH_TOKEN)
+
+name: HDMP - Claude sua code va build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - 'claude/**'
+    paths:
+      - '.github/workflows/hdmp-claude.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
+concurrency:
+  group: hdmp-claude
+  cancel-in-progress: false
+
+jobs:
+  hdmp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Kiem tra khoa API
+        env:
+          K1: ${{ secrets.ANTHROPIC_API_KEY }}
+          K2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$K1" ] && [ -z "$K2" ]; then
+            echo "::error::Thieu secret ANTHROPIC_API_KEY (hoac CLAUDE_CODE_OAUTH_TOKEN). Vao Settings > Secrets and variables > Actions de them."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Tim thu muc Gradle va tao ci-build.sh
+        id: root
+        run: |
+          G=$(find . -name gradlew -not -path './.git/*' | head -n1)
+          if [ -z "$G" ]; then
+            echo "::error::Khong tim thay gradlew trong repo (neu code dang nam trong file .zip thi can giai nen vao repo truoc)."
+            exit 1
+          fi
+          ROOT=$(dirname "$G")
+          chmod +x "$G"
+          cat > "$RUNNER_TEMP/ci-build.sh" <<EOF
+          #!/usr/bin/env bash
+          set -e
+          cd "$GITHUB_WORKSPACE/$ROOT"
+          ./gradlew assembleDebug --console=plain --stacktrace "\$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/ci-build.sh"
+          echo "dir=$ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Tao nhanh moi
+        run: git switch -c "claude/hdmp-uhd-fhd-${{ github.run_number }}"
+
+      - name: Claude Code sua code theo yeu cau
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --max-turns 80
+            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(ls:*),Bash(find:*),Bash(cat:*),Bash(grep:*),Bash(mkdir:*),Bash(git status:*),Bash(git diff:*),Bash(${{ runner.temp }}/ci-build.sh:*)"
+          prompt: |
+            Bạn là kỹ sư Android (Kotlin/C++) làm việc trên repo app camera này (CamUI / Camera-Leica-M9, build bằng Gradle). Hãy tự đọc code rồi thực hiện đầy đủ các yêu cầu bên dưới. Làm trực tiếp trong thư mục hiện tại, KHÔNG tạo PR và KHÔNG commit (workflow sẽ tự commit và mở PR sau).
+
+            BƯỚC 0 - KHẢO SÁT
+            - Tìm PhotoProcessor.kt (có thể khác hoa/thường), các file xử lý ảnh UHD/FHD, file night mode (NightShot) và toàn bộ code thuộc mục AI.
+            - Một số phần có thể đã tồn tại (FHD 108MP, NightShot hẹn giờ, UHD AI fallback). Đọc kỹ và sửa cho đúng yêu cầu, không viết trùng.
+            - Thư mục Gradle: ${{ steps.root.outputs.dir }}. Kiểm tra build bằng lệnh: ${{ runner.temp }}/ci-build.sh (chạy assembleDebug). Lặp lại sửa lỗi cho đến khi build thành công.
+
+            YÊU CẦU
+            1) Hằng số nhân/luồng trong PhotoProcessor.kt:
+               - Tìm UHD_Cores và FHD_Cores (không phân biệt hoa thường). Nếu đã có thì giữ và dùng; nếu chưa có thì tạo: UHD_Cores = 8, FHD_Cores = 6.
+               - UHD dùng UHD_Cores nhân và đúng UHD_Cores tác vụ song song. FHD dùng FHD_Cores nhân và đúng FHD_Cores tác vụ song song. Thread pool tạo từ hằng số, không hard-code chỗ khác.
+               - Ghi chú trong code: đặt 8 = dùng hết lõi; đặt 3 = về như cũ.
+            2) UHD: chụp liên tiếp (burst) 10 khung 12.5MP, căn chỉnh rồi gộp thành 1 ảnh 211MP, tăng chi tiết, giảm nhiễu, xử lý nhanh.
+            3) FHD: chụp liên tiếp 5 khung 12.5MP, gộp thành 1 ảnh 108MP, xử lý nhanh và không lỗi.
+            4) Tạo module HDMP (mới, đặt tên rõ ràng, tách riêng khỏi PhotoProcessor). Đầu vào: danh sách khung, chế độ UHD|FHD, số nhân. Đầu ra: 1 ảnh đã gộp, tuỳ chọn xoá phông AI. Pipeline: căn chỉnh (Lucas-Kanade thập ảnh hoặc tương đương) -> gộp khung -> upscale -> xoá phông. PhotoProcessor chỉ gọi HDMP. Phần tính toán nặng có thể viết C++ (NDK/CMake) nếu giúp nhanh hơn và build vẫn xanh.
+            5) Bộ nhớ: không giữ bitmap ARGB nguyên khổ (211MP khoảng 844MB, 108MP khoảng 432MB). Xử lý theo từng mảnh (tile), mỗi luồng một mảnh. Ghi file theo từng dải (ví dụ encoder JPEG native theo scanline) hoặc cách an toàn khác. Bắt OutOfMemoryError: nếu thiếu RAM thì tự hạ độ phân giải an toàn thay vì crash và ghi log rõ ràng.
+            6) Night mode: mỗi lần chạm đổi theo vòng 5s -> 10s -> 3s -> tắt. Khoảng thời gian là cửa sổ thu khung hình cho UHD/FHD. Hết giờ thì tự xử lý gộp khung rồi tự tắt night mode.
+            7) Xoá phông AI chiều sâu: chạy model ở độ phân giải thấp (khoảng 512px), phóng mặt nạ lên full-res, làm mịn viền bằng guided filter, làm mờ theo từng mảnh. Không chạy AI trực tiếp trên ảnh 211MP. Nếu repo chưa có file model thì tạo giao diện (interface) và bản dự phòng cổ điển, ghi rõ chỗ cần thả model vào.
+            8) Rà soát toàn bộ code mục AI: mọi lời gọi AI bọc try/catch (kể cả OutOfMemoryError), lỗi AI thì fallback về gộp khung thường (không mất ảnh), ghi log nguyên nhân. Kiểm tra: tải model thất bại, thiếu RAM, ảnh rỗng, luồng bị huỷ giữa chừng. Sửa mọi lỗi tìm thấy.
+
+            RÀNG BUỘC
+            - Không sửa thư mục .github/. Không xoá tính năng đang chạy (Fujifilm mode, âm thanh màn trập, watermark, ...).
+            - Giữ nguyên minSdk, cấu hình ký và thư viện hiện có, trừ khi thật cần thiết.
+            - Không commit file build (thư mục build, .gradle, .apk, .cxx).
+
+            KẾT THÚC
+            - Ghi file HDMP-CHANGES.txt ở gốc repo bằng tiếng Việt: đã sửa/tạo file nào, cách chỉnh UHD_Cores/FHD_Cores, phần nào chưa làm được hoặc còn hạn chế (nói thật).
+
+      - name: Gom thay doi cua Claude
+        if: always()
+        run: |
+          git add -A -- . ':(exclude,glob)**/build/**' ':(exclude,glob)**/.gradle/**' ':(exclude,glob)**/*.apk' ':(exclude,glob)**/.cxx/**' ':(exclude,glob)**/local.properties' || true
+          git diff --cached --stat || true
+          git diff --cached > "$RUNNER_TEMP/hdmp-changes.patch" || true
+
+      - name: Build app-debug.apk
+        run: "${{ runner.temp }}/ci-build.sh"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HDMP-app-debug
+          path: '**/build/outputs/apk/debug/*.apk'
+          if-no-files-found: error
+
+      - name: Upload ban va va ghi chu
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HDMP-changes
+          path: |
+            ${{ runner.temp }}/hdmp-changes.patch
+            HDMP-CHANGES.txt
+          if-no-files-found: ignore
+
+      - name: Commit, push va mo PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --cached --quiet; then
+            echo "Khong co thay doi de commit."
+            exit 0
+          fi
+          git commit -m "HDMP: UHD 211MP / FHD 108MP gop khung, night mode 5-10-3s, ra soat AI"
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push -u origin HEAD
+          BRANCH=$(git branch --show-current)
+          if [ -f HDMP-CHANGES.txt ]; then BODY=(--body-file HDMP-CHANGES.txt); else BODY=(--body "HDMP: xem ban va trong artifact HDMP-changes"); fi
+          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" --title "HDMP: UHD 211MP / FHD 108MP, night mode, xoa phong AI" "${BODY[@]}" \
+            || echo "::warning::Khong tu mo duoc PR (co the do cai dat repo). Nhanh $BRANCH da duoc push, hay mo PR thu cong."

@@ -1000,6 +1000,11 @@ private fun WatermarkTemplateCard(
                 else -> Color.Transparent
             }
             val textColor = if (frameStyle == "White") Color.Black else Color.White
+            val frameColor = when (frameStyle) {
+                "Black" -> Color.Black
+                "Transparent" -> Color.Transparent
+                else -> Color.White
+            }
             ComposeCanvas(Modifier.fillMaxSize()) {
                 drawRect(Color(0xFF697A70))
                 drawCircle(Color(0xFFFFD8A0), size.minDimension * 0.13f,

@@ -8,6 +8,10 @@ import android.widget.Toast
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.BitmapShader
+import android.graphics.Shader
+import android.graphics.Path
+import android.graphics.LinearGradient
 import android.graphics.Color as AndroidColor
 import android.graphics.Matrix
 import android.graphics.Paint
@@ -19,6 +23,13 @@ import android.content.ContentUris
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.foundation.border
@@ -62,6 +73,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Slider
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
@@ -76,6 +88,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -85,6 +99,110 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+@Composable
+private fun GlassParameterSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit
+) {
+    Row(Modifier.fillMaxWidth().padding(top = 7.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = CamColors.TextColor, fontSize = 11.sp)
+        Text(
+            if (range.endInclusive > 2f) "%.1f".format(value) else "%.0f%%".format(value * 100f),
+            color = CamColors.Sub, fontSize = 10.sp
+        )
+    }
+    Slider(value = value, onValueChange = onValueChange, valueRange = range)
+}
+
+@Composable
+private fun LiquidGlassWatermarkPreview(
+    template: String,
+    refraction: Float,
+    thickness: Float,
+    dispersion: Float,
+    blur: Float,
+    roughness: Float,
+    rim: Float,
+    gloss: Float,
+    corner: Float,
+    gooey: Float,
+    tint: String,
+    modifier: Modifier = Modifier
+) {
+    val tintColor = when (tint) {
+        "Milky" -> Color.White
+        "Smoke" -> Color(0xFF171C25)
+        else -> Color(0xFFD8E9F3)
+    }
+    Box(modifier.height(142.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFF263C43))) {
+        ComposeCanvas(Modifier.fillMaxSize()) {
+            drawRect(brush = Brush.linearGradient(listOf(
+                Color(0xFF6F8790), Color(0xFF536D64), Color(0xFF263C43)
+            )))
+            drawCircle(Color(0xFFFFD79B), size.minDimension * 0.11f,
+                Offset(size.width * 0.76f, size.height * 0.26f))
+            drawOval(Color(0xFF667F62),
+                topLeft = Offset(-size.width * 0.12f, size.height * 0.56f),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.8f, size.height * 0.55f))
+            drawOval(Color(0xFF324C42),
+                topLeft = Offset(size.width * 0.40f, size.height * 0.59f),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.82f, size.height * 0.58f))
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.08f),
+                topLeft = Offset(size.width * 0.035f, size.height * 0.06f),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.93f, size.height * 0.88f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.minDimension * (0.03f + corner * 0.06f)),
+                style = Stroke(width = 1.2f + rim * 1.4f)
+            )
+        }
+        val isCenter = template == "center_logo"
+        val panelShape = RoundedCornerShape((12f + corner * 14f + gooey * 5f).dp)
+        Column(
+            Modifier.align(if (isCenter) Alignment.Center else Alignment.BottomCenter)
+                .fillMaxWidth(if (isCenter) 0.78f else 0.93f)
+                .padding(bottom = if (isCenter) 0.dp else 9.dp)
+                .clip(panelShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.28f + gloss * 0.18f),
+                            tintColor.copy(alpha = 0.12f + thickness * 0.12f),
+                            Color(0xFFBBD9EA).copy(alpha = 0.08f + blur / 100f)
+                        )
+                    )
+                )
+                .border(
+                    (0.7f + rim * 1.4f).dp,
+                    Brush.linearGradient(listOf(
+                        Color.White.copy(alpha = 0.45f + rim * 0.45f),
+                        Color(0xFF72D8F5).copy(alpha = dispersion * 0.50f),
+                        Color(0xFFFFA5C7).copy(alpha = dispersion * 0.38f),
+                        Color.White.copy(alpha = 0.16f)
+                    )),
+                    panelShape
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = if (isCenter) Alignment.CenterHorizontally else Alignment.Start
+        ) {
+            Text(if (isCenter) "FUJIFILM" else "FUJIFILM X SERIES",
+                color = Color.White.copy(alpha = 0.94f), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Text("23mm  ·  f/2.0  ·  1/125s  ·  ISO 400",
+                color = Color.White.copy(alpha = 0.88f), fontSize = 9.sp)
+            Text("2026.11.14  ·  Liquid Glass",
+                color = Color.White.copy(alpha = 0.73f), fontSize = 8.sp)
+        }
+        Text(
+            "REFRACTION " + (refraction * 100f).toInt() +
+                "  ·  BLUR " + blur.toInt() +
+                "  ·  GRAIN " + (roughness * 100f).toInt(),
+            color = Color.White.copy(alpha = 0.8f), fontSize = 7.sp,
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+        )
+    }
+}
 
 @Composable
 fun ToolboxScreen(
@@ -100,6 +218,16 @@ fun ToolboxScreen(
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
+    var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
+    var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
+    var liquidGlassDispersion by remember { mutableStateOf(prefs.getFloat("watermark_glass_dispersion", 0.28f).coerceIn(0f, 1f)) }
+    var liquidGlassBlur by remember { mutableStateOf(prefs.getFloat("watermark_glass_blur", 8f).coerceIn(0f, 20f)) }
+    var liquidGlassRoughness by remember { mutableStateOf(prefs.getFloat("watermark_glass_roughness", 0.16f).coerceIn(0f, 1f)) }
+    var liquidGlassRim by remember { mutableStateOf(prefs.getFloat("watermark_glass_rim", 0.72f).coerceIn(0f, 1f)) }
+    var liquidGlassGloss by remember { mutableStateOf(prefs.getFloat("watermark_glass_gloss", 0.72f).coerceIn(0f, 1f)) }
+    var liquidGlassCorner by remember { mutableStateOf(prefs.getFloat("watermark_glass_corner", 0.58f).coerceIn(0f, 1f)) }
+    var liquidGlassGooey by remember { mutableStateOf(prefs.getFloat("watermark_glass_gooey", 0.34f).coerceIn(0f, 1f)) }
+    var liquidGlassTint by remember { mutableStateOf(prefs.getString("watermark_glass_tint", "Auto") ?: "Auto") }
     var watermarkTemplate by remember { mutableStateOf(prefs.getString("watermark_template", "standard1") ?: "standard1") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
     var watermarkShowModel by remember { mutableStateOf(prefs.getBoolean("watermark_show_model", true)) }
@@ -153,12 +281,100 @@ fun ToolboxScreen(
         }
         Text("Màu khung", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 7.dp, top = 5.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("White", "Black", "Transparent").forEach { style ->
-                Chip(style, watermarkStyle == style, {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            listOf("White", "Black", "Transparent", "Liquid Glass").forEach { label ->
+                val style = if (label == "Liquid Glass") "LiquidGlass" else label
+                Chip(label, watermarkStyle == style, {
                     watermarkStyle = style
                     prefs.edit().putString("watermark_style", style).apply()
                 }, Modifier.weight(1f))
+            }
+        }
+        AnimatedVisibility(
+            visible = watermarkStyle == "LiquidGlass",
+            enter = fadeIn(tween(240)) + scaleIn(
+                initialScale = 0.94f,
+                animationSpec = spring(dampingRatio = 0.62f, stiffness = 430f)
+            ),
+            exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.96f)
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(top = 12.dp)
+                    .clip(RoundedCornerShape(16.dp)).background(CamColors.Card)
+                    .padding(12.dp)
+            ) {
+                Text("Liquid Glass · Live preview", color = Color.White, fontWeight = FontWeight.SemiBold)
+                LiquidGlassWatermarkPreview(
+                    template = watermarkTemplate,
+                    refraction = liquidGlassRefraction,
+                    thickness = liquidGlassThickness,
+                    dispersion = liquidGlassDispersion,
+                    blur = liquidGlassBlur,
+                    roughness = liquidGlassRoughness,
+                    rim = liquidGlassRim,
+                    gloss = liquidGlassGloss,
+                    corner = liquidGlassCorner,
+                    gooey = liquidGlassGooey,
+                    tint = liquidGlassTint,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+                Text("Hình khối & tán sắc", color = CamColors.Yellow, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
+                GlassParameterSlider("Khúc xạ / độ cong", liquidGlassRefraction, 0f..1f) {
+                    liquidGlassRefraction = it
+                    prefs.edit().putFloat("watermark_glass_refraction", it).apply()
+                }
+                GlassParameterSlider("Độ dày / chiều sâu", liquidGlassThickness, 0f..1f) {
+                    liquidGlassThickness = it
+                    prefs.edit().putFloat("watermark_glass_thickness", it).apply()
+                }
+                GlassParameterSlider("Tán sắc màu", liquidGlassDispersion, 0f..1f) {
+                    liquidGlassDispersion = it
+                    prefs.edit().putFloat("watermark_glass_dispersion", it).apply()
+                }
+                Text("Bề mặt & độ mờ", color = CamColors.Yellow, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                GlassParameterSlider("Blur / Frosting", liquidGlassBlur, 0f..20f) {
+                    liquidGlassBlur = it
+                    prefs.edit().putFloat("watermark_glass_blur", it).apply()
+                }
+                GlassParameterSlider("Độ nhám / hạt mịn", liquidGlassRoughness, 0f..1f) {
+                    liquidGlassRoughness = it
+                    prefs.edit().putFloat("watermark_glass_roughness", it).apply()
+                }
+                Text("Ánh sáng & viền", color = CamColors.Yellow, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                GlassParameterSlider("Rim light / phản chiếu viền", liquidGlassRim, 0f..1f) {
+                    liquidGlassRim = it
+                    prefs.edit().putFloat("watermark_glass_rim", it).apply()
+                }
+                GlassParameterSlider("Glossiness / độ bóng", liquidGlassGloss, 0f..1f) {
+                    liquidGlassGloss = it
+                    prefs.edit().putFloat("watermark_glass_gloss", it).apply()
+                }
+                GlassParameterSlider("Corner radius / squircle", liquidGlassCorner, 0f..1f) {
+                    liquidGlassCorner = it
+                    prefs.edit().putFloat("watermark_glass_corner", it).apply()
+                }
+                GlassParameterSlider("Gooeyness / hòa quyện", liquidGlassGooey, 0f..1f) {
+                    liquidGlassGooey = it
+                    prefs.edit().putFloat("watermark_glass_gooey", it).apply()
+                }
+                Text("Màu nhuộm kính", color = Color.White, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf("Auto", "Milky", "Smoke").forEach { tint ->
+                        Chip(tint, liquidGlassTint == tint, {
+                            liquidGlassTint = tint
+                            prefs.edit().putString("watermark_glass_tint", tint).apply()
+                        }, Modifier.weight(1f))
+                    }
+                }
+                Text(
+                    "Preview mô phỏng mẫu watermark đang chọn. Các thông số được áp dụng lên lớp kính khi lưu JPEG; DNG RAW luôn giữ nguyên dữ liệu cảm biến.",
+                    color = CamColors.Sub, fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 9.dp)
+                )
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -452,6 +668,7 @@ private fun WatermarkTemplateCard(
             val panelColor = when (frameStyle) {
                 "White" -> Color.White
                 "Black" -> Color.Black
+                "LiquidGlass" -> Color.White.copy(alpha = 0.20f)
                 else -> Color.Transparent
             }
             val textColor = if (frameStyle == "White") Color.Black else Color.White

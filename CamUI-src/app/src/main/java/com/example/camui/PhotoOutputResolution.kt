@@ -18,14 +18,14 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/** 211MP pixel-count interpolation for ordinary 1x JPEGs, not extra sensor detail. */
+/** Algorithmic pixel-count interpolation; output pixels do not create optical detail. */
 object PhotoOutputResolution {
  private const val TAG = "FUJI_211MP"
- private const val TARGET_PIXELS = 211_000_000L
- fun interpolateTo211Mp(context: Context, uri: Uri): Boolean {
+ fun interpolateToMp(context: Context, uri: Uri, targetPixels: Long): Boolean {
+  require(targetPixels in 10_000_000L..240_000_000L) { "Unsupported output pixel target" }
   val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
-  val temp = File(context.cacheDir, "fuji-211mp-$stamp.jpg")
-  val backup = File(context.cacheDir, "fuji-211mp-original-$stamp.jpg")
+  val temp = File(context.cacheDir, "fuji-hdmp-$stamp.jpg")
+  val backup = File(context.cacheDir, "fuji-hdmp-original-$stamp.jpg")
   var source: Bitmap? = null
   var output: Bitmap? = null
   var replacing = false
@@ -40,18 +40,18 @@ object PhotoOutputResolution {
    val src = source!!
    val sourcePixels = src.width.toLong() * src.height.toLong()
    require(sourcePixels > 0L) { "Invalid source size" }
-   if (sourcePixels >= TARGET_PIXELS) return true
-   val scale = sqrt(TARGET_PIXELS.toDouble() / sourcePixels.toDouble())
+   if (sourcePixels >= targetPixels) return true
+   val scale = sqrt(targetPixels.toDouble() / sourcePixels.toDouble())
    var width = (src.width * scale).roundToInt().coerceAtLeast(src.width)
    var height = (src.height * scale).roundToInt().coerceAtLeast(src.height)
-   while (width.toLong() * height.toLong() > TARGET_PIXELS) {
+   while (width.toLong() * height.toLong() > targetPixels) {
     if (width >= height) width-- else height--
    }
    val outputPixels = width.toLong() * height.toLong()
    val outputBytes = outputPixels * 2L
    val safeHeap = (Runtime.getRuntime().maxMemory().toDouble() * 0.82).toLong()
    require(outputBytes + src.allocationByteCount.toLong() < safeHeap) {
-    "Insufficient safe heap for 211MP export"
+    "Insufficient safe heap for requested output resolution"
    }
    output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
    Canvas(output!!).drawBitmap(src, null, Rect(0, 0, width, height),
@@ -80,7 +80,7 @@ object PhotoOutputResolution {
    context.contentResolver.update(uri, ContentValues().apply {
     put(MediaStore.Images.Media.ORIENTATION, 0)
    }, null, null)
-   Log.i(TAG, "211MP interpolation: ${width}x${height}")
+   Log.i(TAG, "Algorithmic interpolation to ${targetPixels / 1_000_000L}MP: ${width}x${height}")
    true
   } catch (failure: Throwable) {
    if (replacing && backup.exists()) runCatching {
@@ -88,7 +88,7 @@ object PhotoOutputResolution {
      backup.inputStream().use { it.copyTo(dest) }
     } ?: error("Rollback failed")
    }.onFailure { Log.e(TAG, "Original restore failed", it) }
-   Log.e(TAG, "211MP interpolation skipped; keep source", failure)
+   Log.e(TAG, "HDMP interpolation skipped; keep source", failure)
    false
   } finally {
    source?.let { if (!it.isRecycled) it.recycle() }

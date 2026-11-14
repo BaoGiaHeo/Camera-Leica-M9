@@ -1505,6 +1505,7 @@ private data class CubeLut(
 private fun parseCubeLutText(text: String): CubeLut? {
     return runCatching {
         var size = 0
+        var oneDSize = 0
         val min = floatArrayOf(0f, 0f, 0f)
         val max = floatArrayOf(1f, 1f, 1f)
         val rows = ArrayList<FloatArray>()
@@ -1514,6 +1515,7 @@ private fun parseCubeLutText(text: String): CubeLut? {
             val parts = line.split(Regex("\\s+"))
             when (parts.firstOrNull()) {
                 "TITLE" -> Unit
+                "LUT_1D_SIZE" -> oneDSize = parts.getOrNull(1)?.toIntOrNull() ?: 0
                 "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: 0
                 "DOMAIN_MIN" -> if (parts.size >= 4) for (i in 0..2) min[i] = parts[i + 1].toFloat()
                 "DOMAIN_MAX" -> if (parts.size >= 4) for (i in 0..2) max[i] = parts[i + 1].toFloat()
@@ -1523,9 +1525,20 @@ private fun parseCubeLutText(text: String): CubeLut? {
                 }
             }
         }
-        if (size !in 2..65 || rows.size != size * size * size) return@runCatching null
-        CubeLut(size, min, max, FloatArray(rows.size * 3).also { out ->
-            rows.forEachIndexed { index, rgb ->
+        if (size !in 2..65) return@runCatching null
+        val expected3dRows = size * size * size
+        val cubeRows = when {
+            rows.size == expected3dRows -> rows
+            oneDSize in 2..65536 && rows.size == expected3dRows + oneDSize ->
+                rows.drop(oneDSize)
+            else -> return@runCatching null
+        }
+        if (cubeRows.any { rgb -> rgb.any { !it.isFinite() } }) return@runCatching null
+        if ((0..2).any { max[it] <= min[it] || !min[it].isFinite() || !max[it].isFinite() }) {
+            return@runCatching null
+        }
+        CubeLut(size, min, max, FloatArray(cubeRows.size * 3).also { out ->
+            cubeRows.forEachIndexed { index, rgb ->
                 out[index * 3] = rgb[0]
                 out[index * 3 + 1] = rgb[1]
                 out[index * 3 + 2] = rgb[2]

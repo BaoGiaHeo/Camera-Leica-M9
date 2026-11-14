@@ -119,4 +119,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# Rebuild after the landscape EXIF/CameraX normalization and watermark-status fixes.
+# Rebuild after the landscape EXIF/CameraX normalization, watermark-status, and live UHD AI render progress fixes.

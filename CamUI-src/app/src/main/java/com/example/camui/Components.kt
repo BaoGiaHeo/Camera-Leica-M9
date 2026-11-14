@@ -421,6 +421,21 @@ private val fullEnglishUi = mapOf(
     "EV không được hỗ trợ" to "EV unavailable", "AF tự động" to "AF Auto",
     "Tông màu tự động" to "Auto white balance", "Ảnh gốc" to "Original photo",
     "Cần cấp quyền Camera\\n(chạm để cấp)" to "Camera permission required\\n(tap to grant)"
+    "Image Quality" to "Image Quality",
+    "Shutter button" to "Shutter button",
+    "Watermark" to "Watermark",
+    "Màu khung" to "Frame color",
+    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "LUT .cube uses 3D interpolation when saving the photo.",
+    "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "Choose a filter to preview its look; it is applied to the photo after capture.",
+    "TAP AF · HOLD LOCK" to "TAP AF · HOLD TO LOCK",
+    "ĐANG DÙNG" to "ACTIVE",
+    "CHỌN" to "SELECT",
+    "Đang phơi sáng" to "Exposing",
+    "Vui lòng để điện thoại cố định" to "Please keep the phone steady",
+    "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes",
+    "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
+        to "AI is still under development. Errors or unexpected results may occur while using this feature.",
+    "HDR · Multi-frame" to "HDR · Multi-frame"
 )
 
 private val fullJapaneseUi = mapOf(
@@ -495,6 +510,22 @@ private val fullJapaneseUi = mapOf(
     "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải" to "被写体は左の三分割位置 · 右側に余白を残してください",
     "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái" to "被写体は右の三分割位置 · 左側に余白を残してください",
     "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "被写体は中央です · 三分割構図に合わせて少しずらしてみてください"
+    "Image Quality" to "画質",
+    "Shutter button" to "シャッターボタン",
+    "Watermark" to "ウォーターマーク",
+    "Màu khung" to "枠線の色",
+    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "LUT .cubeは保存時に3D補間を使用します。",
+    "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp。" to "フィルターの色調をプレビューします。撮影後に写真へ適用されます。",
+    "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "フィルターの色調をプレビューします。撮影後に写真へ適用されます。",
+    "TAP AF · HOLD LOCK" to "タップでAF · 長押しでロック",
+    "ĐANG DÙNG" to "使用中",
+    "CHỌN" to "選択",
+    "Đang phơi sáng" to "露光中",
+    "Vui lòng để điện thoại cố định" to "スマートフォンを固定してください",
+    "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまで動かさないでください",
+    "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
+        to "AI機能は開発中です。使用中にエラーが発生したり、期待と異なる結果になる場合があります。",
+    "HDR · Multi-frame" to "HDR · マルチフレーム"
 )
 
 private val fullKoreanUi = mapOf(
@@ -570,6 +601,21 @@ private val fullKoreanUi = mapOf(
     "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải" to "피사체가 왼쪽 삼분할 위치에 있습니다 · 오른쪽에 여백을 남기세요",
     "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái" to "피사체가 오른쪽 삼분할 위치에 있습니다 · 왼쪽에 여백을 남기세요",
     "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "피사체가 중앙에 있습니다 · 삼분할 구도에 맞춰 약간 옮겨 보세요"
+    "Image Quality" to "이미지 품질",
+    "Shutter button" to "셔터 버튼",
+    "Watermark" to "워터마크",
+    "Màu khung" to "테두리 색상",
+    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "LUT .cube는 저장할 때 3D 보간을 사용합니다.",
+    "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "필터 색감을 미리 봅니다. 촬영 후 사진에 적용됩니다.",
+    "TAP AF · HOLD LOCK" to "탭하여 AF · 길게 눌러 초점 잠금",
+    "ĐANG DÙNG" to "사용 중",
+    "CHỌN" to "선택",
+    "Đang phơi sáng" to "노출 중",
+    "Vui lòng để điện thoại cố định" to "휴대전화를 고정해 주세요",
+    "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 휴대전화를 움직이지 마세요",
+    "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
+        to "AI 기능은 개발 중입니다. 사용 중 오류가 발생하거나 예상과 다른 결과가 나올 수 있습니다.",
+    "HDR · Multi-frame" to "HDR · 멀티 프레임"
 )
 
 private val fullChineseUi = mapOf(
@@ -645,6 +691,21 @@ private val fullChineseUi = mapOf(
     "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải" to "主体位于左侧三分线 · 右侧留出空间",
     "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái" to "主体位于右侧三分线 · 左侧留出空间",
     "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "主体位于中央 · 可按三分法稍微偏移"
+    "Image Quality" to "图像质量",
+    "Shutter button" to "快门按钮",
+    "Watermark" to "水印",
+    "Màu khung" to "边框颜色",
+    "LUT .cube dùng nội suy 3D khi lưu ảnh." to "保存照片时，LUT .cube 使用 3D 插值。",
+    "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "选择滤镜预览色调；滤镜会在拍摄后应用到照片。",
+    "TAP AF · HOLD LOCK" to "点击 AF · 长按锁定",
+    "ĐANG DÙNG" to "正在使用",
+    "CHỌN" to "选择",
+    "Đang phơi sáng" to "正在曝光",
+    "Vui lòng để điện thoại cố định" to "请保持手机稳定",
+    "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机",
+    "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
+        to "AI 功能仍在开发中，使用过程中可能出现错误或结果不符合预期。",
+    "HDR · Multi-frame" to "HDR · 多帧"
 )
 
 private fun translateFullUiText(value: String, language: String): String? {
@@ -659,25 +720,29 @@ private fun translateFullUiText(value: String, language: String): String? {
     val dynamic = when {
         language.startsWith("ja") -> listOf(
             "Camera ID " to "カメラID ", "ISO " to "ISO ", "Shutter " to "シャッター ",
-            "Tông màu " to "色温度 ", "AI BỐ CỤC · " to "AI構図 · ",
+            "Tông màu " to "色温度 ", "Auto sẽ lấy tên model của điện thoại: " to "自動では端末モデル名を使用：",
+            "Bộ lọc: " to "フィルター：", "AI BỐ CỤC · " to "AI構図 · ",
             "Lỗi chụp ảnh:" to "撮影エラー：", "Không mở được camera:" to "カメラを開けません：",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDRを有効化またはカメラを初期化できません："
         )
         language.startsWith("ko") -> listOf(
             "Camera ID " to "카메라 ID ", "ISO " to "ISO ", "Shutter " to "셔터 ",
-            "Tông màu " to "색온도 ", "AI BỐ CỤC · " to "AI 구도 · ",
+            "Tông màu " to "색온도 ", "Auto sẽ lấy tên model của điện thoại: " to "자동으로 휴대전화 모델을 사용합니다: ",
+            "Bộ lọc: " to "필터: ", "AI BỐ CỤC · " to "AI 구도 · ",
             "Lỗi chụp ảnh:" to "촬영 오류:", "Không mở được camera:" to "카메라를 열 수 없습니다:",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDR을 켜거나 카메라를 초기화할 수 없습니다:"
         )
         language.startsWith("zh") -> listOf(
             "Camera ID " to "相机 ID ", "ISO " to "ISO ", "Shutter " to "快门 ",
-            "Tông màu " to "色温 ", "AI BỐ CỤC · " to "AI 构图 · ",
+            "Tông màu " to "色温 ", "Auto sẽ lấy tên model của điện thoại: " to "自动使用手机型号：",
+            "Bộ lọc: " to "滤镜：", "AI BỐ CỤC · " to "AI 构图 · ",
             "Lỗi chụp ảnh:" to "拍摄错误：", "Không mở được camera:" to "无法打开相机：",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "无法启用 Ultra HDR 或初始化相机："
         )
         else -> listOf(
             "Camera ID " to "Camera ID ", "ISO " to "ISO ", "Shutter " to "Shutter ",
-            "Tông màu " to "Color temperature ", "AI BỐ CỤC · " to "AI COMPOSITION · ",
+            "Tông màu " to "Color temperature ", "Auto sẽ lấy tên model của điện thoại: " to "Auto uses phone model: ",
+            "Bộ lọc: " to "Filter: ", "AI BỐ CỤC · " to "AI COMPOSITION · ",
             "Lỗi chụp ảnh:" to "Capture error:", "Không mở được camera:" to "Could not open camera:",
             "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Could not enable Ultra HDR or initialize camera:"
         )

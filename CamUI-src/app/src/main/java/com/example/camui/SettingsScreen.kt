@@ -359,7 +359,12 @@ private fun SettingsDetailPage(
                     color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
             "Backup & Restore" -> {
-                BackupRestorePanel()
+                BackupRestorePanel(onRestoreComplete = {
+                    onRatio(prefs.getInt("capture_ratio_index", 1).coerceIn(0, 4))
+                    onShowGrid(prefs.getBoolean("viewfinder_grid_enabled", true))
+                    onShowHist(prefs.getBoolean("viewfinder_histogram_enabled", true))
+                    onFocusPeaking(prefs.getBoolean("viewfinder_focus_peaking_enabled", false))
+                })
             }
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)

@@ -11,6 +11,7 @@
 
 #include "net.h"
 #include "gpu.h"
+#include "cpu.h"
 
 namespace {
 constexpr const char* kTag = "FUJI_NCNN_SR";
@@ -176,7 +177,6 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
         64,
         384
     );
-    const int paddedTile = tileSize + 2 * kPrePadding;
 
     std::lock_guard<std::mutex> inferenceLock(gInferenceMutex);
     VulkanGuard vulkan;

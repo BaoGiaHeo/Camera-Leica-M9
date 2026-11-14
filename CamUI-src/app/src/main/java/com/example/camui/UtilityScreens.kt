@@ -691,6 +691,55 @@ private fun writeUprightExifMetadata(
  * then publish the MediaStore row so gallery apps index the final file, not the
  * temporary camera JPEG metadata.
  */
+/**
+ * Publish a CameraX JPEG_R file without decoding or recompressing it.
+ * Re-encoding through BitmapFactory/Bitmap.compress would discard its Ultra HDR gain map.
+ * Keep the EXIF orientation supplied by CameraX and only publish MediaStore metadata.
+ */
+fun publishUltraHdrCapture(context: Context, uri: Uri): Boolean {
+    return runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching false
+
+        val exifOrientation = context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+            ExifInterface(descriptor.fileDescriptor).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } ?: ExifInterface.ORIENTATION_NORMAL
+        val rotationDegrees = when (exifOrientation) {
+            ExifInterface.ORIENTATION_ROTATE_90,
+            ExifInterface.ORIENTATION_TRANSPOSE -> 90
+            ExifInterface.ORIENTATION_ROTATE_180,
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> 180
+            ExifInterface.ORIENTATION_ROTATE_270,
+            ExifInterface.ORIENTATION_TRANSVERSE -> 270
+            else -> 0
+        }
+        val published = context.contentResolver.update(
+            uri,
+            ContentValues().apply {
+                put(MediaStore.Images.Media.ORIENTATION, rotationDegrees)
+                put(MediaStore.Images.Media.WIDTH, bounds.outWidth)
+                put(MediaStore.Images.Media.HEIGHT, bounds.outHeight)
+                put(MediaStore.Images.Media.IS_PENDING, 0)
+            },
+            null,
+            null
+        ) > 0
+        android.util.Log.d(
+            "FUJI_ULTRA_HDR",
+            "published=$published, exifOrientation=$exifOrientation, rotation=$rotationDegrees, pixels=${bounds.outWidth}x${bounds.outHeight}; gain map bytes preserved"
+        )
+        published
+    }.onFailure {
+        android.util.Log.e("FUJI_ULTRA_HDR", "Could not publish original JPEG_R capture", it)
+    }.getOrDefault(false)
+}
+
 fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     context.contentResolver.openInputStream(uri)?.use { input ->

@@ -15,7 +15,7 @@
 
 namespace {
 constexpr const char* kTag = "FUJI_NCNN_SR";
-constexpr int kScale = 2;
+constexpr int kScale = 4;
 constexpr int kPrePadding = 10;
 constexpr int kDefaultTileSize = 192;
 
@@ -167,7 +167,7 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
     }
     if (static_cast<uint64_t>(src.width) * kScale != dst.width ||
         static_cast<uint64_t>(src.height) * kScale != dst.height) {
-        LOGE("Output dimensions do not match x2 model: %ux%u -> %ux%u",
+        LOGE("Output dimensions do not match x4 model: %ux%u -> %ux%u",
              src.width, src.height, dst.width, dst.height);
         return JNI_FALSE;
     }
@@ -218,7 +218,7 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
     }
 
     LOGI(
-        "Real-ESRGAN x2 ready: input=%ux%u tile=%d Vulkan=%s fp16=%s",
+        "Real-ESRGAN x4plus photo model ready: input=%ux%u tile=%d Vulkan=%s fp16=%s",
         src.width,
         src.height,
         tileSize,
@@ -291,7 +291,7 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
             }
             if (result.w != tileWidth * kScale || result.h != tileHeight * kScale || result.c != 3) {
                 LOGE(
-                    "Unexpected Real-ESRGAN x2 tile result: %dx%dx%d for input %dx%d",
+                    "Unexpected Real-ESRGAN x4plus tile result: %dx%dx%d for input %dx%d",
                     result.w, result.h, result.c, tileWidth, tileHeight
                 );
                 return JNI_FALSE;
@@ -334,6 +334,6 @@ Java_com_example_camui_NcnnSuperResolution_nativeUpscaleInto(
     }
 
     net.clear();
-    LOGI("Real-ESRGAN x2 tile processing completed");
+    LOGI("Real-ESRGAN x4plus tile processing completed");
     return JNI_TRUE;
 }

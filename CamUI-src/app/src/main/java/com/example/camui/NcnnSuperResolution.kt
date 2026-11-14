@@ -15,19 +15,19 @@ import java.util.Locale
 import kotlin.math.sqrt
 
 /**
- * Real-ESRGAN NCNN x2 adapter.
+ * Real-ESRGAN NCNN x4plus photo adapter targeting approximately 211 MP.
  *
- * The native layer receives RGB_565 bitmaps and runs the model on overlapped tiles.
- * Input is capped at 24 MP so the 2x output remains bounded to 48 MP / RGB_565.
- * Large camera JPEGs are reduced only enough to stay inside that bound; the saved
- * dimensions remain close to the sensor's original output rather than growing without limit.
+ * The native layer receives RGB_565 bitmaps and runs the general-photo x4plus model on overlapped tiles.
+ * Input is normalized to about 13.19 MP so the x4 output targets approximately 211 MP.
+ * AI reconstruction estimates detail; the final pixel count is not optical sensor detail.
  */
 object NcnnSuperResolution {
     private const val TAG = "FUJI_NCNN_SR"
-    private const val MODEL_PARAM = "realesr-animevideov3-x2.param"
-    private const val MODEL_BIN = "realesr-animevideov3-x2.bin"
-    private const val MAX_MODEL_INPUT_PIXELS = 24_000_000L
-    private const val TILE_SIZE = 192
+    private const val MODEL_PARAM = "realesrgan-x4plus.param"
+    private const val MODEL_BIN = "realesrgan-x4plus.bin"
+    private const val TARGET_MODEL_INPUT_PIXELS = 13_187_500L
+    private const val TARGET_OUTPUT_PIXELS = 211_000_000L
+    private const val TILE_SIZE = 256
 
     init {
         System.loadLibrary("fujisr")
@@ -75,23 +75,29 @@ object NcnnSuperResolution {
             val originalWidth = src.width
             val originalHeight = src.height
             val inputPixels = originalWidth.toLong() * originalHeight.toLong()
-            modelInput = if (inputPixels > MAX_MODEL_INPUT_PIXELS) {
-                val scale = sqrt(MAX_MODEL_INPUT_PIXELS.toDouble() / inputPixels.toDouble())
-                val scaledWidth = (originalWidth * scale).toInt().coerceAtLeast(1)
-                val scaledHeight = (originalHeight * scale).toInt().coerceAtLeast(1)
+            val scale = sqrt(TARGET_MODEL_INPUT_PIXELS.toDouble() / inputPixels.toDouble())
+            val scaledWidth = (originalWidth * scale).toInt().coerceAtLeast(1)
+            val scaledHeight = (originalHeight * scale).toInt().coerceAtLeast(1)
+            modelInput = if (scaledWidth != originalWidth || scaledHeight != originalHeight) {
                 Bitmap.createScaledBitmap(src, scaledWidth, scaledHeight, true).also {
                     if (it !== src) src.recycle()
-                    Log.i(TAG, "Large source reduced for bounded AI memory: ${originalWidth}x${originalHeight} -> ${it.width}x${it.height}")
+                    Log.i(TAG, "Normalized AI input: ${originalWidth}x${originalHeight} -> ${it.width}x${it.height}")
                 }
             } else {
                 src
             }
             sourceBitmap = null // modelInput now owns the reference
 
-            val outputWidth = modelInput!!.width * 2
-            val outputHeight = modelInput!!.height * 2
-            require(outputWidth.toLong() * outputHeight.toLong() <= MAX_MODEL_INPUT_PIXELS * 4L) {
-                "AI output exceeds the 48 MP safety limit"
+            val outputWidth = modelInput!!.width * 4
+            val outputHeight = modelInput!!.height * 4
+            val outputPixels = outputWidth.toLong() * outputHeight.toLong()
+            require(outputPixels <= TARGET_OUTPUT_PIXELS) {
+                "AI output exceeds the 211 MP target"
+            }
+            val outputBytes = outputPixels * 2L
+            val safeHeapBudget = (Runtime.getRuntime().maxMemory().toDouble() * 0.78).toLong()
+            require(outputBytes < safeHeapBudget) {
+                "This device does not have enough safe heap for the 211 MP UHD output"
             }
             outputBitmap = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.RGB_565)
 
@@ -149,7 +155,7 @@ object NcnnSuperResolution {
                 null,
                 null
             )
-            Log.i(TAG, "Real-ESRGAN x2 saved: ${outputWidth}x${outputHeight}")
+            Log.i(TAG, "Real-ESRGAN x4plus saved: ${outputWidth}x${outputHeight} (${outputPixels / 1_000_000L} MP)")
             true
         } catch (failure: Throwable) {
             if (replacementStarted && originalBackup.exists()) {

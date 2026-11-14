@@ -144,7 +144,7 @@ object CameraHardwareScanner {
                         ?.maxByOrNull { it.width.toLong() * it.height.toLong() }
                         ?.let { "${it.width} × ${it.height}" }
                 }.getOrNull() ?: "Không công bố"
-                val raw = runCatching {
+                val rawMaxSize = runCatching {
                     streamMap?.getOutputSizes(ImageFormat.RAW_SENSOR)
                         ?.maxByOrNull { it.width.toLong() * it.height.toLong() }
                         ?.let { "${it.width} × ${it.height}" }
@@ -173,7 +173,7 @@ object CameraHardwareScanner {
                         String.format(Locale.US, "%.2f × %.2f mm", it.width, it.height)
                     } ?: "Không công bố",
                     jpegMax = jpeg,
-                    rawMax = raw,
+                    rawMax = rawMaxSize,
                     hardwareLevel = hardware,
                     maxDigitalZoom = c.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM),
                     physicalIds = raw.physicalIds,

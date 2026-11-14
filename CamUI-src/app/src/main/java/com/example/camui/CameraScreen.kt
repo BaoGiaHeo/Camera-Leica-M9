@@ -324,7 +324,10 @@ fun CameraScreen(
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
-    val uhdCaptureEnabled = appPrefs.getBoolean("uhd_capture_enabled", false)
+    var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
+    LaunchedEffect(uhdCaptureEnabled) {
+        appPrefs.edit().putBoolean("uhd_capture_enabled", uhdCaptureEnabled).apply()
+    }
     var hdrEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
     }
@@ -1931,6 +1934,8 @@ fun CameraScreen(
                         ultraHdr = !ultraHdr
                     }
                 },
+                uhdCaptureEnabled = uhdCaptureEnabled,
+                onUhdCapture = { uhdCaptureEnabled = !uhdCaptureEnabled },
                 stabilization = stabilization,
                 onStabilization = {
                     stabilization = !stabilization

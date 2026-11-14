@@ -72,7 +72,7 @@ internal object HdmpEngine {
                 val tasks = ArrayList<Callable<Unit>>(stripeCount)
                 for (top in 0 until height step STRIPE_HEIGHT) {
                     val bottom = min(height, top + STRIPE_HEIGHT)
-                    tasks += Callable {
+                    tasks.add(Callable<Unit> {
                         val inputTop = max(0, top - 1)
                         val inputBottom = min(height, bottom + 1)
                         val inputHeight = inputBottom - inputTop
@@ -152,7 +152,8 @@ internal object HdmpEngine {
                         }
                         val done = completed.incrementAndGet()
                         runCatching { onProgress((done * 100 / stripeCount).coerceIn(0, 100)) }
-                    }
+                        Unit
+                    })
                 }
                 executor.invokeAll(tasks).forEach { it.get() }
             } finally {

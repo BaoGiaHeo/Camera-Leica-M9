@@ -17,6 +17,8 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.media.ExifInterface
+import android.media.MediaActionSound
+import android.media.MediaPlayer
 import android.net.Uri
 import android.provider.MediaStore
 import android.content.ContentUris
@@ -78,12 +80,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,7 +102,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.net.URL
 
 @Composable
 private fun GlassParameterSlider(
@@ -205,6 +212,279 @@ private fun LiquidGlassWatermarkPreview(
 }
 
 @Composable
+private fun ShutterSoundSettingsPanel() {
+    val context = LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    }
+    val scope = rememberCoroutineScope()
+    var selectedSound by remember {
+        mutableStateOf(prefs.getString("shutter_sound_selected", "system") ?: "system")
+    }
+    var savedSoundPath by remember {
+        mutableStateOf(prefs.getString("shutter_sound_file_path", null))
+    }
+    var savedSoundName by remember {
+        mutableStateOf(prefs.getString("shutter_sound_file_name", null))
+    }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var isImporting by remember { mutableStateOf(false) }
+
+    val systemPreview = remember {
+        MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
+    }
+    DisposableEffect(systemPreview) {
+        onDispose { systemPreview.release() }
+    }
+
+    fun previewLocalSound(path: String?) {
+        val file = path?.let { File(it) }
+        if (file == null || !file.isFile) {
+            Toast.makeText(context, "Không tìm thấy tệp âm thanh đã lưu.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                setOnPreparedListener { player -> player.start() }
+                setOnCompletionListener { player -> player.release() }
+                setOnErrorListener { player, _, _ ->
+                    player.release()
+                    true
+                }
+                prepareAsync()
+            }
+        }.onFailure {
+            Toast.makeText(context, "Không thể phát MP3: " + (it.message ?: "không rõ lỗi"), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun openSoundSource(url: String) {
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure {
+            Toast.makeText(context, "Không thể mở trang âm thanh.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val importMp3Launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isImporting = true
+                try {
+                    val imported = withContext(Dispatchers.IO) {
+                        val resolver = context.contentResolver
+                        val displayName = resolver.query(
+                            uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+                        )?.use { cursor ->
+                            if (cursor.moveToFirst()) cursor.getString(0) else null
+                        } ?: "custom_shutter.mp3"
+                        val mime = resolver.getType(uri).orEmpty()
+                        require(
+                            displayName.endsWith(".mp3", ignoreCase = true) ||
+                                mime.equals("audio/mpeg", ignoreCase = true)
+                        ) { "Chỉ hỗ trợ tệp MP3." }
+
+                        val directory = File(context.filesDir, "shutter_sounds").apply { mkdirs() }
+                        val target = File(directory, "custom_shutter.mp3")
+                        val temporary = File(directory, "custom_shutter.tmp")
+                        val bytes = resolver.openInputStream(uri)?.use { input ->
+                            temporary.outputStream().use { output -> input.copyTo(output) }
+                        } ?: error("Không đọc được tệp MP3 đã chọn.")
+                        require(bytes in 1L..(40L * 1024L * 1024L)) {
+                            "MP3 rỗng hoặc lớn hơn 40 MB."
+                        }
+                        if (!temporary.renameTo(target)) {
+                            temporary.copyTo(target, overwrite = true)
+                            temporary.delete()
+                        }
+                        Pair(target.absolutePath, displayName)
+                    }
+                    savedSoundPath = imported.first
+                    savedSoundName = imported.second
+                    selectedSound = "local"
+                    prefs.edit()
+                        .putString("shutter_sound_selected", "local")
+                        .putString("shutter_sound_file_path", imported.first)
+                        .putString("shutter_sound_file_name", imported.second)
+                        .apply()
+                    Toast.makeText(context, "Đã nhập và chọn " + imported.second, Toast.LENGTH_SHORT).show()
+                    previewLocalSound(imported.first)
+                } catch (failure: Throwable) {
+                    Toast.makeText(
+                        context,
+                        "Import MP3 thất bại: " + (failure.message ?: "không rõ lỗi"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    isImporting = false
+                }
+            }
+        }
+    }
+
+    fun downloadMyInstantsShutter() {
+        if (isDownloading) return
+        scope.launch {
+            isDownloading = true
+            try {
+                val downloadedPath = withContext(Dispatchers.IO) {
+                    val directory = File(context.filesDir, "shutter_sounds").apply { mkdirs() }
+                    val temporary = File(directory, "myinstants_shutter.tmp")
+                    val target = File(directory, "myinstants_shutter.mp3")
+                    val connection = URL(
+                        "https://www.myinstants.com/media/sounds/camera-shutter-dslrr.mp3"
+                    ).openConnection().apply {
+                        connectTimeout = 15000
+                        readTimeout = 25000
+                        useCaches = false
+                    }
+                    val bytes = connection.getInputStream().use { input ->
+                        temporary.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    require(bytes > 128L && bytes <= 10L * 1024L * 1024L) {
+                        "Tệp MP3 tải về không hợp lệ."
+                    }
+                    if (!temporary.renameTo(target)) {
+                        temporary.copyTo(target, overwrite = true)
+                        temporary.delete()
+                    }
+                    target.absolutePath
+                }
+                savedSoundPath = downloadedPath
+                savedSoundName = "Shutter (MyInstants)"
+                selectedSound = "local"
+                prefs.edit()
+                    .putString("shutter_sound_selected", "local")
+                    .putString("shutter_sound_file_path", downloadedPath)
+                    .putString("shutter_sound_file_name", "Shutter (MyInstants)")
+                    .apply()
+                previewLocalSound(downloadedPath)
+                Toast.makeText(context, "Đã tải và chọn âm thanh Shutter.", Toast.LENGTH_SHORT).show()
+            } catch (failure: Throwable) {
+                Toast.makeText(
+                    context,
+                    "Không tải được âm thanh: " + (failure.message ?: "hãy kiểm tra kết nối mạng"),
+                    Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                isDownloading = false
+            }
+        }
+    }
+
+    val soundsnapOptions = listOf(
+        Triple("Fujifilm", "Pressing a button on a Fujifilm Instax camera",
+            "https://www.soundsnap.com/pressing_a_button_on_a_fujifilm_instax_camera_3_3"),
+        Triple("Fujifilm 2", "Opening the battery compartment lid",
+            "https://www.soundsnap.com/opening_the_lid_of_the_battery_compartment_of_a_fujifilm_instax_camera"),
+        Triple("Fujifilm 3", "Pressing a button on a Fujifilm Instax camera",
+            "https://www.soundsnap.com/pressing_a_button_on_a_fujifilm_instax_camera_2_2")
+    )
+
+    Column(
+        Modifier.fillMaxWidth().padding(top = 10.dp)
+            .clip(RoundedCornerShape(16.dp)).background(CamColors.Card).padding(12.dp)
+    ) {
+        Text("Chọn âm thanh màn trập", color = Color.White, fontWeight = FontWeight.SemiBold)
+        Text("Âm thanh đang chọn sẽ phát mỗi khi chụp. Có thể nghe thử trước khi chọn.",
+            color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp, bottom = 8.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Mặc định Android", color = Color.White, fontSize = 12.sp)
+                Text("Âm click màn trập hệ thống", color = CamColors.Sub, fontSize = 10.sp)
+            }
+            TextButton(onClick = {
+                runCatching { systemPreview.play(MediaActionSound.SHUTTER_CLICK) }
+            }) { Text("Nghe thử") }
+            Button(onClick = {
+                selectedSound = "system"
+                prefs.edit().putString("shutter_sound_selected", "system").apply()
+            }) { Text(if (selectedSound == "system") "Đang dùng" else "Chọn") }
+        }
+
+        Text("Fujifilm · Soundsnap", color = CamColors.Yellow, fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+        soundsnapOptions.forEach { option ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(option.first, color = Color.White, fontSize = 12.sp)
+                    Text(option.second, color = CamColors.Sub, fontSize = 9.sp, maxLines = 2)
+                }
+                TextButton(onClick = { openSoundSource(option.third) }) { Text("Mở nghe thử") }
+            }
+        }
+        Text("Soundsnap mở trang nghe thử/tải. Sau khi tải MP3 hợp lệ, dùng Import MP3 để lưu ngoại tuyến và gán làm âm thanh chụp.",
+            color = CamColors.Sub, fontSize = 9.sp, modifier = Modifier.padding(top = 2.dp, bottom = 6.dp))
+
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Shutter · MyInstants", color = Color.White, fontSize = 12.sp)
+                Text("Tải MP3 vào bộ nhớ ứng dụng, tự chọn và nghe thử",
+                    color = CamColors.Sub, fontSize = 9.sp)
+            }
+            Button(onClick = { downloadMyInstantsShutter() }, enabled = !isDownloading) {
+                Text(if (isDownloading) "Đang tải…" else "Tải & nghe")
+            }
+        }
+
+        Button(onClick = { importMp3Launcher.launch(arrayOf("audio/mpeg", "audio/*")) },
+            enabled = !isImporting, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Text(if (isImporting) "Đang nhập MP3…" else "Import MP3")
+        }
+
+        val existingSoundFile = savedSoundPath?.let { File(it) }
+        if (existingSoundFile != null && existingSoundFile.isFile) {
+            Row(Modifier.fillMaxWidth().padding(top = 9.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Đã lưu: " + (savedSoundName ?: "custom_shutter.mp3"),
+                        color = Color.White, fontSize = 11.sp, maxLines = 2)
+                    Text(if (selectedSound == "local") "Đang dùng khi chụp" else "Đã lưu · chưa được chọn",
+                        color = CamColors.Sub, fontSize = 9.sp)
+                }
+                TextButton(onClick = { previewLocalSound(savedSoundPath) }) { Text("Preview") }
+                Button(onClick = {
+                    selectedSound = "local"
+                    prefs.edit().putString("shutter_sound_selected", "local").apply()
+                }) { Text(if (selectedSound == "local") "Đang dùng" else "Chọn") }
+            }
+            TextButton(onClick = { showDeleteConfirmation = true },
+                modifier = Modifier.align(Alignment.End)) { Text("Xóa âm thanh đã lưu") }
+        }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Xóa âm thanh màn trập?") },
+            text = { Text("Tệp MP3 đã lưu sẽ bị xóa khỏi ứng dụng và âm thanh sẽ chuyển về mặc định Android.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    savedSoundPath?.let { path -> runCatching { File(path).delete() } }
+                    savedSoundPath = null
+                    savedSoundName = null
+                    selectedSound = "system"
+                    prefs.edit()
+                        .remove("shutter_sound_file_path")
+                        .remove("shutter_sound_file_name")
+                        .putString("shutter_sound_selected", "system")
+                        .apply()
+                    showDeleteConfirmation = false
+                }) { Text("Xóa") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) { Text("Hủy") }
+            }
+        )
+    }
+}
+
+@Composable
 fun ToolboxScreen(
     onBack: () -> Unit,
     showGrid: Boolean,
@@ -260,6 +540,7 @@ fun ToolboxScreen(
             Triple("blur", "Blur", "Nền mờ, thông số nổi"),
             Triple("normal1", "Normal 1", "Thông số góc phải"),
             Triple("normal2", "Normal 2", "Ngày chụp tối giản"),
+            Triple("balanced", "Balanced", "Model trái · thông số phải · ngày dưới"),
             Triple("center_logo", "Center Logo", "Logo ở chính giữa")
         )
         watermarkTemplates.chunked(2).forEach { rowItems ->
@@ -429,11 +710,12 @@ fun ToolboxScreen(
                 prefs.edit().putString("shutter_effect", "Mechanical").apply()
             }, Modifier.weight(1f))
         }
-        ToolToggle("Âm thanh màn trập", "Dùng âm click chụp ảnh hệ thống của Android",
+        ToolToggle("Âm thanh màn trập", "Bật hoặc tắt âm thanh khi chụp",
             Icons.Default.Tune, shutterSound) {
             shutterSound = it
             prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
         }
+        ShutterSoundSettingsPanel()
     }
 }
 
@@ -709,6 +991,21 @@ private fun WatermarkTemplateCard(
                 ) {
                     Text("X SERIES", color = textColor, fontSize = 6.sp, fontWeight = FontWeight.Bold)
                     Text("23mm   f/2.0   ISO 400", color = textColor, fontSize = 5.5.sp)
+                }
+                "balanced" -> Row(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
+                        .background(panelColor, RoundedCornerShape(5.dp))
+                        .padding(horizontal = 6.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("REDMI Turbo 4 Pro", color = textColor, fontSize = 6.sp,
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.43f), maxLines = 1)
+                    Column(Modifier.weight(0.57f), horizontalAlignment = Alignment.End) {
+                        Text("23mm · f/2.0 · 1/125s · ISO 400", color = textColor,
+                            fontSize = 5.8.sp, maxLines = 1)
+                        Text("2026.11.14  ·  18:42", color = textColor.copy(alpha = 0.82f),
+                            fontSize = 5.1.sp, maxLines = 1)
+                    }
                 }
                 "normal1" -> Column(
                     Modifier.align(Alignment.BottomEnd).padding(6.dp),
@@ -1535,10 +1832,8 @@ fun applyCameraWatermark(
             return plate
         }
 
-        if (template != "center_logo") {
-            drawFrame(RectF(margin, margin, output.width - margin, output.height - margin), margin * 0.30f)
-        }
-
+        // The watermark must not draw a full-photo outline. Optional photo frames
+        // are handled independently by CameraFrameSettingsPanel.
         when (template) {
             "standard2" -> {
                 val plate = drawBottomPlate(0.145f, margin * 1.25f)
@@ -1559,6 +1854,29 @@ fun applyCameraWatermark(
                     plate.width() - plate.height() * 0.35f, minSide * 0.014f)
                 fitText(timeLine, accentPaint, left, plate.top - margin * 0.25f,
                     plate.width() - plate.height() * 0.35f, minSide * 0.011f)
+            }
+"balanced" -> {
+                val plate = drawBottomPlate(0.16f, margin)
+                val left = plate.left + plate.height() * 0.19f
+                val right = plate.right - plate.height() * 0.19f
+                val sharedBaseline = plate.top + plate.height() * 0.43f
+                val sharedTextSize = minSide * 0.020f
+                titlePaint.textAlign = Paint.Align.LEFT
+                detailPaint.textAlign = Paint.Align.RIGHT
+                fitText(modelLine, titlePaint, left, sharedBaseline,
+                    plate.width() * 0.43f, sharedTextSize)
+                fitText(specs, detailPaint, right, sharedBaseline,
+                    plate.width() * 0.53f, sharedTextSize)
+                val datePaint = Paint(detailPaint).apply {
+                    color = textColor
+                    alpha = 215
+                    textAlign = Paint.Align.RIGHT
+                }
+                fitText(timeLine, datePaint, right,
+                    plate.top + plate.height() * 0.78f,
+                    plate.width() * 0.53f, sharedTextSize * 0.80f)
+                titlePaint.textAlign = Paint.Align.LEFT
+                detailPaint.textAlign = Paint.Align.LEFT
             }
             "normal1" -> {
                 val right = output.width - margin

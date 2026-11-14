@@ -21,6 +21,8 @@ import java.util.Locale
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.math.max
+import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -184,6 +186,13 @@ object NightShotProcessor {
                 }
             }
 
+            if (mode == MergeMode.NIGHT_AVERAGE) {
+                // Frame averaging reduces random noise but does not recover brightness by itself.
+                // Lift dark mid-tones after alignment/averaging, with a smooth gamma curve that
+                // preserves highlights better than multiplying every channel by a fixed gain.
+                brightenNightResult(base!!)
+            }
+
             runCatching { onProgress?.invoke(96) }
             FileOutputStream(tempOutput).use { output ->
                 check(base!!.compress(Bitmap.CompressFormat.JPEG, 96, output)) {
@@ -214,6 +223,79 @@ object NightShotProcessor {
             base?.recycle()
             runCatching { tempOutput.delete() }
         }
+    }
+
+    private fun brightenNightResult(bitmap: Bitmap) {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width <= 0 || height <= 0) return
+
+        // Estimate scene brightness from a sparse luminance histogram to keep this pass cheap.
+        val histogram = IntArray(256)
+        val sampleRow = IntArray(width)
+        var samples = 0
+        val step = 8
+        var y = 0
+        while (y < height) {
+            bitmap.getPixels(sampleRow, 0, width, 0, y, width, 1)
+            var x = 0
+            while (x < width) {
+                val color = sampleRow[x]
+                histogram[luma(color).coerceIn(0, 255)]++
+                samples++
+                x += step
+            }
+            y += step
+        }
+        if (samples == 0) return
+        val medianThreshold = (samples + 1) / 2
+        var cumulative = 0
+        var medianLuma = 0
+        for (value in histogram.indices) {
+            cumulative += histogram[value]
+            if (cumulative >= medianThreshold) {
+                medianLuma = value
+                break
+            }
+        }
+
+        // Only lift scenes that are actually dark. A target median around 76/255 makes
+        // dim environments visibly readable without forcing already bright scenes brighter.
+        if (medianLuma >= 82) return
+        val safeMedian = medianLuma.coerceAtLeast(1).toDouble() / 255.0
+        val targetMedian = 76.0 / 255.0
+        val gamma = (kotlin.math.ln(targetMedian) / kotlin.math.ln(safeMedian))
+            .coerceIn(0.34, 0.92)
+        val lookup = IntArray(256) { value ->
+            (255.0 * (value / 255.0).pow(gamma)).roundToInt().coerceIn(0, 255)
+        }
+
+        val row = IntArray(width)
+        val progressInterval = (height / 8).coerceAtLeast(1)
+        for (rowIndex in 0 until height) {
+            bitmap.getPixels(row, 0, width, 0, rowIndex, width, 1)
+            for (x in 0 until width) {
+                val color = row[x]
+                val red = Color.red(color)
+                val green = Color.green(color)
+                val blue = Color.blue(color)
+                val oldLuma = luma(red, green, blue)
+                if (oldLuma > 0) {
+                    val newLuma = lookup[oldLuma]
+                    val gain = (newLuma.toFloat() / oldLuma.toFloat()).coerceAtMost(8f)
+                    row[x] = Color.rgb(
+                        (red * gain).roundToInt().coerceIn(0, 255),
+                        (green * gain).roundToInt().coerceIn(0, 255),
+                        (blue * gain).roundToInt().coerceIn(0, 255)
+                    )
+                }
+            }
+            bitmap.setPixels(row, 0, width, 0, rowIndex, width, 1)
+            if (rowIndex % progressInterval == 0) {
+                Log.d(TAG, "Adaptive night tone map row $rowIndex/$height; median=$medianLuma gamma=$gamma")
+            }
+        }
+        Log.i(TAG, "Adaptive night brightness applied: median=$medianLuma gamma=$gamma")
     }
 
     private const val ALIGNMENT_MAX_DIMENSION = 160

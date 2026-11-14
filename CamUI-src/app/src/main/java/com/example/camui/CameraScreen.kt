@@ -2671,28 +2671,24 @@ fun CameraScreen(
                 val visibleProgress = if (processingLabel == "Nhiễu đang được xử lý") {
                     noiseReductionProgress
                 } else processingProgress
+                val etaText = when {
+                    processingEtaSeconds < 0 -> ""
+                    processingEtaSeconds >= 60 -> "Còn ${processingEtaSeconds / 60}p ${processingEtaSeconds % 60}s"
+                    else -> "Còn ${processingEtaSeconds}s"
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
-                    Text(processingLabel, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    Text("$visibleProgress%", color = CamColors.Yellow, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(processingLabel, color = Color.White, fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(
+                        if (etaText.isNotEmpty()) "$" + "{etaText} · $" + "{visibleProgress}%" else "$" + "{visibleProgress}%",
+                        color = CamColors.Yellow, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                    )
                 }
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
-                }
-                if (processingEtaSeconds >= 0) {
-                    val etaText = if (processingEtaSeconds >= 60) {
-                        "Dự kiến còn ${processingEtaSeconds / 60} phút ${processingEtaSeconds % 60} giây"
-                    } else {
-                        "Dự kiến còn ${processingEtaSeconds} giây"
-                    }
-                    Text(
-                        etaText,
-                        color = CamColors.Sub,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(top = 7.dp)
-                    )
                 }
             }
         }

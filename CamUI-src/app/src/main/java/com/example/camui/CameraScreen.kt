@@ -380,7 +380,7 @@ fun CameraScreen(
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
-        manualCaptureRevision, uhdCaptureEnabled, nightCaptureSeconds, aiCompositionEnabled
+        manualCaptureRevision, uhdCaptureEnabled, nightCaptureSeconds, aiCompositionEnabled, mode
     ) {
         if (!hasCam) return@LaunchedEffect
         val bindGeneration = ++cameraBindGeneration
@@ -1044,10 +1044,11 @@ fun CameraScreen(
                             tint = if (showQuick) CamColors.Yellow else Color.White
                         )
                         if (mode == "Photo" && (lowLightDetected || nightCaptureSeconds > 0)) {
-                            CircleBtn(
-                                Icons.Default.Bedtime,
-                                if (nightCaptureSeconds > 0) "Chụp đêm ${nightCaptureSeconds}s · nhấn đổi thời lượng" else "Phát hiện thiếu sáng · bật chụp đêm",
-                                onClick = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircleBtn(
+                                    Icons.Default.Bedtime,
+                                    if (nightCaptureSeconds > 0) "Chụp đêm ${nightCaptureSeconds}s · nhấn đổi thời lượng" else "Phát hiện thiếu sáng · bật chụp đêm",
+                                    onClick = {
                                     val maxSeconds = ((shutterRange?.upper ?: 0L) / 1_000_000_000L).toInt()
                                     val choices = listOf(2, 4, 8).map { it.coerceAtMost(maxSeconds) }
                                         .distinct().filter { it >= 1 }
@@ -1061,9 +1062,15 @@ fun CameraScreen(
                                             else -> choices[currentIndex + 1]
                                         }
                                     }
-                                },
-                                tint = if (nightCaptureSeconds > 0) CamColors.Yellow else Color.White
-                            )
+                                    },
+                                    tint = if (nightCaptureSeconds > 0) CamColors.Yellow else Color.White
+                                )
+                                if (nightCaptureSeconds > 0) {
+                                    Text("${nightCaptureSeconds}s", color = CamColors.Yellow,
+                                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(start = 3.dp))
+                                }
+                            }
                         }
                     }
     }

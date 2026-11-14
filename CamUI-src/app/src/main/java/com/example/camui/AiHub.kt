@@ -63,7 +63,7 @@ fun HdmpBottomSheet(
         ) {
             Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Phục hồi chi tiết · 8 tác vụ song song · tương thích bộ lọc",
+                "HDMP điều phối NAFNet width64 → NAFNetLib width32 dự phòng · model chỉ hỗ trợ khử nhiễu; HDMP kiểm soát ảnh cuối",
                 color = HdmpMuted, fontSize = 12.sp
             )
             HdmpToggleRow(

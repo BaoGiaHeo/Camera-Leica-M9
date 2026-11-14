@@ -41,13 +41,21 @@ internal object HdmpEngine {
         var replacing = false
         return try {
             val exif = readExif(context, uri)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, bounds)
+            } ?: error("HDMP could not inspect source image")
+            val sourcePixelCount = bounds.outWidth.toLong() * bounds.outHeight.toLong()
+            val workingConfig = if (sourcePixelCount <= 16_000_000L) {
+                Bitmap.Config.ARGB_8888
+            } else Bitmap.Config.RGB_565
             source = context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(
                     input,
                     null,
                     BitmapFactory.Options().apply {
-                        inPreferredConfig = Bitmap.Config.RGB_565
-                        inDither = true
+                        inPreferredConfig = workingConfig
+                        inDither = workingConfig == Bitmap.Config.RGB_565
                     }
                 )
             } ?: error("HDMP could not decode source image")
@@ -55,7 +63,7 @@ internal object HdmpEngine {
             val width = src.width
             val height = src.height
             require(width >= 3 && height >= 3) { "HDMP source is too small" }
-            output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+            output = Bitmap.createBitmap(width, height, src.config ?: Bitmap.Config.RGB_565)
             val dst = output!!
             val stripeCount = (height + STRIPE_HEIGHT - 1) / STRIPE_HEIGHT
             val completed = AtomicInteger(0)
@@ -97,16 +105,20 @@ internal object HdmpEngine {
                                 var redSum = PixelColor.red(center) * 2.5f
                                 var greenSum = PixelColor.green(center) * 2.5f
                                 var blueSum = PixelColor.blue(center) * 2.5f
-                                for (neighbor in intArrayOf(left, right, up, down)) {
-                                    val difference = abs(luma(neighbor) - centerLuma)
-                                    val weight = if (difference < 0.10f) {
-                                        (1f - difference * 8f).coerceAtLeast(0.12f)
-                                    } else 0.08f
-                                    weightSum += weight
-                                    redSum += PixelColor.red(neighbor) * weight
-                                    greenSum += PixelColor.green(neighbor) * weight
-                                    blueSum += PixelColor.blue(neighbor) * weight
-                                }
+                                val leftWeight = edgeWeight(centerLuma, luma(left))
+                                val rightWeight = edgeWeight(centerLuma, luma(right))
+                                val upWeight = edgeWeight(centerLuma, luma(up))
+                                val downWeight = edgeWeight(centerLuma, luma(down))
+                                weightSum += leftWeight + rightWeight + upWeight + downWeight
+                                redSum += PixelColor.red(left) * leftWeight +
+                                    PixelColor.red(right) * rightWeight +
+                                    PixelColor.red(up) * upWeight + PixelColor.red(down) * downWeight
+                                greenSum += PixelColor.green(left) * leftWeight +
+                                    PixelColor.green(right) * rightWeight +
+                                    PixelColor.green(up) * upWeight + PixelColor.green(down) * downWeight
+                                blueSum += PixelColor.blue(left) * leftWeight +
+                                    PixelColor.blue(right) * rightWeight +
+                                    PixelColor.blue(up) * upWeight + PixelColor.blue(down) * downWeight
                                 val denoiseMix = 0.16f
                                 val baseRed = PixelColor.red(center) * (1f - denoiseMix) +
                                     (redSum / weightSum) * denoiseMix
@@ -195,6 +207,13 @@ internal object HdmpEngine {
             runCatching { processedFile.delete() }
             runCatching { backupFile.delete() }
         }
+    }
+
+    private fun edgeWeight(centerLuma: Float, neighbourLuma: Float): Float {
+        val difference = abs(neighbourLuma - centerLuma)
+        return if (difference < 0.10f) {
+            (1f - difference * 8f).coerceAtLeast(0.12f)
+        } else 0.08f
     }
 
     private fun readExif(context: Context, uri: Uri): Map<String, String> {

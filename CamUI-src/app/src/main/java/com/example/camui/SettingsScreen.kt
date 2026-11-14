@@ -597,7 +597,7 @@ private fun SectionTitle(text: String) {
 private fun SettingCard(item: SettingItem, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CamColors.Card)
-            .animaTClickable(onClick).padding(horizontal = 15.dp, vertical = 14.dp),
+            .animaTClickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {

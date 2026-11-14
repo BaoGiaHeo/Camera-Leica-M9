@@ -808,10 +808,11 @@ fun CameraScreen(
             // or switch lenses while the countdown is running.
             val capture = imageCapture ?: return@launch
             val activeCamera = camera ?: return@launch
+            val captureIsUltraHdr = preserveUltraHdrOutput
             if (nightCaptureSeconds > 0 && mode == "Photo") {
                 nightExposureInProgress = true
                 nightExposureRemaining = nightCaptureSeconds
-                Toast.makeText(
+                localizedToast(
                     context,
                     "Đang phơi sáng vui lòng để điện thoại cố định",
                     Toast.LENGTH_SHORT
@@ -919,9 +920,11 @@ fun CameraScreen(
                             isProcessing = true
                             processingProgress = 4
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
-                            processingLabel = if (supirRequested) {
-                                "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
-                            } else "Ảnh đang được xử lý"
+                            processingLabel = when {
+                                captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
+                                supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
+                                else -> "Ảnh đang được xử lý"
+                            }
                             runCatching {
                                 Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
                                 if (manualColorTempEnabled) applyManualWhiteBalance(activeCamera, manualColorTemp)
@@ -929,7 +932,11 @@ fun CameraScreen(
                             }
                             scope.launch(Dispatchers.IO) {
                                 withContext(Dispatchers.Main) { processingProgress = 12 }
-                                val orientationNormalized = runCatching {
+                                val orientationNormalized = if (captureIsUltraHdr) {
+                                    // CameraX has already written the capture rotation. Do not
+                                    // decode/recompress JPEG_R: Bitmap JPEG export discards the gain map.
+                                    true
+                                } else runCatching {
                                     normalizeCapturedImage(
                                         context,
                                         saved,
@@ -938,17 +945,20 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 28 }
-                                val lookApplied = runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
-                                val frameApplied = runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
+                                val lookApplied = if (captureIsUltraHdr) false else
+                                    runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
+                                val frameApplied = if (captureIsUltraHdr) false else
+                                    runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 72 }
-                                val stamped = runCatching {
+                                val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO"
                                     )
                                 }.getOrDefault(false)
                                 val metadataPublished = runCatching {
-                                    finalizeCapturedImageMetadata(context, saved)
+                                    if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
+                                    else finalizeCapturedImageMetadata(context, saved)
                                 }.getOrDefault(false)
                                 // Normalization runs before image looks and watermark drawing.
                                 // No later rotation is allowed to move the frame away from the
@@ -960,6 +970,10 @@ fun CameraScreen(
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
+                                        captureIsUltraHdr && orientationLabelFixed ->
+                                            "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark, LUT, frame và xử lý xoay pixel được bỏ qua để bảo toàn HDR."
+                                        captureIsUltraHdr ->
+                                            "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map, vui lòng kiểm tra hướng ảnh trong thư viện."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
                                         stamped && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và có watermark."
                                         stamped -> "Watermark đã đóng nhưng tỉ lệ/hướng ảnh chưa được xác minh."
@@ -969,7 +983,8 @@ fun CameraScreen(
                                         orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
-                                    val finalMessage = if (frameApplied) "$message Frame đã được áp dụng." else message
+                                    val finalMessage = if (captureIsUltraHdr) message
+                                        else if (frameApplied) "$message Frame đã được áp dụng." else message
                                     localizedToast(context, finalMessage, Toast.LENGTH_SHORT).show()
                                 }
                                 delay(450)

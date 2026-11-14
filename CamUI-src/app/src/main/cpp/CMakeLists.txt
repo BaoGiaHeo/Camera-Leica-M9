@@ -26,6 +26,14 @@ find_library(log-lib log REQUIRED)
 find_library(jnigraphics-lib jnigraphics REQUIRED)
 find_library(vulkan-lib vulkan)
 
+# These feature flags must match the shipped NCNN Android Vulkan build.
+# NCNN's public headers conditionally expose the GPU API, named blobs and pixel converters.
+target_compile_definitions(fujisr PRIVATE
+    NCNN_VULKAN=1
+    NCNN_STRING=1
+    NCNN_PIXEL=1
+)
+
 target_compile_options(fujisr PRIVATE
     -O3
     -fexceptions

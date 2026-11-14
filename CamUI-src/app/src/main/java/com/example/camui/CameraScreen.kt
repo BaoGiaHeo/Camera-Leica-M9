@@ -1542,7 +1542,7 @@ fun CameraScreen(
                                             }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
-                                                "mode=${if (captureUseNightShot) "NightShot-${captureNightDurationSeconds}s" else if (captureUseUhdAi) "UHD" else "FHD"} actualFrames=${stackedFrames.size}"
+                                                "mode=${if (captureUseNightShot) "NightShot-${captureNightDurationSeconds}s" else if (captureUseUhdAlgorithm) "UHD" else "FHD"} actualFrames=${stackedFrames.size}"
                                             )
                                         }
                                     } finally {

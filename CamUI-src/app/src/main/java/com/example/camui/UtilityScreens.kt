@@ -109,6 +109,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.InputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.nio.charset.StandardCharsets
+import java.util.UUID
+import java.util.zip.ZipInputStream
 import java.net.URL
 
 @Composable
@@ -1499,6 +1505,7 @@ private data class CubeLut(
 private fun parseCubeLutText(text: String): CubeLut? {
     return runCatching {
         var size = 0
+        var oneDSize = 0
         val min = floatArrayOf(0f, 0f, 0f)
         val max = floatArrayOf(1f, 1f, 1f)
         val rows = ArrayList<FloatArray>()
@@ -1508,6 +1515,7 @@ private fun parseCubeLutText(text: String): CubeLut? {
             val parts = line.split(Regex("\\s+"))
             when (parts.firstOrNull()) {
                 "TITLE" -> Unit
+                "LUT_1D_SIZE" -> oneDSize = parts.getOrNull(1)?.toIntOrNull() ?: 0
                 "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: 0
                 "DOMAIN_MIN" -> if (parts.size >= 4) for (i in 0..2) min[i] = parts[i + 1].toFloat()
                 "DOMAIN_MAX" -> if (parts.size >= 4) for (i in 0..2) max[i] = parts[i + 1].toFloat()
@@ -1517,15 +1525,206 @@ private fun parseCubeLutText(text: String): CubeLut? {
                 }
             }
         }
-        if (size !in 2..65 || rows.size != size * size * size) return@runCatching null
-        CubeLut(size, min, max, FloatArray(rows.size * 3).also { out ->
-            rows.forEachIndexed { index, rgb ->
+        if (size !in 2..65) return@runCatching null
+        val expected3dRows = size * size * size
+        val cubeRows = when {
+            rows.size == expected3dRows -> rows
+            oneDSize in 2..65536 && rows.size == expected3dRows + oneDSize ->
+                rows.drop(oneDSize)
+            else -> return@runCatching null
+        }
+        if (cubeRows.any { rgb -> rgb.any { !it.isFinite() } }) return@runCatching null
+        if ((0..2).any { max[it] <= min[it] || !min[it].isFinite() || !max[it].isFinite() }) {
+            return@runCatching null
+        }
+        CubeLut(size, min, max, FloatArray(cubeRows.size * 3).also { out ->
+            cubeRows.forEachIndexed { index, rgb ->
                 out[index * 3] = rgb[0]
                 out[index * 3 + 1] = rgb[1]
                 out[index * 3 + 2] = rgb[2]
             }
         })
     }.getOrNull()
+}
+
+
+/** Custom LUTs are stored inside app-private storage; source document permissions are not needed after import. */
+data class CustomCameraLut(val id: String, val name: String)
+
+private const val CUSTOM_CAMERA_LUT_PREFIX = "camera_lut:"
+private const val CUSTOM_CAMERA_LUT_IDS = "camera_lut_ids"
+private const val ACTIVE_CAMERA_LUT_IDS = "active_camera_lut_ids"
+private const val MAX_LUT_INPUT_BYTES = 64L * 1024L * 1024L
+private const val MAX_LUT_ENTRY_BYTES = 32 * 1024 * 1024
+private const val MAX_LUT_ARCHIVE_ENTRIES = 160
+private const val MAX_LUT_EXPANDED_BYTES = 128L * 1024L * 1024L
+private val customCameraLutCache = mutableMapOf<String, CubeLut>()
+
+private data class LutImportBudget(var entries: Int = 0, var expandedBytes: Long = 0L)
+
+private fun readBoundedLutBytes(input: InputStream, maxBytes: Int): ByteArray {
+    val output = ByteArrayOutputStream()
+    val buffer = ByteArray(8192)
+    var total = 0
+    while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        if (count == 0) continue
+        total += count
+        require(total <= maxBytes) { "Tệp LUT vượt quá giới hạn dung lượng cho phép." }
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
+}
+
+private fun scanLutZip(
+    archiveBytes: ByteArray,
+    depth: Int,
+    budget: LutImportBudget
+): List<Pair<String, String>> {
+    require(depth <= 3) { "ZIP LUT lồng quá nhiều cấp." }
+    val found = ArrayList<Pair<String, String>>()
+    ZipInputStream(ByteArrayInputStream(archiveBytes)).use { zip ->
+        while (true) {
+            val entry = zip.nextEntry ?: break
+            budget.entries += 1
+            require(budget.entries <= MAX_LUT_ARCHIVE_ENTRIES) {
+                "ZIP chứa quá nhiều tệp."
+            }
+            if (!entry.isDirectory) {
+                val bytes = readBoundedLutBytes(zip, MAX_LUT_ENTRY_BYTES)
+                budget.expandedBytes += bytes.size.toLong()
+                require(budget.expandedBytes <= MAX_LUT_EXPANDED_BYTES) {
+                    "Dung lượng giải nén ZIP vượt giới hạn an toàn."
+                }
+                val extension = entry.name.substringAfterLast('.', "").lowercase()
+                when (extension) {
+                    "zip" -> found.addAll(scanLutZip(bytes, depth + 1, budget))
+                    "cube" -> {
+                        val text = String(bytes, StandardCharsets.UTF_8)
+                        require(parseCubeLutText(text) != null) {
+                            "Tệp .cube bên trong ZIP không đúng định dạng LUT 3D."
+                        }
+                        val innerName = entry.name.substringAfterLast('/').substringBeforeLast('.')
+                            .ifBlank { "Xiaomi LUT" }
+                        found.add(innerName to text)
+                    }
+                }
+            }
+            zip.closeEntry()
+            require(found.size <= 48) { "ZIP chứa quá nhiều LUT." }
+        }
+    }
+    return found
+}
+
+private fun customCameraLutFile(context: Context, id: String): File? {
+    if (!id.matches(Regex("[a-f0-9-]{36}"))) return null
+    return File(File(context.filesDir, "camera_luts"), id + ".cube")
+}
+
+fun loadCustomCameraLuts(context: Context, activeOnly: Boolean = false): List<CustomCameraLut> {
+    val prefs = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
+    val allIds = prefs.getStringSet(CUSTOM_CAMERA_LUT_IDS, emptySet()).orEmpty()
+    val activeIds = prefs.getStringSet(ACTIVE_CAMERA_LUT_IDS, emptySet()).orEmpty()
+    val ids = if (activeOnly) allIds.intersect(activeIds) else allIds
+    return ids.mapNotNull { id ->
+        val file = customCameraLutFile(context, id) ?: return@mapNotNull null
+        if (!file.isFile) return@mapNotNull null
+        val name = prefs.getString("camera_lut_name_" + id, null)
+            ?: file.nameWithoutExtension
+        CustomCameraLut(id, name)
+    }.sortedBy { it.name.lowercase() }
+}
+
+fun activeCustomCameraLutIds(context: Context): Set<String> {
+    return context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
+        .getStringSet(ACTIVE_CAMERA_LUT_IDS, emptySet()).orEmpty().toSet()
+}
+
+fun customCameraLutPreset(id: String): String = CUSTOM_CAMERA_LUT_PREFIX + id
+
+private fun customCameraLutId(preset: String): String? {
+    if (!preset.startsWith(CUSTOM_CAMERA_LUT_PREFIX)) return null
+    val id = preset.removePrefix(CUSTOM_CAMERA_LUT_PREFIX)
+    return id.takeIf { it.matches(Regex("[a-f0-9-]{36}")) }
+}
+
+fun cameraLookDisplayName(context: Context, preset: String): String {
+    val id = customCameraLutId(preset) ?: return preset
+    return loadCustomCameraLuts(context).firstOrNull { it.id == id }?.name ?: "LUT đã nhập"
+}
+
+fun setCustomCameraLutActive(context: Context, id: String, active: Boolean) {
+    if (customCameraLutFile(context, id) == null) return
+    val prefs = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(ACTIVE_CAMERA_LUT_IDS, emptySet()).orEmpty().toMutableSet()
+    if (active) ids.add(id) else ids.remove(id)
+    prefs.edit().putStringSet(ACTIVE_CAMERA_LUT_IDS, ids).apply()
+}
+
+fun deleteCustomCameraLut(context: Context, id: String) {
+    val file = customCameraLutFile(context, id) ?: return
+    val prefs = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(CUSTOM_CAMERA_LUT_IDS, emptySet()).orEmpty().toMutableSet()
+    val activeIds = prefs.getStringSet(ACTIVE_CAMERA_LUT_IDS, emptySet()).orEmpty().toMutableSet()
+    ids.remove(id)
+    activeIds.remove(id)
+    prefs.edit()
+        .putStringSet(CUSTOM_CAMERA_LUT_IDS, ids)
+        .putStringSet(ACTIVE_CAMERA_LUT_IDS, activeIds)
+        .remove("camera_lut_name_" + id)
+        .apply()
+    file.delete()
+    synchronized(customCameraLutCache) { customCameraLutCache.remove(id) }
+    val cameraPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    if (cameraPrefs.getString("selected_filter", "None") == customCameraLutPreset(id)) {
+        cameraPrefs.edit().putString("selected_filter", "None").apply()
+    }
+}
+
+fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
+    val displayName = documentDisplayName(context, uri)
+    val extension = displayName.substringAfterLast('.', "").lowercase()
+    val input = context.contentResolver.openInputStream(uri)
+        ?: error("Không thể mở tệp LUT đã chọn.")
+    val inputBytes = input.use { readBoundedLutBytes(it, MAX_LUT_INPUT_BYTES.toInt()) }
+    val lutTexts = when (extension) {
+        "cube" -> {
+            val text = String(inputBytes, StandardCharsets.UTF_8)
+            require(parseCubeLutText(text) != null) {
+                "Tệp .cube không hợp lệ hoặc không phải LUT 3D."
+            }
+            listOf(displayName.substringBeforeLast('.') to text)
+        }
+        "zip" -> scanLutZip(inputBytes, 0, LutImportBudget())
+        else -> error("Chỉ hỗ trợ Xiaomi LUT dạng .zip và Blackmagic LUT dạng .cube.")
+    }
+    require(lutTexts.isNotEmpty()) {
+        "Không tìm thấy tệp .cube hợp lệ bên trong ZIP. Hãy kiểm tra gói Xiaomi LUT."
+    }
+    val directory = File(context.filesDir, "camera_luts").apply { mkdirs() }
+    val prefs = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
+    val ids = prefs.getStringSet(CUSTOM_CAMERA_LUT_IDS, emptySet()).orEmpty().toMutableSet()
+    val imported = ArrayList<CustomCameraLut>()
+    lutTexts.forEach { (rawName, text) ->
+        val id = UUID.randomUUID().toString()
+        val safeName = rawName.substringAfterLast('/').substringAfterLast('\\')
+            .ifBlank { "Imported LUT" }.take(80)
+        val target = File(directory, id + ".cube")
+        val temporary = File(directory, id + ".tmp")
+        temporary.writeText(text, StandardCharsets.UTF_8)
+        if (!temporary.renameTo(target)) {
+            temporary.copyTo(target, overwrite = true)
+            temporary.delete()
+        }
+        ids.add(id)
+        imported.add(CustomCameraLut(id, safeName))
+    }
+    val editor = prefs.edit().putStringSet(CUSTOM_CAMERA_LUT_IDS, ids)
+    imported.forEach { editor.putString("camera_lut_name_" + it.id, it.name) }
+    editor.apply()
+    return imported
 }
 
 private val filmSimulationAssets = mapOf(
@@ -1555,6 +1754,18 @@ private fun readFilmSimulationLut(context: Context, preset: String): CubeLut? {
     synchronized(filmSimulationCache) {
         filmSimulationCache[preset] = parsed
     }
+    return parsed
+}
+
+private fun readCameraLookLut(context: Context, preset: String): CubeLut? {
+    val customId = customCameraLutId(preset) ?: return readFilmSimulationLut(context, preset)
+    synchronized(customCameraLutCache) {
+        customCameraLutCache[customId]?.let { return it }
+    }
+    val file = customCameraLutFile(context, customId) ?: return null
+    val parsed = runCatching { file.readText(StandardCharsets.UTF_8).let(::parseCubeLutText) }
+        .getOrNull() ?: return null
+    synchronized(customCameraLutCache) { customCameraLutCache[customId] = parsed }
     return parsed
 }
 
@@ -1599,7 +1810,7 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
  * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
  */
 private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?): Boolean {
-    if (preset in filmSimulationAssets && cube == null) return false
+    if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) return false
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -1648,7 +1859,7 @@ fun renderCameraLookPreview(
         } else source
         val output = scaled.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching null
         if (scaled !== source) scaled.recycle()
-        val cube = readFilmSimulationLut(context, preset)
+        val cube = readCameraLookLut(context, preset)
         if (!applyCameraLookPixels(output, preset, cube)) {
             output.recycle()
             return@runCatching null
@@ -1733,8 +1944,8 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
     return runCatching {
         // Fujifilm's 11 bundled 32³ sRGB profiles use the same CubeLut renderer as
         // filter-picker previews. Other retained presets use their matching pixel transform.
-        val cube = readFilmSimulationLut(context, preset)
-        if (preset in filmSimulationAssets && cube == null) {
+        val cube = readCameraLookLut(context, preset)
+        if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) {
             android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
             return@runCatching false
         }
@@ -2276,19 +2487,47 @@ private fun applyWatermarkBoxBlur(bitmap: Bitmap, radius: Int, passes: Int) {
 fun ContentManagementScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_contents", 0) }
-    val frames = remember {
-        mutableStateListOf<String>().apply {
-            addAll(prefs.getStringSet("frames", emptySet()) ?: emptySet())
+    val scope = rememberCoroutineScope()
+    var frames by remember {
+        mutableStateOf(prefs.getStringSet("frames", emptySet()).orEmpty().toList())
+    }
+    var luts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
+    var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
+    var pendingDeleteLut by remember { mutableStateOf<CustomCameraLut?>(null) }
+    var isImportingLut by remember { mutableStateOf(false) }
+
+    val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isImportingLut = true
+                try {
+                    val imported = withContext(Dispatchers.IO) { importCustomCameraLuts(context, uri) }
+                    luts = loadCustomCameraLuts(context)
+                    activeLutIds = activeCustomCameraLutIds(context)
+                    Toast.makeText(
+                        context,
+                        "Đã nhập " + imported.size + " LUT. Chọn Add to Filters để đưa vào mục LUT.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (failure: Throwable) {
+                    Toast.makeText(
+                        context,
+                        "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    isImportingLut = false
+                }
+            }
         }
     }
-
     val framePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             val value = uri.toString()
-            if (!frames.contains(value)) frames.add(value)
+            if (!frames.contains(value)) frames = frames + value
             prefs.edit().putStringSet("frames", frames.toSet()).apply()
         }
     }
@@ -2298,6 +2537,56 @@ fun ContentManagementScreen(onBack: () -> Unit) {
             .verticalScroll(rememberScrollState()).padding(16.dp)
     ) {
         PageHeader("Contents Management", onBack)
+
+        Text("LUT Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Text(
+            "Nhập Xiaomi Mi-LOG bằng tệp .zip (ứng dụng tự tìm .cube bên trong, kể cả ZIP lồng) hoặc LUT Blackmagic .cube.",
+            color = CamColors.Sub,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+        )
+        Button(
+            onClick = { lutPicker.launch(arrayOf("*/*")) },
+            enabled = !isImportingLut,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Text(if (isImportingLut) "Đang nhập LUT…" else "Import LUT")
+        }
+        if (luts.isEmpty()) {
+            EmptyNote("Chưa có LUT nào. Hỗ trợ Xiaomi .zip và Blackmagic .cube.")
+        } else {
+            luts.forEach { entry ->
+                val isActive = activeLutIds.contains(entry.id)
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(CamColors.Card)
+                        .padding(start = 12.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Tune, contentDescription = null, tint = CamColors.Yellow)
+                    Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                        Text(entry.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (isActive) "Đã thêm vào Bộ lọc → LUT" else "Đã nhập · Chưa thêm vào Bộ lọc",
+                            color = CamColors.Sub,
+                            fontSize = 9.sp
+                        )
+                    }
+                    TextButton(onClick = {
+                        setCustomCameraLutActive(context, entry.id, !isActive)
+                        activeLutIds = activeCustomCameraLutIds(context)
+                    }) {
+                        Text(if (isActive) "Bỏ" else "Add")
+                    }
+                    IconButton(onClick = { pendingDeleteLut = entry }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete LUT", tint = CamColors.Sub)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
         Text("Frame Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(
             "Nhập khung phủ PNG/JPG để quản lý.",
@@ -2315,16 +2604,34 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         if (frames.isEmpty()) {
             EmptyNote("Chưa có frame nào được nhập.")
         } else {
-            Column {
-                frames.forEach { value ->
-                    val name = documentDisplayName(context, Uri.parse(value))
-                    ManagedItem(name, onDelete = {
-                        frames.remove(value)
-                        prefs.edit().putStringSet("frames", frames.toSet()).apply()
-                    })
-                }
+            frames.forEach { value ->
+                val uri = Uri.parse(value)
+                val name = documentDisplayName(context, uri)
+                ManagedItem(name, onDelete = {
+                    frames = frames.filterNot { it == value }
+                    prefs.edit().putStringSet("frames", frames.toSet()).apply()
+                })
             }
         }
+    }
+
+    pendingDeleteLut?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteLut = null },
+            title = { Text("Xóa LUT?") },
+            text = { Text("Bạn có chắc chắn muốn xóa LUT \"" + entry.name + "\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteCustomCameraLut(context, entry.id)
+                    luts = loadCustomCameraLuts(context)
+                    activeLutIds = activeCustomCameraLutIds(context)
+                    pendingDeleteLut = null
+                }) { Text("Xóa") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteLut = null }) { Text("Hủy") }
+            }
+        )
     }
 }
 

@@ -328,6 +328,7 @@ fun CameraScreen(
     var hdrEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
     }
+    var preserveUltraHdrOutput by remember { mutableStateOf(false) }
     var nightCaptureSeconds by remember { mutableIntStateOf(0) }
     var lowLightDetected by remember { mutableStateOf(false) }
     var nightExposureInProgress by remember { mutableStateOf(false) }
@@ -385,29 +386,30 @@ fun CameraScreen(
         previewUseCase = null
         analysisUseCase = null
         val future = ProcessCameraProvider.getInstance(context)
-        future.addListener({
-            if (bindGeneration != cameraBindGeneration) return@addListener
-            val provider = runCatching { future.get() }.getOrNull() ?: return@addListener
-            if (bindGeneration != cameraBindGeneration) return@addListener
+        future.addListener(providerListener@{
+            if (bindGeneration != cameraBindGeneration) return@providerListener
+            val provider = runCatching { future.get() }.getOrNull() ?: return@providerListener
+            if (bindGeneration != cameraBindGeneration) return@providerListener
             val extensionsFuture = ExtensionsManager.getInstanceAsync(context, provider)
-            extensionsFuture.addListener({
-            if (bindGeneration != cameraBindGeneration) return@addListener
+            extensionsFuture.addListener(extensionListener@{
+            if (bindGeneration != cameraBindGeneration) return@extensionListener
             val extensionsManager = runCatching { extensionsFuture.get() }.getOrNull()
             val baseSelector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
                 else CameraSelector.DEFAULT_BACK_CAMERA
             val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
-            val hdrExtensionActive = hdrCaptureRequested && extensionsManager != null &&
+            val hdrExtensionAvailable = hdrCaptureRequested && extensionsManager != null &&
                 runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR) }
                     .getOrDefault(false)
-            val selector = if (hdrExtensionActive) {
+            val hdrExtensionSelector = if (hdrExtensionAvailable) {
                 runCatching {
                     extensionsManager!!.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
-                }.getOrElse {
-                    android.util.Log.w("FUJI_HDR", "HDR extension selector unavailable; using base camera", it)
-                    baseSelector
-                }
-            } else baseSelector
+                }.onFailure {
+                    android.util.Log.w("FUJI_HDR", "HDR extension selector unavailable", it)
+                }.getOrNull()
+            } else null
+            val hdrExtensionActive = hdrExtensionSelector != null
+            val selector = hdrExtensionSelector ?: baseSelector
             if (hdrCaptureRequested && !hdrExtensionActive) {
                 android.util.Log.i("FUJI_HDR", "Vendor HDR extension unavailable; checking Ultra HDR JPEG_R fallback")
             }
@@ -661,7 +663,9 @@ fun CameraScreen(
                 if (stabilization) applyStabilization(bound, true)
             }
 
-            val preferJpegR = (ultraHdr || hdrCaptureRequested) && Build.VERSION.SDK_INT >= 34
+            val preferJpegR = (ultraHdr || (hdrCaptureRequested && !hdrExtensionActive)) &&
+                Build.VERSION.SDK_INT >= 34
+            preserveUltraHdrOutput = false
             try {
                 val requestedFormat = if (preferJpegR) ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
                     else ImageCapture.OUTPUT_FORMAT_JPEG
@@ -681,7 +685,11 @@ fun CameraScreen(
                             .supportedOutputFormats
                             .contains(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
                     }.getOrDefault(false)
+                    if (jpegRSupported) {
+                        preserveUltraHdrOutput = true
+                    }
                     if (!jpegRSupported && !hdrExtensionActive) {
+                        preserveUltraHdrOutput = false
                         ultraHdr = false
                         if (hdrCaptureRequested) {
                             hdrEnabled = false
@@ -693,6 +701,7 @@ fun CameraScreen(
                         provider.unbindAll()
                         bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG)
                     } else if (!jpegRSupported && hdrExtensionActive) {
+                        preserveUltraHdrOutput = false
                         localizedToast(context,
                             "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG.",
                             Toast.LENGTH_LONG).show()
@@ -702,6 +711,7 @@ fun CameraScreen(
                 }
             } catch (e: Exception) {
                 if (ultraHdr || hdrCaptureRequested) {
+                    preserveUltraHdrOutput = false
                     ultraHdr = false
                     if (hdrCaptureRequested && !hdrExtensionActive) {
                         hdrEnabled = false

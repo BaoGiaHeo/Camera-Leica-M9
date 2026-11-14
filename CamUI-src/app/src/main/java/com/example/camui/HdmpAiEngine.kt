@@ -46,7 +46,7 @@ internal object HdmpAiEngine {
     private const val FALLBACK_MIN_BUDGET_MS = 30_000L
     private const val FALLBACK_MAX_BUDGET_MS = 120_000L
     private const val MODEL_MIN_BYTES = 1_000_000L
-    private const val MAX_OUTPUT_HEAP_FRACTION = 0.34
+    private const val MAX_OUTPUT_HEAP_FRACTION = 0.22
 
     enum class Model {
         NAFNET_WIDTH64,
@@ -215,6 +215,9 @@ internal object HdmpAiEngine {
             var tileIndex = 0
             for (coreTop in 0 until height step CORE_SIZE) {
                 for (coreLeft in 0 until width step CORE_SIZE) {
+                    // ONNX inference is native and cannot be safely interrupted mid-tile.
+                    // Check the soft deadline between tiles, then restart fallback from the
+                    // untouched original file if the primary model exceeded its budget.
                     if (SystemClock.elapsedRealtime() - startedAt > budgetMs) {
                         throw ModelTimeoutException("Model processing exceeded its soft time budget")
                     }

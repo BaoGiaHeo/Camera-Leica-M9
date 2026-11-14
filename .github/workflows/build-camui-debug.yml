@@ -31,7 +31,7 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Install NDK/CMake and provision NCNN Vulkan + Real-ESRGAN x2 model
+      - name: Install NDK/CMake and provision NCNN Vulkan + Real-ESRGAN photo x4 + Pose Landmarker
         run: |
           set -euo pipefail
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
@@ -84,12 +84,17 @@ jobs:
 
           MODEL_DIR="$MAIN_DIR/assets"
           HF_BASE="https://huggingface.co/edgetools/realesrgan/resolve/b8b8b5d"
-          curl -fL --retry 3 "$HF_BASE/realesr-animevideov3-x2.param?download=true" \
-            -o "$MODEL_DIR/realesr-animevideov3-x2.param"
-          curl -fL --retry 3 "$HF_BASE/realesr-animevideov3-x2.bin?download=true" \
-            -o "$MODEL_DIR/realesr-animevideov3-x2.bin"
-          test -s "$MODEL_DIR/realesr-animevideov3-x2.param"
-          test -s "$MODEL_DIR/realesr-animevideov3-x2.bin"
+          curl -fL --retry 3 "$HF_BASE/realesrgan-x4plus.param?download=true" \
+            -o "$MODEL_DIR/realesrgan-x4plus.param"
+          curl -fL --retry 3 "$HF_BASE/realesrgan-x4plus.bin?download=true" \
+            -o "$MODEL_DIR/realesrgan-x4plus.bin"
+          test -s "$MODEL_DIR/realesrgan-x4plus.param"
+          test -s "$MODEL_DIR/realesrgan-x4plus.bin"
+          # MediaPipe Pose Landmarker Lite: 33 body landmarks, fully on-device.
+          curl -fL --retry 4 --retry-delay 2 \
+            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" \
+            -o "$MODEL_DIR/pose_landmarker_lite.task"
+          test -s "$MODEL_DIR/pose_landmarker_lite.task"
 
           # Official Megvii NAFNet-SIDD width-32 checkpoint exported to ONNX.
           # FP32 keeps the model compatible with ONNX Runtime CPU fallback on arm64.
@@ -104,7 +109,7 @@ jobs:
           Inference runs locally with ONNX Runtime; photos are not uploaded.
           NAFNOTICE
           cat > "$MODEL_DIR/REAL_ESRGAN_MODEL_NOTICE.txt" <<'NOTICE'
-          Real-ESRGAN NCNN animevideov3 x2 model
+          Real-ESRGAN NCNN x4plus general-photo model
           Model files are pinned to Hugging Face revision b8b8b5d of edgetools/realesrgan.
           Upstream model family: xinntao/Real-ESRGAN-ncnn-vulkan, NCNN model format.
           License: BSD-3-Clause. See https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE

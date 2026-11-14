@@ -96,7 +96,7 @@ jobs:
           find "$NCNN_LIB_DIR" -maxdepth 1 -type f -name '*.so*' -exec cp {} "$JNI_DIR/" \;
           cp "$NCNN_SO" "$JNI_DIR/libncnn.so"
 
-          NCNN_CXX="$(find "$WORK_DIR/unpacked" -type f -name libc++_shared.so | head -n 1 || true)"
+          NCNN_CXX="$(find "$WORK_DIR/unpacked" -type f -path '*/arm64-v8a/*/libc++_shared.so' | head -n 1 || true)"
           if [ -z "$NCNN_CXX" ]; then
             NCNN_CXX="$(find "$NDK_DIR" -type f -path '*/aarch64-linux-android/libc++_shared.so' | head -n 1 || true)"
           fi

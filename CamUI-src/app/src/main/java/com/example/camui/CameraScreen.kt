@@ -2779,16 +2779,6 @@ private fun LensTransitionOverlay(
     }
 }
 
-private val cameraLookGroups = listOf(
-    "Fujifilm" to listOf("Provia", "Velvia", "Astia", "Classic Neg", "Eterna", "Acros"),
-    "Cổ điển" to listOf("Kodak Portra 400", "Agfa", "Kodak Gold", "Fuji 400"),
-    "Leica" to listOf("Leica Vivid", "Leica Natural", "Leica Mono"),
-    "Hasselblad" to listOf("Hasselblad HNCS"),
-    "Zeiss" to listOf("Zeiss Cool", "Zeiss Warm"),
-    "Sony" to listOf("Sony S-Cinetone", "Sony S-Log3"),
-    "Log" to listOf("Cinematic Log", "Sony S-Log3")
-)
-
 @Composable
 private fun FilterLookPreviewImage(
     source: Bitmap,

@@ -14,6 +14,7 @@ import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.BatteryManager
+import android.os.SystemClock
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.camera2.CameraCharacteristics
@@ -200,6 +201,33 @@ private val wbModes = listOf(
 private fun playConfiguredShutterSound(systemPlayer: MediaActionSound) {
     runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
 }
+
+/** Select the nearest supported native JPEG size around the 12.5MP Photo target. */
+private fun preferredPhotoJpegSize(
+    context: Context,
+    cameraId: String?,
+    targetAspectRatio: Float,
+    targetPixels: Long = 12_500_000L
+): Size? {
+    if (cameraId.isNullOrBlank()) return null
+    val manager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager ?: return null
+    val sizes = runCatching {
+        manager.getCameraCharacteristics(cameraId)
+            .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            ?.getOutputSizes(ImageFormat.JPEG)
+            ?.toList()
+    }.getOrNull().orEmpty().filter { it.width > 0 && it.height > 0 }
+    if (sizes.isEmpty()) return null
+    val lowerOrEqual = sizes.filter { it.width.toLong() * it.height.toLong() <= targetPixels }
+    val candidates = if (lowerOrEqual.isNotEmpty()) lowerOrEqual else sizes
+    return candidates.minWithOrNull(
+        compareBy<Size> {
+            kotlin.math.abs(it.width.toLong() * it.height.toLong() - targetPixels)
+        }.thenBy {
+            kotlin.math.abs(it.width.toFloat() / it.height.toFloat() - targetAspectRatio)
+        }
+    )
+}
 @Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,
@@ -368,12 +396,14 @@ fun CameraScreen(
     val rawCaptureMode = appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg"
     var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
     var fhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("fhd_capture_enabled", false)) }
-    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, camera) {
+    var uhdPlusCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_plus_capture_enabled", false)) }
+    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, camera) {
         appPrefs.edit()
             .putBoolean("uhd_capture_enabled", uhdCaptureEnabled)
             .putBoolean("fhd_capture_enabled", fhdCaptureEnabled)
+            .putBoolean("uhd_plus_capture_enabled", uhdPlusCaptureEnabled)
             .apply()
-        if (uhdCaptureEnabled || fhdCaptureEnabled) {
+        if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) {
             ultraHdr = false
             zoomAnimationJob?.cancel()
             zoomSel = 1f
@@ -382,8 +412,8 @@ fun CameraScreen(
         }
     }
     // UHD is a dedicated 1x capture mode. Enabling it always returns to the main camera.
-    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, camera) {
-        if (uhdCaptureEnabled || fhdCaptureEnabled) {
+    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, camera) {
+        if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) {
             zoomAnimationJob?.cancel()
             zoomSel = 1f
             appPrefs.edit().putFloat("camera_zoom_ratio", 1f).apply()
@@ -401,6 +431,8 @@ fun CameraScreen(
     var nightShotFrameCount by remember {
         mutableIntStateOf(appPrefs.getInt("nightshot_frame_count", 6).coerceIn(4, 12))
     }
+    var nightShotCapturedFrameCount by remember { mutableIntStateOf(0) }
+    var nightShotTargetFrameCount by remember { mutableIntStateOf(90) }
     var nightShotDurationSeconds by remember {
         mutableIntStateOf(appPrefs.getInt("nightshot_duration_seconds", 5).let { if (it in listOf(5, 10, 3)) it else 5 })
     }
@@ -497,7 +529,7 @@ fun CameraScreen(
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
-        manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, hdrEnabled, nightShotMode,
+        manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode
     ) {
         if (!hasCam) return@LaunchedEffect
@@ -556,7 +588,7 @@ fun CameraScreen(
                 }.getOrDefault(emptySet())
             }.orEmpty()
             val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" &&
-                !uhdCaptureEnabled && !fhdCaptureEnabled && rawCaptureMode != "jpeg"
+                !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
                 "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
                 "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
@@ -590,7 +622,7 @@ fun CameraScreen(
             // single high-gain/long-shutter exposure, which is not the requested behaviour.
             nightExtensionActive = false
             val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
-                nightShotMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !rawCaptureActive &&
+                nightShotMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && !rawCaptureActive &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
                 runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR) }
@@ -649,7 +681,10 @@ fun CameraScreen(
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
                 val captureBuilder = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                    .setCaptureMode(
+                        if (mode == "Photo" && nightShotMode == "night") ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                        else ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+                    )
                     .setTargetRotation(rotation)
                 if (outputFormat != ImageCapture.OUTPUT_FORMAT_JPEG) {
                     captureBuilder.setOutputFormat(outputFormat)
@@ -680,7 +715,32 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, captureExposure)
                         .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(captureExposure, 10_000_000L))
                 }
-                if (imageQuality == "Best" || uhdCaptureEnabled || fhdCaptureEnabled) {
+                val isComputationalHighResolution = uhdCaptureEnabled || fhdCaptureEnabled ||
+                    uhdPlusCaptureEnabled || (mode == "Photo" && nightShotMode == "night")
+                val isOrdinaryPhotoJpeg = mode == "Photo" && nightShotMode == "off" &&
+                    !rawCaptureActive && !isComputationalHighResolution
+                if (isOrdinaryPhotoJpeg) {
+                    val nativePhotoAspect = ratio.toFloat().let { if (it < 1f) 1f / it else it }
+                    val nativePhotoSize = preferredPhotoJpegSize(context, activeFacingId, nativePhotoAspect)
+                    if (nativePhotoSize != null) {
+                        captureBuilder.setResolutionSelector(
+                            ResolutionSelector.Builder()
+                                .setResolutionStrategy(
+                                    ResolutionStrategy(
+                                        nativePhotoSize,
+                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                                    )
+                                )
+                                .build()
+                        )
+                        android.util.Log.i(
+                            "FUJI_PHOTO",
+                            "Ordinary Photo selected native JPEG " + nativePhotoSize.width + "x" + nativePhotoSize.height
+                        )
+                    } else {
+                        android.util.Log.w("FUJI_PHOTO", "12.5MP JPEG size unavailable; using CameraX default")
+                    }
+                } else if (imageQuality == "Best" || isComputationalHighResolution) {
                     captureBuilder.setResolutionSelector(
                         ResolutionSelector.Builder()
                             .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
@@ -764,7 +824,7 @@ fun CameraScreen(
                     }
                 }
                 val capture = captureBuilder.build()
-                capture.flashMode = if (nightShotMode == "night" || uhdCaptureEnabled || fhdCaptureEnabled) {
+                capture.flashMode = if (nightShotMode == "night" || uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) {
                     ImageCapture.FLASH_MODE_OFF
                 } else flash
 
@@ -877,7 +937,7 @@ fun CameraScreen(
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
                 val restoredZoom = savedZoom.coerceIn(
                     zoomStateOnBind?.minZoomRatio ?: 1f,
-                    if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
+                    if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
                 )
                 zoomSel = restoredZoom
                 runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
@@ -1349,18 +1409,27 @@ fun CameraScreen(
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val captureAtOneX = uhdCaptureEnabled || fhdCaptureEnabled ||
-                kotlin.math.abs(zoomSel - 1f) < 0.08f
-            val captureUseUhdAlgorithm = uhdCaptureEnabled && !captureRawPlus && !captureRawOnly
-            val captureUseFhdAlgorithm = fhdCaptureEnabled && !captureRawPlus && !captureRawOnly
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
+            val captureUseUhdPlusAlgorithm = uhdPlusCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
+            val captureUseUhdAlgorithm = uhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
+            val captureUseFhdAlgorithm = fhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
+            val captureAtOneX = uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled ||
+                kotlin.math.abs(zoomSel - 1f) < 0.08f
             val captureNightShotExtension = nightExtensionActive
             val captureNightDurationSeconds = nightShotDurationSeconds.coerceIn(3, 10)
-            val captureUseFiveFrameStack = captureUseUhdAlgorithm || captureUseFhdAlgorithm
+            val captureNightTargetFrames = when (captureNightDurationSeconds) {
+                3 -> 90
+                5 -> 150
+                else -> 300
+            }
+            val captureNightStartedAtNanos = SystemClock.elapsedRealtimeNanos()
+            val captureNightDeadlineNanos = captureNightStartedAtNanos +
+                captureNightDurationSeconds * 1_000_000_000L
+            val captureUseFiveFrameStack = captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm
             if (captureUseNightShot) {
                 localizedToast(
                     context,
-                    "Night Shot ${captureNightDurationSeconds}s · mục tiêu 0,2 giây/khung. Giữ máy khi thu ảnh; có thể di chuyển sau khi thu xong trong lúc HDMP xử lý.",
+                    "Night Shot ${captureNightDurationSeconds}s · mục tiêu 30 FPS / ${captureNightTargetFrames} khung. Camera sẽ thu nhanh nhất có thể; HDMP xử lý sau khi thu xong.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -1434,8 +1503,11 @@ fun CameraScreen(
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/RAW")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
-            val captureNightStartedAtMillis = System.currentTimeMillis()
-            if (captureUseNightShot) nightShotCaptureInProgress = true
+            if (captureUseNightShot) {
+                nightShotCaptureInProgress = true
+                nightShotCapturedFrameCount = 0
+                nightShotTargetFrameCount = captureNightTargetFrames
+            }
             val output = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -1517,25 +1589,32 @@ fun CameraScreen(
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
-                                            val maxFrames = if (captureUseNightShot) {
-                                                (captureNightDurationSeconds * 1000L / 200L).toInt().coerceIn(2, 96)
-                                            } else 5
-                                            val deadline = if (captureUseNightShot) {
-                                                captureNightStartedAtMillis + captureNightDurationSeconds * 1000L
-                                            } else Long.MAX_VALUE
-                                            var nextFrameDueAt = System.currentTimeMillis() + 200L
+                                            val maxFrames = if (captureUseNightShot) captureNightTargetFrames else 5
+                                            if (captureUseNightShot) {
+                                                withContext(Dispatchers.Main) {
+                                                    nightShotCapturedFrameCount = stackedFrames.size
+                                                    nightShotTargetFrameCount = maxFrames
+                                                }
+                                            }
+                                            // CameraX ImageCapture serializes still requests. Avoid any
+                                            // artificial 200ms sleep: issue the next request immediately
+                                            // after the previous callback and retain every valid frame.
+                                            // Stop at the selected 3/5/10s deadline; if the camera cannot
+                                            // reach 90/150/300 frames, process the real partial stack.
+                                            var consecutiveCaptureFailures = 0
+                                            val burstStartedNanos = SystemClock.elapsedRealtimeNanos()
+                                            var stoppedForStorage = false
                                             while (stackedFrames.size < maxFrames &&
-                                                (!captureUseNightShot || System.currentTimeMillis() < deadline)
+                                                (!captureUseNightShot || SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)
                                             ) {
-                                                if (captureUseNightShot) {
-                                                    val waitMs = nextFrameDueAt - System.currentTimeMillis()
-                                                    if (waitMs > 0L) delay(waitMs)
-                                                    if (System.currentTimeMillis() >= deadline) break
+                                                if (captureUseNightShot && context.cacheDir.usableSpace < 256L * 1024L * 1024L) {
+                                                    stoppedForStorage = true
+                                                    break
                                                 }
                                                 val frameNumber = stackedFrames.size + 1
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = if (captureUseNightShot) {
-                                                        "Night Shot: khung $frameNumber/$maxFrames · nhịp 0,2s"
+                                                        "Night Shot: khung $frameNumber/$maxFrames · 30 FPS mục tiêu"
                                                     } else {
                                                         "Multi-frame: chụp khung $frameNumber/5"
                                                     }
@@ -1552,15 +1631,32 @@ fun CameraScreen(
                                                 )
                                                 if (!captured) {
                                                     runCatching { nextFrame.delete() }
-                                                    break
+                                                    consecutiveCaptureFailures++
+                                                    android.util.Log.w(
+                                                        "FUJI_NIGHTSHOT",
+                                                        "Capture attempt failed (" + consecutiveCaptureFailures + "/3); keeping " + stackedFrames.size + " valid frames"
+                                                    )
+                                                    if (consecutiveCaptureFailures >= 3) break
+                                                    continue
                                                 }
+                                                consecutiveCaptureFailures = 0
                                                 stackedFrames.add(nextFrame)
                                                 if (captureUseNightShot) {
-                                                    nextFrameDueAt += 200L
-                                                    if (nextFrameDueAt <= System.currentTimeMillis()) {
-                                                        nextFrameDueAt = System.currentTimeMillis() + 200L
+                                                    withContext(Dispatchers.Main) {
+                                                        nightShotCapturedFrameCount = stackedFrames.size
                                                     }
                                                 }
+                                            }
+                                            val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - captureNightStartedAtNanos) / 1_000_000L).coerceAtLeast(1L)
+                                            if (captureUseNightShot) {
+                                                val achievedFps = stackedFrames.size * 1000.0 / burstElapsedMs
+                                                android.util.Log.i("FUJI_NIGHTSHOT", "Collected " + stackedFrames.size + "/" + maxFrames + " frames in " + burstElapsedMs + "ms; approx " + "%.1f".format(Locale.US, achievedFps) + " FPS")
+                                            }
+                                            if (stoppedForStorage) {
+                                                android.util.Log.w("FUJI_NIGHTSHOT", "Stopped early to protect free cache storage; processing " + stackedFrames.size + " frames")
+                                            }
+                                            if (captureUseNightShot && stackedFrames.size < maxFrames) {
+                                                android.util.Log.w("FUJI_NIGHTSHOT", "Actual stack is partial: " + stackedFrames.size + "/" + maxFrames + "; proceeding without rejecting capture")
                                             }
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
@@ -1611,7 +1707,7 @@ fun CameraScreen(
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val hdmpWorkerCount = when {
-                                    captureUseUhdAlgorithm -> 8
+                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm -> 8
                                     captureUseFhdAlgorithm -> 6
                                     captureUseNightShot -> Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
                                     else -> 0
@@ -1667,14 +1763,16 @@ fun CameraScreen(
                                 }.getOrDefault(false)
 
                                 val outputResolutionApplied = if (
-                                    !captureIsUltraHdr && captureAtOneX &&
+                                    !captureIsUltraHdr && (captureUseNightShot || captureAtOneX) &&
                                     !captureRawOnly && !captureRawPlus &&
-                                    (captureUseUhdAlgorithm || captureUseFhdAlgorithm || (!captureUseNightShot && noiseReduction != "Off"))
+                                    (captureUseNightShot || captureUseUhdPlusAlgorithm ||
+                                        captureUseUhdAlgorithm || captureUseFhdAlgorithm)
                                 ) {
                                     val targetPixels = when {
+                                        captureUseNightShot -> 60_000_000L
+                                        captureUseUhdPlusAlgorithm -> 250_000_000L
                                         captureUseUhdAlgorithm -> 108_000_000L
-                                        captureUseFhdAlgorithm -> 60_000_000L
-                                        else -> 211_000_000L
+                                        else -> 60_000_000L
                                     }
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "Đang nội suy thuật toán lên ${targetPixels / 1_000_000L}MP"
@@ -1707,13 +1805,17 @@ fun CameraScreen(
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
+                                        captureUseNightShot && orientationLabelFixed && hdmpApplied && outputResolutionApplied ->
+                                            "Đã lưu Night Shot · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
-                                            if (hdmpApplied) "Đã lưu Night Shot · đã căn chỉnh, ghép khung và HDMP xử lý ảnh."
-                                            else "Đã lưu Night Shot · đã ghép khung; HDMP giữ ảnh gốc vì xử lý không thành công."
+                                            if (hdmpApplied && outputResolutionApplied) "Đã lưu Night Shot · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
+                                            else "Đã lưu Night Shot · đã ghép khung; ảnh gốc vẫn được giữ nếu HDMP không khả dụng."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
                                             "NightShot đã xử lý bằng chế độ NIGHT của camera."
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
+                                        captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
+                                            "Đã lưu HDMP UHD+ 250MP · phục hồi vi chi tiết bằng 8 tác vụ."
                                         captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
                                             "Đã lưu UHD 108MP · HDMP xử lý bằng 8 tác vụ và nội suy thuật toán."
                                         captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
@@ -1777,7 +1879,7 @@ fun CameraScreen(
         val state = activeCamera.cameraInfo.zoomState.value ?: return
         val safeTarget = targetRatio.coerceIn(
             state.minZoomRatio,
-            if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, state.maxZoomRatio)
+            if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, state.maxZoomRatio)
         )
         val start = state.zoomRatio
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
@@ -1910,11 +2012,11 @@ fun CameraScreen(
                                 .aspectRatio(previewAspectRatio)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.Black)
-                                .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled) {
+                                .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()
                                         val zoomState = camera?.cameraInfo?.zoomState?.value ?: return@detectTransformGestures
-                                        val maxZoom = if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, zoomState.maxZoomRatio)
+                                        val maxZoom = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, zoomState.maxZoomRatio)
                                         val nextZoom = (zoomState.zoomRatio * zoomChange)
                                             .coerceIn(zoomState.minZoomRatio, maxZoom)
                                         camera?.cameraControl?.setZoomRatio(nextZoom)
@@ -2098,9 +2200,9 @@ fun CameraScreen(
                         // Lens quick-select values come from the physical cameras exposed by
                         // this logical CameraX camera, then are clamped to its real zoom range.
                         val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
-                        val zoomMaxForUi = if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
+                        val zoomMaxForUi = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) 1f else min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
                         val zoomMinForUi = zoomStateForUi?.minZoomRatio ?: 1f
-                        val zoomSteps = if (uhdCaptureEnabled || fhdCaptureEnabled) listOf(1f) else Camera2Info.opticalZoomStops(
+                        val zoomSteps = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) listOf(1f) else Camera2Info.opticalZoomStops(
                             logical = activeCameraDetails,
                             physical = activePhysicalCameraDetails,
                             minZoom = zoomMinForUi,
@@ -2479,11 +2581,11 @@ fun CameraScreen(
                             }
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(if (uhdCaptureEnabled || fhdCaptureEnabled || nightShotMode == "night") Color(0x66F5C842) else CamColors.Glass)
+                                .background(if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled || nightShotMode == "night") Color(0x66F5C842) else CamColors.Glass)
                                 .animaTClickable { showHdmp = true }
                                 .padding(horizontal = 15.dp, vertical = 7.dp)) {
                                 Text("HDMP",
-                                    color = if (uhdCaptureEnabled || fhdCaptureEnabled || nightShotMode == "night") CamColors.Yellow else CamColors.TextColor,
+                                    color = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled || nightShotMode == "night") CamColors.Yellow else CamColors.TextColor,
                                     fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -2612,7 +2714,12 @@ stabilization = stabilization,
                 ) {
                     Text("NightShot · ĐANG CHỤP", color = CamColors.Yellow,
                         fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("Giữ máy ổn định · màn hình sẽ luôn sáng đến khi lưu ảnh xong",
+                    Text(
+                        "$nightShotCapturedFrameCount/$nightShotTargetFrameCount khung hình · 30 FPS mục tiêu",
+                        color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 7.dp)
+                    )
+                    Text("Giữ máy ổn định · xử lý HDMP sau khi thu ảnh",
                         color = CamColors.Sub, fontSize = 11.sp,
                         modifier = Modifier.padding(top = 5.dp))
                 }
@@ -2665,12 +2772,17 @@ stabilization = stabilization,
                 uhdEnabled = uhdCaptureEnabled,
                 onUhdEnabledChange = {
                     uhdCaptureEnabled = it
-                    if (it) fhdCaptureEnabled = false
+                    if (it) { fhdCaptureEnabled = false; uhdPlusCaptureEnabled = false }
                 },
                 fhdEnabled = fhdCaptureEnabled,
                 onFhdEnabledChange = {
                     fhdCaptureEnabled = it
-                    if (it) uhdCaptureEnabled = false
+                    if (it) { uhdCaptureEnabled = false; uhdPlusCaptureEnabled = false }
+                },
+                uhdPlusEnabled = uhdPlusCaptureEnabled,
+                onUhdPlusEnabledChange = {
+                    uhdPlusCaptureEnabled = it
+                    if (it) { uhdCaptureEnabled = false; fhdCaptureEnabled = false }
                 },
                 nightShotEnabled = nightShotMode == "night",
                 nightShotDurationSeconds = nightShotDurationSeconds,

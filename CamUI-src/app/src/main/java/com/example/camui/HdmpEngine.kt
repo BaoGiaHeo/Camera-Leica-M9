@@ -132,11 +132,26 @@ internal object HdmpEngine {
                                 val neighbourLuma = (luma(left) + luma(right) +
                                     luma(up) + luma(down)) * 0.25f
                                 val detail = baseLuma - neighbourLuma
-                                // Ignore tiny high-frequency differences so sharpening does not amplify noise.
-                                val recoveredDetail = if (abs(detail) < 0.012f) 0f else {
+
+                                // Diagonal micro-detail pass helps recover fine texture direction
+                                // around hair, foliage, fabric and small edges without inventing
+                                // high-contrast outlines. The threshold rejects low-level sensor noise.
+                                val upLeft = input[upRow + max(0, x - 1)]
+                                val upRight = input[upRow + min(width - 1, x + 1)]
+                                val downLeft = input[downRow + max(0, x - 1)]
+                                val downRight = input[downRow + min(width - 1, x + 1)]
+                                val diagonalMean = (
+                                    luma(upLeft) + luma(upRight) +
+                                        luma(downLeft) + luma(downRight)
+                                    ) * 0.25f
+                                val microDetail = baseLuma - diagonalMean
+                                val recoveredDetail = (if (abs(detail) < 0.012f) 0f else {
                                     detail * strength * if (abs(detail) < 0.035f) 0.72f else 1f
+                                }) + if (abs(microDetail) < 0.018f) 0f else {
+                                    microDetail * (strength * 0.22f).coerceAtMost(0.10f)
                                 }
-                                val targetLuma = (baseLuma + recoveredDetail).coerceIn(0f, 1f)
+                                val targetLuma = (baseLuma + recoveredDetail.coerceIn(-0.055f, 0.055f))
+                                    .coerceIn(0f, 1f)
                                 val scale = if (baseLuma > 0.015f) {
                                     (targetLuma / baseLuma).coerceIn(0.72f, 1.28f)
                                 } else 1f

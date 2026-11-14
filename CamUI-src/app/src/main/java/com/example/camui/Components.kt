@@ -420,7 +420,7 @@ private val fullEnglishUi = mapOf(
     "Chủ thể" to "Subject", "ISO Auto" to "ISO Auto", "Shutter Auto" to "Shutter Auto",
     "EV không được hỗ trợ" to "EV unavailable", "AF tự động" to "AF Auto",
     "Tông màu tự động" to "Auto white balance", "Ảnh gốc" to "Original photo",
-    "Cần cấp quyền Camera\n(chạm để cấp)" to "Camera permission required\n(tap to grant)"
+    "Cần cấp quyền Camera\n(chạm để cấp)" to "Camera permission required\n(tap to grant)",
     "Image Quality" to "Image Quality",
     "Shutter button" to "Shutter button",
     "Watermark" to "Watermark",
@@ -435,7 +435,7 @@ private val fullEnglishUi = mapOf(
     "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI is still under development. Errors or unexpected results may occur while using this feature.",
-    "HDR · Multi-frame" to "HDR · Multi-frame"
+    "HDR · Multi-frame" to "HDR · Multi-frame",
     "Timer" to "Timer",
     "Quick settings" to "Quick settings",
     "Đổi camera" to "Switch camera",
@@ -516,7 +516,7 @@ private val fullJapaneseUi = mapOf(
     "Chưa thấy khuôn mặt · thử đặt chủ thể vào 1/3" to "顔を検出できません · 被写体を三分割位置に配置してください",
     "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải" to "被写体は左の三分割位置 · 右側に余白を残してください",
     "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái" to "被写体は右の三分割位置 · 左側に余白を残してください",
-    "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "被写体は中央です · 三分割構図に合わせて少しずらしてみてください"
+    "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "被写体は中央です · 三分割構図に合わせて少しずらしてみてください",
     "Image Quality" to "画質",
     "Shutter button" to "シャッターボタン",
     "Watermark" to "ウォーターマーク",
@@ -532,7 +532,7 @@ private val fullJapaneseUi = mapOf(
     "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまで動かさないでください",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI機能は開発中です。使用中にエラーが発生したり、期待と異なる結果になる場合があります。",
-    "HDR · Multi-frame" to "HDR · マルチフレーム"
+    "HDR · Multi-frame" to "HDR · マルチフレーム",
     "Timer" to "タイマー",
     "Quick settings" to "クイック設定",
     "Đổi camera" to "カメラ切替",
@@ -613,7 +613,7 @@ private val fullKoreanUi = mapOf(
     "Chưa thấy khuôn mặt · thử đặt chủ thể vào 1/3" to "얼굴을 찾지 못했습니다 · 피사체를 삼분할 위치에 배치해 보세요",
     "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải" to "피사체가 왼쪽 삼분할 위치에 있습니다 · 오른쪽에 여백을 남기세요",
     "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái" to "피사체가 오른쪽 삼분할 위치에 있습니다 · 왼쪽에 여백을 남기세요",
-    "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "피사체가 중앙에 있습니다 · 삼분할 구도에 맞춰 약간 옮겨 보세요"
+    "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "피사체가 중앙에 있습니다 · 삼분할 구도에 맞춰 약간 옮겨 보세요",
     "Image Quality" to "이미지 품질",
     "Shutter button" to "셔터 버튼",
     "Watermark" to "워터마크",
@@ -628,7 +628,7 @@ private val fullKoreanUi = mapOf(
     "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 휴대전화를 움직이지 마세요",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI 기능은 개발 중입니다. 사용 중 오류가 발생하거나 예상과 다른 결과가 나올 수 있습니다.",
-    "HDR · Multi-frame" to "HDR · 멀티 프레임"
+    "HDR · Multi-frame" to "HDR · 멀티 프레임",
     "Timer" to "타이머",
     "Quick settings" to "빠른 설정",
     "Đổi camera" to "카메라 전환",
@@ -709,7 +709,7 @@ private val fullChineseUi = mapOf(
     "Chưa thấy khuôn mặt · thử đặt chủ thể vào 1/3" to "未检测到人脸 · 尝试将主体放在三分线位置",
     "Chủ thể ở 1/3 trái · chừa khoảng trống bên phải" to "主体位于左侧三分线 · 右侧留出空间",
     "Chủ thể ở 1/3 phải · chừa khoảng trống bên trái" to "主体位于右侧三分线 · 左侧留出空间",
-    "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "主体位于中央 · 可按三分法稍微偏移"
+    "Chủ thể ở giữa · thử lệch nhẹ theo quy tắc 1/3" to "主体位于中央 · 可按三分法稍微偏移",
     "Image Quality" to "图像质量",
     "Shutter button" to "快门按钮",
     "Watermark" to "水印",
@@ -724,7 +724,7 @@ private val fullChineseUi = mapOf(
     "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI 功能仍在开发中，使用过程中可能出现错误或结果不符合预期。",
-    "HDR · Multi-frame" to "HDR · 多帧"
+    "HDR · Multi-frame" to "HDR · 多帧",
     "Timer" to "定时器",
     "Quick settings" to "快捷设置",
     "Đổi camera" to "切换相机",
@@ -800,8 +800,8 @@ private fun translateFullUiText(value: String, language: String): String? {
     Regex("""^(\d+) ảnh$""").matchEntire(value)?.let { match ->
         val count = match.groupValues[1]
         return when {
-            language.startsWith("ja") -> "$count枚の写真"
-            language.startsWith("ko") -> "사진 $count장"
+            language.startsWith("ja") -> "${count}枚の写真"
+            language.startsWith("ko") -> "사진 ${count}장"
             language.startsWith("zh") -> "$count 张照片"
             else -> "$count photos"
         }

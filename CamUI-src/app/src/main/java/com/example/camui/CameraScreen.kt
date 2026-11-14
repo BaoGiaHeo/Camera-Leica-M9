@@ -37,7 +37,6 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
-import androidx.camera.core.ExperimentalImageCaptureOutputFormat
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -195,7 +194,6 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
-@OptIn(ExperimentalImageCaptureOutputFormat::class)
 @Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,

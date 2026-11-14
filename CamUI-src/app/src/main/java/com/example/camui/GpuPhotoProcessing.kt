@@ -125,7 +125,7 @@ internal fun tryApplyGpuPhotoEnhancement(
                     float upLum = lum(texture2D(uImage, vTexCoord + vec2(0.0, uTexel.y)).rgb);
                     float downLum = lum(texture2D(uImage, vTexCoord - vec2(0.0, uTexel.y)).rgb);
                     float blurLum = (leftLum + rightLum + upLum + downLum) * 0.25;
-                    targetLum = clamp(targetLum + (baseLum - blurLum) * 1.8, 0.0, 1.0);
+                    targetLum = clamp(targetLum + (baseLum - blurLum) * 2.0, 0.0, 1.0);
                 }
                 float scale = baseLum > 0.012 ? targetLum / baseLum : 1.0;
                 gl_FragColor = vec4(clamp(color.rgb * scale, 0.0, 1.0), color.a);
@@ -217,10 +217,12 @@ internal fun tryApplyGpuPhotoEnhancement(
             rendered.compress(Bitmap.CompressFormat.JPEG, 98, it)
         } ?: false
         if (!written) return false
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-            ExifInterface(descriptor.fileDescriptor).apply {
-                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                saveAttributes()
+        runCatching {
+            context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
+                ExifInterface(descriptor.fileDescriptor).apply {
+                    setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                    saveAttributes()
+                }
             }
         }
         Log.i("FUJI_IMAGE_PROCESS", "GPU path finished for ${width}x${height}")
@@ -229,8 +231,12 @@ internal fun tryApplyGpuPhotoEnhancement(
         Log.w("FUJI_IMAGE_PROCESS", "GPU path unavailable; CPU fallback will be used", error)
         false
     } finally {
-        if (texture != 0) GLES20.glDeleteTextures(1, intArrayOf(texture), 0)
-        if (program != 0) GLES20.glDeleteProgram(program)
+        if (display != EGL14.EGL_NO_DISPLAY && eglContext != EGL14.EGL_NO_CONTEXT) {
+            runCatching {
+                if (texture != 0) GLES20.glDeleteTextures(1, intArrayOf(texture), 0)
+                if (program != 0) GLES20.glDeleteProgram(program)
+            }
+        }
         source?.recycle()
         output?.recycle()
         if (display != EGL14.EGL_NO_DISPLAY) {

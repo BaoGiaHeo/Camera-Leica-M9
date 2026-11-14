@@ -1307,11 +1307,27 @@ fun applyCameraWatermark(
         val showSpecs = prefs.getBoolean("watermark_show_specs", true)
 
         // Frame, backing plate and type all follow the selected watermark style.
+        val glassEnabled = frameStyle == "LiquidGlass"
+        val glassRefraction = prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)
+        val glassThickness = prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)
+        val glassDispersion = prefs.getFloat("watermark_glass_dispersion", 0.28f).coerceIn(0f, 1f)
+        val glassBlur = prefs.getFloat("watermark_glass_blur", 8f).coerceIn(0f, 20f)
+        val glassRoughness = prefs.getFloat("watermark_glass_roughness", 0.16f).coerceIn(0f, 1f)
+        val glassRim = prefs.getFloat("watermark_glass_rim", 0.72f).coerceIn(0f, 1f)
+        val glassGloss = prefs.getFloat("watermark_glass_gloss", 0.72f).coerceIn(0f, 1f)
+        val glassCorner = prefs.getFloat("watermark_glass_corner", 0.58f).coerceIn(0f, 1f)
+        val glassGooey = prefs.getFloat("watermark_glass_gooey", 0.34f).coerceIn(0f, 1f)
+        val glassTintMode = prefs.getString("watermark_glass_tint", "Auto") ?: "Auto"
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
-        val textColor = if (frameStyle == "White") AndroidColor.BLACK else AndroidColor.WHITE
+        val textColor = when {
+            frameStyle == "White" -> AndroidColor.BLACK
+            glassEnabled && sampleBitmapLuminance(output) > 0.55f -> AndroidColor.rgb(24, 29, 35)
+            else -> AndroidColor.WHITE
+        }
         val panelColor = when (frameStyle) {
             "White" -> AndroidColor.argb(238, 255, 255, 255)
             "Black" -> AndroidColor.argb(220, 8, 8, 8)
+            "LiquidGlass" -> AndroidColor.argb(38, 228, 241, 250)
             else -> AndroidColor.TRANSPARENT
         }
         val minSide = minOf(output.width, output.height).toFloat()
@@ -1345,8 +1361,155 @@ fun applyCameraWatermark(
             }
             canvas.drawText(value, x, baseline, paint)
         }
+        fun drawLiquidGlassPanel(rect: RectF, baseRadius: Float) {
+            val left = rect.left.toInt().coerceIn(0, output.width - 1)
+            val top = rect.top.toInt().coerceIn(0, output.height - 1)
+            val right = rect.right.toInt().coerceIn(left + 1, output.width)
+            val bottom = rect.bottom.toInt().coerceIn(top + 1, output.height)
+            val cropWidth = (right - left).coerceAtLeast(1)
+            val cropHeight = (bottom - top).coerceAtLeast(1)
+            val crop = Bitmap.createBitmap(cropWidth, cropHeight, Bitmap.Config.ARGB_8888)
+            Canvas(crop).drawBitmap(output, -left.toFloat(), -top.toFloat(), null)
+
+            val blurRadius = (minSide * glassBlur / 1200f).toInt().coerceIn(0, 30)
+            if (blurRadius > 0) applyWatermarkBoxBlur(crop, blurRadius, 2)
+
+            val safeRadius = (baseRadius * (1f + glassGooey * 0.75f) +
+                minSide * (0.004f + glassCorner * 0.020f))
+                .coerceIn(8f, minOf(rect.width(), rect.height()) * 0.48f)
+            val path = Path().apply {
+                addRoundRect(rect, safeRadius, safeRadius, Path.Direction.CW)
+            }
+            canvas.save()
+            canvas.clipPath(path)
+
+            // Convex mesh magnifies the center of the sampled photo through the glass plate.
+            val mesh = 12
+            val vertices = FloatArray((mesh + 1) * (mesh + 1) * 2)
+            for (row in 0..mesh) {
+                for (column in 0..mesh) {
+                    val nx = column.toFloat() / mesh
+                    val ny = row.toFloat() / mesh
+                    val dx = nx - 0.5f
+                    val dy = ny - 0.5f
+                    val edgeDistance = maxOf(kotlin.math.abs(dx), kotlin.math.abs(dy)) * 2f
+                    val bulge = glassRefraction * 0.18f * (1f - edgeDistance).coerceAtLeast(0f)
+                    val index = (row * (mesh + 1) + column) * 2
+                    vertices[index] = rect.left + (nx + dx * bulge) * rect.width()
+                    vertices[index + 1] = rect.top + (ny + dy * bulge) * rect.height()
+                }
+            }
+            val meshPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            canvas.drawBitmapMesh(crop, mesh, mesh, vertices, 0, null, 0, meshPaint)
+
+            val averageTint = sampleBitmapColor(output, rect)
+            val tintColor = when (glassTintMode) {
+                "Milky" -> AndroidColor.WHITE
+                "Smoke" -> AndroidColor.rgb(20, 26, 36)
+                else -> averageTint
+            }
+            val tintAlpha = (18 + glassThickness * 22 + glassGloss * 8).toInt().coerceIn(12, 52)
+            val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.argb(tintAlpha, AndroidColor.red(tintColor),
+                    AndroidColor.green(tintColor), AndroidColor.blue(tintColor))
+            }
+            canvas.drawRoundRect(rect, safeRadius, safeRadius, tintPaint)
+
+            if (glassGloss > 0.01f) {
+                val glossPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = LinearGradient(
+                        rect.left, rect.top, rect.right, rect.bottom,
+                        intArrayOf(
+                            AndroidColor.argb((100 * glassGloss).toInt(), 255, 255, 255),
+                            AndroidColor.argb((26 * glassGloss).toInt(), 255, 255, 255),
+                            AndroidColor.TRANSPARENT,
+                            AndroidColor.argb((16 * glassGloss).toInt(), 255, 255, 255)
+                        ),
+                        floatArrayOf(0f, 0.28f, 0.68f, 1f),
+                        Shader.TileMode.CLAMP
+                    )
+                }
+                canvas.drawRoundRect(rect, safeRadius, safeRadius, glossPaint)
+            }
+
+            if (glassRoughness > 0.01f) {
+                val grainPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.argb((8 + glassRoughness * 18).toInt(), 255, 255, 255)
+                    strokeWidth = (minSide * 0.0007f).coerceAtLeast(1f)
+                }
+                val random = java.util.Random(left * 31L + top * 97L + cropWidth * 13L)
+                repeat((30 + glassRoughness * 240).toInt()) {
+                    val x = rect.left + random.nextFloat() * rect.width()
+                    val y = rect.top + random.nextFloat() * rect.height()
+                    canvas.drawPoint(x, y, grainPaint)
+                }
+            }
+
+            if (glassDispersion > 0.01f) {
+                val shift = 1f + glassDispersion * 5f
+                val cyan = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.argb((28 + glassDispersion * 95).toInt(), 92, 224, 255)
+                    style = Paint.Style.STROKE
+                    strokeWidth = 1f + glassDispersion * 2f
+                }
+                val magenta = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.argb((24 + glassDispersion * 85).toInt(), 255, 116, 164)
+                    style = Paint.Style.STROKE
+                    strokeWidth = 1f + glassDispersion * 1.6f
+                }
+                canvas.drawRoundRect(RectF(rect.left - shift, rect.top, rect.right - shift, rect.bottom),
+                    safeRadius, safeRadius, cyan)
+                canvas.drawRoundRect(RectF(rect.left + shift, rect.top, rect.right + shift, rect.bottom),
+                    safeRadius, safeRadius, magenta)
+            }
+
+            val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.argb((48 + glassRim * 185).toInt(), 255, 255, 255)
+                style = Paint.Style.STROKE
+                strokeWidth = (minSide * (0.001f + glassRim * 0.0017f)).coerceAtLeast(1.5f)
+            }
+            canvas.drawRoundRect(rect, safeRadius, safeRadius, rimPaint)
+
+            val innerHighlight = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.argb((24 + glassGloss * 88).toInt(), 255, 255, 255)
+                style = Paint.Style.STROKE
+                strokeWidth = (minSide * 0.0008f).coerceAtLeast(1f)
+            }
+            val inset = (minSide * (0.002f + glassThickness * 0.003f)).coerceAtLeast(2f)
+            val innerRect = RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+            canvas.drawRoundRect(innerRect, (safeRadius - inset).coerceAtLeast(2f),
+                (safeRadius - inset).coerceAtLeast(2f), innerHighlight)
+            canvas.restore()
+            crop.recycle()
+        }
+
         fun drawFrame(rect: RectF, radius: Float) {
             if (frameStyle == "Transparent") return
+            if (glassEnabled) {
+                val rr = radius * (1f + glassGooey * 0.8f)
+                val outerGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.argb((34 + glassRim * 115).toInt(), 255, 255, 255)
+                    style = Paint.Style.STROKE
+                    strokeWidth = (minSide * (0.0015f + glassThickness * 0.0015f)).coerceAtLeast(2f)
+                    setShadowLayer((minSide * glassRim * 0.003f).coerceAtLeast(1f), 0f, 0f, AndroidColor.WHITE)
+                }
+                canvas.drawRoundRect(rect, rr, rr, outerGlow)
+                if (glassDispersion > 0.01f) {
+                    val cyan = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = AndroidColor.argb((24 + glassDispersion * 90).toInt(), 90, 220, 255)
+                        style = Paint.Style.STROKE
+                        strokeWidth = (minSide * 0.001f).coerceAtLeast(1f)
+                    }
+                    val pink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = AndroidColor.argb((18 + glassDispersion * 78).toInt(), 255, 124, 176)
+                        style = Paint.Style.STROKE
+                        strokeWidth = (minSide * 0.0008f).coerceAtLeast(1f)
+                    }
+                    canvas.drawRoundRect(RectF(rect.left - 1.5f, rect.top, rect.right - 1.5f, rect.bottom), rr, rr, cyan)
+                    canvas.drawRoundRect(RectF(rect.left + 1.5f, rect.top, rect.right + 1.5f, rect.bottom), rr, rr, pink)
+                }
+                return
+            }
             val framePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = frameColor
                 alpha = 245
@@ -1363,9 +1526,11 @@ fun applyCameraWatermark(
                 style = Paint.Style.FILL
                 setShadowLayer((minSide * 0.006f).coerceAtLeast(3f), 0f, 3f, AndroidColor.BLACK)
             }
-            if (frameStyle != "Transparent") {
-                canvas.drawRoundRect(plate, (minSide * 0.012f).coerceAtLeast(7f),
-                    (minSide * 0.012f).coerceAtLeast(7f), paint)
+            val plateRadius = (minSide * 0.012f).coerceAtLeast(7f)
+            if (glassEnabled) {
+                drawLiquidGlassPanel(plate, plateRadius)
+            } else if (frameStyle != "Transparent") {
+                canvas.drawRoundRect(plate, plateRadius, plateRadius, paint)
             }
             return plate
         }
@@ -1397,6 +1562,13 @@ fun applyCameraWatermark(
             }
             "normal1" -> {
                 val right = output.width - margin
+                if (glassEnabled) {
+                    drawLiquidGlassPanel(
+                        RectF(output.width * 0.34f, output.height - margin * 3.85f,
+                            output.width - margin * 0.55f, output.height - margin * 0.45f),
+                        margin * 0.28f
+                    )
+                }
                 titlePaint.textAlign = Paint.Align.RIGHT
                 detailPaint.textAlign = Paint.Align.RIGHT
                 var baseline = output.height - margin * 1.18f
@@ -1409,6 +1581,13 @@ fun applyCameraWatermark(
                 detailPaint.textAlign = Paint.Align.LEFT
             }
             "normal2" -> {
+                if (glassEnabled) {
+                    drawLiquidGlassPanel(
+                        RectF(margin * 0.48f, output.height - margin * 3.55f,
+                            output.width * 0.82f, output.height - margin * 0.42f),
+                        margin * 0.28f
+                    )
+                }
                 val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
                 optionalLines.forEachIndexed { index, line ->
                     fitText(line, detailPaint, margin,
@@ -1425,7 +1604,9 @@ fun applyCameraWatermark(
                     color = panelColor
                     style = Paint.Style.FILL
                 }
-                if (frameStyle != "Transparent") {
+                if (glassEnabled) {
+                    drawLiquidGlassPanel(panel, minSide * 0.018f)
+                } else if (frameStyle != "Transparent") {
                     canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
                 }
                 drawFrame(panel, minSide * 0.018f)
@@ -1478,6 +1659,114 @@ fun applyCameraWatermark(
     }.onFailure {
         android.util.Log.e("FUJI_WATERMARK", "applyCameraWatermark failed", it)
     }.getOrDefault(false)
+}
+
+private fun sampleBitmapColor(bitmap: Bitmap, rect: RectF): Int {
+    val left = rect.left.toInt().coerceIn(0, bitmap.width - 1)
+    val top = rect.top.toInt().coerceIn(0, bitmap.height - 1)
+    val right = rect.right.toInt().coerceIn(left + 1, bitmap.width)
+    val bottom = rect.bottom.toInt().coerceIn(top + 1, bitmap.height)
+    var count = 0
+    var red = 0L
+    var green = 0L
+    var blue = 0L
+    for (row in 0 until 8) {
+        val y = top + (bottom - top - 1) * row / 7
+        for (column in 0 until 8) {
+            val x = left + (right - left - 1) * column / 7
+            val color = bitmap.getPixel(x, y)
+            red += AndroidColor.red(color)
+            green += AndroidColor.green(color)
+            blue += AndroidColor.blue(color)
+            count++
+        }
+    }
+    return AndroidColor.rgb((red / count).toInt(), (green / count).toInt(), (blue / count).toInt())
+}
+
+private fun sampleBitmapLuminance(bitmap: Bitmap): Float {
+    val width = bitmap.width
+    val height = bitmap.height
+    var total = 0f
+    var count = 0
+    for (row in 1..7) {
+        for (column in 1..7) {
+            val x = (width * column / 8).coerceIn(0, width - 1)
+            val y = (height * row / 8).coerceIn(0, height - 1)
+            val pixel = bitmap.getPixel(x, y)
+            total += (AndroidColor.red(pixel) * 0.2126f +
+                AndroidColor.green(pixel) * 0.7152f +
+                AndroidColor.blue(pixel) * 0.0722f) / 255f
+            count++
+        }
+    }
+    return if (count == 0) 0.5f else total / count
+}
+
+/** Fast separable box blur on a small watermark panel crop, never on the full photo. */
+private fun applyWatermarkBoxBlur(bitmap: Bitmap, radius: Int, passes: Int) {
+    if (radius <= 0 || bitmap.width < 2 || bitmap.height < 2) return
+    val width = bitmap.width
+    val height = bitmap.height
+    var source = IntArray(width * height)
+    var temporary = IntArray(width * height)
+    bitmap.getPixels(source, 0, width, 0, 0, width, height)
+    repeat(passes.coerceIn(1, 3)) {
+        for (y in 0 until height) {
+            var a = 0
+            var r = 0
+            var g = 0
+            var b = 0
+            val diameter = radius * 2 + 1
+            for (offset in -radius..radius) {
+                val pixel = source[y * width + offset.coerceIn(0, width - 1)]
+                a += AndroidColor.alpha(pixel)
+                r += AndroidColor.red(pixel)
+                g += AndroidColor.green(pixel)
+                b += AndroidColor.blue(pixel)
+            }
+            for (x in 0 until width) {
+                temporary[y * width + x] = AndroidColor.argb(
+                    a / diameter, r / diameter, g / diameter, b / diameter
+                )
+                val remove = source[y * width + (x - radius).coerceIn(0, width - 1)]
+                val add = source[y * width + (x + radius + 1).coerceIn(0, width - 1)]
+                a += AndroidColor.alpha(add) - AndroidColor.alpha(remove)
+                r += AndroidColor.red(add) - AndroidColor.red(remove)
+                g += AndroidColor.green(add) - AndroidColor.green(remove)
+                b += AndroidColor.blue(add) - AndroidColor.blue(remove)
+            }
+        }
+        for (x in 0 until width) {
+            var a = 0
+            var r = 0
+            var g = 0
+            var b = 0
+            val diameter = radius * 2 + 1
+            for (offset in -radius..radius) {
+                val pixel = temporary[offset.coerceIn(0, height - 1) * width + x]
+                a += AndroidColor.alpha(pixel)
+                r += AndroidColor.red(pixel)
+                g += AndroidColor.green(pixel)
+                b += AndroidColor.blue(pixel)
+            }
+            for (y in 0 until height) {
+                source[y * width + x] = AndroidColor.argb(
+                    a / diameter, r / diameter, g / diameter, b / diameter
+                )
+                val remove = temporary[(y - radius).coerceIn(0, height - 1) * width + x]
+                val add = temporary[(y + radius + 1).coerceIn(0, height - 1) * width + x]
+                a += AndroidColor.alpha(add) - AndroidColor.alpha(remove)
+                r += AndroidColor.red(add) - AndroidColor.red(remove)
+                g += AndroidColor.green(add) - AndroidColor.green(remove)
+                b += AndroidColor.blue(add) - AndroidColor.blue(remove)
+            }
+        }
+        val swap = source
+        source = temporary
+        temporary = swap
+    }
+    bitmap.setPixels(source, 0, width, 0, 0, width, height)
 }
 
 @Composable

@@ -205,7 +205,7 @@ fun CameraScreen(
     onOpenSettings: () -> Unit,
     onOpenToolbox: () -> Unit,
     onOpenContentManagement: () -> Unit,
-    onOpenAlbum: () -> Unit,
+    onOpenAlbum: (Uri?) -> Unit,
     showGrid: Boolean,
     onShowGrid: (Boolean) -> Unit,
     showHist: Boolean,
@@ -2410,7 +2410,7 @@ fun CameraScreen(
                         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(52.dp).clip(RoundedCornerShape(13.dp)).background(CamColors.Glass)
-                                .animaTClickable { onOpenAlbum() }, contentAlignment = Alignment.Center) {
+                                .animaTClickable { onOpenAlbum(lastUri) }, contentAlignment = Alignment.Center) {
                                 val image = thumb
                                 if (image != null) Image(image, "Mở ảnh vừa chụp", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                 else Icon(Icons.Default.PhotoLibrary, "Mở album", tint = Color.White)

@@ -1,6 +1,9 @@
 package com.example.camui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedContent
@@ -26,6 +29,40 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : AppCompatActivity() {
+    /**
+     * Open the device gallery. Fall back to the system image viewer, then to the
+     * in-app album on devices that do not expose either external activity.
+     */
+    private fun openDeviceGallery(latestPhoto: Uri?): Boolean {
+        val galleryIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_APP_GALLERY)
+        }
+        try {
+            startActivity(galleryIntent)
+            return true
+        } catch (_: ActivityNotFoundException) {
+            // Some OEM gallery apps do not publish CATEGORY_APP_GALLERY.
+        } catch (_: SecurityException) {
+            // Continue with the content-URI image viewer fallback.
+        }
+
+        if (latestPhoto != null) {
+            val imageIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(latestPhoto, "image/*")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            try {
+                startActivity(imageIntent)
+                return true
+            } catch (_: ActivityNotFoundException) {
+                // No compatible external image viewer is installed.
+            } catch (_: SecurityException) {
+                // Fall through to the in-app album.
+            }
+        }
+        return false
+    }
+
     private fun hideStatusBar() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -93,7 +130,9 @@ class MainActivity : AppCompatActivity() {
                         onOpenSettings = { page = "settings" },
                         onOpenToolbox = { page = "toolbox" },
                         onOpenContentManagement = { page = "contents" },
-                        onOpenAlbum = { page = "album" },
+                        onOpenAlbum = { latestPhoto ->
+                            if (!openDeviceGallery(latestPhoto)) page = "album"
+                        },
                         showGrid = showGrid,
                         onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
                         showHist = showHist,

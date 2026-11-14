@@ -1805,6 +1805,8 @@ fun CameraScreen(
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
+                                        captureUseNightShot && orientationLabelFixed && hdmpApplied && outputResolutionApplied ->
+                                            "Đã lưu Night Shot · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
                                             if (hdmpApplied && outputResolutionApplied) "Đã lưu Night Shot · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
                                             else "Đã lưu Night Shot · đã ghép khung; ảnh gốc vẫn được giữ nếu HDMP không khả dụng."

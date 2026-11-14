@@ -155,6 +155,30 @@ object Camera2Info {
     }
 
     /**
+     * Uses only lenses exposed by the active logical multi-camera. Devices with a disclosed
+     * telephoto lens may use its real focal-length ratio; otherwise the UI is capped at 2x.
+     * CameraX's own max zoom remains the final authority.
+     */
+    fun maxSelectableZoom(
+        logical: CamDetails?,
+        physical: List<CamDetails>,
+        cameraXMaxZoom: Float
+    ): Float {
+        val cameraMax = cameraXMaxZoom.takeIf { it.isFinite() && it >= 1f } ?: 1f
+        val equivalents = physical.mapNotNull { it.eq35Mm?.takeIf { value -> value > 0f } }
+        val base = equivalents.minByOrNull { abs(it - 26f) }
+            ?: logical?.eq35Mm?.takeIf { it > 0f }
+        val teleRatio = if (base != null && base > 0f) {
+            equivalents.filter { it > base * 1.12f }
+                .maxOrNull()
+                ?.div(base)
+        } else null
+        val hasExposedTelephoto = teleRatio != null && teleRatio >= 1.25f
+        val policyMax = if (hasExposedTelephoto) maxOf(2f, teleRatio!!) else 2f
+        return minOf(cameraMax, policyMax).coerceAtLeast(1f)
+    }
+
+    /**
      * Generates quick zoom stops from the active logical camera's exposed physical lenses.
      * Ratios are derived from 35mm-equivalent focal lengths, then constrained by CameraX's
      * actual zoom range. The 2x quick stop is retained only when the device supports it.

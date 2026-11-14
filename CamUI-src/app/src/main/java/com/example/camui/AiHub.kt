@@ -63,28 +63,25 @@ fun HdmpBottomSheet(
         ) {
             Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "HDMP xử lý đa tầng: khử nhiễu theo cạnh, phục hồi vi chi tiết và tăng nét có kiểm soát. Bản hiện tại dùng xử lý ảnh cổ điển, chưa phải mô hình AI tạo sinh.",
+                "Phục hồi chi tiết · 8 tác vụ song song · tương thích bộ lọc",
                 color = HdmpMuted, fontSize = 12.sp
             )
             HdmpToggleRow(
                 title = "UHD · 108MP",
-                detail = "Ghép 5 khung hình, khử nhiễu, làm nét, tăng chi tiết và nội suy tối đa 108MP bằng 8 tác vụ song song.",
                 enabled = uhdEnabled, onEnabledChange = onUhdEnabledChange,
-                status = if (uhdEnabled) "UHD · ĐANG BẬT · 8 TÁC VỤ" else "UHD · TẮT"
+                status = if (uhdEnabled) "ĐANG BẬT · 8 TÁC VỤ" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
             HdmpToggleRow(
-                title = "FHD · TỐI ĐA 60MP",
-                detail = "Ghép 5 khung hình, khử nhiễu, làm nét, tăng chi tiết và nội suy tối đa 60MP bằng 6 tác vụ song song.",
+                title = "FHD · 60MP",
                 enabled = fhdEnabled, onEnabledChange = onFhdEnabledChange,
-                status = if (fhdEnabled) "FHD · ĐANG BẬT · 6 TÁC VỤ" else "FHD · TẮT"
+                status = if (fhdEnabled) "ĐANG BẬT · 8 TÁC VỤ" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
             HdmpToggleRow(
-                title = "UHD+ · TỐI ĐA 250MP",
-                detail = "Tăng cường micro-detail, phục hồi cạnh, khử nhiễu thích ứng và nội suy tối đa 250MP bằng 8 tác vụ. Cần đủ RAM; 250MP là kích thước đầu ra, không phải 250MP chi tiết quang học.",
+                title = "UHD+ · 250MP",
                 enabled = uhdPlusEnabled, onEnabledChange = onUhdPlusEnabledChange,
-                status = if (uhdPlusEnabled) "UHD+ · ĐANG BẬT · 8 TÁC VỤ" else "UHD+ · TẮT"
+                status = if (uhdPlusEnabled) "ĐANG BẬT · 8 TÁC VỤ" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
             Row(
@@ -118,7 +115,7 @@ fun HdmpBottomSheet(
             ) {
                 Text("Cách phân bổ xử lý", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "FHD dùng 6 tác vụ; UHD/UHD+ dùng 8 tác vụ. Night Shot giới hạn 60MP. Photo thường không chạy HDMP. Tốc độ burst và mức chi tiết thực tế phụ thuộc cảm biến, CPU, RAM và nhiệt độ; hệ thống không nhân bản khung hình để đủ số.",
+                    "FHD, UHD và UHD+ dùng cùng pipeline phục hồi chi tiết với 8 tác vụ. Night Shot giới hạn 60MP; Photo thường không chạy HDMP.",
                     color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
                 )
             }
@@ -129,7 +126,6 @@ fun HdmpBottomSheet(
 @Composable
 private fun HdmpToggleRow(
     title: String,
-    detail: String,
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     status: String
@@ -137,7 +133,6 @@ private fun HdmpToggleRow(
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(detail, color = HdmpMuted, fontSize = 11.sp, lineHeight = 15.sp)
             Text(status, color = if (enabled) HdmpYellow else Color(0xFF888888),
                 fontSize = 10.sp, fontWeight = FontWeight.Medium)
         }

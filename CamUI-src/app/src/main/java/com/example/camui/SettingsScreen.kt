@@ -490,8 +490,8 @@ var nightShotMode by remember {
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
-                    "HDR · Multi-frame",
-                    "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng.",
+                    "HDRbyHDMP",
+                    "Engine HDR phần mềm độc lập. Photo thường dùng profile xử lý 2x; khi bật HDMP FHD/UHD/UHD+ dùng profile 10x. Đây là mức xử lý nội bộ, không phải cam kết chất lượng tăng theo phép đo.",
                     hdr
                 ) {
                     hdr = it
@@ -503,7 +503,7 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "RAW lưu dữ liệu cảm biến thành DNG để hậu kỳ linh hoạt. RAW+ lưu đồng thời DNG và JPEG; JPEG được lưu theo luồng chụp thông thường. Chỉ bật được khi camera đang chọn hỗ trợ RAW.",
+                    "RAW và RAW+ chỉ lưu một tệp DNG. RAW+ ưu tiên RAW gốc gần 50MP nếu cảm biến/HAL công bố kích thước đó; không tạo JPEG kèm theo và không nội suy RAW. Nếu máy không hỗ trợ 50MP RAW, ứng dụng dùng độ phân giải RAW gốc khả dụng.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )

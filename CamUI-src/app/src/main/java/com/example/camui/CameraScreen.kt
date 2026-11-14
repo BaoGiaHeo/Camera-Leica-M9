@@ -404,6 +404,18 @@ fun CameraScreen(
             .putInt("pro_ev_index", evIndex)
             .apply()
     }
+    // NightShot must use normal auto exposure: lock EV at zero and do not expose
+    // the regular EV slider while either NightShot capture mode is selected.
+    LaunchedEffect(nightShotMode, mode) {
+        if (mode == "Photo" && nightShotMode != "off") {
+            evUserAdjusting = false
+            evIndex = 0
+            evSliderPosition = 0f
+            camera?.let { active ->
+                runCatching { active.cameraControl.setExposureCompensationIndex(0) }
+            }
+        }
+    }
     LaunchedEffect(zoomSel) {
         delay(250)
         appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
@@ -2082,6 +2094,17 @@ fun CameraScreen(
                                         Text(label, color = CamColors.Sub, fontSize = 9.sp)
                                     }
                                 }
+                            }
+                        } else if (mode == "Photo" && nightShotMode != "off") {
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("EV", color = CamColors.Yellow,
+                                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Spacer(Modifier.weight(1f))
+                                Text("AUTO · EV 0.0", color = CamColors.Sub,
+                                    fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                             }
                         } else {
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {

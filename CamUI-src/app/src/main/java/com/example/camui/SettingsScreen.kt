@@ -160,7 +160,7 @@ private fun SettingsDetailPage(
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
-    var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_coming_soon", false)) }
+    var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
     var uhd by remember {
         mutableStateOf(prefs.getBoolean("uhd_capture_enabled", prefs.getBoolean("uhd_coming_soon", false)))
     }
@@ -357,9 +357,16 @@ private fun SettingsDetailPage(
             }
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                SettingsSwitch("HDR", "Coming soon · backend chưa được tích hợp", hdr) {
+                SettingsSwitch(
+                    "HDR · Multi-frame",
+                    "Ưu tiên HDR nhiều mức phơi sáng từ CameraX/OEM. Nếu máy không có HDR Extension, ứng dụng thử Ultra HDR JPEG_R khi camera hỗ trợ. Quá trình hợp nhất dùng pipeline xử lý của thiết bị; Android không cho ứng dụng ép chọn riêng GPU hay CPU.",
+                    hdr
+                ) {
                     hdr = it
-                    prefs.edit().putBoolean("hdr_coming_soon", it).apply()
+                    prefs.edit()
+                        .putBoolean("hdr_enabled", it)
+                        .putBoolean("hdr_coming_soon", false)
+                        .apply()
                 }
                 SettingsSwitch(
                     "UHD · Độ phân giải tối đa",

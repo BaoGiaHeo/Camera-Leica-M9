@@ -312,6 +312,7 @@ fun CameraScreen(
     var camera2Inventory by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
     var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
+    var activePhysicalCameraId by remember { mutableStateOf<String?>(null) }
     var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
@@ -438,6 +439,7 @@ fun CameraScreen(
         imageCapture = null
         activeCameraDetails = null
         activePhysicalCameraDetails = emptyList()
+        activePhysicalCameraId = null
         liveAperture = null
         liveFocalMm = null
         captureSetupReady = false
@@ -522,6 +524,9 @@ fun CameraScreen(
                             live.aperture?.let { if (liveAperture != it) liveAperture = it }
                             live.focalMm?.let { if (liveFocalMm != it) liveFocalMm = it }
                             live.evIndex?.let { if (evIndex != it) evIndex = it }
+                            if (activePhysicalCameraId != live.activePhysicalCameraId) {
+                                activePhysicalCameraId = live.activePhysicalCameraId
+                            }
                         }
                     }
                 )
@@ -1629,7 +1634,8 @@ fun CameraScreen(
                             Text(
                                 buildString {
                                     append("Camera ID $activeCameraIdLabel · $hardwareLabel")
-                                    append(" · Physical: $physicalIdLabel")
+                                    append(" · Physical IDs: $physicalIdLabel")
+                                    append(" · Đang dùng: ${activePhysicalCameraId ?: "auto/không công khai"}")
                                     if (lensInfoLabel.isNotBlank()) append(" · $lensInfoLabel")
                                 },
                                 color = CamColors.Sub,

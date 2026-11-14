@@ -2902,7 +2902,7 @@ private fun FilterLookDialog(
                 Text(
                     "Đóng",
                     color = CamColors.Yellow,
-                    modifier = Modifier.animaTClickable(onDismiss).padding(6.dp),
+                    modifier = Modifier.animaTClickable(onClick = onDismiss).padding(6.dp),
                     fontSize = 12.sp
                 )
             }
@@ -3157,7 +3157,7 @@ private fun cameraSliderColors() = SliderDefaults.colors(
 private fun MiniChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(Modifier.clip(RoundedCornerShape(7.dp))
         .background(if (selected) CamColors.Yellow else CamColors.Chip)
-        .animaTClickable(onClick).padding(horizontal = 6.dp, vertical = 7.dp)) {
+        .animaTClickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 7.dp)) {
         Text(label, color = if (selected) Color.Black else Color.White,
             fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
     }

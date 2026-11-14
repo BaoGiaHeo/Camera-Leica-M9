@@ -25,9 +25,12 @@ object NcnnSuperResolution {
     private const val TAG = "FUJI_NCNN_SR"
     private const val MODEL_PARAM = "realesrgan-x4plus.param"
     private const val MODEL_BIN = "realesrgan-x4plus.bin"
-    private const val TARGET_MODEL_INPUT_PIXELS = 13_187_500L
     private const val TARGET_OUTPUT_PIXELS = 211_000_000L
+    private const val MIN_OUTPUT_PIXELS = 16_000_000L
     private const val TILE_SIZE = 256
+    @Volatile private var lastOutputPixels: Long = 0L
+
+    fun lastOutputMegapixels(): Long = lastOutputPixels / 1_000_000L
 
     init {
         System.loadLibrary("fujisr")
@@ -46,7 +49,11 @@ object NcnnSuperResolution {
      * The original MediaStore JPEG is left untouched unless the entire native pass and JPEG
      * encoding succeeds.
      */
-    fun enhanceCapturedPhoto(context: Context, uri: Uri): Boolean {
+    fun enhanceCapturedPhoto(
+        context: Context,
+        uri: Uri,
+        requestedOutputPixels: Long = TARGET_OUTPUT_PIXELS
+    ): Boolean {
         val uniqueName = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
         val tempOutput = File(context.cacheDir, "fuji-ai-$uniqueName.jpg")
         val originalBackup = File(context.cacheDir, "fuji-original-$uniqueName.jpg")
@@ -75,9 +82,28 @@ object NcnnSuperResolution {
             val originalWidth = src.width
             val originalHeight = src.height
             val inputPixels = originalWidth.toLong() * originalHeight.toLong()
-            val scale = sqrt(TARGET_MODEL_INPUT_PIXELS.toDouble() / inputPixels.toDouble())
-            val scaledWidth = (originalWidth * scale).toInt().coerceAtLeast(1)
-            val scaledHeight = (originalHeight * scale).toInt().coerceAtLeast(1)
+            // A fixed 211MP RGB_565 output needs about 422MB in one bitmap. Reserve memory
+            // for NCNN and the camera UI, then scale the x4 model input to the current heap.
+            val runtime = Runtime.getRuntime()
+            val usedHeapBytes = runtime.totalMemory() - runtime.freeMemory()
+            val freeHeapBytes = (runtime.maxMemory() - usedHeapBytes).coerceAtLeast(0L)
+            val safeOutputBytes = minOf(
+                (runtime.maxMemory().toDouble() * 0.64).toLong(),
+                (freeHeapBytes.toDouble() * 0.70).toLong()
+            )
+            val safeOutputPixels = (safeOutputBytes / 2L / 1_000_000L) * 1_000_000L
+            val requestedTarget = requestedOutputPixels.coerceIn(MIN_OUTPUT_PIXELS, TARGET_OUTPUT_PIXELS)
+            val effectiveTargetPixels = minOf(requestedTarget, safeOutputPixels)
+            require(effectiveTargetPixels >= MIN_OUTPUT_PIXELS) {
+                "Not enough free heap for minimum safe AI output"
+            }
+            val modelInputTargetPixels = effectiveTargetPixels / 16L
+            val scale = sqrt(modelInputTargetPixels.toDouble() / inputPixels.toDouble())
+            var scaledWidth = (originalWidth * scale).toInt().coerceAtLeast(1)
+            var scaledHeight = (originalHeight * scale).toInt().coerceAtLeast(1)
+            while (scaledWidth.toLong() * scaledHeight.toLong() > modelInputTargetPixels) {
+                if (scaledWidth >= scaledHeight) scaledWidth-- else scaledHeight--
+            }
             modelInput = if (scaledWidth != originalWidth || scaledHeight != originalHeight) {
                 Bitmap.createScaledBitmap(src, scaledWidth, scaledHeight, true).also {
                     if (it !== src) src.recycle()
@@ -86,19 +112,16 @@ object NcnnSuperResolution {
             } else {
                 src
             }
-            sourceBitmap = null // modelInput now owns the reference
+            sourceBitmap = null
 
             val outputWidth = modelInput!!.width * 4
             val outputHeight = modelInput!!.height * 4
             val outputPixels = outputWidth.toLong() * outputHeight.toLong()
-            require(outputPixels <= TARGET_OUTPUT_PIXELS) {
-                "AI output exceeds the 211 MP target"
-            }
+            require(outputPixels <= effectiveTargetPixels) { "Rounded NCNN output exceeds heap target" }
             val outputBytes = outputPixels * 2L
-            val safeHeapBudget = (Runtime.getRuntime().maxMemory().toDouble() * 0.78).toLong()
-            require(outputBytes < safeHeapBudget) {
-                "This device does not have enough safe heap for the 211 MP UHD output"
-            }
+            require(outputBytes <= safeOutputBytes) { "NCNN output exceeds free heap budget" }
+            lastOutputPixels = outputPixels
+            Log.i(TAG, "AI target ${requestedTarget / 1_000_000L}MP, actual ${outputPixels / 1_000_000L}MP, free heap ${freeHeapBytes / (1024L * 1024L)}MB")
             outputBitmap = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.RGB_565)
 
             val inferenceOk = nativeUpscaleInto(
@@ -158,6 +181,7 @@ object NcnnSuperResolution {
             Log.i(TAG, "Real-ESRGAN x4plus saved: ${outputWidth}x${outputHeight} (${outputPixels / 1_000_000L} MP)")
             true
         } catch (failure: Throwable) {
+            Log.e(TAG, "Real-ESRGAN failed for requested ${requestedOutputPixels / 1_000_000L}MP", failure)
             if (replacementStarted && originalBackup.exists()) {
                 runCatching {
                     context.contentResolver.openOutputStream(uri, "wt")?.use { output ->

@@ -349,9 +349,13 @@ fun CameraScreen(
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val rawCaptureMode = appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg"
     var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
-    LaunchedEffect(uhdCaptureEnabled, camera) {
-        appPrefs.edit().putBoolean("uhd_capture_enabled", uhdCaptureEnabled).apply()
-        if (uhdCaptureEnabled) {
+    var fhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("fhd_capture_enabled", false)) }
+    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, camera) {
+        appPrefs.edit()
+            .putBoolean("uhd_capture_enabled", uhdCaptureEnabled)
+            .putBoolean("fhd_capture_enabled", fhdCaptureEnabled)
+            .apply()
+        if (uhdCaptureEnabled || fhdCaptureEnabled) {
             ultraHdr = false
             zoomAnimationJob?.cancel()
             zoomSel = 1f
@@ -360,8 +364,8 @@ fun CameraScreen(
         }
     }
     // UHD is a dedicated 1x capture mode. Enabling it always returns to the main camera.
-    LaunchedEffect(uhdCaptureEnabled, camera) {
-        if (uhdCaptureEnabled) {
+    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, camera) {
+        if (uhdCaptureEnabled || fhdCaptureEnabled) {
             zoomAnimationJob?.cancel()
             zoomSel = 1f
             appPrefs.edit().putFloat("camera_zoom_ratio", 1f).apply()
@@ -378,6 +382,9 @@ fun CameraScreen(
     }
     var nightShotFrameCount by remember {
         mutableIntStateOf(appPrefs.getInt("nightshot_frame_count", 6).coerceIn(4, 12))
+    }
+    var nightShotDurationSeconds by remember {
+        mutableIntStateOf(appPrefs.getInt("nightshot_duration_seconds", 5).let { if (it in listOf(5, 10, 3)) it else 5 })
     }
     var starTrailExposureSeconds by remember {
         mutableIntStateOf(appPrefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
@@ -446,7 +453,7 @@ var aiPortraitDepthEnabled by remember {
     }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
-        nightShotMode, nightShotFrameCount, starTrailExposureSeconds, rawCaptureMode,
+        nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex
     ) {
@@ -461,6 +468,7 @@ var aiPortraitDepthEnabled by remember {
             .putInt("camera_metering_index", metering)
             .putString("nightshot_mode", nightShotMode)
             .putInt("nightshot_frame_count", nightShotFrameCount)
+            .putInt("nightshot_duration_seconds", nightShotDurationSeconds)
             .putInt("star_trails_exposure_seconds", starTrailExposureSeconds)
             .putBoolean("pro_manual_exposure_enabled", manualExposure)
             .putBoolean("pro_manual_iso_enabled", manualIsoEnabled)
@@ -522,7 +530,7 @@ var aiPortraitDepthEnabled by remember {
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
-        manualCaptureRevision, uhdCaptureEnabled, hdrEnabled, nightShotMode,
+        manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, aiCompositionEnabled, mode
     ) {
         if (!hasCam) return@LaunchedEffect
@@ -580,7 +588,8 @@ var aiPortraitDepthEnabled by remember {
                     ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
                 }.getOrDefault(emptySet())
             }.orEmpty()
-            val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" && rawCaptureMode != "jpeg"
+            val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" &&
+                !uhdCaptureEnabled && !fhdCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
                 "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
                 "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
@@ -614,7 +623,7 @@ var aiPortraitDepthEnabled by remember {
             // single high-gain/long-shutter exposure, which is not the requested behaviour.
             nightExtensionActive = false
             val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
-                nightShotMode == "off" && !rawCaptureActive &&
+                nightShotMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !rawCaptureActive &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
                 runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR) }
@@ -704,7 +713,7 @@ var aiPortraitDepthEnabled by remember {
                         .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, captureExposure)
                         .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(captureExposure, 10_000_000L))
                 }
-                if (imageQuality == "Best" || uhdCaptureEnabled) {
+                if (imageQuality == "Best" || uhdCaptureEnabled || fhdCaptureEnabled) {
                     captureBuilder.setResolutionSelector(
                         ResolutionSelector.Builder()
                             .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
@@ -719,7 +728,7 @@ var aiPortraitDepthEnabled by remember {
                             .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
                     }.getOrNull()
                 }.orEmpty()
-                val preferredNrModes = when (if (uhdCaptureEnabled) "High+" else noiseReduction) {
+                val preferredNrModes = when (if (uhdCaptureEnabled || fhdCaptureEnabled) "High+" else noiseReduction) {
                     "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
                     "Low" -> listOf(
                         CaptureRequest.NOISE_REDUCTION_MODE_FAST,
@@ -793,7 +802,9 @@ var aiPortraitDepthEnabled by remember {
                     }
                 }
                 val capture = captureBuilder.build()
-                capture.flashMode = flash
+                capture.flashMode = if (nightShotMode == "night" || uhdCaptureEnabled || fhdCaptureEnabled) {
+                    ImageCapture.FLASH_MODE_OFF
+                } else flash
 
                 val analysis = ImageAnalysis.Builder()
                     .setTargetRotation(rotation)
@@ -1003,7 +1014,7 @@ var aiPortraitDepthEnabled by remember {
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
                 val restoredZoom = savedZoom.coerceIn(
                     zoomStateOnBind?.minZoomRatio ?: 1f,
-                    if (uhdCaptureEnabled) 1f else min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
+                    if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, zoomStateOnBind?.maxZoomRatio ?: 1f)
                 )
                 zoomSel = restoredZoom
                 runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
@@ -1475,22 +1486,25 @@ var aiPortraitDepthEnabled by remember {
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val captureAtOneX = kotlin.math.abs(zoomSel - 1f) < 0.08f
+            val captureAtOneX = uhdCaptureEnabled || fhdCaptureEnabled ||
+                kotlin.math.abs(zoomSel - 1f) < 0.08f
             val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus && !captureRawOnly
+            val captureUseFhdAi = fhdCaptureEnabled && !captureRawPlus && !captureRawOnly
+            val captureUseAiSuperResolution = captureUseUhdAi || captureUseFhdAi
             val captureUseFilmAi = activeFilter != "None" && !captureRawPlus && !captureRawOnly
-            // UHD forces the strongest available AI denoising pass regardless of the manual NR setting.
-            val captureNoiseReduction = when {
-                captureRawPlus -> "Off"
-                uhdCaptureEnabled -> "High+"
-                else -> noiseReduction
-            }
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
             val captureNightShotExtension = nightExtensionActive
-            val captureNightFrameCount = nightShotFrameCount.coerceIn(4, 12)
+            val captureNightDurationSeconds = nightShotDurationSeconds.coerceIn(3, 10)
+            val captureUseFiveFrameStack = captureUseUhdAi || captureUseFhdAi
+            val captureNoiseReduction = when {
+                captureRawPlus -> "Off"
+                captureUseAiSuperResolution || captureUseNightShot -> "High+"
+                else -> noiseReduction
+            }
             if (captureUseNightShot) {
                 localizedToast(
                     context,
-                    "NightShot chụp nhiều khung với AE bình thường (EV 0). Hãy giữ máy ổn định.",
+                    "NightShot thu khung trong ${captureNightDurationSeconds}s (tối đa 96 khung tùy tốc độ camera), AE bình thường EV 0. Hãy giữ máy ổn định.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -1627,7 +1641,8 @@ var aiPortraitDepthEnabled by remember {
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseNightShot -> "NightShot đang xử lý, vui lòng giữ máy"
-                                captureUseUhdAi -> "UHD · AI khử nhiễu và siêu phân giải"
+                                captureUseUhdAi -> "UHD · ghép 5 khung + AI Photo"
+                                captureUseFhdAi -> "FHD · ghép 5 khung + AI Photo 108MP"
                                 captureUseFilmAi -> "AI đang tối ưu ảnh trước khi áp dụng bộ lọc"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
@@ -1640,57 +1655,74 @@ var aiPortraitDepthEnabled by remember {
                             }
                             scope.launch(Dispatchers.IO) {
                                 var nightShotMerged = false
-                                if (captureUseNightShot && !captureNightShotExtension) {
-                                    val nightFrames = mutableListOf<File>()
-                                    val firstFrame = File(context.cacheDir, "fuji-night-first-" + System.nanoTime() + ".jpg")
+                                if ((captureUseNightShot || captureUseFiveFrameStack) && !captureNightShotExtension) {
+                                    val stackedFrames = mutableListOf<File>()
+                                    val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
-                                            nightFrames.add(firstFrame)
-                                            for (index in 1 until captureNightFrameCount) {
+                                            stackedFrames.add(firstFrame)
+                                            val maxFrames = if (captureUseNightShot) 96 else 5
+                                            val deadline = if (captureUseNightShot) {
+                                                System.currentTimeMillis() + captureNightDurationSeconds * 1000L
+                                            } else Long.MAX_VALUE
+                                            while (stackedFrames.size < maxFrames &&
+                                                (!captureUseNightShot || System.currentTimeMillis() < deadline)
+                                            ) {
+                                                val frameNumber = stackedFrames.size + 1
                                                 withContext(Dispatchers.Main) {
-                                                    processingLabel = "NightShot: đang chụp khung " +
-                                                        (index + 1) + "/" + captureNightFrameCount
-                                                    processingProgress = (5 + index * 2).coerceAtMost(24)
+                                                    processingLabel = if (captureUseNightShot) {
+                                                        "NightShot: thu khung $frameNumber · tối đa 96"
+                                                    } else {
+                                                        "Multi-frame: chụp khung $frameNumber/5"
+                                                    }
+                                                    processingProgress = if (captureUseNightShot) {
+                                                        (5 + stackedFrames.size / 4).coerceAtMost(24)
+                                                    } else (8 + stackedFrames.size * 3).coerceAtMost(24)
                                                 }
                                                 val nextFrame = File(
                                                     context.cacheDir,
-                                                    "fuji-night-" + System.nanoTime() + "-" + index + ".jpg"
+                                                    "fuji-stack-" + System.nanoTime() + "-" + frameNumber + ".jpg"
                                                 )
                                                 val captured = NightShotProcessor.captureFrameToFile(
-                                                    capture,
-                                                    nextFrame,
-                                                    mainExecutor
+                                                    capture, nextFrame, mainExecutor
                                                 )
                                                 if (!captured) {
                                                     runCatching { nextFrame.delete() }
                                                     break
                                                 }
-                                                nightFrames.add(nextFrame)
-                                                delay(100)
+                                                stackedFrames.add(nextFrame)
                                             }
-                                            if (nightFrames.size >= 2) {
+                                            if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
-                                                    processingLabel = "NightShot: đang gộp và giảm nhiễu"
+                                                    processingLabel = if (captureUseNightShot) {
+                                                        "NightShot: căn chỉnh và gộp ${stackedFrames.size} khung"
+                                                    } else {
+                                                        "Multi-frame: căn chỉnh và gộp ${stackedFrames.size}/5 khung"
+                                                    }
                                                     processingProgress = 27
                                                 }
                                                 nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
-                                                    context,
-                                                    nightFrames,
-                                                    saved,
+                                                    context, stackedFrames, saved,
                                                     NightShotProcessor.MergeMode.NIGHT_AVERAGE
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
-                                                        processingLabel = "NightShot: đang căn khung và giảm nhiễu"
+                                                        processingLabel = if (captureUseNightShot) {
+                                                            "NightShot: căn khung và giảm nhiễu"
+                                                        } else "Multi-frame: ghép 5 khung"
                                                         processingProgress = (27 + mergeProgress * 0.55f)
                                                             .toInt().coerceIn(27, 82)
                                                     }
                                                 }
                                             }
+                                            android.util.Log.i(
+                                                "FUJI_FRAME_STACK",
+                                                "mode=${if (captureUseNightShot) "NightShot-${captureNightDurationSeconds}s" else if (captureUseUhdAi) "UHD" else "FHD"} actualFrames=${stackedFrames.size}"
+                                            )
                                         }
                                     } finally {
-                                        nightFrames.forEach { runCatching { it.delete() } }
+                                        stackedFrames.forEach { runCatching { it.delete() } }
                                         withContext(Dispatchers.Main) {
-                                            nightShotCaptureInProgress = false
+                                            if (captureUseNightShot) nightShotCaptureInProgress = false
                                         }
                                     }
                                 }
@@ -1727,7 +1759,9 @@ var aiPortraitDepthEnabled by remember {
                                     withContext(Dispatchers.IO) {
                                         runCatching {
                                             // Mild blend for filter-only AI; stronger denoising in UHD mode.
-                                            val naturalStrength = if (captureUseUhdAi) 0.82f else 0.38f
+                                            val naturalStrength = if (
+                                                captureUseUhdAi || captureUseFhdAi || captureUseNightShot
+                                            ) 0.82f else 0.38f
                                             NafNetDenoiser.enhanceCapturedPhoto(context, saved, naturalStrength) { progress ->
                                                 mainExecutor.execute {
                                                     val safeProgress = progress.coerceIn(0, 100)
@@ -1793,7 +1827,8 @@ var aiPortraitDepthEnabled by remember {
                                     )
                                 }.getOrDefault(false)
 
-                                val aiSuperResolutionApplied = if (!captureIsUltraHdr && captureUseUhdAi) {
+                                var aiOutputMegapixels = 0L
+                                val aiSuperResolutionApplied = if (!captureIsUltraHdr && captureUseAiSuperResolution) {
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "AI đang xử lý, vui lòng chờ"
                                         processingProgress = 78
@@ -1820,7 +1855,10 @@ var aiPortraitDepthEnabled by remember {
                                     }
                                     val aiResult = try {
                                         runCatching {
-                                            NcnnSuperResolution.enhanceCapturedPhoto(context, saved)
+                                            NcnnSuperResolution.enhanceCapturedPhoto(
+                                                context, saved,
+                                                if (captureUseUhdAi) 211_000_000L else 108_000_000L
+                                            )
                                         }.onFailure {
                                             android.util.Log.e("FUJI_NCNN_SR", "AI enhancement failed", it)
                                         }.getOrDefault(false)
@@ -1832,13 +1870,14 @@ var aiPortraitDepthEnabled by remember {
                                         processingProgress = 96
                                         processingEtaSeconds = 2
                                     }
+                                    if (aiResult) aiOutputMegapixels = NcnnSuperResolution.lastOutputMegapixels()
                                     aiResult
                                 } else false
 
                                 // The existing GPU/CPU sharpener remains as a safe fallback if NCNN
                                 // cannot initialize Vulkan, the model asset is unavailable, or inference fails.
                                 val softwareSharpenFallback = if (
-                                    !captureIsUltraHdr && captureUseUhdAi && !aiSuperResolutionApplied
+                                    !captureIsUltraHdr && (captureUseAiSuperResolution || captureUseNightShot) && !aiSuperResolutionApplied
                                 ) {
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "AI không khả dụng · chuyển sang làm nét GPU/CPU"
@@ -1856,7 +1895,7 @@ var aiPortraitDepthEnabled by remember {
                                 } else false
 
                                 val output211MpApplied = if (
-                                    !captureIsUltraHdr && !captureUseUhdAi && captureAtOneX &&
+                                    !captureIsUltraHdr && !captureUseAiSuperResolution && captureAtOneX &&
                                     !captureRawOnly && !captureRawPlus
                                 ) {
                                     withContext(Dispatchers.Main) {
@@ -1892,6 +1931,10 @@ var aiPortraitDepthEnabled by remember {
                                     val message = when {
                                         captureUseNightShot && nightShotMerged && aiDenoiseApplied && orientationLabelFixed ->
                                             "Đã lưu NightShot · gộp nhiều khung và khử nhiễu AI NAFNet."
+                                        captureUseFhdAi && aiSuperResolutionApplied && orientationLabelFixed ->
+                                            "Đã lưu FHD · ghép 5 khung, NAFNet khử nhiễu và Real-ESRGAN x4plus · ${aiOutputMegapixels}MP."
+                                        captureUseUhdAi && aiSuperResolutionApplied && orientationLabelFixed ->
+                                            "Đã lưu UHD · ghép 5 khung, NAFNet khử nhiễu và Real-ESRGAN x4plus · ${aiOutputMegapixels}MP."
                                         aiDenoiseApplied && orientationLabelFixed ->
                                             "Đã lưu ảnh đúng hướng · AI NAFNet đã khử nhiễu ($captureNoiseReduction)."
                                         captureNoiseReduction != "Off" && !aiDenoiseApplied && !captureIsUltraHdr ->
@@ -1970,7 +2013,7 @@ var aiPortraitDepthEnabled by remember {
         val state = activeCamera.cameraInfo.zoomState.value ?: return
         val safeTarget = targetRatio.coerceIn(
             state.minZoomRatio,
-            if (uhdCaptureEnabled) 1f else min(2f, state.maxZoomRatio)
+            if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, state.maxZoomRatio)
         )
         val start = state.zoomRatio
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
@@ -2085,15 +2128,39 @@ var aiPortraitDepthEnabled by remember {
                             onClick = { showQuick = !showQuick },
                             tint = if (showQuick) CamColors.Yellow else Color.White
                         )
-                        if (mode == "Photo" && nightShotMode != "off") {
+                        if (mode == "Photo" && nightShotMode == "star_trails") {
                             CircleBtn(
                                 Icons.Default.Bedtime,
-                                if (nightShotMode == "star_trails") "Star Trails · nhấn chụp để bắt đầu/dừng"
-                                else if (nightExtensionActive) "NightShot · Camera NIGHT"
-                                else "NightShot · gộp nhiều khung",
+                                "Star Trails · nhấn chụp để bắt đầu/dừng",
                                 onClick = onOpenSettings,
                                 tint = CamColors.Yellow
                             )
+                        } else if (mode == "Photo" && (lowLightDetected || nightShotMode == "night")) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircleBtn(
+                                    Icons.Default.Bedtime,
+                                    if (nightShotMode == "night") "NightShot ${nightShotDurationSeconds}s" else "NightShot",
+                                    onClick = {
+                                        if (nightShotMode != "night") {
+                                            nightShotMode = "night"
+                                            nightShotDurationSeconds = 5
+                                        } else {
+                                            nightShotDurationSeconds = when (nightShotDurationSeconds) {
+                                                5 -> 10
+                                                10 -> 3
+                                                else -> 5
+                                            }
+                                        }
+                                    },
+                                    tint = CamColors.Yellow
+                                )
+                                Text(
+                                    if (nightShotMode == "night") "${nightShotDurationSeconds}s" else "Night",
+                                    color = CamColors.Yellow, fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(start = 3.dp)
+                                )
+                            }
                         }
                     }
     }
@@ -2105,11 +2172,11 @@ var aiPortraitDepthEnabled by remember {
                                 .aspectRatio(previewAspectRatio)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.Black)
-                                .pointerInput(camera, uhdCaptureEnabled) {
+                                .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled) {
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()
                                         val zoomState = camera?.cameraInfo?.zoomState?.value ?: return@detectTransformGestures
-                                        val maxZoom = if (uhdCaptureEnabled) 1f else min(2f, zoomState.maxZoomRatio)
+                                        val maxZoom = if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, zoomState.maxZoomRatio)
                                         val nextZoom = (zoomState.zoomRatio * zoomChange)
                                             .coerceIn(zoomState.minZoomRatio, maxZoom)
                                         camera?.cameraControl?.setZoomRatio(nextZoom)
@@ -2270,9 +2337,9 @@ var aiPortraitDepthEnabled by remember {
                         // Lens quick-select values come from the physical cameras exposed by
                         // this logical CameraX camera, then are clamped to its real zoom range.
                         val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
-                        val zoomMaxForUi = if (uhdCaptureEnabled) 1f else min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
+                        val zoomMaxForUi = if (uhdCaptureEnabled || fhdCaptureEnabled) 1f else min(2f, zoomStateForUi?.maxZoomRatio ?: 1f)
                         val zoomMinForUi = zoomStateForUi?.minZoomRatio ?: 1f
-                        val zoomSteps = if (uhdCaptureEnabled) listOf(1f) else Camera2Info.opticalZoomStops(
+                        val zoomSteps = if (uhdCaptureEnabled || fhdCaptureEnabled) listOf(1f) else Camera2Info.opticalZoomStops(
                             logical = activeCameraDetails,
                             physical = activePhysicalCameraDetails,
                             minZoom = zoomMinForUi,
@@ -2527,7 +2594,7 @@ var aiPortraitDepthEnabled by remember {
                                 )
                                 Spacer(Modifier.weight(1f))
                                 Text(
-                                    if (nightShotMode == "night") "AUTO · EV 0.0 · MULTI-FRAME"
+                                    if (nightShotMode == "night") "AUTO · EV 0.0 · ${nightShotDurationSeconds}s · MULTI-FRAME"
                                     else "${starTrailExposureSeconds}s · ISO 800 · EV 0.0",
                                     color = CamColors.Sub,
                                     fontWeight = FontWeight.SemiBold,
@@ -2843,7 +2910,15 @@ stabilization = stabilization,
                 directorEnabled = aiDirectorVlmEnabled,
                 onDirectorChanged = { aiDirectorVlmEnabled = it },
                 uhdEnabled = uhdCaptureEnabled,
-                onUhdEnabledChange = { uhdCaptureEnabled = it },
+                onUhdEnabledChange = {
+                    uhdCaptureEnabled = it
+                    if (it) fhdCaptureEnabled = false
+                },
+                fhdEnabled = fhdCaptureEnabled,
+                onFhdEnabledChange = {
+                    fhdCaptureEnabled = it
+                    if (it) uhdCaptureEnabled = false
+                },
                 portraitEnabled = aiPortraitDepthEnabled,
                 onPortraitChanged = { aiPortraitDepthEnabled = it }
             )

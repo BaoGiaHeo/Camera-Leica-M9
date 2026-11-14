@@ -32,7 +32,7 @@ import kotlin.math.sqrt
  */
 object NightShotProcessor {
     private const val TAG = "FUJI_NIGHTSHOT"
-    private const val MAX_OUTPUT_PIXELS = 12_000_000L
+    private const val MAX_OUTPUT_PIXELS = 16_000_000L
     private val EXIF_TAGS = listOf(
         ExifInterface.TAG_DATETIME,
         ExifInterface.TAG_DATETIME_ORIGINAL,

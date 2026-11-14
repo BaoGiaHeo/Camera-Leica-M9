@@ -1360,8 +1360,8 @@ fun CameraScreen(
             if (captureUseNightShot) {
                 localizedToast(
                     context,
-                    "NightShot thu khung trong ${captureNightDurationSeconds}s (tối đa 96 khung tùy tốc độ camera), AE bình thường EV 0. Hãy giữ máy ổn định.",
-                    Toast.LENGTH_SHORT
+                    "Night Shot ${captureNightDurationSeconds}s · mục tiêu 0,2 giây/khung. Giữ máy khi thu ảnh; có thể di chuyển sau khi thu xong trong lúc HDMP xử lý.",
+                    Toast.LENGTH_LONG
                 ).show()
             }
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
@@ -1434,6 +1434,7 @@ fun CameraScreen(
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/RAW")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
+            val captureNightStartedAtMillis = System.currentTimeMillis()
             if (captureUseNightShot) nightShotCaptureInProgress = true
             val output = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
@@ -1496,9 +1497,9 @@ fun CameraScreen(
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
-                                captureUseNightShot -> "NightShot đang xử lý, vui lòng giữ máy"
-                                captureUseUhdAlgorithm -> "UHD · ghép 5 khung + nội suy 211MP"
-                                captureUseFhdAlgorithm -> "FHD · ghép 5 khung + nội suy 108MP"
+                                captureUseNightShot -> "HDMP Night Shot · căn chỉnh và ghép nhiều khung"
+                                captureUseUhdAlgorithm -> "UHD · HDMP 8 tác vụ · ghép 5 khung + 108MP"
+                                captureUseFhdAlgorithm -> "FHD · HDMP 6 tác vụ · ghép 5 khung + 60MP"
                                 false -> "Đang áp dụng bộ lọc màu"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 else -> "Ảnh đang được xử lý"
@@ -1516,22 +1517,30 @@ fun CameraScreen(
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
-                                            val maxFrames = if (captureUseNightShot) 96 else 5
+                                            val maxFrames = if (captureUseNightShot) {
+                                                (captureNightDurationSeconds * 1000L / 200L).toInt().coerceIn(2, 96)
+                                            } else 5
                                             val deadline = if (captureUseNightShot) {
-                                                System.currentTimeMillis() + captureNightDurationSeconds * 1000L
+                                                captureNightStartedAtMillis + captureNightDurationSeconds * 1000L
                                             } else Long.MAX_VALUE
+                                            var nextFrameDueAt = System.currentTimeMillis() + 200L
                                             while (stackedFrames.size < maxFrames &&
                                                 (!captureUseNightShot || System.currentTimeMillis() < deadline)
                                             ) {
+                                                if (captureUseNightShot) {
+                                                    val waitMs = nextFrameDueAt - System.currentTimeMillis()
+                                                    if (waitMs > 0L) delay(waitMs)
+                                                    if (System.currentTimeMillis() >= deadline) break
+                                                }
                                                 val frameNumber = stackedFrames.size + 1
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = if (captureUseNightShot) {
-                                                        "NightShot: thu khung $frameNumber · tối đa 96"
+                                                        "Night Shot: khung $frameNumber/$maxFrames · nhịp 0,2s"
                                                     } else {
                                                         "Multi-frame: chụp khung $frameNumber/5"
                                                     }
                                                     processingProgress = if (captureUseNightShot) {
-                                                        (5 + stackedFrames.size / 4).coerceAtMost(24)
+                                                        (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
                                                     } else (8 + stackedFrames.size * 3).coerceAtMost(24)
                                                 }
                                                 val nextFrame = File(
@@ -1546,6 +1555,12 @@ fun CameraScreen(
                                                     break
                                                 }
                                                 stackedFrames.add(nextFrame)
+                                                if (captureUseNightShot) {
+                                                    nextFrameDueAt += 200L
+                                                    if (nextFrameDueAt <= System.currentTimeMillis()) {
+                                                        nextFrameDueAt = System.currentTimeMillis() + 200L
+                                                    }
+                                                }
                                             }
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
@@ -1595,6 +1610,26 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
+                                val hdmpWorkerCount = when {
+                                    captureUseUhdAlgorithm -> 8
+                                    captureUseFhdAlgorithm -> 6
+                                    captureUseNightShot -> Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+                                    else -> 0
+                                }
+                                val hdmpApplied = if (hdmpWorkerCount > 0) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "HDMP · khử nhiễu, làm nét, tăng chi tiết · $hdmpWorkerCount tác vụ"
+                                        processingProgress = 38
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        HdmpEngine.process(context, saved, hdmpWorkerCount) { progress ->
+                                            mainExecutor.execute {
+                                                processingLabel = "HDMP · xử lý ảnh $progress%"
+                                                processingProgress = (38 + progress * 0.18f).roundToInt().coerceIn(38, 56)
+                                            }
+                                        }
+                                    }
+                                } else false
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 56
                                     processingEtaSeconds = -1
@@ -1637,8 +1672,8 @@ fun CameraScreen(
                                     (captureUseUhdAlgorithm || captureUseFhdAlgorithm || (!captureUseNightShot && noiseReduction != "Off"))
                                 ) {
                                     val targetPixels = when {
-                                        captureUseUhdAlgorithm -> 211_000_000L
-                                        captureUseFhdAlgorithm -> 108_000_000L
+                                        captureUseUhdAlgorithm -> 108_000_000L
+                                        captureUseFhdAlgorithm -> 60_000_000L
                                         else -> 211_000_000L
                                     }
                                     withContext(Dispatchers.Main) {
@@ -1673,15 +1708,16 @@ fun CameraScreen(
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
-                                            "Đã lưu NightShot · căn chỉnh và trung bình nhiều khung để giảm nhiễu."
+                                            if (hdmpApplied) "Đã lưu Night Shot · đã căn chỉnh, ghép khung và HDMP xử lý ảnh."
+                                            else "Đã lưu Night Shot · đã ghép khung; HDMP giữ ảnh gốc vì xử lý không thành công."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
                                             "NightShot đã xử lý bằng chế độ NIGHT của camera."
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
                                         captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu UHD · ghép 5 khung và nội suy thuật toán khoảng 211MP."
+                                            "Đã lưu UHD 108MP · HDMP xử lý bằng 8 tác vụ và nội suy thuật toán."
                                         captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu FHD · ghép 5 khung và nội suy thuật toán khoảng 108MP."
+                                            "Đã lưu FHD tối đa 60MP · HDMP xử lý bằng 6 tác vụ và nội suy thuật toán."
                                         captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
                                         captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."

@@ -142,6 +142,12 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
+import com.google.mlkit.vision.pose.PoseDetection
+import com.google.mlkit.vision.pose.PoseLandmark
+import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
+import com.google.mlkit.vision.label.ImageLabeling
+import com.google.mlkit.vision.label.ImageLabeler
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -396,7 +402,27 @@ var aiPortraitDepthEnabled by remember {
             .putBoolean("ai_portrait_depth_enabled", aiPortraitDepthEnabled)
             .apply()
     }
-    var aiCompositionHint by remember { mutableStateOf("Chưa thấy khuôn mặt") }
+    var aiCompositionHint by remember { mutableStateOf("Đang phân tích bố cục và tư thế") }
+    var aiDirectorHint by remember { mutableStateOf("Đang phân tích khung cảnh") }
+    val poseDetector = remember(aiCompositionEnabled) {
+        if (aiCompositionEnabled) {
+            PoseDetection.getClient(
+                PoseDetectorOptions.Builder()
+                    .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
+                    .build()
+            )
+        } else null
+    }
+    DisposableEffect(poseDetector) {
+        onDispose { poseDetector?.close() }
+    }
+    val directorImageLabeler: ImageLabeler? = remember(aiDirectorVlmEnabled) {
+        if (aiDirectorVlmEnabled) ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
+        else null
+    }
+    DisposableEffect(directorImageLabeler) {
+        onDispose { directorImageLabeler?.close() }
+    }
     val faceDetector: FaceDetector? = remember(aiCompositionEnabled) {
         if (aiCompositionEnabled) {
             val options = FaceDetectorOptions.Builder()
@@ -769,6 +795,7 @@ var aiPortraitDepthEnabled by remember {
                 analysisUseCase = analysis
                 var lastAnalysis = 0L
                 var lastAiAnalysis = 0L
+                var lastAiDirectorAnalysis = 0L
                 analysis.setAnalyzer(analysisExecutor) { image ->
                     try {
                         val now = System.currentTimeMillis()
@@ -832,8 +859,32 @@ var aiPortraitDepthEnabled by remember {
                                     val largest = faces.maxByOrNull {
                                         it.boundingBox.width().toLong() * it.boundingBox.height().toLong()
                                     }
-                                    val hint = if (largest == null) {
-                                        "Chưa thấy khuôn mặt · thử đặt chủ thể vào 1/3"
+                                    val pose = poseDetector?.let { detector ->
+                                        runCatching {
+                                            Tasks.await(detector.process(input), 700, TimeUnit.MILLISECONDS)
+                                        }.getOrNull()
+                                    }
+                                    val leftShoulder = pose?.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)
+                                    val rightShoulder = pose?.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER)
+                                    val leftWrist = pose?.getPoseLandmark(PoseLandmark.LEFT_WRIST)
+                                    val rightWrist = pose?.getPoseLandmark(PoseLandmark.RIGHT_WRIST)
+                                    val poseHint = if (pose?.allPoseLandmarks.orEmpty().size >= 12) {
+                                        val shoulderTilt = if (leftShoulder != null && rightShoulder != null) {
+                                            kotlin.math.abs(leftShoulder.position.y - rightShoulder.position.y)
+                                        } else 0f
+                                        when {
+                                            leftShoulder != null && rightShoulder != null &&
+                                                leftWrist != null && rightWrist != null &&
+                                                leftWrist.position.y < leftShoulder.position.y &&
+                                                rightWrist.position.y < rightShoulder.position.y ->
+                                                "Tư thế giơ hai tay · lùi máy để đủ khoảng trống"
+                                            shoulderTilt > image.height * 0.06f ->
+                                                "Vai đang nghiêng · chỉnh vai cân bằng hoặc xoay 15°"
+                                            else -> "Đã nhận diện 33 điểm cơ thể · thả lỏng vai và tay"
+                                        }
+                                    } else null
+                                    val hint = poseHint ?: if (largest == null) {
+                                        "Chưa thấy chủ thể · thử đặt vào một phần ba khung hình"
                                     } else {
                                         val bounds = largest.boundingBox
                                         val rotation = image.imageInfo.rotationDegrees
@@ -853,6 +904,45 @@ var aiPortraitDepthEnabled by remember {
                                     scope.launch(Dispatchers.Main) { aiCompositionHint = hint }
                                 } catch (error: Exception) {
                                     android.util.Log.w("FUJI_AI_COMPOSITION", "Face analysis skipped", error)
+                                }
+                            }
+                        }
+
+                        if (aiDirectorVlmEnabled && directorImageLabeler != null &&
+                            now - lastAiDirectorAnalysis > 1400
+                        ) {
+                            lastAiDirectorAnalysis = now
+                            val mediaImage = image.image
+                            if (mediaImage != null) {
+                                try {
+                                    val input = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+                                    val labels = Tasks.await(
+                                        directorImageLabeler.process(input),
+                                        900,
+                                        TimeUnit.MILLISECONDS
+                                    )
+                                    val sceneLabels = labels
+                                        .filter { it.confidence >= 0.45f }
+                                        .sortedByDescending { it.confidence }
+                                        .map { it.text.lowercase(Locale.ROOT) }
+                                    val directorHint = when {
+                                        sceneLabels.any { it.contains("person") || it.contains("human") } ->
+                                            "Cảnh chân dung · lấy nét mắt, chừa khoảng trống theo hướng nhìn"
+                                        sceneLabels.any { it.contains("food") || it.contains("dish") } ->
+                                            "Cảnh đồ ăn · thử góc 45° hoặc chụp từ trên xuống"
+                                        sceneLabels.any { it.contains("building") || it.contains("architecture") } ->
+                                            "Cảnh kiến trúc · giữ đường thẳng đứng và cân đường chân trời"
+                                        sceneLabels.any { it.contains("mountain") || it.contains("sky") || it.contains("landscape") } ->
+                                            "Cảnh phong cảnh · đặt đường chân trời ở 1/3 khung hình"
+                                        sceneLabels.any { it.contains("plant") || it.contains("flower") || it.contains("animal") } ->
+                                            "Chủ thể thiên nhiên · tiến gần và tách nền để nổi bật chi tiết"
+                                        sceneLabels.any { it.contains("car") || it.contains("vehicle") } ->
+                                            "Cảnh chuyển động · chừa khoảng trống phía trước chủ thể"
+                                        else -> "Giữ chủ thể rõ, tránh nền rối và kiểm tra ánh sáng"
+                                    }
+                                    scope.launch(Dispatchers.Main) { aiDirectorHint = directorHint }
+                                } catch (error: Exception) {
+                                    android.util.Log.w("FUJI_AI_DIRECTOR", "Scene labeling skipped", error)
                                 }
                             }
                         }
@@ -2076,6 +2166,16 @@ var aiPortraitDepthEnabled by remember {
                                     color = Color.White,
                                     fontSize = 8.sp,
                                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
+                                        .clip(RoundedCornerShape(7.dp)).background(Color(0xAA000000))
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                )
+                            }
+                            if (aiDirectorVlmEnabled) {
+                                Text(
+                                    "AI DIRECTOR · $aiDirectorHint",
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp)
                                         .clip(RoundedCornerShape(7.dp)).background(Color(0xAA000000))
                                         .padding(horizontal = 8.dp, vertical = 5.dp)
                                 )

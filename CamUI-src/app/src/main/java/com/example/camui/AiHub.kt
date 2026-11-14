@@ -85,11 +85,11 @@ portraitEnabled: Boolean,
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
-                title = "Trợ lý Đạo diễn VLM",
-                detail = "Công tắc thử nghiệm. Moondream2 / llama.cpp chưa được đóng gói vào APK.",
+                title = "Trợ lý Đạo diễn AI",
+                detail = "Nhận diện cảnh trực tiếp trên thiết bị và gợi ý góc chụp, ánh sáng, khoảng trống chủ thể.",
                 enabled = directorEnabled,
                 onEnabledChange = onDirectorChanged,
-                status = "Chưa tích hợp"
+                status = if (directorEnabled) "Scene AI · ĐANG BẬT" else "Scene AI · SẴN SÀNG"
             )
             HorizontalDivider(color = Color(0xFF333333))
             AiHubToggleRow(
@@ -121,7 +121,7 @@ portraitEnabled: Boolean,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "UHD điều khiển trực tiếp pipeline Real-ESRGAN x2 hiện có. AI Bố cục dùng bộ nhận diện khuôn mặt. VLM và xóa phông chiều sâu vẫn là mô-đun thử nghiệm, chưa chạy inference.",
+                    "UHD hiện dùng Real-ESRGAN x2 và NAFNet. AI Bố cục dùng nhận diện khuôn mặt + Pose 33 điểm; AI Director dùng nhận diện nhãn cảnh trên thiết bị. VLM Moondream và xóa phông chiều sâu chưa tích hợp.",
                     color = AiHubMuted,
                     fontSize = 11.sp,
                     lineHeight = 16.sp

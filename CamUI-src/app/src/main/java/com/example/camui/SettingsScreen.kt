@@ -164,6 +164,7 @@ private fun SettingsDetailPage(
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
+    var rawCaptureMode by remember { mutableStateOf(prefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
     var uhd by remember {
         mutableStateOf(prefs.getBoolean("uhd_capture_enabled", prefs.getBoolean("uhd_coming_soon", false)))
@@ -512,6 +513,24 @@ private fun SettingsDetailPage(
                         .putBoolean("uhd_capture_enabled", it)
                         .putBoolean("uhd_coming_soon", false)
                         .apply()
+                }
+                Spacer(Modifier.padding(5.dp))
+                Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "RAW lưu dữ liệu cảm biến thành DNG để hậu kỳ linh hoạt. RAW+ lưu đồng thời DNG và JPEG; JPEG đi theo luồng nhanh, bỏ AI render nặng để giảm thời gian chờ. Chỉ bật được khi camera đang chọn hỗ trợ RAW.",
+                    color = CamColors.Sub, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
+                )
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    listOf("JPEG" to "jpeg", "RAW" to "raw", "RAW+" to "raw_plus").forEach { (label, value) ->
+                        Chip(label, rawCaptureMode == value, {
+                            rawCaptureMode = value
+                            prefs.edit().putString("raw_capture_mode", value).apply()
+                        }, Modifier.width(92.dp))
+                    }
                 }
                 Spacer(Modifier.padding(5.dp))
                 Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)

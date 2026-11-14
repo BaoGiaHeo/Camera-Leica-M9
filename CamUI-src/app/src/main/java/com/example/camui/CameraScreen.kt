@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.ContentUris
 import android.content.Context
 import android.graphics.Point
+import android.graphics.ImageFormat
 import android.media.MediaActionSound
 import android.os.Build
 import android.content.pm.PackageManager
@@ -36,6 +37,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.ExperimentalImageCaptureOutputFormat
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -193,6 +195,7 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
+@OptIn(ExperimentalImageCaptureOutputFormat::class)
 @Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,
@@ -332,6 +335,7 @@ fun CameraScreen(
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
+    val rawCaptureMode = appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg"
     var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
     LaunchedEffect(uhdCaptureEnabled) {
         appPrefs.edit().putBoolean("uhd_capture_enabled", uhdCaptureEnabled).apply()
@@ -380,7 +384,7 @@ fun CameraScreen(
     }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
-        nightShotMode, nightShotFrameCount, starTrailExposureSeconds,
+        nightShotMode, nightShotFrameCount, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex
     ) {
@@ -506,6 +510,32 @@ fun CameraScreen(
                         if (front) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
                 }
             }.getOrNull()
+            val selectedCameraInfo = provider.availableCameraInfos.firstOrNull { info ->
+                runCatching { Camera2CameraInfo.from(info).cameraId == activeFacingId }.getOrDefault(false)
+            }
+            val rawSupportedFormats = selectedCameraInfo?.let { cameraInfo ->
+                runCatching {
+                    ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
+                }.getOrDefault(emptySet())
+            }.orEmpty()
+            val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" && rawCaptureMode != "jpeg"
+            val requestedRawFormat = when (rawCaptureMode) {
+                "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
+                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+                else -> ImageCapture.OUTPUT_FORMAT_JPEG
+            }
+            val rawCaptureFormat = if (
+                rawCaptureRequested && requestedRawFormat in rawSupportedFormats
+            ) requestedRawFormat else ImageCapture.OUTPUT_FORMAT_JPEG
+            val rawCaptureActive = rawCaptureFormat == ImageCapture.OUTPUT_FORMAT_RAW ||
+                rawCaptureFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+            if (rawCaptureRequested && !rawCaptureActive) {
+                localizedToast(
+                    context,
+                    "Camera này không hỗ trợ RAW/RAW+. Đã chuyển về JPEG thường.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             val hardwareLevel = activeFacingId?.let { id ->
                 runCatching {
                     cameraManager.getCameraCharacteristics(id)
@@ -522,7 +552,7 @@ fun CameraScreen(
             // single high-gain/long-shutter exposure, which is not the requested behaviour.
             nightExtensionActive = false
             val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
-                nightShotMode == "off" &&
+                nightShotMode == "off" && !rawCaptureActive &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             val hdrExtensionAvailable = hdrCaptureRequested && analysisCompatibleHardware && extensionsManager != null &&
                 runCatching { extensionsManager.isExtensionAvailable(baseSelector, ExtensionMode.HDR) }
@@ -583,8 +613,8 @@ fun CameraScreen(
                 val captureBuilder = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                     .setTargetRotation(rotation)
-                if (outputFormat == ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR) {
-                    captureBuilder.setOutputFormat(ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR)
+                if (outputFormat != ImageCapture.OUTPUT_FORMAT_JPEG) {
+                    captureBuilder.setOutputFormat(outputFormat)
                 }
                 captureBuilder.setJpegQuality(when (imageQuality) {
                     "Low" -> 60
@@ -849,12 +879,16 @@ fun CameraScreen(
             // When UHD sharpening is requested, prefer OEM HDR JPEG (or software HDR)
             // so the post-capture 2x sharpening can still run. Explicit Ultra HDR remains
             // higher priority because its gain map must be preserved without recompression.
-            val preferJpegR = (ultraHdr || (hdrCaptureRequested && !uhdCaptureEnabled)) &&
+            val preferJpegR = !rawCaptureActive &&
+                (ultraHdr || (hdrCaptureRequested && !uhdCaptureEnabled)) &&
                 Build.VERSION.SDK_INT >= 34
             preserveUltraHdrOutput = false
             try {
-                val requestedFormat = if (preferJpegR) ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
-                    else ImageCapture.OUTPUT_FORMAT_JPEG
+                val requestedFormat = when {
+                    rawCaptureActive -> rawCaptureFormat
+                    preferJpegR -> ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
+                    else -> ImageCapture.OUTPUT_FORMAT_JPEG
+                }
                 var actualCaptureFormat = requestedFormat
                 try {
                     bindCapture(requestedFormat)
@@ -1288,8 +1322,10 @@ fun CameraScreen(
             val activeCamera = camera ?: return@launch
             val captureIsUltraHdr = preserveUltraHdrOutput
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
-            val captureUseUhdAi = uhdCaptureEnabled
-            val captureNoiseReduction = noiseReduction
+            val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
+            val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+            val captureUseUhdAi = uhdCaptureEnabled && !captureRawPlus
+            val captureNoiseReduction = if (captureRawPlus) "Off" else noiseReduction
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
             val captureNightShotExtension = nightExtensionActive
             val captureNightFrameCount = nightShotFrameCount.coerceIn(4, 12)
@@ -1362,8 +1398,12 @@ fun CameraScreen(
                 put(MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode")
-                // Keep the row hidden from gallery scanners until the final JPEG pixels
-                // and EXIF/MediaStore dimensions have been normalized.
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val rawValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "$name.dng")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/x-adobe-dng")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/RAW")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
             if (captureUseNightShot) nightShotCaptureInProgress = true
@@ -1372,12 +1412,40 @@ fun CameraScreen(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 values
             ).build()
-            capture.takePicture(
-                output,
-                ContextCompat.getMainExecutor(context),
-                object : ImageCapture.OnImageSavedCallback {
+            val rawOutput = ImageCapture.OutputFileOptions.Builder(
+                context.contentResolver,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                rawValues
+            ).build()
+            val imageSavedCallback = object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                         val saved = result.savedUri
+                        val isRawCallback = result.imageFormat == ImageFormat.RAW_SENSOR
+                        if (isRawCallback && saved != null) {
+                            context.contentResolver.update(
+                                saved,
+                                ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                                null,
+                                null
+                            )
+                            android.util.Log.i("FUJI_RAW", "DNG saved: $saved")
+                            if (captureRawOnly) {
+                                localizedToast(
+                                    context,
+                                    "Đã lưu ảnh RAW DNG gốc vào Pictures/FujifilmMode/RAW.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                isProcessing = false
+                                processingProgress = 0
+                                processingEtaSeconds = -1
+                            }
+                            return
+                        }
+                        if (captureRawOnly) {
+                            localizedToast(context, "Camera không trả về dữ liệu RAW_SENSOR hợp lệ.", Toast.LENGTH_LONG).show()
+                            isProcessing = false
+                            return
+                        }
                         if (captureNightShotExtension) {
                             nightShotCaptureInProgress = false
                         }
@@ -1674,7 +1742,20 @@ fun CameraScreen(
                         localizedToast(context, "Lỗi chụp ảnh: ${exception.message}", Toast.LENGTH_LONG).show()
                     }
                 }
-            )
+            if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
+                capture.takePicture(
+                    rawOutput,
+                    output,
+                    ContextCompat.getMainExecutor(context),
+                    imageSavedCallback
+                )
+            } else {
+                capture.takePicture(
+                    if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW) rawOutput else output,
+                    ContextCompat.getMainExecutor(context),
+                    imageSavedCallback
+                )
+            }
         }
     }
 

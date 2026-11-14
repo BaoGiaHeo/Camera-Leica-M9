@@ -297,6 +297,7 @@ fun CameraScreen(
     var isProcessing by remember { mutableStateOf(false) }
     var processingProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
+    var processingEtaSeconds by remember { mutableIntStateOf(-1) }
     val shutterSoundPlayer = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
     }
@@ -1100,11 +1101,12 @@ fun CameraScreen(
                             } else ""
                             isProcessing = true
                             processingProgress = 4
+                            processingEtaSeconds = -1
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
-                                captureUseUhdAi -> "Đang chuẩn bị AI Super-Resolution"
+                                captureUseUhdAi -> "AI đang xử lý, vui lòng chờ"
                                 supirRequested -> "SUPIR AI Render chưa tích hợp · lưu ảnh thường"
                                 else -> "Ảnh đang được xử lý"
                             }
@@ -1155,14 +1157,44 @@ fun CameraScreen(
 
                                 val aiSuperResolutionApplied = if (!captureIsUltraHdr && captureUseUhdAi) {
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "Đang làm nét AI · Real-ESRGAN x2…"
+                                        processingLabel = "AI đang xử lý, vui lòng chờ"
                                         processingProgress = 78
                                     }
-                                    runCatching {
-                                        NcnnSuperResolution.enhanceCapturedPhoto(context, saved)
-                                    }.onFailure {
-                                        android.util.Log.e("FUJI_NCNN_SR", "AI enhancement failed", it)
-                                    }.getOrDefault(false)
+                                    // Estimate duration from the captured JPEG size. This is an
+                                    // on-device estimate, not a fixed promise: it adapts while the
+                                    // native tiled inference is running and stops at 95% until done.
+                                    val sourceBytes = runCatching {
+                                        context.contentResolver.openAssetFileDescriptor(saved, "r")?.use { it.length }
+                                    }.getOrNull()?.takeIf { it > 0L } ?: 12L * 1024L * 1024L
+                                    val estimatedAiSeconds = (
+                                        18.0 + sourceBytes.toDouble() / (1024.0 * 1024.0) * 1.25
+                                    ).toInt().coerceIn(20, 120)
+                                    var aiRenderFinished = false
+                                    val progressTicker = scope.launch {
+                                        val startedAt = System.currentTimeMillis()
+                                        while (!aiRenderFinished) {
+                                            val elapsedSeconds = ((System.currentTimeMillis() - startedAt) / 1000L).toInt()
+                                            val fraction = (elapsedSeconds.toFloat() / estimatedAiSeconds).coerceIn(0f, 1f)
+                                            processingProgress = (78 + fraction * 17f).toInt().coerceIn(78, 95)
+                                            processingEtaSeconds = (estimatedAiSeconds - elapsedSeconds).coerceAtLeast(1)
+                                            delay(500)
+                                        }
+                                    }
+                                    val aiResult = try {
+                                        runCatching {
+                                            NcnnSuperResolution.enhanceCapturedPhoto(context, saved)
+                                        }.onFailure {
+                                            android.util.Log.e("FUJI_NCNN_SR", "AI enhancement failed", it)
+                                        }.getOrDefault(false)
+                                    } finally {
+                                        aiRenderFinished = true
+                                        progressTicker.cancel()
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        processingProgress = 96
+                                        processingEtaSeconds = 2
+                                    }
+                                    aiResult
                                 } else false
 
                                 // The existing GPU/CPU sharpener remains as a safe fallback if NCNN
@@ -1173,6 +1205,7 @@ fun CameraScreen(
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "AI không khả dụng · chuyển sang làm nét GPU/CPU"
                                         processingProgress = 84
+                                    processingEtaSeconds = 3
                                     }
                                     runCatching {
                                         applySoftwarePhotoEnhancement(
@@ -1192,7 +1225,10 @@ fun CameraScreen(
                                 // No later rotation is allowed to move the frame away from the
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
-                                withContext(Dispatchers.Main) { processingProgress = 92 }
+                                withContext(Dispatchers.Main) {
+                                    processingProgress = 98
+                                    processingEtaSeconds = 1
+                                }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
                                     processingProgress = 100
@@ -1226,6 +1262,7 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) {
                                     isProcessing = false
                                     processingProgress = 0
+                                    processingEtaSeconds = -1
                                 }
                             }
                         } else {
@@ -2068,6 +2105,19 @@ fun CameraScreen(
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * processingProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+                }
+                if (processingEtaSeconds >= 0) {
+                    val etaText = if (processingEtaSeconds >= 60) {
+                        "Dự kiến còn ${processingEtaSeconds / 60} phút ${processingEtaSeconds % 60} giây"
+                    } else {
+                        "Dự kiến còn ${processingEtaSeconds} giây"
+                    }
+                    Text(
+                        etaText,
+                        color = CamColors.Sub,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 7.dp)
+                    )
                 }
             }
         }

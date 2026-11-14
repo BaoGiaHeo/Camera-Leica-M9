@@ -33,9 +33,7 @@ fun QuickPanel(
     onRatio: (Int) -> Unit,
     ultraHdr: Boolean,
     onUltraHdr: () -> Unit,
-    uhdCaptureEnabled: Boolean,
-    onUhdCapture: () -> Unit,
-    stabilization: Boolean,
+stabilization: Boolean,
     onStabilization: () -> Unit,
     metering: String,
     onMetering: () -> Unit,
@@ -61,8 +59,6 @@ fun QuickPanel(
         // Ultra HDR is hidden from the UI; its camera pipeline remains intact.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             FeatureCard("Render Engine", renderEngine, true, onRenderEngine, Modifier.weight(1f))
-            FeatureCard("UHD", if (uhdCaptureEnabled) "AI x2 ON" else "OFF", uhdCaptureEnabled,
-                onUhdCapture, Modifier.weight(1f))
             FeatureCard("Stabilization", if (stabilization) "ON" else "OFF", stabilization,
                 onStabilization, Modifier.weight(1f))
         }

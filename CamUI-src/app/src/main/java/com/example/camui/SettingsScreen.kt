@@ -75,6 +75,7 @@ private val settingItems = listOf(
     SettingItem("Photo Mode Setting", "HDR · UHD · Noise reduction"),
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
+    SettingItem("Backup & Restore", "Camera · Zoom · Enabled features"),
     SettingItem("About", "Fujifilm Mode · app-debug")
 )
 
@@ -136,7 +137,9 @@ fun SettingsScreen(
                     item { SectionTitle("Capture") }
                     items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
                     item { SectionTitle("Imaging") }
-                    items(settingItems.drop(3)) { item -> SettingCard(item) { selectedPage = item.title } }
+                    items(settingItems.drop(3).filter { it.title != "Backup & Restore" }) { item -> SettingCard(item) { selectedPage = item.title } }
+                    item { SectionTitle("Data") }
+                    item { SettingCard(settingItems.first { it.title == "Backup & Restore" }) { selectedPage = "Backup & Restore" } }
                 }
             }
         }
@@ -354,6 +357,9 @@ private fun SettingsDetailPage(
                 }
                 Text("Japan = 日本語 · Korea = 한국어 · China = 简体中文",
                     color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+            "Backup & Restore" -> {
+                BackupRestorePanel()
             }
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)

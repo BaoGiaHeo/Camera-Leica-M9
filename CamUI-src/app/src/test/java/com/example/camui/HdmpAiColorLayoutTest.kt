@@ -13,8 +13,8 @@ class HdmpAiColorLayoutTest {
         assertEquals(1f, buffer.get(0), 0.0001f)
         assertEquals(0f, buffer.get(1), 0.0001f)
         assertEquals(0f, buffer.get(2), 0.0001f)
-        assertEquals(0f, buffer.get(3), 0.0001f)
-        assertEquals(128f / 255f, buffer.get(4), 0.0001f)
+        assertEquals(128f / 255f, buffer.get(3), 0.0001f)
+        assertEquals(0f, buffer.get(4), 0.0001f)
         assertEquals(1f, buffer.get(5), 0.0001f)
     }
 

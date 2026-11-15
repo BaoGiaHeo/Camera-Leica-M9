@@ -2059,7 +2059,7 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
 
-                                val outputResolutionApplied = if (
+                                val outputResolutionResult = if (
                                     !captureIsUltraHdr && (captureUseNightShot || captureAtOneX) &&
                                     !captureRawOnly && !captureRawPlus &&
                                     (captureUseNightShot || captureUseUhdPlusAlgorithm ||
@@ -2072,7 +2072,7 @@ fun CameraScreen(
                                         else -> 60_000_000L
                                     }
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "Đang nội suy thuật toán lên ${targetPixels / 1_000_000L}MP"
+                                        processingLabel = "HDMP đang tối ưu kích thước ${targetPixels / 1_000_000L}MP theo RAM và tỉ lệ ảnh"
                                         processingProgress = 84
                                         processingEtaSeconds = -1
                                     }
@@ -2081,9 +2081,10 @@ fun CameraScreen(
                                             PhotoOutputResolution.interpolateToMp(context, saved, targetPixels)
                                         }.onFailure {
                                             android.util.Log.e("FUJI_HDMP", "Algorithmic interpolation failed; keep source", it)
-                                        }.getOrDefault(false)
+                                        }.getOrNull()
                                     }
-                                } else false
+                                } else null
+                                val outputResolutionApplied = outputResolutionResult != null
 
                                 val metadataPublished = runCatching {
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
@@ -2112,11 +2113,32 @@ fun CameraScreen(
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
                                         captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh UHD+ kích thước 250MP · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                            "Đã xuất ảnh UHD+ ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
+                                                if (outputResolutionResult!!.reachedRequestedSize) {
+                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                                } else {
+                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
+                                                }
                                         captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh UHD kích thước 108MP · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                            "Đã xuất ảnh UHD ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
+                                                if (outputResolutionResult!!.reachedRequestedSize) {
+                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                                } else {
+                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
+                                                }
                                         captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh FHD kích thước tối đa 60MP · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                            "Đã xuất ảnh FHD ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
+                                                if (outputResolutionResult!!.reachedRequestedSize) {
+                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                                } else {
+                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
+                                                }
+                                        captureUseUhdPlusAlgorithm && !outputResolutionApplied ->
+                                            "Ảnh đã lưu nhưng UHD+ không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
+                                        captureUseUhdAlgorithm && !outputResolutionApplied ->
+                                            "Ảnh đã lưu nhưng UHD không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
+                                        captureUseFhdAlgorithm && !outputResolutionApplied ->
+                                            "Ảnh đã lưu nhưng FHD không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
                                         captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
                                         captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."

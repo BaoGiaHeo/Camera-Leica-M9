@@ -1948,6 +1948,18 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        val rawModeConflictsWithComputationalCapture = mode == "Photo" &&
+            rawCaptureMode != "jpeg" &&
+            (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
+                uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode)
+        if (rawModeConflictsWithComputationalCapture) {
+            localizedToast(
+                context,
+                "RAW/RAW+ không ghép đồng thời với Night Shot, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Hãy tắt chế độ ghép hoặc chuyển định dạng về JPEG.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         if (bracketCaptureActive) {
             localizedToast(context, "Đang hoàn tất chuỗi Bracketing hiện tại…", Toast.LENGTH_SHORT).show()
             return

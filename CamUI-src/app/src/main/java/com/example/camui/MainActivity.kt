@@ -2,9 +2,11 @@ package com.example.camui
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -29,6 +31,16 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : AppCompatActivity() {
+    /**
+     * The manifest opts this Activity into handling orientation/size changes. Keeping the
+     * Activity and its Compose composition alive prevents rememberCoroutineScope work in
+     * CameraScreen (including an active HDMP render) from being cancelled by rotation.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        hideStatusBar()
+    }
+
     /**
      * Open the device gallery. Fall back to the system image viewer, then to the
      * in-app album on devices that do not expose either external activity.
@@ -81,6 +93,11 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Request Android's camera-friendly seamless rotation transition (API 26+).
+        // The system may fall back to crossfade when a seamless surface rotation is unavailable.
+        window.attributes = window.attributes.apply {
+            rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
+        }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)

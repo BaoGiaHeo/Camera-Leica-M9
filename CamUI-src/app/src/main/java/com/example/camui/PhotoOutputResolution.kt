@@ -16,8 +16,6 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 data class PhotoOutputResult(
     val width: Int,
@@ -86,7 +84,6 @@ object PhotoOutputResolution {
                 geometry.cropLeft + geometry.cropWidth,
                 geometry.cropTop + geometry.cropHeight
             )
-            val sourcePixels = geometry.croppedPixels
             val cropWidth = geometry.cropWidth
             val cropHeight = geometry.cropHeight
 

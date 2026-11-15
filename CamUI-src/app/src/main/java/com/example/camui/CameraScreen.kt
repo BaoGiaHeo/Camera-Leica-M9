@@ -2369,7 +2369,10 @@ fun CameraScreen(
                                 val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
-                                        if (actualIso > 0) actualIso.toString() else "AUTO"
+                                        if (actualIso > 0) actualIso.toString() else "AUTO",
+                                        preservePhotoAspectRatio = captureUseNightShot ||
+                                            captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm ||
+                                            captureUseFhdAlgorithm
                                     )
                                 }.getOrDefault(false)
 
@@ -2392,7 +2395,12 @@ fun CameraScreen(
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
-                                            PhotoOutputResolution.interpolateToMp(context, saved, targetPixels)
+                                            PhotoOutputResolution.interpolateToMp(
+                                                context,
+                                                saved,
+                                                targetPixels,
+                                                expectedAspectRatioForCapture
+                                            )
                                         }.onFailure {
                                             android.util.Log.e("FUJI_HDMP", "Algorithmic interpolation failed; keep source", it)
                                         }.getOrNull()

@@ -130,25 +130,32 @@ object NightShotProcessor {
             val newRow = IntArray(width)
             val upperRow = IntArray(width)
             val lowerRow = IntArray(width)
-            val bestScores = if (mode == MergeMode.HDR_BRACKET || mode == MergeMode.FOCUS_STACK) {
-                ByteArray(width * height)
-            } else null
+            // Focus stacking keeps the best local sharpness score. HDR bracketing instead
+            // keeps a running per-pixel exposure weight and blends all useful exposures;
+            // selecting only one "mid-tone winner" can create abrupt, noisy transitions.
+            val bestScores = if (mode == MergeMode.FOCUS_STACK) ByteArray(width * height) else null
+            val exposureWeights = if (mode == MergeMode.HDR_BRACKET) ShortArray(width * height) else null
             // Keep a small, immutable reference image for alignment. Using the changing
             // accumulated output as a reference would allow drift to build up over a burst.
             if (mode != MergeMode.STAR_TRAILS) {
                 alignmentReference = makeAlignmentThumbnail(base!!)
             }
-            if (bestScores != null) {
+            if (bestScores != null || exposureWeights != null) {
                 for (y in 0 until height) {
                     base!!.getPixels(newRow, 0, width, 0, y, width, 1)
-                    base!!.getPixels(upperRow, 0, width, 0, (y - 1).coerceAtLeast(0), width, 1)
-                    base!!.getPixels(lowerRow, 0, width, 0, (y + 1).coerceAtMost(height - 1), width, 1)
+                    if (bestScores != null) {
+                        base!!.getPixels(upperRow, 0, width, 0, (y - 1).coerceAtLeast(0), width, 1)
+                        base!!.getPixels(lowerRow, 0, width, 0, (y + 1).coerceAtMost(height - 1), width, 1)
+                    }
                     for (x in 0 until width) {
-                        bestScores[y * width + x] = if (mode == MergeMode.HDR_BRACKET) {
-                            exposureMidtoneScore(luma(newRow[x]))
-                        } else {
-                            focusSharpnessScore(newRow, upperRow, lowerRow, x, width)
-                        }.toByte()
+                        val index = y * width + x
+                        if (bestScores != null) {
+                            bestScores[index] = focusSharpnessScore(newRow, upperRow, lowerRow, x, width).toByte()
+                        }
+                        if (exposureWeights != null) {
+                            exposureWeights[index] = exposureMidtoneScore(luma(newRow[x]))
+                                .coerceAtLeast(1).toShort()
+                        }
                     }
                 }
             }
@@ -211,19 +218,29 @@ object NightShotProcessor {
                                     (ag * frameIndex + bg) / divisor,
                                     (ab * frameIndex + bb) / divisor
                                 )
+                            } else if (mode == MergeMode.HDR_BRACKET) {
+                                val scoreIndex = y * width + x
+                                val currentWeight = exposureMidtoneScore(luma(b)).coerceAtLeast(1)
+                                val previousWeight = exposureWeights!![scoreIndex].toInt().coerceAtLeast(1)
+                                val combinedWeight = previousWeight + currentWeight
+                                // Exposure-weighted fusion preserves information from more than
+                                // one bracket frame instead of hard-switching each pixel to a
+                                // single frame. The weight sum fits in Short for a 3-frame bracket.
+                                oldRow[x] = Color.rgb(
+                                    (ar * previousWeight + br * currentWeight) / combinedWeight,
+                                    (ag * previousWeight + bg * currentWeight) / combinedWeight,
+                                    (ab * previousWeight + bb * currentWeight) / combinedWeight
+                                )
+                                exposureWeights[scoreIndex] = combinedWeight.toShort()
                             } else {
-                                val score = if (mode == MergeMode.HDR_BRACKET) {
-                                    exposureMidtoneScore(luma(b))
-                                } else {
-                                    val sourceXLeft = (sourceX - 1).coerceAtLeast(0)
-                                    val sourceXRight = (sourceX + 1).coerceAtMost(width - 1)
-                                    val left = luma(newRow[sourceXLeft])
-                                    val right = luma(newRow[sourceXRight])
-                                    val up = luma(upperRow[sourceX])
-                                    val down = luma(lowerRow[sourceX])
-                                    (kotlin.math.abs(left - right) + kotlin.math.abs(up - down))
-                                        .coerceIn(0, 255)
-                                }
+                                val sourceXLeft = (sourceX - 1).coerceAtLeast(0)
+                                val sourceXRight = (sourceX + 1).coerceAtMost(width - 1)
+                                val left = luma(newRow[sourceXLeft])
+                                val right = luma(newRow[sourceXRight])
+                                val up = luma(upperRow[sourceX])
+                                val down = luma(lowerRow[sourceX])
+                                val score = (kotlin.math.abs(left - right) + kotlin.math.abs(up - down))
+                                    .coerceIn(0, 255)
                                 val scoreIndex = y * width + x
                                 val previousScore = bestScores!![scoreIndex].toInt() and 0xFF
                                 if (score > previousScore) {

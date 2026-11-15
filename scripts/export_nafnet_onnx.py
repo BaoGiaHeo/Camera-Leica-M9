@@ -46,10 +46,12 @@ def export_one(model_id: str, filename: str, model_dir: Path, output_dir: Path) 
         device="cpu",
     )
     network = processor.net.net_g.eval()
+    torch.manual_seed(20261115)
     sample = torch.rand(1, 3, 256, 256, dtype=torch.float32)
     output_path = output_dir / filename
 
     with torch.no_grad():
+        reference = network(sample).detach().cpu().numpy()
         torch.onnx.export(
             network,
             sample,
@@ -76,6 +78,16 @@ def export_one(model_id: str, filename: str, model_dir: Path, output_dir: Path) 
         raise RuntimeError(f"{model_id}: unexpected ONNX output shape {predicted.shape}")
     if not np.isfinite(predicted).all():
         raise RuntimeError(f"{model_id}: ONNX smoke test returned NaN/Infinity")
+    if not np.isfinite(reference).all():
+        raise RuntimeError(f"{model_id}: PyTorch reference returned NaN/Infinity")
+
+    max_abs_error = float(np.max(np.abs(predicted - reference)))
+    mean_abs_error = float(np.mean(np.abs(predicted - reference)))
+    if not np.allclose(predicted, reference, rtol=1e-3, atol=2e-4):
+        raise RuntimeError(
+            f"{model_id}: ONNX/PyTorch numerical parity failed "
+            f"(max_abs={max_abs_error:.6g}, mean_abs={mean_abs_error:.6g})"
+        )
     if output_path.stat().st_size < 1_000_000:
         raise RuntimeError(f"{model_id}: ONNX model file is unexpectedly small")
 
@@ -85,6 +97,9 @@ def export_one(model_id: str, filename: str, model_dir: Path, output_dir: Path) 
         "bytes": output_path.stat().st_size,
         "sha256": sha256(output_path),
         "smoke_test": "passed",
+        "numerical_parity": "passed",
+        "max_abs_error": max_abs_error,
+        "mean_abs_error": mean_abs_error,
         "input": [1, 3, 256, 256],
         "output": list(predicted.shape),
     }

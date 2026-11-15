@@ -235,30 +235,34 @@ private suspend fun saveBurstFrame(
         put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Burst")
         put(MediaStore.Images.Media.IS_PENDING, 1)
     }
-    val uri = runCatching {
-        context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-    }.getOrNull()
-    if (uri == null) {
+    val output = runCatching {
+        ImageCapture.OutputFileOptions.Builder(
+            context.contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            values
+        ).build()
+    }.getOrElse {
+        android.util.Log.w("FUJI_BURST", "Could not prepare frame ${frameIndex + 1}", it)
         if (continuation.isActive) continuation.resume(null)
         return@suspendCancellableCoroutine
     }
-    val output = ImageCapture.OutputFileOptions.Builder(context.contentResolver, uri).build()
     capture.takePicture(output, executor, object : ImageCapture.OnImageSavedCallback {
         override fun onImageSaved(results: ImageCapture.OutputFileResults) {
-            val savedUri = results.savedUri ?: uri
-            runCatching {
-                context.contentResolver.update(
-                    savedUri,
-                    ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
-                    null,
-                    null
-                )
+            val savedUri = results.savedUri
+            if (savedUri != null) {
+                runCatching {
+                    context.contentResolver.update(
+                        savedUri,
+                        ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                        null,
+                        null
+                    )
+                }
             }
             if (continuation.isActive) continuation.resume(savedUri)
         }
 
         override fun onError(exception: androidx.camera.core.ImageCaptureException) {
-            runCatching { context.contentResolver.delete(uri, null, null) }
             android.util.Log.w("FUJI_BURST", "Frame ${frameIndex + 1} failed; continuing burst", exception)
             if (continuation.isActive) continuation.resume(null)
         }

@@ -151,17 +151,18 @@ internal object HdmpAiEngine {
         context: Context,
         uri: Uri,
         workerCount: Int,
-        preferFast: Boolean = false,
+        selectedModel: Model = Model.NAFNET_WIDTH64,
         onAdaptiveWorkerCount: (Int) -> Unit = {},
-        shouldSwitchToFast: () -> Boolean = { false },
-        continuePrimaryPastBudget: () -> Boolean = { false },
         shouldStopForThermal: () -> Boolean = { false },
         onTileProgress: (Model, Int, Int) -> Unit = { _, _, _ -> },
         onProgress: (Model, Int) -> Unit = { _, _ -> }
     ): Result {
+        require(selectedModel != Model.CLASSICAL_ONLY) { "An AI model must be selected" }
         val stamp = System.nanoTime().toString()
         val original = File(context.cacheDir, "hdmp-ai-original-$stamp.jpg")
         val rendered = File(context.cacheDir, "hdmp-ai-rendered-$stamp.jpg")
+        val spec = if (selectedModel == Model.NAFNET_WIDTH64) primarySpec else fallbackSpec
+        val modelLabel = if (selectedModel == Model.NAFNET_WIDTH64) "HDMP AI 2" else "HDMP AI 1.5"
         return try {
             copyUriToFile(context, uri, original)
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -171,109 +172,62 @@ internal object HdmpAiEngine {
             require(width >= 3 && height >= 3) { "HDMP AI source dimensions are invalid" }
 
             val outputBytes = width.toLong() * height.toLong() * 2L
-            val runtime = Runtime.getRuntime()
-            val safeHeap = (runtime.maxMemory().toDouble() * MAX_OUTPUT_HEAP_FRACTION).toLong()
-            if (outputBytes > safeHeap) {
-                return Result(
-                    Model.CLASSICAL_ONLY,
-                    false,
-                    "Ảnh vượt giới hạn bộ nhớ an toàn của AI; HDMP cơ bản sẽ xử lý ảnh gốc."
-                )
+            val safeHeap = (Runtime.getRuntime().maxMemory().toDouble() * MAX_OUTPUT_HEAP_FRACTION).toLong()
+            check(outputBytes <= safeHeap) {
+                "Ảnh vượt giới hạn bộ nhớ an toàn; hãy giảm độ phân giải đầu ra rồi thử lại."
             }
 
             val effectiveWorkerCount = resolveWorkerCount(context, workerCount)
             runCatching { onAdaptiveWorkerCount(effectiveWorkerCount) }
-            Log.i(TAG, "Adaptive ONNX worker count: $effectiveWorkerCount / requested $workerCount")
+            Log.i(TAG, "Locked model=$selectedModel, workers=$effectiveWorkerCount")
 
-            val tileCount = ceil(width.toDouble() / CORE_SIZE).toLong() *
-                ceil(height.toDouble() / CORE_SIZE).toLong()
-            val primaryBudget = (AI2_TARGET_BUDGET_MS + tileCount * 45L)
-                .coerceAtMost(AI2_MAX_BUDGET_MS)
-            val fallbackBudget = (AI15_TARGET_BUDGET_MS + tileCount * 22L)
-                .coerceAtMost(AI15_MAX_BUDGET_MS)
-
-            if (!preferFast) runCatching { onProgress(Model.NAFNET_WIDTH64, 0) }
-            val primary = if (preferFast) false else try {
-                runModel(
-                    context = context,
-                    source = original,
-                    destination = rendered,
-                    spec = primarySpec,
-                    workerCount = effectiveWorkerCount,
-                    budgetMs = primaryBudget,
-                    model = Model.NAFNET_WIDTH64,
-                    shouldSwitchToFast = shouldSwitchToFast,
-                    continuePastBudget = continuePrimaryPastBudget,
-                    shouldStopForThermal = shouldStopForThermal,
-                    onTileProgress = onTileProgress,
-                    onProgress = onProgress
-                )
-            } catch (_: UserRequestedFastException) {
-                false
+            // The 10s/20s values are UI targets only. Never abort or replace the selected
+            // model when a device needs longer: inference continues tile-by-tile.
+            runCatching { onProgress(selectedModel, 0) }
+            var completed = false
+            var lastFailure: Throwable? = null
+            repeat(2) { attempt ->
+                rendered.delete()
+                completed = try {
+                    runModel(
+                        context = context,
+                        source = original,
+                        destination = rendered,
+                        spec = spec,
+                        workerCount = effectiveWorkerCount,
+                        budgetMs = Long.MAX_VALUE,
+                        model = selectedModel,
+                        shouldSwitchToFast = { false },
+                        continuePastBudget = { true },
+                        shouldStopForThermal = { false },
+                        onTileProgress = onTileProgress,
+                        onProgress = onProgress
+                    )
+                } catch (failure: Throwable) {
+                    lastFailure = failure
+                    Log.w(TAG, "$modelLabel inference attempt ${attempt + 1} failed", failure)
+                    false
+                }
+                if (completed) return@repeat
             }
-            val userRequestedFast = preferFast || shouldSwitchToFast()
-            if (shouldStopForThermal() && primary && commitRendered(context, uri, original, rendered)) {
-                preserveOriginalForComparison(context, uri, original)
-                return Result(Model.NAFNET_WIDTH64, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 hoàn tất, phần còn lại giữ ảnh gốc.")
-            }
-            if (!userRequestedFast && primary && commitRendered(context, uri, original, rendered)) {
-                preserveOriginalForComparison(context, uri, original)
-                return Result(Model.NAFNET_WIDTH64, true, "HDMP AI 2 đã xử lý và được HDMP kiểm tra.")
-            }
-            // Respect the model chosen before capture. An AI 2 timeout/failure does not silently
-            // replace the selected model with AI 1.5 after the shutter has been pressed.
-            rendered.delete()
-            if (shouldStopForThermal()) {
-                return Result(Model.CLASSICAL_ONLY, false, "Đã dừng theo nhiệt độ trước khi hoàn tất tile đầu tiên; giữ nguyên ảnh gốc.")
-            }
-            if (!userRequestedFast) {
-                return Result(
-                    Model.CLASSICAL_ONLY,
-                    false,
-                    "HDMP AI 2 chưa hoàn tất trong giới hạn 30 giây; giữ ảnh gốc để HDMP cơ bản xử lý."
+            if (!completed) {
+                throw IllegalStateException(
+                    "$modelLabel could not complete after retry",
+                    lastFailure
                 )
             }
-
-            runCatching { onProgress(Model.NAFNETLIB_WIDTH32, 0) }
-            val fallback = runModel(
-                context = context,
-                source = original,
-                destination = rendered,
-                spec = fallbackSpec,
-                workerCount = effectiveWorkerCount,
-                budgetMs = fallbackBudget,
-                model = Model.NAFNETLIB_WIDTH32,
-                shouldSwitchToFast = { false },
-                continuePastBudget = { false },
-                shouldStopForThermal = shouldStopForThermal,
-                onTileProgress = onTileProgress,
-                onProgress = onProgress
-            )
-            if (shouldStopForThermal() && fallback && commitRendered(context, uri, original, rendered)) {
-                preserveOriginalForComparison(context, uri, original)
-                return Result(Model.NAFNETLIB_WIDTH32, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 1.5 hoàn tất, phần còn lại giữ ảnh gốc.")
+            check(commitRendered(context, uri, original, rendered)) {
+                "$modelLabel output could not be committed"
             }
-            if (fallback && commitRendered(context, uri, original, rendered)) {
-                preserveOriginalForComparison(context, uri, original)
-                return Result(
-                    Model.NAFNETLIB_WIDTH32,
-                    true,
-                    if (userRequestedFast) {
-                        "HDMP AI 1.5 được chọn và đã xử lý từ ảnh gốc; HDMP đã kiểm tra kết quả."
-                    } else {
-                        "HDMP AI 1.5 dự phòng đã xử lý và được HDMP kiểm tra."
-                    }
-                )
-            }
-
-            Result(
-                Model.CLASSICAL_ONLY,
-                false,
-                "Hai model AI không khả dụng hoặc không hoàn tất; giữ ảnh gốc để HDMP cơ bản xử lý."
-            )
+            preserveOriginalForComparison(context, uri, original)
+            Result(selectedModel, true, "$modelLabel đã xử lý hoàn tất bằng đúng mô hình đã chọn.")
         } catch (failure: Throwable) {
-            Log.e(TAG, "HDMP AI coordinator failed; deterministic HDMP fallback will be used", failure)
-            Result(Model.CLASSICAL_ONLY, false, "AI lỗi; chuyển an toàn sang HDMP cơ bản.")
+            Log.e(TAG, "$modelLabel processing failed; no classical fallback is permitted", failure)
+            Result(
+                selectedModel,
+                false,
+                "$modelLabel chưa thể hoàn tất. Ảnh gốc được giữ nguyên; không chuyển sang thuật toán thường."
+            )
         } finally {
             runCatching { original.delete() }
             runCatching { rendered.delete() }

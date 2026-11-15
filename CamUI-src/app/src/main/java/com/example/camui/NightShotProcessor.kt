@@ -34,7 +34,7 @@ import kotlin.math.sqrt
  */
 object NightShotProcessor {
     private const val TAG = "FUJI_NIGHTSHOT"
-    private const val MAX_OUTPUT_PIXELS = 16_000_000L
+    private const val MAX_OUTPUT_PIXELS = 60_000_000L
     private val EXIF_TAGS = listOf(
         ExifInterface.TAG_DATETIME,
         ExifInterface.TAG_DATETIME_ORIGINAL,
@@ -458,8 +458,14 @@ object NightShotProcessor {
             wantedHeight = targetHeight
         } else {
             val pixels = visibleWidth.toLong() * visibleHeight.toLong()
-            val factor = if (pixels > MAX_OUTPUT_PIXELS) {
-                sqrt(MAX_OUTPUT_PIXELS.toDouble() / pixels.toDouble())
+            // Two RGB_565 full-resolution frames are live during merging. Reserve headroom
+            // for decode/orientation buffers; 60MP is a ceiling, not a guaranteed output size.
+            val heapSafePixelCap = (
+                Runtime.getRuntime().maxMemory().toDouble() * 0.22 / 4.0
+            ).toLong().coerceAtLeast(4_000_000L)
+            val effectivePixelCap = min(MAX_OUTPUT_PIXELS, heapSafePixelCap)
+            val factor = if (pixels > effectivePixelCap) {
+                sqrt(effectivePixelCap.toDouble() / pixels.toDouble())
             } else 1.0
             wantedWidth = (visibleWidth * factor).toInt().coerceAtLeast(1)
             wantedHeight = (visibleHeight * factor).toInt().coerceAtLeast(1)

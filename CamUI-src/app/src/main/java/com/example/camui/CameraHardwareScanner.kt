@@ -24,6 +24,7 @@ data class CameraHardwareEntry(
     val lensRole: String,
     val focalLengths: String,
     val equivalent35mm: Float?,
+    val minimumFocusDistanceDiopter: Float?,
     val sensorPixels: String,
     val sensorSizeMm: String,
     val jpegMax: String,
@@ -132,7 +133,8 @@ object CameraHardwareScanner {
                     else -> "Không rõ"
                 }
                 val equivalent = equivalent35mm(c)
-                val role = classifyLensRole(facingValue, equivalent, mainReference)
+                val minimumFocusDistance = c.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
+                val role = classifyLensRole(facingValue, equivalent, mainReference, minimumFocusDistance)
                 val focal = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
                     ?.joinToString(" / ") { String.format(Locale.US, "%.1f mm", it) }
                     ?: "Không công bố"
@@ -168,6 +170,7 @@ object CameraHardwareScanner {
                     lensRole = role,
                     focalLengths = focal,
                     equivalent35mm = equivalent,
+                    minimumFocusDistanceDiopter = minimumFocusDistance,
                     sensorPixels = pixels?.let { "${it.width} × ${it.height}" } ?: "Không công bố",
                     sensorSizeMm = sensor?.let {
                         String.format(Locale.US, "%.2f × %.2f mm", it.width, it.height)
@@ -195,6 +198,9 @@ object CameraHardwareScanner {
             add(
                 "Vendor metadata chỉ liệt kê các key mà HAL công khai trên những camera đã truy cập được; " +
                     "vendor key không đồng nghĩa với một Camera ID ẩn."
+            )
+            add(
+                "Nhãn Macro / close-focus là heuristic từ tiêu cự và khoảng lấy nét tối thiểu; Camera2 không cung cấp cờ phân loại macro chính thức."
             )
             add(
                 "Android SDK không có API công khai để liệt kê ID bị firmware/OEM ẩn hoàn toàn. " +
@@ -242,7 +248,8 @@ object CameraHardwareScanner {
     private fun classifyLensRole(
         facing: Int?,
         equivalent35: Float?,
-        mainReference: Float?
+        mainReference: Float?,
+        minimumFocusDistanceDiopter: Float?
     ): String {
         if (facing == CameraCharacteristics.LENS_FACING_FRONT) return "Camera trước"
         if (facing == CameraCharacteristics.LENS_FACING_EXTERNAL) return "Camera ngoài"
@@ -251,7 +258,11 @@ object CameraHardwareScanner {
             return "Camera sau · chưa đủ dữ liệu tiêu cự"
         }
         val ratio = equivalent35 / mainReference
+        // Android does not publish a formal "macro lens" role. Flag unusually close-focus
+        // modules as candidates, not as a definitive optical-macro specification.
+        val closeFocusCandidate = minimumFocusDistanceDiopter?.let { it >= 8f } == true
         return when {
+            closeFocusCandidate && ratio in 0.72f..1.35f -> "Macro / close-focus candidate"
             ratio < 0.78f -> "Ultra-wide"
             ratio > 1.25f -> "Telephoto"
             ratio in 0.88f..1.12f -> "Main / Wide"

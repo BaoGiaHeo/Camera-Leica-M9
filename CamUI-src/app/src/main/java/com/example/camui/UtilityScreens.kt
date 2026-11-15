@@ -311,12 +311,13 @@ fun ToolboxScreen(
     var filmColorChrome by remember { mutableStateOf(prefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)) }
     var filmGrain by remember { mutableStateOf(prefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)) }
     var filmTemperature by remember { mutableStateOf(prefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)) }
+    var filmTone by remember { mutableStateOf(prefs.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)) }
     var filmSaturation by remember { mutableStateOf(prefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)) }
 
     val filmRecipeKeys = remember {
         listOf(
             "film_custom_highlight", "film_custom_shadow", "film_custom_color_chrome",
-            "film_custom_grain", "film_custom_temperature", "film_custom_saturation",
+            "film_custom_grain", "film_custom_temperature", "film_custom_tone", "film_custom_saturation",
             "selected_filter"
         )
     }
@@ -329,6 +330,7 @@ fun ToolboxScreen(
                 "film_custom_color_chrome" -> editor.putFloat("$slot.$key", filmColorChrome)
                 "film_custom_grain" -> editor.putFloat("$slot.$key", filmGrain)
                 "film_custom_temperature" -> editor.putFloat("$slot.$key", filmTemperature)
+                "film_custom_tone" -> editor.putFloat("$slot.$key", filmTone)
                 "film_custom_saturation" -> editor.putFloat("$slot.$key", filmSaturation)
                 "selected_filter" -> editor.putString("$slot.$key", prefs.getString(key, "None") ?: "None")
             }
@@ -349,6 +351,7 @@ fun ToolboxScreen(
         filmColorChrome = values.getFloat("$slot.film_custom_color_chrome", 0f).coerceIn(0f, 1f)
         filmGrain = values.getFloat("$slot.film_custom_grain", 0f).coerceIn(0f, 1f)
         filmTemperature = values.getFloat("$slot.film_custom_temperature", 0f).coerceIn(-1f, 1f)
+        filmTone = values.getFloat("$slot.film_custom_tone", 0f).coerceIn(-1f, 1f)
         filmSaturation = values.getFloat("$slot.film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
         val selected = values.getString("$slot.selected_filter", "None") ?: "None"
         prefs.edit()
@@ -357,6 +360,7 @@ fun ToolboxScreen(
             .putFloat("film_custom_color_chrome", filmColorChrome)
             .putFloat("film_custom_grain", filmGrain)
             .putFloat("film_custom_temperature", filmTemperature)
+            .putFloat("film_custom_tone", filmTone)
             .putFloat("film_custom_saturation", filmSaturation)
             .putString("selected_filter", selected)
             .apply()
@@ -536,6 +540,11 @@ fun ToolboxScreen(
                 filmTemperature = it
                 prefs.edit().putFloat("film_custom_temperature", it).apply()
             }, valueRange = -1f..1f)
+            Text("Color Tone · ${String.format(Locale.US, "%+.2f", filmTone)}  (Green ↔ Magenta)", color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmTone, {
+                filmTone = it
+                prefs.edit().putFloat("film_custom_tone", it).apply()
+            }, valueRange = -1f..1f)
             Text("Saturation · ${String.format(Locale.US, "%.2f", filmSaturation)}",
                 color = CamColors.Sub, fontSize = 12.sp)
             Slider(filmSaturation, {
@@ -548,6 +557,7 @@ fun ToolboxScreen(
                 filmColorChrome = 0f
                 filmGrain = 0f
                 filmTemperature = 0f
+                filmTone = 0f
                 filmSaturation = 1f
                 prefs.edit()
                     .putFloat("film_custom_highlight", 0f)
@@ -555,6 +565,7 @@ fun ToolboxScreen(
                     .putFloat("film_custom_color_chrome", 0f)
                     .putFloat("film_custom_grain", 0f)
                     .putFloat("film_custom_temperature", 0f)
+                    .putFloat("film_custom_tone", 0f)
                     .putFloat("film_custom_saturation", 1f)
                     .apply()
             }) { Text("Reset Recipe") }
@@ -1959,6 +1970,7 @@ private fun applyCameraLookPixels(
     val colorChrome = recipe.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)
     val grain = recipe.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)
     val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
+    val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
     val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
@@ -1996,6 +2008,10 @@ private fun applyCameraLookPixels(
             r += temperature * 0.045f
             g += temperature * 0.006f
             b -= temperature * 0.045f
+            // Color Tone shifts green/magenta independently from global color temperature.
+            r += tone * 0.018f
+            g -= tone * 0.035f
+            b += tone * 0.018f
 
             if (grain > 0.001f) {
                 // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
@@ -2128,6 +2144,7 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         prefs.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
         prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
         kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
         kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
     if (preset == "None" && !hasCustomAdjustments) return false
 

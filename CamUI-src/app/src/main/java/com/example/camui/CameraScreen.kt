@@ -2935,6 +2935,16 @@ fun CameraScreen(
     val manualSensorSupported = requestCapabilities?.contains(
         CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
     ) == true
+    LaunchedEffect(captureSetupReady, manualSensorSupported, front, milkyWayStackEnabled) {
+        if (captureSetupReady && milkyWayStackEnabled && (front || !manualSensorSupported)) {
+            milkyWayStackEnabled = false
+            localizedToast(
+                context,
+                "Đã tắt Milky Way Stack: camera đang chọn không có Manual Sensor phù hợp.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     val isoRange = if (manualSensorSupported) cameraInfo2?.getCameraCharacteristic(
         CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE
     ) else null

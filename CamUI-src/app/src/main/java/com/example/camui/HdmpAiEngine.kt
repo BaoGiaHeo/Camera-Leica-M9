@@ -4,6 +4,12 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
+import android.app.ActivityManager
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.Build
+import android.os.PowerManager
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -84,10 +90,69 @@ internal object HdmpAiEngine {
         deltaLimit = 0.10f
     )
 
+    /** Derive a conservative ONNX thread budget from CPU, free RAM and thermal status. */
+    fun resolveWorkerCount(context: Context, requested: Int): Int {
+        val cpuLimit = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
+        val memoryLimit = runCatching {
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memory = ActivityManager.MemoryInfo()
+            manager.getMemoryInfo(memory)
+            when {
+                memory.lowMemory || memory.availMem < 512L * 1024L * 1024L -> 1
+                memory.availMem < 1_024L * 1024L * 1024L -> 2
+                memory.availMem < 2_048L * 1024L * 1024L -> 4
+                else -> 8
+            }
+        }.getOrDefault(2)
+
+        val batteryTempTenths = readBatteryTemperatureTenths(context)
+        val thermalStatus = readThermalStatus(context)
+        val thermalLimit = when {
+            thermalStatus >= PowerManager.THERMAL_STATUS_EMERGENCY || batteryTempTenths >= 450 -> 1
+            thermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL || batteryTempTenths >= 430 -> 2
+            thermalStatus >= PowerManager.THERMAL_STATUS_SEVERE || batteryTempTenths >= 420 -> 3
+            thermalStatus >= PowerManager.THERMAL_STATUS_MODERATE || batteryTempTenths > 400 -> 4
+            thermalStatus >= PowerManager.THERMAL_STATUS_LIGHT || batteryTempTenths >= 390 -> 6
+            else -> 8
+        }
+        return min(requested.coerceIn(1, 8), min(cpuLimit, min(memoryLimit, thermalLimit)))
+            .coerceAtLeast(1)
+    }
+
+    private fun readThermalStatus(context: Context): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return PowerManager.THERMAL_STATUS_NONE
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            ?: return PowerManager.THERMAL_STATUS_NONE
+        return runCatching { powerManager.currentThermalStatus }
+            .getOrDefault(PowerManager.THERMAL_STATUS_NONE)
+    }
+
+    private fun readBatteryTemperatureTenths(context: Context): Int {
+        val batteryIntent = runCatching {
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        }.getOrNull()
+        return batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+    }
+
+    /** Brief between-tile duty-cycle adjustment; an active native ONNX tile is never interrupted. */
+    private fun thermalTileThrottleMs(context: Context): Long {
+        val status = readThermalStatus(context)
+        val batteryTemp = readBatteryTemperatureTenths(context)
+        return when {
+            status >= PowerManager.THERMAL_STATUS_CRITICAL || batteryTemp >= 430 -> 180L
+            status >= PowerManager.THERMAL_STATUS_SEVERE || batteryTemp >= 420 -> 120L
+            status >= PowerManager.THERMAL_STATUS_MODERATE || batteryTemp > 400 -> 70L
+            status >= PowerManager.THERMAL_STATUS_LIGHT || batteryTemp >= 390 -> 25L
+            else -> 0L
+        }
+    }
+
     fun process(
         context: Context,
         uri: Uri,
         workerCount: Int,
+        preferFast: Boolean = false,
+        onAdaptiveWorkerCount: (Int) -> Unit = {},
         shouldSwitchToFast: () -> Boolean = { false },
         continuePrimaryPastBudget: () -> Boolean = { false },
         shouldStopForThermal: () -> Boolean = { false },
@@ -115,6 +180,10 @@ internal object HdmpAiEngine {
                 )
             }
 
+            val effectiveWorkerCount = resolveWorkerCount(context, workerCount)
+            runCatching { onAdaptiveWorkerCount(effectiveWorkerCount) }
+            Log.i(TAG, "Adaptive ONNX worker count: $effectiveWorkerCount / requested $workerCount")
+
             val tileCount = ceil(width.toDouble() / CORE_SIZE).toLong() *
                 ceil(height.toDouble() / CORE_SIZE).toLong()
             val primaryBudget = (PRIMARY_MIN_BUDGET_MS + tileCount * 140L)
@@ -122,14 +191,14 @@ internal object HdmpAiEngine {
             val fallbackBudget = (FALLBACK_MIN_BUDGET_MS + tileCount * 90L)
                 .coerceAtMost(FALLBACK_MAX_BUDGET_MS)
 
-            runCatching { onProgress(Model.NAFNET_WIDTH64, 0) }
-            val primary = try {
+            if (!preferFast) runCatching { onProgress(Model.NAFNET_WIDTH64, 0) }
+            val primary = if (preferFast) false else try {
                 runModel(
                     context = context,
                     source = original,
                     destination = rendered,
                     spec = primarySpec,
-                    workerCount = workerCount,
+                    workerCount = effectiveWorkerCount,
                     budgetMs = primaryBudget,
                     model = Model.NAFNET_WIDTH64,
                     shouldSwitchToFast = shouldSwitchToFast,
@@ -140,7 +209,7 @@ internal object HdmpAiEngine {
             } catch (_: UserRequestedFastException) {
                 false
             }
-            val userRequestedFast = shouldSwitchToFast()
+            val userRequestedFast = preferFast || shouldSwitchToFast()
             if (shouldStopForThermal() && primary && commitRendered(context, uri, original, rendered)) {
                 return Result(Model.NAFNET_WIDTH64, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 hoàn tất, phần còn lại giữ ảnh gốc.")
             }
@@ -159,7 +228,7 @@ internal object HdmpAiEngine {
                 source = original,
                 destination = rendered,
                 spec = fallbackSpec,
-                workerCount = workerCount,
+                workerCount = effectiveWorkerCount,
                 budgetMs = fallbackBudget,
                 model = Model.NAFNETLIB_WIDTH32,
                 shouldSwitchToFast = { false },
@@ -253,6 +322,8 @@ internal object HdmpAiEngine {
             }
 
             var tileIndex = 0
+            var lastThermalSampleAt = 0L
+            var thermalThrottleMs = 0L
             for (coreTop in 0 until height step CORE_SIZE) {
                 for (coreLeft in 0 until width step CORE_SIZE) {
                     // Stop only between native inference tiles. Complete unprocessed areas
@@ -394,6 +465,13 @@ internal object HdmpAiEngine {
                             onProgress(model, (tileIndex * 100 / totalTiles).coerceIn(0, 100))
                         }
                     }
+                    // Sample thermal state only at tile boundaries. ONNX inference is not preempted.
+                    val thermalNow = SystemClock.elapsedRealtime()
+                    if (lastThermalSampleAt == 0L || thermalNow - lastThermalSampleAt >= 1_000L) {
+                        thermalThrottleMs = thermalTileThrottleMs(context)
+                        lastThermalSampleAt = thermalNow
+                    }
+                    if (thermalThrottleMs > 0L) SystemClock.sleep(thermalThrottleMs)
                 }
             }
 

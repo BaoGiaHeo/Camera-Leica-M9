@@ -258,7 +258,8 @@ fun ToolboxScreen(
             "pro_manual_exposure_enabled", "pro_manual_iso_enabled",
             "pro_manual_shutter_enabled", "pro_manual_wb_enabled",
             "pro_manual_iso", "pro_manual_shutter_ns", "pro_manual_wb_kelvin",
-            "pro_manual_focus"
+            "pro_manual_focus", "pro_hud_show_ev", "pro_hud_show_shutter",
+            "pro_hud_show_iso", "pro_hud_show_focus", "pro_hud_show_white_balance"
         )
     }
     fun saveCameraPreset(slot: String) {
@@ -309,6 +310,11 @@ fun ToolboxScreen(
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
     var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
     var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", false)) }
+    var proHudShowEv by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_ev", true)) }
+    var proHudShowShutter by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_shutter", true)) }
+    var proHudShowIso by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_iso", true)) }
+    var proHudShowFocus by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_focus", true)) }
+    var proHudShowWhiteBalance by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_white_balance", true)) }
     var hdrBracketMode by remember { mutableStateOf(prefs.getBoolean("hdr_bracketing_enabled", false)) }
     var focusBracketMode by remember { mutableStateOf(prefs.getBoolean("focus_bracketing_enabled", false)) }
     var faceTrackingEnabled by remember { mutableStateOf(prefs.getBoolean("face_tracking_enabled", false)) }
@@ -416,6 +422,33 @@ fun ToolboxScreen(
         PageHeader("Toolbox", onBack)
         Text("Viewfinder overlays", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+        Text("Pro HUD elements", color = CamColors.Sub, fontSize = 13.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 15.dp, bottom = 8.dp))
+        ToolToggle("EV display", "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowEv) {
+            proHudShowEv = it
+            prefs.edit().putBoolean("pro_hud_show_ev", it).apply()
+        }
+        ToolToggle("Shutter display", "Hiện hoặc ẩn tốc độ màn trập trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowShutter) {
+            proHudShowShutter = it
+            prefs.edit().putBoolean("pro_hud_show_shutter", it).apply()
+        }
+        ToolToggle("ISO display", "Hiện hoặc ẩn độ nhạy ISO trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowIso) {
+            proHudShowIso = it
+            prefs.edit().putBoolean("pro_hud_show_iso", it).apply()
+        }
+        ToolToggle("Focus display", "Hiện hoặc ẩn trạng thái lấy nét trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowFocus) {
+            proHudShowFocus = it
+            prefs.edit().putBoolean("pro_hud_show_focus", it).apply()
+        }
+        ToolToggle("White balance display", "Hiện hoặc ẩn nhiệt độ màu / cân bằng trắng trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowWhiteBalance) {
+            proHudShowWhiteBalance = it
+            prefs.edit().putBoolean("pro_hud_show_white_balance", it).apply()
+        }
         ToolToggle("Grid Lines", "Thirds composition guide", Icons.Default.GridOn, showGrid, onShowGrid)
         ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
         ToolToggle("RGB Histogram", "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview.", Icons.Default.ShowChart, rgbHistogramEnabled) {

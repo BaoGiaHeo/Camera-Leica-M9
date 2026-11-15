@@ -794,10 +794,10 @@ private fun WatermarkTemplateCard(
                 ) {
                     Image(painter = painterResource(id = R.drawable.fujifilm_logo),
                         contentDescription = "FUJIFILM",
-                        modifier = Modifier.weight(0.31f).height(15.dp),
+                        modifier = Modifier.weight(0.25f).height(11.dp),
                         contentScale = ContentScale.Fit)
                     Text("33mm  f/1.4  1/100s  ISO 100", color = Color.Black,
-                        fontSize = 5.6.sp, maxLines = 1, modifier = Modifier.weight(0.69f),
+                        fontSize = 5.4.sp, maxLines = 1, modifier = Modifier.weight(0.75f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
                 "fuji_signature" -> Column(
@@ -807,11 +807,13 @@ private fun WatermarkTemplateCard(
                 ) {
                     Image(painter = painterResource(id = R.drawable.fujifilm_logo),
                         contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.25f).height(13.dp),
+                        modifier = Modifier.fillMaxWidth(0.21f).height(11.dp),
                         contentScale = ContentScale.Fit)
                     Text("Shot on X-M5 | 2024.12.16", color = Color.Black,
-                        fontSize = 5.8.sp, maxLines = 1)
-                    Text("Your location", color = Color.Gray, fontSize = 5.sp)
+                        fontSize = 5.4.sp, maxLines = 1)
+                    Text("33mm  ·  f/1.4  ·  1/100s  ·  ISO 100", color = Color.DarkGray,
+                        fontSize = 5.2.sp, maxLines = 1)
+                    Text("Your location", color = Color.Gray, fontSize = 4.8.sp)
                 }
                 else -> Column(
                     Modifier.align(Alignment.Center).padding(5.dp),
@@ -1823,6 +1825,9 @@ fun applyCameraWatermark(
             else -> AndroidColor.TRANSPARENT
         }
         val minSide = minOf(output.width, output.height).toFloat()
+        // Keep logo and metadata in one restrained visual scale across output resolutions.
+        val watermarkTextSize = (minSide * 0.0125f).coerceIn(12f, 54f)
+        val watermarkLogoHeight = watermarkTextSize * 1.35f
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         val model = prefs.getString("watermark_custom_model", "")?.trim()
             ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
@@ -2155,11 +2160,11 @@ fun applyCameraWatermark(
                     color = AndroidColor.WHITE
                     style = Paint.Style.FILL
                 })
-                val logoWidth = minOf(footerRect.width() * 0.19f, footerRect.height() * 0.82f)
-                val logoHeight = brandLogo?.let {
-                    logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: logoWidth * 0.18f
-                val leftLogo = footerRect.left + footerRect.height() * 0.22f
+                val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.24f)
+                val logoWidth = logoHeight * (brandLogo?.let {
+                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
+                } ?: 5.95f)
+                val leftLogo = footerRect.left + footerRect.height() * 0.18f
                 val logoRect = RectF(
                     leftLogo,
                     footerRect.centerY() - logoHeight / 2f,
@@ -2176,7 +2181,7 @@ fun applyCameraWatermark(
                     footerText.textAlign = Paint.Align.LEFT
                     fitText(model, footerText, leftLogo,
                         footerRect.centerY() + logoHeight * 0.88f,
-                        footerRect.width() * 0.34f, minSide * 0.009f)
+                        footerRect.width() * 0.40f, watermarkTextSize)
                 }
                 if (showSpecs) {
                     val compactSpecs = listOf(focal, aperture, shutter, "ISO $iso")
@@ -2184,9 +2189,9 @@ fun applyCameraWatermark(
                     val right = footerRect.right - footerRect.height() * 0.18f
                     footerText.textAlign = Paint.Align.RIGHT
                     fitText(compactSpecs, footerText, right, footerRect.centerY() + footerText.textSize * 0.34f,
-                        footerRect.width() * 0.61f, minSide * 0.018f)
+                        footerRect.width() * 0.61f, watermarkTextSize)
                     if (compactSpecs.isNotBlank()) {
-                        val dotRadius = (footerRect.height() * 0.055f).coerceIn(3f, 18f)
+                        val dotRadius = (watermarkTextSize * 0.18f).coerceIn(2f, 9f)
                         val dotX = right - footerText.measureText(compactSpecs) - dotRadius * 2.4f
                         val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             color = AndroidColor.rgb(35, 174, 145)
@@ -2199,7 +2204,7 @@ fun applyCameraWatermark(
                     footerText.textAlign = Paint.Align.RIGHT
                     fitText(timeLine, footerText, footerRect.right - footerRect.height() * 0.18f,
                         footerRect.bottom - footerRect.height() * 0.20f,
-                        footerRect.width() * 0.61f, minSide * 0.0085f)
+                        footerRect.width() * 0.61f, watermarkTextSize * 0.88f)
                 }
             }
             "fuji_signature" -> {
@@ -2208,11 +2213,11 @@ fun applyCameraWatermark(
                     style = Paint.Style.FILL
                 })
                 val centerX = footerRect.centerX()
-                val logoWidth = minOf(footerRect.width() * 0.30f, footerRect.height() * 1.10f)
-                val logoHeight = brandLogo?.let {
-                    logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: logoWidth * 0.18f
-                val logoTop = footerRect.top + footerRect.height() * 0.09f
+                val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.22f)
+                val logoWidth = logoHeight * (brandLogo?.let {
+                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
+                } ?: 5.95f)
+                val logoTop = footerRect.top + footerRect.height() * 0.13f
                 drawBrandLogo(RectF(
                     centerX - logoWidth / 2f, logoTop,
                     centerX + logoWidth / 2f, logoTop + logoHeight
@@ -2225,12 +2230,12 @@ fun applyCameraWatermark(
                 val shotLabel = if (showModel) "Shot on $model" else ""
                 val signature = listOf(shotLabel, dateOnlyLine).filter { it.isNotBlank() }.joinToString(" | ")
                 fitText(signature, footerText, centerX,
-                    footerRect.top + footerRect.height() * 0.66f,
-                    footerRect.width() * 0.86f, minSide * 0.019f)
+                    footerRect.top + footerRect.height() * 0.59f,
+                    footerRect.width() * 0.86f, watermarkTextSize)
                 if (showSpecs) {
                     fitText(specs, footerText, centerX,
-                        footerRect.top + footerRect.height() * 0.78f,
-                        footerRect.width() * 0.88f, minSide * 0.010f)
+                        footerRect.top + footerRect.height() * 0.75f,
+                        footerRect.width() * 0.88f, watermarkTextSize * 0.96f)
                 }
                 if (locationLine.isNotBlank()) {
                     val locationPaint = Paint(footerText).apply {
@@ -2238,8 +2243,8 @@ fun applyCameraWatermark(
                         textAlign = Paint.Align.CENTER
                     }
                     fitText(locationLine, locationPaint, centerX,
-                        footerRect.top + footerRect.height() * 0.93f,
-                        footerRect.width() * 0.88f, minSide * 0.0105f)
+                        footerRect.top + footerRect.height() * 0.91f,
+                        footerRect.width() * 0.88f, watermarkTextSize * 0.84f)
                 }
             }
             "center_logo" -> {

@@ -122,8 +122,8 @@ Audit target: `CamUI-src`, versionName `1.5`, versionCode `6`.
 | 77 | One failed frame does not cancel the remaining burst | CODE |
 | 78 | Successful frames are saved and progress is reported | CODE |
 | 79 | Photo Inspector redesign | CODE |
-| 80 | Encoded pixel dimensions, file size, ISO and shutter metadata | TEST |
-| 81 | Logical/physical camera and HDMP status | TEST |
+| 80 | Encoded pixel dimensions, file size, ISO and shutter metadata | CODE |
+| 81 | Logical/physical camera and HDMP status | CODE |
 | 82 | JPEG/DNG metadata inspection where decodable/published | DEVICE |
 
 ## H. Additional tools

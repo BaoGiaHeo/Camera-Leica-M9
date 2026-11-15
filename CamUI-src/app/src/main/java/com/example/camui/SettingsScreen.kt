@@ -66,7 +66,7 @@ private val settingItems = listOf(
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
-    SettingItem("About", "Fujifilm Mode · app-debug")
+    SettingItem("About", "Fujifilm Mode · HDMP Camera · Version 1.4.1")
 )
 
 @Composable
@@ -85,15 +85,7 @@ fun SettingsScreen(
     AnimatedContent(
         targetState = selectedPage,
         modifier = Modifier.fillMaxSize(),
-        transitionSpec = {
-            (fadeIn(tween(240)) + scaleIn(
-                initialScale = 0.88f,
-                animationSpec = spring(dampingRatio = 0.78f, stiffness = 430f)
-            )) togetherWith (fadeOut(tween(140)) + scaleOut(
-                targetScale = 0.94f,
-                animationSpec = tween(160)
-            ))
-        },
+        transitionSpec = { AnimaT.enter() togetherWith AnimaT.exit() },
         label = "Settings page pop transition"
     ) { page ->
         if (page != null) {
@@ -465,7 +457,7 @@ var nightShotMode by remember {
                 }
             }
             else -> {
-                Text("Fujifilm Mode (app-debug)", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("Fujifilm Mode · HDMP Camera", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text("Người làm App: Baoaka06", color = CamColors.TextColor, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 18.dp))
                 Text("TikTok: @baoaka06", color = CamColors.Yellow, fontSize = 14.sp,
@@ -474,7 +466,7 @@ var nightShotMode by remember {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
                         }
                     })
-                Text("Version 1.1 experimental · Debug build", color = CamColors.Sub, fontSize = 12.sp,
+                Text("Version 1.4.1 · Build 5", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
             }
         }

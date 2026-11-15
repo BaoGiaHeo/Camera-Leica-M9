@@ -1722,6 +1722,7 @@ fun CameraScreen(
                 val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
                 val originalEv = activeCamera.cameraInfo.exposureState.exposureCompensationIndex
                 var focusRestoreRequired = false
+                var bracketTargetFrames = if (hdrBracketMode) 3 else 5
                 try {
                     if (timerSec > 0) {
                         for (seconds in timerSec downTo 1) {
@@ -1744,6 +1745,7 @@ fun CameraScreen(
                             0f
                         )
                     }
+                    bracketTargetFrames = positions.size
                     for ((index, value) in positions.withIndex()) {
                         if (hdrBracketMode) {
                             activeCamera.cameraControl.setExposureCompensationIndex(value.roundToInt())
@@ -1786,7 +1788,7 @@ fun CameraScreen(
                 }
                 localizedToast(
                     context,
-                    "${if (hdrBracketMode) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/${if (hdrBracketMode) positions.size else 5} khung JPEG. Các khung được lưu riêng, chưa ghép HDR/focus stack.",
+                    "${if (hdrBracketMode) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/${if (hdrBracketMode) bracketTargetFrames} khung JPEG. Các khung được lưu riêng, chưa ghép HDR/focus stack.",
                     Toast.LENGTH_LONG
                 ).show()
             }

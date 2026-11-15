@@ -2,6 +2,8 @@
 
 Audit target: `CamUI-src`, versionName `1.5`, versionCode `6`.
 
+This audit covers all **89/89** listed requirements: **50 CODE**, **11 LIMIT**, **27 DEVICE**, and **1 TEST**. The CamUI unit-test sources contain **22 JUnit test cases** across geometry, EXIF orientation, HDMP decision handling, photo-quality analysis, and Macro lens selection.
+
 ## Status legend
 
 - **CODE** — implementation exists in source. This is not proof of physical-device acceptance.

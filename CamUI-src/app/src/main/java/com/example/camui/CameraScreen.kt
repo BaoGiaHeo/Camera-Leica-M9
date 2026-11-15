@@ -374,6 +374,12 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+    var faceTrackingEnabled by remember {
+        mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
+            .getBoolean("face_tracking_enabled", false))
+    }
+    val faceTrackingEnabledState = rememberUpdatedState(faceTrackingEnabled)
+    var faceTrackCenter by remember { mutableStateOf<Offset?>(null) }
     val sensorManager = remember(context) {
         context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     }
@@ -620,6 +626,8 @@ fun CameraScreen(
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
+    val manualFocusState = rememberUpdatedState(manualFocus)
+    val focusLockedState = rememberUpdatedState(focusLocked)
     var macroAssistEnabled by remember { mutableStateOf(false) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var rgbRedHistogram by remember { mutableStateOf(IntArray(32)) }
@@ -883,8 +891,11 @@ fun CameraScreen(
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
+            var faceSensorToDisplayRotation = 0
 
             fun bindCapture(outputFormat: Int) {
+                var lastFaceTrackAtMs = 0L
+                var lastFaceTrackCenter: Offset? = null
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
                 if (!hdrExtensionActive && !nightExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
@@ -894,6 +905,65 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            if (faceTrackingEnabledState.value) {
+                                val detectedFaces = result.get(CaptureResult.STATISTICS_FACES)
+                                val bestFace = detectedFaces
+                                    ?.filter { it.score >= 50 }
+                                    ?.maxByOrNull { it.bounds.width().toLong() * it.bounds.height().toLong() }
+                                val crop = result.get(CaptureResult.SCALER_CROP_REGION)
+                                    ?: activeCameraCharacteristics?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                                if (bestFace != null && crop != null && crop.width() > 0 && crop.height() > 0) {
+                                    val faceBounds = bestFace.bounds
+                                    val normalizedX = ((faceBounds.centerX() - crop.left).toFloat() /
+                                        crop.width()).coerceIn(0f, 1f)
+                                    val normalizedY = ((faceBounds.centerY() - crop.top).toFloat() /
+                                        crop.height()).coerceIn(0f, 1f)
+                                    val orientedCenter = when (faceSensorToDisplayRotation) {
+                                        90 -> Offset(1f - normalizedY, normalizedX)
+                                        180 -> Offset(1f - normalizedX, 1f - normalizedY)
+                                        270 -> Offset(normalizedY, 1f - normalizedX)
+                                        else -> Offset(normalizedX, normalizedY)
+                                    }.let { point ->
+                                        if (front) Offset(1f - point.x, point.y) else point
+                                    }
+                                    val now = SystemClock.elapsedRealtime()
+                                    val previous = lastFaceTrackCenter
+                                    val movedEnough = previous == null ||
+                                        kotlin.math.abs(previous.x - orientedCenter.x) +
+                                        kotlin.math.abs(previous.y - orientedCenter.y) > 0.055f
+                                    if (movedEnough || now - lastFaceTrackAtMs >= 1_200L) {
+                                        lastFaceTrackAtMs = now
+                                        lastFaceTrackCenter = orientedCenter
+                                        scope.launch(Dispatchers.Main) {
+                                            faceTrackCenter = orientedCenter
+                                            val previewWidth = previewView.width
+                                            val previewHeight = previewView.height
+                                            if (previewWidth > 0 && previewHeight > 0 &&
+                                                !focusLockedState.value && manualFocusState.value <= 0f
+                                            ) {
+                                                runCatching {
+                                                    val point = previewView.meteringPointFactory.createPoint(
+                                                        orientedCenter.x * previewWidth,
+                                                        orientedCenter.y * previewHeight,
+                                                        0.18f
+                                                    )
+                                                    val action = FocusMeteringAction.Builder(
+                                                        point,
+                                                        FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                                                    ).setAutoCancelDuration(1, TimeUnit.SECONDS).build()
+                                                    camera?.cameraControl?.startFocusAndMetering(action)
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    lastFaceTrackCenter = null
+                                    scope.launch(Dispatchers.Main) { faceTrackCenter = null }
+                                }
+                            } else {
+                                lastFaceTrackCenter = null
+                                scope.launch(Dispatchers.Main) { faceTrackCenter = null }
+                            }
                             live.activePhysicalCameraId?.let { id ->
                                 if (activePhysicalCameraId != id) activePhysicalCameraId = id
                             }
@@ -1211,6 +1281,31 @@ fun CameraScreen(
                 val actualCameraId = actualCamera2Info?.cameraId
                 activeCameraCharacteristics = actualCameraId?.let { id ->
                     runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
+                }
+                faceSensorToDisplayRotation = runCatching {
+                    bound.cameraInfo.getSensorRotationDegrees(rotation)
+                }.getOrDefault(0)
+                val availableFaceModes = activeCameraCharacteristics?.get(
+                    CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES
+                ).orEmpty()
+                val faceDetectMode = when {
+                    availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) ->
+                        CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
+                    availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE) ->
+                        CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
+                    else -> null
+                }
+                if (faceTrackingEnabled && faceDetectMode != null) {
+                    runCatching {
+                        val faceOptions = CaptureRequestOptions.Builder()
+                            .setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, faceDetectMode)
+                            .build()
+                        Camera2CameraControl.from(bound.cameraControl).setCaptureRequestOptions(faceOptions)
+                    }.onFailure {
+                        android.util.Log.w("FUJI_FACE_TRACK", "Could not enable Camera2 face detection", it)
+                    }
+                } else {
+                    faceTrackCenter = null
                 }
                 activeCameraDetails = discoveredCamera2.firstOrNull {
                     it.id == actualCameraId && it.parentId == null
@@ -2833,6 +2928,30 @@ fun CameraScreen(
                                         drawLine(c, Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
                                         drawLine(c, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
                                     }
+                                }
+                            }
+                            if (faceTrackingEnabled && faceTrackCenter != null) {
+                                val center = faceTrackCenter!!
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val point = Offset(center.x * size.width, center.y * size.height)
+                                    drawCircle(
+                                        color = Color(0xFF58D6FF),
+                                        radius = 14.dp.toPx(),
+                                        center = point,
+                                        style = Stroke(width = 2.dp.toPx())
+                                    )
+                                    drawLine(
+                                        color = Color(0xFF58D6FF),
+                                        start = Offset(point.x - 20.dp.toPx(), point.y),
+                                        end = Offset(point.x + 20.dp.toPx(), point.y),
+                                        strokeWidth = 1.dp.toPx()
+                                    )
+                                    drawLine(
+                                        color = Color(0xFF58D6FF),
+                                        start = Offset(point.x, point.y - 20.dp.toPx()),
+                                        end = Offset(point.x, point.y + 20.dp.toPx()),
+                                        strokeWidth = 1.dp.toPx()
+                                    )
                                 }
                             }
                             if (focusPeaking && peakPoints.isNotEmpty()) {

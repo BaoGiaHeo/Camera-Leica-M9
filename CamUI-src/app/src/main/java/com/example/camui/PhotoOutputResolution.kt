@@ -43,7 +43,8 @@ object PhotoOutputResolution {
     fun interpolateToMp(
         context: Context,
         uri: Uri,
-        targetPixels: Long
+        targetPixels: Long,
+        targetAspectRatio: Float? = null
     ): PhotoOutputResult? {
         require(targetPixels in MIN_OUTPUT_PIXELS..250_000_000L) {
             "Unsupported output pixel target"
@@ -68,8 +69,35 @@ object PhotoOutputResolution {
             } ?: error("Cannot decode original JPEG")
 
             val src = source!!
-            val sourcePixels = src.width.toLong() * src.height.toLong()
-            require(sourcePixels > 0L) { "Invalid source size" }
+            require(src.width > 0 && src.height > 0) { "Invalid source size" }
+
+            val requestedAspect = targetAspectRatio
+                ?.takeIf { it.isFinite() && it > 0f }
+                ?.toDouble()
+                ?: (src.width.toDouble() / src.height.toDouble())
+            val rawAspect = src.width.toDouble() / src.height.toDouble()
+            // CameraX can return the sensor's closest native JPEG size even when the
+            // viewfinder is using a narrower crop. Apply that crop before scaling so 21:9,
+            // 16:9, 4:3, 3:2 and 1:1 all remain the selected frame after UHD/UHD+.
+            var cropLeft = 0
+            var cropTop = 0
+            var cropWidth = src.width
+            var cropHeight = src.height
+            if (rawAspect > requestedAspect) {
+                cropWidth = (src.height * requestedAspect).roundToInt().coerceIn(2, src.width)
+                cropLeft = (src.width - cropWidth) / 2
+            } else if (rawAspect < requestedAspect) {
+                cropHeight = (src.width / requestedAspect).roundToInt().coerceIn(2, src.height)
+                cropTop = (src.height - cropHeight) / 2
+            }
+            val sourceRect = Rect(
+                cropLeft,
+                cropTop,
+                cropLeft + cropWidth,
+                cropTop + cropHeight
+            )
+            val sourcePixels = cropWidth.toLong() * cropHeight.toLong()
+            require(sourcePixels > 0L) { "Invalid cropped source size" }
 
             // Budget against the heap still available now, not the process' theoretical max heap.
             // The source bitmap is already allocated; reserve extra space for JPEG encoding,
@@ -87,12 +115,13 @@ object PhotoOutputResolution {
                 "Insufficient safe memory for a 10MP output; original photo retained"
             }
 
-            val aspectRatio = src.width.toDouble() / src.height.coerceAtLeast(1)
+            val aspectRatio = requestedAspect
             val scale = sqrt(actualTargetPixels.toDouble() / sourcePixels.toDouble())
-            var height = (src.height * scale).roundToInt().coerceAtLeast(2)
+            var height = (cropHeight * scale).roundToInt().coerceAtLeast(2)
             var width = (height * aspectRatio).roundToInt().coerceAtLeast(2)
 
-            // Keep the exact source aspect ratio as closely as integer pixel dimensions allow.
+            // Keep the selected viewfinder ratio to integer-pixel precision while staying
+            // strictly inside the safe allocation budget.
             while (width.toLong() * height.toLong() > actualTargetPixels) {
                 val currentAspect = width.toDouble() / height.toDouble()
                 if (currentAspect > aspectRatio && width > 2) width--
@@ -113,14 +142,14 @@ object PhotoOutputResolution {
             output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
             Canvas(output!!).drawBitmap(
                 src,
-                null,
+                sourceRect,
                 Rect(0, 0, width, height),
                 Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
                     isAntiAlias = true
                 }
             )
             FileOutputStream(temp).use { stream ->
-                check(output!!.compress(Bitmap.CompressFormat.JPEG, 96, stream)) {
+                check(output!!.compress(Bitmap.CompressFormat.JPEG, 98, stream)) {
                     "JPEG encoding failed"
                 }
                 stream.flush()
@@ -171,6 +200,8 @@ object PhotoOutputResolution {
             Log.i(
                 TAG,
                 "Requested=${targetPixels / 1_000_000L}MP actual=${outputPixels / 1_000_000L}MP " +
+                    "source=${src.width}x${src.height}, crop=${cropWidth}x${cropHeight}, " +
+                    "requestedAspect=${"%.5f".format(Locale.US, requestedAspect)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )
             if (actualTargetPixels < targetPixels) {

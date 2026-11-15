@@ -2374,6 +2374,7 @@ fun CameraScreen(
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseNightShot -> "HDMP Night Shot · căn chỉnh và ghép nhiều khung"
+                                captureUseMilkyWayStack -> "Milky Way · căn chỉnh sao và ghép 8 khung"
                                 captureUseUhdAlgorithm -> "UHD · HDMP 8 tác vụ · ghép 5 khung + 108MP"
                                 captureUseFhdAlgorithm -> "FHD · HDMP 6 tác vụ · ghép 5 khung + 60MP"
                                 false -> "Đang áp dụng bộ lọc màu"
@@ -2446,11 +2447,15 @@ fun CameraScreen(
                                                             "Night Shot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
                                                         } else if (captureUseMilkyWayStack) {
                                                             "Milky Way: thu khung $expectedFrame/$maxFrames"
+                                                        } else if (captureUseMilkyWayStack) {
+                                                            "Milky Way: thu khung $expectedFrame/$maxFrames"
                                                         } else {
                                                             "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
                                                             (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
+                                                        } else if (captureUseMilkyWayStack) {
+                                                            (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else if (captureUseMilkyWayStack) {
                                                             (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else (8 + stackedFrames.size * 3).coerceAtMost(24)
@@ -2500,10 +2505,10 @@ fun CameraScreen(
                                             }
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
-                                                    processingLabel = if (captureUseNightShot) {
-                                                        "NightShot: căn chỉnh và gộp ${stackedFrames.size} khung"
-                                                    } else {
-                                                        "Multi-frame: căn chỉnh và gộp ${stackedFrames.size}/5 khung"
+                                                    processingLabel = when {
+                                                        captureUseNightShot -> "NightShot: căn chỉnh và gộp " + stackedFrames.size + " khung"
+                                                        captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu " + stackedFrames.size + "/8 khung"
+                                                        else -> "Multi-frame: căn chỉnh và gộp " + stackedFrames.size + "/5 khung"
                                                     }
                                                     processingProgress = 27
                                                 }
@@ -2512,9 +2517,11 @@ fun CameraScreen(
                                                     NightShotProcessor.MergeMode.NIGHT_AVERAGE
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
-                                                        processingLabel = if (captureUseNightShot) {
-                                                            "NightShot: căn khung và giảm nhiễu"
-                                                        } else "Multi-frame: ghép 5 khung"
+                                                        processingLabel = when {
+                                                            captureUseNightShot -> "NightShot: căn khung và giảm nhiễu"
+                                                            captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu"
+                                                            else -> "Multi-frame: ghép 5 khung"
+                                                        }
                                                         processingProgress = (27 + mergeProgress * 0.55f)
                                                             .toInt().coerceIn(27, 82)
                                                     }
@@ -2522,7 +2529,7 @@ fun CameraScreen(
                                             }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
-                                                "mode=${if (captureUseNightShot) "NightShot-${captureNightDurationSeconds}s" else if (captureUseUhdAlgorithm) "UHD" else "FHD"} actualFrames=${stackedFrames.size}"
+                                                "mode=" + (if (captureUseNightShot) "NightShot-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
                                             )
                                         }
                                     } finally {

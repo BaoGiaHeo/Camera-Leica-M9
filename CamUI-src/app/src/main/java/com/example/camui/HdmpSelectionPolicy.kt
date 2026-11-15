@@ -8,16 +8,25 @@ internal object HdmpSelectionPolicy {
     val supportedOutputMegapixels = listOf(24, 48, 60, 108, 250)
 
     fun normalizeModel(value: String?): String = when (value) {
+        "off" -> "off"
         "ai15", "speed" -> "ai15"
         else -> "ai2"
     }
 
+    fun isAiEnabled(value: String?): Boolean = normalizeModel(value) != "off"
+
     fun normalizeOutputMegapixels(value: Int): Int =
         value.takeIf { it in supportedOutputMegapixels } ?: 60
 
-    fun targetRenderSeconds(model: String): Int =
-        if (normalizeModel(model) == "ai15") 10 else 20
+    fun targetRenderSeconds(model: String): Int = when (normalizeModel(model)) {
+        "ai15" -> 10
+        "ai2" -> 20
+        else -> 0
+    }
 
-    fun maximumRenderSeconds(model: String): Int =
-        if (normalizeModel(model) == "ai15") 20 else 30
+    fun maximumRenderSeconds(model: String): Int = when (normalizeModel(model)) {
+        "ai15" -> 20
+        "ai2" -> 30
+        else -> 0
+    }
 }

@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
-"""Export the NAFNet SIDD denoisers to fixed-size ONNX tiles for Android.
+"""Export Megvii's official NAFNet width64 and nafnetlib width32 to ONNX.
 
-The exported networks are denoisers (same-resolution residual restoration), not GAN upscalers.
-HDMP owns the final blend, validation and save. Real-ESRGAN is intentionally not exported.
+Both networks perform same-resolution denoising. HDMP owns validation, conservative
+blending, image commit and final save; this script never exports an image upscaler.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
+import logging
 import os
 import sys
+import types
 from pathlib import Path
-
-
-def patch_known_nafnetlib_typo(source_root: Path) -> None:
-    model_file = source_root / "nafnetlib" / "models" / "nafnet.py"
-    text = model_file.read_text(encoding="utf-8")
-    corrected = text.replace("torch.torch.nn.Module", "torch.nn.Module")
-    if corrected != text:
-        model_file.write_text(corrected, encoding="utf-8")
 
 
 def sha256(path: Path) -> str:
@@ -30,22 +25,109 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def export_one(model_id: str, filename: str, model_dir: Path, output_dir: Path) -> dict:
+def _package(name: str, directory: Path) -> None:
+    module = types.ModuleType(name)
+    module.__path__ = [str(directory)]
+    module.__package__ = name
+    sys.modules[name] = module
+
+
+def _load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load official NAFNet module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_official_megvii_width64(source_root: Path, checkpoint_path: Path):
+    """Instantiate the exact official Megvii SIDD width64 architecture and weights."""
+    import torch
+
+    basicsr = source_root / "basicsr"
+    arch_dir = basicsr / "models" / "archs"
+    for name, directory in (
+        ("basicsr", basicsr),
+        ("basicsr.models", basicsr / "models"),
+        ("basicsr.models.archs", arch_dir),
+    ):
+        _package(name, directory)
+
+    # arch_util only needs get_root_logger for optional logging paths. Stub that
+    # utility import so the official architecture can be loaded without installing
+    # the entire BasicSR training stack and its unrelated data dependencies.
+    utility_stub = types.ModuleType("basicsr.utils")
+    utility_stub.get_root_logger = lambda *args, **kwargs: logging.getLogger("nafnet")
+    utility_stub.__path__ = []
+    sys.modules["basicsr.utils"] = utility_stub
+
+    _load_module(
+        "basicsr.models.archs.arch_util",
+        arch_dir / "arch_util.py",
+    )
+    _load_module(
+        "basicsr.models.archs.local_arch",
+        arch_dir / "local_arch.py",
+    )
+    official_arch = _load_module(
+        "basicsr.models.archs.NAFNet_arch",
+        arch_dir / "NAFNet_arch.py",
+    )
+
+    network = official_arch.NAFNet(
+        img_channel=3,
+        width=64,
+        enc_blk_nums=[2, 2, 4, 8],
+        middle_blk_num=12,
+        dec_blk_nums=[2, 2, 2, 2],
+    )
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+        weights_only=False,
+    )
+    state = checkpoint.get("params") if isinstance(checkpoint, dict) else None
+    if state is None and isinstance(checkpoint, dict):
+        state = checkpoint.get("params_ema")
+    if state is None:
+        raise RuntimeError("Official Megvii checkpoint has no 'params' or 'params_ema' state dict")
+    network.load_state_dict(state, strict=True)
+    network.eval().cpu()
+    return network
+
+
+def load_nafnetlib_width32(source_root: Path, model_dir: Path):
+    """Load the requested width32 fallback from mikecokina/nafnetlib."""
+    source_root = source_root.resolve()
+    model_file = source_root / "nafnetlib" / "models" / "nafnet.py"
+    if not model_file.is_file():
+        raise FileNotFoundError(f"nafnetlib source not found under {source_root}")
+    text = model_file.read_text(encoding="utf-8")
+    corrected = text.replace("torch.torch.nn.Module", "torch.nn.Module")
+    if corrected != text:
+        model_file.write_text(corrected, encoding="utf-8")
+    sys.path.insert(0, str(source_root))
+    from nafnetlib.core import DenoiseProcessor
+
+    processor = DenoiseProcessor(
+        model_id="sidd_width32",
+        model_dir=str(model_dir),
+        device="cpu",
+    )
+    return processor.net.net_g.eval().cpu()
+
+
+def export_one(model_id: str, filename: str, network, output_dir: Path) -> dict:
     import numpy as np
     import onnx
     import onnxruntime as ort
     import torch
-    from nafnetlib.core import DenoiseProcessor
 
     torch.set_num_threads(max(1, min(8, os.cpu_count() or 2)))
     torch.set_grad_enabled(False)
-
-    processor = DenoiseProcessor(
-        model_id=model_id,
-        model_dir=str(model_dir),
-        device="cpu",
-    )
-    network = processor.net.net_g.eval()
+    network = network.eval().cpu()
     torch.manual_seed(20261115)
     sample = torch.rand(1, 3, 256, 256, dtype=torch.float32)
     output_path = output_dir / filename
@@ -65,7 +147,6 @@ def export_one(model_id: str, filename: str, model_dir: Path, output_dir: Path) 
 
     graph = onnx.load(str(output_path), load_external_data=True)
     onnx.checker.check_model(graph)
-
     session = ort.InferenceSession(
         str(output_path),
         providers=["CPUExecutionProvider"],
@@ -76,10 +157,8 @@ def export_one(model_id: str, filename: str, model_dir: Path, output_dir: Path) 
     )[0]
     if predicted.shape != (1, 3, 256, 256):
         raise RuntimeError(f"{model_id}: unexpected ONNX output shape {predicted.shape}")
-    if not np.isfinite(predicted).all():
-        raise RuntimeError(f"{model_id}: ONNX smoke test returned NaN/Infinity")
-    if not np.isfinite(reference).all():
-        raise RuntimeError(f"{model_id}: PyTorch reference returned NaN/Infinity")
+    if not np.isfinite(predicted).all() or not np.isfinite(reference).all():
+        raise RuntimeError(f"{model_id}: PyTorch/ONNX produced NaN or Infinity")
 
     max_abs_error = float(np.max(np.abs(predicted - reference)))
     mean_abs_error = float(np.mean(np.abs(predicted - reference)))
@@ -116,28 +195,48 @@ def export_one(model_id: str, filename: str, model_dir: Path, output_dir: Path) 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--official-nafnet-src", required=True, type=Path)
+    parser.add_argument("--official-width64-checkpoint", required=True, type=Path)
     parser.add_argument("--nafnetlib-src", required=True, type=Path)
     parser.add_argument("--model-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
 
-    source_root = args.nafnetlib_src.resolve()
-    if not (source_root / "nafnetlib" / "core.py").is_file():
-        raise FileNotFoundError(f"nafnetlib source not found under {source_root}")
+    if not (args.official_nafnet_src / "basicsr/models/archs/NAFNet_arch.py").is_file():
+        raise FileNotFoundError("Official Megvii NAFNet source was not found")
+    if not args.official_width64_checkpoint.is_file() or args.official_width64_checkpoint.stat().st_size < 1_000_000:
+        raise FileNotFoundError("Official Megvii SIDD width64 checkpoint is missing or too small")
+    if not (args.nafnetlib_src / "src/nafnetlib/core.py").is_file() and not (args.nafnetlib_src / "nafnetlib/core.py").is_file():
+        raise FileNotFoundError(f"nafnetlib source not found under {args.nafnetlib_src}")
+
     args.model_dir.mkdir(parents=True, exist_ok=True)
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    patch_known_nafnetlib_typo(source_root)
-    sys.path.insert(0, str(source_root))
+    official_network = load_official_megvii_width64(
+        args.official_nafnet_src.resolve(),
+        args.official_width64_checkpoint.resolve(),
+    )
+    fallback_source = args.nafnetlib_src.resolve()
+    if (fallback_source / "src/nafnetlib/core.py").is_file():
+        fallback_source = fallback_source / "src"
+    fallback_network = load_nafnetlib_width32(fallback_source, args.model_dir)
 
     models = [
-        ("sidd_width64", "nafnet_sidd_width64.onnx"),
-        ("sidd_width32", "nafnetlib_sidd_width32.onnx"),
+        (
+            "megvii_nafnet_sidd_width64",
+            "nafnet_sidd_width64.onnx",
+            official_network,
+        ),
+        (
+            "nafnetlib_sidd_width32",
+            "nafnetlib_sidd_width32.onnx",
+            fallback_network,
+        ),
     ]
     manifest = []
     report = []
-    for model_id, filename in models:
-        result = export_one(model_id, filename, args.model_dir, args.output_dir)
+    for model_id, filename, network in models:
+        result = export_one(model_id, filename, network, args.output_dir)
         manifest.append(f"{result['sha256']}  {filename}")
         report.append(result)
         print(json.dumps(result, sort_keys=True), flush=True)

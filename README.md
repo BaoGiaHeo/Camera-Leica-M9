@@ -23,11 +23,11 @@ Android camera application. The CamUI source currently declares `versionName=1.5
 CI success establishes that unit tests, source compilation, APK assembly, NAFNet export smoke tests, numerical parity checks, and APK model-asset checks passed for the corresponding workflow. It does **not** establish camera compatibility or thermal stability on a physical phone. Installation, camera switching, Macro, RAW/DNG, 250MP output, Night Shot, burst timing, and long-duration HDMP AI behavior still require physical-device acceptance testing. A debug APK is not a signed production release.
 
 ---
-# Fujifilm Mode — HDMP Camera 1.4.1
+## Historical baseline: FujiFilm Mode 1.4.1
 
 Android camera application with HDMP-controlled computational photography.
 
-## Version 1.4.1 update
+### Version 1.4.1 update (historical)
 
 - App metadata is **1.4.1** (versionCode 5).
 - The camera Activity handles orientation, screen-size, smallest-screen-size and screen-layout changes without being recreated. This keeps the active CameraScreen Compose scope alive when the user rotates the device, so rotation alone no longer cancels an in-flight HDMP render.
@@ -38,7 +38,7 @@ Android camera application with HDMP-controlled computational photography.
 **Scope:** this specifically protects processing from Activity recreation caused by orientation/size changes. It is not a durable checkpoint for force-stop, process death or an operating-system kill. Actual rotation smoothness and camera preview behavior still require testing on physical devices.
 
 
-## Version 1.4 baseline features retained in 1.4.1
+### Version 1.4 baseline features retained in 1.4.1
 
 - The 1.4 baseline removed the experimental suffix; version 1.4.1 increments metadata to versionCode 5.
 - HDMP AI provides **Quality**, **Balanced**, and **Speed** profiles. Speed selects HDMP AI 2 Fast directly.

@@ -11,6 +11,10 @@ class HdmpSelectionPolicyTest {
         assertEquals("ai2", HdmpSelectionPolicy.normalizeModel("ai2"))
         assertEquals("ai15", HdmpSelectionPolicy.normalizeModel("speed"))
         assertEquals("ai15", HdmpSelectionPolicy.normalizeModel("ai15"))
+        assertEquals("off", HdmpSelectionPolicy.normalizeModel("off"))
+        assertEquals(false, HdmpSelectionPolicy.isAiEnabled("off"))
+        assertEquals(true, HdmpSelectionPolicy.isAiEnabled("ai2"))
+        assertEquals(true, HdmpSelectionPolicy.isAiEnabled("ai15"))
     }
 
     @Test
@@ -27,5 +31,7 @@ class HdmpSelectionPolicyTest {
         assertEquals(30, HdmpSelectionPolicy.maximumRenderSeconds("ai2"))
         assertEquals(10, HdmpSelectionPolicy.targetRenderSeconds("ai15"))
         assertEquals(20, HdmpSelectionPolicy.maximumRenderSeconds("ai15"))
+        assertEquals(0, HdmpSelectionPolicy.targetRenderSeconds("off"))
+        assertEquals(0, HdmpSelectionPolicy.maximumRenderSeconds("off"))
     }
 }

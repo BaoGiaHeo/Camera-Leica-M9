@@ -431,7 +431,7 @@ fun ToolboxScreen(
             animationPerformanceMode,
             onAnimationPerformanceModeChanged
         )
-        ToolToggle("Lens Distortion Correction", "Yêu cầu Camera2/HAL chỉnh méo hình ở mức chất lượng cao nếu ống kính công bố hỗ trợ; không tự bù viền tím hay tối góc.", 
+        ToolToggle("Lens Correction", "Yêu cầu Camera2/HAL hiệu chỉnh méo hình, viền màu và tối góc bằng các chế độ công khai nếu ống kính hỗ trợ; không tự bịa dữ liệu lens profile.",
             Icons.Default.Tune, lensCorrectionEnabled) {
             lensCorrectionEnabled = it
             prefs.edit().putBoolean("lens_correction_enabled", it).apply()

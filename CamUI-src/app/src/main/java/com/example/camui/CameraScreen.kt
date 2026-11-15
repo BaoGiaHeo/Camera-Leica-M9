@@ -896,7 +896,7 @@ fun CameraScreen(
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
                 "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
-                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW
+                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
                 else -> ImageCapture.OUTPUT_FORMAT_JPEG
             }
             val rawCaptureFormat = if (

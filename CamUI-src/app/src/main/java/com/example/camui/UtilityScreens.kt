@@ -233,7 +233,9 @@ fun ToolboxScreen(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    animationPerformanceMode: Boolean = false,
+    onAnimationPerformanceModeChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
@@ -417,11 +419,18 @@ fun ToolboxScreen(
             faceTrackingEnabled = it
             prefs.edit().putBoolean("face_tracking_enabled", it).apply()
         }
-        ToolToggle("Auto-hide Camera HUD", "Ẩn thanh điều khiển sau 5 giây không thao tác; chạm màn hình để hiện lại.", 
+        ToolToggle("Auto-hide Camera HUD", "Ẩn thanh điều khiển sau 5 giây không thao tác; chạm màn hình để hiện lại.",
             Icons.Default.Tune, hudAutoHideEnabled) {
             hudAutoHideEnabled = it
             prefs.edit().putBoolean("hud_auto_hide_enabled", it).apply()
         }
+        ToolToggle(
+            "Animation Performance Mode",
+            "Giảm trượt/scale khi máy nóng hoặc khi bật thủ công; Android tự kích hoạt khi nhiệt độ đạt mức trung bình.",
+            Icons.Default.Tune,
+            animationPerformanceMode,
+            onAnimationPerformanceModeChanged
+        )
         ToolToggle("Lens Distortion Correction", "Yêu cầu Camera2/HAL chỉnh méo hình ở mức chất lượng cao nếu ống kính công bố hỗ trợ; không tự bù viền tím hay tối góc.", 
             Icons.Default.Tune, lensCorrectionEnabled) {
             lensCorrectionEnabled = it
@@ -3112,6 +3121,28 @@ private fun EmptyNote(text: String) {
 private data class AlbumPhotoEntry(val uri: Uri, val dateAdded: Long)
 
 @Composable
+private fun AlbumLoadingSkeleton() {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text("Đang tải thư viện ảnh…", color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(start = 3.dp, bottom = 8.dp))
+        repeat(3) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                repeat(3) {
+                    Box(
+                        Modifier.weight(1f).aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CamColors.Card)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AlbumScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var photos by remember { mutableStateOf<List<AlbumPhotoEntry>>(emptyList()) }
@@ -3166,7 +3197,7 @@ fun AlbumScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(12.dp)) {
         PageHeader("Album · Fujifilm Mode", onBack)
         when {
-            isLoading -> Text("Đang tải ảnh…", color = CamColors.Sub, modifier = Modifier.padding(12.dp))
+            isLoading -> AlbumLoadingSkeleton()
             photos.isEmpty() -> EmptyNote("Chưa có ảnh. Ảnh chụp trong ứng dụng sẽ xuất hiện ở đây.")
             else -> Text("${photos.size} ảnh", color = CamColors.Sub, fontSize = 11.sp,
                 modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))

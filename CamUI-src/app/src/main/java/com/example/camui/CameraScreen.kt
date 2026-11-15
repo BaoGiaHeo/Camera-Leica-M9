@@ -4402,21 +4402,6 @@ stabilization = stabilization,
         if (showHdmp) {
             HdmpBottomSheet(
                 onDismiss = { showHdmp = false },
-                uhdEnabled = uhdCaptureEnabled,
-                onUhdEnabledChange = {
-                    uhdCaptureEnabled = it
-                    if (it) { fhdCaptureEnabled = false; uhdPlusCaptureEnabled = false }
-                },
-                fhdEnabled = fhdCaptureEnabled,
-                onFhdEnabledChange = {
-                    fhdCaptureEnabled = it
-                    if (it) { uhdCaptureEnabled = false; uhdPlusCaptureEnabled = false }
-                },
-                uhdPlusEnabled = uhdPlusCaptureEnabled,
-                onUhdPlusEnabledChange = {
-                    uhdPlusCaptureEnabled = it
-                    if (it) { uhdCaptureEnabled = false; fhdCaptureEnabled = false }
-                },
                 nightShotEnabled = nightShotMode == "night",
                 nightShotDurationSeconds = nightShotDurationSeconds,
                 onCycleNightShot = {

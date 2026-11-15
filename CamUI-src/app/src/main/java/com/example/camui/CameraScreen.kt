@@ -589,6 +589,7 @@ fun CameraScreen(
     var showHdmpFastChoice by remember { mutableStateOf(false) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
     var hdmpActiveWorkerCount by remember { mutableIntStateOf(0) }
+    var hdmpTileProgressText by remember { mutableStateOf("") }
     var hdmpRenderProfile by remember {
         mutableStateOf(
             appPrefs.getString("hdmp_render_profile", "balanced")
@@ -2590,6 +2591,7 @@ fun CameraScreen(
                                         isHdmpAiPrimaryRunning = false
                                         showHdmpFastChoice = false
                                         aiRenderStartedAtElapsedMs = 0L
+                                         hdmpTileProgressText = ""
                                         processingEtaSeconds = -1
                                         processingLabel = if (hdmpRenderProfile == "speed") {
                                             "HDMP AI 2 Fast • đang chuẩn bị xử lý ảnh"
@@ -2610,6 +2612,16 @@ fun CameraScreen(
                                             shouldSwitchToFast = { switchToFastRequested.get() },
                                             continuePrimaryPastBudget = { continueHdmpAi2Requested.get() },
                                             shouldStopForThermal = { thermalStopRequested.get() },
+                                             onTileProgress = { model, completedTiles, totalTiles ->
+                                                 mainExecutor.execute {
+                                                     val modelName = when (model) {
+                                                         HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
+                                                         HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast"
+                                                         HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP"
+                                                     }
+                                                     hdmpTileProgressText = "$modelName · Tile $completedTiles/$totalTiles"
+                                                 }
+                                             },
                                             onProgress = { model, progress ->
                                                 mainExecutor.execute {
                                                     isHdmpAiPrimaryRunning =
@@ -4259,6 +4271,14 @@ stabilization = stabilization,
                     fontSize = 10.sp,
                     modifier = Modifier.padding(top = 3.dp)
                 )
+                 if (hdmpTileProgressText.isNotBlank()) {
+                     Text(
+                         hdmpTileProgressText,
+                         color = CamColors.Yellow,
+                         fontSize = 10.sp,
+                         modifier = Modifier.padding(top = 3.dp)
+                     )
+                 }
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),

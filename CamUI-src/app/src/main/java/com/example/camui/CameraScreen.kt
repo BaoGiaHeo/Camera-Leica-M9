@@ -585,13 +585,10 @@ fun CameraScreen(
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
     var aiRenderStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
-    val switchToFastRequested = remember { AtomicBoolean(false) }
-    val continueHdmpAi2Requested = remember { AtomicBoolean(false) }
     val thermalStopRequested = remember { AtomicBoolean(false) }
     var showThermalChoice by remember { mutableStateOf(false) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var isHdmpAiPrimaryRunning by remember { mutableStateOf(false) }
-    var showHdmpFastChoice by remember { mutableStateOf(false) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
     var hdmpActiveWorkerCount by remember { mutableIntStateOf(0) }
     var hdmpTileProgressText by remember { mutableStateOf("") }
@@ -2616,10 +2613,6 @@ fun CameraScreen(
                                 }
                                 val hdmpAiResult = if (hdmpWorkerCount > 0) {
                                     withContext(Dispatchers.Main) {
-                                        switchToFastRequested.set(false)
-                                        continueHdmpAi2Requested.set(false)
-                                        isHdmpAiPrimaryRunning = false
-                                        showHdmpFastChoice = false
                                         aiRenderStartedAtElapsedMs = 0L
                                          hdmpTileProgressText = ""
                                         processingEtaSeconds = -1
@@ -2643,8 +2636,6 @@ fun CameraScreen(
                                             onAdaptiveWorkerCount = { count ->
                                                 mainExecutor.execute { hdmpActiveWorkerCount = count }
                                             },
-                                            shouldSwitchToFast = { switchToFastRequested.get() },
-                                            continuePrimaryPastBudget = { continueHdmpAi2Requested.get() },
                                             shouldStopForThermal = { thermalStopRequested.get() },
                                              onTileProgress = { model, completedTiles, totalTiles ->
                                                  mainExecutor.execute {
@@ -2658,8 +2649,6 @@ fun CameraScreen(
                                              },
                                             onProgress = { model, progress ->
                                                 mainExecutor.execute {
-                                                    isHdmpAiPrimaryRunning =
-                                                        model == HdmpAiEngine.Model.NAFNET_WIDTH64 && progress < 100
                                                     if (progress == 0 || aiRenderStartedAtElapsedMs == 0L) {
                                                         aiRenderStartedAtElapsedMs = SystemClock.elapsedRealtime()
                                                         processingEtaSeconds = -1
@@ -2698,7 +2687,6 @@ fun CameraScreen(
                                     }
                                     withContext(Dispatchers.Main) {
                                         isHdmpAiPrimaryRunning = false
-                                        showHdmpFastChoice = false
                                         processingEtaSeconds = -1
                                     }
                                     result

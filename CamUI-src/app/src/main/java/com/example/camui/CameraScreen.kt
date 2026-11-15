@@ -18,6 +18,10 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraCaptureSession
@@ -102,6 +106,7 @@ import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlipCameraAndroid
+import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
@@ -312,6 +317,46 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+    val sensorManager = remember(context) {
+        context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    }
+    val levelSensor = remember(sensorManager) {
+        sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    }
+    var levelEnabled by remember {
+        mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
+            .getBoolean("viewfinder_level_enabled", false))
+    }
+    var horizonRollDegrees by remember { mutableFloatStateOf(0f) }
+    DisposableEffect(sensorManager, levelSensor, levelEnabled) {
+        if (sensorManager == null || levelSensor == null || !levelEnabled) {
+            onDispose { }
+        } else {
+            val rotationMatrix = FloatArray(9)
+            val orientationAngles = FloatArray(3)
+            val listener = object : SensorEventListener {
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+
+                override fun onSensorChanged(event: SensorEvent?) {
+                    val values = event ?: return
+                    val rollDegrees = if (values.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
+                        SensorManager.getRotationMatrixFromVector(rotationMatrix, values.values)
+                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
+                        Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
+                    } else {
+                        Math.toDegrees(kotlin.math.atan2(
+                            values.values[0].toDouble(),
+                            values.values[1].toDouble()
+                        )).toFloat()
+                    }
+                    horizonRollDegrees = ((rollDegrees + 180f) % 360f) - 180f
+                }
+            }
+            sensorManager.registerListener(listener, levelSensor, SensorManager.SENSOR_DELAY_UI)
+            onDispose { sensorManager.unregisterListener(listener) }
+        }
+    }
     var zebraEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_zebra_enabled", false)) }
     val zebraEnabledState = rememberUpdatedState(zebraEnabled)
     var rgbHistogramEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_rgb_histogram_enabled", false)) }
@@ -495,6 +540,7 @@ fun CameraScreen(
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
+    var macroAssistEnabled by remember { mutableStateOf(false) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var rgbRedHistogram by remember { mutableStateOf(IntArray(32)) }
     var rgbGreenHistogram by remember { mutableStateOf(IntArray(32)) }
@@ -2271,6 +2317,11 @@ fun CameraScreen(
         CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
     ) else null
     val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+    val availableAfModes = cameraInfo2?.getCameraCharacteristic(
+        CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES
+    )
+    val macroFocusSupported = maxFocus > 0f &&
+        availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -2325,6 +2376,46 @@ fun CameraScreen(
                             onClick = { metering = (metering + 1) % meteringModes.size },
                             tint = if (metering > 0) CamColors.Yellow else Color.White
                         )
+                        if (macroFocusSupported) {
+                            CircleBtn(
+                                Icons.Default.LocalFlorist,
+                                "Macro Assist · close focus",
+                                onClick = {
+                                    camera?.let { active ->
+                                        if (macroAssistEnabled) {
+                                            runCatching { applyAutoFocus(active) }
+                                            manualFocus = 0f
+                                            macroAssistEnabled = false
+                                            val zoomState = active.cameraInfo.zoomState.value
+                                            if (zoomState != null) {
+                                                val oneX = 1f.coerceIn(
+                                                    zoomState.minZoomRatio,
+                                                    zoomState.maxZoomRatio
+                                                )
+                                                active.cameraControl.setZoomRatio(oneX)
+                                                zoomSel = oneX
+                                                appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
+                                            }
+                                            localizedToast(context, "Đã tắt Macro Assist · AF tự động · 1×", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            val closeFocusDiopter = maxFocus.coerceAtLeast(0.1f)
+                                            val applied = runCatching {
+                                                applyManualFocus(active, closeFocusDiopter)
+                                            }.isSuccess
+                                            if (applied) {
+                                                manualFocus = closeFocusDiopter
+                                                macroAssistEnabled = true
+                                                focusLocked = false
+                                                localizedToast(context, "Macro Assist · đã chuyển ống kính đến khoảng lấy nét gần nhất được công bố.", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                localizedToast(context, "Không thể bật lấy nét gần trên camera này.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
+                                tint = if (macroAssistEnabled) CamColors.Yellow else Color.White
+                            )
+                        }
                         CircleBtn(
                             Icons.Default.BarChart, "Histogram",
                             onClick = { onShowHist(!showHist) },
@@ -2379,6 +2470,7 @@ fun CameraScreen(
                                             focusLocked = false
                                             if (manualFocus > 0f) {
                                                 manualFocus = 0f
+                                                macroAssistEnabled = false
                                                 runCatching { applyAutoFocus(active) }
                                             }
                                             val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
@@ -2399,6 +2491,7 @@ fun CameraScreen(
                                                     .disableAutoCancel()
                                                     .build()
                                                 active.cameraControl.startFocusAndMetering(action)
+                                                macroAssistEnabled = false
                                                 focusLocked = true
                                                 localizedToast(context, "Đã khóa nét · chạm lại để lấy nét mới.", Toast.LENGTH_SHORT).show()
                                             }
@@ -2466,6 +2559,28 @@ fun CameraScreen(
                                             Offset(p.x * size.width, p.y * size.height))
                                     }
                                 }
+                            }
+                            if (levelEnabled) {
+                                val levelColor = if (kotlin.math.abs(horizonRollDegrees) < 1.2f) {
+                                    Color(0xFF00E676)
+                                } else {
+                                    Color(0xFFFFC857)
+                                }
+                                Box(
+                                    Modifier.align(Alignment.Center).width(104.dp).height(2.dp)
+                                        .graphicsLayer { rotationZ = -horizonRollDegrees }
+                                        .background(levelColor)
+                                )
+                                Text(
+                                    String.format(Locale.US, "%+.1f°", horizonRollDegrees),
+                                    color = levelColor,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.align(Alignment.Center).padding(top = 13.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0x88000000))
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
                             }
                             if (zebraEnabled && zebraPoints.isNotEmpty()) {
                                 Canvas(Modifier.fillMaxSize()) {

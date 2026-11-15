@@ -186,7 +186,7 @@ internal object HdmpAiEngine {
             runCatching { onProgress(selectedModel, 0) }
             var completed = false
             var lastFailure: Throwable? = null
-            repeat(2) { attempt ->
+            for (attempt in 1..2) {
                 rendered.delete()
                 completed = try {
                     runModel(
@@ -205,10 +205,10 @@ internal object HdmpAiEngine {
                     )
                 } catch (failure: Throwable) {
                     lastFailure = failure
-                    Log.w(TAG, "$modelLabel inference attempt ${attempt + 1} failed", failure)
+                    Log.w(TAG, "$modelLabel inference attempt $attempt failed", failure)
                     false
                 }
-                if (completed) return@repeat
+                if (completed) break
             }
             if (!completed) {
                 throw IllegalStateException(

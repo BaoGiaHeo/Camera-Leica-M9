@@ -312,6 +312,8 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+    var zebraEnabled by remember { mutableStateOf(appPrefs.getBoolean("viewfinder_zebra_enabled", false)) }
+    val zebraEnabledState = rememberUpdatedState(zebraEnabled)
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     DisposableEffect(context) {
@@ -492,6 +494,7 @@ fun CameraScreen(
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
+    var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -960,6 +963,7 @@ fun CameraScreen(
                             val buffer = plane.buffer
                             val bins = IntArray(64)
                             val edges = ArrayList<Offset>(250)
+                            val overexposed = ArrayList<Offset>(700)
                             val rowStride = plane.rowStride
                             val pixelStride = plane.pixelStride
                             var luminanceSum = 0L
@@ -973,6 +977,19 @@ fun CameraScreen(
                                     bins[value shr 2]++
                                     luminanceSum += value
                                     sampleCount++
+                                    if (zebraEnabledState.value && value >= 242 && ((x + y) / 8) % 2 == 0 &&
+                                        overexposed.size < 700
+                                    ) {
+                                        val px = x.toFloat() / image.width
+                                        val py = y.toFloat() / image.height
+                                        val oriented = when (image.imageInfo.rotationDegrees) {
+                                            90 -> Offset(1f - py, px)
+                                            180 -> Offset(1f - px, 1f - py)
+                                            270 -> Offset(py, 1f - px)
+                                            else -> Offset(px, py)
+                                        }
+                                        overexposed.add(if (front) Offset(1f - oriented.x, oriented.y) else oriented)
+                                    }
                                     if (focusPeakingEnabled.value && x > 1 && y > 1 && index < buffer.limit()) {
                                         val leftIndex = index - pixelStride
                                         val upIndex = index - rowStride
@@ -1000,6 +1017,7 @@ fun CameraScreen(
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
                                 peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
+                                zebraPoints = if (zebraEnabledState.value) overexposed else emptyList()
                                 lowLightDetected = meanLuma < 52
                             }
                         }
@@ -2371,6 +2389,21 @@ fun CameraScreen(
                                     peakPoints.forEach { p ->
                                         drawCircle(Color(0xFF00FFB0), 2.dp.toPx(),
                                             Offset(p.x * size.width, p.y * size.height))
+                                    }
+                                }
+                            }
+                            if (zebraEnabled && zebraPoints.isNotEmpty()) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val stroke = 1.5.dp.toPx()
+                                    val span = 3.dp.toPx()
+                                    zebraPoints.forEach { p ->
+                                        val center = Offset(p.x * size.width, p.y * size.height)
+                                        drawLine(
+                                            color = Color(0xFFFFD54F).copy(alpha = 0.88f),
+                                            start = Offset(center.x - span, center.y + span),
+                                            end = Offset(center.x + span, center.y - span),
+                                            strokeWidth = stroke
+                                        )
                                     }
                                 }
                             }

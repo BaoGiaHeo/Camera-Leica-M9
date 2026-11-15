@@ -2773,7 +2773,8 @@ fun CameraScreen(
                                 }.getOrDefault(false)
 
                                 val outputResolutionResult = if (
-                                    !captureIsUltraHdr && (captureUseNightShot || captureUseHdmpResolution) &&
+                                    !captureIsUltraHdr &&
+                                    (captureUseNightShot || (captureUseHdmpResolution && hdmpAiResult.applied)) &&
                                     !captureRawOnly && !captureRawPlus
                                 ) {
                                     val targetPixels = if (captureUseNightShot) {

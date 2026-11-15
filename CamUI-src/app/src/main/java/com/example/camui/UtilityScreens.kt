@@ -239,6 +239,7 @@ fun ToolboxScreen(
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
     var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
+    var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", false)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
     var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
     var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
@@ -275,6 +276,11 @@ fun ToolboxScreen(
             Icons.Default.Warning, zebraEnabled) {
             zebraEnabled = it
             prefs.edit().putBoolean("viewfinder_zebra_enabled", it).apply()
+        }
+        ToolToggle("Camera Level & Horizon", "Đo độ nghiêng bằng cảm biến thiết bị và hiển thị đường chân trời trong kính ngắm.",
+            Icons.Default.Tune, levelEnabled) {
+            levelEnabled = it
+            prefs.edit().putBoolean("viewfinder_level_enabled", it).apply()
         }
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))

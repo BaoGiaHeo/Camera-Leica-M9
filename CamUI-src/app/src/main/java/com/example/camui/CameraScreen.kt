@@ -2508,7 +2508,7 @@ fun CameraScreen(
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = when {
                                                         captureUseNightShot -> "NightShot: căn chỉnh và gộp " + stackedFrames.size + " khung"
-                                                        captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu " + stackedFrames.size + "/8 khung"
+                                                        captureUseMilkyWayStack -> "Milky Way: căn chỉnh khung bầu trời và giảm nhiễu " + stackedFrames.size + "/8 khung"
                                                         else -> "Multi-frame: căn chỉnh và gộp " + stackedFrames.size + "/5 khung"
                                                     }
                                                     processingProgress = 27
@@ -3379,9 +3379,9 @@ fun CameraScreen(
                                     )
                                     Text(
                                         if (manualSensorSupported) {
-                                            "Tripod · lấy nét vô cực · thử stacking 8–16 ảnh"
+                                            "Tripod · nét vô cực · Astro Stack ×8 nếu Manual Sensor hỗ trợ"
                                         } else {
-                                            "HAL không công bố Manual Sensor · dùng Auto, tripod và thử stacking 8–16 ảnh"
+                                            "HAL không công bố Manual Sensor · chụp Auto riêng lẻ, Astro Stack không khả dụng"
                                         },
                                         color = CamColors.Sub,
                                         fontSize = 9.sp,

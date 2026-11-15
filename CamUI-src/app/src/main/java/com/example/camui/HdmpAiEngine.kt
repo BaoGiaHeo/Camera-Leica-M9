@@ -156,6 +156,7 @@ internal object HdmpAiEngine {
         shouldSwitchToFast: () -> Boolean = { false },
         continuePrimaryPastBudget: () -> Boolean = { false },
         shouldStopForThermal: () -> Boolean = { false },
+        onTileProgress: (Model, Int, Int) -> Unit = { _, _, _ -> },
         onProgress: (Model, Int) -> Unit = { _, _ -> }
     ): Result {
         val stamp = System.nanoTime().toString()
@@ -204,6 +205,7 @@ internal object HdmpAiEngine {
                     shouldSwitchToFast = shouldSwitchToFast,
                     continuePastBudget = continuePrimaryPastBudget,
                     shouldStopForThermal = shouldStopForThermal,
+                    onTileProgress = onTileProgress,
                     onProgress = onProgress
                 )
             } catch (_: UserRequestedFastException) {
@@ -236,6 +238,7 @@ internal object HdmpAiEngine {
                 shouldSwitchToFast = { false },
                 continuePastBudget = { false },
                 shouldStopForThermal = shouldStopForThermal,
+                onTileProgress = onTileProgress,
                 onProgress = onProgress
             )
             if (shouldStopForThermal() && fallback && commitRendered(context, uri, original, rendered)) {
@@ -280,6 +283,7 @@ internal object HdmpAiEngine {
         shouldSwitchToFast: () -> Boolean,
         continuePastBudget: () -> Boolean,
         shouldStopForThermal: () -> Boolean,
+        onTileProgress: (Model, Int, Int) -> Unit,
         onProgress: (Model, Int) -> Unit
     ): Boolean {
         var sourceStream: FileInputStream? = null
@@ -362,6 +366,7 @@ internal object HdmpAiEngine {
                             stream.fd.sync()
                         }
                         writeExif(destination, readExif(source))
+                        runCatching { onTileProgress(model, tileIndex, totalTiles) }
                         runCatching { onProgress(model, (tileIndex * 100 / totalTiles).coerceIn(1, 99)) }
                         return true
                     }
@@ -463,6 +468,7 @@ internal object HdmpAiEngine {
                     }
 
                     tileIndex++
+                    runCatching { onTileProgress(model, tileIndex, totalTiles) }
                     val progressStep = (totalTiles / 100).coerceAtLeast(1)
                     if (tileIndex == totalTiles || tileIndex % progressStep == 0) {
                         runCatching {

@@ -107,7 +107,7 @@ fun HdmpBottomSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "\${mp}MP",
+                            "${mp}MP",
                             color = if (selected) Color.Black else Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold

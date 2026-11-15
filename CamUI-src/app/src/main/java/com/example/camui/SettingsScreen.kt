@@ -551,6 +551,12 @@ private fun CameraHardwareScannerPanel() {
                                 String.format(java.util.Locale.US, "%.1f mm", it)
                             } ?: "Không công bố"
                         )
+                        InfoLine(
+                            "Lấy nét gần nhất",
+                            camera.minimumFocusDistanceDiopter?.takeIf { it > 0f }?.let {
+                                String.format(java.util.Locale.US, "%.1f D · ~%.1f cm", it, 100f / it)
+                            } ?: "Không công bố / không manual focus"
+                        )
                         InfoLine("Sensor pixel array", camera.sensorPixels)
                         InfoLine("Kích thước cảm biến", camera.sensorSizeMm)
                         InfoLine("JPEG lớn nhất", camera.jpegMax)

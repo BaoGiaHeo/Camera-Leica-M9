@@ -490,6 +490,7 @@ fun CameraScreen(
     var camera2Inventory by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
     var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
+    var activePhysicalCameraId by remember { mutableStateOf<String?>(null) }
     var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
@@ -767,6 +768,9 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            live.activePhysicalCameraId?.let { id ->
+                                if (activePhysicalCameraId != id) activePhysicalCameraId = id
+                            }
                             live.iso?.let { if (iso != it) iso = it }
                             live.shutterNs?.let { if (shutterNs != it) shutterNs = it }
                             live.focusDiopter?.let { if (focusDiopter != it) focusDiopter = it }
@@ -2094,6 +2098,22 @@ fun CameraScreen(
                                 // No later rotation is allowed to move the frame away from the
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
+                                val inspectorHdmpStatus = when {
+                                    hdmpWorkerCount <= 0 -> "HDMP AI không chạy trong chế độ chụp này"
+                                    !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
+                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
+                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast · NAFNet width32"
+                                    else -> "HDMP cơ bản · AI không khả dụng"
+                                }
+                                val inspectorOutputSize = outputResolutionResult?.let {
+                                    "${it.width}×${it.height} · ${(it.actualPixels + 500_000L) / 1_000_000L}MP"
+                                } ?: "Không nội suy độ phân giải"
+                                appPrefs.edit()
+                                    .putString("photo_hdmp_status:$saved", inspectorHdmpStatus)
+                                    .putString("photo_camera_id:$saved", activeCameraDetails?.id ?: "Không công bố")
+                                    .putString("photo_physical_camera_id:$saved", activePhysicalCameraId ?: "HAL không công bố")
+                                    .putString("photo_output_size:$saved", inspectorOutputSize)
+                                    .apply()
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 98
                                     processingEtaSeconds = 1

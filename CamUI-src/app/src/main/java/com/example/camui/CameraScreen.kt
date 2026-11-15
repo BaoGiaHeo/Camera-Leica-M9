@@ -35,6 +35,7 @@ import android.provider.OpenableColumns
 import android.util.Rational
 import android.util.Size
 import android.view.Surface
+import android.view.HapticFeedbackConstants
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import android.widget.Toast
@@ -142,8 +143,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -340,6 +343,7 @@ fun CameraScreen(
     onRatio: (Int) -> Unit
 ) {
     val context = LocalContext.current
+    val localView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
@@ -470,6 +474,14 @@ fun CameraScreen(
             }
         }
     }
+    var lensCorrectionEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("lens_correction_enabled", true))
+    }
+    var hudAutoHideEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("hud_auto_hide_enabled", true))
+    }
+    var hudVisible by remember { mutableStateOf(true) }
+    var hudActivityToken by remember { mutableIntStateOf(0) }
     var mode by remember { mutableStateOf(appPrefs.getString("camera_mode", "Photo") ?: "Photo") }
     var burstMode by remember {
         mutableStateOf(appPrefs.getBoolean("burst_capture_mode_enabled", false))
@@ -604,6 +616,16 @@ fun CameraScreen(
                 showHdmpFastChoice = true
             }
         }
+    }
+    LaunchedEffect(hudAutoHideEnabled, hudActivityToken, isProcessing) {
+        if (!hudAutoHideEnabled) {
+            hudVisible = true
+            return@LaunchedEffect
+        }
+        hudVisible = true
+        if (isProcessing) return@LaunchedEffect
+        delay(5_000L)
+        hudVisible = false
     }
     val shutterSoundPlayer = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
@@ -896,7 +918,28 @@ fun CameraScreen(
             fun bindCapture(outputFormat: Int) {
                 var lastFaceTrackAtMs = 0L
                 var lastFaceTrackCenter: Offset? = null
+                val distortionModes = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.DISTORTION_CORRECTION_AVAILABLE_MODES)
+                            ?.toSet()
+                    }.getOrDefault(emptySet())
+                }.orEmpty()
+                val distortionCorrectionMode = when {
+                    !lensCorrectionEnabled -> CaptureRequest.DISTORTION_CORRECTION_MODE_OFF
+                    distortionModes.contains(CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY) ->
+                        CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY
+                    distortionModes.contains(CaptureRequest.DISTORTION_CORRECTION_MODE_FAST) ->
+                        CaptureRequest.DISTORTION_CORRECTION_MODE_FAST
+                    else -> null
+                }
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
+                if (distortionCorrectionMode != null &&
+                    distortionModes.contains(distortionCorrectionMode)
+                ) {
+                    Camera2Interop.Extender(previewBuilder)
+                        .setCaptureRequestOption(CaptureRequest.DISTORTION_CORRECTION_MODE, distortionCorrectionMode)
+                }
                 if (!hdrExtensionActive && !nightExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
@@ -983,6 +1026,14 @@ fun CameraScreen(
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
                 val captureBuilder = ImageCapture.Builder()
+                    .also { builder ->
+                        if (distortionCorrectionMode != null &&
+                            distortionModes.contains(distortionCorrectionMode)
+                        ) {
+                            Camera2Interop.Extender(builder)
+                                .setCaptureRequestOption(CaptureRequest.DISTORTION_CORRECTION_MODE, distortionCorrectionMode)
+                        }
+                    }
                     .setCaptureMode(
                         if (mode == "Photo" && (nightShotMode == "night" || burstMode)) ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                         else ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
@@ -1571,6 +1622,7 @@ fun CameraScreen(
             ).show()
             return
         }
+        localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         activeCapture.targetRotation = captureRotation
         previewUseCase?.targetRotation = captureRotation
         analysisUseCase?.targetRotation = captureRotation
@@ -1811,6 +1863,7 @@ fun CameraScreen(
                 localizedToast(context, "Camera không công bố dải bù trừ phơi sáng cho HDR Bracketing.", Toast.LENGTH_LONG).show()
                 return
             }
+            localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             scope.launch {
                 bracketCaptureActive = true
                 bracketCompletedFrames = 0
@@ -1900,6 +1953,7 @@ fun CameraScreen(
             if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
                 nightShotCaptureInProgress || starTrailCaptureInProgress
             ) return
+            localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             scope.launch {
                 val activeCapture = imageCapture ?: return@launch
                 burstCaptureActive = true
@@ -2016,6 +2070,8 @@ fun CameraScreen(
                     Toast.LENGTH_LONG
                 ).show()
             }
+            // Haptic feedback is synchronous and does not wait for camera capture.
+            localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
                 playConfiguredShutterSound(shutterSoundPlayer)
@@ -2647,6 +2703,7 @@ fun CameraScreen(
             (start >= 0.98f && safeTarget < 0.98f)
         zoomAnimationJob?.cancel()
         if (crossesLensBoundary) {
+            localView.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
             lensTransitionLabel = if (safeTarget < 0.98f) "SIÊU RỘNG" else "CAM THƯỜNG"
             lensTransitionVisible = true
             scope.launch {
@@ -3510,7 +3567,22 @@ fun CameraScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(CamColors.Bg).navigationBarsPadding().animaTContent()) {
+    Box(
+        Modifier.fillMaxSize().background(CamColors.Bg).navigationBarsPadding().animaTContent()
+            .pointerInput(hudAutoHideEnabled) {
+                if (hudAutoHideEnabled) {
+                    awaitPointerEventScope {
+                        var wasPressed = false
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val pressed = event.changes.any { it.pressed }
+                            if (pressed && !wasPressed) hudActivityToken++
+                            wasPressed = pressed
+                        }
+                    }
+                }
+            }
+    ) {
         // A subtle scale/fade pulse makes the reflow feel deliberate without rotating text.
         val orientationMotion = Modifier.graphicsLayer {
             val pulse = kotlin.math.sin(orientationProgress * Math.PI).toFloat()
@@ -3524,24 +3596,48 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    toolbarContent(Modifier.fillMaxWidth())
+                    AnimatedVisibility(
+                        visible = hudVisible,
+                        enter = fadeIn(tween(180)) + slideInHorizontally { -it / 24 },
+                        exit = fadeOut(tween(170)) + slideOutHorizontally { -it / 28 }
+                    ) {
+                        toolbarContent(Modifier.fillMaxWidth())
+                    }
                     Spacer(Modifier.height(5.dp))
                     previewContent(Modifier.weight(1f).fillMaxWidth())
                 }
-                controlsContent(
-                    Modifier.width(248.dp).fillMaxHeight()
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 8.dp)
-                )
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    enter = fadeIn(tween(180)) + slideInHorizontally { it / 24 },
+                    exit = fadeOut(tween(170)) + slideOutHorizontally { it / 28 }
+                ) {
+                    controlsContent(
+                        Modifier.width(248.dp).fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 8.dp)
+                    )
+                }
             }
         } else {
             Column(
                 Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 7.dp).then(orientationMotion)
             ) {
-                toolbarContent(Modifier.fillMaxWidth())
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    enter = fadeIn(tween(180)) + slideInVertically { -it / 12 },
+                    exit = fadeOut(tween(170)) + slideOutVertically { -it / 16 }
+                ) {
+                    toolbarContent(Modifier.fillMaxWidth())
+                }
                 Spacer(Modifier.height(7.dp))
                 previewContent(Modifier.weight(1f).fillMaxWidth())
-                controlsContent(Modifier.fillMaxWidth())
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
+                    exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
+                ) {
+                    controlsContent(Modifier.fillMaxWidth())
+                }
             }
         }
         if (showQuick) {

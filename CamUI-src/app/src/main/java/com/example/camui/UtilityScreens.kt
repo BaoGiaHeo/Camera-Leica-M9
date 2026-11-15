@@ -279,6 +279,7 @@ fun ToolboxScreen(
             Triple("normal2", "Normal 2", "Ngày chụp tối giản"),
             Triple("balanced", "Balanced", "Model trái · thông số phải · ngày dưới"),
             Triple("center_logo", "Center Logo", "Logo FUJIFILM ở chính giữa"),
+            Triple("fuji_auto", "Fuji Auto", "Tự chọn ngang hoặc dọc theo ảnh"),
             Triple("fuji_classic", "Fuji Classic", "Logo trái · thông số phải · nền trắng"),
             Triple("fuji_signature", "Fuji Signature", "Logo giữa · Shot on · ngày chụp")
         )
@@ -773,6 +774,18 @@ private fun WatermarkTemplateCard(
                 }
                 "normal2" -> Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
                     Text("2026.11.13  •  18:42", color = textColor, fontSize = 5.5.sp)
+                }
+                "fuji_auto" -> Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Color.White).padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                        contentDescription = "FUJIFILM",
+                        modifier = Modifier.fillMaxWidth(0.26f).height(13.dp),
+                        contentScale = ContentScale.Fit)
+                    Text("AUTO · LANDSCAPE / PORTRAIT", color = Color.DarkGray,
+                        fontSize = 5.6.sp)
                 }
                 "fuji_classic" -> Row(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
@@ -1724,7 +1737,12 @@ fun applyCameraWatermark(
 
     return runCatching {
         val sourceBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        val template = prefs.getString("watermark_template", "standard1") ?: "standard1"
+        val selectedTemplate = prefs.getString("watermark_template", "standard1") ?: "standard1"
+        val template = if (selectedTemplate == "fuji_auto") {
+            if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
+        } else {
+            selectedTemplate
+        }
         val isFujiFooterTemplate = template == "fuji_classic" || template == "fuji_signature"
         val sourceWidthPx = sourceBitmap.width
         val sourceHeightPx = sourceBitmap.height

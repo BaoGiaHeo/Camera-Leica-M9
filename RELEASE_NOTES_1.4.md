@@ -13,6 +13,7 @@
 ## Fujifilm watermark update
 - Shared logo drawable traced from the user-supplied transparent Fujifilm PNG; black wordmark and red accent preserved, including the original wide aspect ratio.
 - Logo-backed watermark styles and previews now use the shared drawable rather than manually typeset FUJIFILM text.
+- Added Fuji Auto to choose Fuji Classic for landscape photos and Fuji Signature for portrait photos.
 - Added Fuji Classic and Fuji Signature watermark layouts inspired by the supplied landscape and portrait samples.
 - Fuji Signature supports an optional user-entered location; it never invents a city name.
 - High-resolution white footers append a canvas below the captured image only when a heap budget check allows it; otherwise they use a compact in-image footer.

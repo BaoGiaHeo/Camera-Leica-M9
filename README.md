@@ -20,6 +20,7 @@ HDMP remains the pipeline coordinator and final image validator. HDMP AI 2 uses 
 
 - All logo-bearing watermark styles use one shared Fujifilm mark derived from the transparent logo image supplied for this project. The drawable keeps the black wordmark, red accent and original aspect ratio.
 - Existing Standard 1, Standard 2, Blur, Center Logo and Liquid Glass previews use the shared mark; the watermark renderer draws the image asset instead of rebuilding the FUJIFILM lettering.
+- Added **Fuji Auto**, which selects Fuji Classic for landscape captures and Fuji Signature for portrait captures using the final upright pixel dimensions.
 - Added **Fuji Classic** (landscape-style white footer with logo left and camera settings right) and **Fuji Signature** (centered logo, “Shot on” model/date line and optional location line).
 - Fuji Signature location is user-entered in Watermark settings; the app does not fabricate GPS place names.
 - White-footer templates append space below the captured photo when the current memory budget safely permits it. Otherwise they use a compact in-image footer without resizing the source.

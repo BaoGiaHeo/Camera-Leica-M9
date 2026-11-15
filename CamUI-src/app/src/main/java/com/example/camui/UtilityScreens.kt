@@ -3486,6 +3486,21 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
     val exif = runCatching {
         context.contentResolver.openInputStream(uri)?.use { input -> ExifInterface(input) }
     }.getOrNull()
+    // MediaStore WIDTH/HEIGHT may lag behind a replaced JPEG after HDMP output.
+    // Prefer the actual encoded pixel bounds, then apply EXIF axis rotation so the
+    // Inspector reports the dimensions as the user sees the upright photo.
+    val exifOrientation = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0) ?: 0
+    val actualDimensions = runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+        PhotoInspectorGeometry.fromEncoded(bounds.outWidth, bounds.outHeight, exifOrientation)
+    }.getOrNull()
+    actualDimensions?.let {
+        width = it.width
+        height = it.height
+    }
     val photoPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val hdmpStatus = photoPrefs.getString("photo_hdmp_status:$uri", "Không có dữ liệu phiên HDMP") ?: "Không có dữ liệu phiên HDMP"
     val logicalCameraId = photoPrefs.getString("photo_camera_id:$uri", "Không công bố") ?: "Không công bố"

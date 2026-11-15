@@ -1,10 +1,11 @@
 # FujiFilm Mode 1.6 — implementation notes
 
 ## HDMP selection
-- Select one model before capture: HDMP AI 2 (width64) or HDMP AI 1.5 (width32).
+- Select one mode before capture: HDMP AI 2 (width64), HDMP AI 1.5 (width32), or OFF HDMP AI (normal capture without HDMP AI processing).
 - Select an output target of 24, 48, 60, 108 or 250MP.
-- No post-capture model-choice dialog. An incomplete selected-model run is not reported as a successful AI render.
-- Performance targets: AI 1.5 aims for 10s with a 20s processing budget; AI 2 aims for 20s with a 30s processing budget. These must be confirmed by repeatable device benchmarks; setting a software timeout alone does not guarantee completion time.
+- No post-capture model-choice dialog and no automatic switch to classical HDMP. A selected AI model stays locked for the entire render.
+- AI 1.5 targets about 10s; AI 2 targets about 20s. These are optimization targets, not hard cutoffs: processing continues with the selected model after either target is exceeded.
+- A failed AI run must not be presented as a successful AI result or silently replaced with classical processing. The original capture is retained for recovery.
 
 ## Capture pipeline
 - High-resolution still capture uses a single captured frame, then HDMP processing and output resampling; it does not use the former five-frame merge.

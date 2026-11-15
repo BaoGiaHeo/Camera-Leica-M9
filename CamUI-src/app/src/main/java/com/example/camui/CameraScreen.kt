@@ -274,6 +274,7 @@ fun CameraScreen(
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit,
+    zebraEnabled: Boolean,
     ratioIdx: Int,
     onRatio: (Int) -> Unit
 ) {
@@ -312,6 +313,7 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+    val zebraEnabledState = rememberUpdatedState(zebraEnabled)
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     DisposableEffect(context) {
@@ -492,6 +494,7 @@ fun CameraScreen(
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
+    var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -960,6 +963,7 @@ fun CameraScreen(
                             val buffer = plane.buffer
                             val bins = IntArray(64)
                             val edges = ArrayList<Offset>(250)
+                            val overexposed = ArrayList<Offset>(180)
                             val rowStride = plane.rowStride
                             val pixelStride = plane.pixelStride
                             var luminanceSum = 0L
@@ -973,6 +977,18 @@ fun CameraScreen(
                                     bins[value shr 2]++
                                     luminanceSum += value
                                     sampleCount++
+                                    if (zebraEnabledState.value && value >= 235 &&
+                                        ((x / 8 + y / 8) % 2 == 0) && overexposed.size < 1200) {
+                                        val px = x.toFloat() / image.width
+                                        val py = y.toFloat() / image.height
+                                        val oriented = when (image.imageInfo.rotationDegrees) {
+                                            90 -> Offset(1f - py, px)
+                                            180 -> Offset(1f - px, 1f - py)
+                                            270 -> Offset(py, 1f - px)
+                                            else -> Offset(px, py)
+                                        }
+                                        overexposed.add(if (front) Offset(1f - oriented.x, oriented.y) else oriented)
+                                    }
                                     if (focusPeakingEnabled.value && x > 1 && y > 1 && index < buffer.limit()) {
                                         val leftIndex = index - pixelStride
                                         val upIndex = index - rowStride
@@ -1000,6 +1016,7 @@ fun CameraScreen(
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
                                 peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
+                                zebraPoints = if (zebraEnabledState.value) overexposed else emptyList()
                                 lowLightDetected = meanLuma < 52
                             }
                         }
@@ -2363,6 +2380,20 @@ fun CameraScreen(
                                         val y = size.height * i / 3f
                                         drawLine(c, Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
                                         drawLine(c, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                                    }
+                                }
+                            }
+                            if (zebraEnabled && zebraPoints.isNotEmpty()) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val stripe = 5.dp.toPx()
+                                    zebraPoints.forEach { p ->
+                                        val center = Offset(p.x * size.width, p.y * size.height)
+                                        drawLine(
+                                            color = Color(0xFFFFC857).copy(alpha = 0.88f),
+                                            start = Offset(center.x - stripe * 0.5f, center.y + stripe * 0.5f),
+                                            end = Offset(center.x + stripe * 0.5f, center.y - stripe * 0.5f),
+                                            strokeWidth = 1.2.dp.toPx()
+                                        )
                                     }
                                 }
                             }

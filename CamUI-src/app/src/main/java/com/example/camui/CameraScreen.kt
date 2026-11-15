@@ -2815,6 +2815,26 @@ fun CameraScreen(
     val afText = if (focusLocked) "LOCK" else if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
     val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO"
 
+    // Milky Way setup advice is derived from the active camera's public Camera2 metadata
+    // and the live preview's measured luminance. It is advisory; it cannot detect clouds,
+    // moonlight or light pollution without external sky/location data.
+    val skyEquivalentFocal = activeCameraDetails?.eq35Mm?.takeIf { it.isFinite() && it > 0f }
+    val sensorExposureMaximumSeconds = activeCameraDetails?.exposureRange
+        ?.substringAfter("..")
+        ?.toFloatOrNull()
+        ?.takeIf { it.isFinite() && it > 0f }
+    val recommendedStarShutterSeconds = skyEquivalentFocal?.let { equivalent ->
+        minOf(500f / equivalent, 15f, sensorExposureMaximumSeconds ?: 15f).coerceAtLeast(0.5f)
+    }
+    val advertisedIsoBounds = activeCameraDetails?.isoRange?.split("..")
+    val advertisedIsoMinimum = advertisedIsoBounds?.getOrNull(0)?.toIntOrNull() ?: 50
+    val advertisedIsoMaximum = advertisedIsoBounds?.getOrNull(1)?.toIntOrNull()
+    val recommendedStarIso = advertisedIsoMaximum?.let { upper ->
+        1600.coerceIn(advertisedIsoMinimum.coerceAtMost(upper), minOf(upper, 3200).coerceAtLeast(advertisedIsoMinimum.coerceAtMost(upper)))
+    }
+    val showMilkyWayAdvisor = lowLightDetected && mode == "Photo" && nightShotMode == "off" &&
+        !nightShotCaptureInProgress && !starTrailCaptureInProgress
+
 
     // Animate the preview's ratio when the device changes orientation.
     val basePreviewRatio = aspectRatios[ratioIdx.coerceIn(0, aspectRatios.lastIndex)].second
@@ -3180,6 +3200,48 @@ fun CameraScreen(
                                 Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                                         .clip(RoundedCornerShape(8.dp)).background(CamColors.Yellow).padding(horizontal = 9.dp, vertical = 5.dp))
+                            }
+                            if (showMilkyWayAdvisor) {
+                                Column(
+                                    Modifier.align(Alignment.TopCenter).padding(top = 35.dp, start = 8.dp, end = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xD91A1D24))
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        "MILKY WAY INTELLIGENCE · CẢNH TỐI",
+                                        color = CamColors.Yellow,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "ISO ${recommendedStarIso?.toString() ?: "Auto"} · " +
+                                            (recommendedStarShutterSeconds?.let {
+                                                if (it >= 1f) String.format(Locale.US, "%.1fs", it)
+                                                else "1/${(1f / it).roundToInt()}s"
+                                            } ?: "Shutter Auto") +
+                                            " · WB gợi ý 3,800K",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(top = 3.dp)
+                                    )
+                                    Text(
+                                        if (manualSensorSupported) {
+                                            "Tripod · lấy nét vô cực · thử stacking 8–16 ảnh"
+                                        } else {
+                                            "HAL không công bố Manual Sensor · dùng Auto, tripod và thử stacking 8–16 ảnh"
+                                        },
+                                        color = CamColors.Sub,
+                                        fontSize = 9.sp,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                    Text(
+                                        "Gợi ý từ độ sáng preview và thông số ống kính; không đo được mây / trăng / ô nhiễm sáng.",
+                                        color = CamColors.Sub,
+                                        fontSize = 8.sp,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
                             }
                             Text(
                                 if (focusLocked) "AF LOCK" else "TAP AF · HOLD LOCK",

@@ -2914,6 +2914,11 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
     val exif = runCatching {
         context.contentResolver.openInputStream(uri)?.use { input -> ExifInterface(input) }
     }.getOrNull()
+    val photoPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val hdmpStatus = photoPrefs.getString("photo_hdmp_status:$uri", "Không có dữ liệu phiên HDMP") ?: "Không có dữ liệu phiên HDMP"
+    val logicalCameraId = photoPrefs.getString("photo_camera_id:$uri", "Không công bố") ?: "Không công bố"
+    val physicalCameraId = photoPrefs.getString("photo_physical_camera_id:$uri", "HAL không công bố") ?: "HAL không công bố"
+    val processedOutputSize = photoPrefs.getString("photo_output_size:$uri", "Không ghi nhận") ?: "Không ghi nhận"
     fun tag(name: String): String? = exif?.getAttribute(name)?.trim()?.takeIf { it.isNotEmpty() }
     if (width <= 0) width = tag(ExifInterface.TAG_IMAGE_WIDTH)?.toIntOrNull() ?: -1
     if (height <= 0) height = tag(ExifInterface.TAG_IMAGE_LENGTH)?.toIntOrNull() ?: -1
@@ -2943,13 +2948,16 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
         "Dung lượng" to sizeLabel,
         "Định dạng" to mimeType,
         "Thiết bị" to makeModel,
+        "Camera ID logic" to logicalCameraId,
+        "Physical Camera ID thực tế" to physicalCameraId,
         "Ống kính" to (tag("LensModel") ?: "Không có EXIF"),
         "ISO" to (tag(ExifInterface.TAG_ISO_SPEED_RATINGS) ?: "Không có"),
         "Tốc độ màn trập" to exposure,
         "Khẩu độ" to aperture,
         "Tiêu cự" to focal,
         "Ngày chụp" to (tag(ExifInterface.TAG_DATETIME_ORIGINAL) ?: "Không có EXIF"),
-        "Trạng thái HDMP" to "Không suy đoán từ EXIF; xem thông tin phiên xử lý trong ứng dụng"
+        "Kích thước sau xử lý" to processedOutputSize,
+        "Trạng thái HDMP" to hdmpStatus
     )
 }
 

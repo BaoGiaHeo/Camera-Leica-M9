@@ -71,33 +71,24 @@ object PhotoOutputResolution {
             val src = source!!
             require(src.width > 0 && src.height > 0) { "Invalid source size" }
 
-            val requestedAspect = targetAspectRatio
-                ?.takeIf { it.isFinite() && it > 0f }
-                ?.toDouble()
-                ?: (src.width.toDouble() / src.height.toDouble())
-            val rawAspect = src.width.toDouble() / src.height.toDouble()
-            // CameraX can return the sensor's closest native JPEG size even when the
-            // viewfinder is using a narrower crop. Apply that crop before scaling so 21:9,
-            // 16:9, 4:3, 3:2 and 1:1 all remain the selected frame after UHD/UHD+.
-            var cropLeft = 0
-            var cropTop = 0
-            var cropWidth = src.width
-            var cropHeight = src.height
-            if (rawAspect > requestedAspect) {
-                cropWidth = (src.height * requestedAspect).roundToInt().coerceIn(2, src.width)
-                cropLeft = (src.width - cropWidth) / 2
-            } else if (rawAspect < requestedAspect) {
-                cropHeight = (src.width / requestedAspect).roundToInt().coerceIn(2, src.height)
-                cropTop = (src.height - cropHeight) / 2
-            }
-            val sourceRect = Rect(
-                cropLeft,
-                cropTop,
-                cropLeft + cropWidth,
-                cropTop + cropHeight
+            // Keep geometry independent from bitmap allocation so 21:9, 16:9,
+            // 4:3, 3:2, square and portrait crops can be regression-tested without
+            // allocating a 250MP bitmap in a unit test.
+            val geometry = PhotoOutputGeometry.calculate(
+                src.width,
+                src.height,
+                targetPixels,
+                targetAspectRatio
             )
-            val sourcePixels = cropWidth.toLong() * cropHeight.toLong()
-            require(sourcePixels > 0L) { "Invalid cropped source size" }
+            val sourceRect = Rect(
+                geometry.cropLeft,
+                geometry.cropTop,
+                geometry.cropLeft + geometry.cropWidth,
+                geometry.cropTop + geometry.cropHeight
+            )
+            val sourcePixels = geometry.croppedPixels
+            val cropWidth = geometry.cropWidth
+            val cropHeight = geometry.cropHeight
 
             // Budget against the heap still available now, not the process' theoretical max heap.
             // The source bitmap is already allocated; reserve extra space for JPEG encoding,
@@ -115,21 +106,16 @@ object PhotoOutputResolution {
                 "Insufficient safe memory for a 10MP output; original photo retained"
             }
 
-            val aspectRatio = requestedAspect
-            val scale = sqrt(actualTargetPixels.toDouble() / sourcePixels.toDouble())
-            var height = (cropHeight * scale).roundToInt().coerceAtLeast(2)
-            var width = (height * aspectRatio).roundToInt().coerceAtLeast(2)
-
-            // Keep the selected viewfinder ratio to integer-pixel precision while staying
-            // strictly inside the safe allocation budget.
-            while (width.toLong() * height.toLong() > actualTargetPixels) {
-                val currentAspect = width.toDouble() / height.toDouble()
-                if (currentAspect > aspectRatio && width > 2) width--
-                else if (height > 2) height--
-                else if (width > 2) width--
-                else error("Cannot fit output dimensions into memory budget")
-            }
-            val outputPixels = width.toLong() * height.toLong()
+            // Recalculate dimensions using the actual memory-safe pixel budget.
+            val outputGeometry = PhotoOutputGeometry.calculate(
+                src.width,
+                src.height,
+                actualTargetPixels,
+                targetAspectRatio
+            )
+            val width = outputGeometry.outputWidth
+            val height = outputGeometry.outputHeight
+            val outputPixels = outputGeometry.outputPixels
             val outputBytes = outputPixels * 2L
             require(outputBytes <= usableHeap) {
                 "Insufficient safe heap for requested output resolution"
@@ -201,7 +187,7 @@ object PhotoOutputResolution {
                 TAG,
                 "Requested=${targetPixels / 1_000_000L}MP actual=${outputPixels / 1_000_000L}MP " +
                     "source=${src.width}x${src.height}, crop=${cropWidth}x${cropHeight}, " +
-                    "requestedAspect=${"%.5f".format(Locale.US, requestedAspect)}, " +
+                    "requestedAspect=${"%.5f".format(Locale.US, geometry.requestedAspectRatio)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )
             if (actualTargetPixels < targetPixels) {

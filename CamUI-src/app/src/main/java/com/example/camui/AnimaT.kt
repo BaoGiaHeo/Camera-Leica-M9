@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -22,25 +24,43 @@ import androidx.compose.ui.graphics.graphicsLayer
 
 /** App-owned Compose motion system for page transitions, content reflow and touch feedback. */
 object AnimaT {
-    fun enter(): EnterTransition =
-        fadeIn(tween(230, easing = FastOutSlowInEasing)) +
-            scaleIn(initialScale = 0.965f, animationSpec = spring(dampingRatio = 0.82f, stiffness = 430f))
+    private val motionEasing = FastOutSlowInEasing
 
+    /** Soft right-to-left entrance shared by top-level pages and Settings detail pages. */
+    fun enter(): EnterTransition =
+        slideInHorizontally(
+            initialOffsetX = { fullWidth -> fullWidth / 18 },
+            animationSpec = tween(durationMillis = 320, easing = motionEasing)
+        ) +
+            fadeIn(animationSpec = tween(durationMillis = 270, easing = motionEasing)) +
+            scaleIn(
+                initialScale = 0.99f,
+                animationSpec = tween(durationMillis = 320, easing = motionEasing)
+            )
+
+    /** Light reverse drift with a clean fade; avoids the old abrupt shrink effect. */
     fun exit(): ExitTransition =
-        fadeOut(tween(150, easing = FastOutSlowInEasing)) +
-            scaleOut(targetScale = 0.985f, animationSpec = tween(160, easing = FastOutSlowInEasing))
+        slideOutHorizontally(
+            targetOffsetX = { fullWidth -> -fullWidth / 32 },
+            animationSpec = tween(durationMillis = 220, easing = motionEasing)
+        ) +
+            fadeOut(animationSpec = tween(durationMillis = 210, easing = motionEasing)) +
+            scaleOut(
+                targetScale = 0.995f,
+                animationSpec = tween(durationMillis = 220, easing = motionEasing)
+            )
 }
 
 fun Modifier.animaTContent(): Modifier = animateContentSize(
-    animationSpec = spring(dampingRatio = 0.86f, stiffness = 460f)
+    animationSpec = spring(dampingRatio = 0.90f, stiffness = 360f)
 )
 
 fun Modifier.animaTClickable(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.965f else 1f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 720f),
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = tween(durationMillis = 145, easing = FastOutSlowInEasing),
         label = "AnimaT press feedback"
     )
     this.graphicsLayer {

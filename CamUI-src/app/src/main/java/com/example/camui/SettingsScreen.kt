@@ -79,7 +79,9 @@ fun SettingsScreen(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    zebraEnabled: Boolean,
+    onZebra: (Boolean) -> Unit
 ) {
     var selectedPage by remember { mutableStateOf<String?>(null) }
     AnimatedContent(
@@ -99,7 +101,9 @@ fun SettingsScreen(
                 showHist = showHist,
                 onShowHist = onShowHist,
                 focusPeaking = focusPeaking,
-                onFocusPeaking = onFocusPeaking
+                onFocusPeaking = onFocusPeaking,
+                zebraEnabled = zebraEnabled,
+                onZebra = onZebra
             )
         } else {
             Column(Modifier.fillMaxSize().background(CamColors.Bg)) {
@@ -139,7 +143,9 @@ private fun SettingsDetailPage(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    zebraEnabled: Boolean,
+    onZebra: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
@@ -183,6 +189,7 @@ var nightShotMode by remember {
                 SettingsSwitch("Grid Lines", "Thirds composition guide", showGrid, onShowGrid)
                 SettingsSwitch("Histogram", "Live luminance histogram", showHist, onShowHist)
                 SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusPeaking, onFocusPeaking)
+                SettingsSwitch("Zebra Warning", "Mark overexposed preview highlights (Y ≥ 235)", zebraEnabled, onZebra)
             }
             "Focus & Lens" -> {
                 CameraHardwareScannerPanel()

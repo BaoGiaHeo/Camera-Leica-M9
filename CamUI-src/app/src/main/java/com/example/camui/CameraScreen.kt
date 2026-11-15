@@ -2251,6 +2251,7 @@ fun CameraScreen(
                 return@launch
             }
             val captureUseHdmpResolution = mode == "Photo" && !captureUseNightShot &&
+                HdmpSelectionPolicy.isAiEnabled(hdmpRenderProfile) &&
                 hdmpOutputMp in HdmpSelectionPolicy.supportedOutputMegapixels &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly
             val captureUseUhdPlusAlgorithm = captureUseHdmpResolution && hdmpOutputMp == 250

@@ -663,7 +663,7 @@ internal object HdmpAiEngine {
         BitmapFactory.decodeFile(source.absolutePath, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
-        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 2048) sample *= 2
+        while (max(bounds.outWidth, bounds.outHeight) / sample > 2048) sample *= 2
         return BitmapFactory.decodeFile(
             source.absolutePath,
             BitmapFactory.Options().apply {

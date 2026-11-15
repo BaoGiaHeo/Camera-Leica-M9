@@ -2963,8 +2963,6 @@ fun CameraScreen(
     val availableAfModes = cameraInfo2?.getCameraCharacteristic(
         CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES
     )
-    val macroManualFocusSupported = maxFocus > 0f &&
-        availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
     val macroZoomState = camera?.cameraInfo?.zoomState?.value
     val macroSelectableMaxZoom = Camera2Info.maxSelectableZoom(
         activeCameraDetails,
@@ -2977,8 +2975,14 @@ fun CameraScreen(
         macroZoomState?.minZoomRatio ?: 1f,
         macroSelectableMaxZoom
     )
+    // Generic manual focus is not enough to advertise Macro. Require the same
+    // close-focus threshold used by the hardware scanner, or a disclosed physical
+    // lens candidate that the logical camera can actually select.
+    val macroCloseFocusDiopter = maxOf(maxFocus, macroLensCandidate?.closestFocusDiopter ?: 0f)
+    val macroManualFocusSupported = macroCloseFocusDiopter >= 8f &&
+        availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
     val macroFocusSupported = macroLensCandidate != null || macroManualFocusSupported
-    val macroNearThreshold = (maxFocus * 0.60f).coerceAtLeast(2.5f)
+    val macroNearThreshold = (macroCloseFocusDiopter * 0.60f).coerceAtLeast(2.5f)
     val macroObjectNear = focusDiopter >= macroNearThreshold
     val macroPromptVisible = macroFocusSupported && (macroAssistEnabled || macroObjectNear)
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange

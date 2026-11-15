@@ -26,6 +26,8 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.content.ContentUris
 import android.util.Size
+import java.util.Locale
+import kotlin.math.roundToInt
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -2941,7 +2943,7 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
         "Dung lượng" to sizeLabel,
         "Định dạng" to mimeType,
         "Thiết bị" to makeModel,
-        "Ống kính" to (tag(ExifInterface.TAG_LENS_MODEL) ?: "Không có EXIF"),
+        "Ống kính" to (tag("LensModel") ?: "Không có EXIF"),
         "ISO" to (tag(ExifInterface.TAG_ISO_SPEED_RATINGS) ?: "Không có"),
         "Tốc độ màn trập" to exposure,
         "Khẩu độ" to aperture,

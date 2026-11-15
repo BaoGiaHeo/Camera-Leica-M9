@@ -174,7 +174,6 @@ internal object HdmpAiEngine {
 
             // The 10s/20s values are UI targets only. Never abort or replace the selected
             // model when a device needs longer: inference continues tile-by-tile.
-            runCatching { onProgress(selectedModel, 0) }
             // Keep the chosen network fixed, but progressively reduce CPU pressure on
             // retries. The one-worker retries are intentional for marginal-memory devices.
             val workerPlan = mutableListOf(effectiveWorkerCount)
@@ -189,6 +188,7 @@ internal object HdmpAiEngine {
             var lastFailure: Throwable? = null
             workerPlan.forEachIndexed { index, attemptWorkers ->
                 if (completed) return@forEachIndexed
+                runCatching { onProgress(selectedModel, 0) }
                 rendered.delete()
                 completed = try {
                     runModel(

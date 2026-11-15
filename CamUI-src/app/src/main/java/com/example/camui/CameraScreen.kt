@@ -2675,7 +2675,7 @@ fun CameraScreen(
                                                             if (progress == 0) "HDMP AI 1.5 • đang khởi tạo"
                                                             else "HDMP AI 1.5 • đang xử lý"
                                                         HdmpAiEngine.Model.CLASSICAL_ONLY ->
-                                                            "HDMP • đang chuyển sang xử lý cơ bản"
+                                                            "OFF HDMP AI • chụp thường"
                                                     }
                                                     processingLabel = "$aiModelLabel · $progress%"
                                                     processingProgress =
@@ -2693,7 +2693,7 @@ fun CameraScreen(
                                     HdmpAiEngine.Result(
                                         HdmpAiEngine.Model.CLASSICAL_ONLY,
                                         false,
-                                        "AI không được yêu cầu ở chế độ chụp này."
+                                        "OFF HDMP AI • chụp thường."
                                     )
                                 }
                                 // The selected NAFNet model is the complete HDMP stage.

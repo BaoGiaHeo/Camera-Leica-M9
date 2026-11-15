@@ -2198,7 +2198,8 @@ fun CameraScreen(
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
-            val captureUseMilkyWayStack = mode == "Photo" && milkyWayStackEnabled &&
+            val captureUseMilkyWayStack = mode == "Photo" && !front &&
+                kotlin.math.abs(zoomSel - 1f) < 0.08f && milkyWayStackEnabled &&
                 nightShotMode == "off" && rawCaptureMode == "jpeg" &&
                 !captureRawPlus && !captureRawOnly && !uhdCaptureEnabled &&
                 !fhdCaptureEnabled && !uhdPlusCaptureEnabled && !burstMode &&
@@ -2423,7 +2424,7 @@ fun CameraScreen(
                                                     (!captureUseNightShot ||
                                                         SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)
                                                 ) {
-                                                    if (captureUseNightShot &&
+                                                    if ((captureUseNightShot || captureUseMilkyWayStack) &&
                                                         context.cacheDir.usableSpace < 256L * 1024L * 1024L
                                                     ) {
                                                         stoppedForStorage = true

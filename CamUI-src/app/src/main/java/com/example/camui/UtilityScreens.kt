@@ -237,6 +237,65 @@ fun ToolboxScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    val presetStore = remember { context.getSharedPreferences("fujifilm_camera_presets", Context.MODE_PRIVATE) }
+    var presetUiRevision by remember { mutableIntStateOf(0) }
+    val presetKeys = remember {
+        listOf(
+            "capture_ratio_index", "camera_zoom_ratio", "camera_flash_mode",
+            "camera_stabilization_enabled", "camera_metering_index", "camera_mode",
+            "selected_filter", "image_quality", "noise_reduction", "hdr_enabled",
+            "nightshot_mode", "nightshot_duration_seconds", "raw_capture_mode",
+            "uhd_capture_enabled", "fhd_capture_enabled", "uhd_plus_capture_enabled",
+            "burst_capture_mode_enabled", "hdr_bracketing_enabled", "focus_bracketing_enabled",
+            "pro_manual_exposure_enabled", "pro_manual_iso_enabled",
+            "pro_manual_shutter_enabled", "pro_manual_wb_enabled",
+            "pro_manual_iso", "pro_manual_shutter_ns", "pro_manual_wb_kelvin"
+        )
+    }
+    fun saveCameraPreset(slot: String) {
+        val values = prefs.all
+        val editor = presetStore.edit()
+        presetKeys.forEach { key ->
+            val storedKey = "$slot.$key"
+            when (val value = values[key]) {
+                is Boolean -> editor.putBoolean(storedKey, value)
+                is Int -> editor.putInt(storedKey, value)
+                is Long -> editor.putLong(storedKey, value)
+                is Float -> editor.putFloat(storedKey, value)
+                is String -> editor.putString(storedKey, value)
+                is Set<*> -> editor.putStringSet(storedKey, value.filterIsInstance<String>().toSet())
+                null -> editor.remove(storedKey)
+            }
+        }
+        editor.putBoolean("$slot.exists", true)
+            .putString("$slot.name", "Preset $slot")
+            .putLong("$slot.saved_at", System.currentTimeMillis())
+            .apply()
+        presetUiRevision++
+        Toast.makeText(context, "Đã lưu Camera Preset $slot", Toast.LENGTH_SHORT).show()
+    }
+    fun loadCameraPreset(slot: String) {
+        if (!presetStore.getBoolean("$slot.exists", false)) {
+            Toast.makeText(context, "Preset $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val saved = presetStore.all
+        val editor = prefs.edit()
+        presetKeys.forEach { key ->
+            when (val value = saved["$slot.$key"]) {
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Float -> editor.putFloat(key, value)
+                is String -> editor.putString(key, value)
+                is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                null -> editor.remove(key)
+            }
+        }
+        editor.apply()
+        Toast.makeText(context, "Đã nạp Camera Preset $slot · cấu hình chụp đã khôi phục", Toast.LENGTH_LONG).show()
+        onBack()
+    }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
     var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
@@ -303,6 +362,38 @@ fun ToolboxScreen(
                 .putBoolean("hdr_bracketing_enabled", if (it) false else hdrBracketMode)
                 .apply()
         }
+        Text("Camera Presets", color = CamColors.TextColor,
+            fontSize = 17.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp, bottom = 7.dp))
+        Text("Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShot, RAW và cấu hình HDMP.",
+            color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 8.dp))
+        listOf("A", "B", "C").forEach { slot ->
+            val savedName = presetStore.getString("$slot.name", "Trống") ?: "Trống"
+            val savedAt = presetStore.getLong("$slot.saved_at", 0L)
+            val timeLabel = if (savedAt > 0L) {
+                java.text.SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(java.util.Date(savedAt))
+            } else "Chưa lưu"
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(11.dp)).background(CamColors.Card)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("$savedName · $timeLabel", color = CamColors.TextColor,
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = { saveCameraPreset(slot) }) { Text("Lưu") }
+                TextButton(
+                    onClick = { loadCameraPreset(slot) },
+                    enabled = presetStore.getBoolean("$slot.exists", false)
+                ) { Text("Nạp") }
+            }
+        }
+        // Read the revision so the slot labels refresh immediately after saving.
+        if (presetUiRevision < 0) Text(" ", fontSize = 1.sp)
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)

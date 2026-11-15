@@ -2086,11 +2086,11 @@ fun applyCameraWatermark(
                 val left = logoLeft + logoWidth + plate.height() * 0.14f
                 val textWidth = (plate.right - left - plate.height() * 0.12f).coerceAtLeast(1f)
                 fitText(modelLine.uppercase(), titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.024f)
+                    textWidth, watermarkTitleSize)
                 fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
+                    textWidth, watermarkDetailSize)
                 fitText(timeLine, detailPaint, plate.left + 5f, plate.top - margin * 0.25f,
-                    plate.width(), minSide * 0.010f)
+                    plate.width(), watermarkDetailSize * 0.88f)
             }
             "blur" -> {
                 val plate = drawBottomPlate(0.095f, margin)
@@ -2104,11 +2104,11 @@ fun applyCameraWatermark(
                 val left = logoLeft + logoWidth + plate.height() * 0.12f
                 val textWidth = (plate.right - left - plate.height() * 0.10f).coerceAtLeast(1f)
                 fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.026f)
+                    textWidth, watermarkTitleSize)
                 fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
+                    textWidth, watermarkDetailSize)
                 fitText(timeLine, accentPaint, left, plate.top - margin * 0.25f,
-                    textWidth, minSide * 0.011f)
+                    textWidth, watermarkDetailSize * 0.88f)
             }
 "balanced" -> {
                 val plate = drawBottomPlate(0.095f, margin)

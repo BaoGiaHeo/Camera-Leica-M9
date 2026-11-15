@@ -3388,6 +3388,73 @@ fun CameraScreen(
                                         fontSize = 8.sp,
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
+                                    if (manualSensorSupported && recommendedStarIso != null &&
+                                        recommendedStarShutterSeconds != null && shutterRange != null
+                                    ) {
+                                        Text(
+                                            if (milkyWayStackEnabled) "TẮT MILKY WAY STACK ×8"
+                                            else "ÁP DỤNG GỢI Ý + BẬT ASTRO STACK ×8",
+                                            color = CamColors.Yellow,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = 7.dp).clickable {
+                                                val active = camera
+                                                if (milkyWayStackEnabled) {
+                                                    milkyWayStackEnabled = false
+                                                    manualIsoEnabled = false
+                                                    manualShutterEnabled = false
+                                                    manualExposure = false
+                                                    manualColorTempEnabled = false
+                                                    active?.let {
+                                                        runCatching {
+                                                            Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions()
+                                                            applyAutoWhiteBalance(it)
+                                                        }
+                                                    }
+                                                    manualCaptureRevision++
+                                                    localizedToast(context, "Đã tắt Milky Way Stack và trả phơi sáng về Auto.", Toast.LENGTH_SHORT).show()
+                                                } else if (active == null) {
+                                                    localizedToast(context, "Camera chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    val isoBounds = isoRange
+                                                    val isoValue = if (isoBounds != null) {
+                                                        recommendedStarIso.coerceIn(isoBounds.lower, isoBounds.upper)
+                                                    } else recommendedStarIso
+                                                    val exposureNs = (recommendedStarShutterSeconds * 1_000_000_000f)
+                                                        .toLong().coerceIn(shutterRange.lower, shutterRange.upper)
+                                                    val applied = runCatching {
+                                                        applyManualExposure(active, isoValue, exposureNs)
+                                                        applyManualWhiteBalance(active, 3800)
+                                                    }.isSuccess
+                                                    if (applied) {
+                                                        manualIso = isoValue
+                                                        manualShutterNs = exposureNs
+                                                        manualIsoEnabled = true
+                                                        manualShutterEnabled = true
+                                                        manualExposure = true
+                                                        manualColorTemp = 3800
+                                                        manualColorTempEnabled = true
+                                                        milkyWayStackEnabled = true
+                                                        manualCaptureRevision++
+                                                        localizedToast(
+                                                            context,
+                                                            "Đã áp dụng ISO $isoValue · ${(exposureNs / 1_000_000_000.0).let { String.format(Locale.US, "%.1fs", it) }} · WB 3800K. Chụp 8 ảnh để căn chỉnh và giảm nhiễu.",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    } else {
+                                                        localizedToast(context, "Không thể áp dụng Manual Sensor/WB trên camera này.", Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        Text(
+                                            "Astro Stack ×8 cần Manual Sensor, ISO và thời gian phơi sáng do Camera2 công bố.",
+                                            color = CamColors.Sub,
+                                            fontSize = 8.sp,
+                                            modifier = Modifier.padding(top = 6.dp)
+                                        )
+                                    }
                                     if (macroManualFocusSupported) {
                                         Text(
                                             if (milkyWayInfinityFocusEnabled) "ĐANG KHÓA NÉT VÔ CỰC · CHẠM ĐỂ TRỞ VỀ AF"

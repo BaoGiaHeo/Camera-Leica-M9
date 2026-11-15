@@ -3059,11 +3059,17 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
     } ?: "Không có"
     val focal = tag(ExifInterface.TAG_FOCAL_LENGTH)?.let { "$it mm" } ?: "Không có"
     val aperture = tag(ExifInterface.TAG_F_NUMBER)?.let { "f/$it" } ?: "Không có"
-    val qualityReport = runCatching {
-        decodeUprightBitmap(context, uri, maxDimension = 640)?.use { bitmap ->
-            analyzePhotoQuality(bitmap)
-        }
+    val qualityBitmap = runCatching {
+        decodeUprightBitmap(context, uri, maxDimension = 640)
     }.getOrNull()
+    val qualityReport: PhotoQualityReport? = try {
+        qualityBitmap?.let { bitmap -> analyzePhotoQuality(bitmap) }
+    } catch (failure: Throwable) {
+        android.util.Log.w("FUJI_PHOTO_QUALITY", "Quick quality analysis failed", failure)
+        null
+    } finally {
+        qualityBitmap?.let { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() }
+    }
     return listOf(
         "Tên tệp" to fileName,
         "Độ phân giải" to resolution,

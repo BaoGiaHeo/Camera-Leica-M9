@@ -153,7 +153,7 @@ internal object HdmpAiEngine {
                 return Result(Model.CLASSICAL_ONLY, false, "Đã dừng theo nhiệt độ trước khi hoàn tất tile đầu tiên; giữ nguyên ảnh gốc.")
             }
 
-            runCatching { onProgress(Model.NAFNETLIB_WIDTH32, 0) )
+            runCatching { onProgress(Model.NAFNETLIB_WIDTH32, 0) }
             val fallback = runModel(
                 context = context,
                 source = original,

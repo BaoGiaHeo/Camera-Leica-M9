@@ -394,6 +394,9 @@ fun CameraScreen(
     var aiRenderStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
     val switchToFastRequested = remember { AtomicBoolean(false) }
     val continueHdmpAi2Requested = remember { AtomicBoolean(false) }
+    val thermalStopRequested = remember { AtomicBoolean(false) }
+    var showThermalChoice by remember { mutableStateOf(false) }
+    var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var isHdmpAiPrimaryRunning by remember { mutableStateOf(false) }
     var showHdmpFastChoice by remember { mutableStateOf(false) }
     LaunchedEffect(isProcessing) {
@@ -407,6 +410,28 @@ fun CameraScreen(
             }
         } else {
             processingElapsedSeconds = 0
+        }
+    }
+    LaunchedEffect(isProcessing) {
+        if (isProcessing) {
+            thermalStopRequested.set(false)
+            var prompted = false
+            while (isProcessing && !prompted) {
+                val batteryIntent = runCatching {
+                    context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                }.getOrNull()
+                val tempTenths = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+                measuredBatteryTempC = if (tempTenths > 0) tempTenths / 10 else -1
+                if (tempTenths > 400) {
+                    prompted = true
+                    showThermalChoice = true
+                } else {
+                    delay(3_000L)
+                }
+            }
+        } else {
+            showThermalChoice = false
+            measuredBatteryTempC = -1
         }
     }
     LaunchedEffect(isHdmpAiPrimaryRunning) {
@@ -1828,6 +1853,7 @@ fun CameraScreen(
                                             workerCount = hdmpWorkerCount,
                                             shouldSwitchToFast = { switchToFastRequested.get() },
                                             continuePrimaryPastBudget = { continueHdmpAi2Requested.get() },
+                                            shouldStopForThermal = { thermalStopRequested.get() },
                                             onProgress = { model, progress ->
                                                 mainExecutor.execute {
                                                     isHdmpAiPrimaryRunning =
@@ -1881,7 +1907,7 @@ fun CameraScreen(
                                         "AI không được yêu cầu ở chế độ chụp này."
                                     )
                                 }
-                                val hdmpApplied = if (hdmpWorkerCount > 0) {
+                                val hdmpApplied = if (hdmpWorkerCount > 0 && !thermalStopRequested.get()) {
                                     withContext(Dispatchers.Main) {
                                         val aiLabel = when (hdmpAiResult.model) {
                                             HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
@@ -2018,8 +2044,8 @@ fun CameraScreen(
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
                                     val aiStatusSuffix = if (hdmpWorkerCount > 0) {
                                         when (hdmpAiResult.model) {
-                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> " HDMP AI 2 đã xử lý ảnh."
-                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> " HDMP AI 2 Fast đã tự động tiếp quản và xử lý ảnh."
+                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 đã xử lý ảnh."
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 Fast đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 Fast đã tự động tiếp quản và xử lý ảnh."
                                             HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI chưa chạy được; ảnh được xử lý bằng HDMP cơ bản, không báo AI thành công."
                                         }
                                     } else ""
@@ -2960,6 +2986,72 @@ stabilization = stabilization,
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+                }
+            }
+        }
+
+        if (showThermalChoice) {
+            Dialog(
+                onDismissRequest = {
+                    thermalStopRequested.set(true)
+                    showThermalChoice = false
+                },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF202020))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Thiết bị đang nóng",
+                        color = CamColors.Yellow,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Nhiệt độ pin đo được ${measuredBatteryTempC}°C (ngưỡng cảnh báo 40°C). Bạn có muốn tiếp tục xử lý HDMP AI không?",
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        "Nếu chọn Không, AI sẽ dừng sau tile hiện tại; phần đã xử lý được giữ lại, phần còn lại lấy từ ảnh gốc.",
+                        color = CamColors.Sub,
+                        fontSize = 12.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF393939))
+                                .clickable {
+                                    thermalStopRequested.set(true)
+                                    showThermalChoice = false
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Không, dừng và lưu", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CamColors.Yellow)
+                                .clickable { showThermalChoice = false }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Có, tiếp tục", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

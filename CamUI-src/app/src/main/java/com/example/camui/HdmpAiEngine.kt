@@ -149,8 +149,11 @@ internal object HdmpAiEngine {
             }
             // Never reuse a partially rendered primary output. Fast always starts from original.
             rendered.delete()
+            if (shouldStopForThermal()) {
+                return Result(Model.CLASSICAL_ONLY, false, "Đã dừng theo nhiệt độ trước khi hoàn tất tile đầu tiên; giữ nguyên ảnh gốc.")
+            }
 
-            runCatching { onProgress(Model.NAFNETLIB_WIDTH32, 0) }
+            runCatching { onProgress(Model.NAFNETLIB_WIDTH32, 0) )
             val fallback = runModel(
                 context = context,
                 source = original,
@@ -161,8 +164,12 @@ internal object HdmpAiEngine {
                 model = Model.NAFNETLIB_WIDTH32,
                 shouldSwitchToFast = { false },
                 continuePastBudget = { false },
+                shouldStopForThermal = shouldStopForThermal,
                 onProgress = onProgress
             )
+            if (shouldStopForThermal() && fallback && commitRendered(context, uri, original, rendered)) {
+                return Result(Model.NAFNETLIB_WIDTH32, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 Fast hoàn tất, phần còn lại giữ ảnh gốc.")
+            }
             if (fallback && commitRendered(context, uri, original, rendered)) {
                 return Result(
                     Model.NAFNETLIB_WIDTH32,

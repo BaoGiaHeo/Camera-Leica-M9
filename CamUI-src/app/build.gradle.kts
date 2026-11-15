@@ -12,15 +12,15 @@ android {
         applicationId = "com.fujifilm.mode"
         minSdk = 29
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.3-experimental"
+        versionCode = 4
+        versionName = "1.4"
 
     }
 
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            versionNameSuffix = ""
         }
         release {
             isMinifyEnabled = false

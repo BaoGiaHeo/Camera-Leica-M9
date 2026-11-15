@@ -15,7 +15,7 @@ Android camera application with HDMP-controlled computational photography.
 
 ## Version 1.4 baseline features retained in 1.4.1
 
-- App metadata uses version **1.4** (versionCode 4) and no longer carries an experimental suffix.
+- The 1.4 baseline removed the experimental suffix; version 1.4.1 increments metadata to versionCode 5.
 - HDMP AI provides **Quality**, **Balanced**, and **Speed** profiles. Speed selects HDMP AI 2 Fast directly.
 - ONNX intra-op threads are bounded by CPU availability, free system memory, and current Android thermal/battery readings.
 - The processing panel continuously displays battery temperature and Android thermal status and can be moved by dragging.

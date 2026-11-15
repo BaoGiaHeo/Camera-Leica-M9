@@ -688,6 +688,7 @@ fun CameraScreen(
     val manualFocusState = rememberUpdatedState(manualFocus)
     val focusLockedState = rememberUpdatedState(focusLocked)
     var macroAssistEnabled by remember { mutableStateOf(false) }
+    var milkyWayInfinityFocusEnabled by remember { mutableStateOf(false) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var rgbRedHistogram by remember { mutableStateOf(IntArray(32)) }
     var rgbGreenHistogram by remember { mutableStateOf(IntArray(32)) }
@@ -2031,6 +2032,7 @@ fun CameraScreen(
                     if (focusRestoreRequired) {
                         runCatching { applyAutoFocus(activeCamera) }
                         manualFocus = 0f
+                        milkyWayInfinityFocusEnabled = false
                         macroAssistEnabled = false
                     }
                     countdown = 0
@@ -2919,7 +2921,7 @@ fun CameraScreen(
         if (seconds >= 0.5) "%.1f\"".format(Locale.US, seconds)
         else "1/${(1.0 / seconds).roundToInt()}"
     } else "AUTO"
-    val afText = if (focusLocked) "LOCK" else if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
+    val afText = if (focusLocked) "LOCK" else if (milkyWayInfinityFocusEnabled) "∞" else if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
     val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO"
 
     // Milky Way setup advice is derived from the active camera's public Camera2 metadata
@@ -3005,6 +3007,7 @@ fun CameraScreen(
                                         if (macroAssistEnabled) {
                                             runCatching { applyAutoFocus(active) }
                                             manualFocus = 0f
+                                            milkyWayInfinityFocusEnabled = false
                                             macroAssistEnabled = false
                                             runCatching { active.cameraControl.setZoomRatio(oneX) }
                                             zoomSel = oneX
@@ -3054,6 +3057,7 @@ fun CameraScreen(
                                             }.isSuccess
                                             if (applied) {
                                                 manualFocus = if (macroManualFocusSupported) closeFocusDiopter else 0f
+                                                milkyWayInfinityFocusEnabled = false
                                                 macroAssistEnabled = true
                                                 focusLocked = false
                                                 val message = if (candidate != null) {
@@ -3130,6 +3134,7 @@ fun CameraScreen(
                                             focusLocked = false
                                             if (manualFocus > 0f) {
                                                 manualFocus = 0f
+                                                milkyWayInfinityFocusEnabled = false
                                                 macroAssistEnabled = false
                                                 runCatching { applyAutoFocus(active) }
                                             }
@@ -3348,6 +3353,37 @@ fun CameraScreen(
                                         fontSize = 8.sp,
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
+                                    if (macroManualFocusSupported) {
+                                        Text(
+                                            if (milkyWayInfinityFocusEnabled) "ĐANG KHÓA NÉT VÔ CỰC · CHẠM ĐỂ TRỞ VỀ AF"
+                                            else "ĐẶT LẤY NÉT VÔ CỰC",
+                                            color = CamColors.Yellow,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = 7.dp)
+                                                .clickable {
+                                                    val active = camera
+                                                    if (active != null) {
+                                                        if (milkyWayInfinityFocusEnabled) {
+                                                            milkyWayInfinityFocusEnabled = false
+                                                            runCatching { applyAutoFocus(active) }
+                                                            localizedToast(context, "Đã trở về AF tự động.", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            val applied = runCatching { applyManualFocus(active, 0f) }.isSuccess
+                                                            if (applied) {
+                                                                manualFocus = 0f
+                                                                milkyWayInfinityFocusEnabled = true
+                                                                macroAssistEnabled = false
+                                                                focusLocked = false
+                                                                localizedToast(context, "Đã đặt nét vô cực theo Camera2.", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                localizedToast(context, "Camera không chấp nhận lấy nét vô cực.", Toast.LENGTH_LONG).show()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                        )
+                                    }
                                 }
                             }
                             Text(
@@ -3579,6 +3615,7 @@ fun CameraScreen(
                                                         value = (manualFocus / maxFocus).coerceIn(0f, 1f),
                                                         onValueChange = { f ->
                                                             manualFocus = f * maxFocus
+                                                            milkyWayInfinityFocusEnabled = false
                                                             focusLocked = false
                                                             camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
                                                         },
@@ -3588,6 +3625,7 @@ fun CameraScreen(
                                                 Text("AUTO", color = CamColors.Yellow, fontSize = 10.sp,
                                                     modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualFocus = 0f
+                                                        milkyWayInfinityFocusEnabled = false
                                                         focusLocked = false
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     })
@@ -3646,6 +3684,7 @@ fun CameraScreen(
                                                     manualShutterEnabled = false
                                                     manualColorTempEnabled = false
                                                     manualFocus = 0f
+                                                    milkyWayInfinityFocusEnabled = false
                                                     focusLocked = false
                                                     evIndex = 0
                                                     manualCaptureRevision++
@@ -3668,6 +3707,7 @@ fun CameraScreen(
                                                     }
                                                     if (key == "AF" && manualFocus > 0f) {
                                                         manualFocus = 0f
+                                                        milkyWayInfinityFocusEnabled = false
                                                         focusLocked = false
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     }
@@ -3791,6 +3831,7 @@ fun CameraScreen(
                                             manualShutterEnabled = false
                                             manualColorTempEnabled = false
                                             manualFocus = 0f
+                                            milkyWayInfinityFocusEnabled = false
                                             focusLocked = false
                                             manualCaptureRevision++
                                             camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }

@@ -314,6 +314,8 @@ fun CameraScreen(
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
     var zebraEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_zebra_enabled", false)) }
     val zebraEnabledState = rememberUpdatedState(zebraEnabled)
+    var rgbHistogramEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_rgb_histogram_enabled", false)) }
+    val rgbHistogramEnabledState = rememberUpdatedState(rgbHistogramEnabled)
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     DisposableEffect(context) {
@@ -493,6 +495,9 @@ fun CameraScreen(
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
     var hist by remember { mutableStateOf(IntArray(64)) }
+    var rgbRedHistogram by remember { mutableStateOf(IntArray(32)) }
+    var rgbGreenHistogram by remember { mutableStateOf(IntArray(32)) }
+    var rgbBlueHistogram by remember { mutableStateOf(IntArray(32)) }
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
@@ -962,6 +967,13 @@ fun CameraScreen(
                             val plane = image.planes[0]
                             val buffer = plane.buffer
                             val bins = IntArray(64)
+                            val redBins = IntArray(32)
+                            val greenBins = IntArray(32)
+                            val blueBins = IntArray(32)
+                            val uPlane = image.planes.getOrNull(1)
+                            val vPlane = image.planes.getOrNull(2)
+                            val uBuffer = if (rgbHistogramEnabledState.value) uPlane?.buffer else null
+                            val vBuffer = if (rgbHistogramEnabledState.value) vPlane?.buffer else null
                             val edges = ArrayList<Offset>(250)
                             val overexposed = ArrayList<Offset>(700)
                             val rowStride = plane.rowStride
@@ -975,6 +987,24 @@ fun CameraScreen(
                                     val index = y * rowStride + x * pixelStride
                                     val value = buffer.get(index).toInt() and 0xFF
                                     bins[value shr 2]++
+                                    if (rgbHistogramEnabledState.value && uBuffer != null && vBuffer != null &&
+                                        uPlane != null && vPlane != null
+                                    ) {
+                                        val chromaX = x / 2
+                                        val chromaY = y / 2
+                                        val uIndex = chromaY * uPlane.rowStride + chromaX * uPlane.pixelStride
+                                        val vIndex = chromaY * vPlane.rowStride + chromaX * vPlane.pixelStride
+                                        if (uIndex in 0 until uBuffer.limit() && vIndex in 0 until vBuffer.limit()) {
+                                            val u = (uBuffer.get(uIndex).toInt() and 0xFF) - 128
+                                            val v = (vBuffer.get(vIndex).toInt() and 0xFF) - 128
+                                            val red = (value + 1.402f * v).roundToInt().coerceIn(0, 255)
+                                            val green = (value - 0.344136f * u - 0.714136f * v).roundToInt().coerceIn(0, 255)
+                                            val blue = (value + 1.772f * u).roundToInt().coerceIn(0, 255)
+                                            redBins[red shr 3]++
+                                            greenBins[green shr 3]++
+                                            blueBins[blue shr 3]++
+                                        }
+                                    }
                                     luminanceSum += value
                                     sampleCount++
                                     if (zebraEnabledState.value && value >= 242 && ((x + y) / 8) % 2 == 0 &&
@@ -1016,6 +1046,9 @@ fun CameraScreen(
                             val meanLuma = if (sampleCount > 0) (luminanceSum / sampleCount).toInt() else 255
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
+                                rgbRedHistogram = if (rgbHistogramEnabledState.value) redBins else IntArray(32)
+                                rgbGreenHistogram = if (rgbHistogramEnabledState.value) greenBins else IntArray(32)
+                                rgbBlueHistogram = if (rgbHistogramEnabledState.value) blueBins else IntArray(32)
                                 peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
                                 zebraPoints = if (zebraEnabledState.value) overexposed else emptyList()
                                 lowLightDetected = meanLuma < 52
@@ -2471,6 +2504,13 @@ fun CameraScreen(
                             if (showHist) {
                                 Histogram(hist, Modifier.align(Alignment.TopStart).padding(8.dp).size(106.dp, 52.dp))
                             }
+                            if (rgbHistogramEnabled) {
+                                val rgbTop = if (showHist) 68.dp else 8.dp
+                                RgbHistogram(
+                                    rgbRedHistogram, rgbGreenHistogram, rgbBlueHistogram,
+                                    Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = rgbTop).size(106.dp, 52.dp)
+                                )
+                            }
                             if (!hasCam) {
                                 Text(
                                     "Cần cấp quyền Camera\n(chạm để cấp)",
@@ -3791,5 +3831,36 @@ private fun Histogram(bins: IntArray, modifier: Modifier = Modifier) {
             drawRect(Color(0xCCFFFFFF), Offset(index * barWidth, size.height - height),
                 DrawSize(barWidth, height))
         }
+    }
+}
+
+@Composable
+private fun RgbHistogram(
+    red: IntArray,
+    green: IntArray,
+    blue: IntArray,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier.background(Color(0x77000000), RoundedCornerShape(6.dp))) {
+        val maxValue = maxOf(
+            red.maxOrNull() ?: 0,
+            green.maxOrNull() ?: 0,
+            blue.maxOrNull() ?: 0,
+            1
+        ).toFloat()
+        val stroke = 1.25.dp.toPx()
+        fun drawSeries(values: IntArray, color: Color) {
+            if (values.size < 2) return
+            for (index in 0 until values.lastIndex) {
+                val x1 = size.width * index / (values.size - 1f)
+                val x2 = size.width * (index + 1) / (values.size - 1f)
+                val y1 = size.height * (1f - values[index] / maxValue)
+                val y2 = size.height * (1f - values[index + 1] / maxValue)
+                drawLine(color, Offset(x1, y1), Offset(x2, y2), strokeWidth = stroke)
+            }
+        }
+        drawSeries(red, Color(0xFFFF5252))
+        drawSeries(green, Color(0xFF69F0AE))
+        drawSeries(blue, Color(0xFF448AFF))
     }
 }

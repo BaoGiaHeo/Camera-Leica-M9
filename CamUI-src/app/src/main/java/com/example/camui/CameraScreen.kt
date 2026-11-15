@@ -1287,7 +1287,7 @@ fun CameraScreen(
                 }.getOrDefault(0)
                 val availableFaceModes = activeCameraCharacteristics?.get(
                     CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES
-                ).orEmpty()
+                ) ?: intArrayOf()
                 val faceDetectMode = when {
                     availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) ->
                         CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL

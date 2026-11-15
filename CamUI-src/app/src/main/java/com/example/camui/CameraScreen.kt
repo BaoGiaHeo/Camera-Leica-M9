@@ -149,6 +149,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -389,6 +390,36 @@ fun CameraScreen(
     var noiseReductionProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
+    var processingElapsedSeconds by remember { mutableIntStateOf(0) }
+    var aiRenderStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
+    val switchToFastRequested = remember { AtomicBoolean(false) }
+    val continueHdmpAi2Requested = remember { AtomicBoolean(false) }
+    var isHdmpAiPrimaryRunning by remember { mutableStateOf(false) }
+    var showHdmpFastChoice by remember { mutableStateOf(false) }
+    LaunchedEffect(isProcessing) {
+        if (isProcessing) {
+            val startedAt = SystemClock.elapsedRealtime()
+            processingElapsedSeconds = 0
+            while (isProcessing) {
+                processingElapsedSeconds =
+                    ((SystemClock.elapsedRealtime() - startedAt) / 1_000L).toInt().coerceAtLeast(0)
+                delay(1_000L)
+            }
+        } else {
+            processingElapsedSeconds = 0
+        }
+    }
+    LaunchedEffect(isHdmpAiPrimaryRunning) {
+        if (isHdmpAiPrimaryRunning) {
+            delay(10_000L)
+            if (isHdmpAiPrimaryRunning &&
+                !switchToFastRequested.get() &&
+                !continueHdmpAi2Requested.get()
+            ) {
+                showHdmpFastChoice = true
+            }
+        }
+    }
     val shutterSoundPlayer = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
     }
@@ -1781,22 +1812,68 @@ fun CameraScreen(
                                 }
                                 val hdmpAiResult = if (hdmpWorkerCount > 0) {
                                     withContext(Dispatchers.Main) {
+                                        switchToFastRequested.set(false)
+                                        continueHdmpAi2Requested.set(false)
+                                        isHdmpAiPrimaryRunning = false
+                                        showHdmpFastChoice = false
+                                        aiRenderStartedAtElapsedMs = 0L
+                                        processingEtaSeconds = -1
                                         processingLabel = "HDMP AI 2 • đang chuẩn bị xử lý ảnh"
                                         processingProgress = 35
                                     }
-                                    withContext(Dispatchers.IO) {
-                                        HdmpAiEngine.process(context, saved, hdmpWorkerCount) { model, progress ->
-                                            mainExecutor.execute {
-                                                val aiModelLabel = when (model) {
-                                                    HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 • đang xử lý"
-                                                    HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast • đang xử lý"
-                                                    HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP • đang chuyển sang xử lý cơ bản"
+                                    val result = withContext(Dispatchers.IO) {
+                                        HdmpAiEngine.process(
+                                            context = context,
+                                            uri = saved,
+                                            workerCount = hdmpWorkerCount,
+                                            shouldSwitchToFast = { switchToFastRequested.get() },
+                                            continuePrimaryPastBudget = { continueHdmpAi2Requested.get() },
+                                            onProgress = { model, progress ->
+                                                mainExecutor.execute {
+                                                    isHdmpAiPrimaryRunning =
+                                                        model == HdmpAiEngine.Model.NAFNET_WIDTH64 && progress < 100
+                                                    if (progress == 0 || aiRenderStartedAtElapsedMs == 0L) {
+                                                        aiRenderStartedAtElapsedMs = SystemClock.elapsedRealtime()
+                                                        processingEtaSeconds = -1
+                                                    } else if (progress in 1..99 && progress >= 3) {
+                                                        val stageElapsedMs =
+                                                            (SystemClock.elapsedRealtime() - aiRenderStartedAtElapsedMs)
+                                                                .coerceAtLeast(0L)
+                                                        if (stageElapsedMs >= 2_000L) {
+                                                            val estimateSeconds = (
+                                                                stageElapsedMs.toDouble() *
+                                                                    (100 - progress).toDouble() /
+                                                                    progress.toDouble() / 1_000.0
+                                                                ).roundToInt()
+                                                            processingEtaSeconds =
+                                                                estimateSeconds.coerceIn(1, 3_600)
+                                                        }
+                                                    } else if (progress >= 100) {
+                                                        processingEtaSeconds = -1
+                                                    }
+                                                    val aiModelLabel = when (model) {
+                                                        HdmpAiEngine.Model.NAFNET_WIDTH64 ->
+                                                            if (progress == 0) "HDMP AI 2 • đang khởi tạo"
+                                                            else "HDMP AI 2 • đang xử lý"
+                                                        HdmpAiEngine.Model.NAFNETLIB_WIDTH32 ->
+                                                            if (progress == 0) "HDMP AI 2 Fast • đang khởi tạo"
+                                                            else "HDMP AI 2 Fast • đang xử lý"
+                                                        HdmpAiEngine.Model.CLASSICAL_ONLY ->
+                                                            "HDMP • đang chuyển sang xử lý cơ bản"
+                                                    }
+                                                    processingLabel = "$aiModelLabel · $progress%"
+                                                    processingProgress =
+                                                        (35 + progress * 0.09f).roundToInt().coerceIn(35, 44)
                                                 }
-                                                processingLabel = "$aiModelLabel · $progress%"
-                                                processingProgress = (35 + progress * 0.09f).roundToInt().coerceIn(35, 44)
                                             }
-                                        }
+                                        )
                                     }
+                                    withContext(Dispatchers.Main) {
+                                        isHdmpAiPrimaryRunning = false
+                                        showHdmpFastChoice = false
+                                        processingEtaSeconds = -1
+                                    }
+                                    result
                                 } else {
                                     HdmpAiEngine.Result(
                                         HdmpAiEngine.Model.CLASSICAL_ONLY,
@@ -2854,6 +2931,16 @@ stabilization = stabilization,
                     processingEtaSeconds >= 60 -> "Còn ${processingEtaSeconds / 60}p ${processingEtaSeconds % 60}s"
                     else -> "Còn ${processingEtaSeconds}s"
                 }
+                val elapsedText = when {
+                    processingElapsedSeconds >= 60 ->
+                        "${processingElapsedSeconds / 60}p ${processingElapsedSeconds % 60}s"
+                    else -> "${processingElapsedSeconds}s"
+                }
+                val captureStatus = if (nightShotCaptureInProgress || starTrailCaptureInProgress) {
+                    "Giữ máy ổn định · đang thu khung hình"
+                } else {
+                    "Có thể di chuyển · chỉ còn xử lý ảnh"
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(processingLabel, color = Color.White, fontSize = 11.sp,
@@ -2863,10 +2950,102 @@ stabilization = stabilization,
                         color = CamColors.Yellow, fontSize = 11.sp, fontWeight = FontWeight.Bold
                     )
                 }
+                Text(
+                    "Đã xử lý: $elapsedText · $captureStatus",
+                    color = CamColors.Sub,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 5.dp)
+                )
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+                }
+            }
+        }
+
+        if (showHdmpFastChoice && isHdmpAiPrimaryRunning) {
+            Dialog(
+                onDismissRequest = {
+                    continueHdmpAi2Requested.set(true)
+                    showHdmpFastChoice = false
+                    processingLabel = "HDMP AI 2 • tiếp tục theo yêu cầu"
+                },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF202020))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "HDMP AI 2 đang xử lý lâu",
+                        color = CamColors.Yellow,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Bạn có muốn chuyển sang HDMP AI 2 Fast không?",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Không: tiếp tục HDMP AI 2, kể cả khi vượt mốc thời gian mềm. " +
+                            "Có: dừng an toàn sau tile hiện tại và chạy HDMP AI 2 Fast từ ảnh gốc.",
+                        color = CamColors.Sub,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF383838))
+                                .clickable {
+                                    continueHdmpAi2Requested.set(true)
+                                    showHdmpFastChoice = false
+                                    processingLabel = "HDMP AI 2 • tiếp tục theo yêu cầu"
+                                }
+                                .padding(vertical = 13.dp, horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Không, tiếp tục",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CamColors.Yellow)
+                                .clickable {
+                                    switchToFastRequested.set(true)
+                                    showHdmpFastChoice = false
+                                    processingLabel = "Đang chuyển an toàn sang HDMP AI 2 Fast…"
+                                    processingEtaSeconds = -1
+                                }
+                                .padding(vertical = 13.dp, horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Có, chuyển Fast",
+                                color = Color.Black,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }

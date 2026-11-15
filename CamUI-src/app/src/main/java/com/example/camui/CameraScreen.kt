@@ -2799,7 +2799,7 @@ fun CameraScreen(
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
                                 val inspectorHdmpStatus = when {
-                                    hdmpWorkerCount <= 0 -> "HDMP AI không chạy trong chế độ chụp này"
+                                    hdmpWorkerCount <= 0 -> if (hdmpRenderProfile == "off") "OFF HDMP AI · chụp thường" else "HDMP AI không áp dụng cho kiểu chụp này"
                                     !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
                                     hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
                                     hdmpAiResult.model == HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5 · NAFNet width32"
@@ -2875,11 +2875,17 @@ fun CameraScreen(
                                     val finalMessage = if (captureIsUltraHdr) message
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
                                     val aiStatusSuffix = if (hdmpWorkerCount > 0) {
-                                        when (hdmpAiResult.model) {
-                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 đã xử lý ảnh."
-                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 1.5 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 1.5 đã tự động tiếp quản và xử lý ảnh."
-                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI đang tắt; ảnh được giữ ở chế độ chụp thường."
+                                        if (!hdmpAiResult.applied) {
+                                            " ${hdmpAiResult.detail}"
+                                        } else {
+                                            when (hdmpAiResult.model) {
+                                                HdmpAiEngine.Model.NAFNET_WIDTH64 -> " HDMP AI 2 đã xử lý ảnh."
+                                                HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> " HDMP AI 1.5 đã xử lý ảnh."
+                                                HdmpAiEngine.Model.CLASSICAL_ONLY -> ""
+                                            }
                                         }
+                                    } else if (hdmpRenderProfile == "off") {
+                                        " OFF HDMP AI · ảnh chụp thường."
                                     } else ""
                                     localizedToast(context, finalMessage + aiStatusSuffix, Toast.LENGTH_LONG).show()
                                 }

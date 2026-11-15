@@ -228,7 +228,9 @@ fun ToolboxScreen(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    zebraEnabled: Boolean,
+    onZebra: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
@@ -261,6 +263,8 @@ fun ToolboxScreen(
         ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
         ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
             focusPeaking, onFocusPeaking)
+        ToolToggle("Zebra Warning", "Mark overexposed preview highlights (Y ≥ 235)",
+            Icons.Default.ShowChart, zebraEnabled, onZebra)
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)

@@ -110,6 +110,7 @@ class MainActivity : AppCompatActivity() {
                 var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
                 var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }
                 var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
+                var zebraEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_zebra_enabled", false)) }
                 var ratioIdx by remember { mutableIntStateOf(settingsPrefs.getInt("capture_ratio_index", 1).coerceIn(0, 4)) }
 
                 BackHandler(enabled = page != "camera") { page = "camera" }
@@ -131,7 +132,9 @@ class MainActivity : AppCompatActivity() {
                         showHist = showHist,
                         onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                         focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
+                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                        zebraEnabled = zebraEnabled,
+                        onZebra = { zebraEnabled = it; settingsPrefs.edit().putBoolean("viewfinder_zebra_enabled", it).apply() }
                     )
                     "toolbox" -> ToolboxScreen(
                         onBack = { page = "camera" },
@@ -140,7 +143,9 @@ class MainActivity : AppCompatActivity() {
                         showHist = showHist,
                         onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                         focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
+                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                        zebraEnabled = zebraEnabled,
+                        onZebra = { zebraEnabled = it; settingsPrefs.edit().putBoolean("viewfinder_zebra_enabled", it).apply() }
                     )
                     "contents" -> ContentManagementScreen(onBack = { page = "camera" })
                     else -> CameraScreen(
@@ -156,6 +161,7 @@ class MainActivity : AppCompatActivity() {
                         onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                         focusPeaking = focusPeaking,
                         onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                        zebraEnabled = zebraEnabled,
                         ratioIdx = ratioIdx,
                         onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() }
                     )

@@ -274,6 +274,7 @@ fun CameraScreen(
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit,
+    zebraEnabled: Boolean,
     ratioIdx: Int,
     onRatio: (Int) -> Unit
 ) {
@@ -312,6 +313,7 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+    val zebraEnabledState = rememberUpdatedState(zebraEnabled)
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     DisposableEffect(context) {
@@ -491,7 +493,9 @@ fun CameraScreen(
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
     var hist by remember { mutableStateOf(IntArray(64)) }
+    var rgbHist by remember { mutableStateOf(List(3) { IntArray(64) }) }
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
+    var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -958,8 +962,18 @@ fun CameraScreen(
                             lastAnalysis = now
                             val plane = image.planes[0]
                             val buffer = plane.buffer
+                            val chromaU = image.planes.getOrNull(1)
+                            val chromaV = image.planes.getOrNull(2)
+                            val uBuffer = chromaU?.buffer
+                            val vBuffer = chromaV?.buffer
+                            val uRowStride = chromaU?.rowStride ?: 0
+                            val vRowStride = chromaV?.rowStride ?: 0
+                            val uPixelStride = chromaU?.pixelStride ?: 0
+                            val vPixelStride = chromaV?.pixelStride ?: 0
                             val bins = IntArray(64)
+                            val rgbBins = Array(3) { IntArray(64) }
                             val edges = ArrayList<Offset>(250)
+                            val overexposed = ArrayList<Offset>(180)
                             val rowStride = plane.rowStride
                             val pixelStride = plane.pixelStride
                             var luminanceSum = 0L
@@ -973,6 +987,36 @@ fun CameraScreen(
                                     bins[value shr 2]++
                                     luminanceSum += value
                                     sampleCount++
+                                    if (uBuffer != null && vBuffer != null &&
+                                        uPixelStride > 0 && vPixelStride > 0) {
+                                        val chromaX = x / 2
+                                        val chromaY = y / 2
+                                        val uIndex = chromaY * uRowStride + chromaX * uPixelStride
+                                        val vIndex = chromaY * vRowStride + chromaX * vPixelStride
+                                        if (uIndex in 0 until uBuffer.limit() && vIndex in 0 until vBuffer.limit()) {
+                                            val yy = (value - 16).coerceAtLeast(0)
+                                            val uu = (uBuffer.get(uIndex).toInt() and 0xFF) - 128
+                                            val vv = (vBuffer.get(vIndex).toInt() and 0xFF) - 128
+                                            val red = ((298 * yy + 409 * vv + 128) shr 8).coerceIn(0, 255)
+                                            val green = ((298 * yy - 100 * uu - 208 * vv + 128) shr 8).coerceIn(0, 255)
+                                            val blue = ((298 * yy + 516 * uu + 128) shr 8).coerceIn(0, 255)
+                                            rgbBins[0][red shr 2]++
+                                            rgbBins[1][green shr 2]++
+                                            rgbBins[2][blue shr 2]++
+                                        }
+                                    }
+                                    if (zebraEnabledState.value && value >= 235 &&
+                                        ((x / 8 + y / 8) % 2 == 0) && overexposed.size < 1200) {
+                                        val px = x.toFloat() / image.width
+                                        val py = y.toFloat() / image.height
+                                        val oriented = when (image.imageInfo.rotationDegrees) {
+                                            90 -> Offset(1f - py, px)
+                                            180 -> Offset(1f - px, 1f - py)
+                                            270 -> Offset(py, 1f - px)
+                                            else -> Offset(px, py)
+                                        }
+                                        overexposed.add(if (front) Offset(1f - oriented.x, oriented.y) else oriented)
+                                    }
                                     if (focusPeakingEnabled.value && x > 1 && y > 1 && index < buffer.limit()) {
                                         val leftIndex = index - pixelStride
                                         val upIndex = index - rowStride
@@ -999,7 +1043,9 @@ fun CameraScreen(
                             val meanLuma = if (sampleCount > 0) (luminanceSum / sampleCount).toInt() else 255
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
+                                rgbHist = rgbBins.toList()
                                 peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
+                                zebraPoints = if (zebraEnabledState.value) overexposed else emptyList()
                                 lowLightDetected = meanLuma < 52
                             }
                         }
@@ -2182,7 +2228,8 @@ fun CameraScreen(
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
     val currentIso = if (manualIsoEnabled) manualIso else iso
-    val isoText = if (manualIsoEnabled) manualIso.toString() else "AUTO"
+    // Prefer the active Camera2 CaptureResult ISO; do not show AUTO after a live reading exists.
+    val isoText = currentIso.takeIf { it > 0 }?.toString() ?: "AUTO"
     val currentShutter = if (manualShutterEnabled) manualShutterNs else shutterNs
     val shutterText = if (currentShutter > 0) {
         val seconds = currentShutter / 1_000_000_000.0
@@ -2366,6 +2413,20 @@ fun CameraScreen(
                                     }
                                 }
                             }
+                            if (zebraEnabled && zebraPoints.isNotEmpty()) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val stripe = 5.dp.toPx()
+                                    zebraPoints.forEach { p ->
+                                        val center = Offset(p.x * size.width, p.y * size.height)
+                                        drawLine(
+                                            color = Color(0xFFFFC857).copy(alpha = 0.88f),
+                                            start = Offset(center.x - stripe * 0.5f, center.y + stripe * 0.5f),
+                                            end = Offset(center.x + stripe * 0.5f, center.y - stripe * 0.5f),
+                                            strokeWidth = 1.2.dp.toPx()
+                                        )
+                                    }
+                                }
+                            }
                             if (focusPeaking && peakPoints.isNotEmpty()) {
                                 Canvas(Modifier.fillMaxSize()) {
                                     peakPoints.forEach { p ->
@@ -2436,7 +2497,7 @@ fun CameraScreen(
                                 modifier = Modifier.align(Alignment.Center)
                             )
                             if (showHist) {
-                                Histogram(hist, Modifier.align(Alignment.TopStart).padding(8.dp).size(106.dp, 52.dp))
+                                Histogram(hist, rgbHist, Modifier.align(Alignment.TopStart).padding(8.dp).size(118.dp, 58.dp))
                             }
                             if (!hasCam) {
                                 Text(
@@ -3749,14 +3810,47 @@ private fun MiniChip(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Histogram(bins: IntArray, modifier: Modifier = Modifier) {
-    Canvas(modifier.background(Color(0x66000000), RoundedCornerShape(6.dp))) {
-        val maxValue = (bins.maxOrNull() ?: 1).coerceAtLeast(1)
+private fun Histogram(
+    bins: IntArray,
+    rgbBins: List<IntArray>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier.background(Color(0x88000000), RoundedCornerShape(6.dp))) {
+        val lumaMax = (bins.maxOrNull() ?: 1).coerceAtLeast(1)
         val barWidth = size.width / bins.size
         bins.forEachIndexed { index, value ->
-            val height = size.height * value / maxValue
-            drawRect(Color(0xCCFFFFFF), Offset(index * barWidth, size.height - height),
-                DrawSize(barWidth, height))
+            val height = size.height * value / lumaMax
+            drawRect(
+                Color.White.copy(alpha = 0.22f),
+                Offset(index * barWidth, size.height - height),
+                DrawSize(barWidth, height)
+            )
+        }
+
+        val channelColors = listOf(
+            Color(0xFFFF6666),
+            Color(0xFF62E58A),
+            Color(0xFF6DA8FF)
+        )
+        rgbBins.take(3).forEachIndexed { channel, values ->
+            val channelMax = (values.maxOrNull() ?: 1).coerceAtLeast(1)
+            val stepX = size.width / (values.size - 1).coerceAtLeast(1)
+            for (index in 0 until values.lastIndex) {
+                val start = Offset(
+                    index * stepX,
+                    size.height - size.height * values[index] / channelMax
+                )
+                val end = Offset(
+                    (index + 1) * stepX,
+                    size.height - size.height * values[index + 1] / channelMax
+                )
+                drawLine(
+                    color = channelColors[channel].copy(alpha = 0.94f),
+                    start = start,
+                    end = end,
+                    strokeWidth = 1.3.dp.toPx()
+                )
+            }
         }
     }
 }

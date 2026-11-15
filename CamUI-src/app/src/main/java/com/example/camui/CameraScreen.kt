@@ -1788,7 +1788,7 @@ fun CameraScreen(
                 }
                 localizedToast(
                     context,
-                    "${if (hdrBracketMode) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/${if (hdrBracketMode) bracketTargetFrames} khung JPEG. Các khung được lưu riêng, chưa ghép HDR/focus stack.",
+                    "${if (hdrBracketMode) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/$bracketTargetFrames khung JPEG. Các khung được lưu riêng, chưa ghép HDR/focus stack.",
                     Toast.LENGTH_LONG
                 ).show()
             }

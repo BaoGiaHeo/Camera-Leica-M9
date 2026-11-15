@@ -2605,6 +2605,7 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val availableCpuWorkers = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
                                 val hdmpWorkerCount = when {
+                                    !HdmpSelectionPolicy.isAiEnabled(hdmpRenderProfile) -> 0
                                     captureUseHdmpResolution -> when (hdmpRenderProfile) {
                                         "ai2" -> availableCpuWorkers
                                         else -> availableCpuWorkers.coerceAtMost(6)
@@ -2633,7 +2634,11 @@ fun CameraScreen(
                                             context = context,
                                             uri = saved,
                                             workerCount = hdmpWorkerCount,
-                                            preferFast = hdmpRenderProfile == "ai15",
+                                            selectedModel = if (hdmpRenderProfile == "ai15") {
+                                                HdmpAiEngine.Model.NAFNETLIB_WIDTH32
+                                            } else {
+                                                HdmpAiEngine.Model.NAFNET_WIDTH64
+                                            },
                                             onAdaptiveWorkerCount = { count ->
                                                 mainExecutor.execute { hdmpActiveWorkerCount = count }
                                             },
@@ -2703,12 +2708,12 @@ fun CameraScreen(
                                         "AI không được yêu cầu ở chế độ chụp này."
                                     )
                                 }
-                                val hdmpApplied = if (hdmpWorkerCount > 0 && !thermalStopRequested.get()) {
+                                val hdmpApplied = if (hdmpWorkerCount > 0 && hdmpAiResult.applied && !thermalStopRequested.get()) {
                                     withContext(Dispatchers.Main) {
                                         val aiLabel = when (hdmpAiResult.model) {
                                             HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
                                             HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5"
-                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP cơ bản (AI không khả dụng)"
+                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> "Chế độ chụp thường"
                                         }
                                         processingLabel = "$aiLabel • HDMP đang kiểm tra và hoàn tất · $hdmpActiveWorkerCount luồng"
                                         processingProgress = 44
@@ -2808,7 +2813,7 @@ fun CameraScreen(
                                     !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
                                     hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
                                     hdmpAiResult.model == HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5 · NAFNet width32"
-                                    else -> "HDMP cơ bản · AI không khả dụng"
+                                    else -> "Chế độ chụp thường · HDMP AI đang tắt"
                                 }
                                 val inspectorOutputSize = outputResolutionResult?.let {
                                     "${it.width}×${it.height} · ${(it.actualPixels + 500_000L) / 1_000_000L}MP"
@@ -2883,7 +2888,7 @@ fun CameraScreen(
                                         when (hdmpAiResult.model) {
                                             HdmpAiEngine.Model.NAFNET_WIDTH64 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 đã xử lý ảnh."
                                             HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 1.5 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 1.5 đã tự động tiếp quản và xử lý ảnh."
-                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI chưa chạy được; ảnh được xử lý bằng HDMP cơ bản, không báo AI thành công."
+                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI đang tắt; ảnh được giữ ở chế độ chụp thường."
                                         }
                                     } else ""
                                     localizedToast(context, finalMessage + aiStatusSuffix, Toast.LENGTH_LONG).show()

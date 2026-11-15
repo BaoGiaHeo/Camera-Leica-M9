@@ -2462,15 +2462,11 @@ fun CameraScreen(
                                                             "Night Shot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
                                                         } else if (captureUseMilkyWayStack) {
                                                             "Milky Way: thu khung $expectedFrame/$maxFrames"
-                                                        } else if (captureUseMilkyWayStack) {
-                                                            "Milky Way: thu khung $expectedFrame/$maxFrames"
                                                         } else {
                                                             "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
                                                             (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
-                                                        } else if (captureUseMilkyWayStack) {
-                                                            (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else if (captureUseMilkyWayStack) {
                                                             (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else (8 + stackedFrames.size * 3).coerceAtMost(24)

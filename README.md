@@ -16,6 +16,14 @@ Android camera application with HDMP-controlled computational photography.
 
 HDMP remains the pipeline coordinator and final image validator. HDMP AI 2 uses the primary NAFNet model; HDMP AI 2 Fast is used when selected by the user or when the primary model needs fallback. Fast starts from the original capture, not from a partially processed primary output. These models perform conservative restoration/denoising; they are not generative upscalers and do not guarantee a fixed speed multiplier or invented detail.
 
+## Watermark designs
+
+- All logo-bearing watermark styles use one shared Fujifilm mark derived from the transparent logo image supplied for this project. The drawable keeps the black wordmark, red accent and original aspect ratio.
+- Existing Standard 1, Standard 2, Blur, Center Logo and Liquid Glass previews use the shared mark; the watermark renderer draws the image asset instead of rebuilding the FUJIFILM lettering.
+- Added **Fuji Classic** (landscape-style white footer with logo left and camera settings right) and **Fuji Signature** (centered logo, “Shot on” model/date line and optional location line).
+- Fuji Signature location is user-entered in Watermark settings; the app does not fabricate GPS place names.
+- White-footer templates append space below the captured photo when the current memory budget safely permits it. Otherwise they use a compact in-image footer without resizing the source.
+
 ## Existing camera functionality
 
 The source includes Pro/Photo capture, FHD/UHD/UHD+, Night Shot, Star Trails, Fujifilm LUT looks, image overlays/watermark, Camera2 logical/physical camera inventory, and orientation-aware capture normalization. Camera hardware enumeration uses only IDs and physical IDs exposed through public Android Camera2 APIs; hidden OEM IDs cannot be queried or fabricated by an ordinary application.

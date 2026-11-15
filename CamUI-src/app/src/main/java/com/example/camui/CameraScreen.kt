@@ -1901,13 +1901,15 @@ fun CameraScreen(
                 return
             }
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            val useHdrBracket = hdrBracketMode
             scope.launch {
                 bracketCaptureActive = true
                 bracketCompletedFrames = 0
+                val bracketSavedUris = ArrayList<Uri>()
                 val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
                 val originalEv = activeCamera.cameraInfo.exposureState.exposureCompensationIndex
                 var focusRestoreRequired = false
-                var bracketTargetFrames = if (hdrBracketMode) 3 else 5
+                var bracketTargetFrames = if (useHdrBracket) 3 else 5
                 try {
                     if (timerSec > 0) {
                         for (seconds in timerSec downTo 1) {
@@ -1916,7 +1918,7 @@ fun CameraScreen(
                         }
                         countdown = 0
                     }
-                    val positions: List<Float> = if (hdrBracketMode) {
+                    val positions: List<Float> = if (useHdrBracket) {
                         listOf(-2f, 0f, 2f).map { ev ->
                             val offset = (ev / exposureStep).roundToInt()
                             (originalEv + offset).coerceIn(exposureRange.lower, exposureRange.upper).toFloat()
@@ -1932,7 +1934,7 @@ fun CameraScreen(
                     }
                     bracketTargetFrames = positions.size
                     for ((index, value) in positions.withIndex()) {
-                        if (hdrBracketMode) {
+                        if (useHdrBracket) {
                             activeCamera.cameraControl.setExposureCompensationIndex(value.roundToInt())
                             delay(280)
                         } else {
@@ -1951,16 +1953,16 @@ fun CameraScreen(
                                 executor = mainExecutor,
                                 sessionId = sessionId,
                                 frameIndex = index,
-                                folder = if (hdrBracketMode) "HDR-Bracketing" else "Focus-Bracketing",
-                                filePrefix = if (hdrBracketMode) "FUJI_HDR_BRACKET" else "FUJI_FOCUS_BRACKET"
+                                folder = if (useHdrBracket) "HDR-Bracketing" else "Focus-Bracketing",
+                                filePrefix = if (useHdrBracket) "FUJI_HDR_BRACKET" else "FUJI_FOCUS_BRACKET"
                             )
                         }.onFailure {
                             android.util.Log.w("FUJI_BRACKET", "Bracket frame ${index + 1} failed; continuing", it)
                         }.getOrNull()
-                        if (uri != null) bracketCompletedFrames++
+                        if (uri != null) { bracketSavedUris += uri; bracketCompletedFrames++ }
                     }
                 } finally {
-                    if (hdrBracketMode) {
+                    if (useHdrBracket) {
                         runCatching { activeCamera.cameraControl.setExposureCompensationIndex(originalEv) }
                     }
                     if (focusRestoreRequired) {
@@ -1971,9 +1973,41 @@ fun CameraScreen(
                     countdown = 0
                     bracketCaptureActive = false
                 }
+                var mergedBracketUri: Uri? = null
+                if (bracketSavedUris.size >= 2) {
+                    isProcessing = true
+                    processingProgress = 0
+                    processingLabel = if (useHdrBracket) "Đang ghép HDR Bracketing" else "Đang ghép Focus Stack"
+                    try {
+                        mergedBracketUri = withContext(Dispatchers.IO) {
+                            NightShotProcessor.mergeBracketUrisIntoNewImage(
+                                context = context,
+                                frameUris = bracketSavedUris,
+                                mode = if (useHdrBracket) NightShotProcessor.MergeMode.HDR_BRACKET
+                                    else NightShotProcessor.MergeMode.FOCUS_STACK
+                            )
+                        }
+                    } finally {
+                        isProcessing = false
+                        processingProgress = 0
+                    }
+                }
+                if (mergedBracketUri != null) {
+                    lastUri = mergedBracketUri
+                    thumb = withContext(Dispatchers.IO) {
+                        runCatching {
+                            decodeUprightBitmap(context, mergedBracketUri!!, maxDimension = 320)?.asImageBitmap()
+                        }.getOrNull()
+                    }
+                }
+                val mergeMessage = when {
+                    bracketSavedUris.size < 2 -> "Không đủ khung hình để ghép; các ảnh chụp thành công vẫn được giữ."
+                    mergedBracketUri != null -> "Đã ghép ảnh tổng hợp và vẫn giữ ${bracketSavedUris.size} ảnh gốc."
+                    else -> "Ghép ảnh chưa thành công; toàn bộ ảnh gốc vẫn được giữ."
+                }
                 localizedToast(
                     context,
-                    "${if (hdrBracketMode) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/$bracketTargetFrames khung JPEG. Các khung được lưu riêng, chưa ghép HDR/focus stack.",
+                    "${if (useHdrBracket) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/$bracketTargetFrames khung. $mergeMessage",
                     Toast.LENGTH_LONG
                 ).show()
             }

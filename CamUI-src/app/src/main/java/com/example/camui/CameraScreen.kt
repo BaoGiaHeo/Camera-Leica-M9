@@ -1492,9 +1492,22 @@ fun CameraScreen(
                 val supportsManualSensor = capabilities?.contains(
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
                 ) == true
-                // White-balance warmth/coolness is a manual sensor color-correction request.
+                // Preserve user-selected WB and focus intent across logical-camera rebinds.
                 if (manualColorTempEnabled) applyManualWhiteBalance(bound, manualColorTemp)
                 else applyAutoWhiteBalance(bound)
+                val focusModes = runCatching {
+                    Camera2CameraInfo.from(bound.cameraInfo)
+                        .getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+                }.getOrNull()
+                val focusDistance = activeCameraDetails?.minFocusDiopter ?: 0f
+                if (focusDistance > 0f && focusModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true) {
+                    when {
+                        milkyWayInfinityFocusEnabled -> runCatching { applyManualFocus(bound, 0f) }
+                        manualFocus > 0f -> runCatching {
+                            applyManualFocus(bound, manualFocus.coerceIn(0f, focusDistance))
+                        }
+                    }
+                }
                 if (stabilization) applyStabilization(bound, true)
             }
 

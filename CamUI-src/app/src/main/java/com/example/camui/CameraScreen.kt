@@ -167,7 +167,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -585,8 +584,6 @@ fun CameraScreen(
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
     var aiRenderStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
-    val thermalStopRequested = remember { AtomicBoolean(false) }
-    var showThermalChoice by remember { mutableStateOf(false) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var isHdmpAiPrimaryRunning by remember { mutableStateOf(false) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
@@ -614,8 +611,6 @@ fun CameraScreen(
     }
     LaunchedEffect(isProcessing) {
         if (isProcessing) {
-            thermalStopRequested.set(false)
-            var prompted = false
             while (isProcessing) {
                 val batteryIntent = runCatching {
                     context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -629,14 +624,9 @@ fun CameraScreen(
                 } else {
                     PowerManager.THERMAL_STATUS_NONE
                 }
-                if (!prompted && tempTenths > 400) {
-                    prompted = true
-                    showThermalChoice = true
-                }
                 delay(1_000L)
             }
         } else {
-            showThermalChoice = false
             measuredBatteryTempC = -1
             thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
             hdmpActiveWorkerCount = 0
@@ -4311,72 +4301,6 @@ stabilization = stabilization,
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
-                }
-            }
-        }
-
-        if (showThermalChoice) {
-            Dialog(
-                onDismissRequest = {
-                    thermalStopRequested.set(true)
-                    showThermalChoice = false
-                },
-                properties = DialogProperties(
-                    dismissOnBackPress = false,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFF202020))
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "Thiết bị đang nóng",
-                        color = CamColors.Yellow,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "Nhiệt độ pin đo được ${measuredBatteryTempC}°C (ngưỡng cảnh báo 40°C). Bạn có muốn tiếp tục xử lý HDMP AI không?",
-                        color = Color.White,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        "Nếu chọn Không, AI sẽ dừng sau tile hiện tại; phần đã xử lý được giữ lại, phần còn lại lấy từ ảnh gốc.",
-                        color = CamColors.Sub,
-                        fontSize = 12.sp
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF393939))
-                                .clickable {
-                                    thermalStopRequested.set(true)
-                                    showThermalChoice = false
-                                }
-                                .padding(12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Không, dừng và lưu", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                        Box(
-                            modifier = Modifier.weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(CamColors.Yellow)
-                                .clickable { showThermalChoice = false }
-                                .padding(12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Có, tiếp tục", color = Color.Black, fontWeight = FontWeight.Bold)
-                        }
-                    }
                 }
             }
         }

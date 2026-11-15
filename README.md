@@ -4,7 +4,7 @@ Android camera application. The CamUI source currently declares `versionName=1.5
 
 ## Build variants
 
-- **Full HDMP AI APK**: workflow `Build FujiFilm Mode 1.5 FULL HDMP AI debug APK`. This build exports and smoke-tests both pinned NAFNet ONNX models, embeds their SHA-256 manifest, verifies the assets inside the APK, runs unit tests, and builds the full debug APK. It is the variant required for HDMP AI 2 and HDMP AI 2 Fast. The bundled model payload makes this APK very large.
+- **Full HDMP AI APK**: workflow `Build FujiFilm Mode 1.5 FULL HDMP AI debug APK`. This build exports and smoke-tests both pinned NAFNet ONNX models, embeds their SHA-256 manifest, verifies the assets inside the APK, runs unit tests, builds the full debug APK, and uploads an APK SHA-256 checksum. It is the variant required for HDMP AI 2 and HDMP AI 2 Fast. The bundled model payload makes this APK very large.
 - **Algorithmic HDMP APK**: workflow `Build FujiFilm Mode 1.5 CameraX algorithmic HDMP debug APK`. This build runs unit tests and creates a smaller debug APK but does not bundle the NAFNet model files; AI model execution is therefore not available from this variant.
 - The separate CamUI smoke build is also algorithmic-only. Do not treat it as the full AI APK.
 

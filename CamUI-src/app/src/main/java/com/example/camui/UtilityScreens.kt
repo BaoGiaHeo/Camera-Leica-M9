@@ -238,7 +238,7 @@ fun ToolboxScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     val presetStore = remember { context.getSharedPreferences("fujifilm_camera_presets", Context.MODE_PRIVATE) }
-    var presetUiRevision by remember { mutableIntStateOf(0) }
+    var presetUiRevision by remember { mutableStateOf(0) }
     val presetKeys = remember {
         listOf(
             "capture_ratio_index", "camera_zoom_ratio", "camera_flash_mode",

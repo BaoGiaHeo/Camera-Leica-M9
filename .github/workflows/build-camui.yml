@@ -3,6 +3,8 @@ name: Build CamerAwesome UI experiment (debug APK)
 'on':
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -40,8 +42,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # GitHub's ubuntu-latest runner already includes Android SDK.
-      # Do not run sdkmanager "tools": that obsolete package causes setup-android@v3 to fail.
       - name: Verify Android SDK
         run: |
           test -d "$ANDROID_HOME"
@@ -49,86 +49,80 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           ls "$ANDROID_HOME"
 
+      - name: Set up Python for deterministic NAFNet ONNX export
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: .github/workflows/build-camui.yml
+
+      - name: Export and smoke-test NAFNet primary and fallback models
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu \
+            "torch==2.5.1+cpu" "torchvision==0.20.1+cpu"
+          python -m pip install \
+            "numpy==1.26.4" \
+            "opencv-python-headless==4.10.0.84" \
+            "pillow==11.0.0" \
+            "onnx==1.17.0" \
+            "onnxruntime==1.20.1"
+
+          git clone --depth 1 https://github.com/mikecokina/nafnetlib.git "$RUNNER_TEMP/nafnetlib"
+          MODEL_DIR="$RUNNER_TEMP/nafnet-model-weights"
+          OUTPUT_DIR="$GITHUB_WORKSPACE/CamUI/app/src/main/assets/models"
+          mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
+          python scripts/export_nafnet_onnx.py \
+            --nafnetlib-src "$RUNNER_TEMP/nafnetlib/src" \
+            --model-dir "$MODEL_DIR" \
+            --output-dir "$OUTPUT_DIR"
+
+          test -s "$OUTPUT_DIR/nafnet_sidd_width64.onnx"
+          test -s "$OUTPUT_DIR/nafnetlib_sidd_width32.onnx"
+          test -s "$OUTPUT_DIR/manifest.sha256"
+          (cd "$OUTPUT_DIR" && sha256sum -c manifest.sha256)
+          echo "Verified bundled NAFNet ONNX assets:"
+          ls -lh "$OUTPUT_DIR"
+
       - name: Set up Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
 
-      - name: Install NDK/CMake and provision NCNN Vulkan + Real-ESRGAN x2 model
-        run: |
-          set -euo pipefail
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
-          test -x "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --install "ndk;27.2.12479018" "cmake;3.22.1"
-
-          NDK_DIR="$ANDROID_HOME/ndk/27.2.12479018"
-          test -d "$NDK_DIR"
-          WORK_DIR="$RUNNER_TEMP/fuji-ncnn"
-          mkdir -p "$WORK_DIR"
-          curl -fL --retry 3 --retry-delay 2 \
-            "https://github.com/Tencent/ncnn/releases/download/20261020/ncnn-20261020-android-vulkan-shared.zip" \
-            -o "$WORK_DIR/ncnn-android-vulkan.zip"
-          unzip -q "$WORK_DIR/ncnn-android-vulkan.zip" -d "$WORK_DIR/unpacked"
-
-          NCNN_SO="$(find "$WORK_DIR/unpacked" -type f -name libncnn.so | grep '/arm64-v8a/' | head -n 1 || true)"
-          NCNN_NET_H="$(find "$WORK_DIR/unpacked" -type f -path '*/arm64-v8a/*/net.h' | head -n 1 || true)"
-          echo "NCNN shared library: ${NCNN_SO:-NOT FOUND}"
-          echo "NCNN net.h: ${NCNN_NET_H:-NOT FOUND}"
-          if [ -z "$NCNN_NET_H" ]; then
-            echo "Prebuilt archive has no standalone headers; extracting public headers from the matching NCNN source release."
-            curl -fL --retry 3 --retry-delay 2 \
-              "https://github.com/Tencent/ncnn/releases/download/20261020/ncnn-20261020-full-source.zip" \
-              -o "$WORK_DIR/ncnn-full-source.zip"
-            unzip -q "$WORK_DIR/ncnn-full-source.zip" -d "$WORK_DIR/source"
-            NCNN_NET_H="$(find "$WORK_DIR/source" -type f -path '*/src/net.h' | head -n 1 || true)"
-          fi
-          test -s "$NCNN_SO"
-          test -s "$NCNN_NET_H"
-
-          MAIN_DIR="CamUI/app/src/main"
-          CPP_DIR="$MAIN_DIR/cpp"
-          JNI_DIR="$MAIN_DIR/jniLibs/arm64-v8a"
-          mkdir -p "$CPP_DIR/third_party/ncnn/include" "$JNI_DIR" "$MAIN_DIR/assets"
-          HEADER_DIR="$(dirname "$NCNN_NET_H")"
-          find "$HEADER_DIR" -maxdepth 1 -type f \( -name '*.h' -o -name '*.hpp' \) -exec cp {} "$CPP_DIR/third_party/ncnn/include/" \;
-          NCNN_LIB_DIR="$(dirname "$NCNN_SO")"
-          find "$NCNN_LIB_DIR" -maxdepth 1 -type f -name '*.so*' -exec cp {} "$JNI_DIR/" \;
-          cp "$NCNN_SO" "$JNI_DIR/libncnn.so"
-
-          NCNN_CXX="$(find "$WORK_DIR/unpacked" -type f -path '*/arm64-v8a/*/libc++_shared.so' | head -n 1 || true)"
-          if [ -z "$NCNN_CXX" ]; then
-            NCNN_CXX="$(find "$NDK_DIR" -type f -path '*/aarch64-linux-android/libc++_shared.so' | head -n 1 || true)"
-          fi
-          test -s "$NCNN_CXX"
-          cp "$NCNN_CXX" "$JNI_DIR/libc++_shared.so"
-          echo "Prepared NCNN headers and ABI libraries:"
-          ls -lh "$CPP_DIR/third_party/ncnn/include" "$JNI_DIR"
-
-          MODEL_DIR="$MAIN_DIR/assets"
-          HF_BASE="https://huggingface.co/edgetools/realesrgan/resolve/b8b8b5d"
-          curl -fL --retry 3 "$HF_BASE/realesr-animevideov3-x2.param?download=true" \
-            -o "$MODEL_DIR/realesr-animevideov3-x2.param"
-          curl -fL --retry 3 "$HF_BASE/realesr-animevideov3-x2.bin?download=true" \
-            -o "$MODEL_DIR/realesr-animevideov3-x2.bin"
-          test -s "$MODEL_DIR/realesr-animevideov3-x2.param"
-          test -s "$MODEL_DIR/realesr-animevideov3-x2.bin"
-          cat > "$MODEL_DIR/REAL_ESRGAN_MODEL_NOTICE.txt" <<'NOTICE'
-          Real-ESRGAN NCNN animevideov3 x2 model
-          Model files are pinned to Hugging Face revision b8b8b5d of edgetools/realesrgan.
-          Upstream model family: xinntao/Real-ESRGAN-ncnn-vulkan, NCNN model format.
-          License: BSD-3-Clause. See https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE
-          NOTICE
-          echo "NCNN and model files provisioned:"
-          ls -lh "$JNI_DIR" "$MODEL_DIR"/realesr-animevideov3-x2.*
-
       - name: Build debug APK
         working-directory: CamUI
         run: gradle assembleDebug --stacktrace
 
+      - name: Verify APK contains both hash-pinned HDMP AI models
+        working-directory: CamUI
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          apks = glob.glob("app/build/outputs/apk/debug/*.apk")
+          assert apks, "Debug APK was not produced"
+          required = {
+              "assets/models/nafnet_sidd_width64.onnx",
+              "assets/models/nafnetlib_sidd_width32.onnx",
+              "assets/models/manifest.sha256",
+          }
+          with zipfile.ZipFile(apks[0]) as apk:
+              names = set(apk.namelist())
+              missing = sorted(required - names)
+              assert not missing, f"APK missing HDMP AI assets: {missing}"
+              for name in sorted(required):
+                  info = apk.getinfo(name)
+                  assert info.file_size > 0, f"Empty APK asset: {name}"
+                  print(f"{name}: {info.file_size:,} bytes")
+          PY
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Fujifilm-CamerAwesome-UI-experiment-app-debug
+          name: Fujifilm-CamerAwesome-HDMP-AI-debug
           path: CamUI/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error

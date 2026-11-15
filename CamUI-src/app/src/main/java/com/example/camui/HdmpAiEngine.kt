@@ -47,16 +47,8 @@ internal object HdmpAiEngine {
     private const val TILE_SIZE = 256
     private const val HALO = 32
     private const val CORE_SIZE = TILE_SIZE - HALO * 2
-    private const val AI2_TARGET_BUDGET_MS = 20_000L
-    private const val AI2_MAX_BUDGET_MS = 30_000L
-    private const val AI15_TARGET_BUDGET_MS = 10_000L
-    private const val AI15_MAX_BUDGET_MS = 20_000L
     private const val MODEL_MIN_BYTES = 1_000_000L
     private const val MAX_OUTPUT_HEAP_FRACTION = 0.22
-
-    private class UserRequestedFastException : RuntimeException(
-        "User requested a safe switch to HDMP AI 1.5"
-    )
 
     enum class Model {
         NAFNET_WIDTH64,
@@ -193,12 +185,8 @@ internal object HdmpAiEngine {
                         source = original,
                         destination = rendered,
                         spec = spec,
-                        workerCount = effectiveWorkerCount,
-                        budgetMs = Long.MAX_VALUE,
+                        workerCount = if (attempt == 1) effectiveWorkerCount else (effectiveWorkerCount / 2).coerceAtLeast(1),
                         model = selectedModel,
-                        shouldSwitchToFast = { false },
-                        continuePastBudget = { true },
-                        shouldStopForThermal = { false },
                         onTileProgress = onTileProgress,
                         onProgress = onProgress
                     )
@@ -239,11 +227,7 @@ internal object HdmpAiEngine {
         destination: File,
         spec: ModelSpec,
         workerCount: Int,
-        budgetMs: Long,
         model: Model,
-        shouldSwitchToFast: () -> Boolean,
-        continuePastBudget: () -> Boolean,
-        shouldStopForThermal: () -> Boolean,
         onTileProgress: (Model, Int, Int) -> Unit,
         onProgress: (Model, Int) -> Unit
     ): Boolean {
@@ -295,58 +279,7 @@ internal object HdmpAiEngine {
             var thermalThrottleMs = 0L
             for (coreTop in 0 until height step CORE_SIZE) {
                 for (coreLeft in 0 until width step CORE_SIZE) {
-                    // Stop only between native inference tiles. Complete unprocessed areas
-                    // from the original capture so a partial export never contains blank pixels.
-                    if (shouldStopForThermal()) {
-                        if (tileIndex == 0) return false
-                        for (remainingTop in 0 until height step CORE_SIZE) {
-                            for (remainingLeft in 0 until width step CORE_SIZE) {
-                                val remainingIndex = (remainingTop / CORE_SIZE) * columns + (remainingLeft / CORE_SIZE)
-                                if (remainingIndex < tileIndex) continue
-                                val right = min(width, remainingLeft + CORE_SIZE)
-                                val bottom = min(height, remainingTop + CORE_SIZE)
-                                val originalTile = openedDecoder.decodeRegion(
-                                    Rect(remainingLeft, remainingTop, right, bottom), decodeOptions
-                                ) ?: error("Unable to restore untouched source tile")
-                                try {
-                                    val pixels = IntArray(originalTile.width * originalTile.height)
-                                    originalTile.getPixels(pixels, 0, originalTile.width, 0, 0,
-                                        originalTile.width, originalTile.height)
-                                    outputBitmap!!.setPixels(pixels, 0, originalTile.width,
-                                        remainingLeft, remainingTop, originalTile.width, originalTile.height)
-                                } finally {
-                                    originalTile.recycle()
-                                }
-                            }
-                        }
-                        FileOutputStream(destination).use { stream ->
-                            check(outputBitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, stream)) {
-                                "HDMP AI partial output JPEG encoding failed"
-                            }
-                            stream.flush()
-                            stream.fd.sync()
-                        }
-                        writeExif(destination, readExif(source))
-                        runCatching { onTileProgress(model, tileIndex, totalTiles) }
-                        runCatching { onProgress(model, (tileIndex * 100 / totalTiles).coerceIn(1, 99)) }
-                        return true
-                    }
-                    // ONNX inference is native and cannot be safely interrupted mid-tile.
-                    // Check the soft deadline between tiles, then restart fallback from the
-                    // untouched original file if the primary model exceeded its budget.
-                    if (model == Model.NAFNET_WIDTH64 && shouldSwitchToFast()) {
-                        throw UserRequestedFastException()
-                    }
-                    if (SystemClock.elapsedRealtime() - startedAt > budgetMs && !continuePastBudget()) {
-                        throw ModelTimeoutException(
-                            if (model == Model.NAFNET_WIDTH64) {
-                                "HDMP AI 2 exceeded its 30-second processing limit"
-                            } else {
-                                "HDMP AI 1.5 exceeded its 20-second processing limit"
-                            }
-                        )
-                    }
-
+                    // All output tiles must be rendered by the selected AI model.
                     val patchLeft = coreLeft - HALO
                     val patchTop = coreTop - HALO
                     val regionLeft = patchLeft.coerceAtLeast(0)
@@ -375,15 +308,7 @@ internal object HdmpAiEngine {
 
                     inputBuffer.clear()
                     val plane = TILE_SIZE * TILE_SIZE
-                    for (index in patchPixels.indices) {
-                        inputBuffer.put(Color.blue(patchPixels[index]) / 255f)
-                    }
-                    for (index in patchPixels.indices) {
-                        inputBuffer.put(Color.green(patchPixels[index]) / 255f)
-                    }
-                    for (index in patchPixels.indices) {
-                        inputBuffer.put(Color.red(patchPixels[index]) / 255f)
-                    }
+                    HdmpAiColorLayout.writeRgb(patchPixels, inputBuffer)
                     inputBuffer.flip()
 
                     val inputTensor = OnnxTensor.createTensor(
@@ -411,9 +336,9 @@ internal object HdmpAiEngine {
                                     val patchY = coreY - patchTop
                                     val index = patchY * TILE_SIZE + patchX
                                     val base = patchPixels[index]
-                                    val outB = values.get(index)
+                                    val outR = values.get(index)
                                     val outG = values.get(plane + index)
-                                    val outR = values.get(plane * 2 + index)
+                                    val outB = values.get(plane * 2 + index)
                                     outputPixels[(coreY - coreTop) * CORE_SIZE + (coreX - coreLeft)] =
                                         blendConservatively(base, outR, outG, outB, spec)
                                 }
@@ -468,13 +393,8 @@ internal object HdmpAiEngine {
             writeExif(destination, readExif(source))
             Log.i(TAG, "${model} completed ${width} x ${height} in ${SystemClock.elapsedRealtime() - startedAt}ms")
             true
-        } catch (switch: UserRequestedFastException) {
-            throw switch
-        } catch (timeout: ModelTimeoutException) {
-            Log.w(TAG, "${model} timed out; trying controlled fallback", timeout)
-            false
         } catch (failure: Throwable) {
-            Log.w(TAG, "${model} unavailable or failed; trying controlled fallback", failure)
+            Log.w(TAG, "${model} inference failed; the selected model will not be replaced", failure)
             false
         } finally {
             runCatching { session?.close() }
@@ -490,16 +410,16 @@ internal object HdmpAiEngine {
         var absSum = 0.0
         var count = 0
         for (index in 0 until plane) {
-            val b = values.get(index)
+            val r = values.get(index)
             val g = values.get(plane + index)
-            val r = values.get(plane * 2 + index)
-            check(b.isFinite() && g.isFinite() && r.isFinite()) { "AI produced NaN/Infinity" }
+            val b = values.get(plane * 2 + index)
+            check(r.isFinite() && g.isFinite() && b.isFinite()) { "AI produced NaN/Infinity" }
             val original = source[index]
             val delta = max(
-                kotlin.math.abs(b - Color.blue(original) / 255f),
+                kotlin.math.abs(r - Color.red(original) / 255f),
                 max(
                     kotlin.math.abs(g - Color.green(original) / 255f),
-                    kotlin.math.abs(r - Color.red(original) / 255f)
+                    kotlin.math.abs(b - Color.blue(original) / 255f)
                 )
             )
             absSum += delta.toDouble()
@@ -720,5 +640,4 @@ internal object HdmpAiEngine {
         }
     }
 
-    private class ModelTimeoutException(message: String) : Exception(message)
 }

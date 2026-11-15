@@ -2696,25 +2696,20 @@ fun CameraScreen(
                                         "AI không được yêu cầu ở chế độ chụp này."
                                     )
                                 }
-                                val hdmpApplied = if (hdmpWorkerCount > 0 && hdmpAiResult.applied) {
-                                    withContext(Dispatchers.Main) {
-                                        val aiLabel = when (hdmpAiResult.model) {
-                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
-                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5"
-                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> "Chế độ chụp thường"
-                                        }
-                                        processingLabel = "$aiLabel • HDMP đang kiểm tra và hoàn tất · $hdmpActiveWorkerCount luồng"
-                                        processingProgress = 44
+                                // The selected NAFNet model is the complete HDMP stage.
+                                // Do not run the legacy classical HDMP pass after AI rendering.
+                                val hdmpApplied = hdmpWorkerCount > 0 && hdmpAiResult.applied
+                                withContext(Dispatchers.Main) {
+                                    processingLabel = if (hdmpApplied) {
+                                        "${hdmpAiResult.model} • HDMP AI hoàn tất"
+                                    } else if (hdmpWorkerCount > 0) {
+                                        "HDMP AI đang cần xử lý lại ảnh gốc"
+                                    } else {
+                                        "Chế độ chụp thường"
                                     }
-                                    withContext(Dispatchers.IO) {
-                                        HdmpEngine.process(context, saved, hdmpWorkerCount) { progress ->
-                                            mainExecutor.execute {
-                                                processingLabel = "HDMP · xử lý ảnh $progress%"
-                                                processingProgress = (44 + progress * 0.16f).roundToInt().coerceIn(44, 60)
-                                            }
-                                        }
-                                    }
-                                } else false
+                                    processingProgress = 60
+                                    processingEtaSeconds = -1
+                                }
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 60
                                     processingEtaSeconds = -1

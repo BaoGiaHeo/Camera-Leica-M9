@@ -25,7 +25,8 @@ data class PhotoOutputResult(
     val requestedPixels: Long,
     val actualPixels: Long
 ) {
-    val reachedRequestedSize: Boolean get() = actualPixels >= requestedPixels
+    // Integer dimensions on non-integer aspect ratios may fall a fraction below the target.
+    val reachedRequestedSize: Boolean get() = actualPixels >= requestedPixels * 995L / 1000L
 }
 
 /**

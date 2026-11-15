@@ -748,12 +748,16 @@ fun CameraScreen(
     var starTrailTimerJob by remember { mutableStateOf<Job?>(null) }
     var starTrailExposureStatus by remember { mutableStateOf("Đang kiểm tra hỗ trợ phơi sáng") }
     var lowLightDetected by remember { mutableStateOf(false) }
+    var milkyWayStackEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("milky_way_stack_enabled", false))
+    }
     var showHdmp by remember { mutableStateOf(false) }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
-        manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex
+        manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
+        milkyWayStackEnabled
     ) {
         appPrefs.edit()
             .putString("camera_mode", mode)
@@ -776,6 +780,7 @@ fun CameraScreen(
             .putInt("pro_manual_iso", manualIso)
             .putLong("pro_manual_shutter_ns", manualShutterNs)
             .putFloat("pro_manual_focus", manualFocus)
+            .putBoolean("milky_way_stack_enabled", milkyWayStackEnabled)
             .putString("pro_selected_control", proSel)
             .putInt("pro_ev_index", evIndex)
             .apply()
@@ -2193,6 +2198,19 @@ fun CameraScreen(
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
+            val captureUseMilkyWayStack = mode == "Photo" && milkyWayStackEnabled &&
+                nightShotMode == "off" && rawCaptureMode == "jpeg" &&
+                !captureRawPlus && !captureRawOnly && !uhdCaptureEnabled &&
+                !fhdCaptureEnabled && !uhdPlusCaptureEnabled && !burstMode &&
+                !hdrBracketMode && !focusBracketMode
+            if (milkyWayStackEnabled && !captureUseMilkyWayStack) {
+                localizedToast(
+                    context,
+                    "Milky Way Stack cần Photo/JPEG 1x; hãy tắt RAW, UHD, FHD, Burst và Bracketing.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
             val captureUseUhdPlusAlgorithm = uhdPlusCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
             val captureUseUhdAlgorithm = uhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
             val captureUseFhdAlgorithm = fhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
@@ -2208,7 +2226,8 @@ fun CameraScreen(
             val captureNightStartedAtNanos = SystemClock.elapsedRealtimeNanos()
             val captureNightDeadlineNanos = captureNightStartedAtNanos +
                 captureNightDurationSeconds * 1_000_000_000L
-            val captureUseFiveFrameStack = captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm
+            val captureUseFiveFrameStack = captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm ||
+                captureUseFhdAlgorithm || captureUseMilkyWayStack
             if (captureUseNightShot) {
                 localizedToast(
                     context,
@@ -2374,7 +2393,11 @@ fun CameraScreen(
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
-                                            val maxFrames = if (captureUseNightShot) captureNightTargetFrames else 5
+                                            val maxFrames = when {
+                                                captureUseNightShot -> captureNightTargetFrames
+                                                captureUseMilkyWayStack -> 8
+                                                else -> 5
+                                            }
                                             if (captureUseNightShot) {
                                                 withContext(Dispatchers.Main) {
                                                     nightShotCapturedFrameCount = stackedFrames.size
@@ -2421,11 +2444,15 @@ fun CameraScreen(
                                                         val expectedFrame = stackedFrames.size + pendingCaptures.size
                                                         processingLabel = if (captureUseNightShot) {
                                                             "Night Shot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
+                                                        } else if (captureUseMilkyWayStack) {
+                                                            "Milky Way: thu khung $expectedFrame/$maxFrames"
                                                         } else {
                                                             "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
                                                             (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
+                                                        } else if (captureUseMilkyWayStack) {
+                                                            (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else (8 + stackedFrames.size * 3).coerceAtMost(24)
                                                     }
                                                 }
@@ -2528,6 +2555,7 @@ fun CameraScreen(
                                             else -> availableCpuWorkers.coerceAtMost(4)
                                         }
                                     captureUseNightShot -> availableCpuWorkers.coerceAtMost(6)
+                                    captureUseMilkyWayStack -> availableCpuWorkers.coerceAtMost(4)
                                     else -> 0
                                 }
                                 val hdmpAiResult = if (hdmpWorkerCount > 0) {

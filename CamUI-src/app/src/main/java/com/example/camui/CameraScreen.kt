@@ -236,12 +236,16 @@ private fun playConfiguredShutterSound(context: Context, systemPlayer: MediaActi
             )
             player.setDataSource(context, Uri.parse(customUri))
             player.setOnPreparedListener { mediaPlayer ->
-                runCatching { mediaPlayer.start() }
-                    .onFailure { mediaPlayer.release() }
+                val started = runCatching { mediaPlayer.start() }.isSuccess
+                if (!started) {
+                    mediaPlayer.release()
+                    runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+                }
             }
             player.setOnCompletionListener { it.release() }
             player.setOnErrorListener { mediaPlayer, _, _ ->
                 mediaPlayer.release()
+                runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
                 true
             }
             player.prepareAsync()

@@ -2703,7 +2703,7 @@ fun CameraScreen(
                                     processingLabel = if (hdmpApplied) {
                                         "${hdmpAiResult.model} • HDMP AI hoàn tất"
                                     } else if (hdmpWorkerCount > 0) {
-                                        "HDMP AI đang cần xử lý lại ảnh gốc"
+                                        "HDMP AI chưa hoàn tất · ảnh gốc được giữ nguyên"
                                     } else {
                                         "Chế độ chụp thường"
                                     }

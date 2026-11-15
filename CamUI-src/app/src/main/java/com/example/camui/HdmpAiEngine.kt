@@ -175,9 +175,20 @@ internal object HdmpAiEngine {
             // The 10s/20s values are UI targets only. Never abort or replace the selected
             // model when a device needs longer: inference continues tile-by-tile.
             runCatching { onProgress(selectedModel, 0) }
+            // Keep the chosen network fixed, but progressively reduce CPU pressure on
+            // retries. The one-worker retries are intentional for marginal-memory devices.
+            val workerPlan = mutableListOf(effectiveWorkerCount)
+            var retryWorkers = effectiveWorkerCount
+            while (retryWorkers > 1 && workerPlan.size < 4) {
+                retryWorkers = (retryWorkers / 2).coerceAtLeast(1)
+                workerPlan += retryWorkers
+            }
+            while (workerPlan.size < 4) workerPlan += 1
+
             var completed = false
             var lastFailure: Throwable? = null
-            for (attempt in 1..2) {
+            workerPlan.forEachIndexed { index, attemptWorkers ->
+                if (completed) return@forEachIndexed
                 rendered.delete()
                 completed = try {
                     runModel(
@@ -185,17 +196,21 @@ internal object HdmpAiEngine {
                         source = original,
                         destination = rendered,
                         spec = spec,
-                        workerCount = if (attempt == 1) effectiveWorkerCount else (effectiveWorkerCount / 2).coerceAtLeast(1),
+                        workerCount = attemptWorkers,
                         model = selectedModel,
                         onTileProgress = onTileProgress,
                         onProgress = onProgress
                     )
                 } catch (failure: Throwable) {
                     lastFailure = failure
-                    Log.w(TAG, "$modelLabel inference attempt $attempt failed", failure)
+                    Log.w(TAG, "$modelLabel inference attempt ${index + 1} failed", failure)
                     false
                 }
-                if (completed) break
+                if (!completed && index < workerPlan.lastIndex) {
+                    Log.w(TAG, "$modelLabel retrying the same selected network with fewer workers")
+                    System.gc()
+                    SystemClock.sleep(150L)
+                }
             }
             if (!completed) {
                 throw IllegalStateException(

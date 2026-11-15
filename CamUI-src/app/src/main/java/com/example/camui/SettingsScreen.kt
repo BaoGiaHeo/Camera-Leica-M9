@@ -424,7 +424,7 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "RAW và RAW+ chỉ lưu một tệp DNG. RAW+ ưu tiên RAW gốc gần 50MP nếu cảm biến/HAL công bố kích thước đó; không tạo JPEG kèm theo và không nội suy RAW. Nếu máy không hỗ trợ 50MP RAW, ứng dụng dùng độ phân giải RAW gốc khả dụng.",
+                    "RAW lưu tệp DNG gốc. RAW+ chụp đồng thời một tệp DNG và một tệp JPEG riêng; kích thước RAW theo định dạng cảm biến/HAL công bố, không nội suy RAW. Nếu thiết bị không hỗ trợ RAW hoặc RAW+ đồng thời, ứng dụng báo rõ và chuyển về JPEG.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )

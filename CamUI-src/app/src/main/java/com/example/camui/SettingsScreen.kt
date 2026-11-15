@@ -66,7 +66,7 @@ private val settingItems = listOf(
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
-    SettingItem("About", "Fujifilm Mode · HDMP Camera · Version 1.5")
+    SettingItem("About", "Fujifilm Mode · HDMP Camera · Version 1.4.1")
 )
 
 @Composable
@@ -466,7 +466,7 @@ var nightShotMode by remember {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
                         }
                     })
-                Text("Version 1.5 · Build 6", color = CamColors.Sub, fontSize = 12.sp,
+                Text("Version 1.4.1 · Build 5", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
             }
         }

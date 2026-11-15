@@ -972,12 +972,52 @@ fun CameraScreen(
                         CaptureRequest.DISTORTION_CORRECTION_MODE_FAST
                     else -> null
                 }
+                val aberrationModes = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES)
+                            ?.toSet()
+                    }.getOrDefault(emptySet())
+                }.orEmpty()
+                val aberrationCorrectionMode = when {
+                    !lensCorrectionEnabled -> CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_OFF
+                    aberrationModes.contains(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY) ->
+                        CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY
+                    aberrationModes.contains(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_FAST) ->
+                        CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_FAST
+                    else -> null
+                }
+                val shadingModes = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.SHADING_AVAILABLE_MODES)
+                            ?.toSet()
+                    }.getOrDefault(emptySet())
+                }.orEmpty()
+                val shadingCorrectionMode = when {
+                    !lensCorrectionEnabled -> CaptureRequest.SHADING_MODE_OFF
+                    shadingModes.contains(CaptureRequest.SHADING_MODE_HIGH_QUALITY) ->
+                        CaptureRequest.SHADING_MODE_HIGH_QUALITY
+                    shadingModes.contains(CaptureRequest.SHADING_MODE_FAST) ->
+                        CaptureRequest.SHADING_MODE_FAST
+                    else -> null
+                }
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
                 if (distortionCorrectionMode != null &&
                     distortionModes.contains(distortionCorrectionMode)
                 ) {
                     Camera2Interop.Extender(previewBuilder)
                         .setCaptureRequestOption(CaptureRequest.DISTORTION_CORRECTION_MODE, distortionCorrectionMode)
+                }
+                if (aberrationCorrectionMode != null &&
+                    aberrationModes.contains(aberrationCorrectionMode)
+                ) {
+                    Camera2Interop.Extender(previewBuilder)
+                        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, aberrationCorrectionMode)
+                }
+                if (shadingCorrectionMode != null && shadingModes.contains(shadingCorrectionMode)) {
+                    Camera2Interop.Extender(previewBuilder)
+                        .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                 }
                 if (!hdrExtensionActive && !nightExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
@@ -1071,6 +1111,16 @@ fun CameraScreen(
                         ) {
                             Camera2Interop.Extender(builder)
                                 .setCaptureRequestOption(CaptureRequest.DISTORTION_CORRECTION_MODE, distortionCorrectionMode)
+                        }
+                        if (aberrationCorrectionMode != null &&
+                            aberrationModes.contains(aberrationCorrectionMode)
+                        ) {
+                            Camera2Interop.Extender(builder)
+                                .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, aberrationCorrectionMode)
+                        }
+                        if (shadingCorrectionMode != null && shadingModes.contains(shadingCorrectionMode)) {
+                            Camera2Interop.Extender(builder)
+                                .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                         }
                     }
                     .setCaptureMode(

@@ -3132,7 +3132,7 @@ fun CameraScreen(
                                         onTap = { offset ->
                                             val active = camera ?: return@detectTapGestures
                                             focusLocked = false
-                                            if (manualFocus > 0f) {
+                                            if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 manualFocus = 0f
                                                 milkyWayInfinityFocusEnabled = false
                                                 macroAssistEnabled = false
@@ -3147,7 +3147,7 @@ fun CameraScreen(
                                         },
                                         onLongPress = { offset ->
                                             val active = camera ?: return@detectTapGestures
-                                            if (manualFocus > 0f) {
+                                            if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 localizedToast(context, "Chuyển AF sang Auto trước khi khóa nét.", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, 0.22f)

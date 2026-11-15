@@ -4427,7 +4427,7 @@ stabilization = stabilization,
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "Không, tiếp tục",
+                                "Bỏ qua, tiếp tục",
                                 color = Color.White,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold

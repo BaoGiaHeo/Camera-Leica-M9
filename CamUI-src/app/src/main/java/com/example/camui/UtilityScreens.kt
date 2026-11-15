@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.ui.graphics.ImageBitmap
@@ -798,12 +799,18 @@ private fun WatermarkTemplateCard(
                         .background(Color.White).padding(horizontal = 7.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.weight(0.25f).height(11.dp),
-                        contentScale = ContentScale.Fit)
+                    Column(
+                        Modifier.weight(0.30f),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                            contentDescription = "FUJIFILM",
+                            modifier = Modifier.fillMaxWidth(0.78f).height(10.dp),
+                            contentScale = ContentScale.Fit)
+                        Text("Shot on X-M5", color = Color.DarkGray, fontSize = 4.8.sp, maxLines = 1)
+                    }
                     Text("33mm  f/1.4  1/100s  ISO 100", color = Color.Black,
-                        fontSize = 5.4.sp, maxLines = 1, modifier = Modifier.weight(0.75f),
+                        fontSize = 5.3.sp, maxLines = 1, modifier = Modifier.weight(0.70f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
                 "fuji_signature" -> Column(

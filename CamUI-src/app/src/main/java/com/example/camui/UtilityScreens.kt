@@ -28,6 +28,7 @@ import android.content.ContentUris
 import android.util.Size
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.math.abs
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -2880,6 +2881,95 @@ fun AlbumScreen(onBack: () -> Unit) {
 }
 
 
+private data class PhotoQualityReport(
+    val sharpnessLabel: String,
+    val highlightClippingLabel: String,
+    val noiseLabel: String,
+    val recommendation: String
+)
+
+/**
+ * Lightweight heuristic checks on a decoded preview-size bitmap. This is advisory only:
+ * subject motion, intentional shallow depth of field, grain and fine texture can affect results.
+ * No image is deleted, changed or automatically rejected.
+ */
+private fun analyzePhotoQuality(bitmap: Bitmap): PhotoQualityReport {
+    if (bitmap.width < 5 || bitmap.height < 5) {
+        return PhotoQualityReport("Không đủ dữ liệu", "Không đủ dữ liệu", "Không đủ dữ liệu", "Kiểm tra ảnh thủ công")
+    }
+    fun luma(x: Int, y: Int): Float {
+        val pixel = bitmap.getPixel(x, y)
+        val red = (pixel shr 16) and 0xFF
+        val green = (pixel shr 8) and 0xFF
+        val blue = pixel and 0xFF
+        return red * 0.2126f + green * 0.7152f + blue * 0.0722f
+    }
+
+    var sampleCount = 0
+    var clippingCount = 0
+    var laplacianSum = 0.0
+    var laplacianSquaredSum = 0.0
+    var flatPatchResidual = 0.0
+    var flatPatchCount = 0
+    val step = maxOf(2, maxOf(bitmap.width, bitmap.height) / 256)
+    var y = 1
+    while (y < bitmap.height - 1) {
+        var x = 1
+        while (x < bitmap.width - 1) {
+            val center = luma(x, y)
+            val left = luma(x - 1, y)
+            val right = luma(x + 1, y)
+            val up = luma(x, y - 1)
+            val down = luma(x, y + 1)
+            if (center >= 250f) clippingCount++
+            val laplacian = 4f * center - left - right - up - down
+            laplacianSum += laplacian
+            laplacianSquaredSum += laplacian * laplacian
+            sampleCount++
+            val localGradient = abs(center - left) + abs(center - right) +
+                abs(center - up) + abs(center - down)
+            if (localGradient < 22f) {
+                flatPatchResidual += abs(laplacian)
+                flatPatchCount++
+            }
+            x += step
+        }
+        y += step
+    }
+
+    if (sampleCount == 0) {
+        return PhotoQualityReport("Không đủ dữ liệu", "Không đủ dữ liệu", "Không đủ dữ liệu", "Kiểm tra ảnh thủ công")
+    }
+    val mean = laplacianSum / sampleCount
+    val variance = (laplacianSquaredSum / sampleCount - mean * mean).coerceAtLeast(0.0)
+    val sharpness = when {
+        variance >= 180.0 -> "Cao · ${"%.0f".format(Locale.US, variance)}"
+        variance >= 55.0 -> "Trung bình · ${"%.0f".format(Locale.US, variance)}"
+        else -> "Thấp · ${"%.0f".format(Locale.US, variance)}"
+    }
+    val clippedPercent = clippingCount * 100.0 / sampleCount
+    val clipping = String.format(Locale.US, "%.2f%% pixel gần trắng tuyệt đối", clippedPercent)
+    val noiseEstimate = if (flatPatchCount > 0) flatPatchResidual / flatPatchCount else 0.0
+    val noise = when {
+        flatPatchCount == 0 -> "Không đủ vùng phẳng để ước tính"
+        noiseEstimate >= 18.0 -> "Cao · ${"%.1f".format(Locale.US, noiseEstimate)} (lẫn texture)"
+        noiseEstimate >= 8.0 -> "Vừa · ${"%.1f".format(Locale.US, noiseEstimate)} (lẫn texture)"
+        else -> "Thấp · ${"%.1f".format(Locale.US, noiseEstimate)} (lẫn texture)"
+    }
+    val recommendation = when {
+        variance < 55.0 && clippedPercent > 3.0 ->
+            "Có thể bị mờ và cháy sáng; cân nhắc chụp lại với máy chắc hơn và giảm phơi sáng"
+        variance < 55.0 ->
+            "Chi tiết biên thấp; kiểm tra lấy nét và rung tay trước khi chụp lại"
+        clippedPercent > 3.0 ->
+            "Có vùng sáng mất chi tiết; cân nhắc giảm EV hoặc bảo vệ highlight"
+        noiseEstimate >= 18.0 ->
+            "Nhiễu/texture cao; thử giảm ISO hoặc tăng ánh sáng"
+        else -> "Chưa thấy dấu hiệu mờ hoặc clipping nghiêm trọng theo phép đo nhanh"
+    }
+    return PhotoQualityReport(sharpness, clipping, noise, recommendation)
+}
+
 private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String, String>> {
     var fileName = "Không có"
     var fileSize = -1L
@@ -2948,6 +3038,11 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
     } ?: "Không có"
     val focal = tag(ExifInterface.TAG_FOCAL_LENGTH)?.let { "$it mm" } ?: "Không có"
     val aperture = tag(ExifInterface.TAG_F_NUMBER)?.let { "f/$it" } ?: "Không có"
+    val qualityReport = runCatching {
+        decodeUprightBitmap(context, uri, maxDimension = 640)?.use { bitmap ->
+            analyzePhotoQuality(bitmap)
+        }
+    }.getOrNull()
     return listOf(
         "Tên tệp" to fileName,
         "Độ phân giải" to resolution,
@@ -2962,6 +3057,10 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
         "Khẩu độ" to aperture,
         "Tiêu cự" to focal,
         "Ngày chụp" to (tag(ExifInterface.TAG_DATETIME_ORIGINAL) ?: "Không có EXIF"),
+        "Độ nét (ước tính)" to (qualityReport?.sharpnessLabel ?: "Không phân tích được"),
+        "Vùng cháy sáng" to (qualityReport?.highlightClippingLabel ?: "Không phân tích được"),
+        "Nhiễu nền (ước tính)" to (qualityReport?.noiseLabel ?: "Không phân tích được"),
+        "Gợi ý chất lượng" to (qualityReport?.recommendation ?: "Không phân tích được"),
         "Kích thước sau xử lý" to processedOutputSize,
         "Trạng thái HDMP" to hdmpStatus
     )

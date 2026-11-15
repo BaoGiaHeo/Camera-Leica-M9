@@ -303,6 +303,12 @@ fun ToolboxScreen(
     var hdrBracketMode by remember { mutableStateOf(prefs.getBoolean("hdr_bracketing_enabled", false)) }
     var focusBracketMode by remember { mutableStateOf(prefs.getBoolean("focus_bracketing_enabled", false)) }
     var faceTrackingEnabled by remember { mutableStateOf(prefs.getBoolean("face_tracking_enabled", false)) }
+    var filmHighlight by remember { mutableStateOf(prefs.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)) }
+    var filmShadow by remember { mutableStateOf(prefs.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)) }
+    var filmColorChrome by remember { mutableStateOf(prefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)) }
+    var filmGrain by remember { mutableStateOf(prefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)) }
+    var filmTemperature by remember { mutableStateOf(prefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)) }
+    var filmSaturation by remember { mutableStateOf(prefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)) }
     var hudAutoHideEnabled by remember { mutableStateOf(prefs.getBoolean("hud_auto_hide_enabled", true)) }
     var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
@@ -412,6 +418,69 @@ fun ToolboxScreen(
         }
         // Read the revision so the slot labels refresh immediately after saving.
         if (presetUiRevision < 0) Text(" ", fontSize = 1.sp)
+        Spacer(Modifier.height(12.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                .background(CamColors.Card).padding(12.dp)
+        ) {
+            Text("Film Simulation Customizer", color = CamColors.TextColor,
+                fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
+                color = CamColors.Sub, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            Text("Highlight · ${String.format(Locale.US, "%+.2f", filmHighlight)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmHighlight, {
+                filmHighlight = it
+                prefs.edit().putFloat("film_custom_highlight", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Shadow · ${String.format(Locale.US, "%+.2f", filmShadow)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmShadow, {
+                filmShadow = it
+                prefs.edit().putFloat("film_custom_shadow", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Color Chrome · ${String.format(Locale.US, "%.2f", filmColorChrome)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmColorChrome, {
+                filmColorChrome = it
+                prefs.edit().putFloat("film_custom_color_chrome", it).apply()
+            }, valueRange = 0f..1f)
+            Text("Grain · ${String.format(Locale.US, "%.2f", filmGrain)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmGrain, {
+                filmGrain = it
+                prefs.edit().putFloat("film_custom_grain", it).apply()
+            }, valueRange = 0f..1f)
+            Text("Color Temperature · ${String.format(Locale.US, "%+.2f", filmTemperature)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmTemperature, {
+                filmTemperature = it
+                prefs.edit().putFloat("film_custom_temperature", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Saturation · ${String.format(Locale.US, "%.2f", filmSaturation)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmSaturation, {
+                filmSaturation = it
+                prefs.edit().putFloat("film_custom_saturation", it).apply()
+            }, valueRange = 0.5f..1.5f)
+            TextButton(onClick = {
+                filmHighlight = 0f
+                filmShadow = 0f
+                filmColorChrome = 0f
+                filmGrain = 0f
+                filmTemperature = 0f
+                filmSaturation = 1f
+                prefs.edit()
+                    .putFloat("film_custom_highlight", 0f)
+                    .putFloat("film_custom_shadow", 0f)
+                    .putFloat("film_custom_color_chrome", 0f)
+                    .putFloat("film_custom_grain", 0f)
+                    .putFloat("film_custom_temperature", 0f)
+                    .putFloat("film_custom_saturation", 1f)
+                    .apply()
+            }) { Text("Reset Recipe") }
+        }
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)

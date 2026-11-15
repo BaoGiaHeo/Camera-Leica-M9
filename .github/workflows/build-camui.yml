@@ -143,10 +143,13 @@ jobs:
                   assert info.file_size > 0, f"Empty APK asset: {name}"
                   print(f"{name}: {info.file_size:,} bytes")
           PY
+          sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/SHA256SUMS.txt
 
-      - name: Upload debug APK
+      - name: Upload debug APK and checksum
         uses: actions/upload-artifact@v4
         with:
           name: Fujifilm-Mode-1.5-FULL-HDMP-AI-debug
-          path: CamUI/app/build/outputs/apk/debug/*.apk
+          path: |
+            CamUI/app/build/outputs/apk/debug/app-debug.apk
+            CamUI/app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error

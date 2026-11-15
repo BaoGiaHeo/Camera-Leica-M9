@@ -226,13 +226,15 @@ private suspend fun saveBurstFrame(
     capture: ImageCapture,
     executor: java.util.concurrent.Executor,
     sessionId: String,
-    frameIndex: Int
+    frameIndex: Int,
+    folder: String = "Burst",
+    filePrefix: String = "FUJI_BURST"
 ): Uri? = suspendCancellableCoroutine { continuation ->
-    val name = "FUJI_BURST_${sessionId}_${(frameIndex + 1).toString().padStart(2, '0')}.jpg"
+    val name = "${filePrefix}_${sessionId}_${(frameIndex + 1).toString().padStart(2, '0')}.jpg"
     val values = ContentValues().apply {
         put(MediaStore.Images.Media.DISPLAY_NAME, name)
         put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Burst")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/$folder")
         put(MediaStore.Images.Media.IS_PENDING, 1)
     }
     val output = runCatching {
@@ -469,6 +471,20 @@ fun CameraScreen(
     var burstCaptureActive by remember { mutableStateOf(false) }
     var burstStopRequested by remember { mutableStateOf(false) }
     var burstCompletedFrames by remember { mutableIntStateOf(0) }
+    var hdrBracketMode by remember {
+        mutableStateOf(appPrefs.getBoolean("hdr_bracketing_enabled", false))
+    }
+    var focusBracketMode by remember {
+        mutableStateOf(appPrefs.getBoolean("focus_bracketing_enabled", false))
+    }
+    var bracketCaptureActive by remember { mutableStateOf(false) }
+    var bracketCompletedFrames by remember { mutableIntStateOf(0) }
+    LaunchedEffect(hdrBracketMode, focusBracketMode) {
+        appPrefs.edit()
+            .putBoolean("hdr_bracketing_enabled", hdrBracketMode)
+            .putBoolean("focus_bracketing_enabled", focusBracketMode)
+            .apply()
+    }
     LaunchedEffect(burstMode) {
         appPrefs.edit().putBoolean("burst_capture_mode_enabled", burstMode).apply()
     }
@@ -733,9 +749,9 @@ fun CameraScreen(
             }
         }
     }
-    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, burstCaptureActive, isProcessing) {
+    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, burstCaptureActive, bracketCaptureActive, isProcessing) {
         previewView.keepScreenOn =
-            nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive || isProcessing
+            nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || isProcessing
     }
 
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
@@ -743,7 +759,7 @@ fun CameraScreen(
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
-        starTrailExposureSeconds, mode, burstMode
+        starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
         if (!hasCam) return@LaunchedEffect
         val discoveredCamera2 = if (camera2Inventory.isNotEmpty()) {
@@ -1665,6 +1681,117 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        if (bracketCaptureActive) {
+            localizedToast(context, "Đang hoàn tất chuỗi Bracketing hiện tại…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (hdrBracketMode && focusBracketMode) {
+            localizedToast(context, "Chọn HDR Bracketing hoặc Focus Bracketing, không bật đồng thời.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if ((hdrBracketMode || focusBracketMode) && mode == "Photo" && nightShotMode == "off" &&
+            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+        ) {
+            if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
+                nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive
+            ) return
+            val activeCamera = camera ?: return
+            val activeCapture = imageCapture ?: return
+            val cameraInfo = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
+            val minimumFocusDistance = cameraInfo?.getCameraCharacteristic(
+                CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE
+            ) ?: 0f
+            val afModes = cameraInfo?.getCameraCharacteristic(
+                CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES
+            )
+            val exposureRange = activeCamera.cameraInfo.exposureState.exposureCompensationRange
+            val exposureStep = activeCamera.cameraInfo.exposureState.exposureCompensationStep.toFloat()
+            if (focusBracketMode && (minimumFocusDistance <= 0f ||
+                afModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) != true)
+            ) {
+                localizedToast(context, "Camera không công bố hỗ trợ lấy nét thủ công để Focus Bracketing.", Toast.LENGTH_LONG).show()
+                return
+            }
+            if (hdrBracketMode && (exposureStep <= 0f || exposureRange.lower == exposureRange.upper)) {
+                localizedToast(context, "Camera không công bố dải bù trừ phơi sáng cho HDR Bracketing.", Toast.LENGTH_LONG).show()
+                return
+            }
+            scope.launch {
+                bracketCaptureActive = true
+                bracketCompletedFrames = 0
+                val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+                val originalEv = activeCamera.cameraInfo.exposureState.exposureCompensationIndex
+                var focusRestoreRequired = false
+                try {
+                    if (timerSec > 0) {
+                        for (seconds in timerSec downTo 1) {
+                            countdown = seconds
+                            delay(1000)
+                        }
+                        countdown = 0
+                    }
+                    val positions: List<Float> = if (hdrBracketMode) {
+                        listOf(-2f, 0f, 2f).map { ev ->
+                            val offset = (ev / exposureStep).roundToInt()
+                            (originalEv + offset).coerceIn(exposureRange.lower, exposureRange.upper).toFloat()
+                        }.distinct()
+                    } else {
+                        listOf(
+                            minimumFocusDistance,
+                            minimumFocusDistance * 0.75f,
+                            minimumFocusDistance * 0.50f,
+                            minimumFocusDistance * 0.25f,
+                            0f
+                        )
+                    }
+                    for ((index, value) in positions.withIndex()) {
+                        if (hdrBracketMode) {
+                            activeCamera.cameraControl.setExposureCompensationIndex(value.roundToInt())
+                            delay(280)
+                        } else {
+                            focusRestoreRequired = true
+                            val focused = runCatching { applyManualFocus(activeCamera, value) }.isSuccess
+                            if (!focused) {
+                                localizedToast(context, "Không thể đặt khoảng nét ${index + 1}; dừng Focus Bracketing.", Toast.LENGTH_LONG).show()
+                                break
+                            }
+                            delay(420)
+                        }
+                        val uri = runCatching {
+                            saveBurstFrame(
+                                context = context,
+                                capture = activeCapture,
+                                executor = mainExecutor,
+                                sessionId = sessionId,
+                                frameIndex = index,
+                                folder = if (hdrBracketMode) "HDR-Bracketing" else "Focus-Bracketing",
+                                filePrefix = if (hdrBracketMode) "FUJI_HDR_BRACKET" else "FUJI_FOCUS_BRACKET"
+                            )
+                        }.onFailure {
+                            android.util.Log.w("FUJI_BRACKET", "Bracket frame ${index + 1} failed; continuing", it)
+                        }.getOrNull()
+                        if (uri != null) bracketCompletedFrames++
+                    }
+                } finally {
+                    if (hdrBracketMode) {
+                        runCatching { activeCamera.cameraControl.setExposureCompensationIndex(originalEv) }
+                    }
+                    if (focusRestoreRequired) {
+                        runCatching { applyAutoFocus(activeCamera) }
+                        manualFocus = 0f
+                        macroAssistEnabled = false
+                    }
+                    countdown = 0
+                    bracketCaptureActive = false
+                }
+                localizedToast(
+                    context,
+                    "${if (hdrBracketMode) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/${if (hdrBracketMode) positions.size else 5} khung JPEG. Các khung được lưu riêng, chưa ghép HDR/focus stack.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            return
+        }
         if (burstCaptureActive) {
             burstStopRequested = true
             localizedToast(context, "Đang dừng Burst sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
@@ -2743,6 +2870,17 @@ fun CameraScreen(
                                     }
                                 }
                             }
+                            if (bracketCaptureActive) {
+                                Text(
+                                    "BRACKETING $bracketCompletedFrames",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                                        .clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000))
+                                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                                )
+                            }
                             if (burstCaptureActive) {
                                 Text(
                                     "BURST $burstCompletedFrames/25",
@@ -3166,13 +3304,13 @@ fun CameraScreen(
                             }
                             Box(Modifier.size(72.dp).border(4.dp, Color.White, CircleShape)
                                 .padding(7.dp).clip(CircleShape)
-                                .background(if (starTrailCaptureInProgress || burstCaptureActive) Color(0xFFE53935) else CamColors.Shutter)
+                                .background(if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) Color(0xFFE53935) else CamColors.Shutter)
                                 .animaTClickable { takePhoto() },
                                 contentAlignment = Alignment.Center) {
-                                if (starTrailCaptureInProgress || burstCaptureActive) {
+                                if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
                                     Icon(
                                         Icons.Default.Close,
-                                        if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
+                                        if (bracketCaptureActive) "Bracketing" else if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
                                         tint = Color.White,
                                         modifier = Modifier.size(28.dp)
                                     )

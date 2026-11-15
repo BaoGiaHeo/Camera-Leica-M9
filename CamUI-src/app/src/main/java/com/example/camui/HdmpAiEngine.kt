@@ -153,7 +153,6 @@ internal object HdmpAiEngine {
         workerCount: Int,
         selectedModel: Model = Model.NAFNET_WIDTH64,
         onAdaptiveWorkerCount: (Int) -> Unit = {},
-        shouldStopForThermal: () -> Boolean = { false },
         onTileProgress: (Model, Int, Int) -> Unit = { _, _, _ -> },
         onProgress: (Model, Int) -> Unit = { _, _ -> }
     ): Result {

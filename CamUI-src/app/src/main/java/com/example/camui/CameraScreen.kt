@@ -1984,7 +1984,17 @@ fun CameraScreen(
                                 context = context,
                                 frameUris = bracketSavedUris,
                                 mode = if (useHdrBracket) NightShotProcessor.MergeMode.HDR_BRACKET
-                                    else NightShotProcessor.MergeMode.FOCUS_STACK
+                                    else NightShotProcessor.MergeMode.FOCUS_STACK,
+                                onProgress = { progress ->
+                                    mainExecutor.execute {
+                                        processingProgress = progress.coerceIn(0, 100)
+                                        processingLabel = if (useHdrBracket) {
+                                            "HDR Fusion · đang ghép vùng phơi sáng"
+                                        } else {
+                                            "Focus Stack · đang chọn vùng nét"
+                                        }
+                                    }
+                                }
                             )
                         }
                     } finally {

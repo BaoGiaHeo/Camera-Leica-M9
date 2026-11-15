@@ -100,6 +100,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterCenterFocus
 import androidx.compose.material.icons.filled.FlashAuto
@@ -169,6 +170,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 private fun currentDisplayIsLandscape(context: Context): Boolean {
     val display = context.display
@@ -212,6 +215,54 @@ private val wbModes = listOf(
 
 private fun playConfiguredShutterSound(systemPlayer: MediaActionSound) {
     runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+}
+
+/**
+ * Saves one native JPEG burst frame. A failed frame only returns null; it does not
+ * cancel the remaining burst. The caller spaces requests by a best-effort 200 ms.
+ */
+private suspend fun saveBurstFrame(
+    context: Context,
+    capture: ImageCapture,
+    executor: java.util.concurrent.Executor,
+    sessionId: String,
+    frameIndex: Int
+): Uri? = suspendCancellableCoroutine { continuation ->
+    val name = "FUJI_BURST_${sessionId}_${(frameIndex + 1).toString().padStart(2, '0')}.jpg"
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, name)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Burst")
+        put(MediaStore.Images.Media.IS_PENDING, 1)
+    }
+    val uri = runCatching {
+        context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+    }.getOrNull()
+    if (uri == null) {
+        if (continuation.isActive) continuation.resume(null)
+        return@suspendCancellableCoroutine
+    }
+    val output = ImageCapture.OutputFileOptions.Builder(context.contentResolver, uri).build()
+    capture.takePicture(output, executor, object : ImageCapture.OnImageSavedCallback {
+        override fun onImageSaved(results: ImageCapture.OutputFileResults) {
+            val savedUri = results.savedUri ?: uri
+            runCatching {
+                context.contentResolver.update(
+                    savedUri,
+                    ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                    null,
+                    null
+                )
+            }
+            if (continuation.isActive) continuation.resume(savedUri)
+        }
+
+        override fun onError(exception: androidx.camera.core.ImageCaptureException) {
+            runCatching { context.contentResolver.delete(uri, null, null) }
+            android.util.Log.w("FUJI_BURST", "Frame ${frameIndex + 1} failed; continuing burst", exception)
+            if (continuation.isActive) continuation.resume(null)
+        }
+    })
 }
 
 /** Select the nearest supported native JPEG size around the 12.5MP Photo target. */
@@ -408,6 +459,15 @@ fun CameraScreen(
         }
     }
     var mode by remember { mutableStateOf(appPrefs.getString("camera_mode", "Photo") ?: "Photo") }
+    var burstMode by remember {
+        mutableStateOf(appPrefs.getBoolean("burst_capture_mode_enabled", false))
+    }
+    var burstCaptureActive by remember { mutableStateOf(false) }
+    var burstStopRequested by remember { mutableStateOf(false) }
+    var burstCompletedFrames by remember { mutableIntStateOf(0) }
+    LaunchedEffect(burstMode) {
+        appPrefs.edit().putBoolean("burst_capture_mode_enabled", burstMode).apply()
+    }
     var front by remember { mutableStateOf(appPrefs.getBoolean("camera_front_facing", false)) }
     var flash by remember { mutableIntStateOf(appPrefs.getInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF)) }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
@@ -669,9 +729,9 @@ fun CameraScreen(
             }
         }
     }
-    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, isProcessing) {
+    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, burstCaptureActive, isProcessing) {
         previewView.keepScreenOn =
-            nightShotCaptureInProgress || starTrailCaptureInProgress || isProcessing
+            nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive || isProcessing
     }
 
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
@@ -679,7 +739,7 @@ fun CameraScreen(
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
-        starTrailExposureSeconds, mode
+        starTrailExposureSeconds, mode, burstMode
     ) {
         if (!hasCam) return@LaunchedEffect
         val discoveredCamera2 = if (camera2Inventory.isNotEmpty()) {
@@ -834,7 +894,7 @@ fun CameraScreen(
                 }
                 val captureBuilder = ImageCapture.Builder()
                     .setCaptureMode(
-                        if (mode == "Photo" && nightShotMode == "night") ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                        if (mode == "Photo" && (nightShotMode == "night" || burstMode)) ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                         else ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
                     )
                     .setTargetRotation(rotation)
@@ -1601,6 +1661,79 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        if (burstCaptureActive) {
+            burstStopRequested = true
+            localizedToast(context, "Đang dừng Burst sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (burstMode && mode == "Photo" && nightShotMode == "off" &&
+            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+        ) {
+            if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
+                nightShotCaptureInProgress || starTrailCaptureInProgress
+            ) return
+            scope.launch {
+                val activeCapture = imageCapture ?: return@launch
+                burstCaptureActive = true
+                burstStopRequested = false
+                burstCompletedFrames = 0
+                var lastSuccessfulUri: Uri? = null
+                val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+                try {
+                    if (timerSec > 0) {
+                        for (seconds in timerSec downTo 1) {
+                            countdown = seconds
+                            delay(1000)
+                        }
+                        countdown = 0
+                    }
+                    activeCapture.targetRotation = targetRotation
+                    previewUseCase?.targetRotation = targetRotation
+                    analysisUseCase?.targetRotation = targetRotation
+                    for (frameIndex in 0 until 25) {
+                        if (burstStopRequested) break
+                        val frameStartedAt = SystemClock.elapsedRealtime()
+                        val savedUri = runCatching {
+                            saveBurstFrame(
+                                context,
+                                activeCapture,
+                                mainExecutor,
+                                sessionId,
+                                frameIndex
+                            )
+                        }.onFailure {
+                            android.util.Log.w("FUJI_BURST", "Could not enqueue frame ${frameIndex + 1}", it)
+                        }.getOrNull()
+                        if (savedUri != null) {
+                            lastSuccessfulUri = savedUri
+                            burstCompletedFrames += 1
+                        }
+                        // Best effort: do not add delay when the camera itself takes longer than 200 ms.
+                        val elapsed = SystemClock.elapsedRealtime() - frameStartedAt
+                        val remaining = 200L - elapsed
+                        if (remaining > 0L && frameIndex < 24 && !burstStopRequested) delay(remaining)
+                    }
+                } finally {
+                    countdown = 0
+                    burstCaptureActive = false
+                    burstStopRequested = false
+                }
+                if (lastSuccessfulUri != null) {
+                    lastUri = lastSuccessfulUri
+                    thumb = withContext(Dispatchers.IO) {
+                        runCatching {
+                            decodeUprightBitmap(context, lastSuccessfulUri!!, maxDimension = 320)?.asImageBitmap()
+                        }.getOrNull()
+                    }
+                }
+                localizedToast(
+                    context,
+                    "Burst hoàn tất · đã lưu $burstCompletedFrames/25 ảnh JPEG gốc. Tốc độ phụ thuộc camera và bộ nhớ.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            return
+        }
         if (nightShotMode == "star_trails" && starTrailCaptureInProgress) {
             starTrailStopRequested = true
             localizedToast(context, "Đang dừng Star Trails sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
@@ -2371,6 +2504,15 @@ fun CameraScreen(
                             onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 } },
                             tint = if (timerSec > 0) CamColors.Yellow else Color.White
                         )
+                        if (mode == "Photo" && nightShotMode == "off" &&
+                            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+                        ) {
+                            CircleBtn(
+                                Icons.Default.BurstMode, "Burst ×25",
+                                onClick = { burstMode = !burstMode },
+                                tint = if (burstMode) CamColors.Yellow else Color.White
+                            )
+                        }
                         CircleBtn(
                             Icons.Default.Tune, "Metering",
                             onClick = { metering = (metering + 1) % meteringModes.size },
@@ -2596,6 +2738,17 @@ fun CameraScreen(
                                         )
                                     }
                                 }
+                            }
+                            if (burstCaptureActive) {
+                                Text(
+                                    "BURST $burstCompletedFrames/25",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                                        .clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000))
+                                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                                )
                             }
                             if (focusLocked) {
                                 Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
@@ -3009,12 +3162,16 @@ fun CameraScreen(
                             }
                             Box(Modifier.size(72.dp).border(4.dp, Color.White, CircleShape)
                                 .padding(7.dp).clip(CircleShape)
-                                .background(if (starTrailCaptureInProgress) Color(0xFFE53935) else CamColors.Shutter)
+                                .background(if (starTrailCaptureInProgress || burstCaptureActive) Color(0xFFE53935) else CamColors.Shutter)
                                 .animaTClickable { takePhoto() },
                                 contentAlignment = Alignment.Center) {
-                                if (starTrailCaptureInProgress) {
-                                    Icon(Icons.Default.Close, "Dừng Star Trails",
-                                        tint = Color.White, modifier = Modifier.size(28.dp))
+                                if (starTrailCaptureInProgress || burstCaptureActive) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
                                 } else if (shutterButtonBitmap != null) {
                                     Image(shutterButtonBitmap!!, "Custom shutter button",
                                         Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)

@@ -3182,7 +3182,10 @@ fun CameraScreen(
                                             val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, area)
                                             val action = FocusMeteringAction.Builder(
                                                 point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
-                                            ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+                                            )
+                                                 // Keep the tapped AF/AE region active until the next touch.
+                                                 .disableAutoCancel()
+                                                 .build()
                                             active.cameraControl.startFocusAndMetering(action)
                                         },
                                         onLongPress = { offset ->

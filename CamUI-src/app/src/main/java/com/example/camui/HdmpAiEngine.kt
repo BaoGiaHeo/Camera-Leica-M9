@@ -48,6 +48,10 @@ internal object HdmpAiEngine {
     private const val MODEL_MIN_BYTES = 1_000_000L
     private const val MAX_OUTPUT_HEAP_FRACTION = 0.22
 
+    private class UserRequestedFastException : RuntimeException(
+        "User requested a safe switch to HDMP AI 2 Fast"
+    )
+
     enum class Model {
         NAFNET_WIDTH64,
         NAFNETLIB_WIDTH32,
@@ -84,6 +88,8 @@ internal object HdmpAiEngine {
         context: Context,
         uri: Uri,
         workerCount: Int,
+        shouldSwitchToFast: () -> Boolean = { false },
+        continuePrimaryPastBudget: () -> Boolean = { false },
         onProgress: (Model, Int) -> Unit = { _, _ -> }
     ): Result {
         val stamp = System.nanoTime().toString()
@@ -115,21 +121,31 @@ internal object HdmpAiEngine {
             val fallbackBudget = (FALLBACK_MIN_BUDGET_MS + tileCount * 90L)
                 .coerceAtMost(FALLBACK_MAX_BUDGET_MS)
 
-            val primary = runModel(
-                context = context,
-                source = original,
-                destination = rendered,
-                spec = primarySpec,
-                workerCount = workerCount,
-                budgetMs = primaryBudget,
-                model = Model.NAFNET_WIDTH64,
-                onProgress = onProgress
-            )
-            if (primary && commitRendered(context, uri, original, rendered)) {
-                return Result(Model.NAFNET_WIDTH64, true, "NAFNet width64 đã xử lý và được HDMP kiểm tra.")
+            runCatching { onProgress(Model.NAFNET_WIDTH64, 0) }
+            val primary = try {
+                runModel(
+                    context = context,
+                    source = original,
+                    destination = rendered,
+                    spec = primarySpec,
+                    workerCount = workerCount,
+                    budgetMs = primaryBudget,
+                    model = Model.NAFNET_WIDTH64,
+                    shouldSwitchToFast = shouldSwitchToFast,
+                    continuePastBudget = continuePrimaryPastBudget,
+                    onProgress = onProgress
+                )
+            } catch (_: UserRequestedFastException) {
+                false
             }
+            val userRequestedFast = shouldSwitchToFast()
+            if (!userRequestedFast && primary && commitRendered(context, uri, original, rendered)) {
+                return Result(Model.NAFNET_WIDTH64, true, "HDMP AI 2 đã xử lý và được HDMP kiểm tra.")
+            }
+            // Never reuse a partially rendered primary output. Fast always starts from original.
             rendered.delete()
 
+            runCatching { onProgress(Model.NAFNETLIB_WIDTH32, 0) }
             val fallback = runModel(
                 context = context,
                 source = original,
@@ -138,13 +154,19 @@ internal object HdmpAiEngine {
                 workerCount = workerCount,
                 budgetMs = fallbackBudget,
                 model = Model.NAFNETLIB_WIDTH32,
+                shouldSwitchToFast = { false },
+                continuePastBudget = { false },
                 onProgress = onProgress
             )
             if (fallback && commitRendered(context, uri, original, rendered)) {
                 return Result(
                     Model.NAFNETLIB_WIDTH32,
                     true,
-                    "NAFNetLib width32 dự phòng đã xử lý và được HDMP kiểm tra."
+                    if (userRequestedFast) {
+                        "HDMP AI 2 Fast được chọn và đã xử lý từ ảnh gốc; HDMP đã kiểm tra kết quả."
+                    } else {
+                        "HDMP AI 2 Fast dự phòng đã xử lý và được HDMP kiểm tra."
+                    }
                 )
             }
 
@@ -170,6 +192,8 @@ internal object HdmpAiEngine {
         workerCount: Int,
         budgetMs: Long,
         model: Model,
+        shouldSwitchToFast: () -> Boolean,
+        continuePastBudget: () -> Boolean,
         onProgress: (Model, Int) -> Unit
     ): Boolean {
         var sourceStream: FileInputStream? = null
@@ -221,7 +245,10 @@ internal object HdmpAiEngine {
                     // ONNX inference is native and cannot be safely interrupted mid-tile.
                     // Check the soft deadline between tiles, then restart fallback from the
                     // untouched original file if the primary model exceeded its budget.
-                    if (SystemClock.elapsedRealtime() - startedAt > budgetMs) {
+                    if (model == Model.NAFNET_WIDTH64 && shouldSwitchToFast()) {
+                        throw UserRequestedFastException()
+                    }
+                    if (SystemClock.elapsedRealtime() - startedAt > budgetMs && !continuePastBudget()) {
                         throw ModelTimeoutException("Model processing exceeded its soft time budget")
                     }
 
@@ -338,6 +365,8 @@ internal object HdmpAiEngine {
             writeExif(destination, readExif(source))
             Log.i(TAG, "${model} completed ${width} x ${height} in ${SystemClock.elapsedRealtime() - startedAt}ms")
             true
+        } catch (switch: UserRequestedFastException) {
+            throw switch
         } catch (timeout: ModelTimeoutException) {
             Log.w(TAG, "${model} timed out; trying controlled fallback", timeout)
             false

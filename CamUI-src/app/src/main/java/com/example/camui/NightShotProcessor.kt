@@ -50,7 +50,7 @@ object NightShotProcessor {
         ExifInterface.TAG_FLASH
     )
 
-    enum class MergeMode { NIGHT_AVERAGE, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
+    enum class MergeMode { NIGHT_AVERAGE, MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
 
     fun copyUriToFile(context: Context, uri: Uri, destination: File): Boolean =
         runCatching {
@@ -107,6 +107,7 @@ object NightShotProcessor {
         if (frames.size < 2 || frames.any { !it.exists() || it.length() <= 0L }) return false
         val prefix = when (mode) {
             MergeMode.STAR_TRAILS -> "star-"
+            MergeMode.MILKY_WAY_STACK -> "milky-way-"
             MergeMode.HDR_BRACKET -> "hdr-"
             MergeMode.FOCUS_STACK -> "focus-"
             else -> "night-"
@@ -203,7 +204,7 @@ object NightShotProcessor {
                                 ) {
                                     oldRow[x] = Color.rgb(max(ar, br), max(ag, bg), max(ab, bb))
                                 }
-                            } else if (mode == MergeMode.NIGHT_AVERAGE) {
+                            } else if (mode == MergeMode.NIGHT_AVERAGE || mode == MergeMode.MILKY_WAY_STACK) {
                                 val divisor = frameIndex + 1
                                 oldRow[x] = Color.rgb(
                                     (ar * frameIndex + br) / divisor,
@@ -240,6 +241,7 @@ object NightShotProcessor {
 
             if (mode == MergeMode.NIGHT_AVERAGE) {
                 // Frame averaging reduces random noise but does not recover brightness by itself.
+                // Milky Way stacking deliberately skips this night-scene lift to preserve the sky background.
                 // Lift dark mid-tones after alignment/averaging, with a smooth gamma curve that
                 // preserves highlights better than multiplying every channel by a fixed gain.
                 brightenNightResult(base!!)

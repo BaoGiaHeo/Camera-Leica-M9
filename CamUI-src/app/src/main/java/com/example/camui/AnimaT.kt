@@ -30,8 +30,8 @@ object AnimaT {
     private val motionEasing = FastOutSlowInEasing
 
     /** Soft right-to-left entrance shared by top-level pages and Settings detail pages. */
-    fun enter(): EnterTransition =
-        slideInHorizontally(
+    fun enter(performanceMode: Boolean = false): EnterTransition =
+        if (performanceMode) fadeIn(animationSpec = tween(durationMillis = 90)) else slideInHorizontally(
             initialOffsetX = { fullWidth -> fullWidth / 18 },
             animationSpec = tween(durationMillis = 320, easing = motionEasing)
         ) +
@@ -42,8 +42,8 @@ object AnimaT {
             )
 
     /** Light reverse drift with a clean fade; avoids the old abrupt shrink effect. */
-    fun exit(): ExitTransition =
-        slideOutHorizontally(
+    fun exit(performanceMode: Boolean = false): ExitTransition =
+        if (performanceMode) fadeOut(animationSpec = tween(durationMillis = 70)) else slideOutHorizontally(
             targetOffsetX = { fullWidth -> -fullWidth / 32 },
             animationSpec = tween(durationMillis = 220, easing = motionEasing)
         ) +

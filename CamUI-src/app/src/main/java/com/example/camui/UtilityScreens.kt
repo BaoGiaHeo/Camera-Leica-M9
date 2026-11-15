@@ -26,6 +26,9 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.content.ContentUris
 import android.util.Size
+import java.util.Locale
+import kotlin.math.roundToInt
+import kotlin.math.abs
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -68,6 +71,7 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.ui.graphics.ImageBitmap
@@ -116,6 +120,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import kotlin.math.roundToInt
 import java.util.zip.ZipInputStream
 import java.net.URL
 
@@ -228,11 +233,153 @@ fun ToolboxScreen(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    animationPerformanceMode: Boolean = false,
+    onAnimationPerformanceModeChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    val presetStore = remember { context.getSharedPreferences("fujifilm_camera_presets", Context.MODE_PRIVATE) }
+    val filmRecipeStore = remember { context.getSharedPreferences("fujifilm_film_recipes", Context.MODE_PRIVATE) }
+    var presetUiRevision by remember { mutableStateOf(0) }
+    val presetKeys = remember {
+        listOf(
+            "capture_ratio_index", "camera_zoom_ratio", "camera_flash_mode", "camera_timer_seconds",
+            "camera_stabilization_enabled", "camera_metering_index", "camera_mode",
+            "selected_filter", "image_quality", "noise_reduction", "hdr_enabled",
+            "nightshot_mode", "nightshot_duration_seconds", "star_trails_exposure_seconds",
+            "milky_way_stack_enabled", "raw_capture_mode",
+            "uhd_capture_enabled", "fhd_capture_enabled", "uhd_plus_capture_enabled",
+            "burst_capture_mode_enabled", "hdr_bracketing_enabled", "focus_bracketing_enabled",
+            "viewfinder_grid_enabled", "viewfinder_histogram_enabled",
+            "viewfinder_focus_peaking_enabled", "viewfinder_rgb_histogram_enabled",
+            "viewfinder_zebra_enabled", "viewfinder_level_enabled",
+            "face_tracking_enabled", "hud_auto_hide_enabled", "lens_correction_enabled",
+            "pro_manual_exposure_enabled", "pro_manual_iso_enabled",
+            "pro_manual_shutter_enabled", "pro_manual_wb_enabled",
+            "pro_manual_iso", "pro_manual_shutter_ns", "pro_manual_wb_kelvin",
+            "pro_manual_focus", "pro_hud_show_ev", "pro_hud_show_shutter",
+            "pro_hud_show_iso", "pro_hud_show_focus", "pro_hud_show_white_balance"
+        )
+    }
+    fun saveCameraPreset(slot: String) {
+        val values = prefs.all
+        val editor = presetStore.edit()
+        presetKeys.forEach { key ->
+            val storedKey = "$slot.$key"
+            when (val value = values[key]) {
+                is Boolean -> editor.putBoolean(storedKey, value)
+                is Int -> editor.putInt(storedKey, value)
+                is Long -> editor.putLong(storedKey, value)
+                is Float -> editor.putFloat(storedKey, value)
+                is String -> editor.putString(storedKey, value)
+                is Set<*> -> editor.putStringSet(storedKey, value.filterIsInstance<String>().toSet())
+                null -> editor.remove(storedKey)
+            }
+        }
+        editor.putBoolean("$slot.exists", true)
+            .putString("$slot.name", "Preset $slot")
+            .putLong("$slot.saved_at", System.currentTimeMillis())
+            .apply()
+        presetUiRevision++
+        Toast.makeText(context, "Đã lưu Camera Preset $slot", Toast.LENGTH_SHORT).show()
+    }
+    fun loadCameraPreset(slot: String) {
+        if (!presetStore.getBoolean("$slot.exists", false)) {
+            Toast.makeText(context, "Preset $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val saved = presetStore.all
+        val editor = prefs.edit()
+        presetKeys.forEach { key ->
+            when (val value = saved["$slot.$key"]) {
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Float -> editor.putFloat(key, value)
+                is String -> editor.putString(key, value)
+                is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                null -> editor.remove(key)
+            }
+        }
+        editor.apply()
+        Toast.makeText(context, "Đã nạp Camera Preset $slot · cấu hình chụp đã khôi phục", Toast.LENGTH_LONG).show()
+        onBack()
+    }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
+    var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
+    var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
+    var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", false)) }
+    var proHudShowEv by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_ev", true)) }
+    var proHudShowShutter by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_shutter", true)) }
+    var proHudShowIso by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_iso", true)) }
+    var proHudShowFocus by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_focus", true)) }
+    var proHudShowWhiteBalance by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_white_balance", true)) }
+    var hdrBracketMode by remember { mutableStateOf(prefs.getBoolean("hdr_bracketing_enabled", false)) }
+    var focusBracketMode by remember { mutableStateOf(prefs.getBoolean("focus_bracketing_enabled", false)) }
+    var faceTrackingEnabled by remember { mutableStateOf(prefs.getBoolean("face_tracking_enabled", false)) }
+    var filmHighlight by remember { mutableStateOf(prefs.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)) }
+    var filmShadow by remember { mutableStateOf(prefs.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)) }
+    var filmColorChrome by remember { mutableStateOf(prefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)) }
+    var filmGrain by remember { mutableStateOf(prefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)) }
+    var filmTemperature by remember { mutableStateOf(prefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)) }
+    var filmTone by remember { mutableStateOf(prefs.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)) }
+    var filmSaturation by remember { mutableStateOf(prefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)) }
+
+    val filmRecipeKeys = remember {
+        listOf(
+            "film_custom_highlight", "film_custom_shadow", "film_custom_color_chrome",
+            "film_custom_grain", "film_custom_temperature", "film_custom_tone", "film_custom_saturation",
+            "selected_filter"
+        )
+    }
+    fun saveFilmRecipe(slot: String) {
+        val editor = filmRecipeStore.edit()
+        filmRecipeKeys.forEach { key ->
+            when (key) {
+                "film_custom_highlight" -> editor.putFloat("$slot.$key", filmHighlight)
+                "film_custom_shadow" -> editor.putFloat("$slot.$key", filmShadow)
+                "film_custom_color_chrome" -> editor.putFloat("$slot.$key", filmColorChrome)
+                "film_custom_grain" -> editor.putFloat("$slot.$key", filmGrain)
+                "film_custom_temperature" -> editor.putFloat("$slot.$key", filmTemperature)
+                "film_custom_tone" -> editor.putFloat("$slot.$key", filmTone)
+                "film_custom_saturation" -> editor.putFloat("$slot.$key", filmSaturation)
+                "selected_filter" -> editor.putString("$slot.$key", prefs.getString(key, "None") ?: "None")
+            }
+        }
+        editor.putBoolean("$slot.exists", true)
+            .putLong("$slot.saved_at", System.currentTimeMillis())
+            .apply()
+        Toast.makeText(context, "Đã lưu Film Recipe $slot", Toast.LENGTH_SHORT).show()
+    }
+    fun loadFilmRecipe(slot: String) {
+        if (!filmRecipeStore.getBoolean("$slot.exists", false)) {
+            Toast.makeText(context, "Film Recipe $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val values = filmRecipeStore
+        filmHighlight = values.getFloat("$slot.film_custom_highlight", 0f).coerceIn(-1f, 1f)
+        filmShadow = values.getFloat("$slot.film_custom_shadow", 0f).coerceIn(-1f, 1f)
+        filmColorChrome = values.getFloat("$slot.film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+        filmGrain = values.getFloat("$slot.film_custom_grain", 0f).coerceIn(0f, 1f)
+        filmTemperature = values.getFloat("$slot.film_custom_temperature", 0f).coerceIn(-1f, 1f)
+        filmTone = values.getFloat("$slot.film_custom_tone", 0f).coerceIn(-1f, 1f)
+        filmSaturation = values.getFloat("$slot.film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
+        val selected = values.getString("$slot.selected_filter", "None") ?: "None"
+        prefs.edit()
+            .putFloat("film_custom_highlight", filmHighlight)
+            .putFloat("film_custom_shadow", filmShadow)
+            .putFloat("film_custom_color_chrome", filmColorChrome)
+            .putFloat("film_custom_grain", filmGrain)
+            .putFloat("film_custom_temperature", filmTemperature)
+            .putFloat("film_custom_tone", filmTone)
+            .putFloat("film_custom_saturation", filmSaturation)
+            .putString("selected_filter", selected)
+            .apply()
+        Toast.makeText(context, "Đã nạp Film Recipe $slot", Toast.LENGTH_SHORT).show()
+    }
+    var hudAutoHideEnabled by remember { mutableStateOf(prefs.getBoolean("hud_auto_hide_enabled", true)) }
+    var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
     var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
     var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
@@ -252,15 +399,238 @@ fun ToolboxScreen(
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
     var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Film Wash") ?: "Film Wash") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
+    var shutterSoundUri by remember { mutableStateOf(prefs.getString("shutter_sound_uri", null)) }
+    val shutterSoundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val persisted = runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }.isSuccess
+            if (persisted) {
+                shutterSoundUri = uri.toString()
+                prefs.edit().putString("shutter_sound_uri", uri.toString()).apply()
+                Toast.makeText(context, "Đã chọn âm thanh màn trập tùy chỉnh.", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Không thể lưu quyền đọc tệp âm thanh này.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
         PageHeader("Toolbox", onBack)
         Text("Viewfinder overlays", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+        Text("Pro HUD elements", color = CamColors.Sub, fontSize = 13.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 15.dp, bottom = 8.dp))
+        ToolToggle("EV display", "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowEv) {
+            proHudShowEv = it
+            prefs.edit().putBoolean("pro_hud_show_ev", it).apply()
+        }
+        ToolToggle("Shutter display", "Hiện hoặc ẩn tốc độ màn trập trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowShutter) {
+            proHudShowShutter = it
+            prefs.edit().putBoolean("pro_hud_show_shutter", it).apply()
+        }
+        ToolToggle("ISO display", "Hiện hoặc ẩn độ nhạy ISO trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowIso) {
+            proHudShowIso = it
+            prefs.edit().putBoolean("pro_hud_show_iso", it).apply()
+        }
+        ToolToggle("Focus display", "Hiện hoặc ẩn trạng thái lấy nét trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowFocus) {
+            proHudShowFocus = it
+            prefs.edit().putBoolean("pro_hud_show_focus", it).apply()
+        }
+        ToolToggle("White balance display", "Hiện hoặc ẩn nhiệt độ màu / cân bằng trắng trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowWhiteBalance) {
+            proHudShowWhiteBalance = it
+            prefs.edit().putBoolean("pro_hud_show_white_balance", it).apply()
+        }
         ToolToggle("Grid Lines", "Thirds composition guide", Icons.Default.GridOn, showGrid, onShowGrid)
         ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
+        ToolToggle("RGB Histogram", "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview.", Icons.Default.ShowChart, rgbHistogramEnabled) {
+            rgbHistogramEnabled = it
+            prefs.edit().putBoolean("viewfinder_rgb_histogram_enabled", it).apply()
+        }
         ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
             focusPeaking, onFocusPeaking)
+        ToolToggle("Smart Focus Tracking", "Ưu tiên khuôn mặt khi Camera2/HAL công bố face detection; tự đưa AF về vùng mặt.",
+            Icons.Default.Tune, faceTrackingEnabled) {
+            faceTrackingEnabled = it
+            prefs.edit().putBoolean("face_tracking_enabled", it).apply()
+        }
+        ToolToggle("Auto-hide Camera HUD", "Ẩn thanh điều khiển sau 5 giây không thao tác; chạm màn hình để hiện lại.",
+            Icons.Default.Tune, hudAutoHideEnabled) {
+            hudAutoHideEnabled = it
+            prefs.edit().putBoolean("hud_auto_hide_enabled", it).apply()
+        }
+        ToolToggle(
+            "Animation Performance Mode",
+            "Giảm trượt/scale khi máy nóng hoặc khi bật thủ công; Android tự kích hoạt khi nhiệt độ đạt mức trung bình.",
+            Icons.Default.Tune,
+            animationPerformanceMode,
+            onAnimationPerformanceModeChanged
+        )
+        ToolToggle("Lens Correction", "Yêu cầu Camera2/HAL hiệu chỉnh méo hình, viền màu và tối góc bằng các chế độ công khai nếu ống kính hỗ trợ; không tự bịa dữ liệu lens profile.",
+            Icons.Default.Tune, lensCorrectionEnabled) {
+            lensCorrectionEnabled = it
+            prefs.edit().putBoolean("lens_correction_enabled", it).apply()
+        }
+        ToolToggle("Zebra Warning", "Đánh dấu vùng sáng gần cháy sáng trên kính ngắm (không ảnh hưởng ảnh lưu).",
+            Icons.Default.Warning, zebraEnabled) {
+            zebraEnabled = it
+            prefs.edit().putBoolean("viewfinder_zebra_enabled", it).apply()
+        }
+        ToolToggle("Camera Level & Horizon", "Đo độ nghiêng bằng cảm biến thiết bị và hiển thị đường chân trời trong kính ngắm.",
+            Icons.Default.Tune, levelEnabled) {
+            levelEnabled = it
+            prefs.edit().putBoolean("viewfinder_level_enabled", it).apply()
+        }
+        ToolToggle("HDR Bracketing", "Chụp 3 khung JPEG với EV thấp / chuẩn / cao nếu camera công bố dải phơi sáng.",
+            Icons.Default.ShowChart, hdrBracketMode) {
+            hdrBracketMode = it
+            if (it) focusBracketMode = false
+            prefs.edit()
+                .putBoolean("hdr_bracketing_enabled", it)
+                .putBoolean("focus_bracketing_enabled", if (it) false else focusBracketMode)
+                .apply()
+        }
+        ToolToggle("Focus Bracketing", "Chụp 5 khoảng nét từ gần đến vô cực khi ống kính hỗ trợ lấy nét thủ công.",
+            Icons.Default.Tune, focusBracketMode) {
+            focusBracketMode = it
+            if (it) hdrBracketMode = false
+            prefs.edit()
+                .putBoolean("focus_bracketing_enabled", it)
+                .putBoolean("hdr_bracketing_enabled", if (it) false else hdrBracketMode)
+                .apply()
+        }
+        Text("Camera Presets", color = CamColors.TextColor,
+            fontSize = 17.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp, bottom = 7.dp))
+        Text("Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShot, RAW và cấu hình HDMP.",
+            color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 8.dp))
+        listOf("A", "B", "C").forEach { slot ->
+            val savedName = presetStore.getString("$slot.name", "Trống") ?: "Trống"
+            val savedAt = presetStore.getLong("$slot.saved_at", 0L)
+            val timeLabel = if (savedAt > 0L) {
+                java.text.SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(java.util.Date(savedAt))
+            } else "Chưa lưu"
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(11.dp)).background(CamColors.Card)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("$savedName · $timeLabel", color = CamColors.TextColor,
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = { saveCameraPreset(slot) }) { Text("Lưu") }
+                TextButton(
+                    onClick = { loadCameraPreset(slot) },
+                    enabled = presetStore.getBoolean("$slot.exists", false)
+                ) { Text("Nạp") }
+            }
+        }
+        // Read the revision so the slot labels refresh immediately after saving.
+        if (presetUiRevision < 0) Text(" ", fontSize = 1.sp)
+        Spacer(Modifier.height(12.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                .background(CamColors.Card).padding(12.dp)
+        ) {
+            Text("Film Simulation Customizer", color = CamColors.TextColor,
+                fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
+                color = CamColors.Sub, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            Text("Highlight · ${String.format(Locale.US, "%+.2f", filmHighlight)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmHighlight, {
+                filmHighlight = it
+                prefs.edit().putFloat("film_custom_highlight", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Shadow · ${String.format(Locale.US, "%+.2f", filmShadow)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmShadow, {
+                filmShadow = it
+                prefs.edit().putFloat("film_custom_shadow", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Color Chrome · ${String.format(Locale.US, "%.2f", filmColorChrome)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmColorChrome, {
+                filmColorChrome = it
+                prefs.edit().putFloat("film_custom_color_chrome", it).apply()
+            }, valueRange = 0f..1f)
+            Text("Grain · ${String.format(Locale.US, "%.2f", filmGrain)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmGrain, {
+                filmGrain = it
+                prefs.edit().putFloat("film_custom_grain", it).apply()
+            }, valueRange = 0f..1f)
+            Text("Color Temperature · ${String.format(Locale.US, "%+.2f", filmTemperature)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmTemperature, {
+                filmTemperature = it
+                prefs.edit().putFloat("film_custom_temperature", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Color Tone · ${String.format(Locale.US, "%+.2f", filmTone)}  (Green ↔ Magenta)", color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmTone, {
+                filmTone = it
+                prefs.edit().putFloat("film_custom_tone", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Saturation · ${String.format(Locale.US, "%.2f", filmSaturation)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmSaturation, {
+                filmSaturation = it
+                prefs.edit().putFloat("film_custom_saturation", it).apply()
+            }, valueRange = 0.5f..1.5f)
+            TextButton(onClick = {
+                filmHighlight = 0f
+                filmShadow = 0f
+                filmColorChrome = 0f
+                filmGrain = 0f
+                filmTemperature = 0f
+                filmTone = 0f
+                filmSaturation = 1f
+                prefs.edit()
+                    .putFloat("film_custom_highlight", 0f)
+                    .putFloat("film_custom_shadow", 0f)
+                    .putFloat("film_custom_color_chrome", 0f)
+                    .putFloat("film_custom_grain", 0f)
+                    .putFloat("film_custom_temperature", 0f)
+                    .putFloat("film_custom_tone", 0f)
+                    .putFloat("film_custom_saturation", 1f)
+                    .apply()
+            }) { Text("Reset Recipe") }
+            Text("Saved Film Recipes", color = CamColors.TextColor,
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            listOf("A", "B", "C").forEach { slot ->
+                val savedAt = filmRecipeStore.getLong("$slot.saved_at", 0L)
+                val savedLabel = if (filmRecipeStore.getBoolean("$slot.exists", false)) {
+                    java.text.SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
+                        .format(java.util.Date(savedAt))
+                } else "Trống"
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Recipe $slot · $savedLabel", color = CamColors.Sub,
+                        fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { saveFilmRecipe(slot) }) { Text("Lưu") }
+                    TextButton(
+                        onClick = { loadFilmRecipe(slot) },
+                        enabled = filmRecipeStore.getBoolean("$slot.exists", false)
+                    ) { Text("Nạp") }
+                }
+            }
+        }
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
@@ -465,11 +835,41 @@ fun ToolboxScreen(
                 prefs.edit().putString("shutter_effect", "Mechanical").apply()
             }, Modifier.weight(1f))
         }
-        ToolToggle("Âm thanh màn trập", "Bật/tắt tiếng click mặc định của Android khi chụp",
+        ToolToggle("Âm thanh màn trập", "Bật/tắt âm thanh khi chụp; có thể dùng MP3 hoặc tệp âm thanh riêng.",
             Icons.Default.Tune, shutterSound) {
             shutterSound = it
             prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
         }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(
+                onClick = { shutterSoundPicker.launch(arrayOf("audio/mpeg", "audio/*")) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(if (shutterSoundUri.isNullOrBlank()) "Nhập âm thanh / MP3" else "Đổi âm thanh")
+            }
+            if (!shutterSoundUri.isNullOrBlank()) {
+                TextButton(onClick = {
+                    shutterSoundUri = null
+                    prefs.edit().remove("shutter_sound_uri").apply()
+                    Toast.makeText(context, "Đã quay về âm thanh mặc định.", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text("Mặc định")
+                }
+            }
+        }
+        Text(
+            if (shutterSoundUri.isNullOrBlank()) {
+                "Đang dùng tiếng màn trập mặc định của Android."
+            } else {
+                "Đã chọn tệp âm thanh tùy chỉnh. Quyền đọc được lưu để dùng sau khi mở lại ứng dụng."
+            },
+            color = CamColors.Sub,
+            fontSize = 10.sp
+        )
 
     }
 }
@@ -792,12 +1192,18 @@ private fun WatermarkTemplateCard(
                         .background(Color.White).padding(horizontal = 7.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.weight(0.31f).height(15.dp),
-                        contentScale = ContentScale.Fit)
+                    Column(
+                        Modifier.weight(0.30f),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                            contentDescription = "FUJIFILM",
+                            modifier = Modifier.fillMaxWidth(0.78f).height(10.dp),
+                            contentScale = ContentScale.Fit)
+                        Text("Shot on X-M5", color = Color.DarkGray, fontSize = 4.8.sp, maxLines = 1)
+                    }
                     Text("33mm  f/1.4  1/100s  ISO 100", color = Color.Black,
-                        fontSize = 5.6.sp, maxLines = 1, modifier = Modifier.weight(0.69f),
+                        fontSize = 5.3.sp, maxLines = 1, modifier = Modifier.weight(0.70f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
                 "fuji_signature" -> Column(
@@ -807,11 +1213,13 @@ private fun WatermarkTemplateCard(
                 ) {
                     Image(painter = painterResource(id = R.drawable.fujifilm_logo),
                         contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.25f).height(13.dp),
+                        modifier = Modifier.fillMaxWidth(0.21f).height(11.dp),
                         contentScale = ContentScale.Fit)
                     Text("Shot on X-M5 | 2024.12.16", color = Color.Black,
-                        fontSize = 5.8.sp, maxLines = 1)
-                    Text("Your location", color = Color.Gray, fontSize = 5.sp)
+                        fontSize = 5.4.sp, maxLines = 1)
+                    Text("33mm  ·  f/1.4  ·  1/100s  ·  ISO 100", color = Color.DarkGray,
+                        fontSize = 5.2.sp, maxLines = 1)
+                    Text("Your location", color = Color.Gray, fontSize = 4.8.sp)
                 }
                 else -> Column(
                     Modifier.align(Alignment.Center).padding(5.dp),
@@ -1092,6 +1500,29 @@ fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
 }
 
 /**
+ * CameraX can return the sensor's default still ratio even when the preview ViewPort uses
+ * a narrower/wider crop. Enforce the selected ratio on the upright pixels before HDMP runs,
+ * otherwise later upscaling simply magnifies the wrong 4:3/16:9 frame.
+ */
+private fun cropBitmapToAspect(source: Bitmap, targetAspect: Float): Bitmap {
+    if (!targetAspect.isFinite() || targetAspect <= 0f) return source
+    val sourceAspect = source.width.toFloat() / source.height.coerceAtLeast(1)
+    if (kotlin.math.abs(sourceAspect / targetAspect - 1f) <= 0.0005f) return source
+
+    var cropWidth = source.width
+    var cropHeight = source.height
+    if (sourceAspect > targetAspect) {
+        cropWidth = (source.height * targetAspect).roundToInt().coerceIn(2, source.width)
+    } else {
+        cropHeight = (source.width / targetAspect).roundToInt().coerceIn(2, source.height)
+    }
+    // Keep the crop centered, matching CameraX FILL_CENTER composition rather than stretching.
+    val left = ((source.width - cropWidth) / 2).coerceAtLeast(0)
+    val top = ((source.height - cropHeight) / 2).coerceAtLeast(0)
+    return Bitmap.createBitmap(source, left, top, cropWidth, cropHeight)
+}
+
+/**
  * Normalize the pixels to the selected capture aspect ratio.
  *
  * The JPEG may already contain correctly oriented landscape pixels while its EXIF tag
@@ -1184,31 +1615,40 @@ fun normalizeCapturedImage(
             if (selected.flipHorizontal) preScale(-1f, 1f)
             if (selected.degrees != 0) postRotate(selected.degrees.toFloat())
         }
-        val finalBitmap = if (selected.degrees == 0 && !selected.flipHorizontal) {
+        val orientedBitmap = if (selected.degrees == 0 && !selected.flipHorizontal) {
             rawBitmap
         } else {
             Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
         }
+        val finalBitmap = cropBitmapToAspect(orientedBitmap, safeExpectedAspect)
+        try {
+            val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
+            } ?: false
+            if (!outputWritten) return@runCatching false
 
-        val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
-        } ?: false
-        if (!outputWritten) return@runCatching false
+            val exifWritten = writeUprightExifMetadata(
+                context, uri, finalBitmap.width, finalBitmap.height
+            )
+            setMediaStoreOrientationUpright(context, uri)
 
-        val exifWritten = writeUprightExifMetadata(
-            context, uri, finalBitmap.width, finalBitmap.height
-        )
-        setMediaStoreOrientationUpright(context, uri)
-
-        android.util.Log.d(
-            "FUJI_ORIENTATION",
-            "source=" + selected.source + ", degrees=" + selected.degrees +
-                ", raw=" + rawBitmap.width + "x" + rawBitmap.height +
-                ", final=" + finalBitmap.width + "x" + finalBitmap.height +
-                ", expectedAspect=" + safeExpectedAspect +
-                ", error=" + selected.aspectError + ", exifWritten=" + exifWritten
-        )
-        exifWritten
+            val finalAspect = finalBitmap.width.toFloat() / finalBitmap.height.coerceAtLeast(1)
+            android.util.Log.d(
+                "FUJI_ORIENTATION",
+                "source=" + selected.source + ", degrees=" + selected.degrees +
+                    ", raw=" + rawBitmap.width + "x" + rawBitmap.height +
+                    ", oriented=" + orientedBitmap.width + "x" + orientedBitmap.height +
+                    ", final=" + finalBitmap.width + "x" + finalBitmap.height +
+                    ", expectedAspect=" + safeExpectedAspect +
+                    ", finalAspect=" + finalAspect +
+                    ", orientationError=" + selected.aspectError + ", exifWritten=" + exifWritten
+            )
+            exifWritten
+        } finally {
+            if (finalBitmap !== orientedBitmap && !finalBitmap.isRecycled) finalBitmap.recycle()
+            if (orientedBitmap !== rawBitmap && !orientedBitmap.isRecycled) orientedBitmap.recycle()
+            if (!rawBitmap.isRecycled) rawBitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_ORIENTATION", "normalizeCapturedImage failed", it)
     }.getOrDefault(false)
@@ -1556,8 +1996,21 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
  * Applies a built-in Fujifilm profile or a retained non-Fujifilm filter to the saved photo.
  * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
  */
-private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?): Boolean {
+private fun applyCameraLookPixels(
+    context: Context,
+    bitmap: Bitmap,
+    preset: String,
+    cube: CubeLut?
+): Boolean {
     if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) return false
+    val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
+    val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
+    val colorChrome = recipe.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+    val grain = recipe.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)
+    val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
+    val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
+    val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -1571,11 +2024,49 @@ private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?
                 ?: transformPreset(preset, red, green, blue).let {
                     Triple(it.first / 255f, it.second / 255f, it.third / 255f)
                 }
+
+            var r = mapped.first.coerceIn(0f, 1f)
+            var g = mapped.second.coerceIn(0f, 1f)
+            var b = mapped.third.coerceIn(0f, 1f)
+            val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
+            val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
+            val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
+            val tonalShift = highlight * highlightWeight * 0.12f +
+                shadow * shadowWeight * 0.12f
+            r += tonalShift
+            g += tonalShift
+            b += tonalShift
+
+            val chromeChroma = maxOf(abs(r - luma), abs(g - luma), abs(b - luma))
+            val chromeFactor = 1f + colorChrome * (0.05f + chromeChroma * 0.18f)
+            val saturationFactor = saturation * chromeFactor
+            r = luma + (r - luma) * saturationFactor
+            g = luma + (g - luma) * saturationFactor
+            b = luma + (b - luma) * saturationFactor
+
+            r += temperature * 0.045f
+            g += temperature * 0.006f
+            b -= temperature * 0.045f
+            // Color Tone shifts green/magenta independently from global color temperature.
+            r += tone * 0.018f
+            g -= tone * 0.035f
+            b += tone * 0.018f
+
+            if (grain > 0.001f) {
+                // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
+                val seed = (x.toLong() * 73_856_093L) xor
+                    (y.toLong() * 19_349_663L) xor preset.hashCode().toLong()
+                val noise = ((((seed ushr 13) and 0xFFFFL).toFloat() / 32_767.5f) - 1f) *
+                    grain * 0.035f
+                r += noise
+                g += noise
+                b += noise
+            }
             row[x] = AndroidColor.argb(
                 alpha,
-                clamp8(mapped.first * 255f),
-                clamp8(mapped.second * 255f),
-                clamp8(mapped.third * 255f)
+                clamp8(r.coerceIn(0f, 1f) * 255f),
+                clamp8(g.coerceIn(0f, 1f) * 255f),
+                clamp8(b.coerceIn(0f, 1f) * 255f)
             )
         }
         bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -1607,7 +2098,7 @@ fun renderCameraLookPreview(
         val output = scaled.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching null
         if (scaled !== source) scaled.recycle()
         val cube = readCameraLookLut(context, preset)
-        if (!applyCameraLookPixels(output, preset, cube)) {
+        if (!applyCameraLookPixels(context, output, preset, cube)) {
             output.recycle()
             return@runCatching null
         }
@@ -1686,32 +2177,43 @@ fun createFilmLookPreviewSample(): Bitmap {
 fun applyCameraLook(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val preset = prefs.getString("selected_filter", "None") ?: "None"
-    if (preset == "None") return false
+    val hasCustomAdjustments =
+        kotlin.math.abs(prefs.getFloat("film_custom_highlight", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_shadow", 0f)) > 0.001f ||
+        prefs.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
+        prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+    if (preset == "None" && !hasCustomAdjustments) return false
 
     return runCatching {
-        // Fujifilm's 11 bundled 32³ sRGB profiles use the same CubeLut renderer as
-        // filter-picker previews. Other retained presets use their matching pixel transform.
-        val cube = readCameraLookLut(context, preset)
+        // Film customizer controls are active even when the selected LUT/profile is None.
+        val cube = if (preset == "None") null else readCameraLookLut(context, preset)
         if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) {
             android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
             return@runCatching false
         }
 
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        if (!applyCameraLookPixels(bitmap, preset, cube)) return@runCatching false
-        val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
-        } ?: false
-        if (!written) return@runCatching false
+        try {
+            if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
+            val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
+            } ?: false
+            if (!written) return@runCatching false
 
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-            ExifInterface(descriptor.fileDescriptor).apply {
-                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                saveAttributes()
+            context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
+                ExifInterface(descriptor.fileDescriptor).apply {
+                    setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                    saveAttributes()
+                }
             }
+            setMediaStoreOrientationUpright(context, uri)
+            true
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
         }
-        setMediaStoreOrientationUpright(context, uri)
-        true
     }.onFailure {
         android.util.Log.e("FUJI_FILTER", "Could not apply selected filter", it)
     }.getOrDefault(false)
@@ -1727,7 +2229,8 @@ fun applyCameraWatermark(
     focal: String,
     aperture: String,
     shutter: String,
-    iso: String
+    iso: String,
+    preservePhotoAspectRatio: Boolean = false
 ): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     if (!prefs.getBoolean("watermark_enabled", true)) {
@@ -1737,6 +2240,9 @@ fun applyCameraWatermark(
 
     return runCatching {
         val sourceBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
+        var outputBitmap: Bitmap? = null
+        var watermarkCropBitmap: Bitmap? = null
+        try {
         val selectedTemplate = prefs.getString("watermark_template", "standard1") ?: "standard1"
         val template = if (selectedTemplate == "fuji_auto") {
             if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
@@ -1762,11 +2268,12 @@ fun applyCameraWatermark(
         // The reference layouts append a real white footer without downscaling the captured photo.
         // If the additional canvas would threaten the current heap, keep the original dimensions
         // and render the footer as an in-image plate instead of risking an OOM.
-        val expandedFujiFooter = isFujiFooterTemplate &&
+        val expandedFujiFooter = isFujiFooterTemplate && !preservePhotoAspectRatio &&
             expandedWidth <= 32768 && expandedHeight <= 32768 &&
             expandedPixelCount <= 100_000_000L && extraBytes <= (freeHeapBytes * 0.42f).toLong()
         val output = if (expandedFujiFooter) {
             Bitmap.createBitmap(expandedWidth, expandedHeight, Bitmap.Config.ARGB_8888).also { expanded ->
+                outputBitmap = expanded
                 val expandedCanvas = Canvas(expanded)
                 expandedCanvas.drawColor(AndroidColor.WHITE)
                 val photoRect = RectF(
@@ -1788,10 +2295,12 @@ fun applyCameraWatermark(
                 sourceBitmap.recycle()
             }
         } else if (sourceBitmap.isMutable) {
-            sourceBitmap
+            sourceBitmap.also { outputBitmap = it }
         } else {
-            sourceBitmap.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching false
+            sourceBitmap.copy(Bitmap.Config.ARGB_8888, true)?.also { outputBitmap = it }
+                ?: return@runCatching false
         }
+        outputBitmap = output
         val canvas = Canvas(output)
         val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
         val showTime = prefs.getBoolean("watermark_show_time", true)
@@ -1823,6 +2332,9 @@ fun applyCameraWatermark(
             else -> AndroidColor.TRANSPARENT
         }
         val minSide = minOf(output.width, output.height).toFloat()
+        // Keep logo and metadata in one restrained visual scale across output resolutions.
+        val watermarkTextSize = (minSide * 0.0125f).coerceIn(12f, 54f)
+        val watermarkLogoHeight = watermarkTextSize * 1.35f
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         val model = prefs.getString("watermark_custom_model", "")?.trim()
             ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
@@ -1887,6 +2399,7 @@ fun applyCameraWatermark(
             val cropWidth = (right - left).coerceAtLeast(1)
             val cropHeight = (bottom - top).coerceAtLeast(1)
             val crop = Bitmap.createBitmap(cropWidth, cropHeight, Bitmap.Config.ARGB_8888)
+            watermarkCropBitmap = crop
             Canvas(crop).drawBitmap(output, -left.toFloat(), -top.toFloat(), null)
 
             val blurRadius = (minSide * glassBlur / 1200f).toInt().coerceIn(0, 30)
@@ -1998,7 +2511,8 @@ fun applyCameraWatermark(
             canvas.drawRoundRect(innerRect, (safeRadius - inset).coerceAtLeast(2f),
                 (safeRadius - inset).coerceAtLeast(2f), innerHighlight)
             canvas.restore()
-            crop.recycle()
+            if (!crop.isRecycled) crop.recycle()
+            watermarkCropBitmap = null
         }
 
         fun drawFrame(rect: RectF, radius: Float) {
@@ -2155,11 +2669,11 @@ fun applyCameraWatermark(
                     color = AndroidColor.WHITE
                     style = Paint.Style.FILL
                 })
-                val logoWidth = minOf(footerRect.width() * 0.19f, footerRect.height() * 0.82f)
-                val logoHeight = brandLogo?.let {
-                    logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: logoWidth * 0.18f
-                val leftLogo = footerRect.left + footerRect.height() * 0.22f
+                val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.24f)
+                val logoWidth = logoHeight * (brandLogo?.let {
+                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
+                } ?: 5.95f)
+                val leftLogo = footerRect.left + footerRect.height() * 0.18f
                 val logoRect = RectF(
                     leftLogo,
                     footerRect.centerY() - logoHeight / 2f,
@@ -2176,7 +2690,7 @@ fun applyCameraWatermark(
                     footerText.textAlign = Paint.Align.LEFT
                     fitText(model, footerText, leftLogo,
                         footerRect.centerY() + logoHeight * 0.88f,
-                        footerRect.width() * 0.34f, minSide * 0.009f)
+                        footerRect.width() * 0.40f, watermarkTextSize)
                 }
                 if (showSpecs) {
                     val compactSpecs = listOf(focal, aperture, shutter, "ISO $iso")
@@ -2184,9 +2698,9 @@ fun applyCameraWatermark(
                     val right = footerRect.right - footerRect.height() * 0.18f
                     footerText.textAlign = Paint.Align.RIGHT
                     fitText(compactSpecs, footerText, right, footerRect.centerY() + footerText.textSize * 0.34f,
-                        footerRect.width() * 0.61f, minSide * 0.018f)
+                        footerRect.width() * 0.61f, watermarkTextSize)
                     if (compactSpecs.isNotBlank()) {
-                        val dotRadius = (footerRect.height() * 0.055f).coerceIn(3f, 18f)
+                        val dotRadius = (watermarkTextSize * 0.18f).coerceIn(2f, 9f)
                         val dotX = right - footerText.measureText(compactSpecs) - dotRadius * 2.4f
                         val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             color = AndroidColor.rgb(35, 174, 145)
@@ -2199,7 +2713,7 @@ fun applyCameraWatermark(
                     footerText.textAlign = Paint.Align.RIGHT
                     fitText(timeLine, footerText, footerRect.right - footerRect.height() * 0.18f,
                         footerRect.bottom - footerRect.height() * 0.20f,
-                        footerRect.width() * 0.61f, minSide * 0.0085f)
+                        footerRect.width() * 0.61f, watermarkTextSize * 0.88f)
                 }
             }
             "fuji_signature" -> {
@@ -2208,11 +2722,11 @@ fun applyCameraWatermark(
                     style = Paint.Style.FILL
                 })
                 val centerX = footerRect.centerX()
-                val logoWidth = minOf(footerRect.width() * 0.30f, footerRect.height() * 1.10f)
-                val logoHeight = brandLogo?.let {
-                    logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: logoWidth * 0.18f
-                val logoTop = footerRect.top + footerRect.height() * 0.09f
+                val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.22f)
+                val logoWidth = logoHeight * (brandLogo?.let {
+                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
+                } ?: 5.95f)
+                val logoTop = footerRect.top + footerRect.height() * 0.13f
                 drawBrandLogo(RectF(
                     centerX - logoWidth / 2f, logoTop,
                     centerX + logoWidth / 2f, logoTop + logoHeight
@@ -2225,12 +2739,12 @@ fun applyCameraWatermark(
                 val shotLabel = if (showModel) "Shot on $model" else ""
                 val signature = listOf(shotLabel, dateOnlyLine).filter { it.isNotBlank() }.joinToString(" | ")
                 fitText(signature, footerText, centerX,
-                    footerRect.top + footerRect.height() * 0.66f,
-                    footerRect.width() * 0.86f, minSide * 0.019f)
+                    footerRect.top + footerRect.height() * 0.59f,
+                    footerRect.width() * 0.86f, watermarkTextSize)
                 if (showSpecs) {
                     fitText(specs, footerText, centerX,
-                        footerRect.top + footerRect.height() * 0.78f,
-                        footerRect.width() * 0.88f, minSide * 0.010f)
+                        footerRect.top + footerRect.height() * 0.75f,
+                        footerRect.width() * 0.88f, watermarkTextSize * 0.96f)
                 }
                 if (locationLine.isNotBlank()) {
                     val locationPaint = Paint(footerText).apply {
@@ -2238,8 +2752,8 @@ fun applyCameraWatermark(
                         textAlign = Paint.Align.CENTER
                     }
                     fitText(locationLine, locationPaint, centerX,
-                        footerRect.top + footerRect.height() * 0.93f,
-                        footerRect.width() * 0.88f, minSide * 0.0105f)
+                        footerRect.top + footerRect.height() * 0.91f,
+                        footerRect.width() * 0.88f, watermarkTextSize * 0.84f)
                 }
             }
             "center_logo" -> {
@@ -2330,6 +2844,11 @@ fun applyCameraWatermark(
         }
         setMediaStoreOrientationUpright(context, uri)
         true
+        } finally {
+            watermarkCropBitmap?.let { if (!it.isRecycled) it.recycle() }
+            outputBitmap?.let { if (it !== sourceBitmap && !it.isRecycled) it.recycle() }
+            if (!sourceBitmap.isRecycled) sourceBitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_WATERMARK", "applyCameraWatermark failed", it)
     }.getOrDefault(false)
@@ -2658,11 +3177,35 @@ private fun EmptyNote(text: String) {
 private data class AlbumPhotoEntry(val uri: Uri, val dateAdded: Long)
 
 @Composable
+private fun AlbumLoadingSkeleton() {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text("Đang tải thư viện ảnh…", color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(start = 3.dp, bottom = 8.dp))
+        repeat(3) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                repeat(3) {
+                    Box(
+                        Modifier.weight(1f).aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CamColors.Card)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AlbumScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var photos by remember { mutableStateOf<List<AlbumPhotoEntry>>(emptyList()) }
     var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
     var selectedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var inspectorVisible by remember { mutableStateOf(false) }
+    var inspectorRows by remember { mutableStateOf<List<Pair<String, String>>?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -2695,10 +3238,22 @@ fun AlbumScreen(onBack: () -> Unit) {
         isLoading = false
     }
 
+    LaunchedEffect(selectedPhoto, inspectorVisible) {
+        if (!inspectorVisible) {
+            inspectorRows = null
+        } else {
+            val uri = selectedPhoto ?: return@LaunchedEffect
+            inspectorRows = withContext(Dispatchers.IO) {
+                runCatching { readPhotoInspectorInfo(context, uri) }
+                    .getOrElse { listOf("Thông tin ảnh" to "Không thể đọc metadata: ${it.message ?: "lỗi không xác định"}") }
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(12.dp)) {
         PageHeader("Album · Fujifilm Mode", onBack)
         when {
-            isLoading -> Text("Đang tải ảnh…", color = CamColors.Sub, modifier = Modifier.padding(12.dp))
+            isLoading -> AlbumLoadingSkeleton()
             photos.isEmpty() -> EmptyNote("Chưa có ảnh. Ảnh chụp trong ứng dụng sẽ xuất hiện ở đây.")
             else -> Text("${photos.size} ảnh", color = CamColors.Sub, fontSize = 11.sp,
                 modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
@@ -2749,13 +3304,175 @@ fun AlbumScreen(onBack: () -> Unit) {
                 } else {
                     Text("Đang tải ảnh…", color = Color.White, modifier = Modifier.align(Alignment.Center))
                 }
-                Text("Đóng", color = Color.White,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(20.dp)
-                        .clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
-                        .animaTClickable { selectedPhoto = null; selectedBitmap = null }.padding(12.dp))
+                Row(
+                    Modifier.align(Alignment.TopEnd).padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Thông tin", color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
+                            .animaTClickable { inspectorVisible = true }.padding(horizontal = 12.dp, vertical = 10.dp))
+                    Text("Đóng", color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
+                            .animaTClickable {
+                                selectedPhoto = null
+                                selectedBitmap = null
+                                inspectorVisible = false
+                            }.padding(horizontal = 12.dp, vertical = 10.dp))
+                }
             }
         }
     }
+
+    if (inspectorVisible && selectedPhoto != null) {
+        AlertDialog(
+            onDismissRequest = { inspectorVisible = false },
+            title = { Text("Photo Inspector", color = CamColors.TextColor) },
+            text = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    val rows = inspectorRows
+                    if (rows == null) {
+                        Text("Đang đọc metadata ảnh…", color = CamColors.Sub)
+                    } else {
+                        rows.forEach { (label, value) ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label, color = CamColors.Sub, fontSize = 12.sp,
+                                    modifier = Modifier.weight(0.42f))
+                                Text(value, color = CamColors.TextColor, fontSize = 12.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                    modifier = Modifier.weight(0.58f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { inspectorVisible = false }) { Text("Đóng") }
+            }
+        )
+    }
+}
+
+
+private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String, String>> {
+    var fileName = "Không có"
+    var fileSize = -1L
+    var mimeType = "Không có"
+    var width = -1
+    var height = -1
+    runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(
+                OpenableColumns.DISPLAY_NAME,
+                OpenableColumns.SIZE,
+                MediaStore.MediaColumns.MIME_TYPE,
+                MediaStore.Images.Media.WIDTH,
+                MediaStore.Images.Media.HEIGHT
+            ),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                fun stringAt(column: String): String? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else null
+                }
+                fun longAt(column: String): Long? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0 && !cursor.isNull(index)) cursor.getLong(index) else null
+                }
+                fileName = stringAt(OpenableColumns.DISPLAY_NAME) ?: fileName
+                fileSize = longAt(OpenableColumns.SIZE) ?: fileSize
+                mimeType = stringAt(MediaStore.MediaColumns.MIME_TYPE) ?: mimeType
+                width = longAt(MediaStore.Images.Media.WIDTH)?.toInt() ?: width
+                height = longAt(MediaStore.Images.Media.HEIGHT)?.toInt() ?: height
+            }
+        }
+    }
+    val exif = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input -> ExifInterface(input) }
+    }.getOrNull()
+    // MediaStore WIDTH/HEIGHT may lag behind a replaced JPEG after HDMP output.
+    // Prefer the actual encoded pixel bounds, then apply EXIF axis rotation so the
+    // Inspector reports the dimensions as the user sees the upright photo.
+    val exifOrientation = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0) ?: 0
+    val actualDimensions = runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+        PhotoInspectorGeometry.fromEncoded(bounds.outWidth, bounds.outHeight, exifOrientation)
+    }.getOrNull()
+    actualDimensions?.let {
+        width = it.width
+        height = it.height
+    }
+    val photoPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val hdmpStatus = photoPrefs.getString("photo_hdmp_status:$uri", "Không có dữ liệu phiên HDMP") ?: "Không có dữ liệu phiên HDMP"
+    val logicalCameraId = photoPrefs.getString("photo_camera_id:$uri", "Không công bố") ?: "Không công bố"
+    val physicalCameraId = photoPrefs.getString("photo_physical_camera_id:$uri", "HAL không công bố") ?: "HAL không công bố"
+    val processedOutputSize = photoPrefs.getString("photo_output_size:$uri", "Không ghi nhận") ?: "Không ghi nhận"
+    fun tag(name: String): String? = exif?.getAttribute(name)?.trim()?.takeIf { it.isNotEmpty() }
+    if (width <= 0) width = tag(ExifInterface.TAG_IMAGE_WIDTH)?.toIntOrNull() ?: -1
+    if (height <= 0) height = tag(ExifInterface.TAG_IMAGE_LENGTH)?.toIntOrNull() ?: -1
+    val makeModel = listOfNotNull(tag(ExifInterface.TAG_MAKE), tag(ExifInterface.TAG_MODEL))
+        .distinct().joinToString(" ").ifBlank { "Không có EXIF" }
+    val resolution = if (width > 0 && height > 0) {
+        String.format(Locale.US, "%,d × %,d px", width, height)
+    } else "Không có"
+    val sizeLabel = when {
+        fileSize < 0L -> "Không có"
+        fileSize >= 1024L * 1024L -> String.format(Locale.US, "%.2f MB", fileSize / (1024.0 * 1024.0))
+        fileSize >= 1024L -> String.format(Locale.US, "%.1f KB", fileSize / 1024.0)
+        else -> "$fileSize bytes"
+    }
+    val exposure = tag(ExifInterface.TAG_EXPOSURE_TIME)?.let { raw ->
+        raw.toDoubleOrNull()?.let { seconds ->
+            if (seconds > 0.0 && seconds < 1.0) "1/${(1.0 / seconds).toInt()}s"
+            else if (seconds >= 1.0) String.format(Locale.US, "%.2fs", seconds)
+            else raw
+        } ?: raw
+    } ?: "Không có"
+    val focal = tag(ExifInterface.TAG_FOCAL_LENGTH)?.let { "$it mm" } ?: "Không có"
+    val aperture = tag(ExifInterface.TAG_F_NUMBER)?.let { "f/$it" } ?: "Không có"
+    val qualityBitmap = runCatching {
+        decodeUprightBitmap(context, uri, maxDimension = 640)
+    }.getOrNull()
+    val qualityReport: PhotoQualityReport? = try {
+        qualityBitmap?.let { bitmap -> PhotoQualityAnalyzer.analyze(bitmap) }
+    } catch (failure: Throwable) {
+        android.util.Log.w("FUJI_PHOTO_QUALITY", "Quick quality analysis failed", failure)
+        null
+    } finally {
+        qualityBitmap?.let { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() }
+    }
+    return listOf(
+        "Tên tệp" to fileName,
+        "Độ phân giải" to resolution,
+        "Dung lượng" to sizeLabel,
+        "Định dạng" to mimeType,
+        "Thiết bị" to makeModel,
+        "Camera ID logic" to logicalCameraId,
+        "Physical Camera ID thực tế" to physicalCameraId,
+        "Ống kính" to (tag("LensModel") ?: "Không có EXIF"),
+        "ISO" to (tag(ExifInterface.TAG_ISO_SPEED_RATINGS) ?: "Không có"),
+        "Tốc độ màn trập" to exposure,
+        "Khẩu độ" to aperture,
+        "Tiêu cự" to focal,
+        "Ngày chụp" to (tag(ExifInterface.TAG_DATETIME_ORIGINAL) ?: "Không có EXIF"),
+        "Độ nét (ước tính)" to (qualityReport?.sharpnessLabel ?: "Không phân tích được"),
+        "Vùng cháy sáng" to (qualityReport?.highlightClippingLabel ?: "Không phân tích được"),
+        "Vùng tối bệt" to (qualityReport?.shadowClippingLabel ?: "Không phân tích được"),
+        "Nhiễu nền (ước tính)" to (qualityReport?.noiseLabel ?: "Không phân tích được"),
+        "Gợi ý chất lượng" to (qualityReport?.recommendation ?: "Không phân tích được"),
+        "Kích thước sau xử lý" to processedOutputSize,
+        "Trạng thái HDMP" to hdmpStatus
+    )
 }
 
 
@@ -2771,9 +3488,15 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
 
     return runCatching {
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
-            ?: return@runCatching false
-        val canvas = Canvas(output)
+        var outputBitmap: Bitmap? = null
+        try {
+            val output = if (bitmap.isMutable) {
+                bitmap.also { outputBitmap = it }
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, true)?.also { outputBitmap = it }
+                    ?: return@runCatching false
+            }
+            val canvas = Canvas(output)
         val frameStyle = prefs.getString("frame_style", "White") ?: "White"
         val transparent = frameStyle == "Transparent"
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
@@ -2831,14 +3554,17 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
             val imported = context.contentResolver.openInputStream(frameUri)?.use {
                 BitmapFactory.decodeStream(it)
             } ?: return@runCatching false
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            if (!transparent) {
-                paint.colorFilter = android.graphics.PorterDuffColorFilter(
-                    frameColor, android.graphics.PorterDuff.Mode.SRC_IN
-                )
+            try {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                if (!transparent) {
+                    paint.colorFilter = android.graphics.PorterDuffColorFilter(
+                        frameColor, android.graphics.PorterDuff.Mode.SRC_IN
+                    )
+                }
+                canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
+            } finally {
+                if (!imported.isRecycled) imported.recycle()
             }
-            canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
-            imported.recycle()
         } else {
             val outer = RectF(margin, margin, output.width - margin, output.height - margin)
             val inner = RectF(margin * 1.55f, margin * 1.55f,
@@ -2951,6 +3677,10 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
         writeUprightExifMetadata(context, uri, output.width, output.height)
         setMediaStoreOrientationUpright(context, uri)
         true
+        } finally {
+            outputBitmap?.let { if (it !== bitmap && !it.isRecycled) it.recycle() }
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_FRAME", "Could not apply selected frame", it)
     }.getOrDefault(false)

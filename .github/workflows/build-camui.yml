@@ -1,4 +1,4 @@
-name: Build CamerAwesome UI experiment (debug APK)
+name: Build FujiFilm Mode 1.5 FULL HDMP AI debug APK
 
 'on':
   push:
@@ -69,14 +69,38 @@ jobs:
             "opencv-python-headless==4.10.0.84" \
             "pillow==11.0.0" \
             "onnx==1.17.0" \
-            "onnxruntime==1.20.1"
+            "onnxruntime==1.20.1" \
+            "gdown==5.2.0"
 
-          git clone --depth 1 https://github.com/mikecokina/nafnetlib.git "$RUNNER_TEMP/nafnetlib"
+          # Pin both upstream sources so the exported model provenance is reproducible.
+          git clone https://github.com/megvii-research/NAFNet.git "$RUNNER_TEMP/NAFNet"
+          git -C "$RUNNER_TEMP/NAFNet" checkout 2b4af71ebe098a92a75910c233a3965a3e93ede4
+          git clone https://github.com/mikecokina/nafnetlib.git "$RUNNER_TEMP/nafnetlib"
+          git -C "$RUNNER_TEMP/nafnetlib" checkout 0ee63e3f6577a4c2475221f4c8a3cf0fcf4ac52d
+
           MODEL_DIR="$RUNNER_TEMP/nafnet-model-weights"
           OUTPUT_DIR="$GITHUB_WORKSPACE/CamUI/app/src/main/assets/models"
           mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
+          export MODEL_DIR
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import gdown
+
+          model = Path(os.environ["MODEL_DIR"]) / "NAFNet-SIDD-width64.pth"
+          downloaded = gdown.download(
+              id="14Fht1QQJ2gMlk4N1ERCRuElg8JfjrWWR",
+              output=str(model),
+              quiet=False,
+          )
+          if not downloaded or not model.is_file() or model.stat().st_size < 1_000_000:
+              raise SystemExit("Official Megvii NAFNet-SIDD-width64 checkpoint download failed")
+          print(f"Official Megvii width64 checkpoint: {model.stat().st_size:,} bytes")
+          PY
           python scripts/export_nafnet_onnx.py \
-            --nafnetlib-src "$RUNNER_TEMP/nafnetlib/src" \
+            --official-nafnet-src "$RUNNER_TEMP/NAFNet" \
+            --official-width64-checkpoint "$MODEL_DIR/NAFNet-SIDD-width64.pth" \
+            --nafnetlib-src "$RUNNER_TEMP/nafnetlib" \
             --model-dir "$MODEL_DIR" \
             --output-dir "$OUTPUT_DIR"
 
@@ -94,7 +118,7 @@ jobs:
 
       - name: Build debug APK
         working-directory: CamUI
-        run: gradle assembleDebug --stacktrace
+        run: gradle testDebugUnitTest assembleDebug --stacktrace
 
       - name: Verify APK contains both hash-pinned HDMP AI models
         working-directory: CamUI
@@ -119,10 +143,13 @@ jobs:
                   assert info.file_size > 0, f"Empty APK asset: {name}"
                   print(f"{name}: {info.file_size:,} bytes")
           PY
+          sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/SHA256SUMS.txt
 
-      - name: Upload debug APK
+      - name: Upload debug APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Fujifilm-CamerAwesome-HDMP-AI-debug
-          path: CamUI/app/build/outputs/apk/debug/*.apk
+          name: Fujifilm-Mode-1.5-FULL-HDMP-AI-debug
+          path: |
+            CamUI/app/build/outputs/apk/debug/app-debug.apk
+            CamUI/app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error

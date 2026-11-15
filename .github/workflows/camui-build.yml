@@ -1,4 +1,4 @@
-name: CamUI Android build
+name: CamUI Android smoke build (algorithmic HDMP)
 
 'on':
   pull_request:
@@ -40,7 +40,7 @@ jobs:
           gradle-version: '8.13'
 
       - name: Build CamUI debug APK
-        run: gradle -p CamUI-src assembleDebug --no-daemon --stacktrace
+        run: gradle -p CamUI-src testDebugUnitTest assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

@@ -1,11 +1,13 @@
 package com.example.camui
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedContent
@@ -20,6 +22,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -107,6 +110,23 @@ class MainActivity : AppCompatActivity() {
         setContent {
             CamTheme {
                 var page by remember { mutableStateOf("camera") }
+                var manualAnimationPerformanceMode by remember {
+                    mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))
+                }
+                var thermalStatus by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
+                DisposableEffect(Unit) {
+                    val powerManager = this@MainActivity.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    val listener = PowerManager.OnThermalStatusChangedListener { status ->
+                        thermalStatus = status
+                    }
+                    thermalStatus = runCatching {
+                        powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE
+                    }.getOrDefault(PowerManager.THERMAL_STATUS_NONE)
+                    runCatching { powerManager?.addThermalStatusListener(listener) }
+                    onDispose { runCatching { powerManager?.removeThermalStatusListener(listener) } }
+                }
+                val animationPerformanceMode = manualAnimationPerformanceMode ||
+                    thermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
                 var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
                 var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }
                 var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
@@ -117,7 +137,7 @@ class MainActivity : AppCompatActivity() {
                     targetState = page,
                     modifier = Modifier.fillMaxSize(),
                     // Each destination rises from a slightly smaller card and expands to full screen.
-                    transitionSpec = { AnimaT.enter() togetherWith AnimaT.exit() },
+                    transitionSpec = { AnimaT.enter(animationPerformanceMode) togetherWith AnimaT.exit(animationPerformanceMode) },
                     label = "Fujifilm Mode page transition"
                 ) { targetPage ->
                 when (targetPage) {
@@ -140,7 +160,12 @@ class MainActivity : AppCompatActivity() {
                         showHist = showHist,
                         onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                         focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
+                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                        animationPerformanceMode = manualAnimationPerformanceMode,
+                        onAnimationPerformanceModeChanged = {
+                            manualAnimationPerformanceMode = it
+                            settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
+                        }
                     )
                     "contents" -> ContentManagementScreen(onBack = { page = "camera" })
                     else -> CameraScreen(

@@ -10,6 +10,7 @@ import android.content.Context
 import android.graphics.Point
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
+import android.media.AudioAttributes
 import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.os.Build
@@ -18,6 +19,10 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraCaptureSession
@@ -31,6 +36,7 @@ import android.provider.OpenableColumns
 import android.util.Rational
 import android.util.Size
 import android.view.Surface
+import android.view.HapticFeedbackConstants
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import android.widget.Toast
@@ -61,6 +67,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -96,12 +106,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterCenterFocus
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlipCameraAndroid
+import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
@@ -136,8 +148,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -164,6 +178,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 private fun currentDisplayIsLandscape(context: Context): Boolean {
     val display = context.display
@@ -205,8 +221,94 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
-private fun playConfiguredShutterSound(systemPlayer: MediaActionSound) {
+private fun playConfiguredShutterSound(context: Context, systemPlayer: MediaActionSound) {
+    val customUri = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        .getString("shutter_sound_uri", null)
+        ?.takeIf { it.isNotBlank() }
+    if (customUri != null) {
+        val player = MediaPlayer()
+        val prepared = runCatching {
+            player.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            player.setDataSource(context, Uri.parse(customUri))
+            player.setOnPreparedListener { mediaPlayer ->
+                val started = runCatching { mediaPlayer.start() }.isSuccess
+                if (!started) {
+                    mediaPlayer.release()
+                    runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+                }
+            }
+            player.setOnCompletionListener { it.release() }
+            player.setOnErrorListener { mediaPlayer, _, _ ->
+                mediaPlayer.release()
+                runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+                true
+            }
+            player.prepareAsync()
+        }.isSuccess
+        if (prepared) return
+        runCatching { player.release() }
+        android.util.Log.w("FUJI_SHUTTER", "Custom shutter audio unavailable; using Android default")
+    }
     runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
+}
+
+/**
+ * Saves one native JPEG burst frame. A failed frame only returns null; it does not
+ * cancel the remaining burst. The caller spaces requests by a best-effort 200 ms.
+ */
+private suspend fun saveBurstFrame(
+    context: Context,
+    capture: ImageCapture,
+    executor: java.util.concurrent.Executor,
+    sessionId: String,
+    frameIndex: Int,
+    folder: String = "Burst",
+    filePrefix: String = "FUJI_BURST"
+): Uri? = suspendCancellableCoroutine { continuation ->
+    val name = "${filePrefix}_${sessionId}_${(frameIndex + 1).toString().padStart(2, '0')}.jpg"
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, name)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/$folder")
+        put(MediaStore.Images.Media.IS_PENDING, 1)
+    }
+    val output = runCatching {
+        ImageCapture.OutputFileOptions.Builder(
+            context.contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            values
+        ).build()
+    }.getOrElse {
+        android.util.Log.w("FUJI_BURST", "Could not prepare frame ${frameIndex + 1}", it)
+        if (continuation.isActive) continuation.resume(null)
+        return@suspendCancellableCoroutine
+    }
+    capture.takePicture(output, executor, object : ImageCapture.OnImageSavedCallback {
+        override fun onImageSaved(results: ImageCapture.OutputFileResults) {
+            val savedUri = results.savedUri
+            if (savedUri != null) {
+                runCatching {
+                    context.contentResolver.update(
+                        savedUri,
+                        ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                        null,
+                        null
+                    )
+                }
+            }
+            if (continuation.isActive) continuation.resume(savedUri)
+        }
+
+        override fun onError(exception: androidx.camera.core.ImageCaptureException) {
+            android.util.Log.w("FUJI_BURST", "Frame ${frameIndex + 1} failed; continuing burst", exception)
+            if (continuation.isActive) continuation.resume(null)
+        }
+    })
 }
 
 /** Select the nearest supported native JPEG size around the 12.5MP Photo target. */
@@ -278,6 +380,7 @@ fun CameraScreen(
     onRatio: (Int) -> Unit
 ) {
     val context = LocalContext.current
+    val localView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
@@ -312,6 +415,56 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
+    var faceTrackingEnabled by remember {
+        mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
+            .getBoolean("face_tracking_enabled", false))
+    }
+    val faceTrackingEnabledState = rememberUpdatedState(faceTrackingEnabled)
+    var faceTrackCenter by remember { mutableStateOf<Offset?>(null) }
+    val sensorManager = remember(context) {
+        context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    }
+    val levelSensor = remember(sensorManager) {
+        sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    }
+    var levelEnabled by remember {
+        mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
+            .getBoolean("viewfinder_level_enabled", false))
+    }
+    var horizonRollDegrees by remember { mutableFloatStateOf(0f) }
+    DisposableEffect(sensorManager, levelSensor, levelEnabled) {
+        if (sensorManager == null || levelSensor == null || !levelEnabled) {
+            onDispose { }
+        } else {
+            val rotationMatrix = FloatArray(9)
+            val orientationAngles = FloatArray(3)
+            val listener = object : SensorEventListener {
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+
+                override fun onSensorChanged(event: SensorEvent?) {
+                    val values = event ?: return
+                    val rollDegrees = if (values.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
+                        SensorManager.getRotationMatrixFromVector(rotationMatrix, values.values)
+                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
+                        Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
+                    } else {
+                        Math.toDegrees(kotlin.math.atan2(
+                            values.values[0].toDouble(),
+                            values.values[1].toDouble()
+                        )).toFloat()
+                    }
+                    horizonRollDegrees = ((rollDegrees + 180f) % 360f) - 180f
+                }
+            }
+            sensorManager.registerListener(listener, levelSensor, SensorManager.SENSOR_DELAY_UI)
+            onDispose { sensorManager.unregisterListener(listener) }
+        }
+    }
+    var zebraEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_zebra_enabled", false)) }
+    val zebraEnabledState = rememberUpdatedState(zebraEnabled)
+    var rgbHistogramEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_rgb_histogram_enabled", false)) }
+    val rgbHistogramEnabledState = rememberUpdatedState(rgbHistogramEnabled)
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     DisposableEffect(context) {
@@ -358,7 +511,43 @@ fun CameraScreen(
             }
         }
     }
+    var lensCorrectionEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("lens_correction_enabled", true))
+    }
+    var hudAutoHideEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("hud_auto_hide_enabled", true))
+    }
+    var hudVisible by remember { mutableStateOf(true) }
+    var hudActivityToken by remember { mutableIntStateOf(0) }
+    var proHudShowEv by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_ev", true)) }
+    var proHudShowShutter by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_shutter", true)) }
+    var proHudShowIso by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_iso", true)) }
+    var proHudShowFocus by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_focus", true)) }
+    var proHudShowWhiteBalance by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_white_balance", true)) }
     var mode by remember { mutableStateOf(appPrefs.getString("camera_mode", "Photo") ?: "Photo") }
+    var burstMode by remember {
+        mutableStateOf(appPrefs.getBoolean("burst_capture_mode_enabled", false))
+    }
+    var burstCaptureActive by remember { mutableStateOf(false) }
+    var burstStopRequested by remember { mutableStateOf(false) }
+    var burstCompletedFrames by remember { mutableIntStateOf(0) }
+    var hdrBracketMode by remember {
+        mutableStateOf(appPrefs.getBoolean("hdr_bracketing_enabled", false))
+    }
+    var focusBracketMode by remember {
+        mutableStateOf(appPrefs.getBoolean("focus_bracketing_enabled", false))
+    }
+    var bracketCaptureActive by remember { mutableStateOf(false) }
+    var bracketCompletedFrames by remember { mutableIntStateOf(0) }
+    LaunchedEffect(hdrBracketMode, focusBracketMode) {
+        appPrefs.edit()
+            .putBoolean("hdr_bracketing_enabled", hdrBracketMode)
+            .putBoolean("focus_bracketing_enabled", focusBracketMode)
+            .apply()
+    }
+    LaunchedEffect(burstMode) {
+        appPrefs.edit().putBoolean("burst_capture_mode_enabled", burstMode).apply()
+    }
     var front by remember { mutableStateOf(appPrefs.getBoolean("camera_front_facing", false)) }
     var flash by remember { mutableIntStateOf(appPrefs.getInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF)) }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
@@ -405,6 +594,7 @@ fun CameraScreen(
     var showHdmpFastChoice by remember { mutableStateOf(false) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
     var hdmpActiveWorkerCount by remember { mutableIntStateOf(0) }
+    var hdmpTileProgressText by remember { mutableStateOf("") }
     var hdmpRenderProfile by remember {
         mutableStateOf(
             appPrefs.getString("hdmp_render_profile", "balanced")
@@ -470,6 +660,16 @@ fun CameraScreen(
             }
         }
     }
+    LaunchedEffect(hudAutoHideEnabled, hudActivityToken, isProcessing) {
+        if (!hudAutoHideEnabled) {
+            hudVisible = true
+            return@LaunchedEffect
+        }
+        hudVisible = true
+        if (isProcessing) return@LaunchedEffect
+        delay(5_000L)
+        hudVisible = false
+    }
     val shutterSoundPlayer = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
     }
@@ -486,15 +686,26 @@ fun CameraScreen(
     var camera2Inventory by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
     var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
+    var activePhysicalCameraId by remember { mutableStateOf<String?>(null) }
     var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
+    val manualFocusState = rememberUpdatedState(manualFocus)
+    val focusLockedState = rememberUpdatedState(focusLocked)
+    var macroAssistEnabled by remember { mutableStateOf(false) }
+    var milkyWayInfinityFocusEnabled by remember { mutableStateOf(false) }
     var hist by remember { mutableStateOf(IntArray(64)) }
+    var rgbRedHistogram by remember { mutableStateOf(IntArray(32)) }
+    var rgbGreenHistogram by remember { mutableStateOf(IntArray(32)) }
+    var rgbBlueHistogram by remember { mutableStateOf(IntArray(32)) }
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
+    var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var viewerOriginalBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var viewerShowsOriginal by remember { mutableStateOf(false) }
     var photoViewerVisible by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
@@ -543,12 +754,16 @@ fun CameraScreen(
     var starTrailTimerJob by remember { mutableStateOf<Job?>(null) }
     var starTrailExposureStatus by remember { mutableStateOf("Đang kiểm tra hỗ trợ phơi sáng") }
     var lowLightDetected by remember { mutableStateOf(false) }
+    var milkyWayStackEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("milky_way_stack_enabled", false))
+    }
     var showHdmp by remember { mutableStateOf(false) }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
-        manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex
+        manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
+        milkyWayStackEnabled
     ) {
         appPrefs.edit()
             .putString("camera_mode", mode)
@@ -571,6 +786,7 @@ fun CameraScreen(
             .putInt("pro_manual_iso", manualIso)
             .putLong("pro_manual_shutter_ns", manualShutterNs)
             .putFloat("pro_manual_focus", manualFocus)
+            .putBoolean("milky_way_stack_enabled", milkyWayStackEnabled)
             .putString("pro_selected_control", proSel)
             .putInt("pro_ev_index", evIndex)
             .apply()
@@ -614,9 +830,9 @@ fun CameraScreen(
             }
         }
     }
-    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, isProcessing) {
+    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, burstCaptureActive, bracketCaptureActive, isProcessing) {
         previewView.keepScreenOn =
-            nightShotCaptureInProgress || starTrailCaptureInProgress || isProcessing
+            nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || isProcessing
     }
 
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
@@ -624,7 +840,7 @@ fun CameraScreen(
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
-        starTrailExposureSeconds, mode
+        starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
         if (!hasCam) return@LaunchedEffect
         val discoveredCamera2 = if (camera2Inventory.isNotEmpty()) {
@@ -685,7 +901,7 @@ fun CameraScreen(
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
                 "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
-                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW
+                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
                 else -> ImageCapture.OUTPUT_FORMAT_JPEG
             }
             val rawCaptureFormat = if (
@@ -748,9 +964,73 @@ fun CameraScreen(
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
+            var faceSensorToDisplayRotation = 0
 
             fun bindCapture(outputFormat: Int) {
+                var lastFaceTrackAtMs = 0L
+                var lastFaceTrackCenter: Offset? = null
+                val distortionModes = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.DISTORTION_CORRECTION_AVAILABLE_MODES)
+                            ?.toSet()
+                    }.getOrDefault(emptySet())
+                }.orEmpty()
+                val distortionCorrectionMode = when {
+                    !lensCorrectionEnabled -> CaptureRequest.DISTORTION_CORRECTION_MODE_OFF
+                    distortionModes.contains(CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY) ->
+                        CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY
+                    distortionModes.contains(CaptureRequest.DISTORTION_CORRECTION_MODE_FAST) ->
+                        CaptureRequest.DISTORTION_CORRECTION_MODE_FAST
+                    else -> null
+                }
+                val aberrationModes = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES)
+                            ?.toSet()
+                    }.getOrDefault(emptySet())
+                }.orEmpty()
+                val aberrationCorrectionMode = when {
+                    !lensCorrectionEnabled -> CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_OFF
+                    aberrationModes.contains(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY) ->
+                        CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY
+                    aberrationModes.contains(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_FAST) ->
+                        CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_FAST
+                    else -> null
+                }
+                val shadingModes = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.SHADING_AVAILABLE_MODES)
+                            ?.toSet()
+                    }.getOrDefault(emptySet())
+                }.orEmpty()
+                val shadingCorrectionMode = when {
+                    !lensCorrectionEnabled -> CaptureRequest.SHADING_MODE_OFF
+                    shadingModes.contains(CaptureRequest.SHADING_MODE_HIGH_QUALITY) ->
+                        CaptureRequest.SHADING_MODE_HIGH_QUALITY
+                    shadingModes.contains(CaptureRequest.SHADING_MODE_FAST) ->
+                        CaptureRequest.SHADING_MODE_FAST
+                    else -> null
+                }
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
+                if (distortionCorrectionMode != null &&
+                    distortionModes.contains(distortionCorrectionMode)
+                ) {
+                    Camera2Interop.Extender(previewBuilder)
+                        .setCaptureRequestOption(CaptureRequest.DISTORTION_CORRECTION_MODE, distortionCorrectionMode)
+                }
+                if (aberrationCorrectionMode != null &&
+                    aberrationModes.contains(aberrationCorrectionMode)
+                ) {
+                    Camera2Interop.Extender(previewBuilder)
+                        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, aberrationCorrectionMode)
+                }
+                if (shadingCorrectionMode != null && shadingModes.contains(shadingCorrectionMode)) {
+                    Camera2Interop.Extender(previewBuilder)
+                        .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
+                }
                 if (!hdrExtensionActive && !nightExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
@@ -759,6 +1039,68 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            if (faceTrackingEnabledState.value) {
+                                val detectedFaces = result.get(CaptureResult.STATISTICS_FACES)
+                                val bestFace = detectedFaces
+                                    ?.filter { it.score >= 50 }
+                                    ?.maxByOrNull { it.bounds.width().toLong() * it.bounds.height().toLong() }
+                                val crop = result.get(CaptureResult.SCALER_CROP_REGION)
+                                    ?: activeCameraCharacteristics?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                                if (bestFace != null && crop != null && crop.width() > 0 && crop.height() > 0) {
+                                    val faceBounds = bestFace.bounds
+                                    val normalizedX = ((faceBounds.centerX() - crop.left).toFloat() /
+                                        crop.width()).coerceIn(0f, 1f)
+                                    val normalizedY = ((faceBounds.centerY() - crop.top).toFloat() /
+                                        crop.height()).coerceIn(0f, 1f)
+                                    val orientedCenter = when (faceSensorToDisplayRotation) {
+                                        90 -> Offset(1f - normalizedY, normalizedX)
+                                        180 -> Offset(1f - normalizedX, 1f - normalizedY)
+                                        270 -> Offset(normalizedY, 1f - normalizedX)
+                                        else -> Offset(normalizedX, normalizedY)
+                                    }.let { point ->
+                                        if (front) Offset(1f - point.x, point.y) else point
+                                    }
+                                    val now = SystemClock.elapsedRealtime()
+                                    val previous = lastFaceTrackCenter
+                                    val movedEnough = previous == null ||
+                                        kotlin.math.abs(previous.x - orientedCenter.x) +
+                                        kotlin.math.abs(previous.y - orientedCenter.y) > 0.055f
+                                    if (movedEnough || now - lastFaceTrackAtMs >= 1_200L) {
+                                        lastFaceTrackAtMs = now
+                                        lastFaceTrackCenter = orientedCenter
+                                        scope.launch(Dispatchers.Main) {
+                                            faceTrackCenter = orientedCenter
+                                            val previewWidth = previewView.width
+                                            val previewHeight = previewView.height
+                                            if (previewWidth > 0 && previewHeight > 0 &&
+                                                !focusLockedState.value && manualFocusState.value <= 0f
+                                            ) {
+                                                runCatching {
+                                                    val point = previewView.meteringPointFactory.createPoint(
+                                                        orientedCenter.x * previewWidth,
+                                                        orientedCenter.y * previewHeight,
+                                                        0.18f
+                                                    )
+                                                    val action = FocusMeteringAction.Builder(
+                                                        point,
+                                                        FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                                                    ).setAutoCancelDuration(1, TimeUnit.SECONDS).build()
+                                                    camera?.cameraControl?.startFocusAndMetering(action)
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    lastFaceTrackCenter = null
+                                    scope.launch(Dispatchers.Main) { faceTrackCenter = null }
+                                }
+                            } else {
+                                lastFaceTrackCenter = null
+                                scope.launch(Dispatchers.Main) { faceTrackCenter = null }
+                            }
+                            live.activePhysicalCameraId?.let { id ->
+                                if (activePhysicalCameraId != id) activePhysicalCameraId = id
+                            }
                             live.iso?.let { if (iso != it) iso = it }
                             live.shutterNs?.let { if (shutterNs != it) shutterNs = it }
                             live.focusDiopter?.let { if (focusDiopter != it) focusDiopter = it }
@@ -775,8 +1117,26 @@ fun CameraScreen(
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
                 val captureBuilder = ImageCapture.Builder()
+                    .also { builder ->
+                        if (distortionCorrectionMode != null &&
+                            distortionModes.contains(distortionCorrectionMode)
+                        ) {
+                            Camera2Interop.Extender(builder)
+                                .setCaptureRequestOption(CaptureRequest.DISTORTION_CORRECTION_MODE, distortionCorrectionMode)
+                        }
+                        if (aberrationCorrectionMode != null &&
+                            aberrationModes.contains(aberrationCorrectionMode)
+                        ) {
+                            Camera2Interop.Extender(builder)
+                                .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE, aberrationCorrectionMode)
+                        }
+                        if (shadingCorrectionMode != null && shadingModes.contains(shadingCorrectionMode)) {
+                            Camera2Interop.Extender(builder)
+                                .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
+                        }
+                    }
                     .setCaptureMode(
-                        if (mode == "Photo" && nightShotMode == "night") ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                        if (mode == "Photo" && (nightShotMode == "night" || burstMode)) ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                         else ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
                     )
                     .setTargetRotation(rotation)
@@ -959,7 +1319,15 @@ fun CameraScreen(
                             val plane = image.planes[0]
                             val buffer = plane.buffer
                             val bins = IntArray(64)
+                            val redBins = IntArray(32)
+                            val greenBins = IntArray(32)
+                            val blueBins = IntArray(32)
+                            val uPlane = image.planes.getOrNull(1)
+                            val vPlane = image.planes.getOrNull(2)
+                            val uBuffer = if (rgbHistogramEnabledState.value) uPlane?.buffer else null
+                            val vBuffer = if (rgbHistogramEnabledState.value) vPlane?.buffer else null
                             val edges = ArrayList<Offset>(250)
+                            val overexposed = ArrayList<Offset>(700)
                             val rowStride = plane.rowStride
                             val pixelStride = plane.pixelStride
                             var luminanceSum = 0L
@@ -971,8 +1339,39 @@ fun CameraScreen(
                                     val index = y * rowStride + x * pixelStride
                                     val value = buffer.get(index).toInt() and 0xFF
                                     bins[value shr 2]++
+                                    if (rgbHistogramEnabledState.value && uBuffer != null && vBuffer != null &&
+                                        uPlane != null && vPlane != null
+                                    ) {
+                                        val chromaX = x / 2
+                                        val chromaY = y / 2
+                                        val uIndex = chromaY * uPlane.rowStride + chromaX * uPlane.pixelStride
+                                        val vIndex = chromaY * vPlane.rowStride + chromaX * vPlane.pixelStride
+                                        if (uIndex in 0 until uBuffer.limit() && vIndex in 0 until vBuffer.limit()) {
+                                            val u = (uBuffer.get(uIndex).toInt() and 0xFF) - 128
+                                            val v = (vBuffer.get(vIndex).toInt() and 0xFF) - 128
+                                            val red = (value + 1.402f * v).roundToInt().coerceIn(0, 255)
+                                            val green = (value - 0.344136f * u - 0.714136f * v).roundToInt().coerceIn(0, 255)
+                                            val blue = (value + 1.772f * u).roundToInt().coerceIn(0, 255)
+                                            redBins[red shr 3]++
+                                            greenBins[green shr 3]++
+                                            blueBins[blue shr 3]++
+                                        }
+                                    }
                                     luminanceSum += value
                                     sampleCount++
+                                    if (zebraEnabledState.value && value >= 242 && ((x + y) / 8) % 2 == 0 &&
+                                        overexposed.size < 700
+                                    ) {
+                                        val px = x.toFloat() / image.width
+                                        val py = y.toFloat() / image.height
+                                        val oriented = when (image.imageInfo.rotationDegrees) {
+                                            90 -> Offset(1f - py, px)
+                                            180 -> Offset(1f - px, 1f - py)
+                                            270 -> Offset(py, 1f - px)
+                                            else -> Offset(px, py)
+                                        }
+                                        overexposed.add(if (front) Offset(1f - oriented.x, oriented.y) else oriented)
+                                    }
                                     if (focusPeakingEnabled.value && x > 1 && y > 1 && index < buffer.limit()) {
                                         val leftIndex = index - pixelStride
                                         val upIndex = index - rowStride
@@ -999,7 +1398,11 @@ fun CameraScreen(
                             val meanLuma = if (sampleCount > 0) (luminanceSum / sampleCount).toInt() else 255
                             scope.launch(Dispatchers.Main) {
                                 hist = bins
+                                rgbRedHistogram = if (rgbHistogramEnabledState.value) redBins else IntArray(32)
+                                rgbGreenHistogram = if (rgbHistogramEnabledState.value) greenBins else IntArray(32)
+                                rgbBlueHistogram = if (rgbHistogramEnabledState.value) blueBins else IntArray(32)
                                 peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
+                                zebraPoints = if (zebraEnabledState.value) overexposed else emptyList()
                                 lowLightDetected = meanLuma < 52
                             }
                         }
@@ -1030,6 +1433,31 @@ fun CameraScreen(
                 val actualCameraId = actualCamera2Info?.cameraId
                 activeCameraCharacteristics = actualCameraId?.let { id ->
                     runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
+                }
+                faceSensorToDisplayRotation = runCatching {
+                    bound.cameraInfo.getSensorRotationDegrees(rotation)
+                }.getOrDefault(0)
+                val availableFaceModes = activeCameraCharacteristics?.get(
+                    CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES
+                ) ?: intArrayOf()
+                val faceDetectMode = when {
+                    availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) ->
+                        CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
+                    availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE) ->
+                        CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
+                    else -> null
+                }
+                if (faceTrackingEnabled && faceDetectMode != null) {
+                    runCatching {
+                        val faceOptions = CaptureRequestOptions.Builder()
+                            .setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, faceDetectMode)
+                            .build()
+                        Camera2CameraControl.from(bound.cameraControl).setCaptureRequestOptions(faceOptions)
+                    }.onFailure {
+                        android.util.Log.w("FUJI_FACE_TRACK", "Could not enable Camera2 face detection", it)
+                    }
+                } else {
+                    faceTrackCenter = null
                 }
                 activeCameraDetails = discoveredCamera2.firstOrNull {
                     it.id == actualCameraId && it.parentId == null
@@ -1070,9 +1498,22 @@ fun CameraScreen(
                 val supportsManualSensor = capabilities?.contains(
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
                 ) == true
-                // White-balance warmth/coolness is a manual sensor color-correction request.
+                // Preserve user-selected WB and focus intent across logical-camera rebinds.
                 if (manualColorTempEnabled) applyManualWhiteBalance(bound, manualColorTemp)
                 else applyAutoWhiteBalance(bound)
+                val focusModes = runCatching {
+                    Camera2CameraInfo.from(bound.cameraInfo)
+                        .getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+                }.getOrNull()
+                val focusDistance = activeCameraDetails?.minFocusDiopter ?: 0f
+                if (focusDistance > 0f && focusModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true) {
+                    when {
+                        milkyWayInfinityFocusEnabled -> runCatching { applyManualFocus(bound, 0f) }
+                        manualFocus > 0f -> runCatching {
+                            applyManualFocus(bound, manualFocus.coerceIn(0f, focusDistance))
+                        }
+                    }
+                }
                 if (stabilization) applyStabilization(bound, true)
             }
 
@@ -1262,14 +1703,25 @@ fun CameraScreen(
     }
 
     LaunchedEffect(photoViewerVisible, lastUri) {
-        if (!photoViewerVisible) return@LaunchedEffect
+        if (!photoViewerVisible) {
+            viewerOriginalBitmap = null
+            viewerShowsOriginal = false
+            return@LaunchedEffect
+        }
         val uri = lastUri ?: return@LaunchedEffect
-        viewerBitmap = withContext(Dispatchers.IO) {
-            runCatching {
+        val previews = withContext(Dispatchers.IO) {
+            val processed = runCatching {
                 // Decode EXIF into the pixels instead of trusting a stale MediaStore thumbnail.
                 decodeUprightBitmap(context, uri, maxDimension = 2048)?.asImageBitmap()
             }.getOrNull()
+            val original = runCatching {
+                HdmpAiEngine.loadOriginalForComparison(context, uri)?.asImageBitmap()
+            }.getOrNull()
+            processed to original
         }
+        viewerBitmap = previews.first
+        viewerOriginalBitmap = previews.second
+        viewerShowsOriginal = false
     }
 
     fun openLastPhoto() {
@@ -1295,11 +1747,12 @@ fun CameraScreen(
             ).show()
             return
         }
+        localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         activeCapture.targetRotation = captureRotation
         previewUseCase?.targetRotation = captureRotation
         analysisUseCase?.targetRotation = captureRotation
         if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-            playConfiguredShutterSound(shutterSoundPlayer)
+            playConfiguredShutterSound(context, shutterSoundPlayer)
         }
 
         val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -1500,6 +1953,251 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        val rawModeConflictsWithComputationalCapture = mode == "Photo" &&
+            rawCaptureMode != "jpeg" &&
+            (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
+                uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode)
+        if (rawModeConflictsWithComputationalCapture) {
+            localizedToast(
+                context,
+                "RAW/RAW+ không ghép đồng thời với Night Shot, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Hãy tắt chế độ ghép hoặc chuyển định dạng về JPEG.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        if (bracketCaptureActive) {
+            localizedToast(context, "Đang hoàn tất chuỗi Bracketing hiện tại…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (hdrBracketMode && focusBracketMode) {
+            localizedToast(context, "Chọn HDR Bracketing hoặc Focus Bracketing, không bật đồng thời.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if ((hdrBracketMode || focusBracketMode) && mode == "Photo" && nightShotMode == "off" &&
+            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+        ) {
+            if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
+                nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive
+            ) return
+            val activeCamera = camera ?: return
+            val activeCapture = imageCapture ?: return
+            val cameraInfo = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
+            val minimumFocusDistance = cameraInfo?.getCameraCharacteristic(
+                CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE
+            ) ?: 0f
+            val afModes = cameraInfo?.getCameraCharacteristic(
+                CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES
+            )
+            val exposureRange = activeCamera.cameraInfo.exposureState.exposureCompensationRange
+            val exposureStep = activeCamera.cameraInfo.exposureState.exposureCompensationStep.toFloat()
+            if (focusBracketMode && (minimumFocusDistance <= 0f ||
+                afModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) != true)
+            ) {
+                localizedToast(context, "Camera không công bố hỗ trợ lấy nét thủ công để Focus Bracketing.", Toast.LENGTH_LONG).show()
+                return
+            }
+            if (hdrBracketMode && (exposureStep <= 0f || exposureRange.lower == exposureRange.upper)) {
+                localizedToast(context, "Camera không công bố dải bù trừ phơi sáng cho HDR Bracketing.", Toast.LENGTH_LONG).show()
+                return
+            }
+            localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            val useHdrBracket = hdrBracketMode
+            scope.launch {
+                bracketCaptureActive = true
+                bracketCompletedFrames = 0
+                val bracketSavedUris = ArrayList<Uri>()
+                val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+                val originalEv = activeCamera.cameraInfo.exposureState.exposureCompensationIndex
+                var focusRestoreRequired = false
+                var bracketTargetFrames = if (useHdrBracket) 3 else 5
+                try {
+                    if (timerSec > 0) {
+                        for (seconds in timerSec downTo 1) {
+                            countdown = seconds
+                            delay(1000)
+                        }
+                        countdown = 0
+                    }
+                    val positions: List<Float> = if (useHdrBracket) {
+                        listOf(-2f, 0f, 2f).map { ev ->
+                            val offset = (ev / exposureStep).roundToInt()
+                            (originalEv + offset).coerceIn(exposureRange.lower, exposureRange.upper).toFloat()
+                        }.distinct()
+                    } else {
+                        listOf(
+                            minimumFocusDistance,
+                            minimumFocusDistance * 0.75f,
+                            minimumFocusDistance * 0.50f,
+                            minimumFocusDistance * 0.25f,
+                            0f
+                        )
+                    }
+                    bracketTargetFrames = positions.size
+                    for ((index, value) in positions.withIndex()) {
+                        if (useHdrBracket) {
+                            activeCamera.cameraControl.setExposureCompensationIndex(value.roundToInt())
+                            delay(280)
+                        } else {
+                            focusRestoreRequired = true
+                            val focused = runCatching { applyManualFocus(activeCamera, value) }.isSuccess
+                            if (!focused) {
+                                localizedToast(context, "Không thể đặt khoảng nét ${index + 1}; dừng Focus Bracketing.", Toast.LENGTH_LONG).show()
+                                break
+                            }
+                            delay(420)
+                        }
+                        val uri = runCatching {
+                            saveBurstFrame(
+                                context = context,
+                                capture = activeCapture,
+                                executor = mainExecutor,
+                                sessionId = sessionId,
+                                frameIndex = index,
+                                folder = if (useHdrBracket) "HDR-Bracketing" else "Focus-Bracketing",
+                                filePrefix = if (useHdrBracket) "FUJI_HDR_BRACKET" else "FUJI_FOCUS_BRACKET"
+                            )
+                        }.onFailure {
+                            android.util.Log.w("FUJI_BRACKET", "Bracket frame ${index + 1} failed; continuing", it)
+                        }.getOrNull()
+                        if (uri != null) { bracketSavedUris += uri; bracketCompletedFrames++ }
+                    }
+                } finally {
+                    if (useHdrBracket) {
+                        runCatching { activeCamera.cameraControl.setExposureCompensationIndex(originalEv) }
+                    }
+                    if (focusRestoreRequired) {
+                        runCatching { applyAutoFocus(activeCamera) }
+                        manualFocus = 0f
+                        milkyWayInfinityFocusEnabled = false
+                        macroAssistEnabled = false
+                    }
+                    countdown = 0
+                    bracketCaptureActive = false
+                }
+                var mergedBracketUri: Uri? = null
+                if (bracketSavedUris.size >= 2) {
+                    isProcessing = true
+                    processingProgress = 0
+                    processingLabel = if (useHdrBracket) "Đang ghép HDR Bracketing" else "Đang ghép Focus Stack"
+                    try {
+                        mergedBracketUri = withContext(Dispatchers.IO) {
+                            NightShotProcessor.mergeBracketUrisIntoNewImage(
+                                context = context,
+                                frameUris = bracketSavedUris,
+                                mode = if (useHdrBracket) NightShotProcessor.MergeMode.HDR_BRACKET
+                                    else NightShotProcessor.MergeMode.FOCUS_STACK,
+                                onProgress = { progress ->
+                                    mainExecutor.execute {
+                                        processingProgress = progress.coerceIn(0, 100)
+                                        processingLabel = if (useHdrBracket) {
+                                            "HDR Fusion · đang ghép vùng phơi sáng"
+                                        } else {
+                                            "Focus Stack · đang chọn vùng nét"
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    } finally {
+                        isProcessing = false
+                        processingProgress = 0
+                    }
+                }
+                if (mergedBracketUri != null) {
+                    lastUri = mergedBracketUri
+                    thumb = withContext(Dispatchers.IO) {
+                        runCatching {
+                            decodeUprightBitmap(context, mergedBracketUri!!, maxDimension = 320)?.asImageBitmap()
+                        }.getOrNull()
+                    }
+                }
+                val mergeMessage = when {
+                    bracketSavedUris.size < 2 -> "Không đủ khung hình để ghép; các ảnh chụp thành công vẫn được giữ."
+                    mergedBracketUri != null -> "Đã ghép ảnh tổng hợp và vẫn giữ ${bracketSavedUris.size} ảnh gốc."
+                    else -> "Ghép ảnh chưa thành công; toàn bộ ảnh gốc vẫn được giữ."
+                }
+                localizedToast(
+                    context,
+                    "${if (useHdrBracket) "HDR Bracketing" else "Focus Bracketing"}: đã lưu $bracketCompletedFrames/$bracketTargetFrames khung. $mergeMessage",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            return
+        }
+        if (burstCaptureActive) {
+            burstStopRequested = true
+            localizedToast(context, "Đang dừng Burst sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (burstMode && mode == "Photo" && nightShotMode == "off" &&
+            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+        ) {
+            if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
+                nightShotCaptureInProgress || starTrailCaptureInProgress
+            ) return
+            localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            scope.launch {
+                val activeCapture = imageCapture ?: return@launch
+                burstCaptureActive = true
+                burstStopRequested = false
+                burstCompletedFrames = 0
+                var lastSuccessfulUri: Uri? = null
+                val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+                try {
+                    if (timerSec > 0) {
+                        for (seconds in timerSec downTo 1) {
+                            countdown = seconds
+                            delay(1000)
+                        }
+                        countdown = 0
+                    }
+                    activeCapture.targetRotation = targetRotation
+                    previewUseCase?.targetRotation = targetRotation
+                    analysisUseCase?.targetRotation = targetRotation
+                    for (frameIndex in 0 until 25) {
+                        if (burstStopRequested) break
+                        val frameStartedAt = SystemClock.elapsedRealtime()
+                        val savedUri = runCatching {
+                            saveBurstFrame(
+                                context,
+                                activeCapture,
+                                mainExecutor,
+                                sessionId,
+                                frameIndex
+                            )
+                        }.onFailure {
+                            android.util.Log.w("FUJI_BURST", "Could not enqueue frame ${frameIndex + 1}", it)
+                        }.getOrNull()
+                        if (savedUri != null) {
+                            lastSuccessfulUri = savedUri
+                            burstCompletedFrames += 1
+                        }
+                        // Best effort: do not add delay when the camera itself takes longer than 200 ms.
+                        val elapsed = SystemClock.elapsedRealtime() - frameStartedAt
+                        val remaining = 200L - elapsed
+                        if (remaining > 0L && frameIndex < 24 && !burstStopRequested) delay(remaining)
+                    }
+                } finally {
+                    countdown = 0
+                    burstCaptureActive = false
+                    burstStopRequested = false
+                }
+                if (lastSuccessfulUri != null) {
+                    lastUri = lastSuccessfulUri
+                    thumb = withContext(Dispatchers.IO) {
+                        runCatching {
+                            decodeUprightBitmap(context, lastSuccessfulUri!!, maxDimension = 320)?.asImageBitmap()
+                        }.getOrNull()
+                    }
+                }
+                localizedToast(
+                    context,
+                    "Burst hoàn tất · đã lưu $burstCompletedFrames/25 ảnh JPEG gốc. Tốc độ phụ thuộc camera và bộ nhớ.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            return
+        }
         if (nightShotMode == "star_trails" && starTrailCaptureInProgress) {
             starTrailStopRequested = true
             localizedToast(context, "Đang dừng Star Trails sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
@@ -1531,6 +2229,20 @@ fun CameraScreen(
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
+            val captureUseMilkyWayStack = mode == "Photo" && !front &&
+                kotlin.math.abs(zoomSel - 1f) < 0.08f && milkyWayStackEnabled &&
+                nightShotMode == "off" && rawCaptureMode == "jpeg" &&
+                !captureRawPlus && !captureRawOnly && !uhdCaptureEnabled &&
+                !fhdCaptureEnabled && !uhdPlusCaptureEnabled && !burstMode &&
+                !hdrBracketMode && !focusBracketMode
+            if (milkyWayStackEnabled && !captureUseMilkyWayStack) {
+                localizedToast(
+                    context,
+                    "Milky Way Stack cần Photo/JPEG 1x; hãy tắt RAW, UHD, FHD, Burst và Bracketing.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
             val captureUseUhdPlusAlgorithm = uhdPlusCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
             val captureUseUhdAlgorithm = uhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
             val captureUseFhdAlgorithm = fhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
@@ -1546,7 +2258,8 @@ fun CameraScreen(
             val captureNightStartedAtNanos = SystemClock.elapsedRealtimeNanos()
             val captureNightDeadlineNanos = captureNightStartedAtNanos +
                 captureNightDurationSeconds * 1_000_000_000L
-            val captureUseFiveFrameStack = captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm
+            val captureUseFiveFrameStack = captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm ||
+                captureUseFhdAlgorithm || captureUseMilkyWayStack
             if (captureUseNightShot) {
                 localizedToast(
                     context,
@@ -1554,9 +2267,11 @@ fun CameraScreen(
                     Toast.LENGTH_LONG
                 ).show()
             }
+            // Haptic feedback is synchronous and does not wait for camera capture.
+            localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-                playConfiguredShutterSound(shutterSoundPlayer)
+                playConfiguredShutterSound(context, shutterSoundPlayer)
             }
             val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
             scope.launch {
@@ -1691,6 +2406,7 @@ fun CameraScreen(
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseNightShot -> "HDMP Night Shot · căn chỉnh và ghép nhiều khung"
+                                captureUseMilkyWayStack -> "Milky Way · căn chỉnh sao và ghép 8 khung"
                                 captureUseUhdAlgorithm -> "UHD · HDMP 8 tác vụ · ghép 5 khung + 108MP"
                                 captureUseFhdAlgorithm -> "FHD · HDMP 6 tác vụ · ghép 5 khung + 60MP"
                                 false -> "Đang áp dụng bộ lọc màu"
@@ -1710,7 +2426,11 @@ fun CameraScreen(
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
-                                            val maxFrames = if (captureUseNightShot) captureNightTargetFrames else 5
+                                            val maxFrames = when {
+                                                captureUseNightShot -> captureNightTargetFrames
+                                                captureUseMilkyWayStack -> 8
+                                                else -> 5
+                                            }
                                             if (captureUseNightShot) {
                                                 withContext(Dispatchers.Main) {
                                                     nightShotCapturedFrameCount = stackedFrames.size
@@ -1735,7 +2455,7 @@ fun CameraScreen(
                                                     (!captureUseNightShot ||
                                                         SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)
                                                 ) {
-                                                    if (captureUseNightShot &&
+                                                    if ((captureUseNightShot || captureUseMilkyWayStack) &&
                                                         context.cacheDir.usableSpace < 256L * 1024L * 1024L
                                                     ) {
                                                         stoppedForStorage = true
@@ -1757,11 +2477,15 @@ fun CameraScreen(
                                                         val expectedFrame = stackedFrames.size + pendingCaptures.size
                                                         processingLabel = if (captureUseNightShot) {
                                                             "Night Shot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
+                                                        } else if (captureUseMilkyWayStack) {
+                                                            "Milky Way: thu khung $expectedFrame/$maxFrames"
                                                         } else {
                                                             "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
                                                             (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
+                                                        } else if (captureUseMilkyWayStack) {
+                                                            (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else (8 + stackedFrames.size * 3).coerceAtMost(24)
                                                     }
                                                 }
@@ -1809,21 +2533,27 @@ fun CameraScreen(
                                             }
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
-                                                    processingLabel = if (captureUseNightShot) {
-                                                        "NightShot: căn chỉnh và gộp ${stackedFrames.size} khung"
-                                                    } else {
-                                                        "Multi-frame: căn chỉnh và gộp ${stackedFrames.size}/5 khung"
+                                                    processingLabel = when {
+                                                        captureUseNightShot -> "NightShot: căn chỉnh và gộp " + stackedFrames.size + " khung"
+                                                        captureUseMilkyWayStack -> "Milky Way: căn chỉnh khung bầu trời và giảm nhiễu " + stackedFrames.size + "/8 khung"
+                                                        else -> "Multi-frame: căn chỉnh và gộp " + stackedFrames.size + "/5 khung"
                                                     }
                                                     processingProgress = 27
                                                 }
                                                 nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
                                                     context, stackedFrames, saved,
-                                                    NightShotProcessor.MergeMode.NIGHT_AVERAGE
+                                                    if (captureUseMilkyWayStack) {
+                                                        NightShotProcessor.MergeMode.MILKY_WAY_STACK
+                                                    } else {
+                                                        NightShotProcessor.MergeMode.NIGHT_AVERAGE
+                                                    }
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
-                                                        processingLabel = if (captureUseNightShot) {
-                                                            "NightShot: căn khung và giảm nhiễu"
-                                                        } else "Multi-frame: ghép 5 khung"
+                                                        processingLabel = when {
+                                                            captureUseNightShot -> "NightShot: căn khung và giảm nhiễu"
+                                                            captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu"
+                                                            else -> "Multi-frame: ghép 5 khung"
+                                                        }
                                                         processingProgress = (27 + mergeProgress * 0.55f)
                                                             .toInt().coerceIn(27, 82)
                                                     }
@@ -1831,7 +2561,7 @@ fun CameraScreen(
                                             }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
-                                                "mode=${if (captureUseNightShot) "NightShot-${captureNightDurationSeconds}s" else if (captureUseUhdAlgorithm) "UHD" else "FHD"} actualFrames=${stackedFrames.size}"
+                                                "mode=" + (if (captureUseNightShot) "NightShot-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
                                             )
                                         }
                                     } finally {
@@ -1864,6 +2594,7 @@ fun CameraScreen(
                                             else -> availableCpuWorkers.coerceAtMost(4)
                                         }
                                     captureUseNightShot -> availableCpuWorkers.coerceAtMost(6)
+                                    captureUseMilkyWayStack -> availableCpuWorkers.coerceAtMost(4)
                                     else -> 0
                                 }
                                 val hdmpAiResult = if (hdmpWorkerCount > 0) {
@@ -1873,6 +2604,7 @@ fun CameraScreen(
                                         isHdmpAiPrimaryRunning = false
                                         showHdmpFastChoice = false
                                         aiRenderStartedAtElapsedMs = 0L
+                                         hdmpTileProgressText = ""
                                         processingEtaSeconds = -1
                                         processingLabel = if (hdmpRenderProfile == "speed") {
                                             "HDMP AI 2 Fast • đang chuẩn bị xử lý ảnh"
@@ -1893,6 +2625,16 @@ fun CameraScreen(
                                             shouldSwitchToFast = { switchToFastRequested.get() },
                                             continuePrimaryPastBudget = { continueHdmpAi2Requested.get() },
                                             shouldStopForThermal = { thermalStopRequested.get() },
+                                             onTileProgress = { model, completedTiles, totalTiles ->
+                                                 mainExecutor.execute {
+                                                     val modelName = when (model) {
+                                                         HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
+                                                         HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast"
+                                                         HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP"
+                                                     }
+                                                     hdmpTileProgressText = "$modelName · Tile $completedTiles/$totalTiles"
+                                                 }
+                                             },
                                             onProgress = { model, progress ->
                                                 mainExecutor.execute {
                                                     isHdmpAiPrimaryRunning =
@@ -2004,11 +2746,14 @@ fun CameraScreen(
                                 val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
-                                        if (actualIso > 0) actualIso.toString() else "AUTO"
+                                        if (actualIso > 0) actualIso.toString() else "AUTO",
+                                        preservePhotoAspectRatio = captureUseNightShot ||
+                                            captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm ||
+                                            captureUseFhdAlgorithm
                                     )
                                 }.getOrDefault(false)
 
-                                val outputResolutionApplied = if (
+                                val outputResolutionResult = if (
                                     !captureIsUltraHdr && (captureUseNightShot || captureAtOneX) &&
                                     !captureRawOnly && !captureRawPlus &&
                                     (captureUseNightShot || captureUseUhdPlusAlgorithm ||
@@ -2021,18 +2766,24 @@ fun CameraScreen(
                                         else -> 60_000_000L
                                     }
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "Đang nội suy thuật toán lên ${targetPixels / 1_000_000L}MP"
+                                        processingLabel = "HDMP đang tối ưu kích thước ${targetPixels / 1_000_000L}MP theo RAM và tỉ lệ ảnh"
                                         processingProgress = 84
                                         processingEtaSeconds = -1
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
-                                            PhotoOutputResolution.interpolateToMp(context, saved, targetPixels)
+                                            PhotoOutputResolution.interpolateToMp(
+                                                context,
+                                                saved,
+                                                targetPixels,
+                                                expectedAspectRatioForCapture
+                                            )
                                         }.onFailure {
                                             android.util.Log.e("FUJI_HDMP", "Algorithmic interpolation failed; keep source", it)
-                                        }.getOrDefault(false)
+                                        }.getOrNull()
                                     }
-                                } else false
+                                } else null
+                                val outputResolutionApplied = outputResolutionResult != null
 
                                 val metadataPublished = runCatching {
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
@@ -2042,6 +2793,22 @@ fun CameraScreen(
                                 // No later rotation is allowed to move the frame away from the
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
+                                val inspectorHdmpStatus = when {
+                                    hdmpWorkerCount <= 0 -> "HDMP AI không chạy trong chế độ chụp này"
+                                    !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
+                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
+                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast · NAFNet width32"
+                                    else -> "HDMP cơ bản · AI không khả dụng"
+                                }
+                                val inspectorOutputSize = outputResolutionResult?.let {
+                                    "${it.width}×${it.height} · ${(it.actualPixels + 500_000L) / 1_000_000L}MP"
+                                } ?: "Không nội suy độ phân giải"
+                                appPrefs.edit()
+                                    .putString("photo_hdmp_status:$saved", inspectorHdmpStatus)
+                                    .putString("photo_camera_id:$saved", activeCameraDetails?.id ?: "Không công bố")
+                                    .putString("photo_physical_camera_id:$saved", activePhysicalCameraId ?: "HAL không công bố")
+                                    .putString("photo_output_size:$saved", inspectorOutputSize)
+                                    .apply()
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 98
                                     processingEtaSeconds = 1
@@ -2061,11 +2828,32 @@ fun CameraScreen(
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
                                         captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh UHD+ kích thước 250MP · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                            "Đã xuất ảnh UHD+ ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
+                                                if (outputResolutionResult!!.reachedRequestedSize) {
+                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                                } else {
+                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
+                                                }
                                         captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh UHD kích thước 108MP · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                            "Đã xuất ảnh UHD ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
+                                                if (outputResolutionResult!!.reachedRequestedSize) {
+                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                                } else {
+                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
+                                                }
                                         captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh FHD kích thước tối đa 60MP · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                            "Đã xuất ảnh FHD ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
+                                                if (outputResolutionResult!!.reachedRequestedSize) {
+                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
+                                                } else {
+                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
+                                                }
+                                        captureUseUhdPlusAlgorithm && !outputResolutionApplied ->
+                                            "Ảnh đã lưu nhưng UHD+ không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
+                                        captureUseUhdAlgorithm && !outputResolutionApplied ->
+                                            "Ảnh đã lưu nhưng UHD không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
+                                        captureUseFhdAlgorithm && !outputResolutionApplied ->
+                                            "Ảnh đã lưu nhưng FHD không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
                                         captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
                                         captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
@@ -2139,6 +2927,7 @@ fun CameraScreen(
             (start >= 0.98f && safeTarget < 0.98f)
         zoomAnimationJob?.cancel()
         if (crossesLensBoundary) {
+            localView.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
             lensTransitionLabel = if (safeTarget < 0.98f) "SIÊU RỘNG" else "CAM THƯỜNG"
             lensTransitionVisible = true
             scope.launch {
@@ -2171,6 +2960,16 @@ fun CameraScreen(
     val manualSensorSupported = requestCapabilities?.contains(
         CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
     ) == true
+    LaunchedEffect(captureSetupReady, manualSensorSupported, front, milkyWayStackEnabled) {
+        if (captureSetupReady && milkyWayStackEnabled && (front || !manualSensorSupported)) {
+            milkyWayStackEnabled = false
+            localizedToast(
+                context,
+                "Đã tắt Milky Way Stack: camera đang chọn không có Manual Sensor phù hợp.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     val isoRange = if (manualSensorSupported) cameraInfo2?.getCameraCharacteristic(
         CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE
     ) else null
@@ -2178,6 +2977,31 @@ fun CameraScreen(
         CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
     ) else null
     val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+    val availableAfModes = cameraInfo2?.getCameraCharacteristic(
+        CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES
+    )
+    val macroZoomState = camera?.cameraInfo?.zoomState?.value
+    val macroSelectableMaxZoom = Camera2Info.maxSelectableZoom(
+        activeCameraDetails,
+        activePhysicalCameraDetails,
+        macroZoomState?.maxZoomRatio ?: 1f
+    )
+    val macroLensCandidate = Camera2Info.findMacroLensCandidate(
+        activeCameraDetails,
+        activePhysicalCameraDetails,
+        macroZoomState?.minZoomRatio ?: 1f,
+        macroSelectableMaxZoom
+    )
+    // Generic manual focus is not enough to advertise Macro. Require the same
+    // close-focus threshold used by the hardware scanner, or a disclosed physical
+    // lens candidate that the logical camera can actually select.
+    val macroCloseFocusDiopter = maxOf(maxFocus, macroLensCandidate?.closestFocusDiopter ?: 0f)
+    val macroManualFocusSupported = macroCloseFocusDiopter >= 8f &&
+        availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
+    val macroFocusSupported = macroLensCandidate != null || macroManualFocusSupported
+    val macroNearThreshold = (macroCloseFocusDiopter * 0.60f).coerceAtLeast(2.5f)
+    val macroObjectNear = focusDiopter >= macroNearThreshold
+    val macroPromptVisible = macroFocusSupported && (macroAssistEnabled || macroObjectNear)
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -2189,8 +3013,28 @@ fun CameraScreen(
         if (seconds >= 0.5) "%.1f\"".format(Locale.US, seconds)
         else "1/${(1.0 / seconds).roundToInt()}"
     } else "AUTO"
-    val afText = if (focusLocked) "LOCK" else if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
+    val afText = if (focusLocked) "LOCK" else if (milkyWayInfinityFocusEnabled) "∞" else if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
     val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO"
+
+    // Milky Way setup advice is derived from the active camera's public Camera2 metadata
+    // and the live preview's measured luminance. It is advisory; it cannot detect clouds,
+    // moonlight or light pollution without external sky/location data.
+    val skyEquivalentFocal = activeCameraDetails?.eq35Mm?.takeIf { it.isFinite() && it > 0f }
+    val sensorExposureMaximumSeconds = activeCameraDetails?.exposureRange
+        ?.substringAfter("..")
+        ?.toFloatOrNull()
+        ?.takeIf { it.isFinite() && it > 0f }
+    val recommendedStarShutterSeconds = skyEquivalentFocal?.let { equivalent ->
+        minOf(500f / equivalent, 15f, sensorExposureMaximumSeconds ?: 15f).coerceAtLeast(0.5f)
+    }
+    val advertisedIsoBounds = activeCameraDetails?.isoRange?.split("..")
+    val advertisedIsoMinimum = advertisedIsoBounds?.getOrNull(0)?.toIntOrNull() ?: 50
+    val advertisedIsoMaximum = advertisedIsoBounds?.getOrNull(1)?.toIntOrNull()
+    val recommendedStarIso = advertisedIsoMaximum?.let { upper ->
+        1600.coerceIn(advertisedIsoMinimum.coerceAtMost(upper), minOf(upper, 3200).coerceAtLeast(advertisedIsoMinimum.coerceAtMost(upper)))
+    }
+    val showMilkyWayAdvisor = lowLightDetected && mode == "Photo" && nightShotMode == "off" &&
+        !nightShotCaptureInProgress && !starTrailCaptureInProgress
 
 
     // Animate the preview's ratio when the device changes orientation.
@@ -2227,11 +3071,107 @@ fun CameraScreen(
                             onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 } },
                             tint = if (timerSec > 0) CamColors.Yellow else Color.White
                         )
+                        if (mode == "Photo" && nightShotMode == "off" &&
+                            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+                        ) {
+                            CircleBtn(
+                                Icons.Default.BurstMode, "Burst ×25",
+                                onClick = { burstMode = !burstMode },
+                                tint = if (burstMode) CamColors.Yellow else Color.White
+                            )
+                        }
                         CircleBtn(
                             Icons.Default.Tune, "Metering",
                             onClick = { metering = (metering + 1) % meteringModes.size },
                             tint = if (metering > 0) CamColors.Yellow else Color.White
                         )
+                        if (macroPromptVisible) {
+                            CircleBtn(
+                                Icons.Default.LocalFlorist,
+                                if (macroAssistEnabled) "Tắt Macro · quay lại 1×" else "Macro Assist · chủ thể ở gần",
+                                onClick = {
+                                    scope.launch {
+                                        val active = camera ?: return@launch
+                                        val zoomState = active.cameraInfo.zoomState.value
+                                        val oneX = zoomState?.let {
+                                            1f.coerceIn(it.minZoomRatio, it.maxZoomRatio)
+                                        } ?: 1f
+                                        if (macroAssistEnabled) {
+                                            runCatching { applyAutoFocus(active) }
+                                            manualFocus = 0f
+                                            milkyWayInfinityFocusEnabled = false
+                                            macroAssistEnabled = false
+                                            runCatching { active.cameraControl.setZoomRatio(oneX) }
+                                            zoomSel = oneX
+                                            appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
+                                            localizedToast(context, "Đã tắt Macro · AF tự động · 1×", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            val candidate = macroLensCandidate
+                                            var physicalLensConfirmed = false
+                                            if (candidate != null) {
+                                                activePhysicalCameraId = null
+                                                val requestedSwitch = runCatching {
+                                                    active.cameraControl.setZoomRatio(candidate.zoomRatio)
+                                                }.isSuccess
+                                                if (requestedSwitch) {
+                                                    zoomSel = candidate.zoomRatio
+                                                    appPrefs.edit()
+                                                        .putFloat("camera_zoom_ratio", candidate.zoomRatio)
+                                                        .apply()
+                                                    for (attempt in 0 until 12) {
+                                                        delay(100)
+                                                        if (activePhysicalCameraId == candidate.physicalCameraId) {
+                                                            physicalLensConfirmed = true
+                                                            break
+                                                        }
+                                                    }
+                                                }
+                                                if (!physicalLensConfirmed) {
+                                                    runCatching { active.cameraControl.setZoomRatio(oneX) }
+                                                    zoomSel = oneX
+                                                    appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
+                                                    localizedToast(
+                                                        context,
+                                                        "Camera HAL không xác nhận đã chuyển sang ống kính lấy nét gần; đã giữ camera chính ở 1×.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                    return@launch
+                                                }
+                                            }
+                                            val closeFocusDiopter = candidate?.closestFocusDiopter
+                                                ?: maxFocus.coerceAtLeast(0.1f)
+                                            val applied = runCatching {
+                                                if (macroManualFocusSupported && closeFocusDiopter > 0f) {
+                                                    applyManualFocus(active, closeFocusDiopter)
+                                                } else {
+                                                    applyAutoFocus(active)
+                                                }
+                                            }.isSuccess
+                                            if (applied) {
+                                                manualFocus = if (macroManualFocusSupported) closeFocusDiopter else 0f
+                                                milkyWayInfinityFocusEnabled = false
+                                                macroAssistEnabled = true
+                                                focusLocked = false
+                                                val message = if (candidate != null) {
+                                                    "Macro · đã xác nhận ống kính vật lý lấy nét gần từ Camera2."
+                                                } else {
+                                                    "Macro Assist · đã đặt ống kính hiện tại về khoảng lấy nét gần nhất."
+                                                }
+                                                localizedToast(context, message, Toast.LENGTH_LONG).show()
+                                            } else {
+                                                if (candidate != null) {
+                                                    runCatching { active.cameraControl.setZoomRatio(oneX) }
+                                                    zoomSel = oneX
+                                                    appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
+                                                }
+                                                localizedToast(context, "Không thể bật lấy nét gần trên camera này.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
+                                tint = if (macroAssistEnabled) CamColors.Yellow else Color.White
+                            )
+                        }
                         CircleBtn(
                             Icons.Default.BarChart, "Histogram",
                             onClick = { onShowHist(!showHist) },
@@ -2284,20 +3224,25 @@ fun CameraScreen(
                                         onTap = { offset ->
                                             val active = camera ?: return@detectTapGestures
                                             focusLocked = false
-                                            if (manualFocus > 0f) {
+                                            if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 manualFocus = 0f
+                                                milkyWayInfinityFocusEnabled = false
+                                                macroAssistEnabled = false
                                                 runCatching { applyAutoFocus(active) }
                                             }
                                             val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
                                             val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, area)
                                             val action = FocusMeteringAction.Builder(
                                                 point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
-                                            ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+                                            )
+                                                 // Keep the tapped AF/AE region active until the next touch.
+                                                 .disableAutoCancel()
+                                                 .build()
                                             active.cameraControl.startFocusAndMetering(action)
                                         },
                                         onLongPress = { offset ->
                                             val active = camera ?: return@detectTapGestures
-                                            if (manualFocus > 0f) {
+                                            if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 localizedToast(context, "Chuyển AF sang Auto trước khi khóa nét.", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, 0.22f)
@@ -2306,6 +3251,7 @@ fun CameraScreen(
                                                     .disableAutoCancel()
                                                     .build()
                                                 active.cameraControl.startFocusAndMetering(action)
+                                                macroAssistEnabled = false
                                                 focusLocked = true
                                                 localizedToast(context, "Đã khóa nét · chạm lại để lấy nét mới.", Toast.LENGTH_SHORT).show()
                                             }
@@ -2366,6 +3312,30 @@ fun CameraScreen(
                                     }
                                 }
                             }
+                            if (faceTrackingEnabled && faceTrackCenter != null) {
+                                val center = faceTrackCenter!!
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val point = Offset(center.x * size.width, center.y * size.height)
+                                    drawCircle(
+                                        color = Color(0xFF58D6FF),
+                                        radius = 14.dp.toPx(),
+                                        center = point,
+                                        style = Stroke(width = 2.dp.toPx())
+                                    )
+                                    drawLine(
+                                        color = Color(0xFF58D6FF),
+                                        start = Offset(point.x - 20.dp.toPx(), point.y),
+                                        end = Offset(point.x + 20.dp.toPx(), point.y),
+                                        strokeWidth = 1.dp.toPx()
+                                    )
+                                    drawLine(
+                                        color = Color(0xFF58D6FF),
+                                        start = Offset(point.x, point.y - 20.dp.toPx()),
+                                        end = Offset(point.x, point.y + 20.dp.toPx()),
+                                        strokeWidth = 1.dp.toPx()
+                                    )
+                                }
+                            }
                             if (focusPeaking && peakPoints.isNotEmpty()) {
                                 Canvas(Modifier.fillMaxSize()) {
                                     peakPoints.forEach { p ->
@@ -2374,10 +3344,209 @@ fun CameraScreen(
                                     }
                                 }
                             }
+                            if (levelEnabled) {
+                                val levelColor = if (kotlin.math.abs(horizonRollDegrees) < 1.2f) {
+                                    Color(0xFF00E676)
+                                } else {
+                                    Color(0xFFFFC857)
+                                }
+                                Box(
+                                    Modifier.align(Alignment.Center).width(104.dp).height(2.dp)
+                                        .graphicsLayer { rotationZ = -horizonRollDegrees }
+                                        .background(levelColor)
+                                )
+                                Text(
+                                    String.format(Locale.US, "%+.1f°", horizonRollDegrees),
+                                    color = levelColor,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.align(Alignment.Center).padding(top = 13.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0x88000000))
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                            if (zebraEnabled && zebraPoints.isNotEmpty()) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val stroke = 1.5.dp.toPx()
+                                    val span = 3.dp.toPx()
+                                    zebraPoints.forEach { p ->
+                                        val center = Offset(p.x * size.width, p.y * size.height)
+                                        drawLine(
+                                            color = Color(0xFFFFD54F).copy(alpha = 0.88f),
+                                            start = Offset(center.x - span, center.y + span),
+                                            end = Offset(center.x + span, center.y - span),
+                                            strokeWidth = stroke
+                                        )
+                                    }
+                                }
+                            }
+                            if (bracketCaptureActive) {
+                                Text(
+                                    "BRACKETING $bracketCompletedFrames",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                                        .clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000))
+                                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                                )
+                            }
+                            if (burstCaptureActive) {
+                                Text(
+                                    "BURST $burstCompletedFrames/25",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                                        .clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000))
+                                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                                )
+                            }
                             if (focusLocked) {
                                 Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                                         .clip(RoundedCornerShape(8.dp)).background(CamColors.Yellow).padding(horizontal = 9.dp, vertical = 5.dp))
+                            }
+                            if (showMilkyWayAdvisor) {
+                                Column(
+                                    Modifier.align(Alignment.TopCenter).padding(top = 35.dp, start = 8.dp, end = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xD91A1D24))
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        "MILKY WAY INTELLIGENCE · CẢNH TỐI",
+                                        color = CamColors.Yellow,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "ISO ${recommendedStarIso?.toString() ?: "Auto"} · " +
+                                            (recommendedStarShutterSeconds?.let {
+                                                if (it >= 1f) String.format(Locale.US, "%.1fs", it)
+                                                else "1/${(1f / it).roundToInt()}s"
+                                            } ?: "Shutter Auto") +
+                                            " · WB gợi ý 3,800K",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(top = 3.dp)
+                                    )
+                                    Text(
+                                        if (manualSensorSupported) {
+                                            "Tripod · nét vô cực · Astro Stack ×8 nếu Manual Sensor hỗ trợ"
+                                        } else {
+                                            "HAL không công bố Manual Sensor · chụp Auto riêng lẻ, Astro Stack không khả dụng"
+                                        },
+                                        color = CamColors.Sub,
+                                        fontSize = 9.sp,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                    Text(
+                                        "Gợi ý từ độ sáng preview và thông số ống kính; không đo được mây / trăng / ô nhiễm sáng.",
+                                        color = CamColors.Sub,
+                                        fontSize = 8.sp,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                    if (manualSensorSupported && recommendedStarIso != null &&
+                                        recommendedStarShutterSeconds != null && shutterRange != null
+                                    ) {
+                                        Text(
+                                            if (milkyWayStackEnabled) "TẮT MILKY WAY STACK ×8"
+                                            else "ÁP DỤNG GỢI Ý + BẬT ASTRO STACK ×8",
+                                            color = CamColors.Yellow,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = 7.dp).clickable {
+                                                val active = camera
+                                                if (milkyWayStackEnabled) {
+                                                    milkyWayStackEnabled = false
+                                                    manualIsoEnabled = false
+                                                    manualShutterEnabled = false
+                                                    manualExposure = false
+                                                    manualColorTempEnabled = false
+                                                    active?.let {
+                                                        runCatching {
+                                                            Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions()
+                                                            applyAutoWhiteBalance(it)
+                                                        }
+                                                    }
+                                                    manualCaptureRevision++
+                                                    localizedToast(context, "Đã tắt Milky Way Stack và trả phơi sáng về Auto.", Toast.LENGTH_SHORT).show()
+                                                } else if (active == null) {
+                                                    localizedToast(context, "Camera chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    val isoBounds = isoRange
+                                                    val isoValue = if (isoBounds != null) {
+                                                        recommendedStarIso.coerceIn(isoBounds.lower, isoBounds.upper)
+                                                    } else recommendedStarIso
+                                                    val exposureNs = (recommendedStarShutterSeconds * 1_000_000_000f)
+                                                        .toLong().coerceIn(shutterRange.lower, shutterRange.upper)
+                                                    val applied = runCatching {
+                                                        applyManualExposure(active, isoValue, exposureNs)
+                                                        applyManualWhiteBalance(active, 3800)
+                                                    }.isSuccess
+                                                    if (applied) {
+                                                        manualIso = isoValue
+                                                        manualShutterNs = exposureNs
+                                                        manualIsoEnabled = true
+                                                        manualShutterEnabled = true
+                                                        manualExposure = true
+                                                        manualColorTemp = 3800
+                                                        manualColorTempEnabled = true
+                                                        milkyWayStackEnabled = true
+                                                        manualCaptureRevision++
+                                                        localizedToast(
+                                                            context,
+                                                            "Đã áp dụng ISO $isoValue · ${(exposureNs / 1_000_000_000.0).let { String.format(Locale.US, "%.1fs", it) }} · WB 3800K. Chụp 8 ảnh để căn chỉnh và giảm nhiễu.",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    } else {
+                                                        localizedToast(context, "Không thể áp dụng Manual Sensor/WB trên camera này.", Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        Text(
+                                            "Astro Stack ×8 cần Manual Sensor, ISO và thời gian phơi sáng do Camera2 công bố.",
+                                            color = CamColors.Sub,
+                                            fontSize = 8.sp,
+                                            modifier = Modifier.padding(top = 6.dp)
+                                        )
+                                    }
+                                    if (macroManualFocusSupported) {
+                                        Text(
+                                            if (milkyWayInfinityFocusEnabled) "ĐANG KHÓA NÉT VÔ CỰC · CHẠM ĐỂ TRỞ VỀ AF"
+                                            else "ĐẶT LẤY NÉT VÔ CỰC",
+                                            color = CamColors.Yellow,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = 7.dp)
+                                                .clickable {
+                                                    val active = camera
+                                                    if (active != null) {
+                                                        if (milkyWayInfinityFocusEnabled) {
+                                                            milkyWayInfinityFocusEnabled = false
+                                                            runCatching { applyAutoFocus(active) }
+                                                            localizedToast(context, "Đã trở về AF tự động.", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            val applied = runCatching { applyManualFocus(active, 0f) }.isSuccess
+                                                            if (applied) {
+                                                                manualFocus = 0f
+                                                                milkyWayInfinityFocusEnabled = true
+                                                                macroAssistEnabled = false
+                                                                focusLocked = false
+                                                                localizedToast(context, "Đã đặt nét vô cực theo Camera2.", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                localizedToast(context, "Camera không chấp nhận lấy nét vô cực.", Toast.LENGTH_LONG).show()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                        )
+                                    }
+                                }
                             }
                             Text(
                                 if (focusLocked) "AF LOCK" else "TAP AF · HOLD LOCK",
@@ -2437,6 +3606,13 @@ fun CameraScreen(
                             )
                             if (showHist) {
                                 Histogram(hist, Modifier.align(Alignment.TopStart).padding(8.dp).size(106.dp, 52.dp))
+                            }
+                            if (rgbHistogramEnabled) {
+                                val rgbTop = if (showHist) 68.dp else 8.dp
+                                RgbHistogram(
+                                    rgbRedHistogram, rgbGreenHistogram, rgbBlueHistogram,
+                                    Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = rgbTop).size(106.dp, 52.dp)
+                                )
                             }
                             if (!hasCam) {
                                 Text(
@@ -2601,6 +3777,7 @@ fun CameraScreen(
                                                         value = (manualFocus / maxFocus).coerceIn(0f, 1f),
                                                         onValueChange = { f ->
                                                             manualFocus = f * maxFocus
+                                                            milkyWayInfinityFocusEnabled = false
                                                             focusLocked = false
                                                             camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
                                                         },
@@ -2610,6 +3787,7 @@ fun CameraScreen(
                                                 Text("AUTO", color = CamColors.Yellow, fontSize = 10.sp,
                                                     modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualFocus = 0f
+                                                        milkyWayInfinityFocusEnabled = false
                                                         focusLocked = false
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     })
@@ -2647,14 +3825,16 @@ fun CameraScreen(
                         }
             
                         if (mode == "Pro") {
-                            val proItems = listOf(
-                                Triple("EV", evText, "EV"),
-                                Triple("Tv", shutterText, "Tv"),
-                                Triple("ISO", isoText, "ISO"),
-                                Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else "AF", "AF"),
-                                Triple("Tone", toneText, "WB"),
-                                Triple("AUTO", "AUTO", "RESET")
-                            )
+                            val proItems = buildList {
+                                if (proHudShowEv) add(Triple("EV", evText, "EV"))
+                                if (proHudShowShutter) add(Triple("Tv", shutterText, "Tv"))
+                                if (proHudShowIso) add(Triple("ISO", isoText, "ISO"))
+                                if (proHudShowFocus) {
+                                    add(Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else "AF", "AF"))
+                                }
+                                if (proHudShowWhiteBalance) add(Triple("Tone", toneText, "WB"))
+                                add(Triple("AUTO", "AUTO", "RESET"))
+                            }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 proItems.forEach { (key, value, label) ->
                                     val active = proSel == key
@@ -2668,6 +3848,7 @@ fun CameraScreen(
                                                     manualShutterEnabled = false
                                                     manualColorTempEnabled = false
                                                     manualFocus = 0f
+                                                    milkyWayInfinityFocusEnabled = false
                                                     focusLocked = false
                                                     evIndex = 0
                                                     manualCaptureRevision++
@@ -2690,6 +3871,7 @@ fun CameraScreen(
                                                     }
                                                     if (key == "AF" && manualFocus > 0f) {
                                                         manualFocus = 0f
+                                                        milkyWayInfinityFocusEnabled = false
                                                         focusLocked = false
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     }
@@ -2779,12 +3961,16 @@ fun CameraScreen(
                             }
                             Box(Modifier.size(72.dp).border(4.dp, Color.White, CircleShape)
                                 .padding(7.dp).clip(CircleShape)
-                                .background(if (starTrailCaptureInProgress) Color(0xFFE53935) else CamColors.Shutter)
+                                .background(if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) Color(0xFFE53935) else CamColors.Shutter)
                                 .animaTClickable { takePhoto() },
                                 contentAlignment = Alignment.Center) {
-                                if (starTrailCaptureInProgress) {
-                                    Icon(Icons.Default.Close, "Dừng Star Trails",
-                                        tint = Color.White, modifier = Modifier.size(28.dp))
+                                if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        if (bracketCaptureActive) "Bracketing" else if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
                                 } else if (shutterButtonBitmap != null) {
                                     Image(shutterButtonBitmap!!, "Custom shutter button",
                                         Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
@@ -2809,6 +3995,7 @@ fun CameraScreen(
                                             manualShutterEnabled = false
                                             manualColorTempEnabled = false
                                             manualFocus = 0f
+                                            milkyWayInfinityFocusEnabled = false
                                             focusLocked = false
                                             manualCaptureRevision++
                                             camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
@@ -2852,7 +4039,22 @@ fun CameraScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(CamColors.Bg).navigationBarsPadding().animaTContent()) {
+    Box(
+        Modifier.fillMaxSize().background(CamColors.Bg).navigationBarsPadding().animaTContent()
+            .pointerInput(hudAutoHideEnabled) {
+                if (hudAutoHideEnabled) {
+                    awaitPointerEventScope {
+                        var wasPressed = false
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val pressed = event.changes.any { it.pressed }
+                            if (pressed && !wasPressed) hudActivityToken++
+                            wasPressed = pressed
+                        }
+                    }
+                }
+            }
+    ) {
         // A subtle scale/fade pulse makes the reflow feel deliberate without rotating text.
         val orientationMotion = Modifier.graphicsLayer {
             val pulse = kotlin.math.sin(orientationProgress * Math.PI).toFloat()
@@ -2866,24 +4068,48 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    toolbarContent(Modifier.fillMaxWidth())
+                    AnimatedVisibility(
+                        visible = hudVisible,
+                        enter = fadeIn(tween(180)) + slideInHorizontally { -it / 24 },
+                        exit = fadeOut(tween(170)) + slideOutHorizontally { -it / 28 }
+                    ) {
+                        toolbarContent(Modifier.fillMaxWidth())
+                    }
                     Spacer(Modifier.height(5.dp))
                     previewContent(Modifier.weight(1f).fillMaxWidth())
                 }
-                controlsContent(
-                    Modifier.width(248.dp).fillMaxHeight()
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 8.dp)
-                )
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    enter = fadeIn(tween(180)) + slideInHorizontally { it / 24 },
+                    exit = fadeOut(tween(170)) + slideOutHorizontally { it / 28 }
+                ) {
+                    controlsContent(
+                        Modifier.width(248.dp).fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 8.dp)
+                    )
+                }
             }
         } else {
             Column(
                 Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 7.dp).then(orientationMotion)
             ) {
-                toolbarContent(Modifier.fillMaxWidth())
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    enter = fadeIn(tween(180)) + slideInVertically { -it / 12 },
+                    exit = fadeOut(tween(170)) + slideOutVertically { -it / 16 }
+                ) {
+                    toolbarContent(Modifier.fillMaxWidth())
+                }
                 Spacer(Modifier.height(7.dp))
                 previewContent(Modifier.weight(1f).fillMaxWidth())
-                controlsContent(Modifier.fillMaxWidth())
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
+                    exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
+                ) {
+                    controlsContent(Modifier.fillMaxWidth())
+                }
             }
         }
         if (showQuick) {
@@ -3064,6 +4290,14 @@ stabilization = stabilization,
                     fontSize = 10.sp,
                     modifier = Modifier.padding(top = 3.dp)
                 )
+                 if (hdmpTileProgressText.isNotBlank()) {
+                     Text(
+                         hdmpTileProgressText,
+                         color = CamColors.Yellow,
+                         fontSize = 10.sp,
+                         modifier = Modifier.padding(top = 3.dp)
+                     )
+                 }
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
@@ -3193,7 +4427,7 @@ stabilization = stabilization,
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "Không, tiếp tục",
+                                "Bỏ qua, tiếp tục",
                                 color = Color.White,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -3279,25 +4513,57 @@ stabilization = stabilization,
 
         if (photoViewerVisible) {
             Dialog(
-                onDismissRequest = { photoViewerVisible = false; viewerBitmap = null },
+                onDismissRequest = { photoViewerVisible = false; viewerBitmap = null; viewerOriginalBitmap = null; viewerShowsOriginal = false },
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 Box(Modifier.fillMaxSize().background(Color.Black)) {
-                    val image = viewerBitmap ?: thumb
+                    val image = if (viewerShowsOriginal) viewerOriginalBitmap else (viewerBitmap ?: thumb)
                     if (image != null) {
                         Image(
                             bitmap = image,
-                            contentDescription = "Ảnh vừa chụp",
+                            contentDescription = if (viewerShowsOriginal) "Ảnh gốc trước HDMP AI" else "Ảnh sau xử lý",
                             modifier = Modifier.fillMaxSize().padding(12.dp),
                             contentScale = ContentScale.Fit
                         )
                     } else {
                         Text("Đang tải ảnh...", color = Color.White, modifier = Modifier.align(Alignment.Center))
                     }
+                    if (viewerOriginalBitmap != null) {
+                        Column(
+                            Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                if (viewerShowsOriginal) "ẢNH GỐC · TRƯỚC HDMP AI" else "ẢNH ĐÃ XỬ LÝ · HDMP AI",
+                                color = CamColors.Yellow,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Row(
+                                Modifier.clip(RoundedCornerShape(24.dp)).background(Color(0xDD252525))
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                listOf(false to "Sau HDMP", true to "Ảnh gốc").forEach { (showOriginal, label) ->
+                                    Text(
+                                        label,
+                                        color = if (viewerShowsOriginal == showOriginal) Color.Black else Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.clip(RoundedCornerShape(18.dp))
+                                            .background(if (viewerShowsOriginal == showOriginal) CamColors.Yellow else Color.Transparent)
+                                            .clickable { viewerShowsOriginal = showOriginal }
+                                            .padding(horizontal = 14.dp, vertical = 9.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
                         CircleBtn(
                             Icons.Default.Close, "Đóng ảnh",
-                            onClick = { photoViewerVisible = false; viewerBitmap = null },
+                            onClick = { photoViewerVisible = false; viewerBitmap = null; viewerOriginalBitmap = null; viewerShowsOriginal = false },
                             size = 44.dp
                         )
                     }
@@ -3758,5 +5024,36 @@ private fun Histogram(bins: IntArray, modifier: Modifier = Modifier) {
             drawRect(Color(0xCCFFFFFF), Offset(index * barWidth, size.height - height),
                 DrawSize(barWidth, height))
         }
+    }
+}
+
+@Composable
+private fun RgbHistogram(
+    red: IntArray,
+    green: IntArray,
+    blue: IntArray,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier.background(Color(0x77000000), RoundedCornerShape(6.dp))) {
+        val maxValue = maxOf(
+            red.maxOrNull() ?: 0,
+            green.maxOrNull() ?: 0,
+            blue.maxOrNull() ?: 0,
+            1
+        ).toFloat()
+        val stroke = 1.25.dp.toPx()
+        fun drawSeries(values: IntArray, color: Color) {
+            if (values.size < 2) return
+            for (index in 0 until values.lastIndex) {
+                val x1 = size.width * index / (values.size - 1f)
+                val x2 = size.width * (index + 1) / (values.size - 1f)
+                val y1 = size.height * (1f - values[index] / maxValue)
+                val y2 = size.height * (1f - values[index + 1] / maxValue)
+                drawLine(color, Offset(x1, y1), Offset(x2, y2), strokeWidth = stroke)
+            }
+        }
+        drawSeries(red, Color(0xFFFF5252))
+        drawSeries(green, Color(0xFF69F0AE))
+        drawSeries(blue, Color(0xFF448AFF))
     }
 }

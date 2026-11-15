@@ -424,7 +424,7 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "RAW và RAW+ chỉ lưu một tệp DNG. RAW+ ưu tiên RAW gốc gần 50MP nếu cảm biến/HAL công bố kích thước đó; không tạo JPEG kèm theo và không nội suy RAW. Nếu máy không hỗ trợ 50MP RAW, ứng dụng dùng độ phân giải RAW gốc khả dụng.",
+                    "RAW lưu tệp DNG gốc. RAW+ chụp đồng thời một tệp DNG và một tệp JPEG riêng; kích thước RAW theo định dạng cảm biến/HAL công bố, không nội suy RAW. RAW/RAW+ không kết hợp với Night Shot, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Nếu thiết bị không hỗ trợ RAW hoặc RAW+ đồng thời, ứng dụng báo rõ.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
@@ -550,6 +550,12 @@ private fun CameraHardwareScannerPanel() {
                             camera.equivalent35mm?.let {
                                 String.format(java.util.Locale.US, "%.1f mm", it)
                             } ?: "Không công bố"
+                        )
+                        InfoLine(
+                            "Lấy nét gần nhất",
+                            camera.minimumFocusDistanceDiopter?.takeIf { it > 0f }?.let {
+                                String.format(java.util.Locale.US, "%.1f D · ~%.1f cm", it, 100f / it)
+                            } ?: "Không công bố / không manual focus"
                         )
                         InfoLine("Sensor pixel array", camera.sensorPixels)
                         InfoLine("Kích thước cảm biến", camera.sensorSizeMm)

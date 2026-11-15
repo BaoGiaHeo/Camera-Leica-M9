@@ -38,6 +38,12 @@ data class CamDetails(
     val sensorOrientation: Int?
 )
 
+data class MacroLensCandidate(
+    val physicalCameraId: String,
+    val zoomRatio: Float,
+    val closestFocusDiopter: Float
+)
+
 data class LiveReading(
     val iso: Int?,
     val shutterNs: Long?,
@@ -223,6 +229,35 @@ object Camera2Info {
             .distinctBy { (it * 100f).roundToInt() }
             .sorted()
             .ifEmpty { listOf(1f.coerceIn(min, max)) }
+    }
+
+    /**
+     * Finds an exposed rear physical lens that can focus materially closer than the
+     * primary rear lens. Its focal-length ratio is used only when CameraX's current
+     * logical-camera zoom range can actually select that physical module.
+     *
+     * This is a capability heuristic, not a claim that OEM metadata names the lens
+     * "macro". The active physical ID must still confirm the switch at runtime.
+     */
+    fun findMacroLensCandidate(
+        logical: CamDetails?,
+        physical: List<CamDetails>,
+        minZoom: Float,
+        maxZoom: Float
+    ): MacroLensCandidate? {
+        return MacroLensSelection.find(
+            logicalMainFocusDiopter = logical?.minFocusDiopter,
+            lenses = physical.map { lens ->
+                MacroLensSpec(
+                    id = lens.id,
+                    facing = lens.facing,
+                    equivalent35Mm = lens.eq35Mm,
+                    minimumFocusDiopter = lens.minFocusDiopter
+                )
+            },
+            minZoom = minZoom,
+            maxZoom = maxZoom
+        )
     }
 
     private fun details(

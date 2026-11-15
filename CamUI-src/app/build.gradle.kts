@@ -12,8 +12,8 @@ android {
         applicationId = "com.fujifilm.mode"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4.1"
+        versionCode = 6
+        versionName = "1.5"
 
     }
 
@@ -49,6 +49,7 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     val camerax = "1.6.2"
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")

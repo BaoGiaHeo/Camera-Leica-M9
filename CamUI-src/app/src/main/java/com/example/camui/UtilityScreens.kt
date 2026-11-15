@@ -2083,20 +2083,24 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         }
 
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
-        val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
-        } ?: false
-        if (!written) return@runCatching false
+        try {
+            if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
+            val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
+            } ?: false
+            if (!written) return@runCatching false
 
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-            ExifInterface(descriptor.fileDescriptor).apply {
-                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                saveAttributes()
+            context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
+                ExifInterface(descriptor.fileDescriptor).apply {
+                    setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                    saveAttributes()
+                }
             }
+            setMediaStoreOrientationUpright(context, uri)
+            true
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
         }
-        setMediaStoreOrientationUpright(context, uri)
-        true
     }.onFailure {
         android.util.Log.e("FUJI_FILTER", "Could not apply selected filter", it)
     }.getOrDefault(false)
@@ -2123,6 +2127,9 @@ fun applyCameraWatermark(
 
     return runCatching {
         val sourceBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
+        var outputBitmap: Bitmap? = null
+        var watermarkCropBitmap: Bitmap? = null
+        try {
         val selectedTemplate = prefs.getString("watermark_template", "standard1") ?: "standard1"
         val template = if (selectedTemplate == "fuji_auto") {
             if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
@@ -2153,6 +2160,7 @@ fun applyCameraWatermark(
             expandedPixelCount <= 100_000_000L && extraBytes <= (freeHeapBytes * 0.42f).toLong()
         val output = if (expandedFujiFooter) {
             Bitmap.createBitmap(expandedWidth, expandedHeight, Bitmap.Config.ARGB_8888).also { expanded ->
+                outputBitmap = expanded
                 val expandedCanvas = Canvas(expanded)
                 expandedCanvas.drawColor(AndroidColor.WHITE)
                 val photoRect = RectF(
@@ -2174,10 +2182,12 @@ fun applyCameraWatermark(
                 sourceBitmap.recycle()
             }
         } else if (sourceBitmap.isMutable) {
-            sourceBitmap
+            sourceBitmap.also { outputBitmap = it }
         } else {
-            sourceBitmap.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching false
+            sourceBitmap.copy(Bitmap.Config.ARGB_8888, true)?.also { outputBitmap = it }
+                ?: return@runCatching false
         }
+        outputBitmap = output
         val canvas = Canvas(output)
         val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
         val showTime = prefs.getBoolean("watermark_show_time", true)
@@ -2276,6 +2286,7 @@ fun applyCameraWatermark(
             val cropWidth = (right - left).coerceAtLeast(1)
             val cropHeight = (bottom - top).coerceAtLeast(1)
             val crop = Bitmap.createBitmap(cropWidth, cropHeight, Bitmap.Config.ARGB_8888)
+            watermarkCropBitmap = crop
             Canvas(crop).drawBitmap(output, -left.toFloat(), -top.toFloat(), null)
 
             val blurRadius = (minSide * glassBlur / 1200f).toInt().coerceIn(0, 30)
@@ -2387,7 +2398,8 @@ fun applyCameraWatermark(
             canvas.drawRoundRect(innerRect, (safeRadius - inset).coerceAtLeast(2f),
                 (safeRadius - inset).coerceAtLeast(2f), innerHighlight)
             canvas.restore()
-            crop.recycle()
+            if (!crop.isRecycled) crop.recycle()
+            watermarkCropBitmap = null
         }
 
         fun drawFrame(rect: RectF, radius: Float) {
@@ -2719,6 +2731,11 @@ fun applyCameraWatermark(
         }
         setMediaStoreOrientationUpright(context, uri)
         true
+        } finally {
+            watermarkCropBitmap?.let { if (!it.isRecycled) it.recycle() }
+            outputBitmap?.let { if (it !== sourceBitmap && !it.isRecycled) it.recycle() }
+            if (!sourceBitmap.isRecycled) sourceBitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_WATERMARK", "applyCameraWatermark failed", it)
     }.getOrDefault(false)
@@ -3409,9 +3426,15 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
 
     return runCatching {
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
-            ?: return@runCatching false
-        val canvas = Canvas(output)
+        var outputBitmap: Bitmap? = null
+        try {
+            val output = if (bitmap.isMutable) {
+                bitmap.also { outputBitmap = it }
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, true)?.also { outputBitmap = it }
+                    ?: return@runCatching false
+            }
+            val canvas = Canvas(output)
         val frameStyle = prefs.getString("frame_style", "White") ?: "White"
         val transparent = frameStyle == "Transparent"
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
@@ -3469,14 +3492,17 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
             val imported = context.contentResolver.openInputStream(frameUri)?.use {
                 BitmapFactory.decodeStream(it)
             } ?: return@runCatching false
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            if (!transparent) {
-                paint.colorFilter = android.graphics.PorterDuffColorFilter(
-                    frameColor, android.graphics.PorterDuff.Mode.SRC_IN
-                )
+            try {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                if (!transparent) {
+                    paint.colorFilter = android.graphics.PorterDuffColorFilter(
+                        frameColor, android.graphics.PorterDuff.Mode.SRC_IN
+                    )
+                }
+                canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
+            } finally {
+                if (!imported.isRecycled) imported.recycle()
             }
-            canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
-            imported.recycle()
         } else {
             val outer = RectF(margin, margin, output.width - margin, output.height - margin)
             val inner = RectF(margin * 1.55f, margin * 1.55f,
@@ -3589,6 +3615,10 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
         writeUprightExifMetadata(context, uri, output.width, output.height)
         setMediaStoreOrientationUpright(context, uri)
         true
+        } finally {
+            outputBitmap?.let { if (it !== bitmap && !it.isRecycled) it.recycle() }
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_FRAME", "Could not apply selected frame", it)
     }.getOrDefault(false)

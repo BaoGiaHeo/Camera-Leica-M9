@@ -244,15 +244,21 @@ fun ToolboxScreen(
     var presetUiRevision by remember { mutableStateOf(0) }
     val presetKeys = remember {
         listOf(
-            "capture_ratio_index", "camera_zoom_ratio", "camera_flash_mode",
+            "capture_ratio_index", "camera_zoom_ratio", "camera_flash_mode", "camera_timer_seconds",
             "camera_stabilization_enabled", "camera_metering_index", "camera_mode",
             "selected_filter", "image_quality", "noise_reduction", "hdr_enabled",
-            "nightshot_mode", "nightshot_duration_seconds", "raw_capture_mode",
+            "nightshot_mode", "nightshot_duration_seconds", "star_trails_exposure_seconds",
+            "milky_way_stack_enabled", "raw_capture_mode",
             "uhd_capture_enabled", "fhd_capture_enabled", "uhd_plus_capture_enabled",
             "burst_capture_mode_enabled", "hdr_bracketing_enabled", "focus_bracketing_enabled",
+            "viewfinder_grid_enabled", "viewfinder_histogram_enabled",
+            "viewfinder_focus_peaking_enabled", "viewfinder_rgb_histogram_enabled",
+            "viewfinder_zebra_enabled", "viewfinder_level_enabled",
+            "face_tracking_enabled", "hud_auto_hide_enabled", "lens_correction_enabled",
             "pro_manual_exposure_enabled", "pro_manual_iso_enabled",
             "pro_manual_shutter_enabled", "pro_manual_wb_enabled",
-            "pro_manual_iso", "pro_manual_shutter_ns", "pro_manual_wb_kelvin"
+            "pro_manual_iso", "pro_manual_shutter_ns", "pro_manual_wb_kelvin",
+            "pro_manual_focus"
         )
     }
     fun saveCameraPreset(slot: String) {

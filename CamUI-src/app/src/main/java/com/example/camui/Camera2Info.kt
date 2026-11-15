@@ -38,6 +38,12 @@ data class CamDetails(
     val sensorOrientation: Int?
 )
 
+data class MacroLensCandidate(
+    val physicalCameraId: String,
+    val zoomRatio: Float,
+    val closestFocusDiopter: Float
+)
+
 data class LiveReading(
     val iso: Int?,
     val shutterNs: Long?,
@@ -223,6 +229,56 @@ object Camera2Info {
             .distinctBy { (it * 100f).roundToInt() }
             .sorted()
             .ifEmpty { listOf(1f.coerceIn(min, max)) }
+    }
+
+    /**
+     * Finds an exposed rear physical lens that can focus materially closer than the
+     * primary rear lens. Its focal-length ratio is used only when CameraX's current
+     * logical-camera zoom range can actually select that physical module.
+     *
+     * This is a capability heuristic, not a claim that OEM metadata names the lens
+     * "macro". The active physical ID must still confirm the switch at runtime.
+     */
+    fun findMacroLensCandidate(
+        logical: CamDetails?,
+        physical: List<CamDetails>,
+        minZoom: Float,
+        maxZoom: Float
+    ): MacroLensCandidate? {
+        val lowerZoom = minZoom.takeIf { it.isFinite() && it > 0f } ?: 1f
+        val upperZoom = maxZoom.takeIf { it.isFinite() && it >= lowerZoom } ?: lowerZoom
+        val rearLenses = physical.filter { lens ->
+            lens.facing == "Sau" &&
+                lens.eq35Mm?.let { it.isFinite() && it > 0f } == true &&
+                lens.minFocusDiopter?.let { it.isFinite() && it > 0f } == true
+        }
+        if (rearLenses.size < 2) return null
+
+        // A rear lens near 26mm equivalent is the conservative main-camera reference.
+        val mainLens = rearLenses.minByOrNull { abs((it.eq35Mm ?: 0f) - 26f) } ?: return null
+        val mainEquivalent = mainLens.eq35Mm ?: return null
+        val mainCloseFocus = maxOf(
+            mainLens.minFocusDiopter ?: 0f,
+            logical?.minFocusDiopter ?: 0f
+        )
+
+        return rearLenses.asSequence()
+            .filter { it.id != mainLens.id }
+            .mapNotNull { lens ->
+                val equivalent = lens.eq35Mm ?: return@mapNotNull null
+                val closeFocus = lens.minFocusDiopter ?: return@mapNotNull null
+                val zoomRatio = equivalent / mainEquivalent
+                val materiallyCloser = closeFocus >= maxOf(4f, mainCloseFocus * 1.20f)
+                val selectable = zoomRatio.isFinite() &&
+                    zoomRatio >= lowerZoom && zoomRatio <= upperZoom &&
+                    abs(zoomRatio - 1f) >= 0.06f
+                if (materiallyCloser && selectable) {
+                    MacroLensCandidate(lens.id, zoomRatio, closeFocus)
+                } else {
+                    null
+                }
+            }
+            .maxByOrNull { it.closestFocusDiopter }
     }
 
     private fun details(

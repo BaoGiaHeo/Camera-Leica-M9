@@ -50,7 +50,7 @@ object NightShotProcessor {
         ExifInterface.TAG_FLASH
     )
 
-    enum class MergeMode { NIGHT_AVERAGE, STAR_TRAILS }
+    enum class MergeMode { NIGHT_AVERAGE, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
 
     fun copyUriToFile(context: Context, uri: Uri, destination: File): Boolean =
         runCatching {
@@ -105,38 +105,67 @@ object NightShotProcessor {
         onProgress: ((Int) -> Unit)? = null
     ): Boolean {
         if (frames.size < 2 || frames.any { !it.exists() || it.length() <= 0L }) return false
-        val prefix = if (mode == MergeMode.STAR_TRAILS) "star-" else "night-"
+        val prefix = when (mode) {
+            MergeMode.STAR_TRAILS -> "star-"
+            MergeMode.HDR_BRACKET -> "hdr-"
+            MergeMode.FOCUS_STACK -> "focus-"
+            else -> "night-"
+        }
         val tempOutput = File(context.cacheDir, "fuji-" + prefix + System.nanoTime() + ".jpg")
         var base: Bitmap? = null
         var alignmentReference: Bitmap? = null
         return try {
             val firstExif = readExif(frames.first())
-            base = decodeUpright(frames.first(), null, null)
+            val stackPixelLimit = if (mode == MergeMode.HDR_BRACKET || mode == MergeMode.FOCUS_STACK) {
+                16_000_000L
+            } else {
+                MAX_OUTPUT_PIXELS
+            }
+            base = decodeUpright(frames.first(), null, null, stackPixelLimit)
                 ?: error("Could not decode first frame")
             val width = base!!.width
             val height = base!!.height
             val oldRow = IntArray(width)
             val newRow = IntArray(width)
+            val upperRow = IntArray(width)
+            val lowerRow = IntArray(width)
+            val bestScores = if (mode == MergeMode.HDR_BRACKET || mode == MergeMode.FOCUS_STACK) {
+                ByteArray(width * height)
+            } else null
             // Keep a small, immutable reference image for alignment. Using the changing
             // accumulated output as a reference would allow drift to build up over a burst.
-            if (mode == MergeMode.NIGHT_AVERAGE) {
+            if (mode != MergeMode.STAR_TRAILS) {
                 alignmentReference = makeAlignmentThumbnail(base!!)
+            }
+            if (bestScores != null) {
+                for (y in 0 until height) {
+                    base!!.getPixels(newRow, 0, width, 0, y, width, 1)
+                    base!!.getPixels(upperRow, 0, width, 0, (y - 1).coerceAtLeast(0), width, 1)
+                    base!!.getPixels(lowerRow, 0, width, 0, (y + 1).coerceAtMost(height - 1), width, 1)
+                    for (x in 0 until width) {
+                        bestScores[y * width + x] = if (mode == MergeMode.HDR_BRACKET) {
+                            exposureMidtoneScore(luma(newRow[x]))
+                        } else {
+                            focusSharpnessScore(newRow, upperRow, lowerRow, x, width)
+                        }.toByte()
+                    }
+                }
             }
 
             val totalMergedFrames = (frames.size - 1).coerceAtLeast(1)
             for (frameIndex in 1 until frames.size) {
-                val current = decodeUpright(frames[frameIndex], width, height)
+                val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
                     ?: error("Could not decode frame " + (frameIndex + 1))
                 try {
-                    val shift = if (mode == MergeMode.NIGHT_AVERAGE) {
+                    val shift = if (mode != MergeMode.STAR_TRAILS) {
                         estimateGlobalTranslation(alignmentReference!!, current)
                     } else {
                         0 to 0
                     }
                     val shiftX = shift.first.coerceIn(-width / 12, width / 12)
                     val shiftY = shift.second.coerceIn(-height / 12, height / 12)
-                    if (mode == MergeMode.NIGHT_AVERAGE && (shiftX != 0 || shiftY != 0)) {
-                        Log.d(TAG, "Aligned frame ${frameIndex + 1}: dx=$shiftX dy=$shiftY")
+                    if (mode != MergeMode.STAR_TRAILS && (shiftX != 0 || shiftY != 0)) {
+                        Log.d(TAG, "Aligned frame ${frameIndex + 1} for $mode: dx=$shiftX dy=$shiftY")
                     }
 
                     val progressRowInterval = (height / 8).coerceAtLeast(1)
@@ -149,6 +178,10 @@ object NightShotProcessor {
                         val sourceY = (y + shiftY).coerceIn(0, height - 1)
                         base!!.getPixels(oldRow, 0, width, 0, y, width, 1)
                         current.getPixels(newRow, 0, width, 0, sourceY, width, 1)
+                        if (mode == MergeMode.FOCUS_STACK) {
+                            current.getPixels(upperRow, 0, width, 0, (sourceY - 1).coerceAtLeast(0), width, 1)
+                            current.getPixels(lowerRow, 0, width, 0, (sourceY + 1).coerceAtMost(height - 1), width, 1)
+                        }
                         for (x in 0 until width) {
                             val sourceX = (x + shiftX).coerceIn(0, width - 1)
                             val a = oldRow[x]
@@ -170,13 +203,32 @@ object NightShotProcessor {
                                 ) {
                                     oldRow[x] = Color.rgb(max(ar, br), max(ag, bg), max(ab, bb))
                                 }
-                            } else {
+                            } else if (mode == MergeMode.NIGHT_AVERAGE) {
                                 val divisor = frameIndex + 1
                                 oldRow[x] = Color.rgb(
                                     (ar * frameIndex + br) / divisor,
                                     (ag * frameIndex + bg) / divisor,
                                     (ab * frameIndex + bb) / divisor
                                 )
+                            } else {
+                                val score = if (mode == MergeMode.HDR_BRACKET) {
+                                    exposureMidtoneScore(luma(b))
+                                } else {
+                                    val sourceXLeft = (sourceX - 1).coerceAtLeast(0)
+                                    val sourceXRight = (sourceX + 1).coerceAtMost(width - 1)
+                                    val left = luma(newRow[sourceXLeft])
+                                    val right = luma(newRow[sourceXRight])
+                                    val up = luma(upperRow[sourceX])
+                                    val down = luma(lowerRow[sourceX])
+                                    (kotlin.math.abs(left - right) + kotlin.math.abs(up - down))
+                                        .coerceIn(0, 255)
+                                }
+                                val scoreIndex = y * width + x
+                                val previousScore = bestScores!![scoreIndex].toInt() and 0xFF
+                                if (score > previousScore) {
+                                    oldRow[x] = b
+                                    bestScores[scoreIndex] = score.toByte()
+                                }
                             }
                         }
                         base!!.setPixels(oldRow, 0, width, 0, y, width, 1)
@@ -223,6 +275,23 @@ object NightShotProcessor {
             base?.recycle()
             runCatching { tempOutput.delete() }
         }
+    }
+
+    private fun exposureMidtoneScore(luminance: Int): Int =
+        (255 - kotlin.math.abs(luminance - 128) * 2).coerceIn(0, 255)
+
+    private fun focusSharpnessScore(
+        centerRow: IntArray,
+        upperRow: IntArray,
+        lowerRow: IntArray,
+        x: Int,
+        width: Int
+    ): Int {
+        val left = luma(centerRow[(x - 1).coerceAtLeast(0)])
+        val right = luma(centerRow[(x + 1).coerceAtMost(width - 1)])
+        val up = luma(upperRow[x])
+        val down = luma(lowerRow[x])
+        return (kotlin.math.abs(left - right) + kotlin.math.abs(up - down)).coerceIn(0, 255)
     }
 
     private fun brightenNightResult(bitmap: Bitmap) {
@@ -434,7 +503,69 @@ object NightShotProcessor {
         return uri
     }
 
-    private fun decodeUpright(file: File, targetWidth: Int?, targetHeight: Int?): Bitmap? {
+    /**
+     * Creates an HDR exposure-fusion or focus-stack JPEG while retaining every source frame.
+     * The merge is bounded to 16MP and memory-aware; if it fails, source frames remain saved.
+     */
+    fun mergeBracketUrisIntoNewImage(
+        context: Context,
+        frameUris: List<Uri>,
+        mode: MergeMode,
+        onProgress: ((Int) -> Unit)? = null
+    ): Uri? {
+        if (mode != MergeMode.HDR_BRACKET && mode != MergeMode.FOCUS_STACK) return null
+        if (frameUris.size < 2) return null
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val prefix = if (mode == MergeMode.HDR_BRACKET) "FUJI_HDR_MERGED_" else "FUJI_FOCUS_STACK_"
+        val folder = if (mode == MergeMode.HDR_BRACKET) "HDR-Bracketing" else "Focus-Bracketing"
+        val outputUri = context.contentResolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, prefix + stamp + ".jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/" + folder)
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        ) ?: return null
+        val tempDirectory = File(context.cacheDir, "fuji-bracket-" + System.nanoTime())
+        val tempFrames = frameUris.indices.map { index ->
+            File(tempDirectory, "frame-" + index.toString().padStart(2, '0') + ".jpg")
+        }
+        return try {
+            tempDirectory.mkdirs()
+            val copied = frameUris.indices.all { index ->
+                copyUriToFile(context, frameUris[index], tempFrames[index])
+            }
+            if (!copied) error("Could not stage every source bracket frame")
+            val merged = mergeFramesIntoUri(context, tempFrames, outputUri, mode, onProgress)
+            if (!merged) error("Bracket merge did not finish")
+            val published = context.contentResolver.update(
+                outputUri,
+                ContentValues().apply {
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                    put(MediaStore.Images.Media.ORIENTATION, 0)
+                },
+                null,
+                null
+            )
+            if (published <= 0) error("Could not publish merged bracket image")
+            outputUri
+        } catch (failure: Throwable) {
+            Log.e(TAG, "Bracket merge failed; source frames remain saved", failure)
+            runCatching { context.contentResolver.delete(outputUri, null, null) }
+            null
+        } finally {
+            tempFrames.forEach { runCatching { it.delete() } }
+            runCatching { tempDirectory.delete() }
+        }
+    }
+
+    private fun decodeUpright(
+        file: File,
+        targetWidth: Int?,
+        targetHeight: Int?,
+        pixelLimit: Long = MAX_OUTPUT_PIXELS
+    ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
@@ -463,7 +594,7 @@ object NightShotProcessor {
             val heapSafePixelCap = (
                 Runtime.getRuntime().maxMemory().toDouble() * 0.22 / 4.0
             ).toLong().coerceAtLeast(4_000_000L)
-            val effectivePixelCap = min(MAX_OUTPUT_PIXELS, heapSafePixelCap)
+            val effectivePixelCap = min(pixelLimit, heapSafePixelCap)
             val factor = if (pixels > effectivePixelCap) {
                 sqrt(effectivePixelCap.toDouble() / pixels.toDouble())
             } else 1.0

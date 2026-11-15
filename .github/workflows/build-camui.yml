@@ -69,14 +69,36 @@ jobs:
             "opencv-python-headless==4.10.0.84" \
             "pillow==11.0.0" \
             "onnx==1.17.0" \
-            "onnxruntime==1.20.1"
+            "onnxruntime==1.20.1" \
+            "gdown==5.2.0"
 
-          git clone --depth 1 https://github.com/mikecokina/nafnetlib.git "$RUNNER_TEMP/nafnetlib"
+          # Pin both upstream sources so the exported model provenance is reproducible.
+          git clone https://github.com/megvii-research/NAFNet.git "$RUNNER_TEMP/NAFNet"
+          git -C "$RUNNER_TEMP/NAFNet" checkout 2b4af71ebe098a92a75910c233a3965a3e93ede4
+          git clone https://github.com/mikecokina/nafnetlib.git "$RUNNER_TEMP/nafnetlib"
+          git -C "$RUNNER_TEMP/nafnetlib" checkout 0ee63e3f6577a4c2475221f4c8a3cf0fcf4ac52d
+
           MODEL_DIR="$RUNNER_TEMP/nafnet-model-weights"
           OUTPUT_DIR="$GITHUB_WORKSPACE/CamUI/app/src/main/assets/models"
           mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
+          python - <<'PY'
+          from pathlib import Path
+          import gdown
+
+          model = Path("$MODEL_DIR") / "NAFNet-SIDD-width64.pth"
+          downloaded = gdown.download(
+              id="14Fht1QQJ2gMlk4N1ERCRuElg8JfjrWWR",
+              output=str(model),
+              quiet=False,
+          )
+          if not downloaded or not model.is_file() or model.stat().st_size < 1_000_000:
+              raise SystemExit("Official Megvii NAFNet-SIDD-width64 checkpoint download failed")
+          print(f"Official Megvii width64 checkpoint: {model.stat().st_size:,} bytes")
+          PY
           python scripts/export_nafnet_onnx.py \
-            --nafnetlib-src "$RUNNER_TEMP/nafnetlib/src" \
+            --official-nafnet-src "$RUNNER_TEMP/NAFNet" \
+            --official-width64-checkpoint "$MODEL_DIR/NAFNet-SIDD-width64.pth" \
+            --nafnetlib-src "$RUNNER_TEMP/nafnetlib" \
             --model-dir "$MODEL_DIR" \
             --output-dir "$OUTPUT_DIR"
 

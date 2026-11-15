@@ -303,6 +303,8 @@ fun ToolboxScreen(
     var hdrBracketMode by remember { mutableStateOf(prefs.getBoolean("hdr_bracketing_enabled", false)) }
     var focusBracketMode by remember { mutableStateOf(prefs.getBoolean("focus_bracketing_enabled", false)) }
     var faceTrackingEnabled by remember { mutableStateOf(prefs.getBoolean("face_tracking_enabled", false)) }
+    var hudAutoHideEnabled by remember { mutableStateOf(prefs.getBoolean("hud_auto_hide_enabled", true)) }
+    var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
     var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
     var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
@@ -339,6 +341,16 @@ fun ToolboxScreen(
             Icons.Default.Tune, faceTrackingEnabled) {
             faceTrackingEnabled = it
             prefs.edit().putBoolean("face_tracking_enabled", it).apply()
+        }
+        ToolToggle("Auto-hide Camera HUD", "Ẩn thanh điều khiển sau 5 giây không thao tác; chạm màn hình để hiện lại.", 
+            Icons.Default.Tune, hudAutoHideEnabled) {
+            hudAutoHideEnabled = it
+            prefs.edit().putBoolean("hud_auto_hide_enabled", it).apply()
+        }
+        ToolToggle("Lens Distortion Correction", "Yêu cầu Camera2/HAL chỉnh méo hình ở mức chất lượng cao nếu ống kính công bố hỗ trợ; không tự bù viền tím hay tối góc.", 
+            Icons.Default.Tune, lensCorrectionEnabled) {
+            lensCorrectionEnabled = it
+            prefs.edit().putBoolean("lens_correction_enabled", it).apply()
         }
         ToolToggle("Zebra Warning", "Đánh dấu vùng sáng gần cháy sáng trên kính ngắm (không ảnh hưởng ảnh lưu).",
             Icons.Default.Warning, zebraEnabled) {

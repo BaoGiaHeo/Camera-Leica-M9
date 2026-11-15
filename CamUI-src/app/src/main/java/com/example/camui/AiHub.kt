@@ -15,8 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,17 +32,13 @@ private val HdmpMuted = Color(0xFFAAAAAA)
 @Composable
 fun HdmpBottomSheet(
     onDismiss: () -> Unit,
-    uhdEnabled: Boolean,
-    onUhdEnabledChange: (Boolean) -> Unit,
-    fhdEnabled: Boolean,
-    onFhdEnabledChange: (Boolean) -> Unit,
-    uhdPlusEnabled: Boolean,
-    onUhdPlusEnabledChange: (Boolean) -> Unit,
     nightShotEnabled: Boolean,
     nightShotDurationSeconds: Int,
     onCycleNightShot: () -> Unit,
     renderProfile: String,
-    onRenderProfileChange: (String) -> Unit
+    onRenderProfileChange: (String) -> Unit,
+    outputMegapixels: Int,
+    onOutputMegapixelsChange: (Int) -> Unit
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -67,58 +61,63 @@ fun HdmpBottomSheet(
         ) {
             Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "HDMP điều phối HDMP AI 2 và HDMP AI 2 Fast; HDMP kiểm tra và hoàn tất ảnh cuối.",
-                color = HdmpMuted, fontSize = 12.sp
+                "Chọn mô hình trước khi chụp. Mỗi ảnh chỉ chạy mô hình đã chọn; không hiện hộp thoại đổi mô hình sau khi chụp.",
+                color = HdmpMuted, fontSize = 12.sp, lineHeight = 17.sp
             )
-            Text("Chế độ xử lý HDMP AI", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf(
-                    "quality" to "Chất lượng",
-                    "balanced" to "Cân bằng",
-                    "speed" to "Tốc độ"
-                ).forEach { (value, title) ->
+            Text("MÔ HÌNH LÀM NÉT", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("ai2" to "HDMP AI 2", "ai15" to "HDMP AI 1.5").forEach { (value, title) ->
                     val selected = renderProfile == value
                     Box(
                         modifier = Modifier.weight(1f)
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (selected) HdmpYellow else Color(0xFF292929))
                             .clickable { onRenderProfileChange(value) }
-                            .padding(vertical = 11.dp, horizontal = 4.dp),
+                            .padding(vertical = 13.dp, horizontal = 5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             title,
                             color = if (selected) Color.Black else Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
             Text(
-                when (renderProfile) {
-                    "quality" -> "Ưu tiên HDMP AI 2; số luồng vẫn tự giới hạn theo CPU, RAM và nhiệt độ."
-                    "speed" -> "Bắt đầu trực tiếp bằng HDMP AI 2 Fast để rút ngắn thời gian xử lý."
-                    else -> "Ưu tiên HDMP AI 2 với mức tải cân bằng; hệ thống tự điều chỉnh theo thiết bị."
+                if (renderProfile == "ai15") {
+                    "HDMP AI 1.5 · width32 · ưu tiên tốc độ. Mục tiêu 10 giây, giới hạn xử lý 20 giây."
+                } else {
+                    "HDMP AI 2 · width64 · ưu tiên chất lượng và chi tiết. Mục tiêu 20 giây, giới hạn xử lý 30 giây."
                 },
                 color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
             )
-            HdmpToggleRow(
-                title = "UHD · 108MP",
-                enabled = uhdEnabled, onEnabledChange = onUhdEnabledChange,
-                status = if (uhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
-            )
             HorizontalDivider(color = Color(0xFF333333))
-            HdmpToggleRow(
-                title = "FHD · 60MP",
-                enabled = fhdEnabled, onEnabledChange = onFhdEnabledChange,
-                status = if (fhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
-            )
-            HorizontalDivider(color = Color(0xFF333333))
-            HdmpToggleRow(
-                title = "UHD+ · 250MP",
-                enabled = uhdPlusEnabled, onEnabledChange = onUhdPlusEnabledChange,
-                status = if (uhdPlusEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
+            Text("ĐỘ PHÂN GIẢI ĐẦU RA", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf(24, 48, 60, 108, 250).forEach { mp ->
+                    val selected = outputMegapixels == mp
+                    Box(
+                        modifier = Modifier.weight(1f)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (selected) HdmpYellow else Color(0xFF292929))
+                            .clickable { onOutputMegapixelsChange(mp) }
+                            .padding(vertical = 12.dp, horizontal = 1.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "\${mp}MP",
+                            color = if (selected) Color.Black else Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            Text(
+                "Ảnh độ phân giải cao chỉ ghi nhận một khung hình rồi chuyển sang HDMP; không ghép 5 ảnh. Số megapixel đầu ra có thể bị giới hạn nếu cảm biến hoặc RAM không đáp ứng.",
+                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
             )
             HorizontalDivider(color = Color(0xFF333333))
             Row(
@@ -127,13 +126,13 @@ fun HdmpBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Night Shot", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("NightShot", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Chạm lần lượt: 5s → 10s → 3s → Tắt. Mục tiêu 30 FPS: 5s/150 khung, 10s/300 khung, 3s/90 khung. Tự thu nhanh nhất camera cho phép rồi mới căn chỉnh và ghép; đầu ra tối đa 60MP.",
+                        "Chụp nhiều khung hình, căn chỉnh, ghép và tăng sáng có kiểm soát. Chỉ NightShot sử dụng pipeline ghép ảnh đêm.",
                         color = HdmpMuted, fontSize = 11.sp, lineHeight = 15.sp
                     )
                     Text(
-                        if (nightShotEnabled) "ĐANG BẬT · ${nightShotDurationSeconds}s" else "NIGHT SHOT · TẮT",
+                        if (nightShotEnabled) "ĐANG BẬT · ${nightShotDurationSeconds}s" else "NIGHTSHOT · TẮT",
                         color = if (nightShotEnabled) HdmpYellow else Color(0xFF888888),
                         fontSize = 10.sp, fontWeight = FontWeight.Medium
                     )
@@ -145,43 +144,10 @@ fun HdmpBottomSheet(
                     fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
             }
-            Column(
-                modifier = Modifier.fillMaxWidth()
-                    .background(Color(0xFF202020), RoundedCornerShape(12.dp)).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("Cách phân bổ xử lý", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "FHD, UHD và UHD+ dùng pipeline HDMP với số luồng tự điều chỉnh theo CPU, RAM và trạng thái nhiệt. Night Shot có trần 60MP nhưng tự hạ độ phân giải nếu RAM không đủ.",
-                    color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HdmpToggleRow(
-    title: String,
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    status: String
-) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(status, color = if (enabled) HdmpYellow else Color(0xFF888888),
-                fontSize = 10.sp, fontWeight = FontWeight.Medium)
-        }
-        Spacer(Modifier.width(12.dp))
-        Switch(
-            checked = enabled,
-            onCheckedChange = onEnabledChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(0xFF161616), checkedTrackColor = HdmpYellow,
-                uncheckedThumbColor = Color(0xFFBDBDBD), uncheckedTrackColor = Color(0xFF444444),
-                checkedBorderColor = HdmpYellow, uncheckedBorderColor = Color(0xFF666666)
+            Text(
+                "Milky Way được bật/tắt trong Cài đặt → NightShot. Khi HDMP bắt đầu xử lý sau khi đã thu/ghép xong, có thể di chuyển điện thoại tự do.",
+                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
             )
-        )
+        }
     }
 }

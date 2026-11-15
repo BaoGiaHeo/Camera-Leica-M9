@@ -596,10 +596,7 @@ fun CameraScreen(
     var hdmpActiveWorkerCount by remember { mutableIntStateOf(0) }
     var hdmpTileProgressText by remember { mutableStateOf("") }
     var hdmpRenderProfile by remember {
-        mutableStateOf(
-            appPrefs.getString("hdmp_render_profile", "balanced")
-                ?.takeIf { it == "quality" || it == "balanced" || it == "speed" } ?: "balanced"
-        )
+        mutableStateOf(HdmpSelectionPolicy.normalizeModel(appPrefs.getString("hdmp_render_profile", "ai2")))
     }
     var processingPanelOffset by remember { mutableStateOf(Offset.Zero) }
     LaunchedEffect(hdmpRenderProfile) {
@@ -647,17 +644,6 @@ fun CameraScreen(
             thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
             hdmpActiveWorkerCount = 0
             processingPanelOffset = Offset.Zero
-        }
-    }
-    LaunchedEffect(isHdmpAiPrimaryRunning) {
-        if (isHdmpAiPrimaryRunning) {
-            delay(10_000L)
-            if (isHdmpAiPrimaryRunning &&
-                !switchToFastRequested.get() &&
-                !continueHdmpAi2Requested.get()
-            ) {
-                showHdmpFastChoice = true
-            }
         }
     }
     LaunchedEffect(hudAutoHideEnabled, hudActivityToken, isProcessing) {
@@ -718,6 +704,29 @@ fun CameraScreen(
     var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
     var fhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("fhd_capture_enabled", false)) }
     var uhdPlusCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_plus_capture_enabled", false)) }
+    val savedHdmpOutputMp = appPrefs.getInt(
+        "hdmp_output_mp",
+        when {
+            appPrefs.getBoolean("uhd_plus_capture_enabled", false) -> 250
+            appPrefs.getBoolean("uhd_capture_enabled", false) -> 108
+            appPrefs.getBoolean("fhd_capture_enabled", false) -> 60
+            else -> 60
+        }
+    )
+    var hdmpOutputMp by remember {
+        mutableIntStateOf(HdmpSelectionPolicy.normalizeOutputMegapixels(savedHdmpOutputMp))
+    }
+    LaunchedEffect(hdmpOutputMp) {
+        fhdCaptureEnabled = hdmpOutputMp == 60
+        uhdCaptureEnabled = hdmpOutputMp == 108
+        uhdPlusCaptureEnabled = hdmpOutputMp == 250
+        appPrefs.edit()
+            .putInt("hdmp_output_mp", hdmpOutputMp)
+            .putBoolean("fhd_capture_enabled", hdmpOutputMp == 60)
+            .putBoolean("uhd_capture_enabled", hdmpOutputMp == 108)
+            .putBoolean("uhd_plus_capture_enabled", hdmpOutputMp == 250)
+            .apply()
+    }
     LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
         appPrefs.edit()
             .putBoolean("uhd_capture_enabled", uhdCaptureEnabled)
@@ -2229,13 +2238,11 @@ fun CameraScreen(
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
-            val captureUseMilkyWayStack = mode == "Photo" && !front &&
+            val captureUseMilkyWayStack = captureUseNightShot && !front &&
                 kotlin.math.abs(zoomSel - 1f) < 0.08f && milkyWayStackEnabled &&
-                nightShotMode == "off" && rawCaptureMode == "jpeg" &&
-                !captureRawPlus && !captureRawOnly && !uhdCaptureEnabled &&
-                !fhdCaptureEnabled && !uhdPlusCaptureEnabled && !burstMode &&
-                !hdrBracketMode && !focusBracketMode
-            if (milkyWayStackEnabled && !captureUseMilkyWayStack) {
+                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
+                !burstMode && !hdrBracketMode && !focusBracketMode
+            if (milkyWayStackEnabled && captureUseNightShot && !captureUseMilkyWayStack) {
                 localizedToast(
                     context,
                     "Milky Way Stack cần Photo/JPEG 1x; hãy tắt RAW, UHD, FHD, Burst và Bracketing.",
@@ -2243,10 +2250,13 @@ fun CameraScreen(
                 ).show()
                 return@launch
             }
-            val captureUseUhdPlusAlgorithm = uhdPlusCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
-            val captureUseUhdAlgorithm = uhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
-            val captureUseFhdAlgorithm = fhdCaptureEnabled && !captureUseNightShot && !captureRawPlus && !captureRawOnly
-            val captureAtOneX = uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled ||
+            val captureUseHdmpResolution = mode == "Photo" && !captureUseNightShot &&
+                hdmpOutputMp in HdmpSelectionPolicy.supportedOutputMegapixels &&
+                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly
+            val captureUseUhdPlusAlgorithm = captureUseHdmpResolution && hdmpOutputMp == 250
+            val captureUseUhdAlgorithm = captureUseHdmpResolution && hdmpOutputMp == 108
+            val captureUseFhdAlgorithm = captureUseHdmpResolution && hdmpOutputMp == 60
+            val captureAtOneX = captureUseHdmpResolution ||
                 kotlin.math.abs(zoomSel - 1f) < 0.08f
             val captureNightShotExtension = nightExtensionActive
             val captureNightDurationSeconds = nightShotDurationSeconds.coerceIn(3, 10)
@@ -2258,12 +2268,22 @@ fun CameraScreen(
             val captureNightStartedAtNanos = SystemClock.elapsedRealtimeNanos()
             val captureNightDeadlineNanos = captureNightStartedAtNanos +
                 captureNightDurationSeconds * 1_000_000_000L
-            val captureUseFiveFrameStack = captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm ||
-                captureUseFhdAlgorithm || captureUseMilkyWayStack
+            // High-resolution stills are single-frame captures. Multi-frame merging belongs to NightShot only.
+            val captureUseFiveFrameStack = false
             if (captureUseNightShot) {
                 localizedToast(
                     context,
-                    "Night Shot ${captureNightDurationSeconds}s · mục tiêu 30 FPS / ${captureNightTargetFrames} khung. Camera sẽ thu nhanh nhất có thể; HDMP xử lý sau khi thu xong.",
+                    if (captureUseMilkyWayStack) {
+                        "NightShot Milky Way: thu tối đa 8 khung để căn chỉnh và giảm nhiễu. Giữ máy ổn định đến khi ghép xong."
+                    } else {
+                        "NightShot ${captureNightDurationSeconds}s · thu nhiều khung, căn chỉnh và ghép ảnh. Giữ máy ổn định đến khi ghép xong."
+                    },
+                    Toast.LENGTH_LONG
+                ).show()
+            } else if (captureUseHdmpResolution) {
+                localizedToast(
+                    context,
+                    "Đang ghi nhận một khung hình ${hdmpOutputMp}MP. Giữ máy ổn định đến khi HDMP bắt đầu xử lý.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -2405,11 +2425,9 @@ fun CameraScreen(
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
-                                captureUseNightShot -> "HDMP Night Shot · căn chỉnh và ghép nhiều khung"
-                                captureUseMilkyWayStack -> "Milky Way · căn chỉnh sao và ghép 8 khung"
-                                captureUseUhdAlgorithm -> "UHD · HDMP 8 tác vụ · ghép 5 khung + 108MP"
-                                captureUseFhdAlgorithm -> "FHD · HDMP 6 tác vụ · ghép 5 khung + 60MP"
-                                false -> "Đang áp dụng bộ lọc màu"
+                                captureUseMilkyWayStack -> "NightShot Milky Way · chuẩn bị căn chỉnh 8 khung"
+                                captureUseNightShot -> "NightShot · chuẩn bị căn chỉnh và ghép nhiều khung"
+                                captureUseHdmpResolution -> "HDMP ${hdmpOutputMp}MP · một khung hình · chuẩn bị AI"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 else -> "Ảnh đang được xử lý"
                             }
@@ -2427,8 +2445,8 @@ fun CameraScreen(
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
                                             val maxFrames = when {
-                                                captureUseNightShot -> captureNightTargetFrames
                                                 captureUseMilkyWayStack -> 8
+                                                captureUseNightShot -> captureNightTargetFrames
                                                 else -> 5
                                             }
                                             if (captureUseNightShot) {
@@ -2475,10 +2493,10 @@ fun CameraScreen(
                                                     })
                                                     withContext(Dispatchers.Main) {
                                                         val expectedFrame = stackedFrames.size + pendingCaptures.size
-                                                        processingLabel = if (captureUseNightShot) {
-                                                            "Night Shot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
-                                                        } else if (captureUseMilkyWayStack) {
-                                                            "Milky Way: thu khung $expectedFrame/$maxFrames"
+                                                        processingLabel = if (captureUseMilkyWayStack) {
+                                                            "NightShot Milky Way: thu khung $expectedFrame/$maxFrames"
+                                                        } else if (captureUseNightShot) {
+                                                            "NightShot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
                                                         } else {
                                                             "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
@@ -2534,8 +2552,8 @@ fun CameraScreen(
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = when {
+                                                        captureUseMilkyWayStack -> "NightShot Milky Way: căn chỉnh và gộp " + stackedFrames.size + "/8 khung"
                                                         captureUseNightShot -> "NightShot: căn chỉnh và gộp " + stackedFrames.size + " khung"
-                                                        captureUseMilkyWayStack -> "Milky Way: căn chỉnh khung bầu trời và giảm nhiễu " + stackedFrames.size + "/8 khung"
                                                         else -> "Multi-frame: căn chỉnh và gộp " + stackedFrames.size + "/5 khung"
                                                     }
                                                     processingProgress = 27
@@ -2587,14 +2605,11 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
                                 val availableCpuWorkers = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
                                 val hdmpWorkerCount = when {
-                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm ->
-                                        when (hdmpRenderProfile) {
-                                            "quality" -> availableCpuWorkers
-                                            "speed" -> availableCpuWorkers.coerceAtMost(6)
-                                            else -> availableCpuWorkers.coerceAtMost(4)
-                                        }
+                                    captureUseHdmpResolution -> when (hdmpRenderProfile) {
+                                        "ai2" -> availableCpuWorkers
+                                        else -> availableCpuWorkers.coerceAtMost(6)
+                                    }
                                     captureUseNightShot -> availableCpuWorkers.coerceAtMost(6)
-                                    captureUseMilkyWayStack -> availableCpuWorkers.coerceAtMost(4)
                                     else -> 0
                                 }
                                 val hdmpAiResult = if (hdmpWorkerCount > 0) {
@@ -2606,8 +2621,8 @@ fun CameraScreen(
                                         aiRenderStartedAtElapsedMs = 0L
                                          hdmpTileProgressText = ""
                                         processingEtaSeconds = -1
-                                        processingLabel = if (hdmpRenderProfile == "speed") {
-                                            "HDMP AI 2 Fast • đang chuẩn bị xử lý ảnh"
+                                        processingLabel = if (hdmpRenderProfile == "ai15") {
+                                            "HDMP AI 1.5 • đang chuẩn bị xử lý ảnh"
                                         } else {
                                             "HDMP AI 2 • đang chuẩn bị xử lý ảnh"
                                         }
@@ -2618,7 +2633,7 @@ fun CameraScreen(
                                             context = context,
                                             uri = saved,
                                             workerCount = hdmpWorkerCount,
-                                            preferFast = hdmpRenderProfile == "speed",
+                                            preferFast = hdmpRenderProfile == "ai15",
                                             onAdaptiveWorkerCount = { count ->
                                                 mainExecutor.execute { hdmpActiveWorkerCount = count }
                                             },
@@ -2629,7 +2644,7 @@ fun CameraScreen(
                                                  mainExecutor.execute {
                                                      val modelName = when (model) {
                                                          HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
-                                                         HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast"
+                                                         HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5"
                                                          HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP"
                                                      }
                                                      hdmpTileProgressText = "$modelName · Tile $completedTiles/$totalTiles"
@@ -2663,8 +2678,8 @@ fun CameraScreen(
                                                             if (progress == 0) "HDMP AI 2 • đang khởi tạo"
                                                             else "HDMP AI 2 • đang xử lý"
                                                         HdmpAiEngine.Model.NAFNETLIB_WIDTH32 ->
-                                                            if (progress == 0) "HDMP AI 2 Fast • đang khởi tạo"
-                                                            else "HDMP AI 2 Fast • đang xử lý"
+                                                            if (progress == 0) "HDMP AI 1.5 • đang khởi tạo"
+                                                            else "HDMP AI 1.5 • đang xử lý"
                                                         HdmpAiEngine.Model.CLASSICAL_ONLY ->
                                                             "HDMP • đang chuyển sang xử lý cơ bản"
                                                     }
@@ -2692,7 +2707,7 @@ fun CameraScreen(
                                     withContext(Dispatchers.Main) {
                                         val aiLabel = when (hdmpAiResult.model) {
                                             HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
-                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast"
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5"
                                             HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP cơ bản (AI không khả dụng)"
                                         }
                                         processingLabel = "$aiLabel • HDMP đang kiểm tra và hoàn tất · $hdmpActiveWorkerCount luồng"
@@ -2747,23 +2762,18 @@ fun CameraScreen(
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = captureUseNightShot ||
-                                            captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm ||
-                                            captureUseFhdAlgorithm
+                                        preservePhotoAspectRatio = captureUseNightShot || captureUseHdmpResolution
                                     )
                                 }.getOrDefault(false)
 
                                 val outputResolutionResult = if (
-                                    !captureIsUltraHdr && (captureUseNightShot || captureAtOneX) &&
-                                    !captureRawOnly && !captureRawPlus &&
-                                    (captureUseNightShot || captureUseUhdPlusAlgorithm ||
-                                        captureUseUhdAlgorithm || captureUseFhdAlgorithm)
+                                    !captureIsUltraHdr && (captureUseNightShot || captureUseHdmpResolution) &&
+                                    !captureRawOnly && !captureRawPlus
                                 ) {
-                                    val targetPixels = when {
-                                        captureUseNightShot -> 60_000_000L
-                                        captureUseUhdPlusAlgorithm -> 250_000_000L
-                                        captureUseUhdAlgorithm -> 108_000_000L
-                                        else -> 60_000_000L
+                                    val targetPixels = if (captureUseNightShot) {
+                                        60_000_000L
+                                    } else {
+                                        hdmpOutputMp.toLong() * 1_000_000L
                                     }
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "HDMP đang tối ưu kích thước ${targetPixels / 1_000_000L}MP theo RAM và tỉ lệ ảnh"
@@ -2797,7 +2807,7 @@ fun CameraScreen(
                                     hdmpWorkerCount <= 0 -> "HDMP AI không chạy trong chế độ chụp này"
                                     !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
                                     hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
-                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast · NAFNet width32"
+                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5 · NAFNet width32"
                                     else -> "HDMP cơ bản · AI không khả dụng"
                                 }
                                 val inspectorOutputSize = outputResolutionResult?.let {
@@ -2872,7 +2882,7 @@ fun CameraScreen(
                                     val aiStatusSuffix = if (hdmpWorkerCount > 0) {
                                         when (hdmpAiResult.model) {
                                             HdmpAiEngine.Model.NAFNET_WIDTH64 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 đã xử lý ảnh."
-                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 Fast đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 Fast đã tự động tiếp quản và xử lý ảnh."
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 1.5 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 1.5 đã tự động tiếp quản và xử lý ảnh."
                                             HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI chưa chạy được; ảnh được xử lý bằng HDMP cơ bản, không báo AI thành công."
                                         }
                                     } else ""
@@ -3033,8 +3043,7 @@ fun CameraScreen(
     val recommendedStarIso = advertisedIsoMaximum?.let { upper ->
         1600.coerceIn(advertisedIsoMinimum.coerceAtMost(upper), minOf(upper, 3200).coerceAtLeast(advertisedIsoMinimum.coerceAtMost(upper)))
     }
-    val showMilkyWayAdvisor = lowLightDetected && mode == "Photo" && nightShotMode == "off" &&
-        !nightShotCaptureInProgress && !starTrailCaptureInProgress
+    val showMilkyWayAdvisor = false
 
 
     // Animate the preview's ratio when the device changes orientation.
@@ -4198,14 +4207,16 @@ stabilization = stabilization,
                     modifier = Modifier.clip(RoundedCornerShape(18.dp))
                         .background(CamColors.Panel).padding(horizontal = 18.dp, vertical = 14.dp)
                 ) {
-                    Text("NightShot · ĐANG CHỤP", color = CamColors.Yellow,
-                        fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (milkyWayStackEnabled) "NightShot · MILKY WAY" else "NightShot · ĐANG CHỤP",
+                        color = CamColors.Yellow, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    )
                     Text(
                         "$nightShotCapturedFrameCount/$nightShotTargetFrameCount khung hình · 30 FPS mục tiêu",
                         color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 7.dp)
                     )
-                    Text("Giữ máy ổn định · xử lý HDMP sau khi thu ảnh",
+                    Text("Giữ máy ổn định đến khi thu và ghép xong. Khi HDMP bắt đầu xử lý, có thể di chuyển tự do.",
                         color = CamColors.Sub, fontSize = 11.sp,
                         modifier = Modifier.padding(top = 5.dp))
                 }
@@ -4241,10 +4252,13 @@ stabilization = stabilization,
                         "${processingElapsedSeconds / 60}p ${processingElapsedSeconds % 60}s"
                     else -> "${processingElapsedSeconds}s"
                 }
-                val captureStatus = if (nightShotCaptureInProgress || starTrailCaptureInProgress) {
-                    "Giữ máy ổn định · đang thu khung hình"
+                val captureStatus = if (
+                    nightShotCaptureInProgress || starTrailCaptureInProgress ||
+                    burstCaptureActive || bracketCaptureActive
+                ) {
+                    "Giữ máy ổn định · đang thu/ghép khung hình"
                 } else {
-                    "Có thể di chuyển · chỉ còn xử lý ảnh"
+                    "Có thể di chuyển máy tự do · HDMP đang xử lý ảnh"
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -4372,92 +4386,6 @@ stabilization = stabilization,
             }
         }
 
-        if (showHdmpFastChoice && isHdmpAiPrimaryRunning) {
-            Dialog(
-                onDismissRequest = {
-                    continueHdmpAi2Requested.set(true)
-                    showHdmpFastChoice = false
-                    processingLabel = "HDMP AI 2 • tiếp tục theo yêu cầu"
-                },
-                properties = DialogProperties(
-                    dismissOnBackPress = false,
-                    dismissOnClickOutside = false
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFF202020))
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "HDMP AI 2 đang xử lý lâu",
-                        color = CamColors.Yellow,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "Bạn có muốn chuyển sang HDMP AI 2 Fast không?",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "Không: tiếp tục HDMP AI 2, kể cả khi vượt mốc thời gian mềm. " +
-                            "Có: dừng an toàn sau tile hiện tại và chạy HDMP AI 2 Fast từ ảnh gốc.",
-                        color = CamColors.Sub,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF383838))
-                                .clickable {
-                                    continueHdmpAi2Requested.set(true)
-                                    showHdmpFastChoice = false
-                                    processingLabel = "HDMP AI 2 • tiếp tục theo yêu cầu"
-                                }
-                                .padding(vertical = 13.dp, horizontal = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "Bỏ qua, tiếp tục",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(CamColors.Yellow)
-                                .clickable {
-                                    switchToFastRequested.set(true)
-                                    showHdmpFastChoice = false
-                                    processingLabel = "Đang chuyển an toàn sang HDMP AI 2 Fast…"
-                                    processingEtaSeconds = -1
-                                }
-                                .padding(vertical = 13.dp, horizontal = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "Có, chuyển Fast",
-                                color = Color.Black,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         if (filterDialogVisible) {
             FilterLookDialog(
                 previewSource = filterPreviewSourceBitmap ?: fallbackFilterPreviewBitmap,
@@ -4507,7 +4435,9 @@ stabilization = stabilization,
                     }
                 },
                 renderProfile = hdmpRenderProfile,
-                onRenderProfileChange = { hdmpRenderProfile = it }
+                onRenderProfileChange = { hdmpRenderProfile = it },
+                outputMegapixels = hdmpOutputMp,
+                onOutputMegapixelsChange = { hdmpOutputMp = HdmpSelectionPolicy.normalizeOutputMegapixels(it) }
             )
         }
 

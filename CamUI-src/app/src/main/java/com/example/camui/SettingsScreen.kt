@@ -156,6 +156,9 @@ var nightShotMode by remember {
     var starTrailExposureSeconds by remember {
         mutableStateOf(prefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
     }
+    var milkyWayNightShotEnabled by remember {
+        mutableStateOf(prefs.getBoolean("milky_way_stack_enabled", false))
+    }
     var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFFFFFFF") ?: "#FFFFFFFF") }
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
     val shutterImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -305,7 +308,7 @@ var nightShotMode by remember {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "NightShot giữ AE ở EV 0, liên tục thu khung trong 5s, 10s hoặc 3s (tối đa 96 khung mục tiêu), sau đó căn chỉnh và lấy trung bình pixel để giảm nhiễu bằng thuật toán. Số khung thực tế phụ thuộc tốc độ camera; giữ máy yên đến khi ảnh được lưu.",
+                    "NightShot thu nhiều khung trong thời lượng đã chọn, căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Số khung thực tế phụ thuộc tốc độ camera; giữ máy ổn định đến khi ghép xong.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -373,6 +376,30 @@ var nightShotMode by remember {
                                 Modifier.width(82.dp)
                             )
                         }
+                    }
+                }
+                if (nightShotMode == "night") {
+                    Spacer(Modifier.padding(5.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(CamColors.Card).padding(horizontal = 13.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Milky Way", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Bật để dùng nhánh căn chỉnh và ghép khung bầu trời trong NightShot. Tắt mặc định; không hoạt động ở Photo thường.",
+                                color = CamColors.Sub, fontSize = 10.sp,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                        Switch(
+                            checked = milkyWayNightShotEnabled,
+                            onCheckedChange = {
+                                milkyWayNightShotEnabled = it
+                                prefs.edit().putBoolean("milky_way_stack_enabled", it).apply()
+                            }
+                        )
                     }
                 }
                 if (nightShotMode == "star_trails") {

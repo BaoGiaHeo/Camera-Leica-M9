@@ -47,15 +47,15 @@ internal object HdmpAiEngine {
     private const val TILE_SIZE = 256
     private const val HALO = 32
     private const val CORE_SIZE = TILE_SIZE - HALO * 2
-    private const val PRIMARY_MIN_BUDGET_MS = 45_000L
-    private const val PRIMARY_MAX_BUDGET_MS = 180_000L
-    private const val FALLBACK_MIN_BUDGET_MS = 30_000L
-    private const val FALLBACK_MAX_BUDGET_MS = 120_000L
+    private const val AI2_TARGET_BUDGET_MS = 20_000L
+    private const val AI2_MAX_BUDGET_MS = 30_000L
+    private const val AI15_TARGET_BUDGET_MS = 10_000L
+    private const val AI15_MAX_BUDGET_MS = 20_000L
     private const val MODEL_MIN_BYTES = 1_000_000L
     private const val MAX_OUTPUT_HEAP_FRACTION = 0.22
 
     private class UserRequestedFastException : RuntimeException(
-        "User requested a safe switch to HDMP AI 2 Fast"
+        "User requested a safe switch to HDMP AI 1.5"
     )
 
     enum class Model {
@@ -187,10 +187,10 @@ internal object HdmpAiEngine {
 
             val tileCount = ceil(width.toDouble() / CORE_SIZE).toLong() *
                 ceil(height.toDouble() / CORE_SIZE).toLong()
-            val primaryBudget = (PRIMARY_MIN_BUDGET_MS + tileCount * 140L)
-                .coerceAtMost(PRIMARY_MAX_BUDGET_MS)
-            val fallbackBudget = (FALLBACK_MIN_BUDGET_MS + tileCount * 90L)
-                .coerceAtMost(FALLBACK_MAX_BUDGET_MS)
+            val primaryBudget = (AI2_TARGET_BUDGET_MS + tileCount * 45L)
+                .coerceAtMost(AI2_MAX_BUDGET_MS)
+            val fallbackBudget = (AI15_TARGET_BUDGET_MS + tileCount * 22L)
+                .coerceAtMost(AI15_MAX_BUDGET_MS)
 
             if (!preferFast) runCatching { onProgress(Model.NAFNET_WIDTH64, 0) }
             val primary = if (preferFast) false else try {
@@ -220,10 +220,18 @@ internal object HdmpAiEngine {
                 preserveOriginalForComparison(context, uri, original)
                 return Result(Model.NAFNET_WIDTH64, true, "HDMP AI 2 đã xử lý và được HDMP kiểm tra.")
             }
-            // Never reuse a partially rendered primary output. Fast always starts from original.
+            // Respect the model chosen before capture. An AI 2 timeout/failure does not silently
+            // replace the selected model with AI 1.5 after the shutter has been pressed.
             rendered.delete()
             if (shouldStopForThermal()) {
                 return Result(Model.CLASSICAL_ONLY, false, "Đã dừng theo nhiệt độ trước khi hoàn tất tile đầu tiên; giữ nguyên ảnh gốc.")
+            }
+            if (!userRequestedFast) {
+                return Result(
+                    Model.CLASSICAL_ONLY,
+                    false,
+                    "HDMP AI 2 chưa hoàn tất trong giới hạn 30 giây; giữ ảnh gốc để HDMP cơ bản xử lý."
+                )
             }
 
             runCatching { onProgress(Model.NAFNETLIB_WIDTH32, 0) }
@@ -243,7 +251,7 @@ internal object HdmpAiEngine {
             )
             if (shouldStopForThermal() && fallback && commitRendered(context, uri, original, rendered)) {
                 preserveOriginalForComparison(context, uri, original)
-                return Result(Model.NAFNETLIB_WIDTH32, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 Fast hoàn tất, phần còn lại giữ ảnh gốc.")
+                return Result(Model.NAFNETLIB_WIDTH32, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 1.5 hoàn tất, phần còn lại giữ ảnh gốc.")
             }
             if (fallback && commitRendered(context, uri, original, rendered)) {
                 preserveOriginalForComparison(context, uri, original)
@@ -251,9 +259,9 @@ internal object HdmpAiEngine {
                     Model.NAFNETLIB_WIDTH32,
                     true,
                     if (userRequestedFast) {
-                        "HDMP AI 2 Fast được chọn và đã xử lý từ ảnh gốc; HDMP đã kiểm tra kết quả."
+                        "HDMP AI 1.5 được chọn và đã xử lý từ ảnh gốc; HDMP đã kiểm tra kết quả."
                     } else {
-                        "HDMP AI 2 Fast dự phòng đã xử lý và được HDMP kiểm tra."
+                        "HDMP AI 1.5 dự phòng đã xử lý và được HDMP kiểm tra."
                     }
                 )
             }
@@ -377,31 +385,13 @@ internal object HdmpAiEngine {
                         throw UserRequestedFastException()
                     }
                     if (SystemClock.elapsedRealtime() - startedAt > budgetMs && !continuePastBudget()) {
-                        // Keep the primary attempt alive while the already-visible user choice is pending.
-                        // This closes the race where the soft timeout could start Fast just before
-                        // the user taps "Bỏ qua, tiếp tục".
-                        when (
-                            HdmpAiPrimaryDecisionGate.await(
-                                shouldContinuePrimary = continuePastBudget,
-                                shouldSwitchToFast = shouldSwitchToFast,
-                                shouldStopForThermal = shouldStopForThermal
-                            )
-                        ) {
-                            HdmpAiPrimaryDecisionGate.Outcome.CONTINUE_PRIMARY -> {
-                                Log.i(TAG, "User chose to continue HDMP AI 2 beyond its soft time budget")
+                        throw ModelTimeoutException(
+                            if (model == Model.NAFNET_WIDTH64) {
+                                "HDMP AI 2 exceeded its 30-second processing limit"
+                            } else {
+                                "HDMP AI 1.5 exceeded its 20-second processing limit"
                             }
-                            HdmpAiPrimaryDecisionGate.Outcome.SWITCH_TO_FAST -> {
-                                throw UserRequestedFastException()
-                            }
-                            HdmpAiPrimaryDecisionGate.Outcome.STOP_FOR_THERMAL -> {
-                                // Re-enter the loop's thermal branch to preserve completed tiles
-                                // and restore every unfinished tile from the original image.
-                                continue
-                            }
-                            HdmpAiPrimaryDecisionGate.Outcome.NO_RESPONSE -> {
-                                throw ModelTimeoutException("No response to the HDMP AI 2 continuation prompt")
-                            }
-                        }
+                        )
                     }
 
                     val patchLeft = coreLeft - HALO

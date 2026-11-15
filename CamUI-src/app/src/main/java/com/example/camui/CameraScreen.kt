@@ -312,7 +312,7 @@ fun CameraScreen(
         onDispose { orientationListener.disable() }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
-    var zebraEnabled by remember { mutableStateOf(appPrefs.getBoolean("viewfinder_zebra_enabled", false)) }
+    var zebraEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_zebra_enabled", false)) }
     val zebraEnabledState = rememberUpdatedState(zebraEnabled)
 
     var batteryPercent by remember { mutableIntStateOf(-1) }

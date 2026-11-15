@@ -81,11 +81,13 @@ jobs:
           MODEL_DIR="$RUNNER_TEMP/nafnet-model-weights"
           OUTPUT_DIR="$GITHUB_WORKSPACE/CamUI/app/src/main/assets/models"
           mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
+          export MODEL_DIR
           python - <<'PY'
           from pathlib import Path
+          import os
           import gdown
 
-          model = Path("$MODEL_DIR") / "NAFNet-SIDD-width64.pth"
+          model = Path(os.environ["MODEL_DIR"]) / "NAFNet-SIDD-width64.pth"
           downloaded = gdown.download(
               id="14Fht1QQJ2gMlk4N1ERCRuElg8JfjrWWR",
               output=str(model),

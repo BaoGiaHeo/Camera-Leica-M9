@@ -2228,7 +2228,8 @@ fun CameraScreen(
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
     val currentIso = if (manualIsoEnabled) manualIso else iso
-    val isoText = if (manualIsoEnabled) manualIso.toString() else "AUTO"
+    // Prefer the active Camera2 CaptureResult ISO; do not show AUTO after a live reading exists.
+    val isoText = currentIso.takeIf { it > 0 }?.toString() ?: "AUTO"
     val currentShutter = if (manualShutterEnabled) manualShutterNs else shutterNs
     val shutterText = if (currentShutter > 0) {
         val seconds = currentShutter / 1_000_000_000.0

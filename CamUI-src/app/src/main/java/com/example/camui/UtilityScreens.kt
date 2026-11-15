@@ -241,6 +241,8 @@ fun ToolboxScreen(
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
     var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
     var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", false)) }
+    var hdrBracketMode by remember { mutableStateOf(prefs.getBoolean("hdr_bracketing_enabled", false)) }
+    var focusBracketMode by remember { mutableStateOf(prefs.getBoolean("focus_bracketing_enabled", false)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
     var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
     var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
@@ -282,6 +284,24 @@ fun ToolboxScreen(
             Icons.Default.Tune, levelEnabled) {
             levelEnabled = it
             prefs.edit().putBoolean("viewfinder_level_enabled", it).apply()
+        }
+        ToolToggle("HDR Bracketing", "Chụp 3 khung JPEG với EV thấp / chuẩn / cao nếu camera công bố dải phơi sáng.",
+            Icons.Default.ShowChart, hdrBracketMode) {
+            hdrBracketMode = it
+            if (it) focusBracketMode = false
+            prefs.edit()
+                .putBoolean("hdr_bracketing_enabled", it)
+                .putBoolean("focus_bracketing_enabled", if (it) false else focusBracketMode)
+                .apply()
+        }
+        ToolToggle("Focus Bracketing", "Chụp 5 khoảng nét từ gần đến vô cực khi ống kính hỗ trợ lấy nét thủ công.",
+            Icons.Default.Tune, focusBracketMode) {
+            focusBracketMode = it
+            if (it) hdrBracketMode = false
+            prefs.edit()
+                .putBoolean("focus_bracketing_enabled", it)
+                .putBoolean("hdr_bracketing_enabled", if (it) false else hdrBracketMode)
+                .apply()
         }
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))

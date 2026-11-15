@@ -1112,6 +1112,29 @@ fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
 }
 
 /**
+ * CameraX can return the sensor's default still ratio even when the preview ViewPort uses
+ * a narrower/wider crop. Enforce the selected ratio on the upright pixels before HDMP runs,
+ * otherwise later upscaling simply magnifies the wrong 4:3/16:9 frame.
+ */
+private fun cropBitmapToAspect(source: Bitmap, targetAspect: Float): Bitmap {
+    if (!targetAspect.isFinite() || targetAspect <= 0f) return source
+    val sourceAspect = source.width.toFloat() / source.height.coerceAtLeast(1)
+    if (kotlin.math.abs(sourceAspect / targetAspect - 1f) <= 0.0005f) return source
+
+    var cropWidth = source.width
+    var cropHeight = source.height
+    if (sourceAspect > targetAspect) {
+        cropWidth = (source.height * targetAspect).roundToInt().coerceIn(2, source.width)
+    } else {
+        cropHeight = (source.width / targetAspect).roundToInt().coerceIn(2, source.height)
+    }
+    // Keep the crop centered, matching CameraX FILL_CENTER composition rather than stretching.
+    val left = ((source.width - cropWidth) / 2).coerceAtLeast(0)
+    val top = ((source.height - cropHeight) / 2).coerceAtLeast(0)
+    return Bitmap.createBitmap(source, left, top, cropWidth, cropHeight)
+}
+
+/**
  * Normalize the pixels to the selected capture aspect ratio.
  *
  * The JPEG may already contain correctly oriented landscape pixels while its EXIF tag
@@ -1204,31 +1227,40 @@ fun normalizeCapturedImage(
             if (selected.flipHorizontal) preScale(-1f, 1f)
             if (selected.degrees != 0) postRotate(selected.degrees.toFloat())
         }
-        val finalBitmap = if (selected.degrees == 0 && !selected.flipHorizontal) {
+        val orientedBitmap = if (selected.degrees == 0 && !selected.flipHorizontal) {
             rawBitmap
         } else {
             Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
         }
+        val finalBitmap = cropBitmapToAspect(orientedBitmap, safeExpectedAspect)
+        try {
+            val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
+            } ?: false
+            if (!outputWritten) return@runCatching false
 
-        val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
-        } ?: false
-        if (!outputWritten) return@runCatching false
+            val exifWritten = writeUprightExifMetadata(
+                context, uri, finalBitmap.width, finalBitmap.height
+            )
+            setMediaStoreOrientationUpright(context, uri)
 
-        val exifWritten = writeUprightExifMetadata(
-            context, uri, finalBitmap.width, finalBitmap.height
-        )
-        setMediaStoreOrientationUpright(context, uri)
-
-        android.util.Log.d(
-            "FUJI_ORIENTATION",
-            "source=" + selected.source + ", degrees=" + selected.degrees +
-                ", raw=" + rawBitmap.width + "x" + rawBitmap.height +
-                ", final=" + finalBitmap.width + "x" + finalBitmap.height +
-                ", expectedAspect=" + safeExpectedAspect +
-                ", error=" + selected.aspectError + ", exifWritten=" + exifWritten
-        )
-        exifWritten
+            val finalAspect = finalBitmap.width.toFloat() / finalBitmap.height.coerceAtLeast(1)
+            android.util.Log.d(
+                "FUJI_ORIENTATION",
+                "source=" + selected.source + ", degrees=" + selected.degrees +
+                    ", raw=" + rawBitmap.width + "x" + rawBitmap.height +
+                    ", oriented=" + orientedBitmap.width + "x" + orientedBitmap.height +
+                    ", final=" + finalBitmap.width + "x" + finalBitmap.height +
+                    ", expectedAspect=" + safeExpectedAspect +
+                    ", finalAspect=" + finalAspect +
+                    ", orientationError=" + selected.aspectError + ", exifWritten=" + exifWritten
+            )
+            exifWritten
+        } finally {
+            if (finalBitmap !== orientedBitmap && !finalBitmap.isRecycled) finalBitmap.recycle()
+            if (orientedBitmap !== rawBitmap && !orientedBitmap.isRecycled) orientedBitmap.recycle()
+            if (!rawBitmap.isRecycled) rawBitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_ORIENTATION", "normalizeCapturedImage failed", it)
     }.getOrDefault(false)

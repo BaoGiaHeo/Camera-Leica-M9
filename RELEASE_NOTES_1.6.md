@@ -5,7 +5,8 @@
 - Select an output target of 24, 48, 60, 108 or 250MP.
 - No post-capture model-choice dialog and no automatic switch to classical HDMP. A selected AI model stays locked for the entire render.
 - The selected NAFNet model is the complete HDMP stage; the legacy classical HDMP post-pass is skipped after AI rendering.
-- NAFNet tensor input, validation and output use RGB/NCHW channel order and are covered by unit tests.
+- NAFNet tensor input, validation and output use RGB/NCHW channel order and are covered by unit tests. Both SIDD checkpoints follow the upstream training pipeline's BGR-decode-to-RGB tensor conversion; the Android inference path uses RGB for both networks and avoids the BGR conversion in the third-party convenience wrapper.
+- ONNX export metadata records each model's expected channel order, and tensor names are color-neutral rather than incorrectly labelling both networks BGR.
 - An image is committed only after all tiles from the selected model finish; partial AI output is never marked complete.
 - AI 1.5 targets about 10s; AI 2 targets about 20s. These are optimization targets, not hard cutoffs: processing continues with the selected model after either target is exceeded.
 - A failed AI run must not be presented as a successful AI result or silently replaced with classical processing. The original capture is retained for recovery.

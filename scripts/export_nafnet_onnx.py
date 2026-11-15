@@ -119,12 +119,14 @@ def load_nafnetlib_width32(source_root: Path, model_dir: Path):
     return processor.net.net_g.eval().cpu()
 
 
-def export_one(model_id: str, filename: str, network, output_dir: Path) -> dict:
+def export_one(model_id: str, filename: str, network, output_dir: Path, channel_order: str) -> dict:
     import numpy as np
     import onnx
     import onnxruntime as ort
     import torch
 
+    if channel_order not in {"RGB", "BGR"}:
+        raise ValueError(f"Unsupported NAFNet input channel order: {channel_order}")
     torch.set_num_threads(max(1, min(8, os.cpu_count() or 2)))
     torch.set_grad_enabled(False)
     network = network.eval().cpu()
@@ -138,8 +140,8 @@ def export_one(model_id: str, filename: str, network, output_dir: Path) -> dict:
             network,
             sample,
             str(output_path),
-            input_names=["image_bgr"],
-            output_names=["restored_bgr"],
+            input_names=["input_image"],
+            output_names=["restored_image"],
             opset_version=17,
             do_constant_folding=False,
             dynamo=False,
@@ -152,8 +154,8 @@ def export_one(model_id: str, filename: str, network, output_dir: Path) -> dict:
         providers=["CPUExecutionProvider"],
     )
     predicted = session.run(
-        ["restored_bgr"],
-        {"image_bgr": sample.cpu().numpy()},
+        ["restored_image"],
+        {"input_image": sample.cpu().numpy()},
     )[0]
     if predicted.shape != (1, 3, 256, 256):
         raise RuntimeError(f"{model_id}: unexpected ONNX output shape {predicted.shape}")
@@ -182,6 +184,7 @@ def export_one(model_id: str, filename: str, network, output_dir: Path) -> dict:
     return {
         "model_id": model_id,
         "file": filename,
+        "channel_order": channel_order,
         "bytes": output_path.stat().st_size,
         "sha256": sha256(output_path),
         "smoke_test": "passed",
@@ -226,17 +229,19 @@ def main() -> int:
             "megvii_nafnet_sidd_width64",
             "nafnet_sidd_width64.onnx",
             official_network,
+            "RGB",
         ),
         (
             "nafnetlib_sidd_width32",
             "nafnetlib_sidd_width32.onnx",
             fallback_network,
+            "RGB",
         ),
     ]
     manifest = []
     report = []
-    for model_id, filename, network in models:
-        result = export_one(model_id, filename, network, args.output_dir)
+    for model_id, filename, network, channel_order in models:
+        result = export_one(model_id, filename, network, args.output_dir, channel_order)
         manifest.append(f"{result['sha256']}  {filename}")
         report.append(result)
         print(json.dumps(result, sort_keys=True), flush=True)

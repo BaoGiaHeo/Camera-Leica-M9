@@ -697,6 +697,8 @@ fun CameraScreen(
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var viewerOriginalBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var viewerShowsOriginal by remember { mutableStateOf(false) }
     var photoViewerVisible by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
@@ -1626,14 +1628,25 @@ fun CameraScreen(
     }
 
     LaunchedEffect(photoViewerVisible, lastUri) {
-        if (!photoViewerVisible) return@LaunchedEffect
+        if (!photoViewerVisible) {
+            viewerOriginalBitmap = null
+            viewerShowsOriginal = false
+            return@LaunchedEffect
+        }
         val uri = lastUri ?: return@LaunchedEffect
-        viewerBitmap = withContext(Dispatchers.IO) {
-            runCatching {
+        val previews = withContext(Dispatchers.IO) {
+            val processed = runCatching {
                 // Decode EXIF into the pixels instead of trusting a stale MediaStore thumbnail.
                 decodeUprightBitmap(context, uri, maxDimension = 2048)?.asImageBitmap()
             }.getOrNull()
+            val original = runCatching {
+                HdmpAiEngine.loadOriginalForComparison(context, uri)?.asImageBitmap()
+            }.getOrNull()
+            processed to original
         }
+        viewerBitmap = previews.first
+        viewerOriginalBitmap = previews.second
+        viewerShowsOriginal = false
     }
 
     fun openLastPhoto() {
@@ -4237,25 +4250,57 @@ stabilization = stabilization,
 
         if (photoViewerVisible) {
             Dialog(
-                onDismissRequest = { photoViewerVisible = false; viewerBitmap = null },
+                onDismissRequest = { photoViewerVisible = false; viewerBitmap = null; viewerOriginalBitmap = null; viewerShowsOriginal = false },
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 Box(Modifier.fillMaxSize().background(Color.Black)) {
-                    val image = viewerBitmap ?: thumb
+                    val image = if (viewerShowsOriginal) viewerOriginalBitmap else (viewerBitmap ?: thumb)
                     if (image != null) {
                         Image(
                             bitmap = image,
-                            contentDescription = "Ảnh vừa chụp",
+                            contentDescription = if (viewerShowsOriginal) "Ảnh gốc trước HDMP AI" else "Ảnh sau xử lý",
                             modifier = Modifier.fillMaxSize().padding(12.dp),
                             contentScale = ContentScale.Fit
                         )
                     } else {
                         Text("Đang tải ảnh...", color = Color.White, modifier = Modifier.align(Alignment.Center))
                     }
+                    if (viewerOriginalBitmap != null) {
+                        Column(
+                            Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                if (viewerShowsOriginal) "ẢNH GỐC · TRƯỚC HDMP AI" else "ẢNH ĐÃ XỬ LÝ · HDMP AI",
+                                color = CamColors.Yellow,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Row(
+                                Modifier.clip(RoundedCornerShape(24.dp)).background(Color(0xDD252525))
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                listOf(false to "Sau HDMP", true to "Ảnh gốc").forEach { (showOriginal, label) ->
+                                    Text(
+                                        label,
+                                        color = if (viewerShowsOriginal == showOriginal) Color.Black else Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.clip(RoundedCornerShape(18.dp))
+                                            .background(if (viewerShowsOriginal == showOriginal) CamColors.Yellow else Color.Transparent)
+                                            .clickable { viewerShowsOriginal = showOriginal }
+                                            .padding(horizontal = 14.dp, vertical = 9.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
                         CircleBtn(
                             Icons.Default.Close, "Đóng ảnh",
-                            onClick = { photoViewerVisible = false; viewerBitmap = null },
+                            onClick = { photoViewerVisible = false; viewerBitmap = null; viewerOriginalBitmap = null; viewerShowsOriginal = false },
                             size = 44.dp
                         )
                     }

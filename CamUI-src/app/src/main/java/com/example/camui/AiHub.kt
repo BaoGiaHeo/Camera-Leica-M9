@@ -1,7 +1,9 @@
 package com.example.camui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,7 +42,9 @@ fun HdmpBottomSheet(
     onUhdPlusEnabledChange: (Boolean) -> Unit,
     nightShotEnabled: Boolean,
     nightShotDurationSeconds: Int,
-    onCycleNightShot: () -> Unit
+    onCycleNightShot: () -> Unit,
+    renderProfile: String,
+    onRenderProfileChange: (String) -> Unit
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -63,25 +67,58 @@ fun HdmpBottomSheet(
         ) {
             Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "HDMP điều phối HDMP AI 2 → HDMP AI 2 Fast dự phòng · HDMP kiểm soát và hoàn tất ảnh cuối",
+                "HDMP điều phối HDMP AI 2 và HDMP AI 2 Fast; HDMP kiểm tra và hoàn tất ảnh cuối.",
                 color = HdmpMuted, fontSize = 12.sp
+            )
+            Text("Chế độ xử lý HDMP AI", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf(
+                    "quality" to "Chất lượng",
+                    "balanced" to "Cân bằng",
+                    "speed" to "Tốc độ"
+                ).forEach { (value, title) ->
+                    val selected = renderProfile == value
+                    Box(
+                        modifier = Modifier.weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (selected) HdmpYellow else Color(0xFF292929))
+                            .clickable { onRenderProfileChange(value) }
+                            .padding(vertical = 11.dp, horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            title,
+                            color = if (selected) Color.Black else Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+            Text(
+                when (renderProfile) {
+                    "quality" -> "Ưu tiên HDMP AI 2; số luồng vẫn tự giới hạn theo CPU, RAM và nhiệt độ."
+                    "speed" -> "Bắt đầu trực tiếp bằng HDMP AI 2 Fast để rút ngắn thời gian xử lý."
+                    else -> "Ưu tiên HDMP AI 2 với mức tải cân bằng; hệ thống tự điều chỉnh theo thiết bị."
+                },
+                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
             )
             HdmpToggleRow(
                 title = "UHD · 108MP",
                 enabled = uhdEnabled, onEnabledChange = onUhdEnabledChange,
-                status = if (uhdEnabled) "ĐANG BẬT · 8 TÁC VỤ" else "TẮT"
+                status = if (uhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
             HdmpToggleRow(
                 title = "FHD · 60MP",
                 enabled = fhdEnabled, onEnabledChange = onFhdEnabledChange,
-                status = if (fhdEnabled) "ĐANG BẬT · 8 TÁC VỤ" else "TẮT"
+                status = if (fhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
             HdmpToggleRow(
                 title = "UHD+ · 250MP",
                 enabled = uhdPlusEnabled, onEnabledChange = onUhdPlusEnabledChange,
-                status = if (uhdPlusEnabled) "ĐANG BẬT · 8 TÁC VỤ" else "TẮT"
+                status = if (uhdPlusEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
             Row(
@@ -115,7 +152,7 @@ fun HdmpBottomSheet(
             ) {
                 Text("Cách phân bổ xử lý", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "FHD, UHD và UHD+ dùng cùng pipeline phục hồi chi tiết với 8 tác vụ. Night Shot giới hạn 60MP; Photo thường không chạy HDMP.",
+                    "FHD, UHD và UHD+ dùng pipeline HDMP với số luồng tự điều chỉnh theo CPU, RAM và trạng thái nhiệt. Night Shot có trần 60MP nhưng tự hạ độ phân giải nếu RAM không đủ.",
                     color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
                 )
             }

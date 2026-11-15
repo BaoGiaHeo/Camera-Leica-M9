@@ -2686,6 +2686,8 @@ fun AlbumScreen(onBack: () -> Unit) {
     var photos by remember { mutableStateOf<List<AlbumPhotoEntry>>(emptyList()) }
     var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
     var selectedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var inspectorVisible by remember { mutableStateOf(false) }
+    var inspectorRows by remember { mutableStateOf<List<Pair<String, String>>?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -2716,6 +2718,18 @@ fun AlbumScreen(onBack: () -> Unit) {
             }.getOrDefault(emptyList())
         }
         isLoading = false
+    }
+
+    LaunchedEffect(selectedPhoto, inspectorVisible) {
+        if (!inspectorVisible) {
+            inspectorRows = null
+        } else {
+            val uri = selectedPhoto ?: return@LaunchedEffect
+            inspectorRows = withContext(Dispatchers.IO) {
+                runCatching { readPhotoInspectorInfo(context, uri) }
+                    .getOrElse { listOf("Thông tin ảnh" to "Không thể đọc metadata: ${it.message ?: "lỗi không xác định"}") }
+            }
+        }
     }
 
     Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(12.dp)) {
@@ -2772,13 +2786,136 @@ fun AlbumScreen(onBack: () -> Unit) {
                 } else {
                     Text("Đang tải ảnh…", color = Color.White, modifier = Modifier.align(Alignment.Center))
                 }
-                Text("Đóng", color = Color.White,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(20.dp)
-                        .clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
-                        .animaTClickable { selectedPhoto = null; selectedBitmap = null }.padding(12.dp))
+                Row(
+                    Modifier.align(Alignment.TopEnd).padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Thông tin", color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
+                            .animaTClickable { inspectorVisible = true }.padding(horizontal = 12.dp, vertical = 10.dp))
+                    Text("Đóng", color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
+                            .animaTClickable {
+                                selectedPhoto = null
+                                selectedBitmap = null
+                                inspectorVisible = false
+                            }.padding(horizontal = 12.dp, vertical = 10.dp))
+                }
             }
         }
     }
+
+    if (inspectorVisible && selectedPhoto != null) {
+        AlertDialog(
+            onDismissRequest = { inspectorVisible = false },
+            title = { Text("Photo Inspector", color = CamColors.TextColor) },
+            text = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    val rows = inspectorRows
+                    if (rows == null) {
+                        Text("Đang đọc metadata ảnh…", color = CamColors.Sub)
+                    } else {
+                        rows.forEach { (label, value) ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label, color = CamColors.Sub, fontSize = 12.sp,
+                                    modifier = Modifier.weight(0.42f))
+                                Text(value, color = CamColors.TextColor, fontSize = 12.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                    modifier = Modifier.weight(0.58f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { inspectorVisible = false }) { Text("Đóng") }
+            }
+        )
+    }
+}
+
+
+private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String, String>> {
+    var fileName = "Không có"
+    var fileSize = -1L
+    var mimeType = "Không có"
+    var width = -1
+    var height = -1
+    runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(
+                OpenableColumns.DISPLAY_NAME,
+                OpenableColumns.SIZE,
+                MediaStore.MediaColumns.MIME_TYPE,
+                MediaStore.Images.Media.WIDTH,
+                MediaStore.Images.Media.HEIGHT
+            ),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                fun stringAt(column: String): String? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else null
+                }
+                fun longAt(column: String): Long? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0 && !cursor.isNull(index)) cursor.getLong(index) else null
+                }
+                fileName = stringAt(OpenableColumns.DISPLAY_NAME) ?: fileName
+                fileSize = longAt(OpenableColumns.SIZE) ?: fileSize
+                mimeType = stringAt(MediaStore.MediaColumns.MIME_TYPE) ?: mimeType
+                width = longAt(MediaStore.Images.Media.WIDTH)?.toInt() ?: width
+                height = longAt(MediaStore.Images.Media.HEIGHT)?.toInt() ?: height
+            }
+        }
+    }
+    val exif = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input -> ExifInterface(input) }
+    }.getOrNull()
+    fun tag(name: String): String? = exif?.getAttribute(name)?.trim()?.takeIf { it.isNotEmpty() }
+    if (width <= 0) width = tag(ExifInterface.TAG_IMAGE_WIDTH)?.toIntOrNull() ?: -1
+    if (height <= 0) height = tag(ExifInterface.TAG_IMAGE_LENGTH)?.toIntOrNull() ?: -1
+    val makeModel = listOfNotNull(tag(ExifInterface.TAG_MAKE), tag(ExifInterface.TAG_MODEL))
+        .distinct().joinToString(" ").ifBlank { "Không có EXIF" }
+    val resolution = if (width > 0 && height > 0) {
+        String.format(Locale.US, "%,d × %,d px", width, height)
+    } else "Không có"
+    val sizeLabel = when {
+        fileSize < 0L -> "Không có"
+        fileSize >= 1024L * 1024L -> String.format(Locale.US, "%.2f MB", fileSize / (1024.0 * 1024.0))
+        fileSize >= 1024L -> String.format(Locale.US, "%.1f KB", fileSize / 1024.0)
+        else -> "$fileSize bytes"
+    }
+    val exposure = tag(ExifInterface.TAG_EXPOSURE_TIME)?.let { raw ->
+        raw.toDoubleOrNull()?.let { seconds ->
+            if (seconds > 0.0 && seconds < 1.0) "1/${(1.0 / seconds).toInt()}s"
+            else if (seconds >= 1.0) String.format(Locale.US, "%.2fs", seconds)
+            else raw
+        } ?: raw
+    } ?: "Không có"
+    val focal = tag(ExifInterface.TAG_FOCAL_LENGTH)?.let { "$it mm" } ?: "Không có"
+    val aperture = tag(ExifInterface.TAG_F_NUMBER)?.let { "f/$it" } ?: "Không có"
+    return listOf(
+        "Tên tệp" to fileName,
+        "Độ phân giải" to resolution,
+        "Dung lượng" to sizeLabel,
+        "Định dạng" to mimeType,
+        "Thiết bị" to makeModel,
+        "Ống kính" to (tag(ExifInterface.TAG_LENS_MODEL) ?: "Không có EXIF"),
+        "ISO" to (tag(ExifInterface.TAG_ISO_SPEED_RATINGS) ?: "Không có"),
+        "Tốc độ màn trập" to exposure,
+        "Khẩu độ" to aperture,
+        "Tiêu cự" to focal,
+        "Ngày chụp" to (tag(ExifInterface.TAG_DATETIME_ORIGINAL) ?: "Không có EXIF"),
+        "Trạng thái HDMP" to "Không suy đoán từ EXIF; xem thông tin phiên xử lý trong ứng dụng"
+    )
 }
 
 

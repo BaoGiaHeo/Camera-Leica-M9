@@ -90,6 +90,7 @@ internal object HdmpAiEngine {
         workerCount: Int,
         shouldSwitchToFast: () -> Boolean = { false },
         continuePrimaryPastBudget: () -> Boolean = { false },
+        shouldStopForThermal: () -> Boolean = { false },
         onProgress: (Model, Int) -> Unit = { _, _ -> }
     ): Result {
         val stamp = System.nanoTime().toString()
@@ -133,12 +134,16 @@ internal object HdmpAiEngine {
                     model = Model.NAFNET_WIDTH64,
                     shouldSwitchToFast = shouldSwitchToFast,
                     continuePastBudget = continuePrimaryPastBudget,
+                    shouldStopForThermal = shouldStopForThermal,
                     onProgress = onProgress
                 )
             } catch (_: UserRequestedFastException) {
                 false
             }
             val userRequestedFast = shouldSwitchToFast()
+            if (shouldStopForThermal() && primary && commitRendered(context, uri, original, rendered)) {
+                return Result(Model.NAFNET_WIDTH64, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 hoàn tất, phần còn lại giữ ảnh gốc.")
+            }
             if (!userRequestedFast && primary && commitRendered(context, uri, original, rendered)) {
                 return Result(Model.NAFNET_WIDTH64, true, "HDMP AI 2 đã xử lý và được HDMP kiểm tra.")
             }
@@ -194,6 +199,7 @@ internal object HdmpAiEngine {
         model: Model,
         shouldSwitchToFast: () -> Boolean,
         continuePastBudget: () -> Boolean,
+        shouldStopForThermal: () -> Boolean,
         onProgress: (Model, Int) -> Unit
     ): Boolean {
         var sourceStream: FileInputStream? = null
@@ -242,6 +248,41 @@ internal object HdmpAiEngine {
             var tileIndex = 0
             for (coreTop in 0 until height step CORE_SIZE) {
                 for (coreLeft in 0 until width step CORE_SIZE) {
+                    // Stop only between native inference tiles. Complete unprocessed areas
+                    // from the original capture so a partial export never contains blank pixels.
+                    if (shouldStopForThermal()) {
+                        if (tileIndex == 0) return false
+                        for (remainingTop in 0 until height step CORE_SIZE) {
+                            for (remainingLeft in 0 until width step CORE_SIZE) {
+                                val remainingIndex = (remainingTop / CORE_SIZE) * columns + (remainingLeft / CORE_SIZE)
+                                if (remainingIndex < tileIndex) continue
+                                val right = min(width, remainingLeft + CORE_SIZE)
+                                val bottom = min(height, remainingTop + CORE_SIZE)
+                                val originalTile = openedDecoder.decodeRegion(
+                                    Rect(remainingLeft, remainingTop, right, bottom), decodeOptions
+                                ) ?: error("Unable to restore untouched source tile")
+                                try {
+                                    val pixels = IntArray(originalTile.width * originalTile.height)
+                                    originalTile.getPixels(pixels, 0, originalTile.width, 0, 0,
+                                        originalTile.width, originalTile.height)
+                                    outputBitmap!!.setPixels(pixels, 0, originalTile.width,
+                                        remainingLeft, remainingTop, originalTile.width, originalTile.height)
+                                } finally {
+                                    originalTile.recycle()
+                                }
+                            }
+                        }
+                        FileOutputStream(destination).use { stream ->
+                            check(outputBitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, stream)) {
+                                "HDMP AI partial output JPEG encoding failed"
+                            }
+                            stream.flush()
+                            stream.fd.sync()
+                        }
+                        writeExif(destination, readExif(source))
+                        runCatching { onProgress(model, (tileIndex * 100 / totalTiles).coerceIn(1, 99)) }
+                        return true
+                    }
                     // ONNX inference is native and cannot be safely interrupted mid-tile.
                     // Check the soft deadline between tiles, then restart fallback from the
                     // untouched original file if the primary model exceeded its budget.

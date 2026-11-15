@@ -519,6 +519,11 @@ fun CameraScreen(
     }
     var hudVisible by remember { mutableStateOf(true) }
     var hudActivityToken by remember { mutableIntStateOf(0) }
+    var proHudShowEv by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_ev", true)) }
+    var proHudShowShutter by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_shutter", true)) }
+    var proHudShowIso by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_iso", true)) }
+    var proHudShowFocus by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_focus", true)) }
+    var proHudShowWhiteBalance by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_white_balance", true)) }
     var mode by remember { mutableStateOf(appPrefs.getString("camera_mode", "Photo") ?: "Photo") }
     var burstMode by remember {
         mutableStateOf(appPrefs.getBoolean("burst_capture_mode_enabled", false))
@@ -3820,14 +3825,16 @@ fun CameraScreen(
                         }
             
                         if (mode == "Pro") {
-                            val proItems = listOf(
-                                Triple("EV", evText, "EV"),
-                                Triple("Tv", shutterText, "Tv"),
-                                Triple("ISO", isoText, "ISO"),
-                                Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else "AF", "AF"),
-                                Triple("Tone", toneText, "WB"),
-                                Triple("AUTO", "AUTO", "RESET")
-                            )
+                            val proItems = buildList {
+                                if (proHudShowEv) add(Triple("EV", evText, "EV"))
+                                if (proHudShowShutter) add(Triple("Tv", shutterText, "Tv"))
+                                if (proHudShowIso) add(Triple("ISO", isoText, "ISO"))
+                                if (proHudShowFocus) {
+                                    add(Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else "AF", "AF"))
+                                }
+                                if (proHudShowWhiteBalance) add(Triple("Tone", toneText, "WB"))
+                                add(Triple("AUTO", "AUTO", "RESET"))
+                            }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 proItems.forEach { (key, value, label) ->
                                     val active = proSel == key

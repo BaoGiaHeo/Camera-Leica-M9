@@ -2636,7 +2636,6 @@ fun CameraScreen(
                                             onAdaptiveWorkerCount = { count ->
                                                 mainExecutor.execute { hdmpActiveWorkerCount = count }
                                             },
-                                            shouldStopForThermal = { thermalStopRequested.get() },
                                              onTileProgress = { model, completedTiles, totalTiles ->
                                                  mainExecutor.execute {
                                                      val modelName = when (model) {
@@ -2697,7 +2696,7 @@ fun CameraScreen(
                                         "AI không được yêu cầu ở chế độ chụp này."
                                     )
                                 }
-                                val hdmpApplied = if (hdmpWorkerCount > 0 && hdmpAiResult.applied && !thermalStopRequested.get()) {
+                                val hdmpApplied = if (hdmpWorkerCount > 0 && hdmpAiResult.applied) {
                                     withContext(Dispatchers.Main) {
                                         val aiLabel = when (hdmpAiResult.model) {
                                             HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"

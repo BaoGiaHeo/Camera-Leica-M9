@@ -1747,8 +1747,20 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
  * Applies a built-in Fujifilm profile or a retained non-Fujifilm filter to the saved photo.
  * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
  */
-private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?): Boolean {
+private fun applyCameraLookPixels(
+    context: Context,
+    bitmap: Bitmap,
+    preset: String,
+    cube: CubeLut?
+): Boolean {
     if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) return false
+    val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
+    val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
+    val colorChrome = recipe.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+    val grain = recipe.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)
+    val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
+    val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -1762,11 +1774,45 @@ private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?
                 ?: transformPreset(preset, red, green, blue).let {
                     Triple(it.first / 255f, it.second / 255f, it.third / 255f)
                 }
+
+            var r = mapped.first.coerceIn(0f, 1f)
+            var g = mapped.second.coerceIn(0f, 1f)
+            var b = mapped.third.coerceIn(0f, 1f)
+            val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
+            val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
+            val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
+            val tonalShift = highlight * highlightWeight * 0.12f +
+                shadow * shadowWeight * 0.12f
+            r += tonalShift
+            g += tonalShift
+            b += tonalShift
+
+            val chromeChroma = maxOf(abs(r - luma), abs(g - luma), abs(b - luma))
+            val chromeFactor = 1f + colorChrome * (0.05f + chromeChroma * 0.18f)
+            val saturationFactor = saturation * chromeFactor
+            r = luma + (r - luma) * saturationFactor
+            g = luma + (g - luma) * saturationFactor
+            b = luma + (b - luma) * saturationFactor
+
+            r += temperature * 0.045f
+            g += temperature * 0.006f
+            b -= temperature * 0.045f
+
+            if (grain > 0.001f) {
+                // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
+                val seed = (x.toLong() * 73_856_093L) xor
+                    (y.toLong() * 19_349_663L) xor preset.hashCode().toLong()
+                val noise = ((((seed ushr 13) and 0xFFFFL).toFloat() / 32_767.5f) - 1f) *
+                    grain * 0.035f
+                r += noise
+                g += noise
+                b += noise
+            }
             row[x] = AndroidColor.argb(
                 alpha,
-                clamp8(mapped.first * 255f),
-                clamp8(mapped.second * 255f),
-                clamp8(mapped.third * 255f)
+                clamp8(r.coerceIn(0f, 1f) * 255f),
+                clamp8(g.coerceIn(0f, 1f) * 255f),
+                clamp8(b.coerceIn(0f, 1f) * 255f)
             )
         }
         bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -1798,7 +1844,7 @@ fun renderCameraLookPreview(
         val output = scaled.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching null
         if (scaled !== source) scaled.recycle()
         val cube = readCameraLookLut(context, preset)
-        if (!applyCameraLookPixels(output, preset, cube)) {
+        if (!applyCameraLookPixels(context, output, preset, cube)) {
             output.recycle()
             return@runCatching null
         }
@@ -1889,7 +1935,7 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         }
 
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        if (!applyCameraLookPixels(bitmap, preset, cube)) return@runCatching false
+        if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
         val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
         } ?: false

@@ -211,9 +211,11 @@ internal object HdmpAiEngine {
             }
             val userRequestedFast = preferFast || shouldSwitchToFast()
             if (shouldStopForThermal() && primary && commitRendered(context, uri, original, rendered)) {
+                preserveOriginalForComparison(context, uri, original)
                 return Result(Model.NAFNET_WIDTH64, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 hoàn tất, phần còn lại giữ ảnh gốc.")
             }
             if (!userRequestedFast && primary && commitRendered(context, uri, original, rendered)) {
+                preserveOriginalForComparison(context, uri, original)
                 return Result(Model.NAFNET_WIDTH64, true, "HDMP AI 2 đã xử lý và được HDMP kiểm tra.")
             }
             // Never reuse a partially rendered primary output. Fast always starts from original.
@@ -237,9 +239,11 @@ internal object HdmpAiEngine {
                 onProgress = onProgress
             )
             if (shouldStopForThermal() && fallback && commitRendered(context, uri, original, rendered)) {
+                preserveOriginalForComparison(context, uri, original)
                 return Result(Model.NAFNETLIB_WIDTH32, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 Fast hoàn tất, phần còn lại giữ ảnh gốc.")
             }
             if (fallback && commitRendered(context, uri, original, rendered)) {
+                preserveOriginalForComparison(context, uri, original)
                 return Result(
                     Model.NAFNETLIB_WIDTH32,
                     true,
@@ -618,6 +622,57 @@ internal object HdmpAiEngine {
         }
         digest.digest().joinToString("") { "%02x".format(it) }
     }.getOrNull()
+
+    /**
+     * Retains only the latest AI source frame for the optional before/after viewer.
+     * This is app-private storage; it does not add duplicate images to the user's gallery.
+     */
+    private fun preserveOriginalForComparison(context: Context, uri: Uri, original: File) {
+        runCatching {
+            val directory = File(context.filesDir, "hdmp-comparison")
+            check(directory.exists() || directory.mkdirs()) { "Could not create HDMP comparison directory" }
+            val destination = File(directory, "latest-original.jpg")
+            val temporary = File(directory, "latest-original.partial")
+            original.copyTo(temporary, overwrite = true)
+            check(temporary.length() > 0L) { "HDMP comparison backup is empty" }
+            if (destination.exists() && !destination.delete()) {
+                error("Could not replace previous HDMP comparison image")
+            }
+            if (!temporary.renameTo(destination)) {
+                temporary.copyTo(destination, overwrite = true)
+                temporary.delete()
+            }
+            context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                .edit()
+                .putString("hdmp_compare_output_uri", uri.toString())
+                .putString("hdmp_compare_original_path", destination.absolutePath)
+                .apply()
+        }.onFailure {
+            Log.w(TAG, "Could not retain original for before/after comparison", it)
+        }
+    }
+
+    /** Decode the retained original only when it belongs to the currently displayed result. */
+    fun loadOriginalForComparison(context: Context, outputUri: Uri): Bitmap? {
+        val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        if (prefs.getString("hdmp_compare_output_uri", null) != outputUri.toString()) return null
+        val path = prefs.getString("hdmp_compare_original_path", null) ?: return null
+        val source = File(path)
+        if (!source.isFile || source.length() <= 0L) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(source.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 2048) sample *= 2
+        return BitmapFactory.decodeFile(
+            source.absolutePath,
+            BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.RGB_565
+                inDither = true
+            }
+        )
+    }
 
     private fun commitRendered(context: Context, uri: Uri, original: File, rendered: File): Boolean {
         var replacing = false

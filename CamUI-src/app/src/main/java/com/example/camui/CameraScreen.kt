@@ -10,6 +10,7 @@ import android.content.Context
 import android.graphics.Point
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
+import android.media.AudioAttributes
 import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.os.Build
@@ -220,7 +221,35 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
-private fun playConfiguredShutterSound(systemPlayer: MediaActionSound) {
+private fun playConfiguredShutterSound(context: Context, systemPlayer: MediaActionSound) {
+    val customUri = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        .getString("shutter_sound_uri", null)
+        ?.takeIf { it.isNotBlank() }
+    if (customUri != null) {
+        val player = MediaPlayer()
+        val prepared = runCatching {
+            player.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            player.setDataSource(context, Uri.parse(customUri))
+            player.setOnPreparedListener { mediaPlayer ->
+                runCatching { mediaPlayer.start() }
+                    .onFailure { mediaPlayer.release() }
+            }
+            player.setOnCompletionListener { it.release() }
+            player.setOnErrorListener { mediaPlayer, _, _ ->
+                mediaPlayer.release()
+                true
+            }
+            player.prepareAsync()
+        }.isSuccess
+        if (prepared) return
+        runCatching { player.release() }
+        android.util.Log.w("FUJI_SHUTTER", "Custom shutter audio unavailable; using Android default")
+    }
     runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
 }
 
@@ -1631,7 +1660,7 @@ fun CameraScreen(
         previewUseCase?.targetRotation = captureRotation
         analysisUseCase?.targetRotation = captureRotation
         if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-            playConfiguredShutterSound(shutterSoundPlayer)
+            playConfiguredShutterSound(context, shutterSoundPlayer)
         }
 
         val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -2078,7 +2107,7 @@ fun CameraScreen(
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-                playConfiguredShutterSound(shutterSoundPlayer)
+                playConfiguredShutterSound(context, shutterSoundPlayer)
             }
             val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
             scope.launch {

@@ -1748,8 +1748,8 @@ fun applyCameraWatermark(
         val sourceHeightPx = sourceBitmap.height
         val sourceMinSide = minOf(sourceWidthPx, sourceHeightPx).toFloat()
         val footerMarginPx = (sourceMinSide * 0.025f).coerceIn(14f, 72f).toInt()
-        val footerHeightPx = (sourceMinSide * 0.28f).coerceIn(112f, 760f).toInt()
-        val compactFooterHeightPx = (sourceMinSide * 0.16f).coerceIn(80f, 420f).toInt()
+        val footerHeightPx = (sourceMinSide * 0.095f).coerceIn(84f, 480f).toInt()
+        val compactFooterHeightPx = (sourceMinSide * 0.095f).coerceIn(80f, 480f).toInt()
         val expandedWidth = sourceBitmap.width + footerMarginPx * 2
         val expandedHeight = sourceBitmap.height + footerMarginPx * 2 + footerHeightPx
         val expandedPixelCount = expandedWidth.toLong() * expandedHeight.toLong()
@@ -1823,6 +1823,11 @@ fun applyCameraWatermark(
             else -> AndroidColor.TRANSPARENT
         }
         val minSide = minOf(output.width, output.height).toFloat()
+        // Keep logo, model and capture data visually balanced across portrait/landscape exports.
+        // The scale follows the final upright pixel dimensions, not the device preview density.
+        val watermarkTitleSize = (minSide * 0.0095f).coerceIn(10f, 40f)
+        val watermarkDetailSize = (watermarkTitleSize * 0.82f).coerceIn(8f, 32f)
+        val watermarkLogoHeight = watermarkTitleSize * 1.08f
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         val model = prefs.getString("watermark_custom_model", "")?.trim()
             ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
@@ -1860,11 +1865,14 @@ fun applyCameraWatermark(
 
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
+            alpha = if (frameStyle == "Transparent") 225 else 245
+            textSize = watermarkTitleSize
             typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            alpha = 235
+            alpha = 218
+            textSize = watermarkDetailSize
             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1872,12 +1880,22 @@ fun applyCameraWatermark(
             typeface = android.graphics.Typeface.create("sans-serif-bold", android.graphics.Typeface.NORMAL)
         }
         fun fitText(value: String, paint: Paint, x: Float, baseline: Float, maxWidth: Float, baseSize: Float) {
-            if (value.isBlank()) return
-            paint.textSize = baseSize
-            while (paint.textSize > 9f && paint.measureText(value) > maxWidth) {
-                paint.textSize *= 0.92f
+            if (value.isBlank() || maxWidth <= 0f) return
+            val minimumTextSize = (minSide * 0.0055f).coerceIn(8f, 22f)
+            paint.textSize = baseSize.coerceAtLeast(minimumTextSize)
+            while (paint.textSize > minimumTextSize && paint.measureText(value) > maxWidth) {
+                paint.textSize = (paint.textSize * 0.92f).coerceAtLeast(minimumTextSize)
             }
-            canvas.drawText(value, x, baseline, paint)
+            var visibleText = value
+            if (paint.measureText(visibleText) > maxWidth) {
+                val ellipsis = "…"
+                var endIndex = visibleText.length
+                while (endIndex > 1 && paint.measureText(visibleText.substring(0, endIndex) + ellipsis) > maxWidth) {
+                    endIndex--
+                }
+                visibleText = if (endIndex > 1) visibleText.substring(0, endIndex) + ellipsis else ellipsis
+            }
+            canvas.drawText(visibleText, x, baseline, paint)
         }
         fun drawLiquidGlassPanel(rect: RectF, baseRadius: Float) {
             val left = rect.left.toInt().coerceIn(0, output.width - 1)
@@ -2057,8 +2075,8 @@ fun applyCameraWatermark(
         // are handled independently by CameraFrameSettingsPanel.
         when (template) {
             "standard2" -> {
-                val plate = drawBottomPlate(0.145f, margin * 1.25f)
-                val logoHeight = plate.height() * 0.34f
+                val plate = drawBottomPlate(0.095f, margin * 1.25f)
+                val logoHeight = watermarkLogoHeight
                 val logoWidth = logoHeight * (brandLogo?.let {
                     it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
                 } ?: 5.95f)
@@ -2075,8 +2093,8 @@ fun applyCameraWatermark(
                     plate.width(), minSide * 0.010f)
             }
             "blur" -> {
-                val plate = drawBottomPlate(0.17f, margin)
-                val logoHeight = plate.height() * 0.31f
+                val plate = drawBottomPlate(0.095f, margin)
+                val logoHeight = watermarkLogoHeight
                 val logoWidth = logoHeight * (brandLogo?.let {
                     it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
                 } ?: 5.95f)
@@ -2093,11 +2111,11 @@ fun applyCameraWatermark(
                     textWidth, minSide * 0.011f)
             }
 "balanced" -> {
-                val plate = drawBottomPlate(0.16f, margin)
+                val plate = drawBottomPlate(0.095f, margin)
                 val left = plate.left + plate.height() * 0.19f
                 val right = plate.right - plate.height() * 0.19f
                 val sharedBaseline = plate.top + plate.height() * 0.43f
-                val sharedTextSize = minSide * 0.020f
+                val sharedTextSize = watermarkTitleSize
                 titlePaint.textAlign = Paint.Align.LEFT
                 detailPaint.textAlign = Paint.Align.RIGHT
                 fitText(modelLine, titlePaint, left, sharedBaseline,
@@ -2127,11 +2145,11 @@ fun applyCameraWatermark(
                 titlePaint.textAlign = Paint.Align.RIGHT
                 detailPaint.textAlign = Paint.Align.RIGHT
                 var baseline = output.height - margin * 1.18f
-                fitText(timeLine, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.014f)
+                fitText(timeLine, detailPaint, right, baseline, output.width * 0.60f, watermarkDetailSize)
                 baseline -= margin * 0.92f
-                fitText(specs, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.016f)
+                fitText(specs, detailPaint, right, baseline, output.width * 0.60f, watermarkDetailSize)
                 baseline -= margin * 0.98f
-                fitText(modelLine, titlePaint, right, baseline, output.width * 0.60f, minSide * 0.022f)
+                fitText(modelLine, titlePaint, right, baseline, output.width * 0.60f, watermarkTitleSize)
                 titlePaint.textAlign = Paint.Align.LEFT
                 detailPaint.textAlign = Paint.Align.LEFT
             }
@@ -2147,7 +2165,7 @@ fun applyCameraWatermark(
                 optionalLines.forEachIndexed { index, line ->
                     fitText(line, detailPaint, margin,
                         output.height - margin * (1.12f + index * 0.82f),
-                        output.width - margin * 2f, minSide * 0.013f)
+                        output.width - margin * 2f, watermarkDetailSize)
                 }
             }
             "fuji_classic" -> {
@@ -2155,7 +2173,7 @@ fun applyCameraWatermark(
                     color = AndroidColor.WHITE
                     style = Paint.Style.FILL
                 })
-                val logoWidth = minOf(footerRect.width() * 0.19f, footerRect.height() * 0.82f)
+                val logoWidth = minOf(footerRect.width() * 0.18f, watermarkLogoHeight * (brandLogo?.let { it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat() } ?: 5.95f))
                 val logoHeight = brandLogo?.let {
                     logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
                 } ?: logoWidth * 0.18f
@@ -2176,7 +2194,7 @@ fun applyCameraWatermark(
                     footerText.textAlign = Paint.Align.LEFT
                     fitText(model, footerText, leftLogo,
                         footerRect.centerY() + logoHeight * 0.88f,
-                        footerRect.width() * 0.34f, minSide * 0.009f)
+                        footerRect.width() * 0.34f, watermarkTitleSize)
                 }
                 if (showSpecs) {
                     val compactSpecs = listOf(focal, aperture, shutter, "ISO $iso")
@@ -2184,9 +2202,9 @@ fun applyCameraWatermark(
                     val right = footerRect.right - footerRect.height() * 0.18f
                     footerText.textAlign = Paint.Align.RIGHT
                     fitText(compactSpecs, footerText, right, footerRect.centerY() + footerText.textSize * 0.34f,
-                        footerRect.width() * 0.61f, minSide * 0.018f)
+                        footerRect.width() * 0.61f, watermarkDetailSize)
                     if (compactSpecs.isNotBlank()) {
-                        val dotRadius = (footerRect.height() * 0.055f).coerceIn(3f, 18f)
+                        val dotRadius = (footerRect.height() * 0.025f).coerceIn(2f, 8f)
                         val dotX = right - footerText.measureText(compactSpecs) - dotRadius * 2.4f
                         val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             color = AndroidColor.rgb(35, 174, 145)
@@ -2199,7 +2217,7 @@ fun applyCameraWatermark(
                     footerText.textAlign = Paint.Align.RIGHT
                     fitText(timeLine, footerText, footerRect.right - footerRect.height() * 0.18f,
                         footerRect.bottom - footerRect.height() * 0.20f,
-                        footerRect.width() * 0.61f, minSide * 0.0085f)
+                        footerRect.width() * 0.61f, watermarkDetailSize * 0.88f)
                 }
             }
             "fuji_signature" -> {
@@ -2208,7 +2226,7 @@ fun applyCameraWatermark(
                     style = Paint.Style.FILL
                 })
                 val centerX = footerRect.centerX()
-                val logoWidth = minOf(footerRect.width() * 0.30f, footerRect.height() * 1.10f)
+                val logoWidth = minOf(footerRect.width() * 0.18f, watermarkLogoHeight * (brandLogo?.let { it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat() } ?: 5.95f))
                 val logoHeight = brandLogo?.let {
                     logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
                 } ?: logoWidth * 0.18f
@@ -2225,12 +2243,12 @@ fun applyCameraWatermark(
                 val shotLabel = if (showModel) "Shot on $model" else ""
                 val signature = listOf(shotLabel, dateOnlyLine).filter { it.isNotBlank() }.joinToString(" | ")
                 fitText(signature, footerText, centerX,
-                    footerRect.top + footerRect.height() * 0.66f,
-                    footerRect.width() * 0.86f, minSide * 0.019f)
+                    footerRect.top + footerRect.height() * 0.54f,
+                    footerRect.width() * 0.86f, watermarkTitleSize * 0.90f)
                 if (showSpecs) {
                     fitText(specs, footerText, centerX,
-                        footerRect.top + footerRect.height() * 0.78f,
-                        footerRect.width() * 0.88f, minSide * 0.010f)
+                        footerRect.top + footerRect.height() * 0.70f,
+                        footerRect.width() * 0.88f, watermarkDetailSize)
                 }
                 if (locationLine.isNotBlank()) {
                     val locationPaint = Paint(footerText).apply {
@@ -2238,8 +2256,8 @@ fun applyCameraWatermark(
                         textAlign = Paint.Align.CENTER
                     }
                     fitText(locationLine, locationPaint, centerX,
-                        footerRect.top + footerRect.height() * 0.93f,
-                        footerRect.width() * 0.88f, minSide * 0.0105f)
+                        footerRect.top + footerRect.height() * 0.86f,
+                        footerRect.width() * 0.88f, watermarkDetailSize * 0.88f)
                 }
             }
             "center_logo" -> {
@@ -2257,7 +2275,7 @@ fun applyCameraWatermark(
                     canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
                 }
                 drawFrame(panel, minSide * 0.018f)
-                val centerLogoWidth = minOf(panel.width() * 0.36f, minSide * 0.25f)
+                val centerLogoWidth = minOf(panel.width() * 0.24f, watermarkLogoHeight * (brandLogo?.let { it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat() } ?: 5.95f))
                 val centerLogoHeight = brandLogo?.let {
                     centerLogoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
                 } ?: centerLogoWidth * 0.18f
@@ -2293,14 +2311,14 @@ fun applyCameraWatermark(
                 optionalLines.forEachIndexed { index, value ->
                     fitText(value, detailPaint, centerX,
                         centerY + minSide * (0.060f + index * 0.032f),
-                        panel.width() * 0.88f, minSide * 0.011f)
+                        panel.width() * 0.88f, watermarkDetailSize)
                 }
                 titlePaint.textAlign = Paint.Align.LEFT
                 detailPaint.textAlign = Paint.Align.LEFT
             }
             else -> {
-                val plate = drawBottomPlate(0.12f, margin)
-                val logoHeight = plate.height() * 0.30f
+                val plate = drawBottomPlate(0.095f, margin)
+                val logoHeight = watermarkLogoHeight
                 val logoWidth = logoHeight * (brandLogo?.let {
                     it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
                 } ?: 5.95f)
@@ -2310,9 +2328,9 @@ fun applyCameraWatermark(
                 val left = logoLeft + logoWidth + plate.height() * 0.12f
                 val textWidth = (plate.right - left - plate.height() * 0.10f).coerceAtLeast(1f)
                 fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.023f)
+                    textWidth, watermarkTitleSize)
                 fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
+                    textWidth, watermarkDetailSize)
                 fitText(timeLine, accentPaint, margin + 2f,
                     margin + minSide * 0.012f, output.width - margin * 2f, minSide * 0.0105f)
             }

@@ -377,7 +377,31 @@ internal object HdmpAiEngine {
                         throw UserRequestedFastException()
                     }
                     if (SystemClock.elapsedRealtime() - startedAt > budgetMs && !continuePastBudget()) {
-                        throw ModelTimeoutException("Model processing exceeded its soft time budget")
+                        // Keep the primary attempt alive while the already-visible user choice is pending.
+                        // This closes the race where the soft timeout could start Fast just before
+                        // the user taps "Bỏ qua, tiếp tục".
+                        when (
+                            HdmpAiPrimaryDecisionGate.await(
+                                shouldContinuePrimary = continuePastBudget,
+                                shouldSwitchToFast = shouldSwitchToFast,
+                                shouldStopForThermal = shouldStopForThermal
+                            )
+                        ) {
+                            HdmpAiPrimaryDecisionGate.Outcome.CONTINUE_PRIMARY -> {
+                                Log.i(TAG, "User chose to continue HDMP AI 2 beyond its soft time budget")
+                            }
+                            HdmpAiPrimaryDecisionGate.Outcome.SWITCH_TO_FAST -> {
+                                throw UserRequestedFastException()
+                            }
+                            HdmpAiPrimaryDecisionGate.Outcome.STOP_FOR_THERMAL -> {
+                                // Re-enter the loop's thermal branch to preserve completed tiles
+                                // and restore every unfinished tile from the original image.
+                                continue
+                            }
+                            HdmpAiPrimaryDecisionGate.Outcome.NO_RESPONSE -> {
+                                throw ModelTimeoutException("No response to the HDMP AI 2 continuation prompt")
+                            }
+                        }
                     }
 
                     val patchLeft = coreLeft - HALO

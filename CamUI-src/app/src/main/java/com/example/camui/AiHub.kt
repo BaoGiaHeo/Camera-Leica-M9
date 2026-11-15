@@ -67,8 +67,8 @@ fun HdmpBottomSheet(
             Text("MÔ HÌNH LÀM NÉT", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf(
-                    "ai2" to "AI 2",
-                    "ai15" to "AI 1.5",
+                    "ai2" to "HDMP AI 2",
+                    "ai15" to "HDMP AI 1.5",
                     "off" to "OFF"
                 ).forEach { (value, title) ->
                     val selected = renderProfile == value
@@ -83,7 +83,7 @@ fun HdmpBottomSheet(
                         Text(
                             title,
                             color = if (selected) Color.Black else Color.White,
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }

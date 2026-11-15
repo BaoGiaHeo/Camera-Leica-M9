@@ -2750,8 +2750,24 @@ fun CameraScreen(
     val availableAfModes = cameraInfo2?.getCameraCharacteristic(
         CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES
     )
-    val macroFocusSupported = maxFocus > 0f &&
+    val macroManualFocusSupported = maxFocus > 0f &&
         availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
+    val macroZoomState = camera?.cameraInfo?.zoomState?.value
+    val macroSelectableMaxZoom = Camera2Info.maxSelectableZoom(
+        activeCameraDetails,
+        activePhysicalCameraDetails,
+        macroZoomState?.maxZoomRatio ?: 1f
+    )
+    val macroLensCandidate = Camera2Info.findMacroLensCandidate(
+        activeCameraDetails,
+        activePhysicalCameraDetails,
+        macroZoomState?.minZoomRatio ?: 1f,
+        macroSelectableMaxZoom
+    )
+    val macroFocusSupported = macroLensCandidate != null || macroManualFocusSupported
+    val macroNearThreshold = (maxFocus * 0.60f).coerceAtLeast(2.5f)
+    val macroObjectNear = focusDiopter >= macroNearThreshold
+    val macroPromptVisible = macroFocusSupported && (macroAssistEnabled || macroObjectNear)
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -2815,38 +2831,83 @@ fun CameraScreen(
                             onClick = { metering = (metering + 1) % meteringModes.size },
                             tint = if (metering > 0) CamColors.Yellow else Color.White
                         )
-                        if (macroFocusSupported) {
+                        if (macroPromptVisible) {
                             CircleBtn(
                                 Icons.Default.LocalFlorist,
-                                "Macro Assist · close focus",
+                                if (macroAssistEnabled) "Tắt Macro · quay lại 1×" else "Macro Assist · chủ thể ở gần",
                                 onClick = {
-                                    camera?.let { active ->
+                                    scope.launch {
+                                        val active = camera ?: return@launch
+                                        val zoomState = active.cameraInfo.zoomState.value
+                                        val oneX = zoomState?.let {
+                                            1f.coerceIn(it.minZoomRatio, it.maxZoomRatio)
+                                        } ?: 1f
                                         if (macroAssistEnabled) {
                                             runCatching { applyAutoFocus(active) }
                                             manualFocus = 0f
                                             macroAssistEnabled = false
-                                            val zoomState = active.cameraInfo.zoomState.value
-                                            if (zoomState != null) {
-                                                val oneX = 1f.coerceIn(
-                                                    zoomState.minZoomRatio,
-                                                    zoomState.maxZoomRatio
-                                                )
-                                                active.cameraControl.setZoomRatio(oneX)
-                                                zoomSel = oneX
-                                                appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
-                                            }
-                                            localizedToast(context, "Đã tắt Macro Assist · AF tự động · 1×", Toast.LENGTH_SHORT).show()
+                                            runCatching { active.cameraControl.setZoomRatio(oneX) }
+                                            zoomSel = oneX
+                                            appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
+                                            localizedToast(context, "Đã tắt Macro · AF tự động · 1×", Toast.LENGTH_SHORT).show()
                                         } else {
-                                            val closeFocusDiopter = maxFocus.coerceAtLeast(0.1f)
+                                            val candidate = macroLensCandidate
+                                            var physicalLensConfirmed = false
+                                            if (candidate != null) {
+                                                activePhysicalCameraId = null
+                                                val requestedSwitch = runCatching {
+                                                    active.cameraControl.setZoomRatio(candidate.zoomRatio)
+                                                }.isSuccess
+                                                if (requestedSwitch) {
+                                                    zoomSel = candidate.zoomRatio
+                                                    appPrefs.edit()
+                                                        .putFloat("camera_zoom_ratio", candidate.zoomRatio)
+                                                        .apply()
+                                                    for (attempt in 0 until 12) {
+                                                        delay(100)
+                                                        if (activePhysicalCameraId == candidate.physicalCameraId) {
+                                                            physicalLensConfirmed = true
+                                                            break
+                                                        }
+                                                    }
+                                                }
+                                                if (!physicalLensConfirmed) {
+                                                    runCatching { active.cameraControl.setZoomRatio(oneX) }
+                                                    zoomSel = oneX
+                                                    appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
+                                                    localizedToast(
+                                                        context,
+                                                        "Camera HAL không xác nhận đã chuyển sang ống kính lấy nét gần; đã giữ camera chính ở 1×.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                    return@launch
+                                                }
+                                            }
+                                            val closeFocusDiopter = candidate?.closestFocusDiopter
+                                                ?: maxFocus.coerceAtLeast(0.1f)
                                             val applied = runCatching {
-                                                applyManualFocus(active, closeFocusDiopter)
+                                                if (macroManualFocusSupported && closeFocusDiopter > 0f) {
+                                                    applyManualFocus(active, closeFocusDiopter)
+                                                } else {
+                                                    applyAutoFocus(active)
+                                                }
                                             }.isSuccess
                                             if (applied) {
-                                                manualFocus = closeFocusDiopter
+                                                manualFocus = if (macroManualFocusSupported) closeFocusDiopter else 0f
                                                 macroAssistEnabled = true
                                                 focusLocked = false
-                                                localizedToast(context, "Macro Assist · đã chuyển ống kính đến khoảng lấy nét gần nhất được công bố.", Toast.LENGTH_SHORT).show()
+                                                val message = if (candidate != null) {
+                                                    "Macro · đã xác nhận ống kính vật lý lấy nét gần từ Camera2."
+                                                } else {
+                                                    "Macro Assist · đã đặt ống kính hiện tại về khoảng lấy nét gần nhất."
+                                                }
+                                                localizedToast(context, message, Toast.LENGTH_LONG).show()
                                             } else {
+                                                if (candidate != null) {
+                                                    runCatching { active.cameraControl.setZoomRatio(oneX) }
+                                                    zoomSel = oneX
+                                                    appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
+                                                }
                                                 localizedToast(context, "Không thể bật lấy nét gần trên camera này.", Toast.LENGTH_SHORT).show()
                                             }
                                         }

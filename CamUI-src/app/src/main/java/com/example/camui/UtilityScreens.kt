@@ -235,6 +235,7 @@ fun ToolboxScreen(
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
+    var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
     var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
     var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
@@ -261,6 +262,10 @@ fun ToolboxScreen(
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
         ToolToggle("Grid Lines", "Thirds composition guide", Icons.Default.GridOn, showGrid, onShowGrid)
         ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
+        ToolToggle("RGB Histogram", "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview.", Icons.Default.ShowChart, rgbHistogramEnabled) {
+            rgbHistogramEnabled = it
+            prefs.edit().putBoolean("viewfinder_rgb_histogram_enabled", it).apply()
+        }
         ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
             focusPeaking, onFocusPeaking)
         ToolToggle("Zebra Warning", "Đánh dấu vùng sáng gần cháy sáng trên kính ngắm (không ảnh hưởng ảnh lưu).",

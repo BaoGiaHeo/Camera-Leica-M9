@@ -2514,7 +2514,11 @@ fun CameraScreen(
                                                 }
                                                 nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
                                                     context, stackedFrames, saved,
-                                                    NightShotProcessor.MergeMode.NIGHT_AVERAGE
+                                                    if (captureUseMilkyWayStack) {
+                                                        NightShotProcessor.MergeMode.MILKY_WAY_STACK
+                                                    } else {
+                                                        NightShotProcessor.MergeMode.NIGHT_AVERAGE
+                                                    }
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
                                                         processingLabel = when {

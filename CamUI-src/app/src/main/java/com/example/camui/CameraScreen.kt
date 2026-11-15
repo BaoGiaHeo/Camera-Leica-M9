@@ -14,6 +14,7 @@ import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.BatteryManager
+import android.os.PowerManager
 import android.os.SystemClock
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -69,6 +70,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,6 +86,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -124,6 +127,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.geometry.Size as DrawSize
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -149,6 +153,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -389,6 +394,82 @@ fun CameraScreen(
     var noiseReductionProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
+    var processingElapsedSeconds by remember { mutableIntStateOf(0) }
+    var aiRenderStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
+    val switchToFastRequested = remember { AtomicBoolean(false) }
+    val continueHdmpAi2Requested = remember { AtomicBoolean(false) }
+    val thermalStopRequested = remember { AtomicBoolean(false) }
+    var showThermalChoice by remember { mutableStateOf(false) }
+    var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
+    var isHdmpAiPrimaryRunning by remember { mutableStateOf(false) }
+    var showHdmpFastChoice by remember { mutableStateOf(false) }
+    var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
+    var hdmpActiveWorkerCount by remember { mutableIntStateOf(0) }
+    var hdmpRenderProfile by remember {
+        mutableStateOf(
+            appPrefs.getString("hdmp_render_profile", "balanced")
+                ?.takeIf { it == "quality" || it == "balanced" || it == "speed" } ?: "balanced"
+        )
+    }
+    var processingPanelOffset by remember { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(hdmpRenderProfile) {
+        appPrefs.edit().putString("hdmp_render_profile", hdmpRenderProfile).apply()
+    }
+    LaunchedEffect(isProcessing) {
+        if (isProcessing) {
+            val startedAt = SystemClock.elapsedRealtime()
+            processingElapsedSeconds = 0
+            while (isProcessing) {
+                processingElapsedSeconds =
+                    ((SystemClock.elapsedRealtime() - startedAt) / 1_000L).toInt().coerceAtLeast(0)
+                delay(1_000L)
+            }
+        } else {
+            processingElapsedSeconds = 0
+        }
+    }
+    LaunchedEffect(isProcessing) {
+        if (isProcessing) {
+            thermalStopRequested.set(false)
+            var prompted = false
+            while (isProcessing) {
+                val batteryIntent = runCatching {
+                    context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                }.getOrNull()
+                val tempTenths = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+                measuredBatteryTempC = if (tempTenths > 0) tempTenths / 10 else -1
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                thermalStatusCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    runCatching { powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE }
+                        .getOrDefault(PowerManager.THERMAL_STATUS_NONE)
+                } else {
+                    PowerManager.THERMAL_STATUS_NONE
+                }
+                if (!prompted && tempTenths > 400) {
+                    prompted = true
+                    showThermalChoice = true
+                }
+                delay(1_000L)
+            }
+        } else {
+            showThermalChoice = false
+            measuredBatteryTempC = -1
+            thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
+            hdmpActiveWorkerCount = 0
+            processingPanelOffset = Offset.Zero
+        }
+    }
+    LaunchedEffect(isHdmpAiPrimaryRunning) {
+        if (isHdmpAiPrimaryRunning) {
+            delay(10_000L)
+            if (isHdmpAiPrimaryRunning &&
+                !switchToFastRequested.get() &&
+                !continueHdmpAi2Requested.get()
+            ) {
+                showHdmpFastChoice = true
+            }
+        }
+    }
     val shutterSoundPlayer = remember {
         MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
     }
@@ -1774,27 +1855,118 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
+                                val availableCpuWorkers = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
                                 val hdmpWorkerCount = when {
-                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm -> 8
-                                    captureUseNightShot -> Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm ->
+                                        when (hdmpRenderProfile) {
+                                            "quality" -> availableCpuWorkers
+                                            "speed" -> availableCpuWorkers.coerceAtMost(6)
+                                            else -> availableCpuWorkers.coerceAtMost(4)
+                                        }
+                                    captureUseNightShot -> availableCpuWorkers.coerceAtMost(6)
                                     else -> 0
                                 }
-                                val hdmpApplied = if (hdmpWorkerCount > 0) {
+                                val hdmpAiResult = if (hdmpWorkerCount > 0) {
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "HDMP · khử nhiễu, làm nét, tăng chi tiết · $hdmpWorkerCount tác vụ"
-                                        processingProgress = 38
+                                        switchToFastRequested.set(false)
+                                        continueHdmpAi2Requested.set(false)
+                                        isHdmpAiPrimaryRunning = false
+                                        showHdmpFastChoice = false
+                                        aiRenderStartedAtElapsedMs = 0L
+                                        processingEtaSeconds = -1
+                                        processingLabel = if (hdmpRenderProfile == "speed") {
+                                            "HDMP AI 2 Fast • đang chuẩn bị xử lý ảnh"
+                                        } else {
+                                            "HDMP AI 2 • đang chuẩn bị xử lý ảnh"
+                                        }
+                                        processingProgress = 35
+                                    }
+                                    val result = withContext(Dispatchers.IO) {
+                                        HdmpAiEngine.process(
+                                            context = context,
+                                            uri = saved,
+                                            workerCount = hdmpWorkerCount,
+                                            preferFast = hdmpRenderProfile == "speed",
+                                            onAdaptiveWorkerCount = { count ->
+                                                mainExecutor.execute { hdmpActiveWorkerCount = count }
+                                            },
+                                            shouldSwitchToFast = { switchToFastRequested.get() },
+                                            continuePrimaryPastBudget = { continueHdmpAi2Requested.get() },
+                                            shouldStopForThermal = { thermalStopRequested.get() },
+                                            onProgress = { model, progress ->
+                                                mainExecutor.execute {
+                                                    isHdmpAiPrimaryRunning =
+                                                        model == HdmpAiEngine.Model.NAFNET_WIDTH64 && progress < 100
+                                                    if (progress == 0 || aiRenderStartedAtElapsedMs == 0L) {
+                                                        aiRenderStartedAtElapsedMs = SystemClock.elapsedRealtime()
+                                                        processingEtaSeconds = -1
+                                                    } else if (progress in 1..99 && progress >= 3) {
+                                                        val stageElapsedMs =
+                                                            (SystemClock.elapsedRealtime() - aiRenderStartedAtElapsedMs)
+                                                                .coerceAtLeast(0L)
+                                                        if (stageElapsedMs >= 2_000L) {
+                                                            val estimateSeconds = (
+                                                                stageElapsedMs.toDouble() *
+                                                                    (100 - progress).toDouble() /
+                                                                    progress.toDouble() / 1_000.0
+                                                                ).roundToInt()
+                                                            processingEtaSeconds =
+                                                                estimateSeconds.coerceIn(1, 3_600)
+                                                        }
+                                                    } else if (progress >= 100) {
+                                                        processingEtaSeconds = -1
+                                                    }
+                                                    val aiModelLabel = when (model) {
+                                                        HdmpAiEngine.Model.NAFNET_WIDTH64 ->
+                                                            if (progress == 0) "HDMP AI 2 • đang khởi tạo"
+                                                            else "HDMP AI 2 • đang xử lý"
+                                                        HdmpAiEngine.Model.NAFNETLIB_WIDTH32 ->
+                                                            if (progress == 0) "HDMP AI 2 Fast • đang khởi tạo"
+                                                            else "HDMP AI 2 Fast • đang xử lý"
+                                                        HdmpAiEngine.Model.CLASSICAL_ONLY ->
+                                                            "HDMP • đang chuyển sang xử lý cơ bản"
+                                                    }
+                                                    processingLabel = "$aiModelLabel · $progress%"
+                                                    processingProgress =
+                                                        (35 + progress * 0.09f).roundToInt().coerceIn(35, 44)
+                                                }
+                                            }
+                                        )
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        isHdmpAiPrimaryRunning = false
+                                        showHdmpFastChoice = false
+                                        processingEtaSeconds = -1
+                                    }
+                                    result
+                                } else {
+                                    HdmpAiEngine.Result(
+                                        HdmpAiEngine.Model.CLASSICAL_ONLY,
+                                        false,
+                                        "AI không được yêu cầu ở chế độ chụp này."
+                                    )
+                                }
+                                val hdmpApplied = if (hdmpWorkerCount > 0 && !thermalStopRequested.get()) {
+                                    withContext(Dispatchers.Main) {
+                                        val aiLabel = when (hdmpAiResult.model) {
+                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 2 Fast"
+                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP cơ bản (AI không khả dụng)"
+                                        }
+                                        processingLabel = "$aiLabel • HDMP đang kiểm tra và hoàn tất · $hdmpActiveWorkerCount luồng"
+                                        processingProgress = 44
                                     }
                                     withContext(Dispatchers.IO) {
                                         HdmpEngine.process(context, saved, hdmpWorkerCount) { progress ->
                                             mainExecutor.execute {
                                                 processingLabel = "HDMP · xử lý ảnh $progress%"
-                                                processingProgress = (38 + progress * 0.18f).roundToInt().coerceIn(38, 56)
+                                                processingProgress = (44 + progress * 0.16f).roundToInt().coerceIn(44, 60)
                                             }
                                         }
                                     }
                                 } else false
                                 withContext(Dispatchers.Main) {
-                                    processingProgress = 56
+                                    processingProgress = 60
                                     processingEtaSeconds = -1
                                 }
                                 val softwareHdrProfile = if (
@@ -1811,12 +1983,12 @@ fun CameraScreen(
                                         ) { progress ->
                                             mainExecutor.execute {
                                                 processingLabel = "HDRbyHDMP · profile ${softwareHdrProfile}x · $progress%"
-                                                processingProgress = (56 + progress * 0.08f).roundToInt().coerceIn(56, 64)
+                                                processingProgress = (60 + progress * 0.06f).roundToInt().coerceIn(60, 66)
                                             }
                                         }
                                     }.getOrDefault(false)
                                 } else false
-                                withContext(Dispatchers.Main) { processingProgress = 60 }
+                                withContext(Dispatchers.Main) { processingProgress = 66 }
                                 // Keep a clean pre-filter image as the reference for every picker preview.
                                 val unfilteredPreview = if (captureIsUltraHdr) null else runCatching {
                                     decodeUprightBitmap(context, saved, maxDimension = 640)
@@ -1889,11 +2061,11 @@ fun CameraScreen(
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
                                         captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu HDMP UHD+ 250MP · phục hồi vi chi tiết bằng 8 tác vụ."
+                                            "Đã xuất ảnh UHD+ kích thước 250MP · HDMP xử lý ảnh nguồn trước khi nội suy."
                                         captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu UHD 108MP · HDMP xử lý bằng 8 tác vụ và nội suy thuật toán."
+                                            "Đã xuất ảnh UHD kích thước 108MP · HDMP xử lý ảnh nguồn trước khi nội suy."
                                         captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã lưu FHD tối đa 60MP · HDMP xử lý bằng 6 tác vụ và nội suy thuật toán."
+                                            "Đã xuất ảnh FHD kích thước tối đa 60MP · HDMP xử lý ảnh nguồn trước khi nội suy."
                                         captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
                                         captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
@@ -1909,7 +2081,14 @@ fun CameraScreen(
                                     }
                                     val finalMessage = if (captureIsUltraHdr) message
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
-                                    localizedToast(context, finalMessage, Toast.LENGTH_SHORT).show()
+                                    val aiStatusSuffix = if (hdmpWorkerCount > 0) {
+                                        when (hdmpAiResult.model) {
+                                            HdmpAiEngine.Model.NAFNET_WIDTH64 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 đã xử lý ảnh."
+                                            HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> if (hdmpAiResult.detail.contains("Đã dừng theo nhiệt độ")) " HDMP AI 2 Fast đã lưu phần ảnh xử lý được; phần còn lại giữ ảnh gốc." else " HDMP AI 2 Fast đã tự động tiếp quản và xử lý ảnh."
+                                            HdmpAiEngine.Model.CLASSICAL_ONLY -> " HDMP AI chưa chạy được; ảnh được xử lý bằng HDMP cơ bản, không báo AI thành công."
+                                        }
+                                    } else ""
+                                    localizedToast(context, finalMessage + aiStatusSuffix, Toast.LENGTH_LONG).show()
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {
@@ -2807,8 +2986,22 @@ stabilization = stabilization,
             }
         }
         if (isProcessing) {
-            Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp, vertical = 18.dp)
-                .fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CamColors.Panel).padding(14.dp)) {
+            Column(
+                Modifier.align(Alignment.BottomCenter)
+                    .offset { IntOffset(processingPanelOffset.x.roundToInt(), processingPanelOffset.y.roundToInt()) }
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            processingPanelOffset = Offset(
+                                (processingPanelOffset.x + dragAmount.x).coerceIn(-220f, 220f),
+                                (processingPanelOffset.y + dragAmount.y).coerceIn(-260f, 260f)
+                            )
+                        }
+                    }
+                    .padding(horizontal = 28.dp, vertical = 18.dp)
+                    .fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(CamColors.Panel).padding(14.dp)
+            ) {
                 val visibleProgress = if (processingLabel == "Nhiễu đang được xử lý") {
                     noiseReductionProgress
                 } else processingProgress
@@ -2816,6 +3009,16 @@ stabilization = stabilization,
                     processingEtaSeconds < 0 -> ""
                     processingEtaSeconds >= 60 -> "Còn ${processingEtaSeconds / 60}p ${processingEtaSeconds % 60}s"
                     else -> "Còn ${processingEtaSeconds}s"
+                }
+                val elapsedText = when {
+                    processingElapsedSeconds >= 60 ->
+                        "${processingElapsedSeconds / 60}p ${processingElapsedSeconds % 60}s"
+                    else -> "${processingElapsedSeconds}s"
+                }
+                val captureStatus = if (nightShotCaptureInProgress || starTrailCaptureInProgress) {
+                    "Giữ máy ổn định · đang thu khung hình"
+                } else {
+                    "Có thể di chuyển · chỉ còn xử lý ảnh"
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -2826,10 +3029,197 @@ stabilization = stabilization,
                         color = CamColors.Yellow, fontSize = 11.sp, fontWeight = FontWeight.Bold
                     )
                 }
+                Text(
+                    "Đã xử lý: $elapsedText · $captureStatus",
+                    color = CamColors.Sub,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 5.dp)
+                )
+                val androidThermalText = when (thermalStatusCode) {
+                    PowerManager.THERMAL_STATUS_LIGHT -> "Nhẹ"
+                    PowerManager.THERMAL_STATUS_MODERATE -> "Trung bình"
+                    PowerManager.THERMAL_STATUS_SEVERE -> "Cao"
+                    PowerManager.THERMAL_STATUS_CRITICAL -> "Nghiêm trọng"
+                    PowerManager.THERMAL_STATUS_EMERGENCY -> "Khẩn cấp"
+                    PowerManager.THERMAL_STATUS_SHUTDOWN -> "Ngưỡng tắt bảo vệ"
+                    else -> "Bình thường / chưa báo"
+                }
+                val thermalLoadText = when {
+                    measuredBatteryTempC >= 43 -> "Giảm tải mạnh"
+                    measuredBatteryTempC >= 41 -> "Đang điều tiết tải"
+                    measuredBatteryTempC > 40 -> "Đang giảm tải"
+                    measuredBatteryTempC >= 0 -> "Bình thường"
+                    else -> "Không có dữ liệu pin"
+                }
+                Text(
+                    "Nhiệt pin: ${if (measuredBatteryTempC >= 0) "$measuredBatteryTempC°C" else "--"} · $thermalLoadText",
+                    color = if (measuredBatteryTempC > 40) CamColors.Yellow else CamColors.Sub,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 5.dp)
+                )
+                Text(
+                    "Thermal Android: $androidThermalText · HDMP: " +
+                        if (hdmpActiveWorkerCount > 0) "$hdmpActiveWorkerCount luồng thích ứng" else "đang chuẩn bị",
+                    color = CamColors.Sub,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 3.dp)
+                )
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+                }
+            }
+        }
+
+        if (showThermalChoice) {
+            Dialog(
+                onDismissRequest = {
+                    thermalStopRequested.set(true)
+                    showThermalChoice = false
+                },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF202020))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Thiết bị đang nóng",
+                        color = CamColors.Yellow,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Nhiệt độ pin đo được ${measuredBatteryTempC}°C (ngưỡng cảnh báo 40°C). Bạn có muốn tiếp tục xử lý HDMP AI không?",
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        "Nếu chọn Không, AI sẽ dừng sau tile hiện tại; phần đã xử lý được giữ lại, phần còn lại lấy từ ảnh gốc.",
+                        color = CamColors.Sub,
+                        fontSize = 12.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF393939))
+                                .clickable {
+                                    thermalStopRequested.set(true)
+                                    showThermalChoice = false
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Không, dừng và lưu", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CamColors.Yellow)
+                                .clickable { showThermalChoice = false }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Có, tiếp tục", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showHdmpFastChoice && isHdmpAiPrimaryRunning) {
+            Dialog(
+                onDismissRequest = {
+                    continueHdmpAi2Requested.set(true)
+                    showHdmpFastChoice = false
+                    processingLabel = "HDMP AI 2 • tiếp tục theo yêu cầu"
+                },
+                properties = DialogProperties(
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF202020))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "HDMP AI 2 đang xử lý lâu",
+                        color = CamColors.Yellow,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Bạn có muốn chuyển sang HDMP AI 2 Fast không?",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Không: tiếp tục HDMP AI 2, kể cả khi vượt mốc thời gian mềm. " +
+                            "Có: dừng an toàn sau tile hiện tại và chạy HDMP AI 2 Fast từ ảnh gốc.",
+                        color = CamColors.Sub,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF383838))
+                                .clickable {
+                                    continueHdmpAi2Requested.set(true)
+                                    showHdmpFastChoice = false
+                                    processingLabel = "HDMP AI 2 • tiếp tục theo yêu cầu"
+                                }
+                                .padding(vertical = 13.dp, horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Không, tiếp tục",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CamColors.Yellow)
+                                .clickable {
+                                    switchToFastRequested.set(true)
+                                    showHdmpFastChoice = false
+                                    processingLabel = "Đang chuyển an toàn sang HDMP AI 2 Fast…"
+                                    processingEtaSeconds = -1
+                                }
+                                .padding(vertical = 13.dp, horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Có, chuyển Fast",
+                                color = Color.Black,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -2881,7 +3271,9 @@ stabilization = stabilization,
                             }
                         }
                     }
-                }
+                },
+                renderProfile = hdmpRenderProfile,
+                onRenderProfileChange = { hdmpRenderProfile = it }
             )
         }
 

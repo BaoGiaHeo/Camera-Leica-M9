@@ -61,12 +61,16 @@ fun HdmpBottomSheet(
         ) {
             Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Chọn mô hình trước khi chụp. Mỗi ảnh chỉ chạy mô hình đã chọn; không hiện hộp thoại đổi mô hình sau khi chụp.",
+                "Chọn HDMP AI 2, HDMP AI 1.5 hoặc OFF HDMP AI trước khi chụp. Đã chọn AI thì không tự chuyển sang xử lý thường.",
                 color = HdmpMuted, fontSize = 12.sp, lineHeight = 17.sp
             )
             Text("MÔ HÌNH LÀM NÉT", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf("ai2" to "HDMP AI 2", "ai15" to "HDMP AI 1.5").forEach { (value, title) ->
+                listOf(
+                    "ai2" to "AI 2",
+                    "ai15" to "AI 1.5",
+                    "off" to "OFF"
+                ).forEach { (value, title) ->
                     val selected = renderProfile == value
                     Box(
                         modifier = Modifier.weight(1f)
@@ -86,10 +90,10 @@ fun HdmpBottomSheet(
                 }
             }
             Text(
-                if (renderProfile == "ai15") {
-                    "HDMP AI 1.5 · width32 · ưu tiên tốc độ. Mục tiêu 10 giây, giới hạn xử lý 20 giây."
-                } else {
-                    "HDMP AI 2 · width64 · ưu tiên chất lượng và chi tiết. Mục tiêu 20 giây, giới hạn xử lý 30 giây."
+                when (renderProfile) {
+                    "off" -> "OFF HDMP AI · chụp thường, không chạy mô hình AI và không nội suy HDMP."
+                    "ai15" -> "HDMP AI 1.5 · width32 · ưu tiên tốc độ. Mục tiêu 10 giây; quá mốc vẫn tiếp tục AI."
+                    else -> "HDMP AI 2 · width64 · ưu tiên chất lượng và chi tiết. Mục tiêu 20 giây; quá mốc vẫn tiếp tục AI."
                 },
                 color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
             )

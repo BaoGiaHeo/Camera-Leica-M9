@@ -1,8 +1,19 @@
-# Fujifilm Mode — HDMP Camera 1.4
+# Fujifilm Mode — HDMP Camera 1.4.1
 
 Android camera application with HDMP-controlled computational photography.
 
-## Version 1.4 source update
+## Version 1.4.1 update
+
+- App metadata is **1.4.1** (versionCode 5).
+- The camera Activity handles orientation, screen-size, smallest-screen-size and screen-layout changes without being recreated. This keeps the active CameraScreen Compose scope alive when the user rotates the device, so rotation alone no longer cancels an in-flight HDMP render.
+- Android's camera-friendly seamless rotation mode is requested for the app window; Android can fall back to crossfade when a seamless surface rotation is unavailable.
+- AnimaT now uses a consistent right-to-left slide, soft fade and subtle scale for opening pages. Settings detail pages use the same motion in reverse when closing.
+- Press feedback and content-size transitions are softened to reduce abrupt movement.
+
+**Scope:** this specifically protects processing from Activity recreation caused by orientation/size changes. It is not a durable checkpoint for force-stop, process death or an operating-system kill. Actual rotation smoothness and camera preview behavior still require testing on physical devices.
+
+
+## Version 1.4 baseline features retained in 1.4.1
 
 - App metadata uses version **1.4** (versionCode 4) and no longer carries an experimental suffix.
 - HDMP AI provides **Quality**, **Balanced**, and **Speed** profiles. Speed selects HDMP AI 2 Fast directly.

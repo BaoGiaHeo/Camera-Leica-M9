@@ -238,6 +238,7 @@ fun ToolboxScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     val presetStore = remember { context.getSharedPreferences("fujifilm_camera_presets", Context.MODE_PRIVATE) }
+    val filmRecipeStore = remember { context.getSharedPreferences("fujifilm_film_recipes", Context.MODE_PRIVATE) }
     var presetUiRevision by remember { mutableStateOf(0) }
     val presetKeys = remember {
         listOf(
@@ -309,6 +310,56 @@ fun ToolboxScreen(
     var filmGrain by remember { mutableStateOf(prefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)) }
     var filmTemperature by remember { mutableStateOf(prefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)) }
     var filmSaturation by remember { mutableStateOf(prefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)) }
+
+    val filmRecipeKeys = remember {
+        listOf(
+            "film_custom_highlight", "film_custom_shadow", "film_custom_color_chrome",
+            "film_custom_grain", "film_custom_temperature", "film_custom_saturation",
+            "selected_filter"
+        )
+    }
+    fun saveFilmRecipe(slot: String) {
+        val editor = filmRecipeStore.edit()
+        filmRecipeKeys.forEach { key ->
+            when (key) {
+                "film_custom_highlight" -> editor.putFloat("$slot.$key", filmHighlight)
+                "film_custom_shadow" -> editor.putFloat("$slot.$key", filmShadow)
+                "film_custom_color_chrome" -> editor.putFloat("$slot.$key", filmColorChrome)
+                "film_custom_grain" -> editor.putFloat("$slot.$key", filmGrain)
+                "film_custom_temperature" -> editor.putFloat("$slot.$key", filmTemperature)
+                "film_custom_saturation" -> editor.putFloat("$slot.$key", filmSaturation)
+                "selected_filter" -> editor.putString("$slot.$key", prefs.getString(key, "None") ?: "None")
+            }
+        }
+        editor.putBoolean("$slot.exists", true)
+            .putLong("$slot.saved_at", System.currentTimeMillis())
+            .apply()
+        Toast.makeText(context, "Đã lưu Film Recipe $slot", Toast.LENGTH_SHORT).show()
+    }
+    fun loadFilmRecipe(slot: String) {
+        if (!filmRecipeStore.getBoolean("$slot.exists", false)) {
+            Toast.makeText(context, "Film Recipe $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val values = filmRecipeStore
+        filmHighlight = values.getFloat("$slot.film_custom_highlight", 0f).coerceIn(-1f, 1f)
+        filmShadow = values.getFloat("$slot.film_custom_shadow", 0f).coerceIn(-1f, 1f)
+        filmColorChrome = values.getFloat("$slot.film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+        filmGrain = values.getFloat("$slot.film_custom_grain", 0f).coerceIn(0f, 1f)
+        filmTemperature = values.getFloat("$slot.film_custom_temperature", 0f).coerceIn(-1f, 1f)
+        filmSaturation = values.getFloat("$slot.film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
+        val selected = values.getString("$slot.selected_filter", "None") ?: "None"
+        prefs.edit()
+            .putFloat("film_custom_highlight", filmHighlight)
+            .putFloat("film_custom_shadow", filmShadow)
+            .putFloat("film_custom_color_chrome", filmColorChrome)
+            .putFloat("film_custom_grain", filmGrain)
+            .putFloat("film_custom_temperature", filmTemperature)
+            .putFloat("film_custom_saturation", filmSaturation)
+            .putString("selected_filter", selected)
+            .apply()
+        Toast.makeText(context, "Đã nạp Film Recipe $slot", Toast.LENGTH_SHORT).show()
+    }
     var hudAutoHideEnabled by remember { mutableStateOf(prefs.getBoolean("hud_auto_hide_enabled", true)) }
     var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
@@ -480,6 +531,28 @@ fun ToolboxScreen(
                     .putFloat("film_custom_saturation", 1f)
                     .apply()
             }) { Text("Reset Recipe") }
+            Text("Saved Film Recipes", color = CamColors.TextColor,
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            listOf("A", "B", "C").forEach { slot ->
+                val savedAt = filmRecipeStore.getLong("$slot.saved_at", 0L)
+                val savedLabel = if (filmRecipeStore.getBoolean("$slot.exists", false)) {
+                    java.text.SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
+                        .format(java.util.Date(savedAt))
+                } else "Trống"
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Recipe $slot · $savedLabel", color = CamColors.Sub,
+                        fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { saveFilmRecipe(slot) }) { Text("Lưu") }
+                    TextButton(
+                        onClick = { loadFilmRecipe(slot) },
+                        enabled = filmRecipeStore.getBoolean("$slot.exists", false)
+                    ) { Text("Nạp") }
+                }
+            }
         }
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
@@ -1992,12 +2065,18 @@ fun createFilmLookPreviewSample(): Bitmap {
 fun applyCameraLook(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val preset = prefs.getString("selected_filter", "None") ?: "None"
-    if (preset == "None") return false
+    val hasCustomAdjustments =
+        kotlin.math.abs(prefs.getFloat("film_custom_highlight", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_shadow", 0f)) > 0.001f ||
+        prefs.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
+        prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+    if (preset == "None" && !hasCustomAdjustments) return false
 
     return runCatching {
-        // Fujifilm's 11 bundled 32³ sRGB profiles use the same CubeLut renderer as
-        // filter-picker previews. Other retained presets use their matching pixel transform.
-        val cube = readCameraLookLut(context, preset)
+        // Film customizer controls are active even when the selected LUT/profile is None.
+        val cube = if (preset == "None") null else readCameraLookLut(context, preset)
         if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) {
             android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
             return@runCatching false

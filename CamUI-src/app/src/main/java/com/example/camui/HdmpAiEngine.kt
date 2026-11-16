@@ -102,7 +102,7 @@ internal object HdmpAiEngine {
         val totalMs: Long
     ) {
         fun summary(): String =
-            "${width}x${height}, $tiles tile, $workers luồng, EP=$backend; " +
+            "${width}x${height}, $tiles tile, $workers luồng, EP yêu cầu=$backend (có thể CPU fallback); " +
                 "khởi tạo=${setupMs}ms, giải mã=${decodeMs}ms, nạp=${prepMs}ms, " +
                 "AI=${inferMs}ms, ghép=${postMs}ms, nghỉ nhiệt=${throttleMs}ms, " +
                 "nén=${encodeMs}ms, chạy mô hình=${totalMs}ms"

@@ -2224,7 +2224,21 @@ fun CameraScreen(
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val captureUseNightShot = mode == "Photo" && nightShotMode == "night"
+            val lunaDreamSelected = mode == "Photo" &&
+                HdmpSelectionPolicy.isLunaDreamEnabled(hdmpRenderProfile)
+            val captureUseLunaDream = lunaDreamSelected &&
+                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
+                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
+            if (lunaDreamSelected && !captureUseLunaDream) {
+                localizedToast(
+                    context,
+                    "HDMP LunaDream 2.0 cần Photo/JPEG; hãy tắt RAW, Ultra HDR, Burst và Bracketing.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+            val captureUseNightShot = mode == "Photo" &&
+                nightShotMode == "night" && !captureUseLunaDream
             val captureUseMilkyWayStack = captureUseNightShot && !front &&
                 kotlin.math.abs(zoomSel - 1f) < 0.08f && milkyWayStackEnabled &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
@@ -2258,7 +2272,13 @@ fun CameraScreen(
                 captureNightDurationSeconds * 1_000_000_000L
             // High-resolution stills are single-frame captures. Multi-frame merging belongs to NightShot only.
             val captureUseFiveFrameStack = false
-            if (captureUseNightShot) {
+            if (captureUseLunaDream) {
+                localizedToast(
+                    context,
+                    "HDMP LunaDream 2.0 · thu tối đa 8 khung, căn chỉnh LK, khử nhiễu và loại bóng ma.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else if (captureUseNightShot) {
                 localizedToast(
                     context,
                     if (captureUseMilkyWayStack) {
@@ -2413,6 +2433,7 @@ fun CameraScreen(
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
+                                captureUseLunaDream -> "HDMP LunaDream 2.0 · chuẩn bị ghép 8 khung"
                                 captureUseMilkyWayStack -> "NightShot Milky Way · chuẩn bị căn chỉnh 8 khung"
                                 captureUseNightShot -> "NightShot · chuẩn bị căn chỉnh và ghép nhiều khung"
                                 captureUseHdmpResolution -> "HDMP ${hdmpOutputMp}MP · một khung hình · chuẩn bị AI"
@@ -2426,14 +2447,16 @@ fun CameraScreen(
                             }
                             scope.launch(Dispatchers.IO) {
                                 var nightShotMerged = false
-                                if ((captureUseNightShot || captureUseFiveFrameStack) && !captureNightShotExtension) {
+                                if ((captureUseNightShot || captureUseFiveFrameStack || captureUseLunaDream) &&
+                                    (!captureNightShotExtension || captureUseLunaDream)
+                                ) {
                                     val stackedFrames = mutableListOf<File>()
                                     val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
                                             val maxFrames = when {
-                                                captureUseMilkyWayStack -> 8
+                                                captureUseMilkyWayStack || captureUseLunaDream -> 8
                                                 captureUseNightShot -> captureNightTargetFrames
                                                 else -> 5
                                             }
@@ -2452,7 +2475,8 @@ fun CameraScreen(
                                             var stopSubmitting = false
                                             var nextFrameNumber = stackedFrames.size + 1
                                             val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, Boolean>>>()
-                                            val maxInFlightCaptures = if (captureUseNightShot) 2 else 1
+                                            val maxInFlightCaptures =
+                                                if (captureUseNightShot || captureUseLunaDream) 2 else 1
 
                                             while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
                                                 while (!stopSubmitting &&
@@ -2481,7 +2505,9 @@ fun CameraScreen(
                                                     })
                                                     withContext(Dispatchers.Main) {
                                                         val expectedFrame = stackedFrames.size + pendingCaptures.size
-                                                        processingLabel = if (captureUseMilkyWayStack) {
+                                                        processingLabel = if (captureUseLunaDream) {
+                                                            "LunaDream 2.0: thu khung $expectedFrame/$maxFrames"
+                                                        } else if (captureUseMilkyWayStack) {
                                                             "NightShot Milky Way: thu khung $expectedFrame/$maxFrames"
                                                         } else if (captureUseNightShot) {
                                                             "NightShot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
@@ -2490,7 +2516,7 @@ fun CameraScreen(
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
                                                             (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
-                                                        } else if (captureUseMilkyWayStack) {
+                                                        } else if (captureUseMilkyWayStack || captureUseLunaDream) {
                                                             (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else (8 + stackedFrames.size * 3).coerceAtMost(24)
                                                     }
@@ -2540,6 +2566,7 @@ fun CameraScreen(
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = when {
+                                                        captureUseLunaDream -> "LunaDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
                                                         captureUseMilkyWayStack -> "NightShot Milky Way: căn chỉnh và gộp " + stackedFrames.size + "/8 khung"
                                                         captureUseNightShot -> "NightShot: căn chỉnh và gộp " + stackedFrames.size + " khung"
                                                         else -> "Multi-frame: căn chỉnh và gộp " + stackedFrames.size + "/5 khung"
@@ -2548,14 +2575,15 @@ fun CameraScreen(
                                                 }
                                                 nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
                                                     context, stackedFrames, saved,
-                                                    if (captureUseMilkyWayStack) {
-                                                        NightShotProcessor.MergeMode.MILKY_WAY_STACK
-                                                    } else {
-                                                        NightShotProcessor.MergeMode.NIGHT_AVERAGE
+                                                    when {
+                                                        captureUseLunaDream -> NightShotProcessor.MergeMode.LUNA_DREAM_2_0
+                                                        captureUseMilkyWayStack -> NightShotProcessor.MergeMode.MILKY_WAY_STACK
+                                                        else -> NightShotProcessor.MergeMode.NIGHT_AVERAGE
                                                     }
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
                                                         processingLabel = when {
+                                                            captureUseLunaDream -> "LunaDream 2.0: căn LK, khử nhiễu và loại bóng ma"
                                                             captureUseNightShot -> "NightShot: căn khung và giảm nhiễu"
                                                             captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu"
                                                             else -> "Multi-frame: ghép 5 khung"
@@ -2567,7 +2595,7 @@ fun CameraScreen(
                                             }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
-                                                "mode=" + (if (captureUseNightShot) "NightShot-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
+                                                "mode=" + (if (captureUseLunaDream) "LunaDream-2.0" else if (captureUseNightShot) "NightShot-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
                                             )
                                         }
                                     } finally {
@@ -2783,6 +2811,7 @@ fun CameraScreen(
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
                                 val inspectorHdmpStatus = when {
+                                    captureUseLunaDream -> "HDMP LunaDream 2.0 · căn chỉnh đa khung và khử nhiễu"
                                     hdmpWorkerCount <= 0 -> if (hdmpRenderProfile == "off") "OFF HDMP AI · chụp thường" else "HDMP AI không áp dụng cho kiểu chụp này"
                                     !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
                                     hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
@@ -2868,6 +2897,8 @@ fun CameraScreen(
                                                 HdmpAiEngine.Model.CLASSICAL_ONLY -> ""
                                             }
                                         }
+                                    } else if (captureUseLunaDream) {
+                                        " HDMP LunaDream 2.0 đã ghép và khử nhiễu ảnh."
                                     } else if (hdmpRenderProfile == "off") {
                                         " OFF HDMP AI · ảnh chụp thường."
                                     } else ""

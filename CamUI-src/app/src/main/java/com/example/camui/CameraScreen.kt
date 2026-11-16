@@ -2736,9 +2736,8 @@ fun CameraScreen(
                                         withContext(Dispatchers.Main) {
                                             if (captureUseNightShot) nightShotCaptureInProgress = false
                                             if (captureUseLunaDream || captureUseNightShot) {
-                                                // Frame collection/alignment/merge are done, but the
-                                                // Render UI is not active until the next processing stage.
-                                                multiFrameHoldActive = false
+                                                // Keep the device steady until the Render stage visibly starts.
+                                                multiFrameHoldActive = nightShotMerged
                                                 multiFrameRenderStarted = false
                                             }
                                         }

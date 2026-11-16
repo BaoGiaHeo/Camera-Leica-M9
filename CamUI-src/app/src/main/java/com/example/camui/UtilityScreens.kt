@@ -1924,19 +1924,9 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
     return imported
 }
 
-private val filmSimulationAssets = mapOf(
-    "Provia" to "film_sims/provia.cube",
-    "Velvia" to "film_sims/velvia.cube",
-    "Astia" to "film_sims/astia.cube",
-    "Classic Chrome" to "film_sims/classic_chrome.cube",
-    "Classic Neg" to "film_sims/classic_neg.cube",
-    "Eterna" to "film_sims/eterna.cube",
-    "Pro Neg Std" to "film_sims/pro_neg_std.cube",
-    "Pro Neg Hi" to "film_sims/pro_neg_hi.cube",
-    "Nostalgic Neg" to "film_sims/nostalgic_neg.cube",
-    "Reala Ace" to "film_sims/reala_ace.cube",
-    "Bleach Bypass" to "film_sims/bleach_bypass.cube"
-)
+// Built-in looks use the app-authored sRGB transforms in transformPreset.
+// Non-commercial LUT files are not bundled into this commercial application.
+private val filmSimulationAssets = emptyMap<String, String>()
 
 private val filmSimulationCache = mutableMapOf<String, CubeLut>()
 
@@ -2228,6 +2218,75 @@ fun createFilmLookPreviewSample(): Bitmap {
     return bitmap
 }
 
+private val watermarkExifTags = listOf(
+    "ImageDescription", "Make", "Model", "Software", "DateTime", "Artist", "Copyright",
+    "ExposureTime", "FNumber", "ExposureProgram", "SpectralSensitivity", "ISOSpeedRatings",
+    "SensitivityType", "StandardOutputSensitivity", "RecommendedExposureIndex",
+    "PhotographicSensitivity", "ExifVersion", "DateTimeOriginal", "DateTimeDigitized",
+    "ComponentsConfiguration", "CompressedBitsPerPixel", "ShutterSpeedValue", "ApertureValue",
+    "BrightnessValue", "ExposureBiasValue", "MaxApertureValue", "SubjectDistance", "MeteringMode",
+    "LightSource", "Flash", "FocalLength", "SubjectArea", "UserComment", "SubSecTime",
+    "SubSecTimeOriginal", "SubSecTimeDigitized", "FlashpixVersion", "ColorSpace",
+    "FocalLengthIn35mmFilm", "SceneType", "CustomRendered", "ExposureMode", "WhiteBalance",
+    "DigitalZoomRatio", "SceneCaptureType", "GainControl", "Contrast", "Saturation", "Sharpness",
+    "SubjectDistanceRange", "ImageUniqueID", "CameraOwnerName", "BodySerialNumber",
+    "LensSpecification", "LensMake", "LensModel", "LensSerialNumber",
+    "GPSVersionID", "GPSLatitudeRef", "GPSLatitude", "GPSLongitudeRef", "GPSLongitude",
+    "GPSAltitudeRef", "GPSAltitude", "GPSTimeStamp", "GPSSatellites", "GPSStatus",
+    "GPSMeasureMode", "GPSDOP", "GPSSpeedRef", "GPSSpeed", "GPSTrackRef", "GPSTrack",
+    "GPSImgDirectionRef", "GPSImgDirection", "GPSMapDatum", "GPSDestLatitudeRef",
+    "GPSDestLatitude", "GPSDestLongitudeRef", "GPSDestLongitude", "GPSDestBearingRef",
+    "GPSDestBearing", "GPSDestDistanceRef", "GPSDestDistance", "GPSProcessingMethod",
+    "GPSAreaInformation", "GPSDateStamp", "GPSDifferential", "GPSHPositioningError"
+)
+
+private fun readImageExifAttributes(context: Context, uri: Uri): Map<String, String> {
+    return runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val exif = ExifInterface(input)
+            watermarkExifTags.mapNotNull { tag ->
+                exif.getAttribute(tag)?.takeIf { it.isNotBlank() }?.let { tag to it }
+            }.toMap()
+        }.orEmpty()
+    }.onFailure {
+        android.util.Log.w("FUJI_EXIF", "Could not read source EXIF attributes", it)
+    }.getOrDefault(emptyMap())
+}
+
+/** Reapply source EXIF after JPEG recompression; pixel dimensions and orientation follow new pixels. */
+private fun restoreImageExifAttributes(
+    context: Context,
+    uri: Uri,
+    attributes: Map<String, String>,
+    width: Int,
+    height: Int
+): Boolean {
+    return runCatching {
+        val descriptor = context.contentResolver.openFileDescriptor(uri, "rw")
+            ?: return@runCatching false
+        descriptor.use {
+            ExifInterface(it.fileDescriptor).apply {
+                attributes.forEach { (tag, value) ->
+                    runCatching { setAttribute(tag, value) }
+                        .onFailure { failure ->
+                            android.util.Log.d("FUJI_EXIF", "Skipped unsupported EXIF tag $tag", failure)
+                        }
+                }
+                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                setAttribute(ExifInterface.TAG_THUMBNAIL_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                setAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION, width.toString())
+                setAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION, height.toString())
+                setAttribute(ExifInterface.TAG_IMAGE_WIDTH, width.toString())
+                setAttribute(ExifInterface.TAG_IMAGE_LENGTH, height.toString())
+                saveAttributes()
+            }
+        }
+        true
+    }.onFailure {
+        android.util.Log.e("FUJI_EXIF", "Could not restore source EXIF attributes", it)
+    }.getOrDefault(false)
+}
+
 fun applyCameraLook(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val preset = prefs.getString("selected_filter", "None") ?: "None"
@@ -2249,6 +2308,7 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
             return@runCatching false
         }
 
+        val sourceExif = readImageExifAttributes(context, uri)
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
         try {
             if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
@@ -2257,14 +2317,9 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
             } ?: false
             if (!written) return@runCatching false
 
-            context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-                ExifInterface(descriptor.fileDescriptor).apply {
-                    setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                    saveAttributes()
-                }
-            }
+            val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, bitmap.width, bitmap.height)
             setMediaStoreOrientationUpright(context, uri)
-            true
+            exifWritten
         } finally {
             if (!bitmap.isRecycled) bitmap.recycle()
         }
@@ -2293,6 +2348,7 @@ fun applyCameraWatermark(
     }
 
     return runCatching {
+        val sourceExif = readImageExifAttributes(context, uri)
         val sourceBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
         var outputBitmap: Bitmap? = null
         var watermarkCropBitmap: Bitmap? = null
@@ -2308,8 +2364,9 @@ fun applyCameraWatermark(
         val sourceHeightPx = sourceBitmap.height
         val sourceMinSide = minOf(sourceWidthPx, sourceHeightPx).toFloat()
         val footerMarginPx = (sourceMinSide * 0.025f).coerceIn(14f, 72f).toInt()
-        val footerHeightPx = (sourceMinSide * 0.28f).coerceIn(112f, 760f).toInt()
-        val compactFooterHeightPx = (sourceMinSide * 0.16f).coerceIn(80f, 420f).toInt()
+        // A restrained ~12% footer keeps the photo area dominant while remaining readable.
+        val footerHeightPx = (sourceMinSide * 0.14f).coerceIn(88f, 360f).toInt()
+        val compactFooterHeightPx = (sourceMinSide * 0.12f).coerceIn(72f, 300f).toInt()
         val expandedWidth = sourceBitmap.width + footerMarginPx * 2
         val expandedHeight = sourceBitmap.height + footerMarginPx * 2 + footerHeightPx
         val expandedPixelCount = expandedWidth.toLong() * expandedHeight.toLong()
@@ -2390,15 +2447,66 @@ fun applyCameraWatermark(
         val watermarkTextSize = (minSide * 0.0125f).coerceIn(12f, 54f)
         val watermarkLogoHeight = watermarkTextSize * 1.35f
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
-        val model = prefs.getString("watermark_custom_model", "")?.trim()
-            ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
-        val specs = listOf(focal, aperture, shutter, "ISO $iso")
-            .filter { it.isNotBlank() }.joinToString("   •   ").takeIf { showSpecs }.orEmpty()
+        fun exifNumber(tag: String): Double? = sourceExif[tag]?.let { raw ->
+            val value = raw.trim()
+            runCatching {
+                if ('/' in value) {
+                    val parts = value.split('/', limit = 2)
+                    parts[0].toDouble() / parts[1].toDouble()
+                } else value.toDouble()
+            }.getOrNull()?.takeIf { it.isFinite() }
+        }
+        fun formatDecimal(value: Double, pattern: String): String =
+            String.format(java.util.Locale.US, pattern, value)
+        val exifFocal = exifNumber("FocalLength")?.let { formatDecimal(it, "%.1f mm") }
+            ?: focal.takeIf { it.isNotBlank() }
+        val equivalent35mm = sourceExif["FocalLengthIn35mmFilm"]?.toIntOrNull()
+            ?.takeIf { it > 0 }?.let { "$it mm equiv" }
+        val exifAperture = exifNumber("FNumber")?.let {
+            "f/" + formatDecimal(it, "%.1f").trimEnd('0').trimEnd('.')
+        } ?: aperture.takeIf { it.isNotBlank() }
+        val exposureSeconds = exifNumber("ExposureTime")
+        val exifShutter = exposureSeconds?.let { seconds ->
+            when {
+                seconds >= 1.0 -> formatDecimal(seconds, "%.2f s").trimEnd('0').trimEnd('.')
+                seconds > 0.0 -> "1/${(1.0 / seconds).roundToInt().coerceAtLeast(1)} s"
+                else -> null
+            }
+        } ?: shutter.takeIf { it.isNotBlank() }
+        val exifIso = sourceExif["PhotographicSensitivity"]
+            ?: sourceExif["ISOSpeedRatings"]
+            ?: iso.takeIf { it.isNotBlank() }
+        val exposureBias = exifNumber("ExposureBiasValue")?.let { ev ->
+            (if (ev > 0.0) "+" else "") + formatDecimal(ev, "%.1f EV")
+        }
+        val lensModel = sourceExif["LensModel"]?.trim()?.takeIf { it.isNotBlank() }
+        val exifMake = sourceExif["Make"]?.trim()?.takeIf { it.isNotBlank() }
+        val exifModel = sourceExif["Model"]?.trim()?.takeIf { it.isNotBlank() }
+        val cameraLabel = listOf(exifMake, exifModel).distinct().filterNotNull()
+            .joinToString(" ").ifBlank { "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}" }
+        val customModelLabel = prefs.getString("watermark_custom_model", "")?.trim().orEmpty()
+        val model = customModelLabel.ifBlank {
+            listOf(cameraLabel, lensModel).filterNot { it.isBlank() }.joinToString(" · ")
+        }
+        val specs = listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
+            exifIso?.let { "ISO $it" }, exposureBias)
+            .filterNotNull().filter { it.isNotBlank() }.joinToString("   •   ")
+            .takeIf { showSpecs }.orEmpty()
         val modelLine = model.takeIf { showModel }.orEmpty()
-        val timeLine = java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US)
-            .format(java.util.Date()).takeIf { showTime }.orEmpty()
-        val dateOnlyLine = java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US)
-            .format(java.util.Date()).takeIf { showTime }.orEmpty()
+        val capturedDateRaw = sourceExif["DateTimeOriginal"] ?: sourceExif["DateTime"]
+        val capturedDate = capturedDateRaw?.let { raw ->
+            runCatching {
+                java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", java.util.Locale.US).apply {
+                    isLenient = false
+                }.parse(raw)
+            }.getOrNull()
+        }
+        val timeLine = capturedDate?.let {
+            java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US).format(it)
+        }.orEmpty().takeIf { showTime }.orEmpty()
+        val dateOnlyLine = capturedDate?.let {
+            java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(it)
+        }.orEmpty().takeIf { showTime }.orEmpty()
         val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase()
         val brandTitle = when (watermarkBrand) {
@@ -2645,7 +2753,7 @@ fun applyCameraWatermark(
                 color = frameColor
                 alpha = 245
                 style = Paint.Style.STROKE
-                strokeWidth = (minSide * 0.0022f).coerceAtLeast(2f)
+                strokeWidth = (minSide * 0.0014f).coerceAtLeast(1.5f)
             }
             canvas.drawRoundRect(rect, radius, radius, framePaint)
         }
@@ -2935,12 +3043,8 @@ fun applyCameraWatermark(
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)
         } ?: false
         if (!outputWritten) return@runCatching false
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-            ExifInterface(descriptor.fileDescriptor).apply {
-                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                saveAttributes()
-            }
-        }
+        val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, output.width, output.height)
+        if (!exifWritten) return@runCatching false
         setMediaStoreOrientationUpright(context, uri)
         true
         } finally {

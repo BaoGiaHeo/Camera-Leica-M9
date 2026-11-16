@@ -296,6 +296,7 @@ object NightShotProcessor {
         var publishMs = 0L
         var base: Bitmap? = null
         var alignmentReference: Bitmap? = null
+        var alignmentReferenceState: AlignmentReferenceState? = null
         var publishing = false
         val lunaFusionExecutor: ExecutorService? = if (
             mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
@@ -328,6 +329,10 @@ object NightShotProcessor {
             // accumulated output as a reference would allow drift to build up over a burst.
             if (mode != MergeMode.STAR_TRAILS) {
                 alignmentReference = makeAlignmentThumbnail(base!!)
+                if (mode == MergeMode.LUNA_DREAM_2_0) {
+                    // The reference pyramid and Shi–Tomasi feature list do not change during this stack.
+                    alignmentReferenceState = preparePyramidalAlignmentReference(alignmentReference!!)
+                }
             }
             if (bestScores != null || exposureWeights != null) {
                 for (y in 0 until height) {
@@ -364,7 +369,7 @@ object NightShotProcessor {
                         MergeMode.LUNA_DREAM_1_5 ->
                             estimateGlobalTranslation(alignmentReference!!, current)
                         MergeMode.LUNA_DREAM_2_0 ->
-                            estimatePyramidalLucasKanade(alignmentReference!!, current)
+                            estimatePyramidalLucasKanade(alignmentReferenceState!!, current)
                         else -> estimateGlobalTranslation(alignmentReference!!, current)
                     }
                     alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt
@@ -621,7 +626,7 @@ object NightShotProcessor {
         onProgress: ((Int) -> Unit)? = null
     ) {
         val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
-        val rowsPerStripe = 24
+        val rowsPerStripe = 64
         for (top in 0 until height step rowsPerStripe) {
             val rowCount = min(rowsPerStripe, height - top)
             val pixelCount = rowCount * width
@@ -784,15 +789,27 @@ object NightShotProcessor {
     private const val LUNA_LK_WINDOW_RADIUS = 3
     private const val LUNA_LK_ITERATIONS = 5
 
+    private data class AlignmentReferenceState(
+        val thumbnail: Bitmap,
+        val pyramid: List<GrayLevel>,
+        val features: List<Pair<Int, Int>>
+    )
+
+    private fun preparePyramidalAlignmentReference(thumbnail: Bitmap): AlignmentReferenceState {
+        val pyramid = buildGrayPyramid(thumbnail)
+        val features = if (pyramid.size >= 2) detectShiTomasiFeatures(pyramid.first()) else emptyList()
+        return AlignmentReferenceState(thumbnail, pyramid, features)
+    }
+
     /**
-     * Sparse pyramidal Lucas-Kanade on a small luminance thumbnail. The robust consensus
-     * estimates the dominant camera translation while rejecting independently moving objects.
-     * Full-resolution pixels are only touched during the final frame fusion.
+     * Sparse pyramidal Lucas-Kanade on a small luminance thumbnail.
+     * The reference pyramid and Shi–Tomasi points are prepared once per 2.0 stack.
      */
     private fun estimatePyramidalLucasKanade(
-        referenceThumbnail: Bitmap,
+        reference: AlignmentReferenceState,
         currentFrame: Bitmap
     ): Pair<Int, Int> {
+        val referenceThumbnail = reference.thumbnail
         val currentThumbnail = makeAlignmentThumbnail(currentFrame)
         try {
             val width = referenceThumbnail.width
@@ -801,15 +818,16 @@ object NightShotProcessor {
                 width < 48 || height < 48
             ) return 0 to 0
 
-            val referencePyramid = buildGrayPyramid(referenceThumbnail)
+            val referencePyramid = reference.pyramid
             val currentPyramid = buildGrayPyramid(currentThumbnail)
-            if (referencePyramid.size < 2 || currentPyramid.size != referencePyramid.size) {
+            if (referencePyramid.size < 2 || currentPyramid.size != referencePyramid.size ||
+                reference.features.size < 8
+            ) {
                 return estimateGlobalTranslation(referenceThumbnail, currentFrame)
             }
 
-            val features = detectShiTomasiFeatures(referencePyramid.first())
-            val tracks = ArrayList<FlowTrack>(features.size)
-            for ((x, y) in features) {
+            val tracks = ArrayList<FlowTrack>(reference.features.size)
+            for ((x, y) in reference.features) {
                 trackPyramidalLucasKanade(referencePyramid, currentPyramid, x, y)?.let {
                     tracks.add(FlowTrack(it.first, it.second))
                 }

@@ -668,6 +668,7 @@ fun ToolboxScreen(
                 rowItems.forEach { (id, title, subtitle) ->
                     WatermarkTemplateCard(
                         id = id, title = title, subtitle = subtitle,
+                        brand = watermarkBrand,
                         frameStyle = watermarkStyle,
                         selected = watermarkTemplate == id,
                         onClick = {
@@ -1086,11 +1087,18 @@ private fun WatermarkTemplateCard(
     id: String,
     title: String,
     subtitle: String,
+    brand: String,
     frameStyle: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val previewLogo = when (brand.lowercase()) {
+        "sony" -> R.drawable.sony_wordmark
+        "nikon" -> R.drawable.nikon_wordmark
+        "canon" -> R.drawable.canon_wordmark
+        else -> R.drawable.fujifilm_logo
+    }
     Column(
         modifier.clip(RoundedCornerShape(13.dp))
             .background(if (selected) Color(0xFF333126) else CamColors.Card)
@@ -1133,7 +1141,7 @@ private fun WatermarkTemplateCard(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(panelColor).padding(horizontal = 6.dp, vertical = 4.dp)
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                    Image(painter = painterResource(id = previewLogo),
                         contentDescription = "FUJIFILM",
                         modifier = Modifier.fillMaxWidth(0.26f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
                         contentScale = ContentScale.Fit)
@@ -1144,7 +1152,7 @@ private fun WatermarkTemplateCard(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
                         .background(panelColor, RoundedCornerShape(4.dp)).padding(5.dp)
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                    Image(painter = painterResource(id = previewLogo),
                         contentDescription = "FUJIFILM",
                         modifier = Modifier.fillMaxWidth(0.25f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
                         contentScale = ContentScale.Fit)
@@ -1154,7 +1162,7 @@ private fun WatermarkTemplateCard(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(panelColor.copy(alpha = if (frameStyle == "Transparent") 0f else 0.85f)).padding(6.dp)
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                    Image(painter = painterResource(id = previewLogo),
                         contentDescription = "FUJIFILM",
                         modifier = Modifier.fillMaxWidth(0.24f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
                         contentScale = ContentScale.Fit)
@@ -1190,7 +1198,7 @@ private fun WatermarkTemplateCard(
                         .background(Color.White).padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                    Image(painter = painterResource(id = previewLogo),
                         contentDescription = "FUJIFILM",
                         modifier = Modifier.fillMaxWidth(0.26f).height(13.dp),
                         contentScale = ContentScale.Fit)
@@ -1206,7 +1214,7 @@ private fun WatermarkTemplateCard(
                         Modifier.weight(0.30f),
                         horizontalAlignment = Alignment.Start
                     ) {
-                        Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                        Image(painter = painterResource(id = previewLogo),
                             contentDescription = "FUJIFILM",
                             modifier = Modifier.fillMaxWidth(0.78f).height(10.dp),
                             contentScale = ContentScale.Fit)
@@ -1221,7 +1229,7 @@ private fun WatermarkTemplateCard(
                         .background(Color.White).padding(vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                    Image(painter = painterResource(id = previewLogo),
                         contentDescription = "FUJIFILM",
                         modifier = Modifier.fillMaxWidth(0.21f).height(11.dp),
                         contentScale = ContentScale.Fit)
@@ -1235,7 +1243,7 @@ private fun WatermarkTemplateCard(
                     Modifier.align(Alignment.Center).padding(5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
+                    Image(painter = painterResource(id = previewLogo),
                         contentDescription = "FUJIFILM",
                         modifier = Modifier.fillMaxWidth(0.42f).height(15.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
                         contentScale = ContentScale.Fit)

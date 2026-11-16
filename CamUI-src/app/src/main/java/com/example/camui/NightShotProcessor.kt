@@ -1130,10 +1130,19 @@ object NightShotProcessor {
         var previousRow = IntArray(width)
         var currentRow = IntArray(width)
         var nextRow = IntArray(width)
+        var previousLuma = IntArray(width)
+        var currentLuma = IntArray(width)
+        var nextLuma = IntArray(width)
         val outputRow = IntArray(width)
+        fun fillLumaRow(pixels: IntArray, destination: IntArray) {
+            for (index in pixels.indices) destination[index] = luma(pixels[index])
+        }
         bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
         currentRow.copyInto(previousRow)
         bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+        fillLumaRow(previousRow, previousLuma)
+        fillLumaRow(currentRow, currentLuma)
+        fillLumaRow(nextRow, nextLuma)
 
         val baseBlend = if (strength >= 2) 0.30f else 0.23f
         val progressInterval = (height / 48).coerceAtLeast(1)
@@ -1143,7 +1152,7 @@ object NightShotProcessor {
                 val centerR = (center ushr 16) and 0xFF
                 val centerG = (center ushr 8) and 0xFF
                 val centerB = center and 0xFF
-                val centerLuma = luma(centerR, centerG, centerB)
+                val centerLuma = currentLuma[x]
                 val rangeLimit = if (centerLuma < 72) {
                     if (strength >= 2) 27 else 23
                 } else {
@@ -1168,7 +1177,12 @@ object NightShotProcessor {
                         val nr = (neighbor ushr 16) and 0xFF
                         val ng = (neighbor ushr 8) and 0xFF
                         val nb = neighbor and 0xFF
-                        val luminanceDelta = kotlin.math.abs(luma(nr, ng, nb) - centerLuma)
+                        val rowLuma = when (dy) {
+                            -1 -> previousLuma
+                            0 -> currentLuma
+                            else -> nextLuma
+                        }
+                        val luminanceDelta = kotlin.math.abs(rowLuma[nx] - centerLuma)
                         val colorDelta = max(
                             kotlin.math.abs(nr - centerR),
                             max(kotlin.math.abs(ng - centerG), kotlin.math.abs(nb - centerB))
@@ -1213,8 +1227,17 @@ object NightShotProcessor {
                 previousRow = currentRow
                 currentRow = nextRow
                 nextRow = recycled
-                if (y + 2 < height) bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
-                else currentRow.copyInto(nextRow)
+                val recycledLuma = previousLuma
+                previousLuma = currentLuma
+                currentLuma = nextLuma
+                nextLuma = recycledLuma
+                if (y + 2 < height) {
+                    bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                    fillLumaRow(nextRow, nextLuma)
+                } else {
+                    currentRow.copyInto(nextRow)
+                    currentLuma.copyInto(nextLuma)
+                }
             }
         }
     }
@@ -1293,26 +1316,35 @@ object NightShotProcessor {
         var previousRow = IntArray(width)
         var currentRow = IntArray(width)
         var nextRow = IntArray(width)
+        var previousLuma = IntArray(width)
+        var currentLuma = IntArray(width)
+        var nextLuma = IntArray(width)
         val outputRow = IntArray(width)
+        fun fillLumaRow(pixels: IntArray, destination: IntArray) {
+            for (index in pixels.indices) destination[index] = luma(pixels[index])
+        }
         bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
         currentRow.copyInto(previousRow)
         bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+        fillLumaRow(previousRow, previousLuma)
+        fillLumaRow(currentRow, currentLuma)
+        fillLumaRow(nextRow, nextLuma)
         val progressInterval = (height / 48).coerceAtLeast(1)
 
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val center = currentRow[x]
-                val centerLuma = luma(center).toFloat()
-                val leftLuma = luma(currentRow[(x - 1).coerceAtLeast(0)]).toFloat()
-                val rightLuma = luma(currentRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
-                val upLuma = luma(previousRow[x]).toFloat()
-                val downLuma = luma(nextRow[x]).toFloat()
+                val centerLuma = currentLuma[x].toFloat()
+                val leftLuma = currentLuma[(x - 1).coerceAtLeast(0)].toFloat()
+                val rightLuma = currentLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
+                val upLuma = previousLuma[x].toFloat()
+                val downLuma = nextLuma[x].toFloat()
                 val crossMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
 
-                val upLeft = luma(previousRow[(x - 1).coerceAtLeast(0)]).toFloat()
-                val upRight = luma(previousRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
-                val downLeft = luma(nextRow[(x - 1).coerceAtLeast(0)]).toFloat()
-                val downRight = luma(nextRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
+                val upLeft = previousLuma[(x - 1).coerceAtLeast(0)].toFloat()
+                val upRight = previousLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
+                val downLeft = nextLuma[(x - 1).coerceAtLeast(0)].toFloat()
+                val downRight = nextLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
                 val diagonalMean = (upLeft + upRight + downLeft + downRight) * 0.25f
 
                 val edgeDelta = centerLuma - crossMean
@@ -1348,10 +1380,16 @@ object NightShotProcessor {
                 previousRow = currentRow
                 currentRow = nextRow
                 nextRow = recycled
+                val recycledLuma = previousLuma
+                previousLuma = currentLuma
+                currentLuma = nextLuma
+                nextLuma = recycledLuma
                 if (y + 2 < height) {
                     bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                    fillLumaRow(nextRow, nextLuma)
                 } else {
                     currentRow.copyInto(nextRow)
+                    currentLuma.copyInto(nextLuma)
                 }
             }
         }

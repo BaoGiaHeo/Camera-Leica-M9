@@ -146,6 +146,26 @@ jobs:
           PY
           sha256sum app/build/outputs/apk/debug/app-debug.apk | tee app/build/outputs/apk/debug/SHA256SUMS.txt
 
+          TEST_APK="hdmp-test/build/outputs/apk/debug/hdmp-test-debug.apk"
+          test -s "$TEST_APK"
+          python - "$TEST_APK" <<'PY'
+          import sys, zipfile
+          required = {
+              "assets/models/nafnet_sidd_width64.onnx",
+              "assets/models/nafnetlib_sidd_width32.onnx",
+              "assets/models/manifest.sha256",
+          }
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              names = set(apk.namelist())
+              missing = sorted(required - names)
+              assert not missing, f"HDMP test APK missing model assets: {missing}"
+              for name in sorted(required):
+                  size = apk.getinfo(name).file_size
+                  assert size > 0, f"Empty model asset: {name}"
+                  print(f"HDMP test APK {name}: {size:,} bytes")
+          PY
+          sha256sum "$TEST_APK" | tee hdmp-test/build/outputs/apk/debug/SHA256SUMS.txt
+
       - name: Upload debug APK and checksum
         uses: actions/upload-artifact@v4
         with:
@@ -154,4 +174,5 @@ jobs:
             CamUI/app/build/outputs/apk/debug/app-debug.apk
             CamUI/app/build/outputs/apk/debug/SHA256SUMS.txt
             CamUI/hdmp-test/build/outputs/apk/debug/hdmp-test-debug.apk
+            CamUI/hdmp-test/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error

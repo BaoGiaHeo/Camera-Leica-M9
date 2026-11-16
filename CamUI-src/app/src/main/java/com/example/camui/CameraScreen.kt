@@ -395,23 +395,30 @@ fun CameraScreen(
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
-    var targetRotation by remember {
-        mutableIntStateOf(context.display?.rotation ?: Surface.ROTATION_0)
-    }
+    var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
+    var deviceIsLandscape by remember { mutableStateOf(false) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    // Read the current display bounds instead of relying only on Configuration.orientation.
-    // Some vendor builds keep the activity's cached configuration in portrait while the display
-    // has already rotated; using that stale value makes a landscape JPEG get normalized as portrait.
-    var isLandscape by remember { mutableStateOf(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) }
+    // The Compose camera UI stays portrait; only CameraX capture rotation follows the handset.
+    var isLandscape by remember { mutableStateOf(false) }
+    DisposableEffect(context) {
+        val orientationListener = object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val nextRotation = surfaceRotationFromDeviceOrientation(orientation)
+                val nextLandscape = isDeviceOrientationLandscape(orientation)
+                if (targetRotation != nextRotation) targetRotation = nextRotation
+                if (deviceIsLandscape != nextLandscape) deviceIsLandscape = nextLandscape
+            }
+        }
+        if (orientationListener.canDetectOrientation()) orientationListener.enable()
+        onDispose { orientationListener.disable() }
+    }
     // Remember exactly which geometry is active in the bound CameraX UseCaseGroup.
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
     var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
-    // Orientation changes are applied only after the user taps the global rotate control.
-    LaunchedEffect(configuration.orientation) {
-        isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        targetRotation = context.display?.rotation ?: targetRotation
-    }
+    // UI orientation is intentionally fixed to portrait. The sensor listener tracks photo orientation.
+    LaunchedEffect(configuration.orientation) { isLandscape = false }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
     var faceTrackingEnabled by remember {
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
@@ -699,7 +706,11 @@ fun CameraScreen(
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
-    val rawCaptureMode = appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg"
+    val rawCaptureMode = when (appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") {
+        "raw_plus", "raw_dream" -> "raw_dream"
+        "raw" -> "raw"
+        else -> "jpeg"
+    }
     var uhdCaptureEnabled by remember { mutableStateOf(false) }
     var fhdCaptureEnabled by remember { mutableStateOf(false) }
     var uhdPlusCaptureEnabled by remember { mutableStateOf(false) }
@@ -877,11 +888,13 @@ fun CameraScreen(
                     ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
                 }.getOrDefault(emptySet())
             }.orEmpty()
-            val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" &&
+            val rawDreamRequested = rawCaptureMode == "raw_dream"
+            val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" &&
+                (lunaDreamMode == "off" || rawDreamRequested) &&
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
                 "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
-                "raw_plus" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+                "raw_dream" -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
                 else -> ImageCapture.OUTPUT_FORMAT_JPEG
             }
             val rawCaptureFormat = if (
@@ -892,7 +905,7 @@ fun CameraScreen(
             if (rawCaptureRequested && !rawCaptureActive) {
                 localizedToast(
                     context,
-                    "Camera này không hỗ trợ RAW/RawHDMP 1.2. Đã chuyển về JPEG thường.",
+                    "Camera này không hỗ trợ RAW/RawDream 2.0 đồng thời. Không thể dùng chế độ RAW đã chọn.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -1292,11 +1305,30 @@ fun CameraScreen(
                 previewUseCase = preview
                 analysisUseCase = analysis
                 var lastAnalysis = 0L
-                                analysis.setAnalyzer(analysisExecutor) { image ->
+                var lastLensCheckAt = 0L
+                var consecutiveLensWarnings = 0
+                var lastLensWarningAt = 0L
+                analysis.setAnalyzer(analysisExecutor) { image ->
                     try {
                         val now = System.currentTimeMillis()
                         if (now - lastAnalysis > 140) {
                             lastAnalysis = now
+                            if (now - lastLensCheckAt >= 2_000L) {
+                                lastLensCheckAt = now
+                                if (LensDirtDetector.mayBeObscured(image)) consecutiveLensWarnings++
+                                else consecutiveLensWarnings = 0
+                                if (consecutiveLensWarnings >= 4 && now - lastLensWarningAt >= 45_000L) {
+                                    consecutiveLensWarnings = 0
+                                    lastLensWarningAt = now
+                                    mainExecutor.execute {
+                                        localizedToast(
+                                            context,
+                                            "Hình xem trước có dấu hiệu mờ. Có thể ống kính bị bẩn hoặc che khuất; hãy kiểm tra và lau kính camera.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
                             val plane = image.planes[0]
                             val buffer = plane.buffer
                             val bins = IntArray(64)
@@ -1756,9 +1788,9 @@ fun CameraScreen(
 
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {
         val captureRotation = targetRotation
-        val captureIsLandscape = isLandscape
+        val captureIsLandscape = deviceIsLandscape
         if (boundCameraRotation != captureRotation ||
-            boundCameraLandscape != captureIsLandscape ||
+            boundCameraLandscape != isLandscape ||
             boundCameraRatioIdx != ratioIdx
         ) {
             targetRotation = captureRotation
@@ -1975,10 +2007,20 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
-        val rawModeConflictsWithComputationalCapture = mode == "Photo" &&
-            rawCaptureMode != "jpeg" &&
+        val rawModeConflictsWithComputationalCapture = mode == "Photo" && rawCaptureMode == "raw" &&
             (nightShotMode != "off" || lunaDreamMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
+                uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode) ||
+            mode == "Photo" && rawCaptureMode == "raw_dream" &&
+            (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                 uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode)
+        if (rawCaptureMode == "raw_dream" && imageCapture?.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
+            localizedToast(
+                context,
+                "Camera không hỗ trợ RAW + JPEG đồng thời. RawDream 2.0 chưa chụp; ảnh không bị chuyển âm thầm sang JPEG thường.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         if (rawModeConflictsWithComputationalCapture) {
             localizedToast(
                 context,
@@ -2250,18 +2292,20 @@ fun CameraScreen(
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val lunaDreamSelected = mode == "Photo" && lunaDreamMode != "off"
+            val captureUseRawDream20 = mode == "Photo" && rawCaptureMode == "raw_dream"
+            val lunaDreamSelected = mode == "Photo" && (lunaDreamMode != "off" || captureUseRawDream20)
             val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
-            val captureUseLunaDream20 = lunaDreamSelected && lunaDreamMode == "luna20" &&
-                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
+            val captureUseLunaDream20 = lunaDreamSelected &&
+                ((lunaDreamMode == "luna20" && rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly) ||
+                    captureUseRawDream20) &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
             val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20
             if (lunaDreamSelected && !captureUseLunaDream) {
                 localizedToast(
                     context,
-                    "LunaDream cần Photo/JPEG; hãy tắt RAW, Ultra HDR, Burst và Bracketing.",
+                    "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing.",
                     Toast.LENGTH_LONG
                 ).show()
                 return@launch
@@ -2348,7 +2392,7 @@ fun CameraScreen(
             // Freeze the physical handset orientation tracked by OrientationEventListener.
             // PreviewView/Display.rotation may remain portrait while the handset is landscape.
             val captureRotation = targetRotation
-            val captureIsLandscape = isLandscape
+            val captureIsLandscape = deviceIsLandscape
             val selectedBaseAspectRatio = when (ratioIdx) {
                 0 -> 3f / 2f
                 1 -> 4f / 3f
@@ -2363,8 +2407,7 @@ fun CameraScreen(
             }
             if (captureRotation != targetRotation ||
                 boundCameraRotation != captureRotation ||
-                boundCameraLandscape != captureIsLandscape ||
-                isLandscape != captureIsLandscape ||
+                boundCameraLandscape != isLandscape ||
                 boundCameraRatioIdx != ratioIdx
             ) {
                 // Never save a frame with the old orientation/crop after the display rotated.
@@ -2710,7 +2753,7 @@ fun CameraScreen(
                                 val outputResolutionResult = if (
                                     !captureIsUltraHdr &&
                                     (captureUseNightShot || (captureUseLunaDream && lunaDreamApplied)) &&
-                                    !captureRawOnly && !captureRawPlus
+                                    !captureRawOnly && (!captureRawPlus || captureUseRawDream20)
                                 ) {
                                     val targetPixels = when {
                                         captureUseNightShot -> 60_000_000L
@@ -2936,7 +2979,7 @@ fun CameraScreen(
     val macroFocusSupported = macroLensCandidate != null || macroManualFocusSupported
     val macroNearThreshold = (macroCloseFocusDiopter * 0.60f).coerceAtLeast(2.5f)
     val macroObjectNear = focusDiopter >= macroNearThreshold
-    val macroPromptVisible = macroFocusSupported && (macroAssistEnabled || macroObjectNear)
+    val macroPromptVisible = false
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -3019,93 +3062,7 @@ fun CameraScreen(
                             onClick = { metering = (metering + 1) % meteringModes.size },
                             tint = if (metering > 0) CamColors.Yellow else Color.White
                         )
-                        if (macroPromptVisible) {
-                            CircleBtn(
-                                Icons.Default.LocalFlorist,
-                                if (macroAssistEnabled) "Tắt Macro · quay lại 1×" else "Macro Assist · chủ thể ở gần",
-                                onClick = {
-                                    scope.launch {
-                                        val active = camera ?: return@launch
-                                        val zoomState = active.cameraInfo.zoomState.value
-                                        val oneX = zoomState?.let {
-                                            1f.coerceIn(it.minZoomRatio, it.maxZoomRatio)
-                                        } ?: 1f
-                                        if (macroAssistEnabled) {
-                                            runCatching { applyAutoFocus(active) }
-                                            manualFocus = 0f
-                                            milkyWayInfinityFocusEnabled = false
-                                            macroAssistEnabled = false
-                                            runCatching { active.cameraControl.setZoomRatio(oneX) }
-                                            zoomSel = oneX
-                                            appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
-                                            localizedToast(context, "Đã tắt Macro · AF tự động · 1×", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            val candidate = macroLensCandidate
-                                            var physicalLensConfirmed = false
-                                            if (candidate != null) {
-                                                activePhysicalCameraId = null
-                                                val requestedSwitch = runCatching {
-                                                    active.cameraControl.setZoomRatio(candidate.zoomRatio)
-                                                }.isSuccess
-                                                if (requestedSwitch) {
-                                                    zoomSel = candidate.zoomRatio
-                                                    appPrefs.edit()
-                                                        .putFloat("camera_zoom_ratio", candidate.zoomRatio)
-                                                        .apply()
-                                                    for (attempt in 0 until 12) {
-                                                        delay(100)
-                                                        if (activePhysicalCameraId == candidate.physicalCameraId) {
-                                                            physicalLensConfirmed = true
-                                                            break
-                                                        }
-                                                    }
-                                                }
-                                                if (!physicalLensConfirmed) {
-                                                    runCatching { active.cameraControl.setZoomRatio(oneX) }
-                                                    zoomSel = oneX
-                                                    appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
-                                                    localizedToast(
-                                                        context,
-                                                        "Camera HAL không xác nhận đã chuyển sang ống kính lấy nét gần; đã giữ camera chính ở 1×.",
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                    return@launch
-                                                }
-                                            }
-                                            val closeFocusDiopter = candidate?.closestFocusDiopter
-                                                ?: maxFocus.coerceAtLeast(0.1f)
-                                            val applied = runCatching {
-                                                if (macroManualFocusSupported && closeFocusDiopter > 0f) {
-                                                    applyManualFocus(active, closeFocusDiopter)
-                                                } else {
-                                                    applyAutoFocus(active)
-                                                }
-                                            }.isSuccess
-                                            if (applied) {
-                                                manualFocus = if (macroManualFocusSupported) closeFocusDiopter else 0f
-                                                milkyWayInfinityFocusEnabled = false
-                                                macroAssistEnabled = true
-                                                focusLocked = false
-                                                val message = if (candidate != null) {
-                                                    "Macro · đã xác nhận ống kính vật lý lấy nét gần từ Camera2."
-                                                } else {
-                                                    "Macro Assist · đã đặt ống kính hiện tại về khoảng lấy nét gần nhất."
-                                                }
-                                                localizedToast(context, message, Toast.LENGTH_LONG).show()
-                                            } else {
-                                                if (candidate != null) {
-                                                    runCatching { active.cameraControl.setZoomRatio(oneX) }
-                                                    zoomSel = oneX
-                                                    appPrefs.edit().putFloat("camera_zoom_ratio", oneX).apply()
-                                                }
-                                                localizedToast(context, "Không thể bật lấy nét gần trên camera này.", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    }
-                                },
-                                tint = if (macroAssistEnabled) CamColors.Yellow else Color.White
-                            )
-                        }
+
                         CircleBtn(
                             Icons.Default.BarChart, "Histogram",
                             onClick = { onShowHist(!showHist) },

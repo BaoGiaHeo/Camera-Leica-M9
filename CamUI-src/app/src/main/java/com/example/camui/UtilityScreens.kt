@@ -2332,6 +2332,40 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
  * Draws a camera-spec frame directly onto the upright pixel matrix. No portrait/landscape
  * heuristic is applied here: the image pixels, metadata and watermark all share one orientation.
  */
+private val watermarkTypefaceCache = mutableMapOf<String, android.graphics.Typeface>()
+
+private fun resolveWatermarkTypeface(context: Context, brand: String): android.graphics.Typeface {
+    val key = brand.lowercase()
+    synchronized(watermarkTypefaceCache) {
+        watermarkTypefaceCache[key]?.let { return it }
+        val (assetName, variation, fallbackFamily, fallbackStyle) = when (key) {
+            "sony" -> arrayOf("Inter-Variable.ttf", "'wght' 300, 'opsz' 14", "sans-serif-light", "0")
+            "nikon" -> arrayOf("CreatoDisplay-Light.otf", "", "sans-serif-light", "0")
+            "canon" -> arrayOf("LiberationSans-Regular.ttf", "", "sans-serif", "0")
+            else -> arrayOf("Jost-Variable.ttf", "'wght' 300", "sans-serif-light", "0")
+        }
+        val typeface = runCatching {
+            val directory = File(context.cacheDir, "watermark-fonts").apply { mkdirs() }
+            val fontFile = File(directory, assetName)
+            if (!fontFile.isFile || fontFile.length() == 0L) {
+                context.assets.open("fonts/" + assetName).use { input ->
+                    fontFile.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            android.graphics.Typeface.Builder(fontFile)
+                .apply { if (variation.isNotBlank()) setFontVariationSettings(variation) }
+                .build()
+        }.getOrElse {
+            android.graphics.Typeface.create(
+                fallbackFamily,
+                fallbackStyle.toIntOrNull() ?: android.graphics.Typeface.NORMAL
+            )
+        }
+        watermarkTypefaceCache[key] = typeface
+        return typeface
+    }
+}
+
 fun applyCameraWatermark(
     context: Context,
     uri: Uri,
@@ -2354,6 +2388,7 @@ fun applyCameraWatermark(
         var watermarkCropBitmap: Bitmap? = null
         try {
         val selectedTemplate = (prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature") } ?: "fuji_auto"
+        val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
         val template = if (selectedTemplate == "fuji_auto") {
             if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
         } else {
@@ -2380,13 +2415,14 @@ fun applyCameraWatermark(
         // If the additional canvas would threaten the current heap, keep the original dimensions
         // and render the footer as an in-image plate instead of risking an OOM.
         val expandedFujiFooter = isFujiFooterTemplate && !preservePhotoAspectRatio &&
+            frameStyle in setOf("White", "Black") &&
             expandedWidth <= 32768 && expandedHeight <= 32768 &&
             expandedPixelCount <= 100_000_000L && extraBytes <= (freeHeapBytes * 0.42f).toLong()
         val output = if (expandedFujiFooter) {
             Bitmap.createBitmap(expandedWidth, expandedHeight, Bitmap.Config.ARGB_8888).also { expanded ->
                 outputBitmap = expanded
                 val expandedCanvas = Canvas(expanded)
-                expandedCanvas.drawColor(AndroidColor.WHITE)
+                expandedCanvas.drawColor(if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE)
                 val photoRect = RectF(
                     footerMarginPx.toFloat(),
                     footerMarginPx.toFloat(),
@@ -2413,7 +2449,6 @@ fun applyCameraWatermark(
         }
         outputBitmap = output
         val canvas = Canvas(output)
-        val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
         val showTime = prefs.getBoolean("watermark_show_time", true)
         val showModel = prefs.getBoolean("watermark_show_model", true)
         val showSpecs = prefs.getBoolean("watermark_show_specs", true)
@@ -2515,12 +2550,13 @@ fun applyCameraWatermark(
             "canon" -> "Canon"
             else -> "FUJIFILM"
         }
-        // Each brand gets a distinct system-font treatment; proprietary brand fonts are not redistributed.
-        val brandTypeface = when (watermarkBrand) {
-            "sony" -> android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL)
-            "nikon" -> android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD)
-            "canon" -> android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD_ITALIC)
-            else -> android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
+        // Brand-matched typefaces are bundled with their OFL notices in assets/fonts.
+        val brandTypeface = resolveWatermarkTypeface(context, watermarkBrand)
+        val detailTypeface = when (watermarkBrand) {
+            "sony" -> brandTypeface
+            "nikon" -> brandTypeface
+            "canon" -> brandTypeface
+            else -> brandTypeface
         }
         val brandInk = when (watermarkBrand) {
             "nikon" -> AndroidColor.BLACK
@@ -2584,11 +2620,16 @@ fun applyCameraWatermark(
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             alpha = 235
-            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            typeface = detailTypeface
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             typeface = brandTypeface
+        }
+        if (frameStyle == "Transparent") {
+            titlePaint.setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
+            detailPaint.setShadowLayer((minSide * 0.0018f).coerceAtLeast(1.5f), 0f, 1f, AndroidColor.BLACK)
+            accentPaint.setShadowLayer((minSide * 0.0018f).coerceAtLeast(1.5f), 0f, 1f, AndroidColor.BLACK)
         }
         fun fitText(value: String, paint: Paint, x: Float, baseline: Float, maxWidth: Float, baseSize: Float) {
             if (value.isBlank()) return
@@ -2773,6 +2814,33 @@ fun applyCameraWatermark(
             }
             return plate
         }
+        fun drawWatermarkFooter(rect: RectF, radius: Float = 0f) {
+            when (frameStyle) {
+                "White", "Black" -> {
+                    val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+                        style = Paint.Style.FILL
+                    }
+                    if (radius > 0f) canvas.drawRoundRect(rect, radius, radius, fill)
+                    else canvas.drawRect(rect, fill)
+                }
+                "LiquidGlass" -> drawLiquidGlassPanel(rect, radius.coerceAtLeast(minSide * 0.012f))
+                "Transparent" -> Unit
+            }
+        }
+        fun brandAccentColor(): Int = when (watermarkBrand) {
+            "sony" -> AndroidColor.rgb(122, 142, 158)
+            "nikon" -> AndroidColor.rgb(255, 210, 0)
+            "canon" -> AndroidColor.rgb(205, 0, 34)
+            else -> AndroidColor.rgb(35, 174, 145)
+        }
+        fun drawBrandAccent(rect: RectF, thickness: Float) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = brandAccentColor()
+                style = Paint.Style.FILL
+            }
+            canvas.drawRect(rect.left, rect.top, rect.right, rect.top + thickness, paint)
+        }
 
         // The watermark must not draw a full-photo outline. Optional photo frames
         // are handled independently by CameraFrameSettingsPanel.
@@ -2872,96 +2940,163 @@ fun applyCameraWatermark(
                 }
             }
             "fuji_classic" -> {
-                canvas.drawRect(footerRect, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.WHITE
-                    style = Paint.Style.FILL
-                })
+                drawWatermarkFooter(footerRect)
+                val accentHeight = (footerRect.height() * 0.035f).coerceAtLeast(2f)
+                if (watermarkBrand != "fujifilm" && frameStyle != "Transparent") {
+                    drawBrandAccent(RectF(footerRect.left, footerRect.top, footerRect.right,
+                        footerRect.top + accentHeight), accentHeight)
+                }
                 val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.24f)
-                val logoWidth = logoHeight * (brandLogo?.let {
+                val logoRatio = brandLogo?.let {
                     it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: 5.95f)
+                } ?: when (watermarkBrand) {
+                    "sony" -> 2.8f
+                    "nikon" -> 3.1f
+                    "canon" -> 3.0f
+                    else -> 5.95f
+                }
+                val logoWidth = (logoHeight * logoRatio).coerceAtMost(footerRect.width() * 0.32f)
                 val leftLogo = footerRect.left + footerRect.height() * 0.18f
-                val logoRect = RectF(
-                    leftLogo,
-                    footerRect.centerY() - logoHeight / 2f,
-                    leftLogo + logoWidth,
-                    footerRect.centerY() + logoHeight / 2f
-                )
+                val logoRect = RectF(leftLogo, footerRect.centerY() - logoHeight / 2f,
+                    leftLogo + logoWidth, footerRect.centerY() + logoHeight / 2f)
                 drawBrandLogo(logoRect)
-
+                val footerInk = when (frameStyle) {
+                    "White" -> AndroidColor.BLACK
+                    "Black" -> AndroidColor.WHITE
+                    else -> textColor
+                }
                 val footerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.BLACK
+                    color = footerInk
                     typeface = brandTypeface
-                }
-                if (showModel) {
-                    footerText.textAlign = Paint.Align.LEFT
-                    fitText(model, footerText, leftLogo,
-                        footerRect.centerY() + logoHeight * 0.88f,
-                        footerRect.width() * 0.40f, watermarkTextSize)
-                }
-                if (showSpecs) {
-                    val compactSpecs = listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
-                        exifIso?.let { "ISO $it" }, exposureBias)
-                        .filterNotNull().filter { it.isNotBlank() }.joinToString(" ")
-                    val right = footerRect.right - footerRect.height() * 0.18f
-                    footerText.textAlign = Paint.Align.RIGHT
-                    fitText(compactSpecs, footerText, right, footerRect.centerY() + footerText.textSize * 0.34f,
-                        footerRect.width() * 0.61f, watermarkTextSize)
-                    if (compactSpecs.isNotBlank()) {
-                        val dotRadius = (watermarkTextSize * 0.18f).coerceIn(2f, 9f)
-                        val dotX = right - footerText.measureText(compactSpecs) - dotRadius * 2.4f
-                        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = AndroidColor.rgb(35, 174, 145)
-                            style = Paint.Style.FILL
-                        }
-                        canvas.drawCircle(dotX, footerRect.centerY(), dotRadius, dotPaint)
+                    if (frameStyle == "Transparent") {
+                        setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
                     }
                 }
-                if (showTime) {
-                    footerText.textAlign = Paint.Align.RIGHT
-                    fitText(timeLine, footerText, footerRect.right - footerRect.height() * 0.18f,
-                        footerRect.bottom - footerRect.height() * 0.20f,
-                        footerRect.width() * 0.61f, watermarkTextSize * 0.88f)
+                val compactSpecs = listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
+                    exifIso?.let { "ISO $it" }, exposureBias)
+                    .filterNotNull().filter { it.isNotBlank() }.joinToString("  ·  ")
+                val textLeft = leftLogo + logoWidth + footerRect.height() * 0.14f
+                val textRight = footerRect.right - footerRect.height() * 0.16f
+                val textWidth = (textRight - textLeft).coerceAtLeast(1f)
+                when (watermarkBrand) {
+                    "sony" -> {
+                        footerText.textAlign = Paint.Align.LEFT
+                        fitText(modelLine, footerText, textLeft,
+                            footerRect.top + footerRect.height() * 0.47f, textWidth, watermarkTextSize * 1.02f)
+                        val specPaint = Paint(footerText).apply { textAlign = Paint.Align.LEFT }
+                        fitText(compactSpecs, specPaint, textLeft,
+                            footerRect.top + footerRect.height() * 0.73f, textWidth, watermarkTextSize * 0.76f)
+                        val datePaint = Paint(footerText).apply {
+                            textAlign = Paint.Align.RIGHT
+                            alpha = 210
+                        }
+                        fitText(timeLine, datePaint, textRight,
+                            footerRect.bottom - footerRect.height() * 0.12f, textWidth, watermarkTextSize * 0.66f)
+                    }
+                    "nikon" -> {
+                        footerText.textAlign = Paint.Align.LEFT
+                        fitText(modelLine, footerText, textLeft,
+                            footerRect.top + footerRect.height() * 0.43f, textWidth, watermarkTextSize)
+                        footerText.textAlign = Paint.Align.RIGHT
+                        fitText(compactSpecs, footerText, textRight,
+                            footerRect.top + footerRect.height() * 0.70f, textWidth, watermarkTextSize * 0.78f)
+                        fitText(timeLine, footerText, textRight,
+                            footerRect.bottom - footerRect.height() * 0.13f, textWidth, watermarkTextSize * 0.70f)
+                    }
+                    "canon" -> {
+                        footerText.textAlign = Paint.Align.LEFT
+                        fitText(modelLine, footerText, textLeft,
+                            footerRect.top + footerRect.height() * 0.44f, textWidth, watermarkTextSize)
+                        footerText.textAlign = Paint.Align.RIGHT
+                        fitText(compactSpecs, footerText, textRight,
+                            footerRect.top + footerRect.height() * 0.69f, textWidth, watermarkTextSize * 0.76f)
+                        fitText(timeLine, footerText, textRight,
+                            footerRect.bottom - footerRect.height() * 0.13f, textWidth, watermarkTextSize * 0.68f)
+                    }
+                    else -> {
+                        if (showModel) {
+                            footerText.textAlign = Paint.Align.LEFT
+                            fitText(model, footerText, leftLogo,
+                                footerRect.centerY() + logoHeight * 0.88f,
+                                footerRect.width() * 0.40f, watermarkTextSize)
+                        }
+                        if (showSpecs) {
+                            footerText.textAlign = Paint.Align.RIGHT
+                            fitText(compactSpecs, footerText, textRight,
+                                footerRect.centerY() + footerText.textSize * 0.34f,
+                                footerRect.width() * 0.61f, watermarkTextSize)
+                        }
+                        if (showTime) {
+                            footerText.textAlign = Paint.Align.RIGHT
+                            fitText(timeLine, footerText, textRight,
+                                footerRect.bottom - footerRect.height() * 0.20f,
+                                footerRect.width() * 0.61f, watermarkTextSize * 0.88f)
+                        }
+                    }
+                }
+                if (watermarkBrand != "sony" && compactSpecs.isNotBlank() && frameStyle != "Transparent") {
+                    val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = brandAccentColor()
+                        style = Paint.Style.FILL
+                    }
+                    canvas.drawCircle(footerRect.right - footerRect.height() * 0.10f,
+                        footerRect.centerY(), (watermarkTextSize * 0.16f).coerceIn(2f, 8f), accentPaint)
                 }
             }
             "fuji_signature" -> {
-                canvas.drawRect(footerRect, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.WHITE
-                    style = Paint.Style.FILL
-                })
+                drawWatermarkFooter(footerRect)
                 val centerX = footerRect.centerX()
                 val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.22f)
-                val logoWidth = logoHeight * (brandLogo?.let {
+                val logoRatio = brandLogo?.let {
                     it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: 5.95f)
-                val logoTop = footerRect.top + footerRect.height() * 0.13f
-                drawBrandLogo(RectF(
-                    centerX - logoWidth / 2f, logoTop,
-                    centerX + logoWidth / 2f, logoTop + logoHeight
-                ))
+                } ?: when (watermarkBrand) {
+                    "sony" -> 2.8f
+                    "nikon" -> 3.1f
+                    "canon" -> 3.0f
+                    else -> 5.95f
+                }
+                val logoWidth = (logoHeight * logoRatio).coerceAtMost(footerRect.width() * 0.28f)
+                val logoTop = footerRect.top + footerRect.height() * 0.12f
+                drawBrandLogo(RectF(centerX - logoWidth / 2f, logoTop,
+                    centerX + logoWidth / 2f, logoTop + logoHeight))
+                val footerInk = when (frameStyle) {
+                    "White" -> AndroidColor.BLACK
+                    "Black" -> AndroidColor.WHITE
+                    else -> textColor
+                }
                 val footerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.BLACK
+                    color = footerInk
                     textAlign = Paint.Align.CENTER
                     typeface = brandTypeface
+                    if (frameStyle == "Transparent") {
+                        setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
+                    }
+                }
+                if (watermarkBrand != "fujifilm" && frameStyle != "Transparent") {
+                    drawBrandAccent(RectF(footerRect.left + footerRect.width() * 0.36f,
+                        footerRect.top + footerRect.height() * 0.46f,
+                        footerRect.right - footerRect.width() * 0.36f,
+                        footerRect.top + footerRect.height() * 0.46f + (minSide * 0.0016f).coerceAtLeast(2f)),
+                        (minSide * 0.0016f).coerceAtLeast(2f))
                 }
                 val shotLabel = if (showModel) "Shot on $model" else ""
-                val signature = listOf(shotLabel, dateOnlyLine).filter { it.isNotBlank() }.joinToString(" | ")
+                val signature = listOf(shotLabel, dateOnlyLine).filter { it.isNotBlank() }.joinToString("  ·  ")
                 fitText(signature, footerText, centerX,
-                    footerRect.top + footerRect.height() * 0.59f,
-                    footerRect.width() * 0.86f, watermarkTextSize)
+                    footerRect.top + footerRect.height() * 0.63f,
+                    footerRect.width() * 0.88f, watermarkTextSize * 0.90f)
                 if (showSpecs) {
                     fitText(specs, footerText, centerX,
-                        footerRect.top + footerRect.height() * 0.75f,
-                        footerRect.width() * 0.88f, watermarkTextSize * 0.96f)
+                        footerRect.top + footerRect.height() * 0.78f,
+                        footerRect.width() * 0.90f, watermarkTextSize * 0.82f)
                 }
                 if (locationLine.isNotBlank()) {
                     val locationPaint = Paint(footerText).apply {
-                        color = AndroidColor.rgb(132, 132, 132)
+                        color = if (frameStyle == "Black") AndroidColor.LTGRAY else AndroidColor.GRAY
                         textAlign = Paint.Align.CENTER
                     }
                     fitText(locationLine, locationPaint, centerX,
-                        footerRect.top + footerRect.height() * 0.91f,
-                        footerRect.width() * 0.88f, watermarkTextSize * 0.84f)
+                        footerRect.top + footerRect.height() * 0.92f,
+                        footerRect.width() * 0.88f, watermarkTextSize * 0.72f)
                 }
             }
             "center_logo" -> {

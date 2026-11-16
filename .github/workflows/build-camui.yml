@@ -69,8 +69,7 @@ jobs:
             "opencv-python-headless==4.10.0.84" \
             "pillow==11.0.0" \
             "onnx==1.17.0" \
-            "onnxruntime==1.20.1" \
-            "gdown==5.2.0"
+            "onnxruntime==1.20.1"
 
           # Pin both upstream sources so the exported model provenance is reproducible.
           git clone https://github.com/megvii-research/NAFNet.git "$RUNNER_TEMP/NAFNet"
@@ -81,22 +80,14 @@ jobs:
           MODEL_DIR="$RUNNER_TEMP/nafnet-model-weights"
           OUTPUT_DIR="$GITHUB_WORKSPACE/CamUI/app/src/main/assets/models"
           mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
-          export MODEL_DIR
-          python - <<'PY'
-          from pathlib import Path
-          import os
-          import gdown
-
-          model = Path(os.environ["MODEL_DIR"]) / "NAFNet-SIDD-width64.pth"
-          downloaded = gdown.download(
-              id="14Fht1QQJ2gMlk4N1ERCRuElg8JfjrWWR",
-              output=str(model),
-              quiet=False,
-          )
-          if not downloaded or not model.is_file() or model.stat().st_size < 1_000_000:
-              raise SystemExit("Official Megvii NAFNet-SIDD-width64 checkpoint download failed")
-          print(f"Official Megvii width64 checkpoint: {model.stat().st_size:,} bytes")
-          PY
+          MODEL="$MODEL_DIR/NAFNet-SIDD-width64.pth"
+          MODEL_URL="https://huggingface.co/mikestealth/nafnet-models/resolve/main/NAFNet-SIDD-width64.pth"
+          EXPECTED_SHA256="cd685efaae01f7c4e9951f2deab05780079c8eb1e49ed664b72f6db04dabb445"
+          curl --fail --location --retry 5 --retry-delay 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 1800 "$MODEL_URL" -o "$MODEL"
+          echo "$EXPECTED_SHA256  $MODEL" | sha256sum --check -
+          test -s "$MODEL"
+          echo "Verified official Megvii NAFNet-SIDD-width64 checkpoint: $(stat -c '%s' "$MODEL") bytes"
           python scripts/export_nafnet_onnx.py \
             --official-nafnet-src "$RUNNER_TEMP/NAFNet" \
             --official-width64-checkpoint "$MODEL_DIR/NAFNet-SIDD-width64.pth" \

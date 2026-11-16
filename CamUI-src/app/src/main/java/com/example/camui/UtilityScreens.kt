@@ -391,7 +391,7 @@ fun ToolboxScreen(
     var liquidGlassCorner by remember { mutableStateOf(prefs.getFloat("watermark_glass_corner", 0.58f).coerceIn(0f, 1f)) }
     var liquidGlassGooey by remember { mutableStateOf(prefs.getFloat("watermark_glass_gooey", 0.34f).coerceIn(0f, 1f)) }
     var liquidGlassTint by remember { mutableStateOf(prefs.getString("watermark_glass_tint", "Auto") ?: "Auto") }
-    var watermarkTemplate by remember { mutableStateOf(prefs.getString("watermark_template", "standard1") ?: "standard1") }
+    var watermarkTemplate by remember { mutableStateOf((prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature") } ?: "fuji_auto") }
     var watermarkBrand by remember { mutableStateOf(prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
     var watermarkShowModel by remember { mutableStateOf(prefs.getBoolean("watermark_show_model", true)) }
@@ -635,7 +635,7 @@ fun ToolboxScreen(
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        ToolToggle("Enable Watermark", "Logo FUJIFILM gốc và thông số theo bố cục watermark đã chọn",
+        ToolToggle("Enable Watermark", "Logo thương hiệu, thông số chụp và bố cục watermark đã chọn",
             Icons.Default.Image, watermarkEnabled) {
             watermarkEnabled = it
             prefs.edit().putBoolean("watermark_enabled", it).apply()
@@ -652,17 +652,16 @@ fun ToolboxScreen(
         }
         Text("Mẫu watermark · chọn riêng từng kiểu", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 8.dp, top = 9.dp))
+        val watermarkBrandLabel = when (watermarkBrand) {
+            "sony" -> "Sony"
+            "nikon" -> "Nikon"
+            "canon" -> "Canon"
+            else -> "Fuji"
+        }
         val watermarkTemplates = listOf(
-            Triple("standard1", "Standard 1", "EXIF cổ điển"),
-            Triple("standard2", "Standard 2", "Viền bo + khoảng trống"),
-            Triple("blur", "Blur", "Nền mờ, thông số nổi"),
-            Triple("normal1", "Normal 1", "Thông số góc phải"),
-            Triple("normal2", "Normal 2", "Ngày chụp tối giản"),
-            Triple("balanced", "Balanced", "Model trái · thông số phải · ngày dưới"),
-            Triple("center_logo", "Center Logo", "Logo ở chính giữa"),
-            Triple("fuji_auto", "Brand Auto", "Tự chọn ngang hoặc dọc theo ảnh"),
-            Triple("fuji_classic", "Brand Classic", "Logo trái · thông số phải · nền trắng"),
-            Triple("fuji_signature", "Brand Signature", "Logo giữa · Shot on · ngày chụp")
+            Triple("fuji_auto", "$watermarkBrandLabel Auto", "Tự chọn ngang hoặc dọc theo ảnh"),
+            Triple("fuji_classic", "$watermarkBrandLabel Classic", "Logo trái · EXIF phải · chân trang cân đối"),
+            Triple("fuji_signature", "$watermarkBrandLabel Signature", "Logo giữa · Shot on · ngày chụp")
         )
         watermarkTemplates.chunked(2).forEach { rowItems ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -2298,7 +2297,7 @@ fun applyCameraWatermark(
         var outputBitmap: Bitmap? = null
         var watermarkCropBitmap: Bitmap? = null
         try {
-        val selectedTemplate = prefs.getString("watermark_template", "standard1") ?: "standard1"
+        val selectedTemplate = (prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature") } ?: "fuji_auto"
         val template = if (selectedTemplate == "fuji_auto") {
             if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
         } else {

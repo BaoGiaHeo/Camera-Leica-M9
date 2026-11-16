@@ -173,9 +173,11 @@ object NightShotProcessor {
             } ?: error("Cannot write $modeLabel photo")
             stage = "verify published JPEG"
             val verification = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use { input ->
+            val verificationReadable = context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, verification)
-            } ?: error("Cannot reopen processed $modeLabel photo")
+                true
+            } ?: false
+            check(verificationReadable) { "Cannot reopen processed $modeLabel photo" }
             check(verification.outWidth >= 3 && verification.outHeight >= 3) {
                 "Published $modeLabel image is not a decodable JPEG"
             }

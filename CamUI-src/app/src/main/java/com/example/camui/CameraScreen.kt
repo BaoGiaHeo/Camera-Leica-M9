@@ -115,7 +115,6 @@ import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlipCameraAndroid
-import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
@@ -685,7 +684,6 @@ fun CameraScreen(
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
     val manualFocusState = rememberUpdatedState(manualFocus)
     val focusLockedState = rememberUpdatedState(focusLocked)
-    var macroAssistEnabled by remember { mutableStateOf(false) }
     var milkyWayInfinityFocusEnabled by remember { mutableStateOf(false) }
     var hist by remember { mutableStateOf(IntArray(64)) }
     var rgbRedHistogram by remember { mutableStateOf(IntArray(32)) }
@@ -2137,7 +2135,6 @@ fun CameraScreen(
                         runCatching { applyAutoFocus(activeCamera) }
                         manualFocus = 0f
                         milkyWayInfinityFocusEnabled = false
-                        macroAssistEnabled = false
                     }
                     countdown = 0
                     bracketCaptureActive = false
@@ -3022,32 +3019,6 @@ fun CameraScreen(
     val shutterRange = if (manualSensorSupported) cameraInfo2?.getCameraCharacteristic(
         CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
     ) else null
-    val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
-    val availableAfModes = cameraInfo2?.getCameraCharacteristic(
-        CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES
-    )
-    val macroZoomState = camera?.cameraInfo?.zoomState?.value
-    val macroSelectableMaxZoom = Camera2Info.maxSelectableZoom(
-        activeCameraDetails,
-        activePhysicalCameraDetails,
-        macroZoomState?.maxZoomRatio ?: 1f
-    )
-    val macroLensCandidate = Camera2Info.findMacroLensCandidate(
-        activeCameraDetails,
-        activePhysicalCameraDetails,
-        macroZoomState?.minZoomRatio ?: 1f,
-        macroSelectableMaxZoom
-    )
-    // Generic manual focus is not enough to advertise Macro. Require the same
-    // close-focus threshold used by the hardware scanner, or a disclosed physical
-    // lens candidate that the logical camera can actually select.
-    val macroCloseFocusDiopter = maxOf(maxFocus, macroLensCandidate?.closestFocusDiopter ?: 0f)
-    val macroManualFocusSupported = macroCloseFocusDiopter >= 8f &&
-        availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
-    val macroFocusSupported = macroLensCandidate != null || macroManualFocusSupported
-    val macroNearThreshold = (macroCloseFocusDiopter * 0.60f).coerceAtLeast(2.5f)
-    val macroObjectNear = focusDiopter >= macroNearThreshold
-    val macroPromptVisible = false
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -3186,8 +3157,7 @@ fun CameraScreen(
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 manualFocus = 0f
                                                 milkyWayInfinityFocusEnabled = false
-                                                macroAssistEnabled = false
-                                                runCatching { applyAutoFocus(active) }
+                                                   runCatching { applyAutoFocus(active) }
                                             }
                                             val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
                                             val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, area)

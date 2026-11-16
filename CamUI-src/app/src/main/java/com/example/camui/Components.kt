@@ -1186,22 +1186,34 @@ private fun translateUiText(value: String, language: String): String {
         language.startsWith("ja") -> listOf(
             "Camera ID " to "カメラID ", "ISO " to "ISO ", "EV" to "露出補正",
             "Không thể " to "", "Đã lưu" to "保存しました",
-            "Đã xử lý: " to "処理済み: "
+            "Đã xử lý: " to "処理済み: ",
+            "Nhiệt pin: " to "バッテリー温度: ",
+            "Trạng thái nhiệt Android: " to "Androidの熱状態: ",
+            "Nhẹ" to "軽度", "Trung bình" to "中程度", "Cao" to "高"
         )
         language.startsWith("ko") -> listOf(
             "Camera ID " to "카메라 ID ", "ISO " to "ISO ", "EV" to "노출 보정",
             "Không thể " to "", "Đã lưu" to "저장됨",
-            "Đã xử lý: " to "처리됨: "
+            "Đã xử lý: " to "처리됨: ",
+            "Nhiệt pin: " to "배터리 온도: ",
+            "Trạng thái nhiệt Android: " to "Android 열 상태: ",
+            "Nhẹ" to "낮음", "Trung bình" to "보통", "Cao" to "높음"
         )
         language.startsWith("zh") -> listOf(
             "Camera ID " to "相机 ID ", "ISO " to "ISO ", "EV" to "曝光补偿",
             "Không thể " to "", "Đã lưu" to "已保存",
-            "Đã xử lý: " to "已处理: "
+            "Đã xử lý: " to "已处理: ",
+            "Nhiệt pin: " to "电池温度：",
+            "Trạng thái nhiệt Android: " to "Android 热状态：",
+            "Nhẹ" to "轻度", "Trung bình" to "中等", "Cao" to "高"
         )
         else -> listOf(
             "Camera ID " to "Camera ID ", "Bộ lọc" to "Filter",
             "Chưa có ảnh" to "No photos yet", "Đang tải" to "Loading",
-            "Đã xử lý: " to "Processed: "
+            "Đã xử lý: " to "Processed: ",
+            "Nhiệt pin: " to "Battery temperature: ",
+            "Trạng thái nhiệt Android: " to "Android thermal status: ",
+            "Nhẹ" to "Light", "Trung bình" to "Moderate", "Cao" to "Severe"
         )
     }
     fragments.forEach { (from, to) -> translated = translated.replace(from, to) }

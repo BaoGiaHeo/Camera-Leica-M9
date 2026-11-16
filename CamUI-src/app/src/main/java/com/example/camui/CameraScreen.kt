@@ -2573,10 +2573,14 @@ fun CameraScreen(
                                             var stopSubmitting = false
                                             var nextFrameNumber = stackedFrames.size + 1
                                             val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, Boolean>>>()
-                                            val maxInFlightCaptures =
-                                                if (captureUseNightShot || captureUseLunaDream15 ||
-                                                    captureUseLunaDream20Stack
-                                                ) 2 else 1
+                                            // LunaDream 1.5 captures serially to avoid overlapping
+                                            // CameraX requests on devices whose HAL cannot queue stills
+                                            // reliably. LunaDream 2.0 retains its known-good two-request queue.
+                                            val maxInFlightCaptures = when {
+                                                captureUseLunaDream15 -> 1
+                                                captureUseNightShot || captureUseLunaDream20Stack -> 2
+                                                else -> 1
+                                            }
 
                                             while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
                                                 while (!stopSubmitting &&
@@ -2669,7 +2673,10 @@ fun CameraScreen(
                                             if (captureUseNightShot && stackedFrames.size < maxFrames) {
                                                 android.util.Log.w("FUJI_NIGHTSHOT", "Actual stack is partial: " + stackedFrames.size + "/" + maxFrames + "; proceeding without rejecting capture")
                                             }
-                                            val minimumFramesRequired = if (captureUseLunaDream15) 5 else 2
+                                            // 1.5 aims for five frames, but a three-frame stack is
+                                            // enough to complete a valid multi-frame result when the
+                                            // camera HAL rejects a late request. 2.0 keeps its prior rule.
+                                            val minimumFramesRequired = if (captureUseLunaDream15) 3 else 2
                                             lunaDreamCapturedFrameCount = stackedFrames.size
                                             if (stackedFrames.size >= minimumFramesRequired) {
                                                 withContext(Dispatchers.Main) {

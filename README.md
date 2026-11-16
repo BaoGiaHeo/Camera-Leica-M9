@@ -1,4 +1,4 @@
-# FujiFilm Mode 2.0.0Dream
+# FujiFilm Mode 2.0.1Dream
 
 FujiFilm Mode is an Android camera application built with CameraX, Camera2 metadata discovery and Jetpack Compose.
 
@@ -30,3 +30,14 @@ The camera inventory reads only public Camera2 logical and physical camera IDs e
 From the CamUI-src directory with JDK 17 and Android SDK configured, run:
 
     gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+
+
+## 2.0.1Dream rebuild
+
+- The camera filter picker is a single, neutral list showing filter names and image previews only.
+- Added additional film-look recipes, including Fujifilm-inspired, Kodak-inspired, CineStill-inspired and monochrome looks.
+- Added Fujifilm, Sony, Nikon and Canon watermark styles with separate typographic treatments.
+- Changed camera preview scaling to fit the complete frame in portrait and landscape layouts.
+- Combined LunaDream denoising and detail recovery into one streamed image pass.
+- Reduced the alignment thumbnail and sparse tracking workload for LunaDream 2.0.
+- Kept the capture/merge stability message and the free-to-move message transition unchanged.

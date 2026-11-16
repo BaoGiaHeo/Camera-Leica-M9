@@ -811,7 +811,7 @@ fun CameraScreen(
     // Recreate PreviewView when renderer changes; implementationMode is chosen before surface creation.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            scaleType = PreviewView.ScaleType.FIT_CENTER
             implementationMode = if (renderEngine == "Performance") {
                 PreviewView.ImplementationMode.PERFORMANCE
             } else {
@@ -1434,7 +1434,7 @@ fun CameraScreen(
                 // Use the exact ratio used by the Compose preview container. Reading
                 // PreviewView.width/height here can pick up the previous layout during rotation.
                 val viewPort = ViewPort.Builder(ratio, rotation)
-                    .setScaleType(ViewPort.FILL_CENTER)
+                    .setScaleType(ViewPort.FIT)
                     .build()
                 val group = UseCaseGroup.Builder()
                     .setViewPort(viewPort)
@@ -4551,7 +4551,6 @@ private fun FilterLookDialog(
     val dialogMaxHeight = (configuration.screenHeightDp * 0.84f).dp
     val previewHeight = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 82.dp else 150.dp
     val scope = rememberCoroutineScope()
-    var category by remember { mutableStateOf("Tất cả") }
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
@@ -4586,12 +4585,8 @@ private fun FilterLookDialog(
 
     val activeCustomLuts = importedLuts.filter { activeLutIds.contains(it.id) }
     val builtInPresets = cameraLookGroups.flatMap { it.second }
-    val categories = listOf("Tất cả") + cameraLookGroups.map { it.first } + "LUT"
-    val visiblePresets = when (category) {
-        "Tất cả" -> builtInPresets + activeCustomLuts.map { customCameraLutPreset(it.id) }
-        "LUT" -> activeCustomLuts.map { customCameraLutPreset(it.id) }
-        else -> cameraLookGroups.firstOrNull { it.first == category }?.second.orEmpty()
-    }
+    // One neutral list: names and previews only, without source or vendor sections.
+    val visiblePresets = builtInPresets + activeCustomLuts.map { customCameraLutPreset(it.id) }
     val activeFilterName = cameraLookDisplayName(context, activeFilter)
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -4612,13 +4607,6 @@ private fun FilterLookDialog(
                     fontSize = 12.sp
                 )
             }
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                categories.forEach { item -> MiniChip(item, category == item) { category = item } }
-            }
-
             Text(
                 if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
                 color = CamColors.Yellow,
@@ -4647,115 +4635,53 @@ private fun FilterLookDialog(
                     )
                 }
             }
-            Text(
-                when {
-                    activeFilter.startsWith("camera_lut:") ->
-                        "LUT đã nhập · preview và ảnh JPEG dùng cùng phép biến đổi 3D."
-                    activeFilter in listOf(
-                        "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
-                        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass"
-                    ) -> "Profile Fujifilm 3D · preview và ảnh JPEG dùng cùng phép biến đổi."
-                    else -> "Preview dùng cùng phép biến đổi với ảnh lưu sau khi chụp."
-                },
-                color = CamColors.Sub,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(top = 7.dp, bottom = 8.dp)
-            )
-            Text(
-                "Danh sách bộ lọc · " + category,
-                color = CamColors.Sub,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(bottom = 7.dp)
-            )
-
-            if (category == "LUT" && activeCustomLuts.isEmpty()) {
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .background(CamColors.Card).padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    if (importedLuts.isEmpty()) {
-                        Text(
-                            "Chưa có LUT. Có thể nhập Xiaomi .zip hoặc Blackmagic .cube tại đây.",
-                            color = CamColors.Sub,
-                            fontSize = 11.sp,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            if (isImportingLut) "Đang nhập LUT…" else "＋ Import LUT",
-                            color = CamColors.Yellow,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.animaTClickable(enabled = !isImportingLut) {
-                                lutPicker.launch(arrayOf("*/*"))
-                            }.padding(12.dp)
-                        )
-                    } else {
-                        Text(
-                            "LUT đã nhập. Mở Content Manager → LUT Manage rồi nhấn Add để đưa LUT vào bộ lọc.",
-                            color = CamColors.Sub,
-                            fontSize = 11.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            } else {
-                Column(
-                    Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
-                ) {
-                    visiblePresets.chunked(2).forEach { pair ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            pair.forEach { preset ->
-                                val selected = activeFilter == preset
-                                val itemName = cameraLookDisplayName(context, preset)
-                                Column(
-                                    Modifier.weight(1f).padding(bottom = 8.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (selected) Color(0xFF393326) else CamColors.Card)
-                                        .animaTClickable { onSelectFilter(preset) }.padding(7.dp)
+            Column(
+                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+            ) {
+                visiblePresets.chunked(2).forEach { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pair.forEach { preset ->
+                            val selected = activeFilter == preset
+                            val itemName = cameraLookDisplayName(context, preset)
+                            Column(
+                                Modifier.weight(1f).padding(bottom = 8.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (selected) Color(0xFF393326) else CamColors.Card)
+                                    .animaTClickable { onSelectFilter(preset) }.padding(7.dp)
+                            ) {
+                                Box(
+                                    Modifier.fillMaxWidth().height(76.dp)
+                                        .clip(RoundedCornerShape(8.dp))
                                 ) {
-                                    Box(
-                                        Modifier.fillMaxWidth().height(76.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                    ) {
-                                        FilterLookPreviewImage(
-                                            source = previewSource,
-                                            preset = preset,
-                                            modifier = Modifier.fillMaxSize(),
-                                            maxDimension = 192
-                                        )
-                                        if (selected) {
-                                            Text(
-                                                "✓ ĐANG CHỌN",
-                                                color = Color.White,
-                                                fontSize = 9.sp,
-                                                modifier = Modifier.align(Alignment.BottomStart)
-                                                    .background(Color(0xAA000000)).padding(4.dp)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        itemName,
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(top = 7.dp)
+                                    FilterLookPreviewImage(
+                                        source = previewSource,
+                                        preset = preset,
+                                        modifier = Modifier.fillMaxSize(),
+                                        maxDimension = 192
                                     )
-                                    Text("Chạm để preview", color = CamColors.Sub, fontSize = 9.sp)
+                                    if (selected) {
+                                        Text(
+                                            "✓",
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.align(Alignment.BottomStart)
+                                                .background(Color(0xAA000000)).padding(4.dp)
+                                        )
+                                    }
                                 }
+                                Text(
+                                    itemName,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(top = 7.dp)
+                                )
                             }
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
-
-            Text(
-                "Mẫu xem trước được xử lý từ cùng một ảnh nguồn, không cộng dồn bộ lọc khi đổi lựa chọn.",
-                color = CamColors.Sub,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(top = 9.dp)
-            )
         }
     }
 }
@@ -4763,17 +4689,14 @@ private fun FilterLookDialog(
 // These 11 profiles match the unique Fujifilm looks in TingfengLuo's profile pack.
 // The matching *wrapper.xmp files only select these profiles; they are not extra looks.
 private val cameraLookGroups = listOf(
-    "Fujifilm Film Simulation" to listOf(
+    "Bộ lọc" to listOf(
         "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
-        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass"
-    ),
-    "Fujifilm Extras" to listOf("Acros"),
-    "Cổ điển" to listOf("Kodak Portra 400", "Agfa", "Kodak Gold", "Fuji 400"),
-    "Leica" to listOf("Leica Vivid", "Leica Natural", "Leica Mono"),
-    "Hasselblad" to listOf("Hasselblad HNCS"),
-    "Zeiss" to listOf("Zeiss Cool", "Zeiss Warm"),
-    "Sony" to listOf("Sony S-Cinetone", "Sony S-Log3"),
-    "Log" to listOf("Cinematic Log")
+        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass",
+        "Acros", "Portra 160", "Portra 400", "Portra 800", "Gold 200", "Ektar 100",
+        "Kodachrome 64", "ColorPlus 200", "CineStill 800T", "Vision3 250D",
+        "Vision3 500T", "400H", "Tri-X 400", "T-Max 400", "Ektachrome 100",
+        "Vivid", "Natural", "Monochrome", "Cool", "Warm", "Cine Tone", "Soft Log"
+    )
 )
 
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {

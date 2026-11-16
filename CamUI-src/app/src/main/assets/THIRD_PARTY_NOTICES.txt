@@ -1,0 +1,15 @@
+THIRD-PARTY AND FILTER ASSET NOTICES
+
+The camera filter picker intentionally shows filter names and previews only. Licensing and attribution information is kept here, outside the camera interface.
+
+The new film-look recipes added for this rebuild are simplified RGB interpretations authored for this application. They are not exact Lightroom/XMP conversions, official manufacturer profiles, or endorsements.
+
+Reference material:
+- Hernan Stockebrand, "Lightroom Presets & Film Simulations": https://github.com/hstockeb/film-simulations-and-presets
+- The reference repository licenses its XMP presets and supporting text under Creative Commons Attribution 4.0 International (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+- Changes made: the looks were re-authored as compact RGB transforms for the Android image pipeline. The original XMP preset files are not bundled.
+
+Commercial-release review required:
+- The existing 3D LUT assets in app/src/main/assets/film_sims are documented in their accompanying README as CC BY-NC-SA 4.0. That license does not authorize commercial use without separate permission. Obtain permission or replace those LUT assets before publishing a commercial build.
+- GPL-licensed projects discussed during development were not copied into this application.
+- No proprietary Fujifilm, Sony, Nikon or Canon font files are bundled. The watermark uses separate Android system-font families and brand-specific layout styling.

@@ -2486,7 +2486,7 @@ fun applyCameraWatermark(
             .joinToString(" ").ifBlank { "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}" }
         val customModelLabel = prefs.getString("watermark_custom_model", "")?.trim().orEmpty()
         val model = customModelLabel.ifBlank {
-            listOf(cameraLabel, lensModel).filterNot { it.isBlank() }.joinToString(" · ")
+            listOf(cameraLabel, lensModel).filterNotNull().filter { it.isNotBlank() }.joinToString(" · ")
         }
         val specs = listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
             exifIso?.let { "ISO $it" }, exposureBias)

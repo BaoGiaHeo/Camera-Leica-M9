@@ -847,11 +847,13 @@ fun CameraScreen(
         analysisUseCase = null
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener(providerListener@{
+            try {
             if (bindGeneration != cameraBindGeneration) return@providerListener
             val provider = runCatching { future.get() }.getOrNull() ?: return@providerListener
             if (bindGeneration != cameraBindGeneration) return@providerListener
             val extensionsFuture = ExtensionsManager.getInstanceAsync(context, provider)
             extensionsFuture.addListener(extensionListener@{
+                try {
             if (bindGeneration != cameraBindGeneration) return@extensionListener
             val extensionsManager = runCatching { extensionsFuture.get() }.getOrNull()
             val baseSelector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA
@@ -1386,6 +1388,12 @@ fun CameraScreen(
                             }
                         }
 
+                    } catch (analysisError: Exception) {
+                        android.util.Log.w(
+                            "FUJI_ANALYSIS",
+                            "Skipping an invalid preview-analysis frame",
+                            analysisError
+                        )
                     } finally {
                         image.close()
                     }
@@ -1634,7 +1642,44 @@ fun CameraScreen(
                 }
             }
             captureSetupReady = camera != null && imageCapture != null
+                } catch (cameraInitError: Exception) {
+                    android.util.Log.e(
+                        "FUJI_STARTUP",
+                        "CameraX startup callback failed; keeping FujiFilm Mode open",
+                        cameraInitError
+                    )
+                    runCatching { provider.unbindAll() }
+                    camera = null
+                    imageCapture = null
+                    previewUseCase = null
+                    analysisUseCase = null
+                    captureSetupReady = false
+                    runCatching {
+                        localizedToast(
+                            context,
+                            "Không thể khởi tạo camera. Giao diện vẫn được giữ mở: ${cameraInitError.message ?: "lỗi thiết bị"}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             }, mainExecutor)
+            } catch (providerInitError: Exception) {
+                android.util.Log.e(
+                    "FUJI_STARTUP",
+                    "CameraX provider initialization failed; keeping FujiFilm Mode open",
+                    providerInitError
+                )
+                camera = null
+                imageCapture = null
+                captureSetupReady = false
+                runCatching {
+                    localizedToast(
+                        context,
+                        "Không thể khởi tạo dịch vụ camera: ${providerInitError.message ?: "lỗi thiết bị"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
         }, mainExecutor)
     }
 

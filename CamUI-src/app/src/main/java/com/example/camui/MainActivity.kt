@@ -120,15 +120,6 @@ class MainActivity : AppCompatActivity() {
                     mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))
                 }
                 var thermalStatus by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
-                var appLandscape by remember { mutableStateOf(false) }
-                var physicalLandscape by remember { mutableStateOf<Boolean?>(null) }
-                var rotatePromptTarget by remember { mutableStateOf<Boolean?>(null) }
-                var showRotatePrompt by remember { mutableStateOf(false) }
-
-
-
-
-
                 DisposableEffect(Unit) {
                     val powerManager = this@MainActivity.getSystemService(Context.POWER_SERVICE) as? PowerManager
                     val listener = PowerManager.OnThermalStatusChangedListener { status ->
@@ -201,11 +192,7 @@ class MainActivity : AppCompatActivity() {
                             )
                         }
                     }
-                    AnimatedVisibility(
-                        visible = showRotatePrompt && rotatePromptTarget != null,
-                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
-                        enter = fadeIn(tween(260)) + scaleIn(initialScale = 0.88f) +
-                            slideInVertically(initialOffsetY = { -it / 2 }),
+),
                         exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.92f)
                     ) {
                         val targetLandscape = rotatePromptTarget ?: false

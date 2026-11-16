@@ -2980,9 +2980,11 @@ fun applyCameraWatermark(
                         setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
                     }
                 }
-                val compactSpecs = listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
-                    exifIso?.let { "ISO $it" }, exposureBias)
-                    .filterNotNull().filter { it.isNotBlank() }.joinToString("  ·  ")
+                val compactSpecs = if (showSpecs) {
+                    listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
+                        exifIso?.let { "ISO $it" }, exposureBias)
+                        .filterNotNull().filter { it.isNotBlank() }.joinToString("  ·  ")
+                } else ""
                 val textLeft = leftLogo + logoWidth + footerRect.height() * 0.14f
                 val textRight = footerRect.right - footerRect.height() * 0.16f
                 val textWidth = (textRight - textLeft).coerceAtLeast(1f)

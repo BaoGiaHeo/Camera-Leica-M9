@@ -1,0 +1,93 @@
+name: Package external camera filter packs
+
+'on':
+  workflow_dispatch:
+  push:
+    branches: [feature/fujifilm-mode-1.6]
+    paths:
+      - '.github/workflows/package-camera-filter-packs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package licensed Canon and Log LUT libraries
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout app repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download and package Canon RGB 33x33x33 LUTs
+        run: |
+          git clone --depth 1 https://github.com/MercuryDCD/canon-picture-styles-pf3-catalog.git /tmp/canon-catalog
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          import json
+
+          root = Path("/tmp/canon-catalog")
+          files = sorted(root.glob("*/luts_bin/*.bin"))
+          assert len(files) == 550, f"Expected 550 Canon LUTs, found {len(files)}"
+          with ZipFile("Canon-Picture-Styles-550-LUTs.zip", "w", ZIP_DEFLATED, compresslevel=6) as z:
+              for path in files:
+                  assert path.stat().st_size == 33 * 33 * 33 * 3, f"Unexpected LUT size: {path}"
+                  z.write(path, path.relative_to(root).as_posix())
+              z.write(root / "LICENSE", "LICENSE")
+              z.write(root / "presets_data.js", "presets_data.js")
+              z.writestr(
+                  "IMPORT-INFO.txt",
+                  "Canon Community Picture Styles catalog: 550 RGB8 33x33x33 LUTs.\n"
+                  "Import this ZIP in FujiFilm Mode > Contents Management > LUT Manage.\n"
+                  "Only the 3D LUT data is imported by the app. PF2/PF3 camera configuration files are not imported.\n"
+                  "See LICENSE and presets_data.js for source licensing and profile catalog metadata.\n"
+              )
+          print("Packaged", len(files), "Canon LUTs")
+          PY
+
+      - name: Download and package V-Log / camera Log LUTs
+        run: |
+          git clone --depth 1 https://github.com/shenmintao/V-Log-Alchemy.git /tmp/vlog-alchemy
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+
+          root = Path("/tmp/vlog-alchemy")
+          files = sorted((root / "Luts").rglob("*.cube"))
+          assert files, "No V-Log-Alchemy .cube files found"
+          with ZipFile("V-Log-Alchemy-Log-LUTs.zip", "w", ZIP_DEFLATED, compresslevel=6) as z:
+              for path in files:
+                  z.write(path, path.relative_to(root).as_posix())
+              z.write(root / "LICENSE", "LICENSE")
+              z.writestr(
+                  "IMPORT-INFO.txt",
+                  "V-Log-Alchemy camera Log / gamut conversion LUTs.\n"
+                  "Import this ZIP in FujiFilm Mode > Contents Management > LUT Manage.\n"
+                  "These LUTs are tagged RAW/Log by source path/name and are intentionally kept out of ordinary sRGB photo filters.\n"
+                  "Use only with matching input Log/gamut or a compatible RAW conversion pipeline.\n"
+                  "See LICENSE for Apache-2.0 terms.\n"
+              )
+          print("Packaged", len(files), "camera Log LUTs")
+          PY
+
+      - name: Upload Canon Picture Styles pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: Canon-Picture-Styles-550-LUTs
+          path: Canon-Picture-Styles-550-LUTs.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload V-Log / camera Log LUT pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: V-Log-Alchemy-Log-LUTs
+          path: V-Log-Alchemy-Log-LUTs.zip
+          if-no-files-found: error
+          retention-days: 90

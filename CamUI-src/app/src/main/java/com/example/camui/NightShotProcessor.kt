@@ -1281,7 +1281,12 @@ object NightShotProcessor {
             val sourceLuma = IntArray((rowCount + 2) * width)
             carryRow.copyInto(sourceRows, 0)
             carryLuma.copyInto(sourceLuma, 0)
-            bitmap.getPixels(sourceRows, width, width, 0, top, width, rowCount + 1)
+            val sourceRowsToRead = min(rowCount + 1, height - top)
+            bitmap.getPixels(sourceRows, width, width, 0, top, width, sourceRowsToRead)
+            if (sourceRowsToRead == rowCount) {
+                // At the bottom edge, duplicate the last source row as the original 3x3 kernel does.
+                sourceRows.copyInto(sourceRows, (rowCount + 1) * width, rowCount * width, (rowCount + 1) * width)
+            }
             for (row in 1..rowCount + 1) {
                 val offset = row * width
                 for (x in 0 until width) sourceLuma[offset + x] = luma(sourceRows[offset + x])

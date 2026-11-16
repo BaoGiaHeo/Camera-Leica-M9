@@ -1722,6 +1722,10 @@ fun CameraScreen(
         imageCapture?.targetRotation = targetRotation
         previewUseCase?.targetRotation = targetRotation
         analysisUseCase?.targetRotation = targetRotation
+        // The viewfinder layout stays portrait; this only marks the camera's latest sensor rotation as ready.
+        boundCameraRotation = targetRotation
+        boundCameraLandscape = isLandscape
+        boundCameraRatioIdx = ratioIdx
     }
 
     // Restore the latest app-owned photo after relaunch, then refresh its thumbnail.
@@ -2412,8 +2416,7 @@ fun CameraScreen(
             ) {
                 // Never save a frame with the old orientation/crop after the display rotated.
                 targetRotation = captureRotation
-                isLandscape = captureIsLandscape
-                localizedToast(context, "Đang đồng bộ hướng và tỉ lệ khung ngắm, hãy chụp lại sau một chút.", Toast.LENGTH_SHORT).show()
+                localizedToast(context, "Đang đồng bộ hướng cảm biến, hãy chụp lại sau một chút.", Toast.LENGTH_SHORT).show()
                 return@launch
             }
             capture.targetRotation = captureRotation
@@ -2779,6 +2782,48 @@ fun CameraScreen(
                                     }
                                 } else null
                                 val outputResolutionApplied = outputResolutionResult != null
+
+                                if (captureUseLunaDream && !lunaDreamApplied) {
+                                    // Never expose the untouched JPEG as a successful LunaDream result.
+                                    // Preserve it in a separate recovery folder so the user does not lose the shot.
+                                    val moved = runCatching {
+                                        context.contentResolver.update(
+                                            saved,
+                                            ContentValues().apply {
+                                                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Unprocessed")
+                                                put(MediaStore.Images.Media.IS_PENDING, 0)
+                                            },
+                                            null,
+                                            null
+                                        ) > 0
+                                    }.getOrDefault(false)
+                                    if (!moved) {
+                                        runCatching {
+                                            context.contentResolver.update(
+                                                saved,
+                                                ContentValues().apply {
+                                                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                                                },
+                                                null,
+                                                null
+                                            )
+                                        }
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        lastUri = null
+                                        thumb = null
+                                        photoViewerVisible = false
+                                        isProcessing = false
+                                        processingProgress = 0
+                                        processingEtaSeconds = -1
+                                        localizedToast(
+                                            context,
+                                            "LunaDream chưa xử lý hoàn tất. Ảnh gốc được giữ riêng trong Pictures/FujifilmMode/Unprocessed, không xuất như ảnh LunaDream.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                    return@launch
+                                }
 
                                 val metadataPublished = runCatching {
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)

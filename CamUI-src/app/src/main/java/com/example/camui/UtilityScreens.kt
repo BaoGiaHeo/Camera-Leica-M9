@@ -2441,12 +2441,8 @@ fun applyCameraWatermark(
                     sourceBitmap, null, photoRect,
                     Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
                 )
-                val photoBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.rgb(31, 67, 83)
-                    style = Paint.Style.STROKE
-                    strokeWidth = (sourceMinSide * 0.0022f).coerceAtLeast(1.5f)
-                }
-                expandedCanvas.drawRect(photoRect, photoBorder)
+                // Do not add an automatic outline around the photograph.
+                // Optional camera frames are rendered only when the user selects one.
                 sourceBitmap.recycle()
             }
         } else if (sourceBitmap.isMutable) {
@@ -2506,8 +2502,8 @@ fun applyCameraWatermark(
         val equivalent35mm = sourceExif["FocalLengthIn35mmFilm"]?.toIntOrNull()
             ?.takeIf { it > 0 }?.let { "$it mm equiv" }
         val exifAperture = exifNumber("FNumber")?.let {
-            "f/" + formatDecimal(it, "%.1f").trimEnd('0').trimEnd('.')
-        } ?: aperture.takeIf { it.isNotBlank() }
+            "F" + formatDecimal(it, "%.1f").trimEnd('0').trimEnd('.')
+        } ?: aperture.takeIf { it.isNotBlank() }?.replace("f/", "F", ignoreCase = true)
         val exposureSeconds = exifNumber("ExposureTime")
         val exifShutter = exposureSeconds?.let { seconds ->
             when {
@@ -2528,12 +2524,24 @@ fun applyCameraWatermark(
         val cameraLabel = listOf(exifMake, exifModel).distinct().filterNotNull()
             .joinToString(" ").ifBlank { "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}" }
         val customModelLabel = prefs.getString("watermark_custom_model", "")?.trim().orEmpty()
-        val model = customModelLabel.ifBlank {
-            listOf(cameraLabel, lensModel).filterNotNull().filter { it.isNotBlank() }.joinToString(" · ")
-        }
-        val specs = listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
-            exifIso?.let { "ISO $it" }, exposureBias)
-            .filterNotNull().filter { it.isNotBlank() }.joinToString("   •   ")
+        // Keep the body model distinct from the selected brand wordmark. The watermark
+        // should read "SONY | MODEL ILCE-7M4", not repeat the manufacturer in the model line.
+        val rawModelLabel = exifModel ?: android.os.Build.MODEL
+        val makePrefix = (exifMake ?: android.os.Build.MANUFACTURER).trim()
+        val cleanModelLabel = if (makePrefix.isNotBlank() &&
+            rawModelLabel.startsWith(makePrefix, ignoreCase = true)
+        ) rawModelLabel.drop(makePrefix.length).trim() else rawModelLabel.trim()
+        val model = customModelLabel.ifBlank { cleanModelLabel }
+        // Prioritize the three exposure values the user needs to read at a glance.
+        // Focal length and exposure compensation follow only when space permits.
+        val specs = listOf(
+            exifIso?.let { "ISO $it" },
+            exifShutter?.replace(" s", "s"),
+            exifAperture,
+            exifFocal,
+            exposureBias
+        ).filterNotNull().filter { it.isNotBlank() }
+            .joinToString("  ·  ")
             .takeIf { showSpecs }.orEmpty()
         val modelLine = model.takeIf { showModel }.orEmpty()
         val capturedDateRaw = sourceExif["DateTimeOriginal"] ?: sourceExif["DateTime"]
@@ -2850,339 +2858,136 @@ fun applyCameraWatermark(
             canvas.drawRect(rect.left, rect.top, rect.right, rect.top + thickness, paint)
         }
 
-        // The watermark must not draw a full-photo outline. Optional photo frames
-        // are handled independently by CameraFrameSettingsPanel.
-        when (template) {
-            "standard2" -> {
-                val plate = drawBottomPlate(0.145f, margin * 1.25f)
-                val logoHeight = plate.height() * 0.34f
-                val logoWidth = logoHeight * (brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: when (watermarkBrand) { "sony" -> 2.8f; "nikon" -> 3.1f; "canon" -> 3.0f; else -> 4.2f })
-                val logoLeft = plate.left + plate.height() * 0.10f
-                drawBrandLogo(RectF(logoLeft, plate.centerY() - logoHeight / 2f,
-                    logoLeft + logoWidth, plate.centerY() + logoHeight / 2f))
-                val left = logoLeft + logoWidth + plate.height() * 0.14f
-                val textWidth = (plate.right - left - plate.height() * 0.12f).coerceAtLeast(1f)
-                fitText(modelLine.uppercase(), titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.024f)
-                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
-                fitText(timeLine, detailPaint, plate.left + 5f, plate.top - margin * 0.25f,
-                    plate.width(), minSide * 0.010f)
+        // All brands and watermark templates share one measured lockup:
+        // logo on the left; MODEL and exposure settings on the right; the logo's
+        // vertical center is exactly the midpoint between those two text rows.
+        val footerRadius = (minSide * 0.012f).coerceAtLeast(7f)
+        drawWatermarkFooter(footerRect, footerRadius)
+
+        val footerWidth = footerRect.width().coerceAtLeast(1f)
+        val footerHeight = footerRect.height().coerceAtLeast(1f)
+        val horizontalInset = footerWidth * 0.055f
+        val logoColumnLeft = footerRect.left + horizontalInset
+        val dividerX = footerRect.left + footerWidth * 0.315f
+        val logoColumnRight = dividerX - footerWidth * 0.035f
+        val textLeft = dividerX + footerWidth * 0.045f
+        val textRight = footerRect.right - horizontalInset
+        val textWidth = (textRight - textLeft).coerceAtLeast(1f)
+
+        val modelText = modelLine.takeIf { it.isNotBlank() }?.let { "MODEL  $it" }.orEmpty()
+        val specsText = specs
+        val hasModel = modelText.isNotBlank()
+        val hasSpecs = specsText.isNotBlank()
+        val modelCenterY = if (hasModel && hasSpecs) {
+            footerRect.top + footerHeight * 0.34f
+        } else {
+            footerRect.top + footerHeight * 0.51f
+        }
+        val specsCenterY = if (hasModel && hasSpecs) {
+            footerRect.top + footerHeight * 0.68f
+        } else {
+            footerRect.top + footerHeight * 0.51f
+        }
+        val logoCenterY = if (hasModel && hasSpecs) {
+            (modelCenterY + specsCenterY) * 0.5f
+        } else if (hasModel) {
+            modelCenterY
+        } else if (hasSpecs) {
+            specsCenterY
+        } else {
+            footerRect.top + footerHeight * 0.51f
+        }
+
+        val logoRatio = brandLogo?.let {
+            if (it.intrinsicHeight > 0) {
+                it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
+            } else 3f
+        } ?: when (watermarkBrand) {
+            "sony" -> 2.8f
+            "nikon" -> 3.1f
+            "canon" -> 3.0f
+            else -> 5.95f
+        }
+        val logoColumnWidth = (logoColumnRight - logoColumnLeft).coerceAtLeast(1f)
+        val logoHeight = minOf(footerHeight * 0.48f, logoColumnWidth / logoRatio)
+        val logoWidth = logoHeight * logoRatio
+        val logoCenterX = (logoColumnLeft + logoColumnRight) * 0.5f
+        drawBrandLogo(
+            RectF(
+                logoCenterX - logoWidth * 0.5f,
+                logoCenterY - logoHeight * 0.5f,
+                logoCenterX + logoWidth * 0.5f,
+                logoCenterY + logoHeight * 0.5f
+            )
+        )
+
+        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = brandAccentColor()
+            alpha = if (frameStyle == "Transparent") 210 else 150
+            style = Paint.Style.STROKE
+            strokeWidth = (minSide * 0.0012f).coerceIn(1.5f, 4.5f)
+            strokeCap = Paint.Cap.ROUND
+        }
+        val dividerTop = if (hasModel && hasSpecs) {
+            modelCenterY - footerHeight * 0.19f
+        } else {
+            logoCenterY - footerHeight * 0.27f
+        }
+        val dividerBottom = if (hasModel && hasSpecs) {
+            specsCenterY + footerHeight * 0.19f
+        } else {
+            logoCenterY + footerHeight * 0.27f
+        }
+        canvas.drawLine(dividerX, dividerTop, dividerX, dividerBottom, dividerPaint)
+
+        fun drawMeasuredLine(
+            value: String,
+            sourcePaint: Paint,
+            centerY: Float,
+            baseSize: Float,
+            minimumSize: Float
+        ) {
+            if (value.isBlank()) return
+            val paint = Paint(sourcePaint).apply {
+                textAlign = Paint.Align.LEFT
+                textSize = baseSize
             }
-            "blur" -> {
-                val plate = drawBottomPlate(0.17f, margin)
-                val logoHeight = plate.height() * 0.31f
-                val logoWidth = logoHeight * (brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: 5.95f)
-                val logoLeft = plate.left + plate.height() * 0.10f
-                drawBrandLogo(RectF(logoLeft, plate.centerY() - logoHeight / 2f,
-                    logoLeft + logoWidth, plate.centerY() + logoHeight / 2f))
-                val left = logoLeft + logoWidth + plate.height() * 0.12f
-                val textWidth = (plate.right - left - plate.height() * 0.10f).coerceAtLeast(1f)
-                fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.026f)
-                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
-                fitText(timeLine, accentPaint, left, plate.top - margin * 0.25f,
-                    textWidth, minSide * 0.011f)
+            var fittedText = value
+            while (paint.measureText(fittedText) > textWidth && paint.textSize > minimumSize) {
+                paint.textSize = (paint.textSize * 0.94f).coerceAtLeast(minimumSize)
             }
-"balanced" -> {
-                val plate = drawBottomPlate(0.16f, margin)
-                val left = plate.left + plate.height() * 0.19f
-                val right = plate.right - plate.height() * 0.19f
-                val sharedBaseline = plate.top + plate.height() * 0.43f
-                val sharedTextSize = minSide * 0.020f
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.RIGHT
-                fitText(modelLine, titlePaint, left, sharedBaseline,
-                    plate.width() * 0.43f, sharedTextSize)
-                fitText(specs, detailPaint, right, sharedBaseline,
-                    plate.width() * 0.53f, sharedTextSize)
-                val datePaint = Paint(detailPaint).apply {
-                    color = textColor
-                    alpha = 215
-                    textAlign = Paint.Align.RIGHT
+            if (paint.measureText(fittedText) > textWidth) {
+                val ellipsis = "…"
+                var endIndex = fittedText.length
+                while (endIndex > 1 &&
+                    paint.measureText(fittedText.substring(0, endIndex).trimEnd() + ellipsis) > textWidth
+                ) {
+                    endIndex--
                 }
-                fitText(timeLine, datePaint, right,
-                    plate.top + plate.height() * 0.78f,
-                    plate.width() * 0.53f, sharedTextSize * 0.88f)
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.LEFT
+                fittedText = fittedText.substring(0, endIndex).trimEnd() + ellipsis
             }
-            "normal1" -> {
-                val right = output.width - margin
-                if (glassEnabled) {
-                    drawLiquidGlassPanel(
-                        RectF(output.width * 0.34f, output.height - margin * 3.85f,
-                            output.width - margin * 0.55f, output.height - margin * 0.45f),
-                        margin * 0.28f
-                    )
-                }
-                titlePaint.textAlign = Paint.Align.RIGHT
-                detailPaint.textAlign = Paint.Align.RIGHT
-                var baseline = output.height - margin * 1.18f
-                fitText(timeLine, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.014f)
-                baseline -= margin * 0.92f
-                fitText(specs, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.016f)
-                baseline -= margin * 0.98f
-                fitText(modelLine, titlePaint, right, baseline, output.width * 0.60f, minSide * 0.022f)
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.LEFT
+            val metrics = paint.fontMetrics
+            val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
+            canvas.drawText(fittedText, textLeft, baseline, paint)
+        }
+
+        val titleSize = (minSide * 0.024f).coerceIn(22f, 88f)
+        val specsSize = (minSide * 0.020f).coerceIn(19f, 74f)
+        drawMeasuredLine(modelText, titlePaint, modelCenterY, titleSize, (titleSize * 0.78f).coerceAtLeast(17f))
+        drawMeasuredLine(specsText, detailPaint, specsCenterY, specsSize, (specsSize * 0.78f).coerceAtLeast(16f))
+
+        if (timeLine.isNotBlank()) {
+            val datePaint = Paint(detailPaint).apply {
+                alpha = 220
+                textAlign = Paint.Align.LEFT
             }
-            "normal2" -> {
-                if (glassEnabled) {
-                    drawLiquidGlassPanel(
-                        RectF(margin * 0.48f, output.height - margin * 3.55f,
-                            output.width * 0.82f, output.height - margin * 0.42f),
-                        margin * 0.28f
-                    )
-                }
-                val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
-                optionalLines.forEachIndexed { index, line ->
-                    fitText(line, detailPaint, margin,
-                        output.height - margin * (1.12f + index * 0.82f),
-                        output.width - margin * 2f, minSide * 0.013f)
-                }
-            }
-            "fuji_classic" -> {
-                drawWatermarkFooter(footerRect)
-                val accentHeight = (footerRect.height() * 0.035f).coerceAtLeast(2f)
-                if (watermarkBrand != "fujifilm" && frameStyle != "Transparent") {
-                    drawBrandAccent(RectF(footerRect.left, footerRect.top, footerRect.right,
-                        footerRect.top + accentHeight), accentHeight)
-                }
-                val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.24f)
-                val logoRatio = brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: when (watermarkBrand) {
-                    "sony" -> 2.8f
-                    "nikon" -> 3.1f
-                    "canon" -> 3.0f
-                    else -> 5.95f
-                }
-                val logoWidth = (logoHeight * logoRatio).coerceAtMost(footerRect.width() * 0.32f)
-                val leftLogo = footerRect.left + footerRect.height() * 0.18f
-                val logoRect = RectF(leftLogo, footerRect.centerY() - logoHeight / 2f,
-                    leftLogo + logoWidth, footerRect.centerY() + logoHeight / 2f)
-                drawBrandLogo(logoRect)
-                val footerInk = when (frameStyle) {
-                    "White" -> AndroidColor.BLACK
-                    "Black" -> AndroidColor.WHITE
-                    else -> textColor
-                }
-                val footerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = footerInk
-                    typeface = brandTypeface
-                    if (frameStyle == "Transparent") {
-                        setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
-                    }
-                }
-                val compactSpecs = if (showSpecs) {
-                    listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
-                        exifIso?.let { "ISO $it" }, exposureBias)
-                        .filterNotNull().filter { it.isNotBlank() }.joinToString("  ·  ")
-                } else ""
-                val textLeft = leftLogo + logoWidth + footerRect.height() * 0.14f
-                val textRight = footerRect.right - footerRect.height() * 0.16f
-                val textWidth = (textRight - textLeft).coerceAtLeast(1f)
-                when (watermarkBrand) {
-                    "sony" -> {
-                        footerText.textAlign = Paint.Align.LEFT
-                        fitText(modelLine, footerText, textLeft,
-                            footerRect.top + footerRect.height() * 0.47f, textWidth, watermarkTextSize * 1.02f)
-                        val specPaint = Paint(footerText).apply { textAlign = Paint.Align.LEFT }
-                        fitText(compactSpecs, specPaint, textLeft,
-                            footerRect.top + footerRect.height() * 0.73f, textWidth, watermarkTextSize * 0.76f)
-                        val datePaint = Paint(footerText).apply {
-                            textAlign = Paint.Align.RIGHT
-                            alpha = 210
-                        }
-                        fitText(timeLine, datePaint, textRight,
-                            footerRect.bottom - footerRect.height() * 0.12f, textWidth, watermarkTextSize * 0.66f)
-                    }
-                    "nikon" -> {
-                        footerText.textAlign = Paint.Align.LEFT
-                        fitText(modelLine, footerText, textLeft,
-                            footerRect.top + footerRect.height() * 0.43f, textWidth, watermarkTextSize)
-                        footerText.textAlign = Paint.Align.RIGHT
-                        fitText(compactSpecs, footerText, textRight,
-                            footerRect.top + footerRect.height() * 0.70f, textWidth, watermarkTextSize * 0.78f)
-                        fitText(timeLine, footerText, textRight,
-                            footerRect.bottom - footerRect.height() * 0.13f, textWidth, watermarkTextSize * 0.70f)
-                    }
-                    "canon" -> {
-                        footerText.textAlign = Paint.Align.LEFT
-                        fitText(modelLine, footerText, textLeft,
-                            footerRect.top + footerRect.height() * 0.44f, textWidth, watermarkTextSize)
-                        footerText.textAlign = Paint.Align.RIGHT
-                        fitText(compactSpecs, footerText, textRight,
-                            footerRect.top + footerRect.height() * 0.69f, textWidth, watermarkTextSize * 0.76f)
-                        fitText(timeLine, footerText, textRight,
-                            footerRect.bottom - footerRect.height() * 0.13f, textWidth, watermarkTextSize * 0.68f)
-                    }
-                    else -> {
-                        if (showModel) {
-                            footerText.textAlign = Paint.Align.LEFT
-                            fitText(model, footerText, leftLogo,
-                                footerRect.centerY() + logoHeight * 0.88f,
-                                footerRect.width() * 0.40f, watermarkTextSize)
-                        }
-                        if (showSpecs) {
-                            footerText.textAlign = Paint.Align.RIGHT
-                            fitText(compactSpecs, footerText, textRight,
-                                footerRect.centerY() + footerText.textSize * 0.34f,
-                                footerRect.width() * 0.61f, watermarkTextSize)
-                        }
-                        if (showTime) {
-                            footerText.textAlign = Paint.Align.RIGHT
-                            fitText(timeLine, footerText, textRight,
-                                footerRect.bottom - footerRect.height() * 0.20f,
-                                footerRect.width() * 0.61f, watermarkTextSize * 0.88f)
-                        }
-                    }
-                }
-                if (watermarkBrand != "sony" && compactSpecs.isNotBlank() && frameStyle != "Transparent") {
-                    val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = brandAccentColor()
-                        style = Paint.Style.FILL
-                    }
-                    canvas.drawCircle(footerRect.right - footerRect.height() * 0.10f,
-                        footerRect.centerY(), (watermarkTextSize * 0.16f).coerceIn(2f, 8f), accentPaint)
-                }
-            }
-            "fuji_signature" -> {
-                drawWatermarkFooter(footerRect)
-                val centerX = footerRect.centerX()
-                val logoHeight = watermarkLogoHeight.coerceAtMost(footerRect.height() * 0.22f)
-                val logoRatio = brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: when (watermarkBrand) {
-                    "sony" -> 2.8f
-                    "nikon" -> 3.1f
-                    "canon" -> 3.0f
-                    else -> 5.95f
-                }
-                val logoWidth = (logoHeight * logoRatio).coerceAtMost(footerRect.width() * 0.28f)
-                val logoTop = footerRect.top + footerRect.height() * 0.12f
-                drawBrandLogo(RectF(centerX - logoWidth / 2f, logoTop,
-                    centerX + logoWidth / 2f, logoTop + logoHeight))
-                val footerInk = when (frameStyle) {
-                    "White" -> AndroidColor.BLACK
-                    "Black" -> AndroidColor.WHITE
-                    else -> textColor
-                }
-                val footerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = footerInk
-                    textAlign = Paint.Align.CENTER
-                    typeface = brandTypeface
-                    if (frameStyle == "Transparent") {
-                        setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
-                    }
-                }
-                if (watermarkBrand != "fujifilm" && frameStyle != "Transparent") {
-                    drawBrandAccent(RectF(footerRect.left + footerRect.width() * 0.36f,
-                        footerRect.top + footerRect.height() * 0.46f,
-                        footerRect.right - footerRect.width() * 0.36f,
-                        footerRect.top + footerRect.height() * 0.46f + (minSide * 0.0016f).coerceAtLeast(2f)),
-                        (minSide * 0.0016f).coerceAtLeast(2f))
-                }
-                val shotLabel = if (showModel) "Shot on $model" else ""
-                val signature = listOf(shotLabel, dateOnlyLine).filter { it.isNotBlank() }.joinToString("  ·  ")
-                fitText(signature, footerText, centerX,
-                    footerRect.top + footerRect.height() * 0.63f,
-                    footerRect.width() * 0.88f, watermarkTextSize * 0.90f)
-                if (showSpecs) {
-                    fitText(specs, footerText, centerX,
-                        footerRect.top + footerRect.height() * 0.78f,
-                        footerRect.width() * 0.90f, watermarkTextSize * 0.82f)
-                }
-                if (locationLine.isNotBlank()) {
-                    val locationPaint = Paint(footerText).apply {
-                        color = if (frameStyle == "Black") AndroidColor.LTGRAY else AndroidColor.GRAY
-                        textAlign = Paint.Align.CENTER
-                    }
-                    fitText(locationLine, locationPaint, centerX,
-                        footerRect.top + footerRect.height() * 0.92f,
-                        footerRect.width() * 0.88f, watermarkTextSize * 0.72f)
-                }
-            }
-            "center_logo" -> {
-                val centerX = output.width / 2f
-                val centerY = output.height * 0.52f
-                val panel = RectF(output.width * 0.12f, centerY - minSide * 0.085f,
-                    output.width * 0.88f, centerY + minSide * 0.105f)
-                val backing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = panelColor
-                    style = Paint.Style.FILL
-                }
-                if (glassEnabled) {
-                    drawLiquidGlassPanel(panel, minSide * 0.018f)
-                } else if (frameStyle != "Transparent") {
-                    canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
-                }
-                drawFrame(panel, minSide * 0.018f)
-                val centerLogoWidth = minOf(panel.width() * 0.36f, minSide * 0.25f)
-                val centerLogoHeight = brandLogo?.let {
-                    centerLogoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: centerLogoWidth * 0.18f
-                val centerLogoRect = RectF(
-                    centerX - centerLogoWidth / 2f,
-                    centerY - centerLogoHeight * 0.72f,
-                    centerX + centerLogoWidth / 2f,
-                    centerY + centerLogoHeight * 0.28f
-                )
-                val logoBacking = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.WHITE
-                    style = Paint.Style.FILL
-                }
-                canvas.drawRoundRect(
-                    RectF(centerLogoRect.left - minSide * 0.009f,
-                        centerLogoRect.top - minSide * 0.004f,
-                        centerLogoRect.right + minSide * 0.009f,
-                        centerLogoRect.bottom + minSide * 0.004f),
-                    minSide * 0.006f, minSide * 0.006f, logoBacking
-                )
-                drawBrandLogo(centerLogoRect)
-                if (frameStyle != "Transparent") {
-                    val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = frameColor
-                        alpha = 245
-                        strokeWidth = (minSide * 0.0015f).coerceAtLeast(2f)
-                    }
-                    canvas.drawLine(output.width * 0.30f, centerY + minSide * 0.025f,
-                        output.width * 0.70f, centerY + minSide * 0.025f, line)
-                }
-                detailPaint.textAlign = Paint.Align.CENTER
-                val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
-                optionalLines.forEachIndexed { index, value ->
-                    fitText(value, detailPaint, centerX,
-                        centerY + minSide * (0.060f + index * 0.032f),
-                        panel.width() * 0.88f, minSide * 0.011f)
-                }
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.LEFT
-            }
-            else -> {
-                val plate = drawBottomPlate(0.12f, margin)
-                val logoHeight = plate.height() * 0.30f
-                val logoWidth = logoHeight * (brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: 5.95f)
-                val logoLeft = plate.left + plate.height() * 0.10f
-                drawBrandLogo(RectF(logoLeft, plate.centerY() - logoHeight / 2f,
-                    logoLeft + logoWidth, plate.centerY() + logoHeight / 2f))
-                val left = logoLeft + logoWidth + plate.height() * 0.12f
-                val textWidth = (plate.right - left - plate.height() * 0.10f).coerceAtLeast(1f)
-                fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.023f)
-                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
-                fitText(timeLine, accentPaint, margin + 2f,
-                    margin + minSide * 0.012f, output.width - margin * 2f, minSide * 0.0105f)
-            }
+            drawMeasuredLine(
+                timeLine,
+                datePaint,
+                footerRect.top + footerHeight * 0.91f,
+                (minSide * 0.012f).coerceIn(13f, 42f),
+                12f
+            )
         }
 
         val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use {

@@ -446,4 +446,361 @@ internal object HdmpAiEngine {
                             val outputTensor = result.get(outputName).orElseThrow {
                                 IllegalStateException("ONNX output tensor missing")
                             } as? OnnxTensor ?: error("ONNX output is not a tensor")
-                           
+                            val tensorInfo = outputTensor.info as? TensorInfo
+                                ?: error("ONNX output metadata is invalid")
+                            check(
+                                tensorInfo.shape.contentEquals(
+                                    longArrayOf(1L, 3L, TILE_SIZE.toLong(), TILE_SIZE.toLong())
+                                )
+                            ) { "Unexpected NAFNet output tensor shape" }
+                            val values = outputTensor.floatBuffer
+                            check(values.remaining() == plane * 3) { "Unexpected NAFNet output buffer size" }
+
+                            validateTensor(values, patchPixels, spec.deltaLimit)
+
+                            for (coreY in coreTop until min(height, coreTop + CORE_SIZE)) {
+                                for (coreX in coreLeft until min(width, coreLeft + CORE_SIZE)) {
+                                    val patchX = coreX - patchLeft
+                                    val patchY = coreY - patchTop
+                                    val index = patchY * TILE_SIZE + patchX
+                                    val base = patchPixels[index]
+                                    val outR = values.get(index)
+                                    val outG = values.get(plane + index)
+                                    val outB = values.get(plane * 2 + index)
+                                    outputPixels[(coreY - coreTop) * CORE_SIZE + (coreX - coreLeft)] =
+                                        blendConservatively(base, outR, outG, outB, spec)
+                                }
+                            }
+
+                            val tileWidth = min(width, coreLeft + CORE_SIZE) - coreLeft
+                            val tileHeight = min(height, coreTop + CORE_SIZE) - coreTop
+                            finalOutput.setPixels(
+                                outputPixels,
+                                0,
+                                CORE_SIZE,
+                                coreLeft,
+                                coreTop,
+                                tileWidth,
+                                tileHeight
+                            )
+                            postNs += System.nanoTime() - postStartedAt
+                        }
+                    } finally {
+                        inputTensor.close()
+                    }
+
+                    tileIndex++
+                    runCatching { onTileProgress(model, tileIndex, totalTiles) }
+                    val progressStep = (totalTiles / 100).coerceAtLeast(1)
+                    if (tileIndex == totalTiles || tileIndex % progressStep == 0) {
+                        runCatching {
+                            onProgress(model, (tileIndex * 100 / totalTiles).coerceIn(0, 100))
+                        }
+                    }
+
+                    // Sample thermal state only at tile boundaries. ONNX inference is not preempted.
+                    val thermalNow = SystemClock.elapsedRealtime()
+                    if (lastThermalSampleAt == 0L || thermalNow - lastThermalSampleAt >= 1_000L) {
+                        thermalThrottleMs = thermalTileThrottleMs(context)
+                        lastThermalSampleAt = thermalNow
+                    }
+                    if (thermalThrottleMs > 0L) {
+                        val sleepStartedAt = System.nanoTime()
+                        SystemClock.sleep(thermalThrottleMs)
+                        throttleNs += System.nanoTime() - sleepStartedAt
+                    }
+                }
+            }
+
+            val encodeStartedAt = SystemClock.elapsedRealtime()
+            FileOutputStream(destination).use { stream ->
+                check(finalOutput.compress(Bitmap.CompressFormat.JPEG, 97, stream)) {
+                    "HDMP AI output JPEG encoding failed"
+                }
+                stream.flush()
+            }
+            check(destination.exists() && destination.length() > 0L) { "HDMP AI output is empty" }
+
+            val checkBounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(destination.absolutePath, checkBounds)
+            check(checkBounds.outWidth == width && checkBounds.outHeight == height) {
+                "HDMP AI output dimensions changed"
+            }
+
+            writeExif(destination, readExif(source))
+            val encodeMs = SystemClock.elapsedRealtime() - encodeStartedAt
+
+            return RunTiming(
+                width = width,
+                height = height,
+                tiles = totalTiles,
+                workers = workerCount,
+                setupMs = setupMs,
+                decodeMs = decodeNs / 1_000_000L,
+                prepMs = prepNs / 1_000_000L,
+                inferMs = inferNs / 1_000_000L,
+                postMs = postNs / 1_000_000L,
+                throttleMs = throttleNs / 1_000_000L,
+                encodeMs = encodeMs,
+                totalMs = SystemClock.elapsedRealtime() - runStartedAt
+            )
+        } finally {
+            runCatching { session?.close() }
+            runCatching { options?.close() }
+            runCatching { decoder?.recycle() }
+            runCatching { sourceStream?.close() }
+            outputBitmap?.let { if (!it.isRecycled) it.recycle() }
+        }
+    }
+
+    private fun validateTensor(values: FloatBuffer, source: IntArray, deltaLimit: Float) {
+        val plane = TILE_SIZE * TILE_SIZE
+        var absSum = 0.0
+        var count = 0
+        for (index in 0 until plane) {
+            val r = values.get(index)
+            val g = values.get(plane + index)
+            val b = values.get(plane * 2 + index)
+            check(r.isFinite() && g.isFinite() && b.isFinite()) { "AI produced NaN/Infinity" }
+            val original = source[index]
+            val delta = max(
+                kotlin.math.abs(r - Color.red(original) / 255f),
+                max(
+                    kotlin.math.abs(g - Color.green(original) / 255f),
+                    kotlin.math.abs(b - Color.blue(original) / 255f)
+                )
+            )
+            absSum += delta.toDouble()
+            count++
+        }
+        val meanDelta = absSum / count.coerceAtLeast(1)
+        check(meanDelta <= deltaLimit * 2.5) { "AI output deviates too far from the source image" }
+    }
+
+    private fun blendConservatively(
+        original: Int,
+        predictedR: Float,
+        predictedG: Float,
+        predictedB: Float,
+        spec: ModelSpec
+    ): Int {
+        fun channel(source: Int, predicted: Float): Int {
+            val originalValue = source / 255f
+            val adjustment = ((predicted - originalValue) * spec.blend)
+                .coerceIn(-spec.deltaLimit, spec.deltaLimit)
+            return ((originalValue + adjustment).coerceIn(0f, 1f) * 255f).roundToInt()
+                .coerceIn(0, 255)
+        }
+        return Color.rgb(
+            channel(Color.red(original), predictedR),
+            channel(Color.green(original), predictedG),
+            channel(Color.blue(original), predictedB)
+        )
+    }
+
+    /**
+     * Returns the verified model file. The SHA-256 of the cached file is computed only when the
+     * file is new or changed (size / modification time differ from the last successful check).
+     */
+    private fun verifiedModelFile(context: Context, spec: ModelSpec): File? {
+        val expectedHash = runCatching {
+            context.assets.open("models/manifest.sha256").bufferedReader().useLines { lines ->
+                lines.mapNotNull { line ->
+                    val parts = line.trim().split(Regex("\\s+"), limit = 2)
+                    if (parts.size == 2 && parts[1].trim() == spec.manifestName) {
+                        parts[0].lowercase()
+                    } else null
+                }.firstOrNull()
+            }
+        }.getOrNull() ?: return null
+        if (expectedHash.length != 64) return null
+
+        val directory = File(context.noBackupFilesDir, "hdmp-ai-models")
+        if (!directory.exists() && !directory.mkdirs()) return null
+        val destination = File(directory, spec.assetName)
+        val prefs = context.getSharedPreferences("hdmp_ai_model_cache", Context.MODE_PRIVATE)
+
+        fun stampOf(file: File) = "$expectedHash:${file.length()}:${file.lastModified()}"
+
+        if (destination.exists() && destination.length() >= MODEL_MIN_BYTES) {
+            if (prefs.getString(spec.assetName, null) == stampOf(destination)) return destination
+            if (sha256(destination) == expectedHash) {
+                prefs.edit().putString(spec.assetName, stampOf(destination)).apply()
+                return destination
+            }
+        }
+
+        val temporary = File(directory, spec.assetName + ".partial")
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            context.assets.open("models/${spec.assetName}").use { input ->
+                FileOutputStream(temporary).use { output ->
+                    val buffer = ByteArray(1024 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        digest.update(buffer, 0, read)
+                        output.write(buffer, 0, read)
+                    }
+                    output.fd.sync()
+                }
+            }
+            val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+            if (temporary.length() < MODEL_MIN_BYTES || actualHash != expectedHash) {
+                temporary.delete()
+                return null
+            }
+            if (destination.exists()) destination.delete()
+            if (!temporary.renameTo(destination)) {
+                temporary.copyTo(destination, overwrite = true)
+                temporary.delete()
+            }
+            val finished = destination.takeIf { it.exists() && it.length() >= MODEL_MIN_BYTES }
+            if (finished != null) {
+                prefs.edit().putString(spec.assetName, stampOf(finished)).apply()
+            }
+            finished
+        } catch (failure: Throwable) {
+            Log.w(TAG, "Model asset verification failed for ${spec.assetName}", failure)
+            runCatching { temporary.delete() }
+            null
+        }
+    }
+
+    private fun sha256(file: File): String? = runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        FileInputStream(file).use { input ->
+            val buffer = ByteArray(1024 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    }.getOrNull()
+
+    /**
+     * Retains only the latest AI source frame for the optional before/after viewer.
+     * This is app-private storage; it does not add duplicate images to the user's gallery.
+     * The cache copy is moved (not copied) because it is not needed after a successful commit.
+     */
+    private fun preserveOriginalForComparison(context: Context, uri: Uri, original: File) {
+        runCatching {
+            val directory = File(context.filesDir, "hdmp-comparison")
+            check(directory.exists() || directory.mkdirs()) { "Could not create HDMP comparison directory" }
+            val destination = File(directory, "latest-original.jpg")
+            val temporary = File(directory, "latest-original.partial")
+            if (temporary.exists()) temporary.delete()
+            if (!original.renameTo(temporary)) {
+                original.copyTo(temporary, overwrite = true)
+            }
+            check(temporary.length() > 0L) { "HDMP comparison backup is empty" }
+            if (destination.exists() && !destination.delete()) {
+                error("Could not replace previous HDMP comparison image")
+            }
+            if (!temporary.renameTo(destination)) {
+                temporary.copyTo(destination, overwrite = true)
+                temporary.delete()
+            }
+            context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                .edit()
+                .putString("hdmp_compare_output_uri", uri.toString())
+                .putString("hdmp_compare_original_path", destination.absolutePath)
+                .apply()
+        }.onFailure {
+            Log.w(TAG, "Could not retain original for before/after comparison", it)
+        }
+    }
+
+    /** Decode the retained original only when it belongs to the currently displayed result. */
+    fun loadOriginalForComparison(context: Context, outputUri: Uri): Bitmap? {
+        val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        if (prefs.getString("hdmp_compare_output_uri", null) != outputUri.toString()) return null
+        val path = prefs.getString("hdmp_compare_original_path", null) ?: return null
+        val source = File(path)
+        if (!source.isFile || source.length() <= 0L) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(source.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (max(bounds.outWidth, bounds.outHeight) / sample > 2048) sample *= 2
+        return BitmapFactory.decodeFile(
+            source.absolutePath,
+            BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+        )
+    }
+
+    private fun commitRendered(context: Context, uri: Uri, original: File, rendered: File): Boolean {
+        var replacing = false
+        return try {
+            check(rendered.exists() && rendered.length() > 0L) { "AI output missing before commit" }
+            replacing = true
+            val written = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
+                FileInputStream(rendered).use { input -> input.copyTo(destination) }
+                true
+            } ?: false
+            check(written) { "MediaStore refused the HDMP AI output" }
+
+            // The rendered file already carries ORIENTATION_NORMAL (see writeExif), so the
+            // second full-file EXIF rewrite that used to happen here is not needed.
+            context.contentResolver.update(
+                uri,
+                ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
+                null,
+                null
+            )
+            true
+        } catch (failure: Throwable) {
+            if (replacing && original.exists()) runCatching {
+                context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
+                    FileInputStream(original).use { input -> input.copyTo(destination) }
+                } ?: error("Could not restore original photo after AI commit failure")
+            }.onFailure { Log.e(TAG, "Original photo rollback failed", it) }
+            Log.e(TAG, "Could not commit HDMP AI output", failure)
+            false
+        }
+    }
+
+    private fun copyUriToFile(context: Context, uri: Uri, destination: File) {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(destination).use { output ->
+                input.copyTo(output)
+                output.fd.sync() // this copy is the rollback source, keep it durable
+            }
+        } ?: error("HDMP AI cannot read captured photo")
+        check(destination.exists() && destination.length() > 0L) { "Captured photo backup is empty" }
+    }
+
+    private fun readExif(file: File): Map<String, String> {
+        val tags = listOf(
+            ExifInterface.TAG_DATETIME,
+            ExifInterface.TAG_DATETIME_ORIGINAL,
+            ExifInterface.TAG_DATETIME_DIGITIZED,
+            ExifInterface.TAG_MAKE,
+            ExifInterface.TAG_MODEL,
+            ExifInterface.TAG_SOFTWARE,
+            ExifInterface.TAG_EXPOSURE_TIME,
+            ExifInterface.TAG_F_NUMBER,
+            ExifInterface.TAG_ISO_SPEED_RATINGS,
+            ExifInterface.TAG_FOCAL_LENGTH,
+            ExifInterface.TAG_WHITE_BALANCE,
+            ExifInterface.TAG_FLASH
+        )
+        return runCatching {
+            val exif = ExifInterface(file.absolutePath)
+            tags.mapNotNull { tag -> exif.getAttribute(tag)?.let { tag to it } }.toMap()
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun writeExif(file: File, attributes: Map<String, String>) {
+        ExifInterface(file.absolutePath).apply {
+            attributes.forEach { (tag, value) -> setAttribute(tag, value) }
+            setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+            saveAttributes()
+        }
+    }
+}

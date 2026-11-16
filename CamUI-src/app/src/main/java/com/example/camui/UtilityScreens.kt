@@ -2465,21 +2465,21 @@ fun applyCameraWatermark(
         val expandedWidth = sourceBitmap.width + footerMarginPx * 2
         val expandedHeight = sourceBitmap.height + footerMarginPx * 2 + footerHeightPx
         val expandedPixelCount = expandedWidth.toLong() * expandedHeight.toLong()
-        // A second full ARGB_8888 canvas is allocated while the decoded source is still live.
-        // Budget its entire allocation, not just the appended footer pixels.
-        val extraBytes = expandedPixelCount * 4L
+        // The source and expanded watermark canvas both use RGB_565. Budget the full
+        // appended canvas while the decoded source is still live.
+        val extraBytes = expandedPixelCount * 2L
         val runtime = Runtime.getRuntime()
         val freeHeapBytes = (runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory()))
             .coerceAtLeast(0L)
         // The reference layouts append a real white footer without downscaling the captured photo.
         // If the additional canvas would threaten the current heap, keep the original dimensions
         // and render the footer as an in-image plate instead of risking an OOM.
-        val expandedFujiFooter = isFujiFooterTemplate && !preservePhotoAspectRatio &&
+        val expandedFujiFooter = isFujiFooterTemplate &&
             frameStyle in setOf("White", "Black") &&
             expandedWidth <= 32768 && expandedHeight <= 32768 &&
             expandedPixelCount <= 100_000_000L && extraBytes <= (freeHeapBytes * 0.42f).toLong()
         val output = if (expandedFujiFooter) {
-            Bitmap.createBitmap(expandedWidth, expandedHeight, Bitmap.Config.ARGB_8888).also { expanded ->
+            Bitmap.createBitmap(expandedWidth, expandedHeight, Bitmap.Config.RGB_565).also { expanded ->
                 outputBitmap = expanded
                 val expandedCanvas = Canvas(expanded)
                 expandedCanvas.drawColor(if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE)
@@ -2500,7 +2500,7 @@ fun applyCameraWatermark(
         } else if (sourceBitmap.isMutable) {
             sourceBitmap.also { outputBitmap = it }
         } else {
-            sourceBitmap.copy(Bitmap.Config.ARGB_8888, true)?.also { outputBitmap = it }
+            sourceBitmap.copy(Bitmap.Config.RGB_565, true)?.also { outputBitmap = it }
                 ?: return@runCatching false
         }
         outputBitmap = output

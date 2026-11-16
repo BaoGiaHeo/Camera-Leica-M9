@@ -66,14 +66,16 @@ object PhotoOutputResolution {
             } ?: error("Cannot decode original JPEG")
 
             val src = source!!
-            require(src.width > 0 && src.height > 0) { "Invalid source size" }
+            val sourceWidth = src.width
+            val sourceHeight = src.height
+            require(sourceWidth > 0 && sourceHeight > 0) { "Invalid source size" }
 
             // Keep geometry independent from bitmap allocation so 21:9, 16:9,
             // 4:3, 3:2, square and portrait crops can be regression-tested without
             // allocating a 250MP bitmap in a unit test.
             val geometry = PhotoOutputGeometry.calculate(
-                src.width,
-                src.height,
+                sourceWidth,
+                sourceHeight,
                 targetPixels,
                 targetAspectRatio
             )
@@ -94,15 +96,9 @@ object PhotoOutputResolution {
             val freeHeapHeadroom = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
             val usableHeap = (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L)
 
-            val outputGeometry = PhotoOutputGeometry.calculate(
-                src.width,
-                src.height,
-                targetPixels,
-                targetAspectRatio
-            )
-            val width = outputGeometry.outputWidth
-            val height = outputGeometry.outputHeight
-            val outputPixels = outputGeometry.outputPixels
+            val width = geometry.outputWidth
+            val height = geometry.outputHeight
+            val outputPixels = geometry.outputPixels
             val outputBytes = outputPixels * 2L // RGB_565.
             require(outputPixels >= targetPixels * 995L / 1000L) {
                 "Requested MP geometry was not reached; original photo retained"
@@ -111,7 +107,7 @@ object PhotoOutputResolution {
                 "Not enough free heap for the requested output; original photo retained"
             }
 
-            if (src.width == width && src.height == height) {
+            if (sourceWidth == width && sourceHeight == height) {
                 return PhotoOutputResult(width, height, targetPixels, outputPixels)
             }
 
@@ -179,7 +175,7 @@ object PhotoOutputResolution {
             Log.i(
                 TAG,
                 "Requested=${targetPixels / 1_000_000L}MP actual=${outputPixels / 1_000_000L}MP " +
-                    "source=${src.width}x${src.height}, crop=${cropWidth}x${cropHeight}, " +
+                    "source=${sourceWidth}x${sourceHeight}, crop=${cropWidth}x${cropHeight}, " +
                     "requestedAspect=${"%.5f".format(Locale.US, geometry.requestedAspectRatio)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )

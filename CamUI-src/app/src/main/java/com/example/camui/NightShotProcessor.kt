@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
@@ -51,7 +52,7 @@ object NightShotProcessor {
         ExifInterface.TAG_FLASH
     )
 
-    enum class MergeMode { NIGHT_AVERAGE, LUNA_DREAM_2_0, MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
+    enum class MergeMode { NIGHT_AVERAGE, LUNA_DREAM_1_5, LUNA_DREAM_2_0, MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
 
     private data class GrayLevel(
         val width: Int,
@@ -78,32 +79,78 @@ object NightShotProcessor {
         destination: File,
         callbackExecutor: Executor
     ): Boolean = suspendCancellableCoroutine { continuation ->
+        val rawCompanion = File(
+            destination.parentFile,
+            destination.nameWithoutExtension + "-discard.dng"
+        )
+        fun clearTemporaryFiles() {
+            runCatching { destination.delete() }
+            runCatching { rawCompanion.delete() }
+        }
         runCatching {
             destination.parentFile?.mkdirs()
-            if (destination.exists()) destination.delete()
-            val options = ImageCapture.OutputFileOptions.Builder(destination).build()
-            capture.takePicture(
-                options,
-                callbackExecutor,
-                object : ImageCapture.OnImageSavedCallback {
-                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+            clearTemporaryFiles()
+            if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
+                // RawDream keeps the first full DNG as the original RAW master. Additional
+                // burst requests still need a JPEG for LunaDream fusion; their temporary DNGs
+                // are discarded after CameraX confirms both output callbacks.
+                val rawOptions = ImageCapture.OutputFileOptions.Builder(rawCompanion).build()
+                val jpegOptions = ImageCapture.OutputFileOptions.Builder(destination).build()
+                var rawSaved = false
+                var jpegSaved = false
+                fun finishIfReady() {
+                    if (rawSaved && jpegSaved && continuation.isActive) {
                         val success = destination.exists() && destination.length() > 0L
-                        if (continuation.isActive) continuation.resume(success)
-                    }
-
-                    override fun onError(exception: ImageCaptureException) {
-                        Log.e(TAG, "Frame capture failed", exception)
-                        runCatching { destination.delete() }
-                        if (continuation.isActive) continuation.resume(false)
+                        runCatching { rawCompanion.delete() }
+                        continuation.resume(success)
                     }
                 }
-            )
+                capture.takePicture(
+                    rawOptions,
+                    jpegOptions,
+                    callbackExecutor,
+                    object : ImageCapture.OnImageSavedCallback {
+                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                            if (outputFileResults.imageFormat == ImageFormat.RAW_SENSOR) {
+                                rawSaved = rawCompanion.exists() && rawCompanion.length() > 0L
+                            } else {
+                                jpegSaved = destination.exists() && destination.length() > 0L
+                            }
+                            finishIfReady()
+                        }
+
+                        override fun onError(exception: ImageCaptureException) {
+                            Log.e(TAG, "RAW+JPEG burst frame capture failed", exception)
+                            clearTemporaryFiles()
+                            if (continuation.isActive) continuation.resume(false)
+                        }
+                    }
+                )
+            } else {
+                val options = ImageCapture.OutputFileOptions.Builder(destination).build()
+                capture.takePicture(
+                    options,
+                    callbackExecutor,
+                    object : ImageCapture.OnImageSavedCallback {
+                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                            val success = destination.exists() && destination.length() > 0L
+                            if (continuation.isActive) continuation.resume(success)
+                        }
+
+                        override fun onError(exception: ImageCaptureException) {
+                            Log.e(TAG, "Frame capture failed", exception)
+                            clearTemporaryFiles()
+                            if (continuation.isActive) continuation.resume(false)
+                        }
+                    }
+                )
+            }
         }.onFailure {
             Log.e(TAG, "Could not start frame capture", it)
-            runCatching { destination.delete() }
+            clearTemporaryFiles()
             if (continuation.isActive) continuation.resume(false)
         }
-        continuation.invokeOnCancellation { runCatching { destination.delete() } }
+        continuation.invokeOnCancellation { clearTemporaryFiles() }
     }
 
 
@@ -216,6 +263,7 @@ object NightShotProcessor {
         if (frames.size < 2 || frames.any { !it.exists() || it.length() <= 0L }) return false
         val prefix = when (mode) {
             MergeMode.STAR_TRAILS -> "star-"
+            MergeMode.LUNA_DREAM_1_5 -> "luna15-"
             MergeMode.LUNA_DREAM_2_0 -> "luna-dream-"
             MergeMode.MILKY_WAY_STACK -> "milky-way-"
             MergeMode.HDR_BRACKET -> "hdr-"
@@ -291,6 +339,8 @@ object NightShotProcessor {
                         MergeMode.STAR_TRAILS -> 0 to 0
                         MergeMode.LUNA_DREAM_2_0 ->
                             estimatePyramidalLucasKanade(alignmentReference!!, current)
+                        MergeMode.LUNA_DREAM_1_5 ->
+                            estimateGlobalTranslation(alignmentReference!!, current)
                         else -> estimateGlobalTranslation(alignmentReference!!, current)
                     }
                     alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt
@@ -338,10 +388,12 @@ object NightShotProcessor {
                                 ) {
                                     oldRow[x] = packRgb(max(ar, br), max(ag, bg), max(ab, bb))
                                 }
-                            } else if (mode == MergeMode.LUNA_DREAM_2_0) {
-                                // Robust temporal fusion: stable pixels are averaged for noise
-                                // reduction; strong local changes are down-weighted or rejected
-                                // so moving subjects do not leave translucent trails.
+                            } else if (mode == MergeMode.LUNA_DREAM_1_5 ||
+                                mode == MergeMode.LUNA_DREAM_2_0
+                            ) {
+                                // Both LunaDream modes use motion-aware temporal fusion. 1.5
+                                // uses five exposures and global translation; 2.0 keeps its
+                                // existing eight-frame Lucas-Kanade path.
                                 val oldLuma = luma(ar, ag, ab)
                                 val newLuma = luma(br, bg, bb)
                                 val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
@@ -422,9 +474,16 @@ object NightShotProcessor {
                 // Lift dark mid-tones after alignment/averaging, with a smooth gamma curve that
                 // preserves highlights better than multiplying every channel by a fixed gain.
                 brightenNightResult(base!!)
-            } else if (mode == MergeMode.LUNA_DREAM_2_0) {
-                // Stronger edge-aware luminance detail for 2.0; local range clamps prevent dark/bright halos.
+            } else if (mode == MergeMode.LUNA_DREAM_1_5) {
                 val detailStartedAt = SystemClock.elapsedRealtime()
+                applyLunaDreamNoiseReduction(base!!, strength = 1)
+                applyLunaDreamDetailRecovery(base!!)
+                detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
+            } else if (mode == MergeMode.LUNA_DREAM_2_0) {
+                // Keep the 2.0 eight-frame alignment/fusion strategy; add a restrained
+                // edge-aware spatial denoise pass before its existing detail restoration.
+                val detailStartedAt = SystemClock.elapsedRealtime()
+                applyLunaDreamNoiseReduction(base!!, strength = 2)
                 applyLunaDream20DetailRecovery(base!!)
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             }
@@ -829,6 +888,105 @@ object NightShotProcessor {
         }
 
         return median(bestInliers.map { it.dx }) to median(bestInliers.map { it.dy })
+    }
+
+    /**
+     * Edge-aware residual noise reduction after temporal fusion. It smooths small,
+     * low-contrast sensor/JPEG fluctuations while rejecting neighbours across strong
+     * luminance or colour boundaries, so texture and hair edges are less likely to smear.
+     * The pass is row-streamed to avoid another full-resolution bitmap allocation.
+     */
+    private fun applyLunaDreamNoiseReduction(bitmap: Bitmap, strength: Int) {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 3 || height < 3) return
+
+        var previousRow = IntArray(width)
+        var currentRow = IntArray(width)
+        var nextRow = IntArray(width)
+        val outputRow = IntArray(width)
+        bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
+        currentRow.copyInto(previousRow)
+        bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+
+        val baseBlend = if (strength >= 2) 0.30f else 0.23f
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val center = currentRow[x]
+                val centerR = (center ushr 16) and 0xFF
+                val centerG = (center ushr 8) and 0xFF
+                val centerB = center and 0xFF
+                val centerLuma = luma(centerR, centerG, centerB)
+                val rangeLimit = if (centerLuma < 72) {
+                    if (strength >= 2) 27 else 23
+                } else {
+                    if (strength >= 2) 20 else 17
+                }
+
+                var sumR = 0
+                var sumG = 0
+                var sumB = 0
+                var weightSum = 0
+                for (dy in -1..1) {
+                    val row = when (dy) {
+                        -1 -> previousRow
+                        0 -> currentRow
+                        else -> nextRow
+                    }
+                    val ny = (y + dy).coerceIn(0, height - 1)
+                    for (dx in -1..1) {
+                        if (dx == 0 && dy == 0) continue
+                        val nx = (x + dx).coerceIn(0, width - 1)
+                        val neighbor = row[nx]
+                        val nr = (neighbor ushr 16) and 0xFF
+                        val ng = (neighbor ushr 8) and 0xFF
+                        val nb = neighbor and 0xFF
+                        val luminanceDelta = kotlin.math.abs(luma(nr, ng, nb) - centerLuma)
+                        val colorDelta = max(
+                            kotlin.math.abs(nr - centerR),
+                            max(kotlin.math.abs(ng - centerG), kotlin.math.abs(nb - centerB))
+                        )
+                        val spatialWeight = if (dx == 0 || dy == 0) 2 else 1
+                        val weight = when {
+                            luminanceDelta <= rangeLimit && colorDelta <= rangeLimit * 2 ->
+                                spatialWeight
+                            luminanceDelta <= rangeLimit * 2 && colorDelta <= rangeLimit * 3 -> 1
+                            else -> 0
+                        }
+                        if (weight > 0) {
+                            sumR += nr * weight
+                            sumG += ng * weight
+                            sumB += nb * weight
+                            weightSum += weight
+                        }
+                    }
+                }
+
+                if (weightSum == 0) {
+                    outputRow[x] = center
+                } else {
+                    val shadowBoost = (1.22f - centerLuma / 255f * 0.42f).coerceIn(0.80f, 1.22f)
+                    val blend = (baseBlend * shadowBoost).coerceIn(0.12f, 0.38f)
+                    val averageR = sumR.toFloat() / weightSum
+                    val averageG = sumG.toFloat() / weightSum
+                    val averageB = sumB.toFloat() / weightSum
+                    outputRow[x] = packRgb(
+                        (centerR * (1f - blend) + averageR * blend).roundToInt().coerceIn(0, 255),
+                        (centerG * (1f - blend) + averageG * blend).roundToInt().coerceIn(0, 255),
+                        (centerB * (1f - blend) + averageB * blend).roundToInt().coerceIn(0, 255)
+                    )
+                }
+            }
+            bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+            if (y + 1 < height) {
+                val recycled = previousRow
+                previousRow = currentRow
+                currentRow = nextRow
+                nextRow = recycled
+                if (y + 2 < height) bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                else currentRow.copyInto(nextRow)
+            }
+        }
     }
 
     /**

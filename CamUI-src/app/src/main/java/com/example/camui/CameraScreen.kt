@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ContentUris
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.graphics.Point
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
@@ -151,6 +153,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -179,6 +182,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
+
+
+private tailrec fun Context.findHostActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is ContextWrapper -> baseContext.findHostActivity()
+    else -> null
+}
 
 private fun currentDisplayIsLandscape(context: Context): Boolean {
     val display = context.display
@@ -379,6 +389,7 @@ fun CameraScreen(
     onRatio: (Int) -> Unit
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val localView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
@@ -391,27 +402,15 @@ fun CameraScreen(
     // Read the current display bounds instead of relying only on Configuration.orientation.
     // Some vendor builds keep the activity's cached configuration in portrait while the display
     // has already rotated; using that stale value makes a landscape JPEG get normalized as portrait.
-    var isLandscape by remember { mutableStateOf(currentDisplayIsLandscape(context)) }
+    var isLandscape by remember { mutableStateOf(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) }
     // Remember exactly which geometry is active in the bound CameraX UseCaseGroup.
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
     var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
-    // Physical device orientation is authoritative for capture geometry. Display.rotation can
-    // stay ROTATION_0 while an app/activity is held in portrait, even when the handset is landscape.
-    val orientationListener = remember(context) {
-        object : OrientationEventListener(context) {
-            override fun onOrientationChanged(orientation: Int) {
-                if (orientation == ORIENTATION_UNKNOWN) return
-                val sensorRotation = surfaceRotationFromDeviceOrientation(orientation)
-                val sensorLandscape = isDeviceOrientationLandscape(orientation)
-                if (sensorRotation != targetRotation) targetRotation = sensorRotation
-                if (sensorLandscape != isLandscape) isLandscape = sensorLandscape
-            }
-        }
-    }
-    DisposableEffect(orientationListener) {
-        if (orientationListener.canDetectOrientation()) orientationListener.enable()
-        onDispose { orientationListener.disable() }
+    // Orientation changes are applied only after the user taps the global rotate control.
+    LaunchedEffect(configuration.orientation) {
+        isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        targetRotation = context.display?.rotation ?: targetRotation
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
     var faceTrackingEnabled by remember {
@@ -583,18 +582,32 @@ fun CameraScreen(
     var processingLabel by remember { mutableStateOf("") }
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
-    var aiRenderStartedAtElapsedMs by remember { mutableLongStateOf(0L) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
-    var isHdmpAiPrimaryRunning by remember { mutableStateOf(false) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
-    var hdmpActiveWorkerCount by remember { mutableIntStateOf(0) }
-    var hdmpTileProgressText by remember { mutableStateOf("") }
-    var hdmpRenderProfile by remember {
-        mutableStateOf(HdmpSelectionPolicy.normalizeModel(appPrefs.getString("hdmp_render_profile", "ai2")))
+    var lunaDreamMode by remember {
+        mutableStateOf(
+            when (
+                appPrefs.getString("lunadream_mode", null)
+                    ?: if (appPrefs.getString("hdmp_render_profile", null) == "luna") "luna20" else "off"
+            ) {
+                "luna15" -> "luna15"
+                "luna20", "luna" -> "luna20"
+                else -> "off"
+            }
+        )
     }
     var processingPanelOffset by remember { mutableStateOf(Offset.Zero) }
-    LaunchedEffect(hdmpRenderProfile) {
-        appPrefs.edit().putString("hdmp_render_profile", hdmpRenderProfile).apply()
+    LaunchedEffect(lunaDreamMode) {
+        appPrefs.edit().putString("lunadream_mode", lunaDreamMode).apply()
+    }
+    LaunchedEffect(Unit) {
+        appPrefs.edit()
+            .remove("hdmp_render_profile")
+            .remove("hdmp_output_mp")
+            .putBoolean("uhd_capture_enabled", false)
+            .putBoolean("fhd_capture_enabled", false)
+            .putBoolean("uhd_plus_capture_enabled", false)
+            .apply()
     }
     LaunchedEffect(isProcessing) {
         if (isProcessing) {
@@ -629,7 +642,6 @@ fun CameraScreen(
         } else {
             measuredBatteryTempC = -1
             thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
-            hdmpActiveWorkerCount = 0
             processingPanelOffset = Offset.Zero
         }
     }
@@ -688,39 +700,9 @@ fun CameraScreen(
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
     val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val rawCaptureMode = appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg"
-    var uhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_capture_enabled", false)) }
-    var fhdCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("fhd_capture_enabled", false)) }
-    var uhdPlusCaptureEnabled by remember { mutableStateOf(appPrefs.getBoolean("uhd_plus_capture_enabled", false)) }
-    val savedHdmpOutputMp = appPrefs.getInt(
-        "hdmp_output_mp",
-        when {
-            appPrefs.getBoolean("uhd_plus_capture_enabled", false) -> 250
-            appPrefs.getBoolean("uhd_capture_enabled", false) -> 108
-            appPrefs.getBoolean("fhd_capture_enabled", false) -> 60
-            else -> 60
-        }
-    )
-    var hdmpOutputMp by remember {
-        mutableIntStateOf(HdmpSelectionPolicy.normalizeOutputMegapixels(savedHdmpOutputMp))
-    }
-    LaunchedEffect(hdmpOutputMp) {
-        fhdCaptureEnabled = hdmpOutputMp == 60
-        uhdCaptureEnabled = hdmpOutputMp == 108
-        uhdPlusCaptureEnabled = hdmpOutputMp == 250
-        appPrefs.edit()
-            .putInt("hdmp_output_mp", hdmpOutputMp)
-            .putBoolean("fhd_capture_enabled", hdmpOutputMp == 60)
-            .putBoolean("uhd_capture_enabled", hdmpOutputMp == 108)
-            .putBoolean("uhd_plus_capture_enabled", hdmpOutputMp == 250)
-            .apply()
-    }
-    LaunchedEffect(uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
-        appPrefs.edit()
-            .putBoolean("uhd_capture_enabled", uhdCaptureEnabled)
-            .putBoolean("fhd_capture_enabled", fhdCaptureEnabled)
-            .putBoolean("uhd_plus_capture_enabled", uhdPlusCaptureEnabled)
-            .apply()
-    }
+    var uhdCaptureEnabled by remember { mutableStateOf(false) }
+    var fhdCaptureEnabled by remember { mutableStateOf(false) }
+    var uhdPlusCaptureEnabled by remember { mutableStateOf(false) }
     var hdrEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
     }
@@ -753,7 +735,7 @@ fun CameraScreen(
     var milkyWayStackEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("milky_way_stack_enabled", false))
     }
-    var showHdmp by remember { mutableStateOf(false) }
+    var showLunaDream by remember { mutableStateOf(false) }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
@@ -893,7 +875,7 @@ fun CameraScreen(
                     ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
                 }.getOrDefault(emptySet())
             }.orEmpty()
-            val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" &&
+            val rawCaptureRequested = mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" &&
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
                 "raw" -> ImageCapture.OUTPUT_FORMAT_RAW
@@ -1165,7 +1147,8 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, captureExposure)
                         .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(captureExposure, 10_000_000L))
                 }
-                val isComputationalHighResolution = uhdCaptureEnabled || fhdCaptureEnabled ||
+                val lunaDreamRequestedInPrefs = appPrefs.getString("lunadream_mode", "off") != "off"
+                val isComputationalHighResolution = lunaDreamRequestedInPrefs || uhdCaptureEnabled || fhdCaptureEnabled ||
                     uhdPlusCaptureEnabled || (mode == "Photo" && nightShotMode == "night")
                 val isOrdinaryPhotoJpeg = mode == "Photo" && nightShotMode == "off" &&
                     !rawCaptureActive && !isComputationalHighResolution
@@ -1220,7 +1203,7 @@ fun CameraScreen(
                     )
                 }
                 // Off/Low/Medium/High use only the active camera's ISP noise reduction.
-                // HDMP uses multi-frame averaging; the camera ISP may still apply its standard noise reduction.
+                // LunaDream uses multi-frame fusion; the camera ISP may still apply its standard noise reduction.
                 val availableNrModes = activeFacingId?.let { id ->
                     runCatching {
                         cameraManager.getCameraCharacteristics(id)
@@ -1710,9 +1693,7 @@ fun CameraScreen(
                 // Decode EXIF into the pixels instead of trusting a stale MediaStore thumbnail.
                 decodeUprightBitmap(context, uri, maxDimension = 2048)?.asImageBitmap()
             }.getOrNull()
-            val original = runCatching {
-                HdmpAiEngine.loadOriginalForComparison(context, uri)?.asImageBitmap()
-            }.getOrNull()
+            val original: ImageBitmap? = null
             processed to original
         }
         viewerBitmap = previews.first
@@ -1951,12 +1932,12 @@ fun CameraScreen(
     fun takePhoto() {
         val rawModeConflictsWithComputationalCapture = mode == "Photo" &&
             rawCaptureMode != "jpeg" &&
-            (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
+            (nightShotMode != "off" || lunaDreamMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                 uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode)
         if (rawModeConflictsWithComputationalCapture) {
             localizedToast(
                 context,
-                "RAW/RawHDMP 1.2 không ghép đồng thời với NightShotMode, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Hãy tắt chế độ ghép hoặc chuyển định dạng về JPEG.",
+                "RAW không kết hợp với LunaDream, NightShotMode, Burst hoặc Bracketing. Hãy tắt chế độ tính toán hoặc chuyển định dạng về JPEG.",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -1970,7 +1951,7 @@ fun CameraScreen(
             return
         }
         if ((hdrBracketMode || focusBracketMode) && mode == "Photo" && nightShotMode == "off" &&
-            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+            rawCaptureMode == "jpeg" && lunaDreamMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
         ) {
             if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
                 nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive
@@ -2126,7 +2107,7 @@ fun CameraScreen(
             return
         }
         if (burstMode && mode == "Photo" && nightShotMode == "off" &&
-            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+            rawCaptureMode == "jpeg" && lunaDreamMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
         ) {
             if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
                 nightShotCaptureInProgress || starTrailCaptureInProgress
@@ -2224,15 +2205,18 @@ fun CameraScreen(
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val lunaDreamSelected = mode == "Photo" &&
-                HdmpSelectionPolicy.isLunaDreamEnabled(hdmpRenderProfile)
-            val captureUseLunaDream = lunaDreamSelected &&
+            val lunaDreamSelected = mode == "Photo" && lunaDreamMode != "off"
+            val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
+            val captureUseLunaDream20 = lunaDreamSelected && lunaDreamMode == "luna20" &&
+                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
+                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
+            val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20
             if (lunaDreamSelected && !captureUseLunaDream) {
                 localizedToast(
                     context,
-                    "HDMP LunaDream 2.0 cần Photo/JPEG; hãy tắt RAW, Ultra HDR, Burst và Bracketing.",
+                    "LunaDream cần Photo/JPEG; hãy tắt RAW, Ultra HDR, Burst và Bracketing.",
                     Toast.LENGTH_LONG
                 ).show()
                 return@launch
@@ -2251,14 +2235,10 @@ fun CameraScreen(
                 ).show()
                 return@launch
             }
-            val captureUseHdmpResolution = mode == "Photo" && !captureUseNightShot &&
-                HdmpSelectionPolicy.isAiEnabled(hdmpRenderProfile) &&
-                hdmpOutputMp in HdmpSelectionPolicy.supportedOutputMegapixels &&
-                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly
-            val captureUseUhdPlusAlgorithm = captureUseHdmpResolution && hdmpOutputMp == 250
-            val captureUseUhdAlgorithm = captureUseHdmpResolution && hdmpOutputMp == 108
-            val captureUseFhdAlgorithm = captureUseHdmpResolution && hdmpOutputMp == 60
-            val captureAtOneX = captureUseHdmpResolution ||
+            val captureUseUhdPlusAlgorithm = false
+            val captureUseUhdAlgorithm = false
+            val captureUseFhdAlgorithm = false
+            val captureAtOneX = captureUseLunaDream ||
                 kotlin.math.abs(zoomSel - 1f) < 0.08f
             val captureNightShotExtension = nightExtensionActive
             val captureNightDurationSeconds = nightShotDurationSeconds.coerceIn(3, 10)
@@ -2272,10 +2252,16 @@ fun CameraScreen(
                 captureNightDurationSeconds * 1_000_000_000L
             // High-resolution stills are single-frame captures. Multi-frame merging belongs to NightShot only.
             val captureUseFiveFrameStack = false
-            if (captureUseLunaDream) {
+            if (captureUseLunaDream15) {
                 localizedToast(
                     context,
-                    "HDMP LunaDream 2.0 · thu tối đa 8 khung, căn chỉnh LK, khử nhiễu và loại bóng ma.",
+                    "LunaDream 1.5 · chụp một khung hình và xử lý trực tiếp, đầu ra 50MP.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else if (captureUseLunaDream20) {
+                localizedToast(
+                    context,
+                    "LunaDream 2.0 · thu đa khung hình để phục hồi chi tiết, đầu ra 108MP.",
                     Toast.LENGTH_LONG
                 ).show()
             } else if (captureUseNightShot) {
@@ -2286,12 +2272,6 @@ fun CameraScreen(
                     } else {
                         "NightShotMode ${captureNightDurationSeconds}s · thu nhiều khung, căn chỉnh và ghép ảnh. Giữ máy ổn định đến khi ghép xong."
                     },
-                    Toast.LENGTH_LONG
-                ).show()
-            } else if (captureUseHdmpResolution) {
-                localizedToast(
-                    context,
-                    "Đang ghi nhận một khung hình ${hdmpOutputMp}MP. Giữ máy ổn định đến khi HDMP bắt đầu xử lý.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -2433,10 +2413,10 @@ fun CameraScreen(
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
-                                captureUseLunaDream -> "HDMP LunaDream 2.0 · chuẩn bị ghép 8 khung"
+                                captureUseLunaDream15 -> "LunaDream 1.5 · chuẩn bị xử lý ảnh đơn"
+                                captureUseLunaDream20 -> "LunaDream 2.0 · chuẩn bị ghép đa khung"
                                 captureUseMilkyWayStack -> "NightShotMode Milky Way · chuẩn bị căn chỉnh 8 khung"
                                 captureUseNightShot -> "NightShotMode · chuẩn bị căn chỉnh và ghép nhiều khung"
-                                captureUseHdmpResolution -> "HDMP ${hdmpOutputMp}MP · một khung hình · chuẩn bị AI"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 else -> "Ảnh đang được xử lý"
                             }
@@ -2447,8 +2427,8 @@ fun CameraScreen(
                             }
                             scope.launch(Dispatchers.IO) {
                                 var nightShotMerged = false
-                                if ((captureUseNightShot || captureUseFiveFrameStack || captureUseLunaDream) &&
-                                    (!captureNightShotExtension || captureUseLunaDream)
+                                if ((captureUseNightShot || captureUseFiveFrameStack || captureUseLunaDream20) &&
+                                    (!captureNightShotExtension || captureUseLunaDream20)
                                 ) {
                                     val stackedFrames = mutableListOf<File>()
                                     val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
@@ -2456,7 +2436,7 @@ fun CameraScreen(
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
                                             val maxFrames = when {
-                                                captureUseMilkyWayStack || captureUseLunaDream -> 8
+                                                captureUseMilkyWayStack || captureUseLunaDream20 -> 8
                                                 captureUseNightShot -> captureNightTargetFrames
                                                 else -> 5
                                             }
@@ -2476,7 +2456,7 @@ fun CameraScreen(
                                             var nextFrameNumber = stackedFrames.size + 1
                                             val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, Boolean>>>()
                                             val maxInFlightCaptures =
-                                                if (captureUseNightShot || captureUseLunaDream) 2 else 1
+                                                if (captureUseNightShot || captureUseLunaDream20) 2 else 1
 
                                             while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
                                                 while (!stopSubmitting &&
@@ -2505,7 +2485,7 @@ fun CameraScreen(
                                                     })
                                                     withContext(Dispatchers.Main) {
                                                         val expectedFrame = stackedFrames.size + pendingCaptures.size
-                                                        processingLabel = if (captureUseLunaDream) {
+                                                        processingLabel = if (captureUseLunaDream20) {
                                                             "LunaDream 2.0: thu khung $expectedFrame/$maxFrames"
                                                         } else if (captureUseMilkyWayStack) {
                                                             "NightShotMode Milky Way: thu khung $expectedFrame/$maxFrames"
@@ -2516,7 +2496,7 @@ fun CameraScreen(
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
                                                             (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
-                                                        } else if (captureUseMilkyWayStack || captureUseLunaDream) {
+                                                        } else if (captureUseMilkyWayStack || captureUseLunaDream20) {
                                                             (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
                                                         } else (8 + stackedFrames.size * 3).coerceAtMost(24)
                                                     }
@@ -2566,7 +2546,7 @@ fun CameraScreen(
                                             if (stackedFrames.size >= 2) {
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = when {
-                                                        captureUseLunaDream -> "LunaDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
+                                                        captureUseLunaDream20 -> "LunaDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
                                                         captureUseMilkyWayStack -> "NightShotMode Milky Way: căn chỉnh và gộp " + stackedFrames.size + "/8 khung"
                                                         captureUseNightShot -> "NightShotMode: căn chỉnh và gộp " + stackedFrames.size + " khung"
                                                         else -> "Multi-frame: căn chỉnh và gộp " + stackedFrames.size + "/5 khung"
@@ -2576,14 +2556,14 @@ fun CameraScreen(
                                                 nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
                                                     context, stackedFrames, saved,
                                                     when {
-                                                        captureUseLunaDream -> NightShotProcessor.MergeMode.LUNA_DREAM_2_0
+                                                        captureUseLunaDream20 -> NightShotProcessor.MergeMode.LUNA_DREAM_2_0
                                                         captureUseMilkyWayStack -> NightShotProcessor.MergeMode.MILKY_WAY_STACK
                                                         else -> NightShotProcessor.MergeMode.NIGHT_AVERAGE
                                                     }
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
                                                         processingLabel = when {
-                                                            captureUseLunaDream -> "LunaDream 2.0: căn LK, khử nhiễu và loại bóng ma"
+                                                            captureUseLunaDream20 -> "LunaDream 2.0: căn chỉnh, khử nhiễu và phục hồi chi tiết"
                                                             captureUseNightShot -> "NightShotMode: căn khung và giảm nhiễu"
                                                             captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu"
                                                             else -> "Multi-frame: ghép 5 khung"
@@ -2595,7 +2575,7 @@ fun CameraScreen(
                                             }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
-                                                "mode=" + (if (captureUseLunaDream) "LunaDream-2.0" else if (captureUseNightShot) "NightShotMode-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
+                                                "mode=" + (if (captureUseLunaDream20) "LunaDream-2.0" else if (captureUseNightShot) "NightShotMode-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
                                             )
                                         }
                                     } finally {
@@ -2619,122 +2599,32 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
-                                val availableCpuWorkers = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
-                                val hdmpWorkerCount = when {
-                                    !HdmpSelectionPolicy.isAiEnabled(hdmpRenderProfile) -> 0
-                                    captureUseHdmpResolution -> when (hdmpRenderProfile) {
-                                        "ai2" -> availableCpuWorkers
-                                        else -> availableCpuWorkers.coerceAtMost(6)
-                                    }
-                                    captureUseNightShot -> availableCpuWorkers.coerceAtMost(6)
-                                    else -> 0
-                                }
-                                val hdmpAiResult = if (hdmpWorkerCount > 0) {
+                                val lunaDream15Processed = if (captureUseLunaDream15) {
                                     withContext(Dispatchers.Main) {
-                                        aiRenderStartedAtElapsedMs = 0L
-                                         hdmpTileProgressText = ""
-                                        processingEtaSeconds = -1
-                                        processingLabel = if (hdmpRenderProfile == "ai15") {
-                                            "HDMP AI 1.5 • đang chuẩn bị xử lý ảnh"
-                                        } else {
-                                            "HDMP AI 2 • đang chuẩn bị xử lý ảnh"
-                                        }
-                                        processingProgress = 35
-                                    }
-                                    val result = withContext(Dispatchers.IO) {
-                                        HdmpAiEngine.process(
-                                            context = context,
-                                            uri = saved,
-                                            workerCount = hdmpWorkerCount,
-                                            selectedModel = if (hdmpRenderProfile == "ai15") {
-                                                HdmpAiEngine.Model.NAFNETLIB_WIDTH32
-                                            } else {
-                                                HdmpAiEngine.Model.NAFNET_WIDTH64
-                                            },
-                                            onAdaptiveWorkerCount = { count ->
-                                                mainExecutor.execute { hdmpActiveWorkerCount = count }
-                                            },
-                                             onTileProgress = { model, completedTiles, totalTiles ->
-                                                 mainExecutor.execute {
-                                                     val modelName = when (model) {
-                                                         HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2"
-                                                         HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5"
-                                                         HdmpAiEngine.Model.CLASSICAL_ONLY -> "HDMP"
-                                                     }
-                                                     hdmpTileProgressText = "$modelName · Tile $completedTiles/$totalTiles"
-                                                 }
-                                             },
-                                            onProgress = { model, progress ->
-                                                mainExecutor.execute {
-                                                    if (progress == 0 || aiRenderStartedAtElapsedMs == 0L) {
-                                                        aiRenderStartedAtElapsedMs = SystemClock.elapsedRealtime()
-                                                        processingEtaSeconds = -1
-                                                    } else if (progress in 1..99 && progress >= 3) {
-                                                        val stageElapsedMs =
-                                                            (SystemClock.elapsedRealtime() - aiRenderStartedAtElapsedMs)
-                                                                .coerceAtLeast(0L)
-                                                        if (stageElapsedMs >= 2_000L) {
-                                                            val estimateSeconds = (
-                                                                stageElapsedMs.toDouble() *
-                                                                    (100 - progress).toDouble() /
-                                                                    progress.toDouble() / 1_000.0
-                                                                ).roundToInt()
-                                                            processingEtaSeconds =
-                                                                estimateSeconds.coerceIn(1, 3_600)
-                                                        }
-                                                    } else if (progress >= 100) {
-                                                        processingEtaSeconds = -1
-                                                    }
-                                                    val aiModelLabel = when (model) {
-                                                        HdmpAiEngine.Model.NAFNET_WIDTH64 ->
-                                                            if (progress == 0) "HDMP AI 2 • đang khởi tạo"
-                                                            else "HDMP AI 2 • đang xử lý"
-                                                        HdmpAiEngine.Model.NAFNETLIB_WIDTH32 ->
-                                                            if (progress == 0) "HDMP AI 1.5 • đang khởi tạo"
-                                                            else "HDMP AI 1.5 • đang xử lý"
-                                                        HdmpAiEngine.Model.CLASSICAL_ONLY ->
-                                                            "OFF HDMP AI • chụp thường"
-                                                    }
-                                                    processingLabel = "$aiModelLabel · $progress%"
-                                                    processingProgress =
-                                                        (35 + progress * 0.09f).roundToInt().coerceIn(35, 44)
-                                                }
-                                            }
-                                        )
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        isHdmpAiPrimaryRunning = false
+                                        processingLabel = "LunaDream 1.5 · xử lý ảnh đơn"
+                                        processingProgress = 42
                                         processingEtaSeconds = -1
                                     }
-                                    result
-                                } else {
-                                    HdmpAiEngine.Result(
-                                        HdmpAiEngine.Model.CLASSICAL_ONLY,
-                                        false,
-                                        "OFF HDMP AI • chụp thường."
-                                    )
+                                    withContext(Dispatchers.IO) {
+                                        NightShotProcessor.processLunaDreamSingleFrame(context, saved)
+                                    }
+                                } else false
+                                val lunaDreamApplied = when {
+                                    captureUseLunaDream15 -> lunaDream15Processed
+                                    captureUseLunaDream20 -> nightShotMerged
+                                    else -> false
                                 }
-                                // The selected NAFNet model is the complete HDMP stage.
-                                // Do not run the legacy classical HDMP pass after AI rendering.
-                                val hdmpApplied = hdmpWorkerCount > 0 && hdmpAiResult.applied
                                 withContext(Dispatchers.Main) {
-                                    processingLabel = if (hdmpApplied) {
-                                        "${hdmpAiResult.model} • HDMP AI hoàn tất"
-                                    } else if (hdmpWorkerCount > 0) {
-                                        "HDMP AI chưa hoàn tất · ảnh gốc được giữ nguyên"
-                                    } else {
-                                        "Chế độ chụp thường"
+                                    processingLabel = when {
+                                        captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · phục hồi ảnh đơn hoàn tất"
+                                        captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép và phục hồi chi tiết hoàn tất"
+                                        captureUseLunaDream -> "LunaDream · xử lý chưa hoàn tất, giữ ảnh gốc"
+                                        else -> "Đang hoàn tất ảnh"
                                     }
                                     processingProgress = 60
                                     processingEtaSeconds = -1
                                 }
-                                withContext(Dispatchers.Main) {
-                                    processingProgress = 60
-                                    processingEtaSeconds = -1
-                                }
-                                val softwareHdrProfile = if (
-                                    captureUseUhdPlusAlgorithm || captureUseUhdAlgorithm || captureUseFhdAlgorithm
-                                ) 10 else 2
+                                val softwareHdrProfile = 2
                                 val softwareHdrApplied = if (
                                     !captureIsUltraHdr && captureUseSoftwareHdr
                                 ) {
@@ -2768,22 +2658,22 @@ fun CameraScreen(
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = captureUseNightShot || captureUseHdmpResolution
+                                        preservePhotoAspectRatio = captureUseNightShot || captureUseLunaDream
                                     )
                                 }.getOrDefault(false)
 
                                 val outputResolutionResult = if (
                                     !captureIsUltraHdr &&
-                                    (captureUseNightShot || (captureUseHdmpResolution && hdmpAiResult.applied)) &&
+                                    (captureUseNightShot || (captureUseLunaDream && lunaDreamApplied)) &&
                                     !captureRawOnly && !captureRawPlus
                                 ) {
-                                    val targetPixels = if (captureUseNightShot) {
-                                        60_000_000L
-                                    } else {
-                                        hdmpOutputMp.toLong() * 1_000_000L
+                                    val targetPixels = when {
+                                        captureUseNightShot -> 60_000_000L
+                                        captureUseLunaDream15 -> 50_000_000L
+                                        else -> 108_000_000L
                                     }
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "HDMP đang tối ưu kích thước ${targetPixels / 1_000_000L}MP theo RAM và tỉ lệ ảnh"
+                                        processingLabel = "LunaDream đang tối ưu kích thước ${targetPixels / 1_000_000L}MP theo bộ nhớ"
                                         processingProgress = 84
                                         processingEtaSeconds = -1
                                     }
@@ -2796,7 +2686,7 @@ fun CameraScreen(
                                                 expectedAspectRatioForCapture
                                             )
                                         }.onFailure {
-                                            android.util.Log.e("FUJI_HDMP", "Algorithmic interpolation failed; keep source", it)
+                                            android.util.Log.e("FUJI_LUNADREAM", "Output sizing failed; original retained", it)
                                         }.getOrNull()
                                     }
                                 } else null
@@ -2810,20 +2700,19 @@ fun CameraScreen(
                                 // No later rotation is allowed to move the frame away from the
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
-                                val inspectorHdmpStatus = when {
-                                    captureUseLunaDream && nightShotMerged -> "HDMP LunaDream 2.0 · căn chỉnh đa khung và khử nhiễu"
-                                    captureUseLunaDream -> "HDMP LunaDream 2.0 chưa hoàn tất · giữ ảnh gốc"
-                                    hdmpWorkerCount <= 0 -> if (hdmpRenderProfile == "off") "OFF HDMP AI · chụp thường" else "HDMP AI không áp dụng cho kiểu chụp này"
-                                    !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
-                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
-                                    hdmpAiResult.model == HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> "HDMP AI 1.5 · NAFNet width32"
-                                    else -> "Chế độ chụp thường · HDMP AI đang tắt"
+                                val inspectorLunaDreamStatus = when {
+                                    captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · xử lý ảnh đơn"
+                                    captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép đa khung và phục hồi chi tiết"
+                                    captureUseLunaDream -> "LunaDream chưa hoàn tất · giữ ảnh gốc"
+                                    captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
+                                    captureUseNightShot -> "NightShotMode · chụp đêm"
+                                    else -> "Chụp ảnh thường"
                                 }
                                 val inspectorOutputSize = outputResolutionResult?.let {
                                     "${it.width}×${it.height} · ${(it.actualPixels + 500_000L) / 1_000_000L}MP"
                                 } ?: "Không nội suy độ phân giải"
                                 appPrefs.edit()
-                                    .putString("photo_hdmp_status:$saved", inspectorHdmpStatus)
+                                    .putString("photo_lunadream_status:$saved", inspectorLunaDreamStatus)
                                     .putString("photo_camera_id:$saved", activeCameraDetails?.id ?: "Không công bố")
                                     .putString("photo_physical_camera_id:$saved", activePhysicalCameraId ?: "HAL không công bố")
                                     .putString("photo_output_size:$saved", inspectorOutputSize)
@@ -2836,43 +2725,26 @@ fun CameraScreen(
                                     lastUri = saved
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
+                                    val actualOutputMp = outputResolutionResult?.let {
+                                        ((it.actualPixels + 500_000L) / 1_000_000L).toInt()
+                                    } ?: 0
                                     val message = when {
-                                        captureUseNightShot && orientationLabelFixed && hdmpApplied && outputResolutionApplied ->
-                                            "Đã lưu NightShotMode · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
+                                        captureUseLunaDream15 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 1.5 · 50MP."
+                                            else "Đã lưu LunaDream 1.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                        captureUseLunaDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
+                                            else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                        captureUseLunaDream && !lunaDreamApplied ->
+                                            "LunaDream chưa xử lý hoàn tất. Ảnh gốc được giữ lại; chế độ LunaDream vẫn được chọn."
+                                        captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied ->
+                                            "LunaDream đã phục hồi ảnh nhưng không thể đạt kích thước đầu ra an toàn; ảnh đã xử lý được giữ lại."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
-                                            if (hdmpApplied && outputResolutionApplied) "Đã lưu NightShotMode · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
-                                            else "Đã lưu NightShotMode · đã ghép khung; ảnh gốc vẫn được giữ nếu HDMP không khả dụng."
+                                            "Đã lưu NightShotMode · ${nightShotCapturedFrameCount} khung thực tế."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
                                             "NightShotMode đã xử lý bằng chế độ NIGHT của camera."
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShotMode không ghép đủ khung hình; ảnh gốc vẫn được giữ."
-                                        captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh UHD+ ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
-                                                if (outputResolutionResult!!.reachedRequestedSize) {
-                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
-                                                } else {
-                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
-                                                }
-                                        captureUseUhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh UHD ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
-                                                if (outputResolutionResult!!.reachedRequestedSize) {
-                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
-                                                } else {
-                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
-                                                }
-                                        captureUseFhdAlgorithm && outputResolutionApplied && orientationLabelFixed ->
-                                            "Đã xuất ảnh FHD ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
-                                                if (outputResolutionResult!!.reachedRequestedSize) {
-                                                    " · HDMP xử lý ảnh nguồn trước khi nội suy."
-                                                } else {
-                                                    " · đã tự giới hạn theo RAM an toàn; vẫn giữ đúng tỉ lệ khung hình."
-                                                }
-                                        captureUseUhdPlusAlgorithm && !outputResolutionApplied ->
-                                            "Ảnh đã lưu nhưng UHD+ không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
-                                        captureUseUhdAlgorithm && !outputResolutionApplied ->
-                                            "Ảnh đã lưu nhưng UHD không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
-                                        captureUseFhdAlgorithm && !outputResolutionApplied ->
-                                            "Ảnh đã lưu nhưng FHD không thể nội suy an toàn trên mức RAM hiện tại; giữ nguyên ảnh đã chụp."
                                         captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
                                         captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
@@ -2881,33 +2753,20 @@ fun CameraScreen(
                                         watermarkRequested && !stamped -> "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark."
                                         lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc màu."
                                         lookApplied -> "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh."
-                                        orientationLabelFixed && outputResolutionApplied -> "Đã lưu ảnh nội suy thuật toán; số pixel tăng, không tăng chi tiết quang học."
+                                        orientationLabelFixed && outputResolutionApplied -> "Đã lưu ảnh đã tối ưu kích thước đầu ra."
                                         orientationLabelFixed && softwareHdrApplied -> "Đã lưu ảnh đúng hướng; đã áp dụng Software HDR."
                                         orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
                                     val finalMessage = if (captureIsUltraHdr) message
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
-                                    val aiStatusSuffix = if (hdmpWorkerCount > 0) {
-                                        if (!hdmpAiResult.applied) {
-                                            " ${hdmpAiResult.detail}"
-                                        } else {
-                                            when (hdmpAiResult.model) {
-                                                HdmpAiEngine.Model.NAFNET_WIDTH64 -> " HDMP AI 2 đã xử lý ảnh."
-                                                HdmpAiEngine.Model.NAFNETLIB_WIDTH32 -> " HDMP AI 1.5 đã xử lý ảnh."
-                                                HdmpAiEngine.Model.CLASSICAL_ONLY -> ""
-                                            }
-                                        }
-                                    } else if (captureUseLunaDream) {
-                                        if (nightShotMerged) {
-                                            " HDMP LunaDream 2.0 đã ghép và khử nhiễu ảnh."
-                                        } else {
-                                            " HDMP LunaDream 2.0 chưa ghép được; ảnh gốc được giữ lại."
-                                        }
-                                    } else if (hdmpRenderProfile == "off") {
-                                        " OFF HDMP AI · ảnh chụp thường."
-                                    } else ""
-                                    localizedToast(context, finalMessage + aiStatusSuffix, Toast.LENGTH_LONG).show()
+                                    val lunaDreamStatusSuffix = when {
+                                        captureUseLunaDream15 && lunaDreamApplied -> " LunaDream 1.5 đã xử lý một khung hình."
+                                        captureUseLunaDream20 && lunaDreamApplied -> " LunaDream 2.0 đã ghép và phục hồi chi tiết đa khung."
+                                        captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
+                                        else -> ""
+                                    }
+                                    localizedToast(context, finalMessage + lunaDreamStatusSuffix, Toast.LENGTH_LONG).show()                                    localizedToast(context, finalMessage + aiStatusSuffix, Toast.LENGTH_LONG).show()
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {
@@ -3101,7 +2960,7 @@ fun CameraScreen(
                             onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 } },
                             tint = if (timerSec > 0) CamColors.Yellow else Color.White
                         )
-                        if (mode == "Photo" && nightShotMode == "off" &&
+                        if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" &&
                             rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
                         ) {
                             CircleBtn(
@@ -4058,11 +3917,11 @@ fun CameraScreen(
                             }
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled || nightShotMode == "night") Color(0x66F5C842) else CamColors.Glass)
-                                .animaTClickable { showHdmp = true }
+                                .background(if (lunaDreamMode != "off" || nightShotMode == "night") Color(0x66F5C842) else CamColors.Glass)
+                                .animaTClickable { showLunaDream = true }
                                 .padding(horizontal = 15.dp, vertical = 7.dp)) {
-                                Text("HDMP",
-                                    color = if (uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled || nightShotMode == "night") CamColors.Yellow else CamColors.TextColor,
+                                Text("LunaDream",
+                                    color = if (lunaDreamMode != "off" || nightShotMode == "night") CamColors.Yellow else CamColors.TextColor,
                                     fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -4097,7 +3956,7 @@ fun CameraScreen(
                 Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp).then(orientationMotion),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(Modifier.weight(1f).fillMaxHeight()) {
+                Column(Modifier.weight(1.24f).fillMaxHeight()) {
                     AnimatedVisibility(
                         visible = hudVisible,
                         enter = fadeIn(tween(180)) + slideInHorizontally { -it / 24 },
@@ -4114,7 +3973,7 @@ fun CameraScreen(
                     exit = fadeOut(tween(170)) + slideOutHorizontally { it / 28 }
                 ) {
                     controlsContent(
-                        Modifier.width(248.dp).fillMaxHeight()
+                        Modifier.weight(0.76f).fillMaxHeight()
                             .verticalScroll(rememberScrollState())
                             .padding(bottom = 8.dp)
                     )
@@ -4237,7 +4096,7 @@ stabilization = stabilization,
                         color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 7.dp)
                     )
-                    Text("Giữ máy ổn định đến khi thu và ghép xong. Khi HDMP bắt đầu xử lý, có thể di chuyển tự do.",
+                    Text("Giữ máy ổn định đến khi thu và ghép xong. Khi LunaDream bắt đầu xử lý, có thể di chuyển tự do.",
                         color = CamColors.Sub, fontSize = 11.sp,
                         modifier = Modifier.padding(top = 5.dp))
                 }
@@ -4279,7 +4138,7 @@ stabilization = stabilization,
                 ) {
                     "Giữ máy ổn định · đang thu/ghép khung hình"
                 } else {
-                    "Có thể di chuyển máy tự do · HDMP đang xử lý ảnh"
+                    "Có thể di chuyển máy tự do · LunaDream đang xử lý ảnh"
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -4319,20 +4178,11 @@ stabilization = stabilization,
                     modifier = Modifier.padding(top = 5.dp)
                 )
                 Text(
-                    "Thermal Android: $androidThermalText · HDMP: " +
-                        if (hdmpActiveWorkerCount > 0) "$hdmpActiveWorkerCount luồng thích ứng" else "đang chuẩn bị",
+                    "Trạng thái nhiệt Android: $androidThermalText",
                     color = CamColors.Sub,
                     fontSize = 10.sp,
                     modifier = Modifier.padding(top = 3.dp)
                 )
-                 if (hdmpTileProgressText.isNotBlank()) {
-                     Text(
-                         hdmpTileProgressText,
-                         color = CamColors.Yellow,
-                         fontSize = 10.sp,
-                         modifier = Modifier.padding(top = 3.dp)
-                     )
-                 }
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                     drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
@@ -4354,9 +4204,9 @@ stabilization = stabilization,
             )
         }
 
-        if (showHdmp) {
-            HdmpBottomSheet(
-                onDismiss = { showHdmp = false },
+        if (showLunaDream) {
+            LunaDreamBottomSheet(
+                onDismiss = { showLunaDream = false },
                 nightShotEnabled = nightShotMode == "night",
                 nightShotDurationSeconds = nightShotDurationSeconds,
                 onCycleNightShot = {
@@ -4374,10 +4224,11 @@ stabilization = stabilization,
                         }
                     }
                 },
-                renderProfile = hdmpRenderProfile,
-                onRenderProfileChange = { hdmpRenderProfile = it },
-                outputMegapixels = hdmpOutputMp,
-                onOutputMegapixelsChange = { hdmpOutputMp = HdmpSelectionPolicy.normalizeOutputMegapixels(it) }
+                selectedMode = lunaDreamMode,
+                onSelectedModeChange = {
+                    lunaDreamMode = it
+                    appPrefs.edit().putString("lunadream_mode", it).apply()
+                }
             )
         }
 
@@ -4391,7 +4242,7 @@ stabilization = stabilization,
                     if (image != null) {
                         Image(
                             bitmap = image,
-                            contentDescription = if (viewerShowsOriginal) "Ảnh gốc trước HDMP AI" else "Ảnh sau xử lý",
+                            contentDescription = if (viewerShowsOriginal) "Ảnh gốc trước LunaDream" else "Ảnh sau LunaDream",
                             modifier = Modifier.fillMaxSize().padding(12.dp),
                             contentScale = ContentScale.Fit
                         )
@@ -4404,7 +4255,7 @@ stabilization = stabilization,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                if (viewerShowsOriginal) "ẢNH GỐC · TRƯỚC HDMP AI" else "ẢNH ĐÃ XỬ LÝ · HDMP AI",
+                                if (viewerShowsOriginal) "ẢNH GỐC · TRƯỚC LUNADREAM" else "ẢNH ĐÃ XỬ LÝ · LUNADREAM",
                                 color = CamColors.Yellow,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
@@ -4415,7 +4266,7 @@ stabilization = stabilization,
                                     .padding(4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                listOf(false to "Sau HDMP", true to "Ảnh gốc").forEach { (showOriginal, label) ->
+                                listOf(false to "Sau LunaDream", true to "Ảnh gốc").forEach { (showOriginal, label) ->
                                     Text(
                                         label,
                                         color = if (viewerShowsOriginal == showOriginal) Color.Black else Color.White,
@@ -4565,6 +4416,9 @@ private fun FilterLookDialog(
     onSelectFilter: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val dialogMaxHeight = (configuration.screenHeightDp * 0.84f).dp
+    val previewHeight = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 82.dp else 150.dp
     val scope = rememberCoroutineScope()
     var category by remember { mutableStateOf("Tất cả") }
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
@@ -4611,7 +4465,7 @@ private fun FilterLookDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxWidth(0.96f).heightIn(max = 700.dp)
+            Modifier.fillMaxWidth(0.96f).heightIn(max = dialogMaxHeight)
                 .clip(RoundedCornerShape(22.dp)).background(CamColors.Bg).padding(15.dp)
         ) {
             Row(
@@ -4642,7 +4496,7 @@ private fun FilterLookDialog(
                 modifier = Modifier.padding(bottom = 6.dp)
             )
             Box(
-                Modifier.fillMaxWidth().height(150.dp)
+                Modifier.fillMaxWidth().height(previewHeight)
                     .clip(RoundedCornerShape(12.dp)).background(CamColors.Card)
             ) {
                 FilterLookPreviewImage(

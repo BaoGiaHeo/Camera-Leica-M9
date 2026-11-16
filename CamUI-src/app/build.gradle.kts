@@ -12,8 +12,8 @@ android {
         applicationId = "com.fujifilm.mode"
         minSdk = 29
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.6"
+        versionCode = 8
+        versionName = "2.0.0Dream"
 
     }
 
@@ -24,6 +24,8 @@ android {
         }
         release {
             isMinifyEnabled = false
+            // Debug signing keeps CI output directly installable for on-device testing.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -57,8 +59,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
-    // CPU ONNX Runtime keeps AI inference deterministic across Android camera vendors.
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
     implementation(platform("androidx.compose:compose-bom:2024.10.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.animation:animation")

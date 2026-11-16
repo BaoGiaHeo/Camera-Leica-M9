@@ -3,18 +3,22 @@ package com.example.camui
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
+import android.view.OrientationEventListener
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -23,31 +27,36 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.delay
 
 class MainActivity : AppCompatActivity() {
-    /**
-     * The manifest opts this Activity into handling orientation/size changes. Keeping the
-     * Activity and its Compose composition alive prevents rememberCoroutineScope work in
-     * CameraScreen (including an active HDMP render) from being cancelled by rotation.
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         hideStatusBar()
     }
 
-    /**
-     * Open the device gallery. Fall back to the system image viewer, then to the
-     * in-app album on devices that do not expose either external activity.
-     */
     private fun openDeviceGallery(latestPhoto: Uri?): Boolean {
         val galleryIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_APP_GALLERY)
@@ -56,9 +65,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(galleryIntent)
             return true
         } catch (_: ActivityNotFoundException) {
-            // Some OEM gallery apps do not publish CATEGORY_APP_GALLERY.
         } catch (_: SecurityException) {
-            // Continue with the content-URI image viewer fallback.
         }
 
         if (latestPhoto != null) {
@@ -70,9 +77,7 @@ class MainActivity : AppCompatActivity() {
                 startActivity(imageIntent)
                 return true
             } catch (_: ActivityNotFoundException) {
-                // No compatible external image viewer is installed.
             } catch (_: SecurityException) {
-                // Fall through to the in-app album.
             }
         }
         return false
@@ -94,10 +99,11 @@ class MainActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideStatusBar()
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Request Android's camera-friendly seamless rotation transition (API 26+).
-        // The system may fall back to crossfade when a seamless surface rotation is unavailable.
+        // The app starts in portrait. Sensor rotation only offers a button; it never rotates the UI itself.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         window.attributes = window.attributes.apply {
             rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
         }
@@ -114,6 +120,40 @@ class MainActivity : AppCompatActivity() {
                     mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))
                 }
                 var thermalStatus by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
+                var appLandscape by remember { mutableStateOf(false) }
+                var physicalLandscape by remember { mutableStateOf<Boolean?>(null) }
+                var rotatePromptTarget by remember { mutableStateOf<Boolean?>(null) }
+                var showRotatePrompt by remember { mutableStateOf(false) }
+
+                val orientationListener = remember {
+                    object : OrientationEventListener(this@MainActivity) {
+                        override fun onOrientationChanged(orientation: Int) {
+                            if (orientation == ORIENTATION_UNKNOWN) return
+                            val sensorLandscape = orientation in 45..135 || orientation in 225..315
+                            if (physicalLandscape != sensorLandscape) {
+                                physicalLandscape = sensorLandscape
+                                if (sensorLandscape != appLandscape) {
+                                    rotatePromptTarget = sensorLandscape
+                                    showRotatePrompt = true
+                                } else {
+                                    rotatePromptTarget = null
+                                    showRotatePrompt = false
+                                }
+                            }
+                        }
+                    }
+                }
+                DisposableEffect(orientationListener) {
+                    if (orientationListener.canDetectOrientation()) orientationListener.enable()
+                    onDispose { orientationListener.disable() }
+                }
+                LaunchedEffect(showRotatePrompt, rotatePromptTarget) {
+                    if (showRotatePrompt && rotatePromptTarget != null) {
+                        delay(10_000L)
+                        showRotatePrompt = false
+                    }
+                }
+
                 DisposableEffect(Unit) {
                     val powerManager = this@MainActivity.getSystemService(Context.POWER_SERVICE) as? PowerManager
                     val listener = PowerManager.OnThermalStatusChangedListener { status ->
@@ -133,58 +173,91 @@ class MainActivity : AppCompatActivity() {
                 var ratioIdx by remember { mutableIntStateOf(settingsPrefs.getInt("capture_ratio_index", 1).coerceIn(0, 4)) }
 
                 BackHandler(enabled = page != "camera") { page = "camera" }
-                AnimatedContent(
-                    targetState = page,
-                    modifier = Modifier.fillMaxSize(),
-                    // Each destination rises from a slightly smaller card and expands to full screen.
-                    transitionSpec = { AnimaT.enter(animationPerformanceMode) togetherWith AnimaT.exit(animationPerformanceMode) },
-                    label = "Fujifilm Mode page transition"
-                ) { targetPage ->
-                when (targetPage) {
-                    "album" -> AlbumScreen(onBack = { page = "camera" })
-                    "settings" -> SettingsScreen(
-                        onBack = { page = "camera" },
-                        ratioIdx = ratioIdx,
-                        onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
-                        showGrid = showGrid,
-                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
-                        showHist = showHist,
-                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
-                        focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
-                    )
-                    "toolbox" -> ToolboxScreen(
-                        onBack = { page = "camera" },
-                        showGrid = showGrid,
-                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
-                        showHist = showHist,
-                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
-                        focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                        animationPerformanceMode = manualAnimationPerformanceMode,
-                        onAnimationPerformanceModeChanged = {
-                            manualAnimationPerformanceMode = it
-                            settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
+                Box(Modifier.fillMaxSize()) {
+                    AnimatedContent(
+                        targetState = page,
+                        modifier = Modifier.fillMaxSize(),
+                        transitionSpec = { AnimaT.enter(animationPerformanceMode) togetherWith AnimaT.exit(animationPerformanceMode) },
+                        label = "FujiFilm Mode page transition"
+                    ) { targetPage ->
+                        when (targetPage) {
+                            "album" -> AlbumScreen(onBack = { page = "camera" })
+                            "settings" -> SettingsScreen(
+                                onBack = { page = "camera" },
+                                ratioIdx = ratioIdx,
+                                onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
+                                showGrid = showGrid,
+                                onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
+                                showHist = showHist,
+                                onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
+                                focusPeaking = focusPeaking,
+                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
+                            )
+                            "toolbox" -> ToolboxScreen(
+                                onBack = { page = "camera" },
+                                showGrid = showGrid,
+                                onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
+                                showHist = showHist,
+                                onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
+                                focusPeaking = focusPeaking,
+                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                                animationPerformanceMode = manualAnimationPerformanceMode,
+                                onAnimationPerformanceModeChanged = {
+                                    manualAnimationPerformanceMode = it
+                                    settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
+                                }
+                            )
+                            "contents" -> ContentManagementScreen(onBack = { page = "camera" })
+                            else -> CameraScreen(
+                                onOpenSettings = { page = "settings" },
+                                onOpenToolbox = { page = "toolbox" },
+                                onOpenContentManagement = { page = "contents" },
+                                onOpenAlbum = { latestPhoto ->
+                                    if (!openDeviceGallery(latestPhoto)) page = "album"
+                                },
+                                showGrid = showGrid,
+                                onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
+                                showHist = showHist,
+                                onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
+                                focusPeaking = focusPeaking,
+                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                                ratioIdx = ratioIdx,
+                                onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() }
+                            )
                         }
-                    )
-                    "contents" -> ContentManagementScreen(onBack = { page = "camera" })
-                    else -> CameraScreen(
-                        onOpenSettings = { page = "settings" },
-                        onOpenToolbox = { page = "toolbox" },
-                        onOpenContentManagement = { page = "contents" },
-                        onOpenAlbum = { latestPhoto ->
-                            if (!openDeviceGallery(latestPhoto)) page = "album"
-                        },
-                        showGrid = showGrid,
-                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
-                        showHist = showHist,
-                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
-                        focusPeaking = focusPeaking,
-                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                        ratioIdx = ratioIdx,
-                        onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() }
-                    )
-                }
+                    }
+                    AnimatedVisibility(
+                        visible = showRotatePrompt && rotatePromptTarget != null,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
+                        enter = fadeIn(tween(260)) + scaleIn(initialScale = 0.88f) +
+                            slideInVertically(initialOffsetY = { -it / 2 }),
+                        exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.92f)
+                    ) {
+                        val targetLandscape = rotatePromptTarget ?: false
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(26.dp))
+                                .background(ComposeColor(0xE91B1B1B))
+                                .border(1.dp, ComposeColor.White.copy(alpha = 0.24f), RoundedCornerShape(26.dp))
+                                .clickable {
+                                    appLandscape = targetLandscape
+                                    requestedOrientation = if (targetLandscape) {
+                                        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                    } else {
+                                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                    }
+                                    rotatePromptTarget = null
+                                    showRotatePrompt = false
+                                }
+                                .padding(horizontal = 18.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                if (targetLandscape) "↻  Xoay ngang" else "↻  Xoay dọc",
+                                color = ComposeColor.White,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
                 }
             }
         }

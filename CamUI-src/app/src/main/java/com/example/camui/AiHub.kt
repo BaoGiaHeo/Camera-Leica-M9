@@ -1,6 +1,20 @@
 package com.example.camui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,38 +22,60 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val HdmpYellow = Color(0xFFF5C518)
-private val HdmpMuted = Color(0xFFAAAAAA)
+private val LunaYellow = Color(0xFFF5C518)
+private val LunaMuted = Color(0xFFAAAAAA)
+private val LunaRainbow = listOf(
+    Color(0xFFFF5C8A), Color(0xFFFFB45C), Color(0xFFFFE66D),
+    Color(0xFF67E8B5), Color(0xFF62C9FF), Color(0xFFAA83FF),
+    Color(0xFFFF76D2)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HdmpBottomSheet(
+fun LunaDreamBottomSheet(
     onDismiss: () -> Unit,
     nightShotEnabled: Boolean,
     nightShotDurationSeconds: Int,
     onCycleNightShot: () -> Unit,
-    renderProfile: String,
-    onRenderProfileChange: (String) -> Unit,
-    outputMegapixels: Int,
-    onOutputMegapixelsChange: (Int) -> Unit
+    selectedMode: String,
+    onSelectedModeChange: (String) -> Unit
 ) {
+    val configuration = LocalConfiguration.current
+    val maxSheetHeight = (configuration.screenHeightDp * 0.84f).dp
+    val transition = rememberInfiniteTransition(label = "lunadream-rainbow")
+    val rainbowPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(8_000, easing = LinearEasing)),
+        label = "lunadream-rainbow-phase"
+    )
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF161616),
@@ -55,112 +91,147 @@ fun HdmpBottomSheet(
         }
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding()
-                .padding(horizontal = 20.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth()
+                .heightIn(max = maxSheetHeight)
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = 18.dp).padding(bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
-            Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("LunaDream", color = LunaYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Chọn HDMP AI 2, HDMP AI 1.5, HDMP LunaDream 2.0 hoặc OFF trước khi chụp. Mỗi chế độ giữ đúng thuật toán đã chọn.",
-                color = HdmpMuted, fontSize = 12.sp, lineHeight = 17.sp
+                "Chọn chế độ trước khi chụp. LunaDream giữ nguyên lựa chọn trong suốt quá trình xử lý.",
+                color = LunaMuted, fontSize = 12.sp, lineHeight = 17.sp
             )
-            Text("CHẾ ĐỘ XỬ LÝ HDMP", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf(
-                    "ai2" to "HDMP AI 2",
-                    "ai15" to "HDMP AI 1.5",
-                    "luna" to "LunaDream 2.0",
-                    "off" to "OFF"
-                ).forEach { (value, title) ->
-                    val selected = renderProfile == value
-                    Box(
-                        modifier = Modifier.weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (selected) HdmpYellow else Color(0xFF292929))
-                            .clickable { onRenderProfileChange(value) }
-                            .padding(vertical = 13.dp, horizontal = 5.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            title,
-                            color = if (selected) Color.Black else Color.White,
-                            fontSize = if (value == "luna") 8.sp else 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-            Text(
-                when (HdmpSelectionPolicy.normalizeModel(renderProfile)) {
-                    "off" -> "OFF HDMP AI · chụp thường, không chạy mô hình AI và không nội suy HDMP."
-                    "ai15" -> "HDMP AI 1.5 · width32 · ưu tiên tốc độ, khử nhiễu và phục hồi chi tiết. Mục tiêu 10 giây."
-                    "luna" -> "HDMP LunaDream 2.0 · thuật toán ghép đa khung riêng, không dùng NAFNet; căn chỉnh Lucas–Kanade, khử nhiễu theo chuyển động và phục hồi độ nét. Mục tiêu tối đa 60 giây."
-                    else -> "HDMP AI 2 · width64 · ưu tiên chất lượng, khử nhiễu và phục hồi chi tiết. Mục tiêu 20 giây."
-                },
-                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+            LunaDreamModeRow(
+                title = "LunaDream 1.5",
+                subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
+                selected = selectedMode == "luna15",
+                intensity = 0.58f,
+                phase = rainbowPhase,
+                onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
             )
-            HorizontalDivider(color = Color(0xFF333333))
-            if (HdmpSelectionPolicy.normalizeModel(renderProfile) != "luna") {
-                Text("ĐỘ PHÂN GIẢI ĐẦU RA", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
-                    listOf(24, 48, 60, 108, 250).forEach { mp ->
-                        val selected = outputMegapixels == mp
-                        Box(
-                            modifier = Modifier.weight(1f)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(if (selected) HdmpYellow else Color(0xFF292929))
-                                .clickable { onOutputMegapixelsChange(mp) }
-                                .padding(vertical = 12.dp, horizontal = 1.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "${mp}MP",
-                                color = if (selected) Color.Black else Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
+            LunaDreamModeRow(
+                title = "LunaDream 2.0",
+                subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
+                selected = selectedMode == "luna20",
+                intensity = 1f,
+                phase = rainbowPhase,
+                onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
+            )
+            if (selectedMode == "off") {
                 Text(
-                    "AI 1.5 và AI 2 xử lý ảnh đơn theo độ phân giải đã chọn. Số megapixel thực tế có thể bị giới hạn bởi cảm biến hoặc RAM.",
-                    color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
-                )
-            } else {
-                Text(
-                    "LunaDream 2.0 ghép tối đa 8 khung hình, giữ tỷ lệ gốc và giới hạn tối đa 60MP; độ phân giải có thể tự giảm khi RAM không đủ.",
-                    color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+                    "LunaDream đang tắt. Không có hiệu ứng rainbow hoặc ngôi sao glass.",
+                    color = LunaMuted, fontSize = 11.sp
                 )
             }
             HorizontalDivider(color = Color(0xFF333333))
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF202020)).animaTClickable(onClick = onCycleNightShot).padding(13.dp),
+                    .background(Color(0xFF202020)).clickable(onClick = onCycleNightShot)
+                    .padding(13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("NightShot", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("NightShotMode", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "NightShot có pipeline ghép ảnh đêm và tăng sáng riêng. LunaDream 2.0 là chế độ ghép đa khung HDMP độc lập.",
-                        color = HdmpMuted, fontSize = 11.sp, lineHeight = 15.sp
+                        "Chụp đêm và Star Trails có pipeline riêng.",
+                        color = LunaMuted, fontSize = 11.sp, lineHeight = 15.sp
                     )
                     Text(
-                        if (nightShotEnabled) "ĐANG BẬT · ${nightShotDurationSeconds}s" else "NIGHTSHOT · TẮT",
-                        color = if (nightShotEnabled) HdmpYellow else Color(0xFF888888),
+                        if (nightShotEnabled) "ĐANG BẬT · " + nightShotDurationSeconds + "s" else "NIGHTSHOT · TẮT",
+                        color = if (nightShotEnabled) LunaYellow else Color(0xFF888888),
                         fontSize = 10.sp, fontWeight = FontWeight.Medium
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    if (nightShotEnabled) "${nightShotDurationSeconds}s" else "OFF",
-                    color = if (nightShotEnabled) HdmpYellow else Color(0xFFAAAAAA),
+                    if (nightShotEnabled) nightShotDurationSeconds.toString() + "s" else "OFF",
+                    color = if (nightShotEnabled) LunaYellow else LunaMuted,
                     fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
             }
             Text(
-                "Milky Way được bật/tắt trong Cài đặt → NightShot. Khi HDMP bắt đầu xử lý sau khi đã thu/ghép xong, có thể di chuyển điện thoại tự do.",
-                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+                "Milky Way được bật/tắt trong Cài đặt → NightShotMode.",
+                color = LunaMuted, fontSize = 11.sp, lineHeight = 16.sp
             )
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun LunaDreamModeRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    intensity: Float,
+    phase: Float,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val glowAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = tween(480),
+        label = "lunadream-toggle-glow"
+    )
+    val shape = RoundedCornerShape(16.dp)
+    val rainbowBrush = Brush.sweepGradient(
+        colors = LunaRainbow.map { it.copy(alpha = glowAlpha * intensity) }
+    )
+    Box(
+        modifier = Modifier.fillMaxWidth()
+            .clip(shape)
+            .background(
+                if (glowAlpha > 0.01f) {
+                    Brush.sweepGradient(
+                        colors = LunaRainbow.map { it.copy(alpha = glowAlpha * intensity * 0.12f) }
+                    )
+                } else {
+                    Brush.linearGradient(listOf(Color(0xFF222222), Color(0xFF202020)))
+                }
+            )
+            .then(
+                if (glowAlpha > 0.01f) Modifier.border(
+                    width = if (intensity > 0.9f) 1.8.dp else 1.2.dp,
+                    brush = rainbowBrush,
+                    shape = shape
+                ) else Modifier.border(1.dp, Color(0xFF343434), shape)
+            )
+            .padding(horizontal = 12.dp, vertical = 11.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    AnimatedVisibility(
+                        visible = selected,
+                        enter = fadeIn(tween(260)) + scaleIn(initialScale = 0.35f, animationSpec = tween(360)) +
+                            slideInHorizontally(initialOffsetX = { it / 2 }, animationSpec = tween(360)),
+                        exit = fadeOut(tween(220)) + scaleOut(targetScale = 0.35f, animationSpec = tween(260)) +
+                            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.White.copy(alpha = 0.10f))
+                                .border(0.7.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(50))
+                                .padding(horizontal = 6.dp, vertical = 1.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "✦",
+                                color = Color.White.copy(alpha = 0.25f),
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.Light,
+                                modifier = Modifier.graphicsLayer { rotationZ = phase * 360f }
+                            )
+                        }
+                    }
+                }
+                Text(subtitle, color = LunaMuted, fontSize = 10.sp, lineHeight = 14.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = selected, onCheckedChange = onCheckedChange)
         }
     }
 }

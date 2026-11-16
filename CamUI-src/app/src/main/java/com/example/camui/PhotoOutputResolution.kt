@@ -28,12 +28,12 @@ data class PhotoOutputResult(
 }
 
 /**
- * HDMP algorithmic resampling. It preserves the source frame ratio and reduces the
+ * LunaDream output sizing. It preserves the source frame ratio and reduces the
  * requested target only when the current device heap cannot safely hold the output bitmap.
- * This is interpolation, not optical detail recovery.
+ * Resampling sets pixel dimensions; it does not create optical detail.
  */
 object PhotoOutputResolution {
-    private const val TAG = "FUJI_HDMP_RESAMPLE"
+    private const val TAG = "FUJI_LUNADREAM_RESAMPLE"
     private const val MIN_OUTPUT_PIXELS = 10_000_000L
     private const val RESERVED_HEAP_BYTES = 96L * 1024L * 1024L
     private const val HEAP_BUDGET_FRACTION = 0.75
@@ -48,8 +48,8 @@ object PhotoOutputResolution {
             "Unsupported output pixel target"
         }
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
-        val temp = File(context.cacheDir, "fuji-hdmp-$stamp.jpg")
-        val backup = File(context.cacheDir, "fuji-hdmp-original-$stamp.jpg")
+        val temp = File(context.cacheDir, "fuji-lunadream-$stamp.jpg")
+        val backup = File(context.cacheDir, "fuji-lunadream-original-$stamp.jpg")
         var source: Bitmap? = null
         var output: Bitmap? = null
         var replacing = false
@@ -204,7 +204,7 @@ object PhotoOutputResolution {
                     Log.e(TAG, "Original restore failed", it)
                 }
             }
-            Log.e(TAG, "HDMP interpolation skipped; keep source", failure)
+            Log.e(TAG, "LunaDream output sizing skipped; original retained", failure)
             null
         } finally {
             source?.let { if (!it.isRecycled) it.recycle() }

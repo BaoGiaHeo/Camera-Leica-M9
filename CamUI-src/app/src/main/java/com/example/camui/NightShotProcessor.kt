@@ -35,7 +35,7 @@ import kotlin.math.sqrt
  */
 object NightShotProcessor {
     private const val TAG = "FUJI_NIGHTSHOT"
-    private const val MAX_OUTPUT_PIXELS = 60_000_000L
+    private const val MAX_OUTPUT_PIXELS = 108_000_000L
     private val EXIF_TAGS = listOf(
         ExifInterface.TAG_DATETIME,
         ExifInterface.TAG_DATETIME_ORIGINAL,
@@ -106,6 +106,68 @@ object NightShotProcessor {
         continuation.invokeOnCancellation { runCatching { destination.delete() } }
     }
 
+
+    /**
+     * Single-frame LunaDream 1.5 restoration. It applies the same restrained luminance
+     * detail recovery to one camera JPEG and never captures or fuses additional frames.
+     * The original URI is backed up before replacement and restored on write failure.
+     */
+    fun processLunaDreamSingleFrame(context: Context, uri: Uri): Boolean {
+        val stamp = System.nanoTime()
+        val sourceFile = File(context.cacheDir, "luna15-source-$stamp.jpg")
+        val processedFile = File(context.cacheDir, "luna15-processed-$stamp.jpg")
+        val backupFile = File(context.cacheDir, "luna15-original-$stamp.jpg")
+        var bitmap: Bitmap? = null
+        var replacing = false
+        return try {
+            check(copyUriToFile(context, uri, sourceFile)) { "Cannot read LunaDream 1.5 source" }
+            val exif = readExif(sourceFile)
+            bitmap = decodeUpright(sourceFile, null, null, 50_000_000L)
+                ?: error("Cannot decode LunaDream 1.5 source")
+            applyLunaDreamDetailRecovery(bitmap!!)
+            FileOutputStream(processedFile).use { output ->
+                check(bitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, output)) {
+                    "LunaDream 1.5 JPEG encoding failed"
+                }
+                output.flush()
+                output.fd.sync()
+            }
+            writeExif(processedFile, exif)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(backupFile).use { output ->
+                    input.copyTo(output)
+                    output.fd.sync()
+                }
+            } ?: error("Cannot back up original LunaDream 1.5 photo")
+            check(backupFile.length() > 0L) { "Original backup is empty" }
+            replacing = true
+            context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                processedFile.inputStream().use { it.copyTo(output) }
+            } ?: error("Cannot write LunaDream 1.5 photo")
+            context.contentResolver.update(
+                uri,
+                ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
+                null,
+                null
+            )
+            Log.i(TAG, "LunaDream 1.5 processed one frame at ${bitmap!!.width}x${bitmap!!.height}")
+            true
+        } catch (failure: Throwable) {
+            if (replacing && backupFile.exists()) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                        backupFile.inputStream().use { it.copyTo(output) }
+                    } ?: error("Rollback stream unavailable")
+                }.onFailure { Log.e(TAG, "LunaDream 1.5 rollback failed", it) }
+            }
+            Log.e(TAG, "LunaDream 1.5 failed; original retained", failure)
+            false
+        } finally {
+            bitmap?.let { if (!it.isRecycled) it.recycle() }
+            listOf(sourceFile, processedFile, backupFile).forEach { runCatching { it.delete() } }
+        }
+    }
+
     fun mergeFramesIntoUri(
         context: Context,
         frames: List<File>,
@@ -134,10 +196,10 @@ object NightShotProcessor {
         var alignmentReference: Bitmap? = null
         return try {
             val firstExif = readExif(frames.first())
-            val stackPixelLimit = if (mode == MergeMode.HDR_BRACKET || mode == MergeMode.FOCUS_STACK) {
-                16_000_000L
-            } else {
-                MAX_OUTPUT_PIXELS
+            val stackPixelLimit = when (mode) {
+                MergeMode.HDR_BRACKET, MergeMode.FOCUS_STACK -> 16_000_000L
+                MergeMode.NIGHT_AVERAGE, MergeMode.MILKY_WAY_STACK -> 60_000_000L
+                else -> MAX_OUTPUT_PIXELS
             }
             val firstDecodeStartedAt = SystemClock.elapsedRealtime()
             base = decodeUpright(frames.first(), null, null, stackPixelLimit)
@@ -757,7 +819,11 @@ object NightShotProcessor {
                 val upLuma = luma(previousRow[x])
                 val downLuma = luma(nextRow[x])
                 val localAverage = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
-                val detail = ((centerLuma - localAverage) * 0.18f).coerceIn(-7f, 7f)
+                // Limit edge boost and avoid dark/bright overshoot that can create black halos.
+                val edgeContrast = kotlin.math.abs(centerLuma - localAverage)
+                val detail = if (centerLuma in 18f..238f && edgeContrast in 2f..42f) {
+                    ((centerLuma - localAverage) * 0.08f).coerceIn(-3f, 3f)
+                } else 0f
                 val targetLuma = (centerLuma + detail).coerceIn(0f, 255f)
                 val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
                 val red = (center ushr 16) and 0xFF
@@ -1024,7 +1090,7 @@ object NightShotProcessor {
             // Two RGB_565 full-resolution frames are live during merging. Reserve headroom
             // for decode/orientation buffers; 60MP is a ceiling, not a guaranteed output size.
             val heapSafePixelCap = (
-                Runtime.getRuntime().maxMemory().toDouble() * 0.22 / 4.0
+                Runtime.getRuntime().maxMemory().toDouble() * 0.42 / 4.0
             ).toLong().coerceAtLeast(4_000_000L)
             val effectivePixelCap = min(pixelLimit, heapSafePixelCap)
             val factor = if (pixels > effectivePixelCap) {

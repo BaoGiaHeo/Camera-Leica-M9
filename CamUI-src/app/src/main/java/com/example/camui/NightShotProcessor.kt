@@ -490,13 +490,17 @@ object NightShotProcessor {
                 brightenNightResult(base!!)
             } else if (mode == MergeMode.LUNA_DREAM_1_5) {
                 val detailStartedAt = SystemClock.elapsedRealtime()
-                applyLunaDreamFinishingPass(base!!, strength = 1)
+                applyLunaDreamFinishingPass(base!!, strength = 1) { stageProgress ->
+                    runCatching { onProgress?.invoke(stageProgress) }
+                }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             } else if (mode == MergeMode.LUNA_DREAM_2_0) {
                 // Keep the 2.0 eight-frame alignment/fusion strategy; add a restrained
                 // edge-aware spatial denoise pass before its existing detail restoration.
                 val detailStartedAt = SystemClock.elapsedRealtime()
-                applyLunaDreamFinishingPass(base!!, strength = 2)
+                applyLunaDreamFinishingPass(base!!, strength = 2) { stageProgress ->
+                    runCatching { onProgress?.invoke(stageProgress) }
+                }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             }
 
@@ -925,27 +929,49 @@ object NightShotProcessor {
      * Single-pass finish stage: edge-aware denoise and bounded detail recovery are streamed
      * together, avoiding a second full-resolution bitmap traversal.
      */
-    private fun applyLunaDreamFinishingPass(bitmap: Bitmap, strength: Int) {
+    private fun applyLunaDreamFinishingPass(
+        bitmap: Bitmap,
+        strength: Int,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
         val width = bitmap.width
         val height = bitmap.height
-        if (width < 3 || height < 3) return
+        if (width < 3 || height < 3) {
+            runCatching { onProgress?.invoke(96) }
+            return
+        }
 
         var previousRow = IntArray(width)
         var currentRow = IntArray(width)
         var nextRow = IntArray(width)
+        var previousLuma = IntArray(width)
+        var currentLuma = IntArray(width)
+        var nextLuma = IntArray(width)
         val outputRow = IntArray(width)
+
+        fun fillLumaRow(pixels: IntArray, destination: IntArray) {
+            for (index in pixels.indices) destination[index] = luma(pixels[index])
+        }
+
         bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
         currentRow.copyInto(previousRow)
         bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+        fillLumaRow(previousRow, previousLuma)
+        fillLumaRow(currentRow, currentLuma)
+        fillLumaRow(nextRow, nextLuma)
 
         val baseBlend = if (strength >= 2) 0.30f else 0.23f
+        val progressInterval = (height / 48).coerceAtLeast(1)
+        val stageStartedAt = SystemClock.elapsedRealtime()
+        runCatching { onProgress?.invoke(90) }
+
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val center = currentRow[x]
                 val centerR = (center ushr 16) and 0xFF
                 val centerG = (center ushr 8) and 0xFF
                 val centerB = center and 0xFF
-                val centerLuma = luma(centerR, centerG, centerB)
+                val centerLuma = currentLuma[x]
                 val rangeLimit = if (centerLuma < 72) {
                     if (strength >= 2) 27 else 23
                 } else {
@@ -956,19 +982,28 @@ object NightShotProcessor {
                 var sumG = 0
                 var sumB = 0
                 var weightSum = 0
+
+                // Reuse the three row luminance caches; deriving neighbour luma from RGB
+                // for each of the eight samples was a major avoidable cost on 40–100MP frames.
                 for (dy in -1..1) {
                     val row = when (dy) {
                         -1 -> previousRow
                         0 -> currentRow
                         else -> nextRow
                     }
+                    val rowLuma = when (dy) {
+                        -1 -> previousLuma
+                        0 -> currentLuma
+                        else -> nextLuma
+                    }
                     for (dx in -1..1) {
                         if (dx == 0 && dy == 0) continue
-                        val neighbor = row[(x + dx).coerceIn(0, width - 1)]
+                        val nx = (x + dx).coerceIn(0, width - 1)
+                        val neighbor = row[nx]
                         val nr = (neighbor ushr 16) and 0xFF
                         val ng = (neighbor ushr 8) and 0xFF
                         val nb = neighbor and 0xFF
-                        val lumaDelta = kotlin.math.abs(luma(nr, ng, nb) - centerLuma)
+                        val lumaDelta = kotlin.math.abs(rowLuma[nx] - centerLuma)
                         val colorDelta = max(
                             kotlin.math.abs(nr - centerR),
                             max(kotlin.math.abs(ng - centerG), kotlin.math.abs(nb - centerB))
@@ -1002,19 +1037,19 @@ object NightShotProcessor {
                     denoisedB.roundToInt().coerceIn(0, 255)
                 ).toFloat()
 
-                val leftLuma = luma(currentRow[(x - 1).coerceAtLeast(0)]).toFloat()
-                val rightLuma = luma(currentRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
-                val upLuma = luma(previousRow[x]).toFloat()
-                val downLuma = luma(nextRow[x]).toFloat()
+                val leftLuma = currentLuma[(x - 1).coerceAtLeast(0)].toFloat()
+                val rightLuma = currentLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
+                val upLuma = previousLuma[x].toFloat()
+                val downLuma = nextLuma[x].toFloat()
                 val crossMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
                 val edgeDelta = denoisedLuma - crossMean
                 val edgeMagnitude = kotlin.math.abs(edgeDelta)
 
                 val targetLuma = if (strength >= 2) {
-                    val upLeft = luma(previousRow[(x - 1).coerceAtLeast(0)]).toFloat()
-                    val upRight = luma(previousRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
-                    val downLeft = luma(nextRow[(x - 1).coerceAtLeast(0)]).toFloat()
-                    val downRight = luma(nextRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
+                    val upLeft = previousLuma[(x - 1).coerceAtLeast(0)].toFloat()
+                    val upRight = previousLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
+                    val downLeft = nextLuma[(x - 1).coerceAtLeast(0)].toFloat()
+                    val downRight = nextLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
                     val diagonalMean = (upLeft + upRight + downLeft + downRight) * 0.25f
                     val fineDelta = denoisedLuma - diagonalMean
                     val correction = if (denoisedLuma in 18f..238f && edgeMagnitude in 2.5f..58f) {
@@ -1045,16 +1080,37 @@ object NightShotProcessor {
                     (denoisedB * gain).roundToInt().coerceIn(0, 255)
                 )
             }
+
             bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+            if (y % progressInterval == 0) {
+                val stageProgress = (90f + 5f * (y + 1) / height).toInt().coerceIn(90, 95)
+                runCatching { onProgress?.invoke(stageProgress) }
+            }
+
             if (y + 1 < height) {
-                val recycled = previousRow
+                val recycledRow = previousRow
                 previousRow = currentRow
                 currentRow = nextRow
-                nextRow = recycled
-                if (y + 2 < height) bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
-                else currentRow.copyInto(nextRow)
+                nextRow = recycledRow
+
+                val recycledLuma = previousLuma
+                previousLuma = currentLuma
+                currentLuma = nextLuma
+                nextLuma = recycledLuma
+
+                if (y + 2 < height) {
+                    bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                    fillLumaRow(nextRow, nextLuma)
+                } else {
+                    currentRow.copyInto(nextRow)
+                    currentLuma.copyInto(nextLuma)
+                }
             }
         }
+
+        Log.i(TAG, "LunaDream detail/denoise completed: strength=$strength size=${width}x${height} in " +
+            (SystemClock.elapsedRealtime() - stageStartedAt) + "ms")
+        runCatching { onProgress?.invoke(95) }
     }
 
     /**

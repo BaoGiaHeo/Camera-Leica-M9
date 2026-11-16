@@ -22,7 +22,8 @@ class StartupSmokeTest {
     fun coldStartRemainsResumedAfterCameraInitialization() {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            // ActivityScenario.launch() already waits for the activity to reach RESUMED.
+            // Do not wait for a completely idle UI: a live camera preview continuously posts frames.
             // Give CameraX provider, ExtensionsManager and the first preview bind time to run.
             Thread.sleep(3_000L)
             scenario.onActivity { activity ->

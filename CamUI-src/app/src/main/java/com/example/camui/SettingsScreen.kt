@@ -439,7 +439,7 @@ var nightShotMode by remember {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
                     "HDR Tone Mapping",
-                    "Engine HDR phần mềm độc lập. Photo thường dùng profile xử lý 2x; khi bật HDMP FHD/UHD/UHD+ dùng profile 10x. Đây là mức xử lý nội bộ, không phải cam kết chất lượng tăng theo phép đo.",
+                    "Engine HDR tone mapping độc lập, tự điều chỉnh mức xử lý theo dữ liệu sáng/tối và tài nguyên thiết bị. HDR không thay đổi độ phân giải đầu ra của LunaDream.",
                     hdr
                 ) {
                     hdr = it

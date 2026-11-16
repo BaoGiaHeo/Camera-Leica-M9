@@ -510,7 +510,7 @@ fun ToolboxScreen(
         Text("Camera Presets", color = CamColors.TextColor,
             fontSize = 17.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 16.dp, bottom = 7.dp))
-        Text("Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShotMode, RAW và cấu hình HDMP.",
+        Text("Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShotMode, RAW và cấu hình LunaDream.",
             color = CamColors.Sub, fontSize = 11.sp,
             modifier = Modifier.padding(bottom = 8.dp))
         listOf("A", "B", "C").forEach { slot ->
@@ -1501,7 +1501,7 @@ fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
 
 /**
  * CameraX can return the sensor's default still ratio even when the preview ViewPort uses
- * a narrower/wider crop. Enforce the selected ratio on the upright pixels before HDMP runs,
+ * a narrower/wider crop. Enforce the selected ratio on the upright pixels before LunaDream runs,
  * otherwise later upscaling simply magnifies the wrong 4:3/16:9 frame.
  */
 private fun cropBitmapToAspect(source: Bitmap, targetAspect: Float): Bitmap {
@@ -3397,7 +3397,7 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
     val exif = runCatching {
         context.contentResolver.openInputStream(uri)?.use { input -> ExifInterface(input) }
     }.getOrNull()
-    // MediaStore WIDTH/HEIGHT may lag behind a replaced JPEG after HDMP output.
+    // MediaStore WIDTH/HEIGHT may lag behind a replaced JPEG after LunaDream output.
     // Prefer the actual encoded pixel bounds, then apply EXIF axis rotation so the
     // Inspector reports the dimensions as the user sees the upright photo.
     val exifOrientation = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0) ?: 0
@@ -3413,7 +3413,7 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
         height = it.height
     }
     val photoPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    val hdmpStatus = photoPrefs.getString("photo_hdmp_status:$uri", "Không có dữ liệu phiên HDMP") ?: "Không có dữ liệu phiên HDMP"
+    val lunaDreamStatus = photoPrefs.getString("photo_lunadream_status:$uri", "Không có dữ liệu phiên LunaDream") ?: "Không có dữ liệu phiên LunaDream"
     val logicalCameraId = photoPrefs.getString("photo_camera_id:$uri", "Không công bố") ?: "Không công bố"
     val physicalCameraId = photoPrefs.getString("photo_physical_camera_id:$uri", "HAL không công bố") ?: "HAL không công bố"
     val processedOutputSize = photoPrefs.getString("photo_output_size:$uri", "Không ghi nhận") ?: "Không ghi nhận"
@@ -3471,7 +3471,7 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
         "Nhiễu nền (ước tính)" to (qualityReport?.noiseLabel ?: "Không phân tích được"),
         "Gợi ý chất lượng" to (qualityReport?.recommendation ?: "Không phân tích được"),
         "Kích thước sau xử lý" to processedOutputSize,
-        "Trạng thái HDMP" to hdmpStatus
+        "Trạng thái LunaDream" to lunaDreamStatus
     )
 }
 

@@ -3690,6 +3690,7 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
     if (template == "none") return false
 
     return runCatching {
+        val sourceExif = readImageExifAttributes(context, uri)
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
         var outputBitmap: Bitmap? = null
         try {
@@ -3877,9 +3878,9 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)
         } ?: false
         if (!written) return@runCatching false
-        writeUprightExifMetadata(context, uri, output.width, output.height)
+        val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, output.width, output.height)
         setMediaStoreOrientationUpright(context, uri)
-        true
+        exifWritten
         } finally {
             outputBitmap?.let { if (it !== bitmap && !it.isRecycled) it.recycle() }
             if (!bitmap.isRecycled) bitmap.recycle()

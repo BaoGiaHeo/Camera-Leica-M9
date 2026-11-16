@@ -413,6 +413,7 @@ internal object HdmpAiEngine {
                 "No ONNX execution provider could create the selected model session",
                 lastSessionFailure
             )
+            session = activeSession
             val inputName = activeSession.inputNames.firstOrNull() ?: error("ONNX input missing")
             val outputName = activeSession.outputNames.firstOrNull() ?: error("ONNX output missing")
             val setupMs = SystemClock.elapsedRealtime() - runStartedAt

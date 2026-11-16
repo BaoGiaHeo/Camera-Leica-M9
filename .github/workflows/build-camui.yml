@@ -34,6 +34,7 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Run unit tests and build debug + release APKs
+        id: build_apks
         working-directory: CamUI-src
         run: gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --stacktrace
 
@@ -70,6 +71,7 @@ jobs:
           script: cd CamUI-src && gradle :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload 2.0.1Dream APKs
+        if: always() && steps.build_apks.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: FujiFilm-Mode-2.0.1Dream

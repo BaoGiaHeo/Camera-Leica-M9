@@ -200,9 +200,6 @@ object CameraHardwareScanner {
                     "vendor key không đồng nghĩa với một Camera ID ẩn."
             )
             add(
-                "Nhãn Macro / close-focus là heuristic từ tiêu cự và khoảng lấy nét tối thiểu; Camera2 không cung cấp cờ phân loại macro chính thức."
-            )
-            add(
                 "Android SDK không có API công khai để liệt kê ID bị firmware/OEM ẩn hoàn toàn. " +
                     "Ứng dụng không dùng root, hidden-API reflection hoặc ID phỏng đoán để vượt giới hạn đó."
             )
@@ -258,11 +255,8 @@ object CameraHardwareScanner {
             return "Camera sau · chưa đủ dữ liệu tiêu cự"
         }
         val ratio = equivalent35 / mainReference
-        // Android does not publish a formal "macro lens" role. Flag unusually close-focus
-        // modules as candidates, not as a definitive optical-macro specification.
-        val closeFocusCandidate = minimumFocusDistanceDiopter?.let { it >= 8f } == true
+        // Camera2 provides optical metadata but no reliable OEM-independent role label.
         return when {
-            closeFocusCandidate && ratio in 0.72f..1.35f -> "Macro / close-focus candidate"
             ratio < 0.78f -> "Ultra-wide"
             ratio > 1.25f -> "Telephoto"
             ratio in 0.88f..1.12f -> "Main / Wide"

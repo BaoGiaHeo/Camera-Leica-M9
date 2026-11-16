@@ -108,18 +108,21 @@ internal object HdmpAiEngine {
                 "nén=${encodeMs}ms, chạy mô hình=${totalMs}ms"
     }
 
+    // The previous blend values suppressed much of the model's denoising correction.
+    // These stronger, bounded blends let the trained restoration model contribute more while
+    // keeping a per-channel correction ceiling to limit halos and invented texture.
     private val primarySpec = ModelSpec(
         assetName = "nafnet_sidd_width64.onnx",
         manifestName = "nafnet_sidd_width64.onnx",
-        blend = 0.45f,
-        deltaLimit = 0.12f
+        blend = 0.68f,
+        deltaLimit = 0.18f
     )
 
     private val fallbackSpec = ModelSpec(
         assetName = "nafnetlib_sidd_width32.onnx",
         manifestName = "nafnetlib_sidd_width32.onnx",
-        blend = 0.38f,
-        deltaLimit = 0.10f
+        blend = 0.58f,
+        deltaLimit = 0.15f
     )
 
     /** Derive a conservative ONNX thread budget from CPU, free RAM and thermal status. */
@@ -361,8 +364,10 @@ internal object HdmpAiEngine {
             }.getOrDefault(emptyList())
             Log.i(TAG, "ONNX Runtime available execution providers=$availableProviders")
             val providerPlan = buildList {
-                if ("NNAPI" in availableProviders) add("NNAPI_FP16")
+                // These NAFNet exports are float models. Start with XNNPACK's optimized
+                // Arm CPU kernels; NNAPI performance and partitioning vary by device/driver.
                 if ("XNNPACK" in availableProviders) add("XNNPACK")
+                if ("NNAPI" in availableProviders) add("NNAPI_FP16")
                 add("CPU")
             }
             var openedSession: OrtSession? = null
@@ -534,28 +539,53 @@ internal object HdmpAiEngine {
 
                             val tileWidth = min(width, coreLeft + CORE_SIZE) - coreLeft
                             val tileHeight = min(height, coreTop + CORE_SIZE) - coreTop
-                            validateTensor(
-                                values = values,
-                                source = patchPixels,
-                                deltaLimit = spec.deltaLimit,
-                                coreOffsetX = coreLeft - patchLeft,
-                                coreOffsetY = coreTop - patchTop,
-                                coreWidth = tileWidth,
-                                coreHeight = tileHeight
-                            )
+                            // Validate model output and blend it in one pass. The old path
+                            // scanned every output pixel once for validation and a second time
+                            // for blending, adding a full-image memory pass after inference.
+                            var absoluteDeltaSum = 0.0
+                            var validatedPixels = 0
+                            val coreOffsetX = coreLeft - patchLeft
+                            val coreOffsetY = coreTop - patchTop
+                            for (localY in 0 until tileHeight) {
+                                val patchY = coreOffsetY + localY
+                                val outputRow = localY * CORE_SIZE
+                                val patchRow = patchY * TILE_SIZE
+                                for (localX in 0 until tileWidth) {
+                                    val index = patchRow + coreOffsetX + localX
+                                    val predictedR = values.get(index)
+                                    val predictedG = values.get(plane + index)
+                                    val predictedB = values.get(plane * 2 + index)
+                                    check(
+                                        predictedR.isFinite() &&
+                                            predictedG.isFinite() &&
+                                            predictedB.isFinite()
+                                    ) { "AI produced NaN/Infinity" }
 
-                            for (coreY in coreTop until coreTop + tileHeight) {
-                                for (coreX in coreLeft until coreLeft + tileWidth) {
-                                    val patchX = coreX - patchLeft
-                                    val patchY = coreY - patchTop
-                                    val index = patchY * TILE_SIZE + patchX
-                                    val base = patchPixels[index]
-                                    val outR = values.get(index)
-                                    val outG = values.get(plane + index)
-                                    val outB = values.get(plane * 2 + index)
-                                    outputPixels[(coreY - coreTop) * CORE_SIZE + (coreX - coreLeft)] =
-                                        blendConservatively(base, outR, outG, outB, spec)
+                                    val sourcePixel = patchPixels[index]
+                                    val sourceR = (sourcePixel ushr 16) and 0xFF
+                                    val sourceG = (sourcePixel ushr 8) and 0xFF
+                                    val sourceB = sourcePixel and 0xFF
+                                    val delta = max(
+                                        kotlin.math.abs(predictedR - sourceR / 255f),
+                                        max(
+                                            kotlin.math.abs(predictedG - sourceG / 255f),
+                                            kotlin.math.abs(predictedB - sourceB / 255f)
+                                        )
+                                    )
+                                    absoluteDeltaSum += delta.toDouble()
+                                    validatedPixels++
+                                    outputPixels[outputRow + localX] = blendConservatively(
+                                        sourcePixel,
+                                        predictedR,
+                                        predictedG,
+                                        predictedB,
+                                        spec
+                                    )
                                 }
+                            }
+                            val meanDelta = absoluteDeltaSum / validatedPixels.coerceAtLeast(1)
+                            check(meanDelta <= spec.deltaLimit * 2.5f) {
+                                "AI output deviates too far from the source image"
                             }
 
                             finalOutput.setPixels(
@@ -636,44 +666,6 @@ internal object HdmpAiEngine {
         }
     }
 
-    private fun validateTensor(
-        values: FloatBuffer,
-        source: IntArray,
-        deltaLimit: Float,
-        coreOffsetX: Int,
-        coreOffsetY: Int,
-        coreWidth: Int,
-        coreHeight: Int
-    ) {
-        val plane = TILE_SIZE * TILE_SIZE
-        var absSum = 0.0
-        var count = 0
-        // Validate only the core copied into the final image; halo pixels are discarded.
-        for (y in coreOffsetY until coreOffsetY + coreHeight) {
-            for (x in coreOffsetX until coreOffsetX + coreWidth) {
-                val index = y * TILE_SIZE + x
-                val r = values.get(index)
-                val g = values.get(plane + index)
-                val b = values.get(plane * 2 + index)
-                check(r.isFinite() && g.isFinite() && b.isFinite()) {
-                    "AI produced NaN/Infinity"
-                }
-                val original = source[index]
-                val delta = max(
-                    kotlin.math.abs(r - Color.red(original) / 255f),
-                    max(
-                        kotlin.math.abs(g - Color.green(original) / 255f),
-                        kotlin.math.abs(b - Color.blue(original) / 255f)
-                    )
-                )
-                absSum += delta.toDouble()
-                count++
-            }
-        }
-        val meanDelta = absSum / count.coerceAtLeast(1)
-        check(meanDelta <= deltaLimit * 2.5) { "AI output deviates too far from the source image" }
-    }
-
     private fun blendConservatively(
         original: Int,
         predictedR: Float,
@@ -681,18 +673,24 @@ internal object HdmpAiEngine {
         predictedB: Float,
         spec: ModelSpec
     ): Int {
-        fun channel(source: Int, predicted: Float): Int {
-            val originalValue = source / 255f
-            val adjustment = ((predicted - originalValue) * spec.blend)
-                .coerceIn(-spec.deltaLimit, spec.deltaLimit)
-            return ((originalValue + adjustment).coerceIn(0f, 1f) * 255f).roundToInt()
-                .coerceIn(0, 255)
-        }
-        return Color.rgb(
-            channel(Color.red(original), predictedR),
-            channel(Color.green(original), predictedG),
-            channel(Color.blue(original), predictedB)
-        )
+        val sourceR = (original ushr 16) and 0xFF
+        val sourceG = (original ushr 8) and 0xFF
+        val sourceB = original and 0xFF
+
+        val sourceRf = sourceR / 255f
+        val sourceGf = sourceG / 255f
+        val sourceBf = sourceB / 255f
+        val red = ((sourceRf + ((predictedR - sourceRf) * spec.blend)
+            .coerceIn(-spec.deltaLimit, spec.deltaLimit)).coerceIn(0f, 1f) * 255f)
+            .roundToInt().coerceIn(0, 255)
+        val green = ((sourceGf + ((predictedG - sourceGf) * spec.blend)
+            .coerceIn(-spec.deltaLimit, spec.deltaLimit)).coerceIn(0f, 1f) * 255f)
+            .roundToInt().coerceIn(0, 255)
+        val blue = ((sourceBf + ((predictedB - sourceBf) * spec.blend)
+            .coerceIn(-spec.deltaLimit, spec.deltaLimit)).coerceIn(0f, 1f) * 255f)
+            .roundToInt().coerceIn(0, 255)
+
+        return (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
     }
 
     /**

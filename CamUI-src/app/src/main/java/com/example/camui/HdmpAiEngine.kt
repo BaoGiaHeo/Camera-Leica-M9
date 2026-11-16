@@ -531,10 +531,20 @@ internal object HdmpAiEngine {
                             val values = outputTensor.floatBuffer
                             check(values.remaining() == plane * 3) { "Unexpected NAFNet output buffer size" }
 
-                            validateTensor(values, patchPixels, spec.deltaLimit)
+                            val tileWidth = min(width, coreLeft + CORE_SIZE) - coreLeft
+                            val tileHeight = min(height, coreTop + CORE_SIZE) - coreTop
+                            validateTensor(
+                                values = values,
+                                source = patchPixels,
+                                deltaLimit = spec.deltaLimit,
+                                coreOffsetX = coreLeft - patchLeft,
+                                coreOffsetY = coreTop - patchTop,
+                                coreWidth = tileWidth,
+                                coreHeight = tileHeight
+                            )
 
-                            for (coreY in coreTop until min(height, coreTop + CORE_SIZE)) {
-                                for (coreX in coreLeft until min(width, coreLeft + CORE_SIZE)) {
+                            for (coreY in coreTop until coreTop + tileHeight) {
+                                for (coreX in coreLeft until coreLeft + tileWidth) {
                                     val patchX = coreX - patchLeft
                                     val patchY = coreY - patchTop
                                     val index = patchY * TILE_SIZE + patchX
@@ -547,8 +557,6 @@ internal object HdmpAiEngine {
                                 }
                             }
 
-                            val tileWidth = min(width, coreLeft + CORE_SIZE) - coreLeft
-                            val tileHeight = min(height, coreTop + CORE_SIZE) - coreTop
                             finalOutput.setPixels(
                                 outputPixels,
                                 0,
@@ -627,25 +635,39 @@ internal object HdmpAiEngine {
         }
     }
 
-    private fun validateTensor(values: FloatBuffer, source: IntArray, deltaLimit: Float) {
+    private fun validateTensor(
+        values: FloatBuffer,
+        source: IntArray,
+        deltaLimit: Float,
+        coreOffsetX: Int,
+        coreOffsetY: Int,
+        coreWidth: Int,
+        coreHeight: Int
+    ) {
         val plane = TILE_SIZE * TILE_SIZE
         var absSum = 0.0
         var count = 0
-        for (index in 0 until plane) {
-            val r = values.get(index)
-            val g = values.get(plane + index)
-            val b = values.get(plane * 2 + index)
-            check(r.isFinite() && g.isFinite() && b.isFinite()) { "AI produced NaN/Infinity" }
-            val original = source[index]
-            val delta = max(
-                kotlin.math.abs(r - Color.red(original) / 255f),
-                max(
-                    kotlin.math.abs(g - Color.green(original) / 255f),
-                    kotlin.math.abs(b - Color.blue(original) / 255f)
+        // Validate only the core copied into the final image; halo pixels are discarded.
+        for (y in coreOffsetY until coreOffsetY + coreHeight) {
+            for (x in coreOffsetX until coreOffsetX + coreWidth) {
+                val index = y * TILE_SIZE + x
+                val r = values.get(index)
+                val g = values.get(plane + index)
+                val b = values.get(plane * 2 + index)
+                check(r.isFinite() && g.isFinite() && b.isFinite()) {
+                    "AI produced NaN/Infinity"
+                }
+                val original = source[index]
+                val delta = max(
+                    kotlin.math.abs(r - Color.red(original) / 255f),
+                    max(
+                        kotlin.math.abs(g - Color.green(original) / 255f),
+                        kotlin.math.abs(b - Color.blue(original) / 255f)
+                    )
                 )
-            )
-            absSum += delta.toDouble()
-            count++
+                absSum += delta.toDouble()
+                count++
+            }
         }
         val meanDelta = absSum / count.coerceAtLeast(1)
         check(meanDelta <= deltaLimit * 2.5) { "AI output deviates too far from the source image" }

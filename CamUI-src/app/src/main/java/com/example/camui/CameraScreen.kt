@@ -2301,11 +2301,10 @@ fun CameraScreen(
             val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
-            val captureUseLunaDream20 = lunaDreamSelected &&
-                ((lunaDreamMode == "luna20" && rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly) ||
-                    captureUseRawDream20) &&
+            val captureUseLunaDream20 = lunaDreamSelected && lunaDreamMode == "luna20" &&
+                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
-            val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20
+            val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20 || captureUseRawDream20
             if (lunaDreamSelected && !captureUseLunaDream) {
                 localizedToast(
                     context,
@@ -2349,6 +2348,12 @@ fun CameraScreen(
                 localizedToast(
                     context,
                     "LunaDream 1.5 · chụp một khung hình và xử lý trực tiếp, đầu ra 50MP.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else if (captureUseRawDream20) {
+                localizedToast(
+                    context,
+                    "RawDream 2.0 · lưu DNG + JPEG, phục hồi chi tiết bằng LunaDream 2.0, đầu ra JPEG mục tiêu 108MP.",
                     Toast.LENGTH_LONG
                 ).show()
             } else if (captureUseLunaDream20) {
@@ -2505,6 +2510,7 @@ fun CameraScreen(
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseLunaDream15 -> "LunaDream 1.5 · chuẩn bị xử lý ảnh đơn"
+                                captureUseRawDream20 -> "RawDream 2.0 · chuẩn bị xử lý JPEG từ cặp RAW+JPEG"
                                 captureUseLunaDream20 -> "LunaDream 2.0 · chuẩn bị ghép đa khung"
                                 captureUseMilkyWayStack -> "NightShotMode Milky Way · chuẩn bị căn chỉnh 8 khung"
                                 captureUseNightShot -> "NightShotMode · chuẩn bị căn chỉnh và ghép nhiều khung"
@@ -2690,6 +2696,16 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = 35 }
+                                val rawDream20Processed = if (captureUseRawDream20) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "RawDream 2.0 · phục hồi chi tiết JPEG"
+                                        processingProgress = 42
+                                        processingEtaSeconds = -1
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        NightShotProcessor.processLunaDream20SingleFrame(context, saved)
+                                    }
+                                } else false
                                 val lunaDream15Processed = if (captureUseLunaDream15) {
                                     withContext(Dispatchers.Main) {
                                         processingLabel = "LunaDream 1.5 · xử lý ảnh đơn"
@@ -2702,12 +2718,14 @@ fun CameraScreen(
                                 } else false
                                 val lunaDreamApplied = when {
                                     captureUseLunaDream15 -> lunaDream15Processed
+                                    captureUseRawDream20 -> rawDream20Processed
                                     captureUseLunaDream20 -> nightShotMerged
                                     else -> false
                                 }
                                 withContext(Dispatchers.Main) {
                                     processingLabel = when {
                                         captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · phục hồi ảnh đơn hoàn tất"
+                                        captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG + JPEG đã xử lý chi tiết"
                                         captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép và phục hồi chi tiết hoàn tất"
                                         captureUseLunaDream -> "LunaDream · xử lý chưa hoàn tất, giữ ảnh gốc"
                                         else -> "Đang hoàn tất ảnh"
@@ -2835,6 +2853,7 @@ fun CameraScreen(
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
                                 val inspectorLunaDreamStatus = when {
                                     captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · xử lý ảnh đơn"
+                                    captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG + JPEG qua LunaDream 2.0"
                                     captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép đa khung và phục hồi chi tiết"
                                     captureUseLunaDream -> "LunaDream chưa hoàn tất · giữ ảnh gốc"
                                     captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
@@ -2865,6 +2884,9 @@ fun CameraScreen(
                                         captureUseLunaDream15 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 1.5 · 50MP."
                                             else "Đã lưu LunaDream 1.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                        captureUseRawDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu RawDream 2.0 · DNG + JPEG 108MP."
+                                            else "Đã lưu RawDream 2.0 · DNG + JPEG ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
                                             else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
@@ -2895,6 +2917,7 @@ fun CameraScreen(
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
                                     val lunaDreamStatusSuffix = when {
                                         captureUseLunaDream15 && lunaDreamApplied -> " LunaDream 1.5 đã xử lý một khung hình."
+                                        captureUseRawDream20 && lunaDreamApplied -> " RawDream 2.0 đã giữ DNG và xử lý JPEG bằng bộ phục hồi chi tiết LunaDream 2.0."
                                         captureUseLunaDream20 && lunaDreamApplied -> " LunaDream 2.0 đã ghép và phục hồi chi tiết đa khung."
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""

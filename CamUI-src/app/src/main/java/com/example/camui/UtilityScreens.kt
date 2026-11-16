@@ -177,18 +177,8 @@ private fun LiquidGlassWatermarkPreview(
                 size = androidx.compose.ui.geometry.Size(size.width * 0.82f, size.height * 0.58f))
         }
         val panelShape = RoundedCornerShape((12f + corner * 14f + gooey * 5f).dp)
-        val logoId = when (brand.lowercase()) {
-            "sony" -> R.drawable.sony_wordmark
-            "nikon" -> R.drawable.nikon_wordmark
-            "canon" -> R.drawable.canon_wordmark
-            else -> R.drawable.fujifilm_wordmark
-        }
-        val accent = when (brand.lowercase()) {
-            "sony" -> Color(0xFF7A8E9E)
-            "nikon" -> Color(0xFFFFD200)
-            "canon" -> Color(0xFFCD0022)
-            else -> Color(0xFF23AE91)
-        }
+        val accent = Color(cameraWatermarkBrandAccent(brand))
+        val exampleModel = cameraWatermarkExampleModel(brand)
         Row(
             Modifier.align(Alignment.BottomCenter)
                 .fillMaxWidth(0.93f)
@@ -220,12 +210,11 @@ private fun LiquidGlassWatermarkPreview(
                 Modifier.fillMaxWidth(0.315f).height(44.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = logoId),
-                    contentDescription = "$brand watermark logo",
+                WatermarkBrandMark(
+                    brand = brand,
                     modifier = Modifier.fillMaxWidth(0.88f).height(17.dp)
                         .background(Color.White, RoundedCornerShape(3.dp)).padding(2.dp),
-                    contentScale = ContentScale.Fit
+                    fallbackColor = accent
                 )
             }
             Box(
@@ -236,7 +225,7 @@ private fun LiquidGlassWatermarkPreview(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    "MODEL · ILCE-7M4",
+                    "MODEL · $exampleModel",
                     color = Color.White.copy(alpha = 0.96f),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -678,22 +667,21 @@ fun ToolboxScreen(
         }
         Text("Thương hiệu watermark", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 7.dp, top = 9.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf("fujifilm" to "Fujifilm", "sony" to "Sony", "nikon" to "Nikon", "canon" to "Canon").forEach { (id, label) ->
-                Chip(label, watermarkBrand == id, {
-                    watermarkBrand = id
-                    prefs.edit().putString("watermark_brand", id).apply()
-                }, Modifier.weight(1f))
+        cameraWatermarkBrands.chunked(3).forEach { brandRow ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                brandRow.forEach { (id, label) ->
+                    Chip(label, watermarkBrand == id, {
+                        watermarkBrand = id
+                        prefs.edit().putString("watermark_brand", id).apply()
+                    }, Modifier.weight(1f))
+                }
             }
+            Spacer(Modifier.height(6.dp))
         }
         Text("Mẫu watermark · chọn riêng từng kiểu", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 8.dp, top = 9.dp))
-        val watermarkBrandLabel = when (watermarkBrand) {
-            "sony" -> "Sony"
-            "nikon" -> "Nikon"
-            "canon" -> "Canon"
-            else -> "Fuji"
-        }
+        val watermarkBrandLabel = cameraWatermarkBrands.firstOrNull { it.first == watermarkBrand }?.second
+            ?: cameraWatermarkBrandTitle(watermarkBrand)
         val watermarkTemplates = listOf(
             Triple("fuji_auto", "$watermarkBrandLabel Auto", "Tự chọn bố cục ngang hoặc dọc"),
             Triple("fuji_classic", "$watermarkBrandLabel Classic", "Logo + model trái · EXIF phải"),
@@ -1130,6 +1118,124 @@ private fun CameraFrameTemplateCard(
 
 
 
+
+private val cameraWatermarkBrands = listOf(
+    "fujifilm" to "Fujifilm",
+    "sony" to "Sony",
+    "nikon" to "Nikon",
+    "canon" to "Canon",
+    "leica" to "Leica",
+    "panasonic" to "Panasonic / LUMIX",
+    "olympus" to "Olympus",
+    "om_system" to "OM System",
+    "pentax" to "PENTAX",
+    "ricoh" to "RICOH",
+    "hasselblad" to "Hasselblad",
+    "kodak" to "Kodak",
+    "sigma" to "SIGMA",
+    "zeiss" to "ZEISS",
+    "gopro" to "GoPro",
+    "dji" to "DJI",
+    "insta360" to "Insta360"
+)
+
+private fun cameraWatermarkBrandTitle(brand: String): String = when (brand.lowercase()) {
+    "sony" -> "SONY"
+    "nikon" -> "NIKON"
+    "canon" -> "Canon"
+    "leica" -> "LEICA"
+    "panasonic" -> "LUMIX"
+    "olympus" -> "OLYMPUS"
+    "om_system" -> "OM SYSTEM"
+    "pentax" -> "PENTAX"
+    "ricoh" -> "RICOH"
+    "hasselblad" -> "HASSELBLAD"
+    "kodak" -> "KODAK"
+    "sigma" -> "SIGMA"
+    "zeiss" -> "ZEISS"
+    "gopro" -> "GoPro"
+    "dji" -> "DJI"
+    "insta360" -> "insta360"
+    else -> "FUJIFILM"
+}
+
+private fun cameraWatermarkBrandAccent(brand: String): Int = when (brand.lowercase()) {
+    "sony" -> AndroidColor.rgb(65, 78, 91)
+    "nikon" -> AndroidColor.rgb(255, 210, 0)
+    "canon" -> AndroidColor.rgb(205, 0, 34)
+    "leica" -> AndroidColor.rgb(220, 20, 35)
+    "panasonic" -> AndroidColor.rgb(0, 66, 125)
+    "olympus" -> AndroidColor.rgb(24, 35, 48)
+    "om_system" -> AndroidColor.rgb(0, 143, 202)
+    "pentax" -> AndroidColor.rgb(196, 24, 45)
+    "ricoh" -> AndroidColor.rgb(218, 25, 35)
+    "hasselblad" -> AndroidColor.rgb(137, 105, 45)
+    "kodak" -> AndroidColor.rgb(205, 26, 34)
+    "sigma" -> AndroidColor.rgb(0, 73, 135)
+    "zeiss" -> AndroidColor.rgb(0, 128, 184)
+    "gopro" -> AndroidColor.rgb(0, 174, 239)
+    "dji" -> AndroidColor.rgb(46, 54, 62)
+    "insta360" -> AndroidColor.rgb(35, 174, 145)
+    else -> AndroidColor.rgb(0, 91, 145)
+}
+
+private fun cameraWatermarkBrandLogoResource(brand: String): Int? = when (brand.lowercase()) {
+    "sony" -> R.drawable.sony_wordmark
+    "nikon" -> R.drawable.nikon_wordmark
+    "canon" -> R.drawable.canon_wordmark
+    "fujifilm" -> R.drawable.fujifilm_wordmark
+    else -> null
+}
+
+private fun cameraWatermarkExampleModel(brand: String): String = when (brand.lowercase()) {
+    "sony" -> "ILCE-7M4"
+    "nikon" -> "Z8"
+    "canon" -> "EOS R5"
+    "leica" -> "M11"
+    "panasonic" -> "LUMIX S5II"
+    "olympus" -> "OM-D E-M1"
+    "om_system" -> "OM-1"
+    "pentax" -> "K-3 III"
+    "ricoh" -> "GR III"
+    "hasselblad" -> "X2D 100C"
+    "kodak" -> "PIXPRO"
+    "sigma" -> "fp L"
+    "zeiss" -> "ZX1"
+    "gopro" -> "HERO"
+    "dji" -> "Osmo"
+    "insta360" -> "X4"
+    else -> "X-T5"
+}
+
+@Composable
+private fun WatermarkBrandMark(
+    brand: String,
+    modifier: Modifier = Modifier,
+    fallbackColor: Color = Color.Unspecified
+) {
+    val logoResource = cameraWatermarkBrandLogoResource(brand)
+    if (logoResource != null) {
+        Image(
+            painter = painterResource(id = logoResource),
+            contentDescription = "${cameraWatermarkBrandTitle(brand)} watermark wordmark",
+            modifier = modifier,
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Box(modifier, contentAlignment = Alignment.Center) {
+            Text(
+                text = cameraWatermarkBrandTitle(brand),
+                color = if (fallbackColor == Color.Unspecified) Color(cameraWatermarkBrandAccent(brand)) else fallbackColor,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
 @Composable
 private fun WatermarkTemplateCard(
     id: String,
@@ -1141,12 +1247,8 @@ private fun WatermarkTemplateCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val previewLogo = when (brand.lowercase()) {
-        "sony" -> R.drawable.sony_wordmark
-        "nikon" -> R.drawable.nikon_wordmark
-        "canon" -> R.drawable.canon_wordmark
-        else -> R.drawable.fujifilm_logo
-    }
+    val previewModel = cameraWatermarkExampleModel(brand)
+    val brandAccent = Color(cameraWatermarkBrandAccent(brand))
     Column(
         modifier.clip(RoundedCornerShape(13.dp))
             .background(if (selected) Color(0xFF333126) else CamColors.Card)
@@ -1196,15 +1298,9 @@ private fun WatermarkTemplateCard(
                 drawLine(Color(0xFF31483E), Offset(0f, size.height * 0.82f),
                     Offset(size.width, size.height * 0.72f), strokeWidth = size.height * 0.32f)
             }
-            val brandAccent = when (brand.lowercase()) {
-                "sony" -> Color(0xFF7A8E9E)
-                "nikon" -> Color(0xFFFFD200)
-                "canon" -> Color(0xFFCD0022)
-                else -> Color(0xFF23AE91)
-            }
             if (id == "minimal") {
                 Text(
-                    "ILCE-7M4 · 35mm · F2.8 · 1/250s · ISO 100",
+                    "$previewModel · 35mm · F2.8 · 1/250s · ISO 100",
                     color = textColor, fontSize = 6.sp, maxLines = 1,
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .padding(5.dp).background(panelColor, RoundedCornerShape(4.dp))
@@ -1217,13 +1313,12 @@ private fun WatermarkTemplateCard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = previewLogo),
-                        contentDescription = "$brand watermark logo",
+                    WatermarkBrandMark(
+                        brand = brand,
                         modifier = Modifier.width(58.dp).height(12.dp),
-                        contentScale = ContentScale.Fit
+                        fallbackColor = brandAccent
                     )
-                    Text("ILCE-7M4", color = textColor, fontSize = 6.sp,
+                    Text("$previewModel", color = textColor, fontSize = 6.sp,
                         fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             } else if (id == "datestamp") {
@@ -1237,7 +1332,7 @@ private fun WatermarkTemplateCard(
                 )
             } else if (id == "micro") {
                 Text(
-                    "ILCE-7M4 · 35mm F2.8 · 1/250s · ISO 100",
+                    "$previewModel · 35mm F2.8 · 1/250s · ISO 100",
                     color = textColor, fontSize = 5.3.sp, maxLines = 1,
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
                         .background(panelColor, RoundedCornerShape(3.dp))
@@ -1251,18 +1346,17 @@ private fun WatermarkTemplateCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(Modifier.weight(0.56f), verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(id = previewLogo),
-                            contentDescription = "$brand watermark logo",
+                        WatermarkBrandMark(
+                            brand = brand,
                             modifier = Modifier.weight(0.38f).height(15.dp)
                                 .background(Color.White, RoundedCornerShape(2.dp)).padding(2.dp),
-                            contentScale = ContentScale.Fit
+                            fallbackColor = brandAccent
                         )
                         Column(
                             Modifier.weight(0.62f).padding(start = 3.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Text("MODEL · ILCE-7M4", color = textColor,
+                            Text("MODEL · $previewModel", color = textColor,
                                 fontSize = 5.9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             Text("FE 24–70mm", color = textColor.copy(alpha = 0.82f),
                                 fontSize = 5.4.sp, maxLines = 1)
@@ -2613,12 +2707,7 @@ fun applyCameraWatermark(
         }.orEmpty().takeIf { showTime }.orEmpty()
         val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase()
-        val brandTitle = when (watermarkBrand) {
-            "sony" -> "SONY"
-            "nikon" -> "NIKON"
-            "canon" -> "Canon"
-            else -> "FUJIFILM"
-        }
+        val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
         // Brand-matched typefaces are bundled with their OFL notices in assets/fonts.
         val brandTypeface = resolveWatermarkTypeface(context, watermarkBrand)
         val detailTypeface = when (watermarkBrand) {
@@ -2627,19 +2716,10 @@ fun applyCameraWatermark(
             "canon" -> brandTypeface
             else -> brandTypeface
         }
-        val brandInk = when (watermarkBrand) {
-            "nikon" -> AndroidColor.BLACK
-            "canon" -> AndroidColor.rgb(215, 0, 24)
-            "fujifilm" -> AndroidColor.rgb(0, 91, 145)
-            else -> if (frameStyle == "White") AndroidColor.BLACK else AndroidColor.WHITE
+        val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
+        val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand)?.let {
+            ContextCompat.getDrawable(context, it)
         }
-        val brandLogoResource = when (watermarkBrand) {
-            "sony" -> R.drawable.sony_wordmark
-            "nikon" -> R.drawable.nikon_wordmark
-            "canon" -> R.drawable.canon_wordmark
-            else -> R.drawable.fujifilm_wordmark
-        }
-        val brandLogo = ContextCompat.getDrawable(context, brandLogoResource)
         val footerRect = if (expandedFujiFooter) {
             RectF(
                 footerMarginPx.toFloat(),
@@ -2664,7 +2744,7 @@ fun applyCameraWatermark(
                 canvas.restore()
                 return
             }
-            if (watermarkBrand == "nikon") {
+            if (watermarkBrand == "nikon" || watermarkBrand == "kodak") {
                 val plate = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = AndroidColor.rgb(255, 221, 0)
                     style = Paint.Style.FILL
@@ -2897,12 +2977,7 @@ fun applyCameraWatermark(
                 "Transparent" -> Unit
             }
         }
-        fun brandAccentColor(): Int = when (watermarkBrand) {
-            "sony" -> AndroidColor.rgb(122, 142, 158)
-            "nikon" -> AndroidColor.rgb(255, 210, 0)
-            "canon" -> AndroidColor.rgb(205, 0, 34)
-            else -> AndroidColor.rgb(35, 174, 145)
-        }
+        fun brandAccentColor(): Int = cameraWatermarkBrandAccent(watermarkBrand)
         fun drawBrandAccent(rect: RectF, thickness: Float) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = brandAccentColor()
@@ -2914,11 +2989,11 @@ fun applyCameraWatermark(
         val sharedFooterRadius = (minSide * 0.012f).coerceAtLeast(7f)
         val sharedLogoRatio = brandLogo?.let {
             if (it.intrinsicHeight > 0) it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat() else 3f
-        } ?: when (watermarkBrand) {
-            "sony" -> 2.8f
-            "nikon" -> 3.1f
-            "canon" -> 3.0f
-            else -> 5.95f
+        } ?: when {
+            watermarkBrand == "hasselblad" -> 4.9f
+            watermarkBrand == "panasonic" || watermarkBrand == "om_system" -> 4.6f
+            watermarkBrand == "insta360" -> 3.9f
+            else -> 4.4f
         }
         fun drawTemplateText(
             value: String,
@@ -3991,7 +4066,7 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
                 "classic" -> {
                     border(outer, stroke * 1.8f)
                     border(inner, stroke * 0.55f)
-                    caption("FUJIFILM  /  X SERIES", "PHOTO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}")
+                    caption("${brandTitle}  /  CAMERA", "PHOTO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}")
                 }
                 "clean" -> {
                     val corner = minSide * 0.085f

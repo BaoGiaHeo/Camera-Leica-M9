@@ -3,7 +3,7 @@ name: Build FujiFilm Mode 1.5 CameraX algorithmic HDMP debug APK
 'on':
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/fujifilm-mode-1.6]
     paths:
       - 'CamUI-src/**'
       - '.github/workflows/build-camui-debug.yml'

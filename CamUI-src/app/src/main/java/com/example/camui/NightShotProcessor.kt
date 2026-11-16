@@ -21,7 +21,10 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Callable
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlin.math.max
 import kotlin.math.pow
@@ -294,6 +297,11 @@ object NightShotProcessor {
         var base: Bitmap? = null
         var alignmentReference: Bitmap? = null
         var publishing = false
+        val lunaFusionExecutor: ExecutorService? = if (
+            mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
+        ) {
+            Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
+        } else null
         return try {
             val firstExif = readExif(frames.first())
             val stackPixelLimit = when (mode) {
@@ -351,9 +359,11 @@ object NightShotProcessor {
                     val alignmentStartedAt = SystemClock.elapsedRealtime()
                     val shift = when (mode) {
                         MergeMode.STAR_TRAILS -> 0 to 0
-                        // Both LunaDream versions share the sparse LK path. The 1.5 stack has
-                        // fewer frames, so it should not use the slower exhaustive translation scan.
-                        MergeMode.LUNA_DREAM_1_5, MergeMode.LUNA_DREAM_2_0 ->
+                        // 1.5 uses the cheaper robust global translation on its five-frame stack.
+                        // 2.0 retains the pyramidal Lucas–Kanade path used by its reference build.
+                        MergeMode.LUNA_DREAM_1_5 ->
+                            estimateGlobalTranslation(alignmentReference!!, current)
+                        MergeMode.LUNA_DREAM_2_0 ->
                             estimatePyramidalLucasKanade(alignmentReference!!, current)
                         else -> estimateGlobalTranslation(alignmentReference!!, current)
                     }
@@ -365,116 +375,132 @@ object NightShotProcessor {
                     }
 
                     val fusionStartedAt = SystemClock.elapsedRealtime()
-                    val progressRowInterval = (height / 8).coerceAtLeast(1)
-                    for (y in 0 until height) {
-                        if (y % progressRowInterval == 0) {
-                            val frameFraction = (frameIndex - 1 + y.toFloat() / height) /
-                                totalMergedFrames.toFloat()
-                            runCatching { onProgress?.invoke((5 + frameFraction * 90f).toInt()) }
+                    if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
+                        fuseLunaDreamFrameParallel(
+                            base!!,
+                            current,
+                            width,
+                            height,
+                            shiftX,
+                            shiftY,
+                            frameIndex,
+                            totalMergedFrames,
+                            lunaFusionExecutor ?: error("LunaDream fusion workers unavailable")
+                        ) { frameProgress ->
+                            runCatching { onProgress?.invoke(frameProgress) }
                         }
-                        val sourceY = (y + shiftY).coerceIn(0, height - 1)
-                        base!!.getPixels(oldRow, 0, width, 0, y, width, 1)
-                        current.getPixels(newRow, 0, width, 0, sourceY, width, 1)
-                        if (mode == MergeMode.FOCUS_STACK) {
-                            current.getPixels(upperRow, 0, width, 0, (sourceY - 1).coerceAtLeast(0), width, 1)
-                            current.getPixels(lowerRow, 0, width, 0, (sourceY + 1).coerceAtMost(height - 1), width, 1)
-                        }
-                        for (x in 0 until width) {
-                            val sourceX = (x + shiftX).coerceIn(0, width - 1)
-                            val a = oldRow[x]
-                            val b = newRow[sourceX]
-                            // Large multi-frame stacks visit many millions of pixels.
-                            // Bit shifts preserve the same channel values without Color.* calls.
-                            val ar = (a ushr 16) and 0xFF
-                            val ag = (a ushr 8) and 0xFF
-                            val ab = a and 0xFF
-                            val br = (b ushr 16) and 0xFF
-                            val bg = (b ushr 8) and 0xFF
-                            val bb = b and 0xFF
-                            if (mode == MergeMode.STAR_TRAILS) {
-                                // Max/lighten accumulation draws the path of stars, while a small
-                                // luminance threshold prevents tiny sensor noise from winning every
-                                // pixel simply because more frames were captured.
-                                val oldLuma = luma(ar, ag, ab)
-                                val newLuma = luma(br, bg, bb)
-                                if (newLuma >= STAR_TRAIL_MIN_LUMA &&
-                                    newLuma >= oldLuma + STAR_TRAIL_MIN_DELTA
+                    } else {
+                        val progressRowInterval = (height / 8).coerceAtLeast(1)
+                        for (y in 0 until height) {
+                            if (y % progressRowInterval == 0) {
+                                val frameFraction = (frameIndex - 1 + y.toFloat() / height) /
+                                    totalMergedFrames.toFloat()
+                                runCatching { onProgress?.invoke((5 + frameFraction * 90f).toInt()) }
+                            }
+                            val sourceY = (y + shiftY).coerceIn(0, height - 1)
+                            base!!.getPixels(oldRow, 0, width, 0, y, width, 1)
+                            current.getPixels(newRow, 0, width, 0, sourceY, width, 1)
+                            if (mode == MergeMode.FOCUS_STACK) {
+                                current.getPixels(upperRow, 0, width, 0, (sourceY - 1).coerceAtLeast(0), width, 1)
+                                current.getPixels(lowerRow, 0, width, 0, (sourceY + 1).coerceAtMost(height - 1), width, 1)
+                            }
+                            for (x in 0 until width) {
+                                val sourceX = (x + shiftX).coerceIn(0, width - 1)
+                                val a = oldRow[x]
+                                val b = newRow[sourceX]
+                                // Large multi-frame stacks visit many millions of pixels.
+                                // Bit shifts preserve the same channel values without Color.* calls.
+                                val ar = (a ushr 16) and 0xFF
+                                val ag = (a ushr 8) and 0xFF
+                                val ab = a and 0xFF
+                                val br = (b ushr 16) and 0xFF
+                                val bg = (b ushr 8) and 0xFF
+                                val bb = b and 0xFF
+                                if (mode == MergeMode.STAR_TRAILS) {
+                                    // Max/lighten accumulation draws the path of stars, while a small
+                                    // luminance threshold prevents tiny sensor noise from winning every
+                                    // pixel simply because more frames were captured.
+                                    val oldLuma = luma(ar, ag, ab)
+                                    val newLuma = luma(br, bg, bb)
+                                    if (newLuma >= STAR_TRAIL_MIN_LUMA &&
+                                        newLuma >= oldLuma + STAR_TRAIL_MIN_DELTA
+                                    ) {
+                                        oldRow[x] = packRgb(max(ar, br), max(ag, bg), max(ab, bb))
+                                    }
+                                } else if (mode == MergeMode.LUNA_DREAM_1_5 ||
+                                    mode == MergeMode.LUNA_DREAM_2_0
                                 ) {
-                                    oldRow[x] = packRgb(max(ar, br), max(ag, bg), max(ab, bb))
-                                }
-                            } else if (mode == MergeMode.LUNA_DREAM_1_5 ||
-                                mode == MergeMode.LUNA_DREAM_2_0
-                            ) {
-                                // Both LunaDream modes use motion-aware temporal fusion. 1.5
-                                // uses five exposures and global translation; 2.0 keeps its
-                                // existing eight-frame Lucas-Kanade path.
-                                val oldLuma = luma(ar, ag, ab)
-                                val newLuma = luma(br, bg, bb)
-                                val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
-                                val colorDelta = max(
-                                    kotlin.math.abs(ar - br),
-                                    max(kotlin.math.abs(ag - bg), kotlin.math.abs(ab - bb))
-                                )
-                                val threshold = (16 + (oldLuma + newLuma) / 28).coerceIn(20, 38)
-                                when {
-                                    lumaDelta <= threshold && colorDelta <= threshold * 2 -> {
-                                        val divisor = frameIndex + 1
-                                        oldRow[x] = packRgb(
-                                            (ar * frameIndex + br) / divisor,
-                                            (ag * frameIndex + bg) / divisor,
-                                            (ab * frameIndex + bb) / divisor
-                                        )
+                                    // Both LunaDream modes use motion-aware temporal fusion. 1.5
+                                    // uses five exposures and global translation; 2.0 keeps its
+                                    // existing eight-frame Lucas-Kanade path.
+                                    val oldLuma = luma(ar, ag, ab)
+                                    val newLuma = luma(br, bg, bb)
+                                    val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
+                                    val colorDelta = max(
+                                        kotlin.math.abs(ar - br),
+                                        max(kotlin.math.abs(ag - bg), kotlin.math.abs(ab - bb))
+                                    )
+                                    val threshold = (16 + (oldLuma + newLuma) / 28).coerceIn(20, 38)
+                                    when {
+                                        lumaDelta <= threshold && colorDelta <= threshold * 2 -> {
+                                            val divisor = frameIndex + 1
+                                            oldRow[x] = packRgb(
+                                                (ar * frameIndex + br) / divisor,
+                                                (ag * frameIndex + bg) / divisor,
+                                                (ab * frameIndex + bb) / divisor
+                                            )
+                                        }
+                                        lumaDelta <= threshold * 2 && colorDelta <= threshold * 3 -> {
+                                            // Transitional motion gets only a small contribution.
+                                            oldRow[x] = packRgb(
+                                                (ar * 7 + br) / 8,
+                                                (ag * 7 + bg) / 8,
+                                                (ab * 7 + bb) / 8
+                                            )
+                                        }
+                                        // Large changes are treated as moving-object/ghost pixels.
+                                        else -> Unit
                                     }
-                                    lumaDelta <= threshold * 2 && colorDelta <= threshold * 3 -> {
-                                        // Transitional motion gets only a small contribution.
-                                        oldRow[x] = packRgb(
-                                            (ar * 7 + br) / 8,
-                                            (ag * 7 + bg) / 8,
-                                            (ab * 7 + bb) / 8
-                                        )
+                                } else if (mode == MergeMode.NIGHT_AVERAGE || mode == MergeMode.MILKY_WAY_STACK) {
+                                    val divisor = frameIndex + 1
+                                    oldRow[x] = packRgb(
+                                        (ar * frameIndex + br) / divisor,
+                                        (ag * frameIndex + bg) / divisor,
+                                        (ab * frameIndex + bb) / divisor
+                                    )
+                                } else if (mode == MergeMode.HDR_BRACKET) {
+                                    val scoreIndex = y * width + x
+                                    val currentWeight = exposureMidtoneScore(luma(b)).coerceAtLeast(1)
+                                    val previousWeight = exposureWeights!![scoreIndex].toInt().coerceAtLeast(1)
+                                    val combinedWeight = previousWeight + currentWeight
+                                    // Exposure-weighted fusion preserves information from more than
+                                    // one bracket frame instead of hard-switching each pixel to a
+                                    // single frame. The weight sum fits in Short for a 3-frame bracket.
+                                    oldRow[x] = packRgb(
+                                        (ar * previousWeight + br * currentWeight) / combinedWeight,
+                                        (ag * previousWeight + bg * currentWeight) / combinedWeight,
+                                        (ab * previousWeight + bb * currentWeight) / combinedWeight
+                                    )
+                                    exposureWeights[scoreIndex] = combinedWeight.toShort()
+                                } else {
+                                    val sourceXLeft = (sourceX - 1).coerceAtLeast(0)
+                                    val sourceXRight = (sourceX + 1).coerceAtMost(width - 1)
+                                    val left = luma(newRow[sourceXLeft])
+                                    val right = luma(newRow[sourceXRight])
+                                    val up = luma(upperRow[sourceX])
+                                    val down = luma(lowerRow[sourceX])
+                                    val score = (kotlin.math.abs(left - right) + kotlin.math.abs(up - down))
+                                        .coerceIn(0, 255)
+                                    val scoreIndex = y * width + x
+                                    val previousScore = bestScores!![scoreIndex].toInt() and 0xFF
+                                    if (score > previousScore) {
+                                        oldRow[x] = b
+                                        bestScores[scoreIndex] = score.toByte()
                                     }
-                                    // Large changes are treated as moving-object/ghost pixels.
-                                    else -> Unit
-                                }
-                            } else if (mode == MergeMode.NIGHT_AVERAGE || mode == MergeMode.MILKY_WAY_STACK) {
-                                val divisor = frameIndex + 1
-                                oldRow[x] = packRgb(
-                                    (ar * frameIndex + br) / divisor,
-                                    (ag * frameIndex + bg) / divisor,
-                                    (ab * frameIndex + bb) / divisor
-                                )
-                            } else if (mode == MergeMode.HDR_BRACKET) {
-                                val scoreIndex = y * width + x
-                                val currentWeight = exposureMidtoneScore(luma(b)).coerceAtLeast(1)
-                                val previousWeight = exposureWeights!![scoreIndex].toInt().coerceAtLeast(1)
-                                val combinedWeight = previousWeight + currentWeight
-                                // Exposure-weighted fusion preserves information from more than
-                                // one bracket frame instead of hard-switching each pixel to a
-                                // single frame. The weight sum fits in Short for a 3-frame bracket.
-                                oldRow[x] = packRgb(
-                                    (ar * previousWeight + br * currentWeight) / combinedWeight,
-                                    (ag * previousWeight + bg * currentWeight) / combinedWeight,
-                                    (ab * previousWeight + bb * currentWeight) / combinedWeight
-                                )
-                                exposureWeights[scoreIndex] = combinedWeight.toShort()
-                            } else {
-                                val sourceXLeft = (sourceX - 1).coerceAtLeast(0)
-                                val sourceXRight = (sourceX + 1).coerceAtMost(width - 1)
-                                val left = luma(newRow[sourceXLeft])
-                                val right = luma(newRow[sourceXRight])
-                                val up = luma(upperRow[sourceX])
-                                val down = luma(lowerRow[sourceX])
-                                val score = (kotlin.math.abs(left - right) + kotlin.math.abs(up - down))
-                                    .coerceIn(0, 255)
-                                val scoreIndex = y * width + x
-                                val previousScore = bestScores!![scoreIndex].toInt() and 0xFF
-                                if (score > previousScore) {
-                                    oldRow[x] = b
-                                    bestScores[scoreIndex] = score.toByte()
                                 }
                             }
+                            base!!.setPixels(oldRow, 0, width, 0, y, width, 1)
                         }
-                        base!!.setPixels(oldRow, 0, width, 0, y, width, 1)
                     }
                     fusionMs += SystemClock.elapsedRealtime() - fusionStartedAt
                 } finally {
@@ -570,9 +596,93 @@ object NightShotProcessor {
             )
             false
         } finally {
+            lunaFusionExecutor?.shutdown()
             alignmentReference?.recycle()
             base?.recycle()
             runCatching { tempOutput.delete() }
+        }
+    }
+
+    /**
+     * Multi-core temporal fusion for LunaDream. Each stripe is read before worker threads
+     * process disjoint pixel ranges, then written back once complete. The per-pixel blend
+     * equations intentionally match the serial implementation.
+     */
+    private fun fuseLunaDreamFrameParallel(
+        base: Bitmap,
+        current: Bitmap,
+        width: Int,
+        height: Int,
+        shiftX: Int,
+        shiftY: Int,
+        frameIndex: Int,
+        totalMergedFrames: Int,
+        workers: ExecutorService,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
+        val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val rowsPerStripe = 24
+        for (top in 0 until height step rowsPerStripe) {
+            val rowCount = min(rowsPerStripe, height - top)
+            val pixelCount = rowCount * width
+            val oldPixels = IntArray(pixelCount)
+            val newPixels = IntArray(pixelCount)
+            base.getPixels(oldPixels, 0, width, 0, top, width, rowCount)
+            for (row in 0 until rowCount) {
+                val sourceY = (top + row + shiftY).coerceIn(0, height - 1)
+                current.getPixels(newPixels, row * width, width, 0, sourceY, width, 1)
+            }
+
+            val jobs = (0 until workerCount).map { worker ->
+                Callable {
+                    val from = pixelCount * worker / workerCount
+                    val until = pixelCount * (worker + 1) / workerCount
+                    for (index in from until until) {
+                        val x = index % width
+                        val sourceX = (x + shiftX).coerceIn(0, width - 1)
+                        val a = oldPixels[index]
+                        val b = newPixels[(index / width) * width + sourceX]
+                        val ar = (a ushr 16) and 0xFF
+                        val ag = (a ushr 8) and 0xFF
+                        val ab = a and 0xFF
+                        val br = (b ushr 16) and 0xFF
+                        val bg = (b ushr 8) and 0xFF
+                        val bb = b and 0xFF
+                        val oldLuma = luma(ar, ag, ab)
+                        val newLuma = luma(br, bg, bb)
+                        val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
+                        val colorDelta = max(
+                            kotlin.math.abs(ar - br),
+                            max(kotlin.math.abs(ag - bg), kotlin.math.abs(ab - bb))
+                        )
+                        val threshold = (16 + (oldLuma + newLuma) / 28).coerceIn(20, 38)
+                        when {
+                            lumaDelta <= threshold && colorDelta <= threshold * 2 -> {
+                                val divisor = frameIndex + 1
+                                oldPixels[index] = packRgb(
+                                    (ar * frameIndex + br) / divisor,
+                                    (ag * frameIndex + bg) / divisor,
+                                    (ab * frameIndex + bb) / divisor
+                                )
+                            }
+                            lumaDelta <= threshold * 2 && colorDelta <= threshold * 3 -> {
+                                oldPixels[index] = packRgb(
+                                    (ar * 7 + br) / 8,
+                                    (ag * 7 + bg) / 8,
+                                    (ab * 7 + bb) / 8
+                                )
+                            }
+                            // Large changes are treated as moving-object/ghost pixels.
+                            else -> Unit
+                        }
+                    }
+                }
+            }
+            workers.invokeAll(jobs).forEach { it.get() }
+            base.setPixels(oldPixels, 0, width, 0, top, width, rowCount)
+            val frameFraction = (frameIndex - 1 + (top + rowCount).toFloat() / height) /
+                totalMergedFrames.toFloat()
+            runCatching { onProgress?.invoke((5 + frameFraction * 90f).toInt()) }
         }
     }
 

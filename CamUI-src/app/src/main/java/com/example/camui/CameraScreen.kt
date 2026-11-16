@@ -2874,8 +2874,8 @@ fun CameraScreen(
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
                                 val inspectorLunaDreamStatus = when {
-                                    captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · ghép tối đa 5 khung"
-                                    captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG gốc + JPEG ghép 8 khung bằng LunaDream 2.0"
+                                    captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · ghép " + lunaDreamCapturedFrameCount + "/5 khung"
+                                    captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG gốc + JPEG ghép " + lunaDreamCapturedFrameCount + "/8 khung bằng LunaDream 2.0"
                                     captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép đa khung và phục hồi chi tiết"
                                     captureUseLunaDream -> "LunaDream chưa hoàn tất · giữ ảnh gốc"
                                     captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
@@ -2907,15 +2907,17 @@ fun CameraScreen(
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 1.5 · 50MP."
                                             else "Đã lưu LunaDream 1.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseRawDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu RawDream 2.0 · DNG + JPEG 108MP."
-                                            else "Đã lưu RawDream 2.0 · DNG + JPEG ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 108MP."
+                                            else "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
                                             else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream && !lunaDreamApplied ->
                                             "LunaDream chưa xử lý hoàn tất. Ảnh gốc được giữ lại; chế độ LunaDream vẫn được chọn."
+                                        captureUseRawDream20 && lunaDreamApplied && !outputResolutionApplied ->
+                                            "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn."
                                         captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied ->
-                                            "LunaDream đã phục hồi ảnh nhưng không thể đạt kích thước đầu ra an toàn; ảnh đã xử lý được giữ lại."
+                                            "LunaDream đã ghép và phục hồi ảnh nhưng không thể đạt kích thước đầu ra an toàn; ảnh đã xử lý được giữ lại."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
                                             "Đã lưu NightShotMode · ${nightShotCapturedFrameCount} khung thực tế."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
@@ -2939,7 +2941,7 @@ fun CameraScreen(
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
                                     val lunaDreamStatusSuffix = when {
                                         captureUseLunaDream15 && lunaDreamApplied -> " LunaDream 1.5 đã ghép " + lunaDreamCapturedFrameCount + " khung hình."
-                                        captureUseRawDream20 && lunaDreamApplied -> " RawDream 2.0 giữ DNG cảm biến gốc và ghép JPEG đa khung bằng thuật toán LunaDream 2.0."
+                                        captureUseRawDream20 && lunaDreamApplied -> " RawDream 2.0 giữ DNG cảm biến gốc và ghép " + lunaDreamCapturedFrameCount + " JPEG bằng thuật toán LunaDream 2.0."
                                         captureUseLunaDream20 && lunaDreamApplied -> " LunaDream 2.0 đã ghép và phục hồi chi tiết đa khung."
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""

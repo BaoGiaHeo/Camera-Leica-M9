@@ -2507,8 +2507,7 @@ fun CameraScreen(
                         if (saved != null) {
                             if (captureNightShotExtension && captureUseNightShot) {
                                 multiFrameHoldActive = false
-                                multiFrameRenderStarted = true
-                                processingLabel = "NightShot Render · đang hoàn tất ảnh đã chụp"
+                                multiFrameRenderStarted = false
                             }
                             val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
                             val focal = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
@@ -2737,21 +2736,10 @@ fun CameraScreen(
                                         withContext(Dispatchers.Main) {
                                             if (captureUseNightShot) nightShotCaptureInProgress = false
                                             if (captureUseLunaDream || captureUseNightShot) {
+                                                // Frame collection/alignment/merge are done, but the
+                                                // Render UI is not active until the next processing stage.
                                                 multiFrameHoldActive = false
-                                                multiFrameRenderStarted = nightShotMerged
-                                                if (nightShotMerged) {
-                                                    processingLabel = when {
-                                                        captureUseRawDream20 ->
-                                                            "LunaDream Render · bắt đầu xử lý ảnh JPEG đã ghép"
-                                                        captureUseLunaDream15 ->
-                                                            "LunaDream Render · bắt đầu phục hồi chi tiết"
-                                                        captureUseLunaDream20 ->
-                                                            "LunaDream Render · bắt đầu phục hồi chi tiết"
-                                                        else ->
-                                                            "NightShot Render · bắt đầu hoàn tất ảnh đã ghép"
-                                                    }
-                                                    processingProgress = maxOf(processingProgress, 83)
-                                                }
+                                                multiFrameRenderStarted = false
                                             }
                                         }
                                     }
@@ -2782,6 +2770,11 @@ fun CameraScreen(
                                     else -> false
                                 }
                                 withContext(Dispatchers.Main) {
+                                    if (captureUseLunaDream || captureUseNightShot) {
+                                        multiFrameHoldActive = false
+                                        multiFrameRenderStarted = lunaDreamApplied ||
+                                            (captureUseNightShot && (nightShotMerged || captureNightShotExtension))
+                                    }
                                     processingLabel = when {
                                         captureUseLunaDream15 && lunaDreamApplied ->
                                             "LunaDream Render · 1.5 đang phục hồi chi tiết"
@@ -2789,12 +2782,16 @@ fun CameraScreen(
                                             "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép"
                                         captureUseLunaDream20 && lunaDreamApplied ->
                                             "LunaDream Render · 2.0 đang phục hồi chi tiết"
-                                        captureUseNightShot && nightShotMerged ->
+                                        captureUseNightShot && (nightShotMerged || captureNightShotExtension) ->
                                             "NightShot Render · đang hoàn tất ảnh đã ghép"
                                         captureUseLunaDream -> "LunaDream · xử lý chưa hoàn tất, giữ ảnh gốc"
                                         else -> "Đang hoàn tất ảnh"
                                     }
-                                    processingProgress = 60
+                                    processingProgress = if (multiFrameRenderStarted) {
+                                        maxOf(processingProgress, 83)
+                                    } else {
+                                        maxOf(processingProgress, 60)
+                                    }
                                     processingEtaSeconds = -1
                                 }
                                 val softwareHdrProfile = 2
@@ -2809,7 +2806,10 @@ fun CameraScreen(
                                         ) { progress ->
                                             mainExecutor.execute {
                                                 processingLabel = "HDRbyHDMP · profile ${softwareHdrProfile}x · $progress%"
-                                                processingProgress = (60 + progress * 0.06f).roundToInt().coerceIn(60, 66)
+                                                processingProgress = maxOf(
+                                                    processingProgress,
+                                                    (60 + progress * 0.06f).roundToInt().coerceIn(60, 66)
+                                                )
                                             }
                                         }
                                     }.getOrDefault(false)

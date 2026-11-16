@@ -146,10 +146,6 @@ internal object HdmpEngine {
                                 // Diagonal micro-detail pass helps recover fine texture direction
                                 // around hair, foliage, fabric and small edges without inventing
                                 // high-contrast outlines. The threshold rejects low-level sensor noise.
-                                val upLeft = input[upRow + max(0, x - 1)]
-                                val upRight = input[upRow + min(width - 1, x + 1)]
-                                val downLeft = input[downRow + max(0, x - 1)]
-                                val downRight = input[downRow + min(width - 1, x + 1)]
                                 val diagonalMean = (
                                     inputLuma[upRow + max(0, x - 1)] +
                                         inputLuma[upRow + min(width - 1, x + 1)] +

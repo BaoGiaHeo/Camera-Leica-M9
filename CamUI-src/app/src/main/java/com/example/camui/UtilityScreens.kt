@@ -2474,7 +2474,8 @@ fun applyCameraWatermark(
         // The reference layouts append a real white footer without downscaling the captured photo.
         // If the additional canvas would threaten the current heap, keep the original dimensions
         // and render the footer as an in-image plate instead of risking an OOM.
-        val expandedFujiFooter = isFujiFooterTemplate &&
+        val expandedFujiFooter = !preservePhotoAspectRatio &&
+            isFujiFooterTemplate &&
             frameStyle in setOf("White", "Black") &&
             expandedWidth <= 32768 && expandedHeight <= 32768 &&
             expandedPixelCount <= 100_000_000L && extraBytes <= (freeHeapBytes * 0.42f).toLong()

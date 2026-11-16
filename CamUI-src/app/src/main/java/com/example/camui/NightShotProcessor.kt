@@ -490,16 +490,19 @@ object NightShotProcessor {
                 brightenNightResult(base!!)
             } else if (mode == MergeMode.LUNA_DREAM_1_5) {
                 val detailStartedAt = SystemClock.elapsedRealtime()
-                applyLunaDreamFinishingPass(base!!, strength = 1) { stageProgress ->
+                applyLunaDream15FinishingPass(base!!) { stageProgress ->
                     runCatching { onProgress?.invoke(stageProgress) }
                 }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             } else if (mode == MergeMode.LUNA_DREAM_2_0) {
-                // Keep the 2.0 eight-frame alignment/fusion strategy; add a restrained
-                // edge-aware spatial denoise pass before its existing detail restoration.
+                // Preserve the LunaDream 2.0 build-9 finishing sequence exactly:
+                // strength-2 edge-aware denoise followed by the dedicated 2.0 detail pass.
                 val detailStartedAt = SystemClock.elapsedRealtime()
-                applyLunaDreamFinishingPass(base!!, strength = 2) { stageProgress ->
-                    runCatching { onProgress?.invoke(stageProgress) }
+                applyLunaDreamNoiseReduction(base!!, strength = 2) { stageProgress ->
+                    runCatching { onProgress?.invoke(90 + (stageProgress * 3 / 100)) }
+                }
+                applyLunaDream20DetailRecovery(base!!) { stageProgress ->
+                    runCatching { onProgress?.invoke(93 + (stageProgress * 2 / 100)) }
                 }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             }
@@ -926,18 +929,18 @@ object NightShotProcessor {
     }
 
     /**
-     * Single-pass finish stage: edge-aware denoise and bounded detail recovery are streamed
-     * together, avoiding a second full-resolution bitmap traversal.
+     * LunaDream 1.5 uses its own bounded, single-pass finish stage.
+     * Four cardinal neighbours are sampled from row/luminance caches to keep the
+     * 50MP path predictable on mobile CPUs while protecting high-contrast edges.
      */
-    private fun applyLunaDreamFinishingPass(
+    private fun applyLunaDream15FinishingPass(
         bitmap: Bitmap,
-        strength: Int,
         onProgress: ((Int) -> Unit)? = null
     ) {
         val width = bitmap.width
         val height = bitmap.height
         if (width < 3 || height < 3) {
-            runCatching { onProgress?.invoke(96) }
+            runCatching { onProgress?.invoke(95) }
             return
         }
 
@@ -960,124 +963,116 @@ object NightShotProcessor {
         fillLumaRow(currentRow, currentLuma)
         fillLumaRow(nextRow, nextLuma)
 
-        val baseBlend = if (strength >= 2) 0.30f else 0.23f
-        // Keep full bilateral sampling on ordinary photos. Large native-resolution frames
-        // use cardinal neighbours for the denoise weights; LunaDream 2.0 still samples
-        // diagonals from the luminance cache for detail-recovery clamping below.
-        val useEightNeighbourKernel = width.toLong() * height.toLong() <= 20_000_000L
+        val baseBlend = 0.18f
         val progressInterval = (height / 48).coerceAtLeast(1)
-        val stageStartedAt = SystemClock.elapsedRealtime()
         runCatching { onProgress?.invoke(90) }
 
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val center = currentRow[x]
-                val centerR = (center ushr 16) and 0xFF
-                val centerG = (center ushr 8) and 0xFF
-                val centerB = center and 0xFF
+                val red = (center ushr 16) and 0xFF
+                val green = (center ushr 8) and 0xFF
+                val blue = center and 0xFF
                 val centerLuma = currentLuma[x]
-                val rangeLimit = if (centerLuma < 72) {
-                    if (strength >= 2) 27 else 23
-                } else {
-                    if (strength >= 2) 20 else 17
-                }
+                val rangeLimit = if (centerLuma < 72) 23 else 17
 
                 var sumR = 0
                 var sumG = 0
                 var sumB = 0
                 var weightSum = 0
 
-                // Reuse the three row luminance caches; deriving neighbour luma from RGB
-                // for each of the eight samples was a major avoidable cost on 40–100MP frames.
-                for (dy in -1..1) {
-                    val row = when (dy) {
-                        -1 -> previousRow
-                        0 -> currentRow
-                        else -> nextRow
-                    }
-                    val rowLuma = when (dy) {
-                        -1 -> previousLuma
-                        0 -> currentLuma
-                        else -> nextLuma
-                    }
-                    for (dx in -1..1) {
-                        if (dx == 0 && dy == 0) continue
-                        if (!useEightNeighbourKernel && dx != 0 && dy != 0) continue
-                        val nx = (x + dx).coerceIn(0, width - 1)
-                        val neighbor = row[nx]
-                        val nr = (neighbor ushr 16) and 0xFF
-                        val ng = (neighbor ushr 8) and 0xFF
-                        val nb = neighbor and 0xFF
-                        val lumaDelta = kotlin.math.abs(rowLuma[nx] - centerLuma)
-                        val colorDelta = max(
-                            kotlin.math.abs(nr - centerR),
-                            max(kotlin.math.abs(ng - centerG), kotlin.math.abs(nb - centerB))
-                        )
-                        val spatialWeight = if (dx == 0 || dy == 0) 2 else 1
-                        val weight = when {
-                            lumaDelta <= rangeLimit && colorDelta <= rangeLimit * 2 -> spatialWeight
-                            lumaDelta <= rangeLimit * 2 && colorDelta <= rangeLimit * 3 -> 1
-                            else -> 0
-                        }
-                        if (weight > 0) {
-                            sumR += nr * weight
-                            sumG += ng * weight
-                            sumB += nb * weight
-                            weightSum += weight
-                        }
-                    }
+                // Horizontal neighbours.
+                val leftIndex = (x - 1).coerceAtLeast(0)
+                val rightIndex = (x + 1).coerceAtMost(width - 1)
+                val left = currentRow[leftIndex]
+                val leftR = (left ushr 16) and 0xFF
+                val leftG = (left ushr 8) and 0xFF
+                val leftB = left and 0xFF
+                val leftDelta = kotlin.math.abs(currentLuma[leftIndex] - centerLuma)
+                val leftColorDelta = max(
+                    kotlin.math.abs(leftR - red),
+                    max(kotlin.math.abs(leftG - green), kotlin.math.abs(leftB - blue))
+                )
+                if (leftDelta <= rangeLimit && leftColorDelta <= rangeLimit * 2) {
+                    sumR += leftR * 2
+                    sumG += leftG * 2
+                    sumB += leftB * 2
+                    weightSum += 2
                 }
 
-                val shadowBoost = (1.22f - centerLuma / 255f * 0.42f).coerceIn(0.80f, 1.22f)
-                val blend = (baseBlend * shadowBoost).coerceIn(0.12f, 0.38f)
-                val avgR = if (weightSum > 0) sumR.toFloat() / weightSum else centerR.toFloat()
-                val avgG = if (weightSum > 0) sumG.toFloat() / weightSum else centerG.toFloat()
-                val avgB = if (weightSum > 0) sumB.toFloat() / weightSum else centerB.toFloat()
-                val denoisedR = centerR * (1f - blend) + avgR * blend
-                val denoisedG = centerG * (1f - blend) + avgG * blend
-                val denoisedB = centerB * (1f - blend) + avgB * blend
+                val right = currentRow[rightIndex]
+                val rightR = (right ushr 16) and 0xFF
+                val rightG = (right ushr 8) and 0xFF
+                val rightB = right and 0xFF
+                val rightDelta = kotlin.math.abs(currentLuma[rightIndex] - centerLuma)
+                val rightColorDelta = max(
+                    kotlin.math.abs(rightR - red),
+                    max(kotlin.math.abs(rightG - green), kotlin.math.abs(rightB - blue))
+                )
+                if (rightDelta <= rangeLimit && rightColorDelta <= rangeLimit * 2) {
+                    sumR += rightR * 2
+                    sumG += rightG * 2
+                    sumB += rightB * 2
+                    weightSum += 2
+                }
+
+                // Vertical neighbours.
+                val up = previousRow[x]
+                val upR = (up ushr 16) and 0xFF
+                val upG = (up ushr 8) and 0xFF
+                val upB = up and 0xFF
+                val upDelta = kotlin.math.abs(previousLuma[x] - centerLuma)
+                val upColorDelta = max(
+                    kotlin.math.abs(upR - red),
+                    max(kotlin.math.abs(upG - green), kotlin.math.abs(upB - blue))
+                )
+                if (upDelta <= rangeLimit && upColorDelta <= rangeLimit * 2) {
+                    sumR += upR * 2
+                    sumG += upG * 2
+                    sumB += upB * 2
+                    weightSum += 2
+                }
+
+                val down = nextRow[x]
+                val downR = (down ushr 16) and 0xFF
+                val downG = (down ushr 8) and 0xFF
+                val downB = down and 0xFF
+                val downDelta = kotlin.math.abs(nextLuma[x] - centerLuma)
+                val downColorDelta = max(
+                    kotlin.math.abs(downR - red),
+                    max(kotlin.math.abs(downG - green), kotlin.math.abs(downB - blue))
+                )
+                if (downDelta <= rangeLimit && downColorDelta <= rangeLimit * 2) {
+                    sumR += downR * 2
+                    sumG += downG * 2
+                    sumB += downB * 2
+                    weightSum += 2
+                }
+
+                val blend = if (weightSum == 0) 0f else {
+                    (baseBlend * (1.18f - centerLuma / 255f * 0.30f)).coerceIn(0.12f, 0.23f)
+                }
+                val averageR = if (weightSum > 0) sumR.toFloat() / weightSum else red.toFloat()
+                val averageG = if (weightSum > 0) sumG.toFloat() / weightSum else green.toFloat()
+                val averageB = if (weightSum > 0) sumB.toFloat() / weightSum else blue.toFloat()
+                val denoisedR = red * (1f - blend) + averageR * blend
+                val denoisedG = green * (1f - blend) + averageG * blend
+                val denoisedB = blue * (1f - blend) + averageB * blend
                 val denoisedLuma = luma(
                     denoisedR.roundToInt().coerceIn(0, 255),
                     denoisedG.roundToInt().coerceIn(0, 255),
                     denoisedB.roundToInt().coerceIn(0, 255)
                 ).toFloat()
-
-                val leftLuma = currentLuma[(x - 1).coerceAtLeast(0)].toFloat()
-                val rightLuma = currentLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
-                val upLuma = previousLuma[x].toFloat()
-                val downLuma = nextLuma[x].toFloat()
-                val crossMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
+                val crossMean = (
+                    currentLuma[leftIndex] + currentLuma[rightIndex] +
+                        previousLuma[x] + nextLuma[x]
+                    ) * 0.25f
                 val edgeDelta = denoisedLuma - crossMean
                 val edgeMagnitude = kotlin.math.abs(edgeDelta)
-
-                val targetLuma = if (strength >= 2) {
-                    val upLeft = previousLuma[(x - 1).coerceAtLeast(0)].toFloat()
-                    val upRight = previousLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
-                    val downLeft = nextLuma[(x - 1).coerceAtLeast(0)].toFloat()
-                    val downRight = nextLuma[(x + 1).coerceAtMost(width - 1)].toFloat()
-                    val diagonalMean = (upLeft + upRight + downLeft + downRight) * 0.25f
-                    val fineDelta = denoisedLuma - diagonalMean
-                    val correction = if (denoisedLuma in 18f..238f && edgeMagnitude in 2.5f..58f) {
-                        edgeDelta * 0.24f +
-                            if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.10f else 0f
-                    } else 0f
-                    val localMin = minOf(
-                        denoisedLuma, leftLuma, rightLuma, upLuma, downLuma,
-                        upLeft, upRight, downLeft, downRight
-                    )
-                    val localMax = maxOf(
-                        denoisedLuma, leftLuma, rightLuma, upLuma, downLuma,
-                        upLeft, upRight, downLeft, downRight
-                    )
-                    val limit = minOf(7f, (edgeMagnitude * 0.48f).coerceAtLeast(2f))
-                    (denoisedLuma + correction.coerceIn(-limit, limit))
-                        .coerceIn((localMin - 3f).coerceAtLeast(0f), (localMax + 3f).coerceAtMost(255f))
-                } else {
-                    val detail = if (denoisedLuma in 18f..238f && edgeMagnitude in 2f..42f) {
-                        (edgeDelta * 0.08f).coerceIn(-3f, 3f)
-                    } else 0f
-                    (denoisedLuma + detail).coerceIn(0f, 255f)
-                }
+                val detail = if (denoisedLuma in 18f..238f && edgeMagnitude in 2f..42f) {
+                    (edgeDelta * 0.08f).coerceIn(-3f, 3f)
+                } else 0f
+                val targetLuma = (denoisedLuma + detail).coerceIn(0f, 255f)
                 val gain = if (denoisedLuma > 1f) targetLuma / denoisedLuma else 1f
                 outputRow[x] = packRgb(
                     (denoisedR * gain).roundToInt().coerceIn(0, 255),
@@ -1088,8 +1083,8 @@ object NightShotProcessor {
 
             bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
             if (y % progressInterval == 0) {
-                val stageProgress = (90f + 5f * (y + 1) / height).toInt().coerceIn(90, 95)
-                runCatching { onProgress?.invoke(stageProgress) }
+                val progress = (90f + 5f * (y + 1) / height).toInt().coerceIn(90, 95)
+                runCatching { onProgress?.invoke(progress) }
             }
 
             if (y + 1 < height) {
@@ -1097,12 +1092,10 @@ object NightShotProcessor {
                 previousRow = currentRow
                 currentRow = nextRow
                 nextRow = recycledRow
-
                 val recycledLuma = previousLuma
                 previousLuma = currentLuma
                 currentLuma = nextLuma
                 nextLuma = recycledLuma
-
                 if (y + 2 < height) {
                     bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
                     fillLumaRow(nextRow, nextLuma)
@@ -1112,10 +1105,10 @@ object NightShotProcessor {
                 }
             }
         }
-
-        Log.i(TAG, "LunaDream detail/denoise completed: strength=$strength size=${width}x${height} " +
-            "kernel=${if (useEightNeighbourKernel) 8 else 4}-neighbour cached-luma in " +
-            (SystemClock.elapsedRealtime() - stageStartedAt) + "ms")
+        Log.i(
+            TAG,
+            "LunaDream 1.5 finishing completed: size=${width}x${height}, four-neighbour row cache"
+        )
         runCatching { onProgress?.invoke(95) }
     }
 
@@ -1125,7 +1118,11 @@ object NightShotProcessor {
      * luminance or colour boundaries, so texture and hair edges are less likely to smear.
      * The pass is row-streamed to avoid another full-resolution bitmap allocation.
      */
-    private fun applyLunaDreamNoiseReduction(bitmap: Bitmap, strength: Int) {
+    private fun applyLunaDreamNoiseReduction(
+        bitmap: Bitmap,
+        strength: Int,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
         val width = bitmap.width
         val height = bitmap.height
         if (width < 3 || height < 3) return
@@ -1139,6 +1136,7 @@ object NightShotProcessor {
         bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
 
         val baseBlend = if (strength >= 2) 0.30f else 0.23f
+        val progressInterval = (height / 48).coerceAtLeast(1)
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val center = currentRow[x]
@@ -1207,6 +1205,9 @@ object NightShotProcessor {
                 }
             }
             bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+            if (y % progressInterval == 0) {
+                runCatching { onProgress?.invoke(((y + 1) * 100 / height).coerceIn(0, 100)) }
+            }
             if (y + 1 < height) {
                 val recycled = previousRow
                 previousRow = currentRow
@@ -1281,7 +1282,10 @@ object NightShotProcessor {
      * no synthetic texture is generated. A bounded local luminance range avoids dark
      * outlines and bright halos around high-contrast edges.
      */
-    private fun applyLunaDream20DetailRecovery(bitmap: Bitmap) {
+    private fun applyLunaDream20DetailRecovery(
+        bitmap: Bitmap,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
         val width = bitmap.width
         val height = bitmap.height
         if (width < 3 || height < 3) return
@@ -1293,6 +1297,7 @@ object NightShotProcessor {
         bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
         currentRow.copyInto(previousRow)
         bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+        val progressInterval = (height / 48).coerceAtLeast(1)
 
         for (y in 0 until height) {
             for (x in 0 until width) {
@@ -1335,6 +1340,9 @@ object NightShotProcessor {
                 )
             }
             bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+            if (y % progressInterval == 0) {
+                runCatching { onProgress?.invoke(((y + 1) * 100 / height).coerceIn(0, 100)) }
+            }
             if (y + 1 < height) {
                 val recycled = previousRow
                 previousRow = currentRow

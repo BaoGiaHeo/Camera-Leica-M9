@@ -3020,6 +3020,9 @@ fun CameraScreen(
         CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
     ) else null
     val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+    val availableAfModes = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+    val manualInfinityFocusSupported = maxFocus >= 8f &&
+        availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -3444,7 +3447,7 @@ fun CameraScreen(
                                             modifier = Modifier.padding(top = 6.dp)
                                         )
                                     }
-                                    if (macroManualFocusSupported) {
+                                    if (manualInfinityFocusSupported) {
                                         Text(
                                             if (milkyWayInfinityFocusEnabled) "ĐANG KHÓA NÉT VÔ CỰC · CHẠM ĐỂ TRỞ VỀ AF"
                                             else "ĐẶT LẤY NÉT VÔ CỰC",

@@ -2766,7 +2766,7 @@ fun CameraScreen(
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""
                                     }
-                                    localizedToast(context, finalMessage + lunaDreamStatusSuffix, Toast.LENGTH_LONG).show()                                    localizedToast(context, finalMessage + aiStatusSuffix, Toast.LENGTH_LONG).show()
+                                    localizedToast(context, finalMessage + lunaDreamStatusSuffix, Toast.LENGTH_LONG).show()
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {

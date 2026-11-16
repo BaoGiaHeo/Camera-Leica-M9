@@ -821,7 +821,7 @@ object NightShotProcessor {
                 val localAverage = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
                 // Limit edge boost and avoid dark/bright overshoot that can create black halos.
                 val edgeContrast = kotlin.math.abs(centerLuma - localAverage)
-                val detail = if (centerLuma in 18f..238f && edgeContrast in 2f..42f) {
+                val detail = if (centerLuma.toFloat() in 18f..238f && edgeContrast in 2f..42f) {
                     ((centerLuma - localAverage) * 0.08f).coerceIn(-3f, 3f)
                 } else 0f
                 val targetLuma = (centerLuma + detail).coerceIn(0f, 255f)

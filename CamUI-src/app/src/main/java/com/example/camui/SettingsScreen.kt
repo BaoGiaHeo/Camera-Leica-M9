@@ -66,7 +66,7 @@ private val settingItems = listOf(
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
-    SettingItem("About", "FujiFilm Mode · LunaDream Camera · Version 2.0.0Dream")
+    SettingItem("About", "FujiFilm Mode · LunaDream Camera · Version 2.0.1Dream")
 )
 
 @Composable
@@ -451,7 +451,7 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "RAW lưu tệp DNG gốc. RawHDMP 1.2 chụp đồng thời một tệp DNG và một tệp JPEG riêng; kích thước RAW theo định dạng cảm biến/HAL công bố, không nội suy RAW. RAW/RawHDMP 1.2 không kết hợp với LunaDream 1.5, LunaDream 2.0, NightShotMode, Star Trails, Burst hoặc Bracketing. Nếu thiết bị không hỗ trợ RAW hoặc RawHDMP 1.2 đồng thời, ứng dụng báo rõ.",
+                    "RAW lưu DNG gốc theo dữ liệu cảm biến. RawDream 2.0 chụp đồng thời DNG và JPEG; JPEG được căn chỉnh, ghép đa khung, khử nhiễu và phục hồi chi tiết bằng LunaDream 2.0, đầu ra mục tiêu 108MP. RawDream 2.0 không kết hợp NightShotMode, Star Trails, Burst hoặc Bracketing. Nếu camera không hỗ trợ đồng thời RAW + JPEG, ứng dụng báo lỗi và không tự chuyển sang JPEG thường.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
@@ -459,7 +459,7 @@ var nightShotMode by remember {
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    listOf("JPEG" to "jpeg", "RAW" to "raw", "RawHDMP 1.2" to "raw_plus").forEach { (label, value) ->
+                    listOf("JPEG" to "jpeg", "RAW" to "raw", "RawDream 2.0" to "raw_dream").forEach { (label, value) ->
                         Chip(label, rawCaptureMode == value, {
                             rawCaptureMode = value
                             prefs.edit().putString("raw_capture_mode", value).apply()
@@ -493,7 +493,7 @@ var nightShotMode by remember {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
                         }
                     })
-                Text("Version 2.0.0Dream · Build 8", color = CamColors.Sub, fontSize = 12.sp,
+                Text("Version 2.0.1Dream · Build 9", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
             }
         }

@@ -112,33 +112,49 @@ object NightShotProcessor {
      * detail recovery to one camera JPEG and never captures or fuses additional frames.
      * The original URI is backed up before replacement and restored on write failure.
      */
-    fun processLunaDreamSingleFrame(context: Context, uri: Uri): Boolean {
+    fun processLunaDreamSingleFrame(context: Context, uri: Uri): Boolean =
+        processLunaDreamSingleFrameInternal(context, uri, lunaDream20 = false)
+
+    /**
+     * One-shot LunaDream 2.0 detail restoration for RawDream 2.0.
+     * RawDream's capture session is RAW+JPEG, so this mode processes its JPEG partner
+     * directly instead of issuing extra JPEG-only captures through the RAW+JPEG use case.
+     */
+    fun processLunaDream20SingleFrame(context: Context, uri: Uri): Boolean =
+        processLunaDreamSingleFrameInternal(context, uri, lunaDream20 = true)
+
+    private fun processLunaDreamSingleFrameInternal(
+        context: Context,
+        uri: Uri,
+        lunaDream20: Boolean
+    ): Boolean {
         val stamp = System.nanoTime()
-        val sourceFile = File(context.cacheDir, "luna15-source-$stamp.jpg")
-        val processedFile = File(context.cacheDir, "luna15-processed-$stamp.jpg")
-        val backupFile = File(context.cacheDir, "luna15-original-$stamp.jpg")
+        val modeLabel = if (lunaDream20) "LunaDream 2.0" else "LunaDream 1.5"
+        val sourceFile = File(context.cacheDir, "luna-single-source-$stamp.jpg")
+        val processedFile = File(context.cacheDir, "luna-single-processed-$stamp.jpg")
+        val backupFile = File(context.cacheDir, "luna-single-original-$stamp.jpg")
         var bitmap: Bitmap? = null
         var replacing = false
         var stage = "copy source"
         return try {
-            check(copyUriToFile(context, uri, sourceFile)) { "Cannot read LunaDream 1.5 source" }
+            check(copyUriToFile(context, uri, sourceFile)) { "Cannot read $modeLabel source" }
             stage = "read metadata and decode"
             val exif = readExif(sourceFile)
-            bitmap = decodeUpright(
-                sourceFile, null, null, 50_000_000L, heapBytesPerPixel = 2.0
-            ) ?: error("Cannot decode LunaDream 1.5 source within the safe memory budget")
+            bitmap = decodeUpright(sourceFile, null, null, 50_000_000L)
+                ?: error("Cannot decode $modeLabel source within the safe memory budget")
             stage = "single-frame detail recovery"
-            applyLunaDreamDetailRecovery(bitmap!!)
+            if (lunaDream20) applyLunaDream20DetailRecovery(bitmap!!)
+            else applyLunaDreamDetailRecovery(bitmap!!)
             stage = "encode processed JPEG"
             FileOutputStream(processedFile).use { output ->
                 check(bitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, output)) {
-                    "LunaDream 1.5 JPEG encoding failed"
+                    "$modeLabel JPEG encoding failed"
                 }
                 output.flush()
                 output.fd.sync()
             }
             check(processedFile.exists() && processedFile.length() > 0L) {
-                "LunaDream 1.5 produced an empty output file"
+                "$modeLabel produced an empty output file"
             }
             writeExif(processedFile, exif)
             stage = "backup original"
@@ -147,21 +163,21 @@ object NightShotProcessor {
                     input.copyTo(output)
                     output.fd.sync()
                 }
-            } ?: error("Cannot back up original LunaDream 1.5 photo")
+            } ?: error("Cannot back up original $modeLabel photo")
             check(backupFile.length() > 0L) { "Original backup is empty" }
             stage = "publish processed JPEG"
             replacing = true
             context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
                 processedFile.inputStream().use { it.copyTo(output) }
                 output.flush()
-            } ?: error("Cannot write LunaDream 1.5 photo")
+            } ?: error("Cannot write $modeLabel photo")
             stage = "verify published JPEG"
             val verification = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, verification)
-            } ?: error("Cannot reopen processed LunaDream 1.5 photo")
+            } ?: error("Cannot reopen processed $modeLabel photo")
             check(verification.outWidth >= 3 && verification.outHeight >= 3) {
-                "Published LunaDream 1.5 image is not a decodable JPEG"
+                "Published $modeLabel image is not a decodable JPEG"
             }
             context.contentResolver.update(
                 uri,
@@ -169,17 +185,18 @@ object NightShotProcessor {
                 null,
                 null
             )
-            Log.i(TAG, "LunaDream 1.5 processed and verified one frame at ${verification.outWidth}x${verification.outHeight}")
+            Log.i(TAG, "$modeLabel processed and verified one frame at ${verification.outWidth}x${verification.outHeight}")
             true
         } catch (failure: Throwable) {
             if (replacing && backupFile.exists()) {
                 runCatching {
                     context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
                         backupFile.inputStream().use { it.copyTo(output) }
+                        output.flush()
                     } ?: error("Rollback stream unavailable")
-                }.onFailure { Log.e(TAG, "LunaDream 1.5 rollback failed", it) }
+                }.onFailure { Log.e(TAG, "$modeLabel rollback failed", it) }
             }
-            Log.e(TAG, "LunaDream 1.5 failed during $stage; original retained", failure)
+            Log.e(TAG, "$modeLabel failed during $stage; original retained", failure)
             false
         } finally {
             bitmap?.let { if (!it.isRecycled) it.recycle() }

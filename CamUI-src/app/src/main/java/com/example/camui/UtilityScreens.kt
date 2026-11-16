@@ -4091,6 +4091,8 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
  */
 fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val brandId = prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm"
+    val brandTitle = cameraWatermarkBrandTitle(brandId)
     val template = prefs.getString("selected_frame_template", "none") ?: "none"
     if (template == "none") return false
 

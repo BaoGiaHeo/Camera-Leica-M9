@@ -3019,6 +3019,7 @@ fun CameraScreen(
     val shutterRange = if (manualSensorSupported) cameraInfo2?.getCameraCharacteristic(
         CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
     ) else null
+    val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -3180,7 +3181,6 @@ fun CameraScreen(
                                                     .disableAutoCancel()
                                                     .build()
                                                 active.cameraControl.startFocusAndMetering(action)
-                                                macroAssistEnabled = false
                                                 focusLocked = true
                                                 localizedToast(context, "Đã khóa nét · chạm lại để lấy nét mới.", Toast.LENGTH_SHORT).show()
                                             }
@@ -3464,7 +3464,6 @@ fun CameraScreen(
                                                             if (applied) {
                                                                 manualFocus = 0f
                                                                 milkyWayInfinityFocusEnabled = true
-                                                                macroAssistEnabled = false
                                                                 focusLocked = false
                                                                 localizedToast(context, "Đã đặt nét vô cực theo Camera2.", Toast.LENGTH_SHORT).show()
                                                             } else {

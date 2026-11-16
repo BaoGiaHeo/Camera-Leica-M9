@@ -50,7 +50,15 @@ object NightShotProcessor {
         ExifInterface.TAG_FLASH
     )
 
-    enum class MergeMode { NIGHT_AVERAGE, MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
+    enum class MergeMode { NIGHT_AVERAGE, LUNA_DREAM_2_0, MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
+
+    private data class GrayLevel(
+        val width: Int,
+        val height: Int,
+        val pixels: IntArray
+    )
+
+    private data class FlowTrack(val dx: Float, val dy: Float)
 
     fun copyUriToFile(context: Context, uri: Uri, destination: File): Boolean =
         runCatching {
@@ -107,6 +115,7 @@ object NightShotProcessor {
         if (frames.size < 2 || frames.any { !it.exists() || it.length() <= 0L }) return false
         val prefix = when (mode) {
             MergeMode.STAR_TRAILS -> "star-"
+            MergeMode.LUNA_DREAM_2_0 -> "luna-dream-"
             MergeMode.MILKY_WAY_STACK -> "milky-way-"
             MergeMode.HDR_BRACKET -> "hdr-"
             MergeMode.FOCUS_STACK -> "focus-"
@@ -165,10 +174,11 @@ object NightShotProcessor {
                 val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
                     ?: error("Could not decode frame " + (frameIndex + 1))
                 try {
-                    val shift = if (mode != MergeMode.STAR_TRAILS) {
-                        estimateGlobalTranslation(alignmentReference!!, current)
-                    } else {
-                        0 to 0
+                    val shift = when (mode) {
+                        MergeMode.STAR_TRAILS -> 0 to 0
+                        MergeMode.LUNA_DREAM_2_0 ->
+                            estimatePyramidalLucasKanade(alignmentReference!!, current)
+                        else -> estimateGlobalTranslation(alignmentReference!!, current)
                     }
                     val shiftX = shift.first.coerceIn(-width / 12, width / 12)
                     val shiftY = shift.second.coerceIn(-height / 12, height / 12)
@@ -210,6 +220,38 @@ object NightShotProcessor {
                                     newLuma >= oldLuma + STAR_TRAIL_MIN_DELTA
                                 ) {
                                     oldRow[x] = Color.rgb(max(ar, br), max(ag, bg), max(ab, bb))
+                                }
+                            } else if (mode == MergeMode.LUNA_DREAM_2_0) {
+                                // Robust temporal fusion: stable pixels are averaged for noise
+                                // reduction; strong local changes are down-weighted or rejected
+                                // so moving subjects do not leave translucent trails.
+                                val oldLuma = luma(ar, ag, ab)
+                                val newLuma = luma(br, bg, bb)
+                                val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
+                                val colorDelta = max(
+                                    kotlin.math.abs(ar - br),
+                                    max(kotlin.math.abs(ag - bg), kotlin.math.abs(ab - bb))
+                                )
+                                val threshold = (16 + (oldLuma + newLuma) / 28).coerceIn(20, 38)
+                                when {
+                                    lumaDelta <= threshold && colorDelta <= threshold * 2 -> {
+                                        val divisor = frameIndex + 1
+                                        oldRow[x] = Color.rgb(
+                                            (ar * frameIndex + br) / divisor,
+                                            (ag * frameIndex + bg) / divisor,
+                                            (ab * frameIndex + bb) / divisor
+                                        )
+                                    }
+                                    lumaDelta <= threshold * 2 && colorDelta <= threshold * 3 -> {
+                                        // Transitional motion gets only a small contribution.
+                                        oldRow[x] = Color.rgb(
+                                            (ar * 7 + br) / 8,
+                                            (ag * 7 + bg) / 8,
+                                            (ab * 7 + bb) / 8
+                                        )
+                                    }
+                                    // Large changes are treated as moving-object/ghost pixels.
+                                    else -> Unit
                                 }
                             } else if (mode == MergeMode.NIGHT_AVERAGE || mode == MergeMode.MILKY_WAY_STACK) {
                                 val divisor = frameIndex + 1
@@ -262,6 +304,9 @@ object NightShotProcessor {
                 // Lift dark mid-tones after alignment/averaging, with a smooth gamma curve that
                 // preserves highlights better than multiplying every channel by a fixed gain.
                 brightenNightResult(base!!)
+            } else if (mode == MergeMode.LUNA_DREAM_2_0) {
+                // A restrained luminance-only high-pass restores acutance after temporal denoising.
+                applyLunaDreamDetailRecovery(base!!)
             }
 
             runCatching { onProgress?.invoke(96) }
@@ -390,6 +435,313 @@ object NightShotProcessor {
     private const val ALIGNMENT_MAX_SHIFT = 6
     private const val STAR_TRAIL_MIN_LUMA = 22
     private const val STAR_TRAIL_MIN_DELTA = 5
+    private const val LUNA_LK_MAX_FEATURES = 120
+    private const val LUNA_LK_WINDOW_RADIUS = 3
+    private const val LUNA_LK_ITERATIONS = 7
+
+    /**
+     * Sparse pyramidal Lucas-Kanade on a small luminance thumbnail. The robust consensus
+     * estimates the dominant camera translation while rejecting independently moving objects.
+     * Full-resolution pixels are only touched during the final frame fusion.
+     */
+    private fun estimatePyramidalLucasKanade(
+        referenceThumbnail: Bitmap,
+        currentFrame: Bitmap
+    ): Pair<Int, Int> {
+        val currentThumbnail = makeAlignmentThumbnail(currentFrame)
+        try {
+            val width = referenceThumbnail.width
+            val height = referenceThumbnail.height
+            if (currentThumbnail.width != width || currentThumbnail.height != height ||
+                width < 48 || height < 48
+            ) return 0 to 0
+
+            val referencePyramid = buildGrayPyramid(referenceThumbnail)
+            val currentPyramid = buildGrayPyramid(currentThumbnail)
+            if (referencePyramid.size < 2 || currentPyramid.size != referencePyramid.size) {
+                return estimateGlobalTranslation(referenceThumbnail, currentFrame)
+            }
+
+            val features = detectShiTomasiFeatures(referencePyramid.first())
+            val tracks = ArrayList<FlowTrack>(features.size)
+            for ((x, y) in features) {
+                trackPyramidalLucasKanade(referencePyramid, currentPyramid, x, y)?.let {
+                    tracks.add(FlowTrack(it.first, it.second))
+                }
+            }
+
+            val translation = robustTranslationConsensus(tracks)
+                ?: return estimateGlobalTranslation(referenceThumbnail, currentFrame)
+
+            val scaleX = currentFrame.width.toFloat() / width
+            val scaleY = currentFrame.height.toFloat() / height
+            return (translation.first * scaleX).roundToInt() to
+                (translation.second * scaleY).roundToInt()
+        } finally {
+            currentThumbnail.recycle()
+        }
+    }
+
+    private fun buildGrayPyramid(bitmap: Bitmap): List<GrayLevel> {
+        val colors = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(colors, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        var width = bitmap.width
+        var height = bitmap.height
+        var gray = IntArray(colors.size) { index -> luma(colors[index]) }
+        val pyramid = ArrayList<GrayLevel>(3)
+        pyramid.add(GrayLevel(width, height, gray))
+
+        while (pyramid.size < 3 && min(width, height) >= 48) {
+            val nextWidth = width / 2
+            val nextHeight = height / 2
+            val next = IntArray(nextWidth * nextHeight)
+            for (y in 0 until nextHeight) {
+                val sourceRow = y * 2 * width
+                val targetRow = y * nextWidth
+                for (x in 0 until nextWidth) {
+                    val source = sourceRow + x * 2
+                    next[targetRow + x] = (
+                        gray[source] + gray[source + 1] +
+                            gray[source + width] + gray[source + width + 1]
+                        ) / 4
+                }
+            }
+            width = nextWidth
+            height = nextHeight
+            gray = next
+            pyramid.add(GrayLevel(width, height, gray))
+        }
+        return pyramid
+    }
+
+    private fun detectShiTomasiFeatures(level: GrayLevel): List<Pair<Int, Int>> {
+        data class Candidate(val x: Int, val y: Int, val score: Float)
+
+        val width = level.width
+        val height = level.height
+        val pixels = level.pixels
+        val candidates = ArrayList<Candidate>()
+        val radius = 2
+        for (y in radius + 1 until height - radius - 1 step 2) {
+            for (x in radius + 1 until width - radius - 1 step 2) {
+                var xx = 0f
+                var xy = 0f
+                var yy = 0f
+                for (dy in -radius..radius) {
+                    val row = (y + dy) * width
+                    for (dx in -radius..radius) {
+                        val index = row + x + dx
+                        val gx = (pixels[index + 1] - pixels[index - 1]) * 0.5f
+                        val gy = (pixels[index + width] - pixels[index - width]) * 0.5f
+                        xx += gx * gx
+                        xy += gx * gy
+                        yy += gy * gy
+                    }
+                }
+                val trace = xx + yy
+                val discriminant = kotlin.math.sqrt(
+                    ((xx - yy) * (xx - yy) + 4f * xy * xy).coerceAtLeast(0f)
+                )
+                val score = (trace - discriminant) * 0.5f
+                if (score > 40f) candidates.add(Candidate(x, y, score))
+            }
+        }
+
+        candidates.sortByDescending { it.score }
+        val selected = ArrayList<Pair<Int, Int>>(LUNA_LK_MAX_FEATURES)
+        val minDistanceSquared = 36
+        for (candidate in candidates) {
+            if (selected.none { (x, y) ->
+                    val dx = x - candidate.x
+                    val dy = y - candidate.y
+                    dx * dx + dy * dy < minDistanceSquared
+                }
+            ) {
+                selected.add(candidate.x to candidate.y)
+                if (selected.size >= LUNA_LK_MAX_FEATURES) break
+            }
+        }
+        return selected
+    }
+
+    private fun trackPyramidalLucasKanade(
+        reference: List<GrayLevel>,
+        current: List<GrayLevel>,
+        originalX: Int,
+        originalY: Int
+    ): Pair<Float, Float>? {
+        val maxLevel = min(reference.size, current.size) - 1
+        var flowX = 0f
+        var flowY = 0f
+        val radius = LUNA_LK_WINDOW_RADIUS
+
+        for (level in maxLevel downTo 0) {
+            if (level < maxLevel) {
+                flowX *= 2f
+                flowY *= 2f
+            }
+            val scale = (1 shl level).toFloat()
+            val referenceLevel = reference[level]
+            val currentLevel = current[level]
+            val pointX = originalX / scale
+            val pointY = originalY / scale
+            if (pointX < radius + 2 || pointY < radius + 2 ||
+                pointX >= referenceLevel.width - radius - 2 ||
+                pointY >= referenceLevel.height - radius - 2
+            ) return null
+
+            var meanError = Float.MAX_VALUE
+            for (iteration in 0 until LUNA_LK_ITERATIONS) {
+                var a11 = 0f
+                var a12 = 0f
+                var a22 = 0f
+                var b1 = 0f
+                var b2 = 0f
+                var errorSum = 0f
+                var samples = 0
+
+                for (dy in -radius..radius) {
+                    for (dx in -radius..radius) {
+                        val rx = pointX + dx
+                        val ry = pointY + dy
+                        val template = sampleGray(referenceLevel, rx, ry)
+                        val gradientX = (
+                            sampleGray(referenceLevel, rx + 1f, ry) -
+                                sampleGray(referenceLevel, rx - 1f, ry)
+                            ) * 0.5f
+                        val gradientY = (
+                            sampleGray(referenceLevel, rx, ry + 1f) -
+                                sampleGray(referenceLevel, rx, ry - 1f)
+                            ) * 0.5f
+                        val warped = sampleGrayBilinear(
+                            currentLevel,
+                            rx + flowX,
+                            ry + flowY
+                        )
+                        val residual = warped - template
+                        a11 += gradientX * gradientX
+                        a12 += gradientX * gradientY
+                        a22 += gradientY * gradientY
+                        b1 += gradientX * residual
+                        b2 += gradientY * residual
+                        errorSum += kotlin.math.abs(residual)
+                        samples++
+                    }
+                }
+
+                val determinant = a11 * a22 - a12 * a12
+                if (!determinant.isFinite() || determinant < 1e-3f) return null
+                val deltaX = (-a22 * b1 + a12 * b2) / determinant
+                val deltaY = (a12 * b1 - a11 * b2) / determinant
+                if (!deltaX.isFinite() || !deltaY.isFinite()) return null
+                flowX += deltaX
+                flowY += deltaY
+                meanError = errorSum / samples.coerceAtLeast(1)
+                if (kotlin.math.abs(deltaX) + kotlin.math.abs(deltaY) < 0.02f) break
+                if (kotlin.math.abs(flowX) > 8f || kotlin.math.abs(flowY) > 8f) return null
+            }
+            if (meanError > 48f) return null
+        }
+
+        return if (flowX.isFinite() && flowY.isFinite()) flowX to flowY else null
+    }
+
+    private fun sampleGray(level: GrayLevel, x: Float, y: Float): Float {
+        val px = x.roundToInt().coerceIn(0, level.width - 1)
+        val py = y.roundToInt().coerceIn(0, level.height - 1)
+        return level.pixels[py * level.width + px].toFloat()
+    }
+
+    private fun sampleGrayBilinear(level: GrayLevel, x: Float, y: Float): Float {
+        if (x < 0f || y < 0f || x >= level.width - 1 || y >= level.height - 1) {
+            return 0f
+        }
+        val x0 = x.toInt()
+        val y0 = y.toInt()
+        val xWeight = x - x0
+        val yWeight = y - y0
+        val index = y0 * level.width + x0
+        val top = level.pixels[index] * (1f - xWeight) +
+            level.pixels[index + 1] * xWeight
+        val bottom = level.pixels[index + level.width] * (1f - xWeight) +
+            level.pixels[index + level.width + 1] * xWeight
+        return top * (1f - yWeight) + bottom * yWeight
+    }
+
+    /** RANSAC-style translation consensus; independently moving features are discarded. */
+    private fun robustTranslationConsensus(tracks: List<FlowTrack>): Pair<Float, Float>? {
+        if (tracks.size < 8) return null
+        var bestInliers = emptyList<FlowTrack>()
+        val threshold = 1.8f
+        for (candidate in tracks) {
+            val inliers = tracks.filter {
+                kotlin.math.abs(it.dx - candidate.dx) <= threshold &&
+                    kotlin.math.abs(it.dy - candidate.dy) <= threshold
+            }
+            if (inliers.size > bestInliers.size) bestInliers = inliers
+        }
+        if (bestInliers.size < max(8, tracks.size / 5)) return null
+
+        fun median(values: List<Float>): Float {
+            val sorted = values.sorted()
+            val middle = sorted.size / 2
+            return if (sorted.size % 2 == 0) {
+                (sorted[middle - 1] + sorted[middle]) * 0.5f
+            } else sorted[middle]
+        }
+
+        return median(bestInliers.map { it.dx }) to median(bestInliers.map { it.dy })
+    }
+
+    /**
+     * Small luminance-only high-pass restores edge acutance after multi-frame denoising.
+     * The correction is capped to avoid halos and does not independently sharpen RGB channels.
+     */
+    private fun applyLunaDreamDetailRecovery(bitmap: Bitmap) {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 3 || height < 3) return
+
+        var previousRow = IntArray(width)
+        var currentRow = IntArray(width)
+        var nextRow = IntArray(width)
+        val outputRow = IntArray(width)
+        bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
+        currentRow.copyInto(previousRow)
+        bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val center = currentRow[x]
+                val centerLuma = luma(center)
+                val leftLuma = luma(currentRow[(x - 1).coerceAtLeast(0)])
+                val rightLuma = luma(currentRow[(x + 1).coerceAtMost(width - 1)])
+                val upLuma = luma(previousRow[x])
+                val downLuma = luma(nextRow[x])
+                val localAverage = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
+                val detail = ((centerLuma - localAverage) * 0.18f).coerceIn(-7f, 7f)
+                val targetLuma = (centerLuma + detail).coerceIn(0f, 255f)
+                val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
+                outputRow[x] = Color.rgb(
+                    (Color.red(center) * gain).roundToInt().coerceIn(0, 255),
+                    (Color.green(center) * gain).roundToInt().coerceIn(0, 255),
+                    (Color.blue(center) * gain).roundToInt().coerceIn(0, 255)
+                )
+            }
+            bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+            if (y + 1 < height) {
+                val recycled = previousRow
+                previousRow = currentRow
+                currentRow = nextRow
+                nextRow = recycled
+                if (y + 2 < height) {
+                    bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                } else {
+                    currentRow.copyInto(nextRow)
+                }
+            }
+        }
+    }
 
     private fun luma(red: Int, green: Int, blue: Int): Int =
         (red * 3 + green * 6 + blue) / 10

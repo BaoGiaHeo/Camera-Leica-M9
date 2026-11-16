@@ -145,7 +145,15 @@ private fun SettingsDetailPage(
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
-    var rawCaptureMode by remember { mutableStateOf(prefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") }
+    var rawCaptureMode by remember {
+        mutableStateOf(
+            when (prefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") {
+                "raw_plus", "raw_dream" -> "raw_dream"
+                "raw" -> "raw"
+                else -> "jpeg"
+            }
+        )
+    }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")

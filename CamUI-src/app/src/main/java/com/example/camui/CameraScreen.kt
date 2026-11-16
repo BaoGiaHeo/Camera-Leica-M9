@@ -2883,7 +2883,7 @@ fun CameraScreen(
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = captureUseNightShot || captureUseLunaDream
+                                        preservePhotoAspectRatio = false
                                     )
                                 }.getOrDefault(false)
 

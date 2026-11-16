@@ -2879,7 +2879,7 @@ fun CameraScreen(
                                     processingLabel = "Đang đóng watermark ở độ phân giải cuối"
                                     processingEtaSeconds = -1
                                 }
-                                val stamped = if (captureIsUltraHdr) false else runCatching {
+                                val stamped = if (captureIsUltraHdr || (captureUseLunaDream && !lunaDreamApplied)) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",

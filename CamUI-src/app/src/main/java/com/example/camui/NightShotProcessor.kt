@@ -426,6 +426,12 @@ object NightShotProcessor {
             referenceThumbnail.getPixels(referencePixels, 0, width, 0, 0, width, height)
             thumbnail.getPixels(currentPixels, 0, width, 0, 0, width, height)
 
+            // Compute each thumbnail's gradient once. The search below evaluates hundreds of
+            // candidate shifts; recalculating RGB luminance inside every candidate multiplied
+            // the same Color conversions by the number of tested offsets.
+            val referenceGradients = buildGradientMap(referencePixels, width, height)
+            val currentGradients = buildGradientMap(currentPixels, width, height)
+
             var bestDx = 0
             var bestDy = 0
             var bestScore = Double.POSITIVE_INFINITY
@@ -441,17 +447,9 @@ object NightShotProcessor {
                         for (x in border until width - border - 1 step step) {
                             val refIndex = y * width + x
                             val currentIndex = (y + dy) * width + x + dx
-                            val refRight = luma(referencePixels[refIndex + 1])
-                            val refDown = luma(referencePixels[refIndex + width])
-                            val curRight = luma(currentPixels[currentIndex + 1])
-                            val curDown = luma(currentPixels[currentIndex + width])
-                            val refGradient = kotlin.math.abs(
-                                luma(referencePixels[refIndex]) - refRight
-                            ) + kotlin.math.abs(luma(referencePixels[refIndex]) - refDown)
-                            val currentGradient = kotlin.math.abs(
-                                luma(currentPixels[currentIndex]) - curRight
-                            ) + kotlin.math.abs(luma(currentPixels[currentIndex]) - curDown)
-                            totalError += kotlin.math.abs(refGradient - currentGradient).toLong()
+                            totalError += kotlin.math.abs(
+                                referenceGradients[refIndex] - currentGradients[currentIndex]
+                            ).toLong()
                             samples++
                         }
                     }
@@ -483,6 +481,24 @@ object NightShotProcessor {
 
     private fun luma(color: Int): Int =
         luma(Color.red(color), Color.green(color), Color.blue(color))
+
+    /** Precompute the same two-axis luma-gradient score used by the translation matcher. */
+    private fun buildGradientMap(pixels: IntArray, width: Int, height: Int): IntArray {
+        val luminance = IntArray(pixels.size) { index -> luma(pixels[index]) }
+        val gradients = IntArray(pixels.size)
+        for (y in 0 until height) {
+            val row = y * width
+            val downRow = min(height - 1, y + 1) * width
+            for (x in 0 until width) {
+                val index = row + x
+                val rightIndex = row + min(width - 1, x + 1)
+                gradients[index] =
+                    kotlin.math.abs(luminance[index] - luminance[rightIndex]) +
+                        kotlin.math.abs(luminance[index] - luminance[downRow + x])
+            }
+        }
+        return gradients
+    }
 
     fun saveStarTrails(
         context: Context,

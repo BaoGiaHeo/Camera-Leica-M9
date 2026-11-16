@@ -351,10 +351,10 @@ object NightShotProcessor {
                     val alignmentStartedAt = SystemClock.elapsedRealtime()
                     val shift = when (mode) {
                         MergeMode.STAR_TRAILS -> 0 to 0
-                        MergeMode.LUNA_DREAM_2_0 ->
+                        // Both LunaDream versions share the sparse LK path. The 1.5 stack has
+                        // fewer frames, so it should not use the slower exhaustive translation scan.
+                        MergeMode.LUNA_DREAM_1_5, MergeMode.LUNA_DREAM_2_0 ->
                             estimatePyramidalLucasKanade(alignmentReference!!, current)
-                        MergeMode.LUNA_DREAM_1_5 ->
-                            estimateGlobalTranslation(alignmentReference!!, current)
                         else -> estimateGlobalTranslation(alignmentReference!!, current)
                     }
                     alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt

@@ -1185,40 +1185,39 @@ private fun WatermarkTemplateCard(
                     .padding(horizontal = 7.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    Modifier.fillMaxWidth(0.315f).height(32.dp),
-                    contentAlignment = Alignment.Center
+                Row(
+                    Modifier.weight(0.56f),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
                         painter = painterResource(id = previewLogo),
                         contentDescription = "$brand watermark logo",
-                        modifier = Modifier.fillMaxWidth(0.92f).height(15.dp)
+                        modifier = Modifier.weight(0.38f).height(15.dp)
                             .background(Color.White, RoundedCornerShape(2.dp)).padding(2.dp),
                         contentScale = ContentScale.Fit
                     )
+                    Column(
+                        Modifier.weight(0.62f).padding(start = 3.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text("MODEL · ILCE-7M4", color = textColor,
+                            fontSize = 5.9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text("FE 24–70mm", color = textColor.copy(alpha = 0.82f),
+                            fontSize = 5.4.sp, maxLines = 1)
+                    }
                 }
                 Box(
-                    Modifier.width(1.dp).height(28.dp)
+                    Modifier.padding(horizontal = 4.dp).width(1.dp).height(28.dp)
                         .background(brandAccent.copy(alpha = if (frameStyle == "Transparent") 0.95f else 0.72f))
                 )
                 Column(
-                    Modifier.weight(1f).padding(start = 7.dp),
+                    Modifier.weight(0.44f),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Text(
-                        "MODEL · ILCE-7M4",
-                        color = textColor,
-                        fontSize = 6.8.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
-                    )
-                    Text(
-                        "ISO 100 · 1/250s · F2.8",
-                        color = textColor.copy(alpha = 0.94f),
-                        fontSize = 6.3.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1
-                    )
+                    Text("35mm · F2.8 · 1/250s · ISO 100", color = textColor,
+                        fontSize = 5.7.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                    Text("2026.11.17", color = textColor.copy(alpha = 0.82f),
+                        fontSize = 5.5.sp, maxLines = 1)
                 }
             }
         }
@@ -1323,6 +1322,18 @@ private fun decodeRawPixelBitmap(context: Context, uri: Uri): Bitmap? {
     val options = BitmapFactory.Options().apply {
         inPreferredConfig = Bitmap.Config.ARGB_8888
         inMutable = true
+    }
+    return context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, options)
+    }
+}
+
+/** RGB_565 watermark surface halves the working-set size on 50–108MP LunaDream images. */
+private fun decodeWatermarkPixelBitmap(context: Context, uri: Uri): Bitmap? {
+    val options = BitmapFactory.Options().apply {
+        inPreferredConfig = Bitmap.Config.RGB_565
+        inMutable = true
+        inDither = true
     }
     return context.contentResolver.openInputStream(uri)?.use { input ->
         BitmapFactory.decodeStream(input, null, options)
@@ -2360,7 +2371,7 @@ fun applyCameraWatermark(
 
     return runCatching {
         val sourceExif = readImageExifAttributes(context, uri)
-        val sourceBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
+        val sourceBitmap = decodeWatermarkPixelBitmap(context, uri) ?: return@runCatching false
         var outputBitmap: Bitmap? = null
         var watermarkCropBitmap: Bitmap? = null
         try {
@@ -2504,10 +2515,10 @@ fun applyCameraWatermark(
         // Prioritize the three exposure values the user needs to read at a glance.
         // Focal length and exposure compensation follow only when space permits.
         val specs = listOf(
-            exifIso?.let { "ISO $it" },
-            exifShutter?.replace(" s", "s"),
-            exifAperture,
             exifFocal,
+            exifAperture,
+            exifShutter?.replace(" s", "s"),
+            exifIso?.let { "ISO $it" },
             exposureBias
         ).filterNotNull().filter { it.isNotBlank() }
             .joinToString("  ·  ")
@@ -2827,60 +2838,54 @@ fun applyCameraWatermark(
             canvas.drawRect(rect.left, rect.top, rect.right, rect.top + thickness, paint)
         }
 
-        // All brands and watermark templates share one measured lockup:
-        // logo on the left; MODEL and exposure settings on the right; the logo's
-        // vertical center is exactly the midpoint between those two text rows.
+        // Classic camera watermark composition, combining the reference layouts:
+        // brand logo + camera model on the left; shooting settings + capture date on the right.
+        // The logo is vertically centred against the left text stack, not against the footer top.
         val footerRadius = (minSide * 0.012f).coerceAtLeast(7f)
         drawWatermarkFooter(footerRect, footerRadius)
 
         val footerWidth = footerRect.width().coerceAtLeast(1f)
         val footerHeight = footerRect.height().coerceAtLeast(1f)
-        val horizontalInset = footerWidth * 0.055f
-        val logoColumnLeft = footerRect.left + horizontalInset
-        val dividerX = footerRect.left + footerWidth * 0.315f
-        val logoColumnRight = dividerX - footerWidth * 0.035f
-        val textLeft = dividerX + footerWidth * 0.045f
-        val textRight = footerRect.right - horizontalInset
-        val textWidth = (textRight - textLeft).coerceAtLeast(1f)
+        val horizontalInset = footerWidth * 0.045f
+        val dividerX = footerRect.left + footerWidth * 0.565f
+        val leftContentWidth = (dividerX - footerRect.left - horizontalInset * 1.5f).coerceAtLeast(1f)
+        val rightLeft = dividerX + footerWidth * 0.045f
+        val rightRight = footerRect.right - horizontalInset
+        val rightContentWidth = (rightRight - rightLeft).coerceAtLeast(1f)
 
+        val logoColumnLeft = footerRect.left + horizontalInset
+        val logoColumnWidth = leftContentWidth * 0.34f
+        val modelLeft = logoColumnLeft + logoColumnWidth + footerWidth * 0.025f
+        val modelWidth = (dividerX - modelLeft - footerWidth * 0.035f).coerceAtLeast(1f)
         val modelText = modelLine.takeIf { it.isNotBlank() }?.let { "MODEL  $it" }.orEmpty()
-        val specsText = specs
-        val hasModel = modelText.isNotBlank()
-        val hasSpecs = specsText.isNotBlank()
-        val modelCenterY = if (hasModel && hasSpecs) {
-            footerRect.top + footerHeight * 0.34f
-        } else {
-            footerRect.top + footerHeight * 0.51f
+        val leftSecondary = when {
+            lensModel.isNullOrBlank() && locationLine.isBlank() -> ""
+            template == "fuji_signature" && locationLine.isNotBlank() -> locationLine
+            else -> lensModel.orEmpty()
         }
-        val specsCenterY = if (hasModel && hasSpecs) {
-            footerRect.top + footerHeight * 0.68f
+        val leftHasTitle = modelText.isNotBlank() || brandTitle.isNotBlank()
+        val leftHasSecondary = leftSecondary.isNotBlank()
+        val rowTopY = footerRect.top + footerHeight * 0.34f
+        val rowBottomY = footerRect.top + footerHeight * 0.68f
+        val leftTitleCenterY = if (leftHasTitle && leftHasSecondary) rowTopY else footerRect.top + footerHeight * 0.51f
+        val leftSecondaryCenterY = if (leftHasTitle && leftHasSecondary) rowBottomY else leftTitleCenterY
+        val logoCenterY = if (leftHasTitle && leftHasSecondary) {
+            (leftTitleCenterY + leftSecondaryCenterY) * 0.5f
         } else {
-            footerRect.top + footerHeight * 0.51f
-        }
-        val logoCenterY = if (hasModel && hasSpecs) {
-            (modelCenterY + specsCenterY) * 0.5f
-        } else if (hasModel) {
-            modelCenterY
-        } else if (hasSpecs) {
-            specsCenterY
-        } else {
-            footerRect.top + footerHeight * 0.51f
+            leftTitleCenterY
         }
 
         val logoRatio = brandLogo?.let {
-            if (it.intrinsicHeight > 0) {
-                it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-            } else 3f
+            if (it.intrinsicHeight > 0) it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat() else 3f
         } ?: when (watermarkBrand) {
             "sony" -> 2.8f
             "nikon" -> 3.1f
             "canon" -> 3.0f
             else -> 5.95f
         }
-        val logoColumnWidth = (logoColumnRight - logoColumnLeft).coerceAtLeast(1f)
-        val logoHeight = minOf(footerHeight * 0.48f, logoColumnWidth / logoRatio)
+        val logoHeight = minOf(footerHeight * 0.46f, logoColumnWidth / logoRatio)
         val logoWidth = logoHeight * logoRatio
-        val logoCenterX = (logoColumnLeft + logoColumnRight) * 0.5f
+        val logoCenterX = logoColumnLeft + logoColumnWidth * 0.5f
         drawBrandLogo(
             RectF(
                 logoCenterX - logoWidth * 0.5f,
@@ -2892,27 +2897,24 @@ fun applyCameraWatermark(
 
         val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = brandAccentColor()
-            alpha = if (frameStyle == "Transparent") 210 else 150
+            alpha = if (frameStyle == "Transparent") 215 else 155
             style = Paint.Style.STROKE
             strokeWidth = (minSide * 0.0012f).coerceIn(1.5f, 4.5f)
             strokeCap = Paint.Cap.ROUND
         }
-        val dividerTop = if (hasModel && hasSpecs) {
-            modelCenterY - footerHeight * 0.19f
-        } else {
-            logoCenterY - footerHeight * 0.27f
-        }
-        val dividerBottom = if (hasModel && hasSpecs) {
-            specsCenterY + footerHeight * 0.19f
-        } else {
-            logoCenterY + footerHeight * 0.27f
-        }
-        canvas.drawLine(dividerX, dividerTop, dividerX, dividerBottom, dividerPaint)
+        canvas.drawLine(
+            dividerX,
+            footerRect.top + footerHeight * 0.20f,
+            dividerX,
+            footerRect.bottom - footerHeight * 0.20f,
+            dividerPaint
+        )
 
         fun drawMeasuredLine(
             value: String,
             sourcePaint: Paint,
             centerY: Float,
+            maxWidth: Float,
             baseSize: Float,
             minimumSize: Float
         ) {
@@ -2922,14 +2924,14 @@ fun applyCameraWatermark(
                 textSize = baseSize
             }
             var fittedText = value
-            while (paint.measureText(fittedText) > textWidth && paint.textSize > minimumSize) {
+            while (paint.measureText(fittedText) > maxWidth && paint.textSize > minimumSize) {
                 paint.textSize = (paint.textSize * 0.94f).coerceAtLeast(minimumSize)
             }
-            if (paint.measureText(fittedText) > textWidth) {
+            if (paint.measureText(fittedText) > maxWidth) {
                 val ellipsis = "…"
                 var endIndex = fittedText.length
                 while (endIndex > 1 &&
-                    paint.measureText(fittedText.substring(0, endIndex).trimEnd() + ellipsis) > textWidth
+                    paint.measureText(fittedText.substring(0, endIndex).trimEnd() + ellipsis) > maxWidth
                 ) {
                     endIndex--
                 }
@@ -2937,27 +2939,20 @@ fun applyCameraWatermark(
             }
             val metrics = paint.fontMetrics
             val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
-            canvas.drawText(fittedText, textLeft, baseline, paint)
+            canvas.drawText(fittedText, if (sourcePaint === accentPaint) rightLeft else modelLeft, baseline, paint)
         }
 
-        val titleSize = (minSide * 0.024f).coerceIn(22f, 88f)
-        val specsSize = (minSide * 0.020f).coerceIn(19f, 74f)
-        drawMeasuredLine(modelText, titlePaint, modelCenterY, titleSize, (titleSize * 0.78f).coerceAtLeast(17f))
-        drawMeasuredLine(specsText, detailPaint, specsCenterY, specsSize, (specsSize * 0.78f).coerceAtLeast(16f))
-
-        if (timeLine.isNotBlank()) {
-            val datePaint = Paint(detailPaint).apply {
-                alpha = 220
-                textAlign = Paint.Align.LEFT
-            }
-            drawMeasuredLine(
-                timeLine,
-                datePaint,
-                footerRect.top + footerHeight * 0.91f,
-                (minSide * 0.012f).coerceIn(13f, 42f),
-                12f
-            )
-        }
+        // Explicit text anchors keep the left model/lens and right exposure/date columns balanced.
+        val titleSize = (minSide * 0.023f).coerceIn(20f, 82f)
+        val secondarySize = (minSide * 0.014f).coerceIn(13f, 46f)
+        val specsSize = (minSide * 0.020f).coerceIn(18f, 72f)
+        val dateSize = (minSide * 0.014f).coerceIn(13f, 46f)
+        val leftTitle = modelText.ifBlank { brandTitle }
+        val rightDate = dateOnlyLine.ifBlank { timeLine }
+        drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))
+        drawMeasuredLine(leftSecondary, detailPaint, leftSecondaryCenterY, modelWidth, secondarySize, (secondarySize * 0.72f).coerceAtLeast(12f))
+        drawMeasuredLine(specs, accentPaint, footerRect.top + footerHeight * 0.39f, rightContentWidth, specsSize, (specsSize * 0.72f).coerceAtLeast(15f))
+        drawMeasuredLine(rightDate, detailPaint, footerRect.top + footerHeight * 0.70f, rightContentWidth, dateSize, (dateSize * 0.72f).coerceAtLeast(12f))
 
         val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use {
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)

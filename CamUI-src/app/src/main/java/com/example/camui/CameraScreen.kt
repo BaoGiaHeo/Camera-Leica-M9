@@ -2841,13 +2841,6 @@ fun CameraScreen(
                                 val frameApplied = if (captureIsUltraHdr) false else
                                     runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
-                                val stamped = if (captureIsUltraHdr) false else runCatching {
-                                    applyCameraWatermark(
-                                        context, saved, focal, aperture, shutterLabel,
-                                        if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = captureUseNightShot || captureUseLunaDream
-                                    )
-                                }.getOrDefault(false)
 
                                 val outputResolutionResult = if (
                                     !captureIsUltraHdr &&
@@ -2878,6 +2871,21 @@ fun CameraScreen(
                                     }
                                 } else null
                                 val outputResolutionApplied = outputResolutionResult != null
+
+                                // Apply frames and watermark only after final MP resampling so text,
+                                // logos and spacing are drawn at the final pixel density, not enlarged.
+                                withContext(Dispatchers.Main) {
+                                    processingProgress = maxOf(processingProgress, 90)
+                                    processingLabel = "Đang đóng watermark ở độ phân giải cuối"
+                                    processingEtaSeconds = -1
+                                }
+                                val stamped = if (captureIsUltraHdr) false else runCatching {
+                                    applyCameraWatermark(
+                                        context, saved, focal, aperture, shutterLabel,
+                                        if (actualIso > 0) actualIso.toString() else "AUTO",
+                                        preservePhotoAspectRatio = captureUseNightShot || captureUseLunaDream
+                                    )
+                                }.getOrDefault(false)
 
                                 if (captureUseLunaDream && !lunaDreamApplied) {
                                     // Never expose the untouched JPEG as a successful LunaDream result.

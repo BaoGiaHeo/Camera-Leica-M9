@@ -1128,7 +1128,16 @@ private fun translateFullUiText(value: String, language: String): String? {
             "Không thể khởi tạo HDR hoặc camera: " to "HDRまたはカメラを初期化できません：",
             "Bộ lọc: " to "フィルター：", "AI BỐ CỤC · " to "AI構図 · ",
             "Lỗi chụp ảnh:" to "撮影エラー：", "Không mở được camera:" to "カメラを開けません：",
-            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDRを有効化またはカメラを初期化できません："
+            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDRを有効化またはカメラを初期化できません：",
+            "BRACKETING " to "ブラケティング ", "BURST " to "連写 ",
+            "Danh sách bộ lọc · " to "フィルター一覧 · ",
+            "Nhiệt pin: " to "バッテリー温度: ", "Trạng thái nhiệt Android: " to "Androidの熱状態: ",
+            "LunaDream 1.5: thu khung " to "LunaDream 1.5: フレーム撮影 ",
+            "LunaDream 2.0: thu khung " to "LunaDream 2.0: フレーム撮影 ",
+            "RawDream 2.0: thu khung " to "RawDream 2.0: フレーム撮影 ",
+            "NightShotMode: thu khung " to "NightShotMode: フレーム撮影 ",
+            "NightShotMode Milky Way: thu khung " to "NightShotMode Milky Way: フレーム撮影 ",
+            "NightShotMode: căn chỉnh và gộp " to "NightShotMode: 位置合わせと合成 "
         )
         language.startsWith("ko") -> listOf(
             "Camera ID " to "카메라 ID ", "ISO " to "ISO ", "Shutter " to "셔터 ",
@@ -1136,7 +1145,16 @@ private fun translateFullUiText(value: String, language: String): String? {
             "Không thể khởi tạo HDR hoặc camera: " to "HDR 또는 카메라를 초기화할 수 없습니다: ",
             "Bộ lọc: " to "필터: ", "AI BỐ CỤC · " to "AI 구도 · ",
             "Lỗi chụp ảnh:" to "촬영 오류:", "Không mở được camera:" to "카메라를 열 수 없습니다:",
-            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDR을 켜거나 카메라를 초기화할 수 없습니다:"
+            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Ultra HDR을 켜거나 카메라를 초기화할 수 없습니다:",
+            "BRACKETING " to "브래키팅 ", "BURST " to "연속 촬영 ",
+            "Danh sách bộ lọc · " to "필터 목록 · ",
+            "Nhiệt pin: " to "배터리 온도: ", "Trạng thái nhiệt Android: " to "Android 열 상태: ",
+            "LunaDream 1.5: thu khung " to "LunaDream 1.5: 프레임 촬영 ",
+            "LunaDream 2.0: thu khung " to "LunaDream 2.0: 프레임 촬영 ",
+            "RawDream 2.0: thu khung " to "RawDream 2.0: 프레임 촬영 ",
+            "NightShotMode: thu khung " to "NightShotMode: 프레임 촬영 ",
+            "NightShotMode Milky Way: thu khung " to "NightShotMode Milky Way: 프레임 촬영 ",
+            "NightShotMode: căn chỉnh và gộp " to "NightShotMode: 정렬 및 합성 "
         )
         language.startsWith("zh") -> listOf(
             "Camera ID " to "相机 ID ", "ISO " to "ISO ", "Shutter " to "快门 ",
@@ -1144,7 +1162,16 @@ private fun translateFullUiText(value: String, language: String): String? {
             "Không thể khởi tạo HDR hoặc camera: " to "无法初始化 HDR 或相机：",
             "Bộ lọc: " to "滤镜：", "AI BỐ CỤC · " to "AI 构图 · ",
             "Lỗi chụp ảnh:" to "拍摄错误：", "Không mở được camera:" to "无法打开相机：",
-            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "无法启用 Ultra HDR 或初始化相机："
+            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "无法启用 Ultra HDR 或初始化相机：",
+            "BRACKETING " to "包围曝光 ", "BURST " to "连拍 ",
+            "Danh sách bộ lọc · " to "滤镜列表 · ",
+            "Nhiệt pin: " to "电池温度：", "Trạng thái nhiệt Android: " to "Android 热状态：",
+            "LunaDream 1.5: thu khung " to "LunaDream 1.5: 正在采集帧 ",
+            "LunaDream 2.0: thu khung " to "LunaDream 2.0: 正在采集帧 ",
+            "RawDream 2.0: thu khung " to "RawDream 2.0: 正在采集帧 ",
+            "NightShotMode: thu khung " to "NightShotMode: 正在采集帧 ",
+            "NightShotMode Milky Way: thu khung " to "NightShotMode Milky Way: 正在采集帧 ",
+            "NightShotMode: căn chỉnh và gộp " to "NightShotMode: 正在对齐和合成 "
         )
         else -> listOf(
             "Camera ID " to "Camera ID ", "ISO " to "ISO ", "Shutter " to "Shutter ",
@@ -1152,7 +1179,16 @@ private fun translateFullUiText(value: String, language: String): String? {
             "Không thể khởi tạo HDR hoặc camera: " to "Could not initialize HDR or camera: ",
             "Bộ lọc: " to "Filter: ", "AI BỐ CỤC · " to "AI COMPOSITION · ",
             "Lỗi chụp ảnh:" to "Capture error:", "Không mở được camera:" to "Could not open camera:",
-            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Could not enable Ultra HDR or initialize camera:"
+            "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Could not enable Ultra HDR or initialize camera:",
+            "BRACKETING " to "BRACKETING ", "BURST " to "BURST ",
+            "Danh sách bộ lọc · " to "Filter list · ",
+            "Nhiệt pin: " to "Battery temperature: ", "Trạng thái nhiệt Android: " to "Android thermal status: ",
+            "LunaDream 1.5: thu khung " to "LunaDream 1.5: capturing frame ",
+            "LunaDream 2.0: thu khung " to "LunaDream 2.0: capturing frame ",
+            "RawDream 2.0: thu khung " to "RawDream 2.0: capturing frame ",
+            "NightShotMode: thu khung " to "NightShotMode: capturing frame ",
+            "NightShotMode Milky Way: thu khung " to "NightShotMode Milky Way: capturing frame ",
+            "NightShotMode: căn chỉnh và gộp " to "NightShotMode: aligning and merging "
         )
     }
     dynamic.firstOrNull { value.startsWith(it.first) }?.let {

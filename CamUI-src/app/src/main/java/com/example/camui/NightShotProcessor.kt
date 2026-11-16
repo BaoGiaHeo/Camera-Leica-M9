@@ -961,6 +961,10 @@ object NightShotProcessor {
         fillLumaRow(nextRow, nextLuma)
 
         val baseBlend = if (strength >= 2) 0.30f else 0.23f
+        // Keep full bilateral sampling on ordinary photos. Large native-resolution frames
+        // use cardinal neighbours for the denoise weights; LunaDream 2.0 still samples
+        // diagonals from the luminance cache for detail-recovery clamping below.
+        val useEightNeighbourKernel = width.toLong() * height.toLong() <= 20_000_000L
         val progressInterval = (height / 48).coerceAtLeast(1)
         val stageStartedAt = SystemClock.elapsedRealtime()
         runCatching { onProgress?.invoke(90) }
@@ -998,6 +1002,7 @@ object NightShotProcessor {
                     }
                     for (dx in -1..1) {
                         if (dx == 0 && dy == 0) continue
+                        if (!useEightNeighbourKernel && dx != 0 && dy != 0) continue
                         val nx = (x + dx).coerceIn(0, width - 1)
                         val neighbor = row[nx]
                         val nr = (neighbor ushr 16) and 0xFF
@@ -1108,7 +1113,8 @@ object NightShotProcessor {
             }
         }
 
-        Log.i(TAG, "LunaDream detail/denoise completed: strength=$strength size=${width}x${height} in " +
+        Log.i(TAG, "LunaDream detail/denoise completed: strength=$strength size=${width}x${height} " +
+            "kernel=${if (useEightNeighbourKernel) 8 else 4}-neighbour cached-luma in " +
             (SystemClock.elapsedRealtime() - stageStartedAt) + "ms")
         runCatching { onProgress?.invoke(95) }
     }

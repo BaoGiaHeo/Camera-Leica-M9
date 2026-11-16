@@ -192,34 +192,6 @@ class MainActivity : AppCompatActivity() {
                             )
                         }
                     }
-),
-                        exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.92f)
-                    ) {
-                        val targetLandscape = rotatePromptTarget ?: false
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(26.dp))
-                                .background(ComposeColor(0xE91B1B1B))
-                                .border(1.dp, ComposeColor.White.copy(alpha = 0.24f), RoundedCornerShape(26.dp))
-                                .clickable {
-                                    appLandscape = targetLandscape
-                                    requestedOrientation = if (targetLandscape) {
-                                        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                    } else {
-                                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                                    }
-                                    rotatePromptTarget = null
-                                    showRotatePrompt = false
-                                }
-                                .padding(horizontal = 18.dp, vertical = 10.dp)
-                        ) {
-                            Text(
-                                if (targetLandscape) "↻  Xoay ngang" else "↻  Xoay dọc",
-                                color = ComposeColor.White,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
                 }
             }
         }

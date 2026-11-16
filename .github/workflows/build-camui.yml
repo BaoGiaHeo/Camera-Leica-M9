@@ -1,4 +1,4 @@
-name: Build FujiFilm Mode 2.0.0Dream
+name: Build FujiFilm Mode 2.0.1Dream
 
 on:
   push:
@@ -63,13 +63,15 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
+          emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
+          emulator-boot-timeout: 600
           disable-animations: true
           script: cd CamUI-src && gradle :app:connectedDebugAndroidTest --stacktrace
 
-      - name: Upload 2.0.0Dream APKs
+      - name: Upload 2.0.1Dream APKs
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-2.0.0Dream
+          name: FujiFilm-Mode-2.0.1Dream
           path: |
             CamUI-src/app/build/outputs/apk/debug/*.apk
             CamUI-src/app/build/outputs/apk/release/*.apk

@@ -154,6 +154,7 @@ private fun LiquidGlassWatermarkPreview(
     corner: Float,
     gooey: Float,
     tint: String,
+    brand: String = "fujifilm",
     modifier: Modifier = Modifier
 ) {
     val tintColor = when (tint) {
@@ -175,12 +176,23 @@ private fun LiquidGlassWatermarkPreview(
                 topLeft = Offset(size.width * 0.40f, size.height * 0.59f),
                 size = androidx.compose.ui.geometry.Size(size.width * 0.82f, size.height * 0.58f))
         }
-        val isCenter = template == "center_logo"
         val panelShape = RoundedCornerShape((12f + corner * 14f + gooey * 5f).dp)
-        Column(
-            Modifier.align(if (isCenter) Alignment.Center else Alignment.BottomCenter)
-                .fillMaxWidth(if (isCenter) 0.78f else 0.93f)
-                .padding(bottom = if (isCenter) 0.dp else 9.dp)
+        val logoId = when (brand.lowercase()) {
+            "sony" -> R.drawable.sony_wordmark
+            "nikon" -> R.drawable.nikon_wordmark
+            "canon" -> R.drawable.canon_wordmark
+            else -> R.drawable.fujifilm_wordmark
+        }
+        val accent = when (brand.lowercase()) {
+            "sony" -> Color(0xFF7A8E9E)
+            "nikon" -> Color(0xFFFFD200)
+            "canon" -> Color(0xFFCD0022)
+            else -> Color(0xFF23AE91)
+        }
+        Row(
+            Modifier.align(Alignment.BottomCenter)
+                .fillMaxWidth(0.93f)
+                .padding(bottom = 9.dp)
                 .clip(panelShape)
                 .background(
                     Brush.linearGradient(
@@ -202,18 +214,42 @@ private fun LiquidGlassWatermarkPreview(
                     panelShape
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalAlignment = if (isCenter) Alignment.CenterHorizontally else Alignment.Start
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.fujifilm_logo),
-                contentDescription = "FUJIFILM",
-                modifier = Modifier.fillMaxWidth(if (isCenter) 0.46f else 0.34f).height(16.dp).background(Color.White, RoundedCornerShape(3.dp)).padding(2.dp),
-                contentScale = ContentScale.Fit
+            Box(
+                Modifier.fillMaxWidth(0.315f).height(44.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = logoId),
+                    contentDescription = "$brand watermark logo",
+                    modifier = Modifier.fillMaxWidth(0.88f).height(17.dp)
+                        .background(Color.White, RoundedCornerShape(3.dp)).padding(2.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            Box(
+                Modifier.width(1.dp).height(38.dp).background(accent.copy(alpha = 0.88f))
             )
-            Text("23mm  ·  f/2.0  ·  1/125s  ·  ISO 400",
-                color = Color.White.copy(alpha = 0.88f), fontSize = 9.sp)
-            Text("2026.11.14  ·  Liquid Glass",
-                color = Color.White.copy(alpha = 0.73f), fontSize = 8.sp)
+            Column(
+                Modifier.weight(1f).padding(start = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "MODEL · ILCE-7M4",
+                    color = Color.White.copy(alpha = 0.96f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Text(
+                    "ISO 100 · 1/250s · F2.8",
+                    color = Color.White.copy(alpha = 0.90f),
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
         }
         Text(
             "REFRACTION " + (refraction * 100f).toInt() +
@@ -718,6 +754,7 @@ fun ToolboxScreen(
                     corner = liquidGlassCorner,
                     gooey = liquidGlassGooey,
                     tint = liquidGlassTint,
+                    brand = watermarkBrand,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 )
                 Text("Hình khối & tán sắc", color = CamColors.Yellow, fontSize = 12.sp,

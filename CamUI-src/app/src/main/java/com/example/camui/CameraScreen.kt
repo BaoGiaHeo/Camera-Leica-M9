@@ -81,6 +81,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -103,6 +104,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -155,6 +158,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -4609,6 +4613,8 @@ private fun FilterLookDialog(
     val previewHeight = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 82.dp else 150.dp
     val scope = rememberCoroutineScope()
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
+    var filterSearch by remember { mutableStateOf("") }
+    var selectedLookCategory by remember { mutableStateOf("Tất cả") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
 
@@ -4640,10 +4646,22 @@ private fun FilterLookDialog(
         }
     }
 
-    val activeCustomLuts = importedLuts.filter { activeLutIds.contains(it.id) }
-    val builtInPresets = cameraLookGroups.flatMap { it.second }
-    // One neutral list: names and previews only, without source or vendor sections.
-    val visiblePresets = builtInPresets + activeCustomLuts.map { customCameraLutPreset(it.id) }
+    // Log-input transforms are intentionally kept in LUT Manage; they must not be
+    // applied to an ordinary sRGB camera JPEG as if they were creative photo filters.
+    val activeCustomLuts = importedLuts.filter {
+        activeLutIds.contains(it.id) && !it.category.startsWith("RAW/Log")
+    }
+    val allLookEntries = cameraLookGroups.flatMap { (category, presets) ->
+        presets.map { category to it }
+    } + activeCustomLuts.map { it.category to customCameraLutPreset(it.id) }
+    val lookCategories = listOf("Tất cả") + allLookEntries.map { it.first }.distinct()
+    val visiblePresets = allLookEntries
+        .filter { selectedLookCategory == "Tất cả" || it.first == selectedLookCategory }
+        .map { it.second }
+        .filter {
+            filterSearch.isBlank() ||
+                cameraLookDisplayName(context, it).contains(filterSearch.trim(), ignoreCase = true)
+        }
     val activeFilterName = cameraLookDisplayName(context, activeFilter)
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -4692,10 +4710,54 @@ private fun FilterLookDialog(
                     )
                 }
             }
-            Column(
-                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                    .background(CamColors.Card).padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
-                visiblePresets.chunked(2).forEach { pair ->
+                if (filterSearch.isBlank()) {
+                    Text("Tìm bộ lọc…", color = CamColors.Sub, fontSize = 12.sp)
+                }
+                BasicTextField(
+                    value = filterSearch,
+                    onValueChange = { filterSearch = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    .padding(top = 7.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                lookCategories.forEach { category ->
+                    val selected = selectedLookCategory == category
+                    Box(
+                        Modifier.clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) CamColors.Yellow else CamColors.Card)
+                            .animaTClickable { selectedLookCategory = category }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            category,
+                            color = if (selected) Color.Black else CamColors.TextColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+            Text(
+                "${visiblePresets.size} bộ lọc",
+                color = CamColors.Sub,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(bottom = 5.dp)
+            )
+            LazyColumn(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                items(visiblePresets.chunked(2), key = { pair -> pair.firstOrNull() ?: "empty" }) { pair ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         pair.forEach { preset ->
                             val selected = activeFilter == preset
@@ -4743,7 +4805,27 @@ private fun FilterLookDialog(
     }
 }
 
-// These 11 profiles match the unique Fujifilm looks in TingfengLuo's profile pack.
+// Filter groups include the original brand/film looks which were previously hidden
+// when the picker was flattened into a single "Bộ lọc" category.
+private val cameraLookGroups = listOf(
+    "Fujifilm" to listOf(
+        "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
+        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass", "Acros"
+    ),
+    "Phim màu" to listOf(
+        "Portra 160", "Portra 400", "Portra 800", "Gold 200", "Ektar 100",
+        "Kodachrome 64", "ColorPlus 200", "CineStill 800T", "Vision3 250D",
+        "Vision3 500T", "400H", "Ektachrome 100", "Kodak Portra 400",
+        "Agfa", "Kodak Gold", "Fuji 400"
+    ),
+    "Đen trắng" to listOf("Tri-X 400", "T-Max 400", "Monochrome"),
+    "Leica" to listOf("Leica Vivid", "Leica Natural", "Leica Mono"),
+    "Hasselblad" to listOf("Hasselblad HNCS"),
+    "Zeiss" to listOf("Zeiss Cool", "Zeiss Warm"),
+    "Sony" to listOf("Sony S-Cinetone", "Sony S-Log3"),
+    "Điện ảnh / Log" to listOf("Cine Tone", "Cinematic Log", "Soft Log"),
+    "Cơ bản" to listOf("Vivid", "Natural", "Cool", "Warm")
+) in TingfengLuo's profile pack.
 // The matching *wrapper.xmp files only select these profiles; they are not extra looks.
 private val cameraLookGroups = listOf(
     "Bộ lọc" to listOf(

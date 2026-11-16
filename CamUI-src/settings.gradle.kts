@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "FujifilmMode"
-include(":app")
+include(":app", ":hdmp-test")

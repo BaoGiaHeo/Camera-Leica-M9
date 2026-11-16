@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
 import androidx.camera.core.ImageCapture
@@ -122,6 +123,12 @@ object NightShotProcessor {
             else -> "night-"
         }
         val tempOutput = File(context.cacheDir, "fuji-" + prefix + System.nanoTime() + ".jpg")
+        val mergeStartedAt = SystemClock.elapsedRealtime()
+        var alignmentMs = 0L
+        var fusionMs = 0L
+        var detailRecoveryMs = 0L
+        var encodeMs = 0L
+        var publishMs = 0L
         var base: Bitmap? = null
         var alignmentReference: Bitmap? = null
         return try {
@@ -174,18 +181,21 @@ object NightShotProcessor {
                 val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
                     ?: error("Could not decode frame " + (frameIndex + 1))
                 try {
+                    val alignmentStartedAt = SystemClock.elapsedRealtime()
                     val shift = when (mode) {
                         MergeMode.STAR_TRAILS -> 0 to 0
                         MergeMode.LUNA_DREAM_2_0 ->
                             estimatePyramidalLucasKanade(alignmentReference!!, current)
                         else -> estimateGlobalTranslation(alignmentReference!!, current)
                     }
+                    alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt
                     val shiftX = shift.first.coerceIn(-width / 12, width / 12)
                     val shiftY = shift.second.coerceIn(-height / 12, height / 12)
                     if (mode != MergeMode.STAR_TRAILS && (shiftX != 0 || shiftY != 0)) {
                         Log.d(TAG, "Aligned frame ${frameIndex + 1} for $mode: dx=$shiftX dy=$shiftY")
                     }
 
+                    val fusionStartedAt = SystemClock.elapsedRealtime()
                     val progressRowInterval = (height / 8).coerceAtLeast(1)
                     for (y in 0 until height) {
                         if (y % progressRowInterval == 0) {
@@ -293,6 +303,7 @@ object NightShotProcessor {
                         }
                         base!!.setPixels(oldRow, 0, width, 0, y, width, 1)
                     }
+                    fusionMs += SystemClock.elapsedRealtime() - fusionStartedAt
                 } finally {
                     current.recycle()
                 }
@@ -306,10 +317,13 @@ object NightShotProcessor {
                 brightenNightResult(base!!)
             } else if (mode == MergeMode.LUNA_DREAM_2_0) {
                 // A restrained luminance-only high-pass restores acutance after temporal denoising.
+                val detailStartedAt = SystemClock.elapsedRealtime()
                 applyLunaDreamDetailRecovery(base!!)
+                detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             }
 
             runCatching { onProgress?.invoke(96) }
+            val encodeStartedAt = SystemClock.elapsedRealtime()
             FileOutputStream(tempOutput).use { output ->
                 check(base!!.compress(Bitmap.CompressFormat.JPEG, 96, output)) {
                     "Could not encode merged image"
@@ -318,6 +332,8 @@ object NightShotProcessor {
                 output.fd.sync()
             }
             writeExif(tempOutput, firstExif)
+            encodeMs = SystemClock.elapsedRealtime() - encodeStartedAt
+            val publishStartedAt = SystemClock.elapsedRealtime()
             context.contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
                 tempOutput.inputStream().use { input -> input.copyTo(output) }
             } ?: error("Could not write merged image to MediaStore")
@@ -327,12 +343,26 @@ object NightShotProcessor {
                 null,
                 null
             )
+            publishMs = SystemClock.elapsedRealtime() - publishStartedAt
             runCatching { onProgress?.invoke(100) }
-            Log.i(TAG, "Merged " + frames.size + " frames as " + mode +
-                " at " + width + "x" + height)
+            Log.i(
+                TAG,
+                "Merged " + frames.size + " frames as " + mode + " at " + width + "x" + height +
+                    "; align=" + alignmentMs + "ms fusion=" + fusionMs +
+                    "ms detail=" + detailRecoveryMs + "ms encode=" + encodeMs +
+                    "ms publish=" + publishMs + "ms total=" +
+                    (SystemClock.elapsedRealtime() - mergeStartedAt) + "ms"
+            )
             true
         } catch (failure: Throwable) {
-            Log.e(TAG, "Multi-frame merge failed; original capture remains available", failure)
+            Log.e(
+                TAG,
+                "Multi-frame merge failed for $mode after " +
+                    (SystemClock.elapsedRealtime() - mergeStartedAt) +
+                    "ms; align=$alignmentMs fusion=$fusionMs detail=$detailRecoveryMs " +
+                    "encode=$encodeMs publish=$publishMs; original capture remains available",
+                failure
+            )
             false
         } finally {
             alignmentReference?.recycle()

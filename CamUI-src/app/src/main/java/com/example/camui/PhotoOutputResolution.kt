@@ -35,8 +35,7 @@ data class PhotoOutputResult(
 object PhotoOutputResolution {
     private const val TAG = "FUJI_LUNADREAM_RESAMPLE"
     private const val MIN_OUTPUT_PIXELS = 10_000_000L
-    private const val RESERVED_HEAP_BYTES = 96L * 1024L * 1024L
-    private const val HEAP_BUDGET_FRACTION = 0.75
+    private const val RESERVED_HEAP_BYTES = 64L * 1024L * 1024L
 
     fun interpolateToMp(
         context: Context,
@@ -87,35 +86,29 @@ object PhotoOutputResolution {
             val cropWidth = geometry.cropWidth
             val cropHeight = geometry.cropHeight
 
-            // Budget against the heap still available now, not the process' theoretical max heap.
-            // The source bitmap is already allocated; reserve extra space for JPEG encoding,
-            // EXIF writing, Compose/camera state and transient framework allocations.
+            // Never silently lower the requested MP count. The caller either receives the
+            // requested output size or an explicit failure with the original photo untouched.
+            // Keep 64 MiB free for JPEG/EXIF/MediaStore and transient Android allocations.
             val runtime = Runtime.getRuntime()
             val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
             val freeHeapHeadroom = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
-            val usableHeap = (
-                (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L) *
-                    HEAP_BUDGET_FRACTION
-                ).toLong()
-            val maxPixelsForHeap = usableHeap / 2L // RGB_565 = two bytes per pixel.
-            val actualTargetPixels = minOf(targetPixels, maxPixelsForHeap)
-            require(actualTargetPixels >= MIN_OUTPUT_PIXELS) {
-                "Insufficient safe memory for a 10MP output; original photo retained"
-            }
+            val usableHeap = (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L)
 
-            // Recalculate dimensions using the actual memory-safe pixel budget.
             val outputGeometry = PhotoOutputGeometry.calculate(
                 src.width,
                 src.height,
-                actualTargetPixels,
+                targetPixels,
                 targetAspectRatio
             )
             val width = outputGeometry.outputWidth
             val height = outputGeometry.outputHeight
             val outputPixels = outputGeometry.outputPixels
-            val outputBytes = outputPixels * 2L
+            val outputBytes = outputPixels * 2L // RGB_565.
+            require(outputPixels >= targetPixels * 995L / 1000L) {
+                "Requested MP geometry was not reached; original photo retained"
+            }
             require(outputBytes <= usableHeap) {
-                "Insufficient safe heap for requested output resolution"
+                "Not enough free heap for the requested output; original photo retained"
             }
 
             if (src.width == width && src.height == height) {
@@ -131,6 +124,9 @@ object PhotoOutputResolution {
                     isAntiAlias = true
                 }
             )
+            // Release the source before JPEG compression; the resized output is now complete.
+            if (!src.isRecycled) src.recycle()
+            source = null
             FileOutputStream(temp).use { stream ->
                 check(output!!.compress(Bitmap.CompressFormat.JPEG, 98, stream)) {
                     "JPEG encoding failed"
@@ -187,12 +183,10 @@ object PhotoOutputResolution {
                     "requestedAspect=${"%.5f".format(Locale.US, geometry.requestedAspectRatio)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )
-            if (actualTargetPixels < targetPixels) {
-                Log.w(
-                    TAG,
-                    "Output size reduced by memory guard: requested=${targetPixels}, actual=${outputPixels}"
-                )
+            check(outputPixels >= targetPixels * 995L / 1000L) {
+                "Output verification fell below the requested megapixel target"
             }
+            Log.i(TAG, "Exact requested output accepted: requested=${targetPixels} actual=${outputPixels}")
             PhotoOutputResult(width, height, targetPixels, outputPixels)
         } catch (failure: Throwable) {
             if (replacing && backup.exists()) {

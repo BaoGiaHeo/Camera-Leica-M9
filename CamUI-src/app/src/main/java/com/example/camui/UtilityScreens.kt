@@ -1961,11 +1961,12 @@ private fun catalogLutCategory(path: String): String {
             it.equals("Panasonic-Standard", true)
     }
     if (brand != null) {
-        val logInput = path.contains("V-Log", true) || path.contains("N-Log", true) ||
-            path.contains("FLog", true) || path.contains("LogC", true) ||
-            path.contains("Cineon", true)
+        val logInput = path.contains("V-Log", true) || path.contains("VLog", true) ||
+            path.contains("N-Log", true) || path.contains("FLog", true) ||
+            path.contains("LogC", true) || path.contains("Cineon", true)
         return if (logInput) "RAW/Log · $brand" else brand
     }
+    if (path.contains("Panasonic-Standard", true)) return "RAW/Log · Panasonic adapter"
     return "LUT nhập"
 }
 
@@ -3560,6 +3561,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         mutableStateOf(prefs.getStringSet("frames", emptySet()).orEmpty().toList())
     }
     var luts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
+    var lutSearch by remember { mutableStateOf("") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var pendingDeleteLut by remember { mutableStateOf<CustomCameraLut?>(null) }
     var isImportingLut by remember { mutableStateOf(false) }
@@ -3574,7 +3576,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                     activeLutIds = activeCustomCameraLutIds(context)
                     Toast.makeText(
                         context,
-                        "Đã nhập " + imported.size + " LUT. Chọn Add to Filters để đưa vào mục LUT.",
+                        "Đã nhập " + imported.size + " LUT. Chọn Add để bật từng bộ lọc.",
                         Toast.LENGTH_LONG
                     ).show()
                 } catch (failure: Throwable) {
@@ -3608,10 +3610,17 @@ fun ContentManagementScreen(onBack: () -> Unit) {
 
         Text("LUT Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(
-            "Nhập Xiaomi Mi-LOG bằng tệp .zip (ứng dụng tự tìm .cube bên trong, kể cả ZIP lồng) hoặc LUT Blackmagic .cube.",
+            "Nhập LUT .cube, LUT Canon RGB 33x33x33 (.bin), hoặc ZIP chứa tối đa 700 LUT .cube/.bin. Hỗ trợ ZIP lồng. LUT Log được giữ riêng, không áp nhầm lên JPEG sRGB.",
             color = CamColors.Sub,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+        )
+        OutlinedTextField(
+            value = lutSearch,
+            onValueChange = { lutSearch = it },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            singleLine = true,
+            label = { Text("Tìm LUT theo tên hoặc nhóm") }
         )
         Button(
             onClick = { lutPicker.launch(arrayOf("*/*")) },
@@ -3622,9 +3631,20 @@ fun ContentManagementScreen(onBack: () -> Unit) {
             Text(if (isImportingLut) "Đang nhập LUT…" else "Import LUT")
         }
         if (luts.isEmpty()) {
-            EmptyNote("Chưa có LUT nào. Hỗ trợ Xiaomi .zip và Blackmagic .cube.")
+            EmptyNote("Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT.")
         } else {
-            luts.forEach { entry ->
+            val matchingLuts = luts.filter {
+                lutSearch.isBlank() ||
+                    it.name.contains(lutSearch.trim(), ignoreCase = true) ||
+                    it.category.contains(lutSearch.trim(), ignoreCase = true)
+            }
+            Text(
+                "Hiển thị ${matchingLuts.size.coerceAtMost(100)} / ${matchingLuts.size} LUT khớp · Tổng ${luts.size}",
+                color = CamColors.Sub,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(bottom = 5.dp)
+            )
+            matchingLuts.take(100).forEach { entry ->
                 val isActive = activeLutIds.contains(entry.id)
                 Row(
                     Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -3636,7 +3656,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                     Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                         Text(entry.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (isActive) "Đã thêm vào Bộ lọc → LUT" else "Đã nhập · Chưa thêm vào Bộ lọc",
+                            (if (isActive) "Đã thêm · " else "Chưa thêm · ") + entry.category,
                             color = CamColors.Sub,
                             fontSize = 9.sp
                         )

@@ -12,7 +12,9 @@ Reference material:
 Commercial-release review required:
 - The non-commercial CC BY-NC-SA 4.0 3D LUT assets have been removed from the app package. Built-in looks now use compact app-authored approximations instead.
 - GPL-licensed projects discussed during development were not copied into this application.
-- No proprietary Fujifilm, Sony, Nikon or Canon typeface files are bundled. The brand wordmarks are separate image assets; supporting text uses distinct Android system-font families.
+- The app bundles the following typefaces for its watermark canvases: Creato Display Light (Nikon), Inter Variable Light (Sony), Liberation Sans Regular (Canon), and Jost Variable Light (Fujifilm). Each font's accompanying SIL Open Font License 1.1 text is included beside the font under assets/fonts/.
+- Font sources: Creato Display by Anugrah Pasau (https://github.com/straculencuandrei/koltzi); Inter by the Inter Project / Google Fonts (https://github.com/google/fonts/tree/main/ofl/inter); Jost by the Jost Project / Google Fonts (https://github.com/google/fonts/tree/main/ofl/jost); Liberation Sans by the Liberation Fonts project (https://github.com/liberationfonts/liberation-fonts). The Liberation Sans Regular TTF binary was obtained from the taylor/fonts mirror; its project license text is from the upstream Liberation Fonts repository.
+- Typeface files are separate from manufacturer logos and wordmarks. No claim of manufacturer endorsement is made.
 
 
 Brand wordmark image assets:

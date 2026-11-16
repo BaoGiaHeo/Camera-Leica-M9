@@ -2838,8 +2838,6 @@ fun CameraScreen(
                                 }
                                 val lookApplied = if (captureIsUltraHdr) false else
                                     runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
-                                val frameApplied = if (captureIsUltraHdr) false else
-                                    runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
                                 val outputResolutionResult = if (
@@ -2872,7 +2870,43 @@ fun CameraScreen(
                                 } else null
                                 val outputResolutionApplied = outputResolutionResult != null
 
-                                // Apply frames and watermark only after final MP resampling so text,
+                                if (captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied) {
+                                    // Do not present an undersized JPEG as a completed 50/108MP LunaDream.
+                                    runCatching {
+                                        context.contentResolver.update(
+                                            saved,
+                                            ContentValues().apply {
+                                                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Unprocessed")
+                                                put(MediaStore.Images.Media.IS_PENDING, 0)
+                                            },
+                                            null,
+                                            null
+                                        )
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        lastUri = null
+                                        thumb = null
+                                        photoViewerVisible = false
+                                        isProcessing = false
+                                        processingProgress = 0
+                                        processingEtaSeconds = -1
+                                        multiFrameHoldActive = false
+                                        multiFrameRenderStarted = false
+                                        localizedToast(
+                                            context,
+                                            "LunaDream đã ghép ảnh nhưng không đạt độ phân giải yêu cầu. Ảnh được giữ riêng trong Pictures/FujifilmMode/Unprocessed; không xuất như ảnh 50/108MP.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                    return@launch
+                                }
+
+                                // Render the optional frame after final MP sizing too, so its
+                                // borders and labels are crisp at the actual output resolution.
+                                val frameApplied = if (captureIsUltraHdr) false else
+                                    runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
+
+                                // Apply watermark only after final MP resampling so text,
                                 // logos and spacing are drawn at the final pixel density, not enlarged.
                                 withContext(Dispatchers.Main) {
                                     processingProgress = maxOf(processingProgress, 90)
@@ -2883,7 +2917,7 @@ fun CameraScreen(
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = false
+                                        preservePhotoAspectRatio = captureUseNightShot || captureUseLunaDream
                                     )
                                 }.getOrDefault(false)
 

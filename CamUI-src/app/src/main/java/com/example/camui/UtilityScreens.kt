@@ -1163,13 +1163,25 @@ private fun WatermarkTemplateCard(
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF475550))
         ) {
-            val panelColor = when (frameStyle) {
-                "White" -> Color.White
-                "Black" -> Color.Black
-                "LiquidGlass" -> Color.White.copy(alpha = 0.20f)
-                else -> Color.Transparent
+            val panelColor = when (id) {
+                "dark", "film" -> Color(0xFF121416)
+                "vintage" -> Color(0xFFECE3CF)
+                "polaroid" -> Color(0xFFFAF9F5)
+                "gallery" -> Color(0xFFF3F1EC)
+                "frosted" -> Color.White.copy(alpha = 0.24f)
+                else -> when (frameStyle) {
+                    "White" -> Color.White
+                    "Black" -> Color.Black
+                    "LiquidGlass" -> Color.White.copy(alpha = 0.20f)
+                    else -> Color.Transparent
+                }
             }
-            val textColor = if (frameStyle == "White") Color.Black else Color.White
+            val textColor = when (id) {
+                "dark", "film" -> Color.White
+                "vintage" -> Color(0xFF4B3A29)
+                "polaroid", "gallery" -> Color(0xFF222222)
+                else -> if (frameStyle == "White") Color.Black else Color.White
+            }
             val frameColor = when (frameStyle) {
                 "Black" -> Color.Black
                 "Transparent" -> Color.Transparent
@@ -1190,45 +1202,82 @@ private fun WatermarkTemplateCard(
                 "canon" -> Color(0xFFCD0022)
                 else -> Color(0xFF23AE91)
             }
-            Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
-                    .background(panelColor, RoundedCornerShape(5.dp))
-                    .padding(horizontal = 7.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    Modifier.weight(0.56f),
-                    verticalAlignment = Alignment.CenterVertically
+            if (id == "minimal") {
+                Text(
+                    "ILCE-7M4 · 35mm · F2.8 · 1/250s · ISO 100",
+                    color = textColor, fontSize = 6.sp, maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .padding(5.dp).background(panelColor, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 7.dp)
+                )
+            } else if (id == "simple") {
+                Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
+                        .background(panelColor, RoundedCornerShape(5.dp)).padding(5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Image(
                         painter = painterResource(id = previewLogo),
                         contentDescription = "$brand watermark logo",
-                        modifier = Modifier.weight(0.38f).height(15.dp)
-                            .background(Color.White, RoundedCornerShape(2.dp)).padding(2.dp),
+                        modifier = Modifier.width(58.dp).height(12.dp),
                         contentScale = ContentScale.Fit
                     )
-                    Column(
-                        Modifier.weight(0.62f).padding(start = 3.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text("MODEL · ILCE-7M4", color = textColor,
-                            fontSize = 5.9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Text("FE 24–70mm", color = textColor.copy(alpha = 0.82f),
-                            fontSize = 5.4.sp, maxLines = 1)
-                    }
+                    Text("ILCE-7M4", color = textColor, fontSize = 6.sp,
+                        fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
-                Box(
-                    Modifier.padding(horizontal = 4.dp).width(1.dp).height(28.dp)
-                        .background(brandAccent.copy(alpha = if (frameStyle == "Transparent") 0.95f else 0.72f))
+            } else if (id == "datestamp") {
+                Text(
+                    "24 11 17",
+                    color = Color(0xFFFF9637), fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)
+                        .background(Color.Black.copy(alpha = 0.25f), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 5.dp, vertical = 3.dp)
                 )
-                Column(
-                    Modifier.weight(0.44f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+            } else if (id == "micro") {
+                Text(
+                    "ILCE-7M4 · 35mm F2.8 · 1/250s · ISO 100",
+                    color = textColor, fontSize = 5.3.sp, maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
+                        .background(panelColor, RoundedCornerShape(3.dp))
+                        .padding(horizontal = 5.dp, vertical = 4.dp)
+                )
+            } else {
+                Row(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
+                        .background(panelColor, RoundedCornerShape(5.dp))
+                        .padding(horizontal = 7.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("35mm · F2.8 · 1/250s · ISO 100", color = textColor,
-                        fontSize = 5.7.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                    Text("2026.11.17", color = textColor.copy(alpha = 0.82f),
-                        fontSize = 5.5.sp, maxLines = 1)
+                    Row(Modifier.weight(0.56f), verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = previewLogo),
+                            contentDescription = "$brand watermark logo",
+                            modifier = Modifier.weight(0.38f).height(15.dp)
+                                .background(Color.White, RoundedCornerShape(2.dp)).padding(2.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Column(
+                            Modifier.weight(0.62f).padding(start = 3.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text("MODEL · ILCE-7M4", color = textColor,
+                                fontSize = 5.9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("FE 24–70mm", color = textColor.copy(alpha = 0.82f),
+                                fontSize = 5.4.sp, maxLines = 1)
+                        }
+                    }
+                    Box(
+                        Modifier.padding(horizontal = 4.dp).width(1.dp).height(28.dp)
+                            .background(brandAccent.copy(alpha = if (frameStyle == "Transparent") 0.95f else 0.72f))
+                    )
+                    Column(Modifier.weight(0.44f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("35mm · F2.8 · 1/250s · ISO 100", color = textColor,
+                            fontSize = 5.7.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Text("2026.11.17", color = textColor.copy(alpha = 0.82f),
+                            fontSize = 5.5.sp, maxLines = 1)
+                    }
                 }
             }
         }

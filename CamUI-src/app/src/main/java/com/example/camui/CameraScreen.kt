@@ -2650,7 +2650,7 @@ fun CameraScreen(
                                             if (captureUseNightShot && stackedFrames.size < maxFrames) {
                                                 android.util.Log.w("FUJI_NIGHTSHOT", "Actual stack is partial: " + stackedFrames.size + "/" + maxFrames + "; proceeding without rejecting capture")
                                             }
-                                            val minimumFramesRequired = if (captureUseLunaDream15) 3 else 2
+                                            val minimumFramesRequired = if (captureUseLunaDream15) 5 else 2
                                             lunaDreamCapturedFrameCount = stackedFrames.size
                                             if (stackedFrames.size >= minimumFramesRequired) {
                                                 withContext(Dispatchers.Main) {

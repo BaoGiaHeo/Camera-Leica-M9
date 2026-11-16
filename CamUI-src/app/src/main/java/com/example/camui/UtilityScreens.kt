@@ -2445,7 +2445,7 @@ fun applyCameraWatermark(
         val minSide = minOf(output.width, output.height).toFloat()
         // Keep logo and metadata in one restrained visual scale across output resolutions.
         val watermarkTextSize = (minSide * 0.0125f).coerceIn(12f, 54f)
-        val watermarkLogoHeight = watermarkTextSize * 1.35f
+        val watermarkLogoHeight = minSide * 0.032f
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         fun exifNumber(tag: String): Double? = sourceExif[tag]?.let { raw ->
             val value = raw.trim()
@@ -2900,8 +2900,9 @@ fun applyCameraWatermark(
                         footerRect.width() * 0.40f, watermarkTextSize)
                 }
                 if (showSpecs) {
-                    val compactSpecs = listOf(focal, aperture, shutter, "ISO $iso")
-                        .filter { it.isNotBlank() }.joinToString(" ")
+                    val compactSpecs = listOf(exifFocal, equivalent35mm, exifAperture, exifShutter,
+                        exifIso?.let { "ISO $it" }, exposureBias)
+                        .filterNotNull().filter { it.isNotBlank() }.joinToString(" ")
                     val right = footerRect.right - footerRect.height() * 0.18f
                     footerText.textAlign = Paint.Align.RIGHT
                     fitText(compactSpecs, footerText, right, footerRect.centerY() + footerText.textSize * 0.34f,

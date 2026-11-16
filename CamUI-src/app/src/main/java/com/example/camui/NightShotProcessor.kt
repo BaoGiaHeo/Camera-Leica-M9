@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -37,6 +38,7 @@ import kotlin.math.sqrt
 object NightShotProcessor {
     private const val TAG = "FUJI_NIGHTSHOT"
     private const val MAX_OUTPUT_PIXELS = 108_000_000L
+    private const val FRAME_CAPTURE_TIMEOUT_MS = 12_000L
     private val EXIF_TAGS = listOf(
         ExifInterface.TAG_DATETIME,
         ExifInterface.TAG_DATETIME_ORIGINAL,
@@ -78,7 +80,7 @@ object NightShotProcessor {
         capture: ImageCapture,
         destination: File,
         callbackExecutor: Executor
-    ): Boolean = suspendCancellableCoroutine { continuation ->
+    ): Boolean {
         val rawCompanion = File(
             destination.parentFile,
             destination.nameWithoutExtension + "-discard.dng"
@@ -87,70 +89,81 @@ object NightShotProcessor {
             runCatching { destination.delete() }
             runCatching { rawCompanion.delete() }
         }
-        runCatching {
-            destination.parentFile?.mkdirs()
-            clearTemporaryFiles()
-            if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
-                // RawDream keeps the first full DNG as the original RAW master. Additional
-                // burst requests still need a JPEG for LunaDream fusion; their temporary DNGs
-                // are discarded after CameraX confirms both output callbacks.
-                val rawOptions = ImageCapture.OutputFileOptions.Builder(rawCompanion).build()
-                val jpegOptions = ImageCapture.OutputFileOptions.Builder(destination).build()
-                var rawSaved = false
-                var jpegSaved = false
-                fun finishIfReady() {
-                    if (rawSaved && jpegSaved && continuation.isActive) {
-                        val success = destination.exists() && destination.length() > 0L
-                        runCatching { rawCompanion.delete() }
-                        continuation.resume(success)
-                    }
-                }
-                capture.takePicture(
-                    rawOptions,
-                    jpegOptions,
-                    callbackExecutor,
-                    object : ImageCapture.OnImageSavedCallback {
-                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                            if (outputFileResults.imageFormat == ImageFormat.RAW_SENSOR) {
-                                rawSaved = rawCompanion.exists() && rawCompanion.length() > 0L
-                            } else {
-                                jpegSaved = destination.exists() && destination.length() > 0L
+        val captured = withTimeoutOrNull(FRAME_CAPTURE_TIMEOUT_MS) {
+            suspendCancellableCoroutine { continuation ->
+                runCatching {
+                    destination.parentFile?.mkdirs()
+                    clearTemporaryFiles()
+                    if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
+                        // RawDream keeps the first full DNG as the original RAW master. Additional
+                        // burst requests still need a JPEG for LunaDream fusion; their temporary DNGs
+                        // are discarded after CameraX confirms both output callbacks.
+                        val rawOptions = ImageCapture.OutputFileOptions.Builder(rawCompanion).build()
+                        val jpegOptions = ImageCapture.OutputFileOptions.Builder(destination).build()
+                        var rawSaved = false
+                        var jpegSaved = false
+                        fun finishIfReady() {
+                            if (rawSaved && jpegSaved && continuation.isActive) {
+                                val success = destination.exists() && destination.length() > 0L
+                                runCatching { rawCompanion.delete() }
+                                continuation.resume(success)
                             }
-                            finishIfReady()
                         }
+                        capture.takePicture(
+                            rawOptions,
+                            jpegOptions,
+                            callbackExecutor,
+                            object : ImageCapture.OnImageSavedCallback {
+                                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                                    if (outputFileResults.imageFormat == ImageFormat.RAW_SENSOR) {
+                                        rawSaved = rawCompanion.exists() && rawCompanion.length() > 0L
+                                    } else {
+                                        jpegSaved = destination.exists() && destination.length() > 0L
+                                    }
+                                    finishIfReady()
+                                }
 
-                        override fun onError(exception: ImageCaptureException) {
-                            Log.e(TAG, "RAW+JPEG burst frame capture failed", exception)
-                            clearTemporaryFiles()
-                            if (continuation.isActive) continuation.resume(false)
-                        }
-                    }
-                )
-            } else {
-                val options = ImageCapture.OutputFileOptions.Builder(destination).build()
-                capture.takePicture(
-                    options,
-                    callbackExecutor,
-                    object : ImageCapture.OnImageSavedCallback {
-                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                            val success = destination.exists() && destination.length() > 0L
-                            if (continuation.isActive) continuation.resume(success)
-                        }
+                                override fun onError(exception: ImageCaptureException) {
+                                    Log.e(TAG, "RAW+JPEG burst frame capture failed", exception)
+                                    clearTemporaryFiles()
+                                    if (continuation.isActive) continuation.resume(false)
+                                }
+                            }
+                        )
+                    } else {
+                        val options = ImageCapture.OutputFileOptions.Builder(destination).build()
+                        capture.takePicture(
+                            options,
+                            callbackExecutor,
+                            object : ImageCapture.OnImageSavedCallback {
+                                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                                    val success = destination.exists() && destination.length() > 0L
+                                    if (continuation.isActive) continuation.resume(success)
+                                }
 
-                        override fun onError(exception: ImageCaptureException) {
-                            Log.e(TAG, "Frame capture failed", exception)
-                            clearTemporaryFiles()
-                            if (continuation.isActive) continuation.resume(false)
-                        }
+                                override fun onError(exception: ImageCaptureException) {
+                                    Log.e(TAG, "Frame capture failed", exception)
+                                    clearTemporaryFiles()
+                                    if (continuation.isActive) continuation.resume(false)
+                                }
+                            }
+                        )
                     }
-                )
+                }.onFailure {
+                    Log.e(TAG, "Could not start frame capture", it)
+                    clearTemporaryFiles()
+                    if (continuation.isActive) continuation.resume(false)
+                }
+                continuation.invokeOnCancellation { clearTemporaryFiles() }
             }
-        }.onFailure {
-            Log.e(TAG, "Could not start frame capture", it)
-            clearTemporaryFiles()
-            if (continuation.isActive) continuation.resume(false)
         }
-        continuation.invokeOnCancellation { clearTemporaryFiles() }
+        if (captured == null) {
+            clearTemporaryFiles()
+            Log.w(TAG, "Frame capture timed out after ${FRAME_CAPTURE_TIMEOUT_MS}ms")
+            return false
+        }
+        if (!captured) clearTemporaryFiles()
+        return captured
     }
 
 
@@ -280,6 +293,7 @@ object NightShotProcessor {
         var publishMs = 0L
         var base: Bitmap? = null
         var alignmentReference: Bitmap? = null
+        var publishing = false
         return try {
             val firstExif = readExif(frames.first())
             val stackPixelLimit = when (mode) {
@@ -500,15 +514,26 @@ object NightShotProcessor {
             writeExif(tempOutput, firstExif)
             encodeMs = SystemClock.elapsedRealtime() - encodeStartedAt
             val publishStartedAt = SystemClock.elapsedRealtime()
+            publishing = true
             context.contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
                 tempOutput.inputStream().use { input -> input.copyTo(output) }
+                output.flush()
             } ?: error("Could not write merged image to MediaStore")
+            val verification = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            val verificationReadable = context.contentResolver.openInputStream(destinationUri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, verification)
+                true
+            } ?: false
+            check(verificationReadable && verification.outWidth >= 3 && verification.outHeight >= 3) {
+                "Merged output could not be reopened as a valid JPEG"
+            }
             context.contentResolver.update(
                 destinationUri,
                 ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
                 null,
                 null
             )
+            publishing = false
             publishMs = SystemClock.elapsedRealtime() - publishStartedAt
             runCatching { onProgress?.invoke(100) }
             Log.i(
@@ -521,6 +546,14 @@ object NightShotProcessor {
             )
             true
         } catch (failure: Throwable) {
+            if (publishing) {
+                runCatching {
+                    context.contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
+                        frames.first().inputStream().use { it.copyTo(output) }
+                        output.flush()
+                    } ?: error("Could not restore the original first frame after merge failure")
+                }.onFailure { Log.e(TAG, "Could not restore original JPEG after merge publish failure", it) }
+            }
             Log.e(
                 TAG,
                 "Multi-frame merge failed for $mode after " +

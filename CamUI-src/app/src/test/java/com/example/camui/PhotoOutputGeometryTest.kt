@@ -69,6 +69,22 @@ class PhotoOutputGeometryTest {
     }
 
     @Test
+    fun lunaDream15OutputReachesTheReal50MegapixelTarget() {
+        val geometry = PhotoOutputGeometry.calculate(4000, 3000, 50_000_000L, 4f / 3f)
+
+        assertTrue(geometry.outputPixels <= 50_000_000L)
+        assertTrue(geometry.outputPixels >= 49_750_000L)
+    }
+
+    @Test
+    fun lunaDream20OutputReachesTheReal108MegapixelTarget() {
+        val geometry = PhotoOutputGeometry.calculate(4000, 3000, 108_000_000L, 4f / 3f)
+
+        assertTrue(geometry.outputPixels <= 108_000_000L)
+        assertTrue(geometry.outputPixels >= 107_460_000L)
+    }
+
+    @Test
     fun missingOrInvalidAspectRatioFallsBackToSourceRatio() {
         val missing = PhotoOutputGeometry.calculate(4000, 3000, 60_000_000L)
         val invalid = PhotoOutputGeometry.calculate(4000, 3000, 60_000_000L, Float.NaN)

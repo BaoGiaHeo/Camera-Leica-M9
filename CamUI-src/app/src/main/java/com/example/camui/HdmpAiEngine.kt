@@ -3,6 +3,7 @@ package com.example.camui
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtException
+import ai.onnxruntime.OrtProvider
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import ai.onnxruntime.providers.NNAPIFlags
@@ -40,10 +41,10 @@ import kotlin.math.roundToInt
 /**
  * HDMP-owned AI coordinator.
  *
- * NAFNet is used only as a conservative denoising/restoration assistant. It never writes to
- * MediaStore and never owns the final image. HDMP validates, blends, commits and then continues
- * with the deterministic HdmpEngine. The GAN-based Real-ESRGAN path is deliberately not invoked:
- * it can synthesize texture and conflicts with the no-independent-generation requirement.
+ * NAFNet is used as a conservative denoising/restoration stage. It never writes to MediaStore:
+ * this engine validates, blends, and commits the result. The deterministic HdmpEngine remains a
+ * separate classical path. The GAN-based Real-ESRGAN path is deliberately not invoked because it
+ * can synthesize texture and conflicts with the no-independent-generation requirement.
  *
  * Stage A changes (same network, same inference maths, same blend constants):
  *  - AI input, blend base and AI output are now 8-bit per channel (ARGB_8888). The previous
@@ -356,7 +357,15 @@ internal object HdmpAiEngine {
             outputBitmap = finalOutput
 
             val env = OrtEnvironment.getEnvironment()
-            val providerPlan = listOf("NNAPI_FP16", "XNNPACK", "CPU")
+            val availableProviders = runCatching {
+                OrtEnvironment.getAvailableProviders().map { it.name }.sorted()
+            }.getOrDefault(emptyList())
+            Log.i(TAG, "ONNX Runtime available execution providers=$availableProviders")
+            val providerPlan = buildList {
+                if ("NNAPI" in availableProviders) add("NNAPI_FP16")
+                if ("XNNPACK" in availableProviders) add("XNNPACK")
+                add("CPU")
+            }
             var openedSession: OrtSession? = null
             var activeBackend = ""
             var lastSessionFailure: Throwable? = null
@@ -378,13 +387,21 @@ internal object HdmpAiEngine {
                         "NNAPI_FP16" -> candidateOptions.addNnapi(
                             EnumSet.of(NNAPIFlags.USE_FP16, NNAPIFlags.CPU_DISABLED)
                         )
-                        "XNNPACK" -> candidateOptions.addXnnpack(emptyMap())
+                        "XNNPACK" -> {
+                            // XNNPACK owns the compute thread pool; avoid a second ORT pool
+                            // competing for the same cores and disable busy-wait spinning.
+                            candidateOptions.setIntraOpNumThreads(1)
+                            candidateOptions.addConfigEntry("session.intra_op.allow_spinning", "0")
+                            candidateOptions.addXnnpack(
+                                mapOf("intra_op_num_threads" to workerCount.coerceIn(1, 8).toString())
+                            )
+                        }
                         // CPU is ONNX Runtime's default fallback provider.
                     }
                     openedSession = env.createSession(modelFile.absolutePath, candidateOptions)
                     options = candidateOptions
                     activeBackend = backend
-                    Log.i(TAG, "ONNX session created with provider priority=$backend")
+                    Log.i(TAG, "ONNX session created with requested provider=$backend; available=$availableProviders")
                     break
                 } catch (failure: Throwable) {
                     lastSessionFailure = failure

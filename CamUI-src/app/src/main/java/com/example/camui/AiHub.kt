@@ -61,7 +61,7 @@ fun HdmpBottomSheet(
         ) {
             Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Chọn HDMP AI 2, HDMP AI 1.5 hoặc OFF HDMP AI trước khi chụp. Đã chọn AI thì không tự chuyển sang xử lý thường.",
+                "Chọn HDMP AI 2, HDMP AI 1.5, HDMP LunaDream 2.0 hoặc OFF trước khi chụp. Mỗi chế độ giữ đúng thuật toán đã chọn.",
                 color = HdmpMuted, fontSize = 12.sp, lineHeight = 17.sp
             )
             Text("MÔ HÌNH LÀM NÉT", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -69,6 +69,7 @@ fun HdmpBottomSheet(
                 listOf(
                     "ai2" to "HDMP AI 2",
                     "ai15" to "HDMP AI 1.5",
+                    "luna" to "LunaDream 2.0",
                     "off" to "OFF"
                 ).forEach { (value, title) ->
                     val selected = renderProfile == value
@@ -83,46 +84,54 @@ fun HdmpBottomSheet(
                         Text(
                             title,
                             color = if (selected) Color.Black else Color.White,
-                            fontSize = 10.sp,
+                            fontSize = if (value == "luna") 8.sp else 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
             Text(
-                when (renderProfile) {
+                when (HdmpSelectionPolicy.normalizeModel(renderProfile)) {
                     "off" -> "OFF HDMP AI · chụp thường, không chạy mô hình AI và không nội suy HDMP."
-                    "ai15" -> "HDMP AI 1.5 · width32 · ưu tiên tốc độ. Mục tiêu 10 giây; quá mốc vẫn tiếp tục AI."
-                    else -> "HDMP AI 2 · width64 · ưu tiên chất lượng và chi tiết. Mục tiêu 20 giây; quá mốc vẫn tiếp tục AI."
+                    "ai15" -> "HDMP AI 1.5 · width32 · ưu tiên tốc độ, khử nhiễu và phục hồi chi tiết. Mục tiêu 10 giây."
+                    "luna" -> "HDMP LunaDream 2.0 · thu tối đa 8 khung, căn chỉnh Lucas–Kanade đa mức, khử nhiễu theo chuyển động và phục hồi độ nét. Mục tiêu tối đa 60 giây."
+                    else -> "HDMP AI 2 · width64 · ưu tiên chất lượng, khử nhiễu và phục hồi chi tiết. Mục tiêu 20 giây."
                 },
                 color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
             )
             HorizontalDivider(color = Color(0xFF333333))
-            Text("ĐỘ PHÂN GIẢI ĐẦU RA", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf(24, 48, 60, 108, 250).forEach { mp ->
-                    val selected = outputMegapixels == mp
-                    Box(
-                        modifier = Modifier.weight(1f)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (selected) HdmpYellow else Color(0xFF292929))
-                            .clickable { onOutputMegapixelsChange(mp) }
-                            .padding(vertical = 12.dp, horizontal = 1.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "${mp}MP",
-                            color = if (selected) Color.Black else Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+            if (HdmpSelectionPolicy.normalizeModel(renderProfile) != "luna") {
+                Text("ĐỘ PHÂN GIẢI ĐẦU RA", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf(24, 48, 60, 108, 250).forEach { mp ->
+                        val selected = outputMegapixels == mp
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(if (selected) HdmpYellow else Color(0xFF292929))
+                                .clickable { onOutputMegapixelsChange(mp) }
+                                .padding(vertical = 12.dp, horizontal = 1.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "${mp}MP",
+                                color = if (selected) Color.Black else Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
+                Text(
+                    "AI 1.5 và AI 2 xử lý ảnh đơn theo độ phân giải đã chọn. Số megapixel thực tế có thể bị giới hạn bởi cảm biến hoặc RAM.",
+                    color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+                )
+            } else {
+                Text(
+                    "LunaDream 2.0 ghép tối đa 8 khung hình ở độ phân giải nguồn, giữ nguyên kích thước ảnh và giới hạn tối đa 60MP.",
+                    color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+                )
             }
-            Text(
-                "Ảnh độ phân giải cao chỉ ghi nhận một khung hình rồi chuyển sang HDMP; không ghép 5 ảnh. Số megapixel đầu ra có thể bị giới hạn nếu cảm biến hoặc RAM không đáp ứng.",
-                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
-            )
             HorizontalDivider(color = Color(0xFF333333))
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))

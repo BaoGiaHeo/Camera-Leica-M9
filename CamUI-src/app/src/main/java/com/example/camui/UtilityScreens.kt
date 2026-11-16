@@ -1184,7 +1184,6 @@ private fun WatermarkTemplateCard(
                     )
                 }
             }
-            }
         }
         Text(title, color = if (selected) CamColors.Yellow else Color.White,
             fontSize = 12.sp, fontWeight = FontWeight.SemiBold,

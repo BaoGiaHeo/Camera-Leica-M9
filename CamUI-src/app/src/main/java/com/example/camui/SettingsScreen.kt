@@ -62,7 +62,7 @@ private val settingItems = listOf(
     SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
     SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
     SettingItem("Photo Mode Setting", "HDR · Noise reduction"),
-    SettingItem("NightShot", "Night Shot · Long Exposure / Star Trails"),
+    SettingItem("NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
@@ -301,14 +301,14 @@ var nightShotMode by remember {
                     AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
                 })
             }
-            "NightShot" -> {
+            "NightShotMode" -> {
                 Text(
                     "Chế độ chụp đêm",
                     color = CamColors.TextColor,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "NightShot thu nhiều khung trong thời lượng đã chọn, căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Số khung thực tế phụ thuộc tốc độ camera; giữ máy ổn định đến khi ghép xong.",
+                    "NightShotMode thu nhiều khung trong thời lượng đã chọn, căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Số khung thực tế phụ thuộc tốc độ camera; giữ máy ổn định đến khi ghép xong.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -316,7 +316,7 @@ var nightShotMode by remember {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
                         "Tắt" to "off",
-                        "Night Shot · Multi-frame" to "night",
+                        "NightShotMode · Multi-frame" to "night",
                         "Phơi sáng lâu · Star Trails" to "star_trails"
                     ).forEach { (label, value) ->
                         Row(
@@ -388,7 +388,7 @@ var nightShotMode by remember {
                         Column(Modifier.weight(1f)) {
                             Text("Milky Way", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Bật để dùng nhánh căn chỉnh và ghép khung bầu trời trong NightShot. Tắt mặc định; không hoạt động ở Photo thường.",
+                                "Bật để dùng nhánh căn chỉnh và ghép khung bầu trời trong NightShotMode. Tắt mặc định; không hoạt động ở Photo thường.",
                                 color = CamColors.Sub, fontSize = 10.sp,
                                 modifier = Modifier.padding(top = 3.dp)
                             )
@@ -451,7 +451,7 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "RAW lưu tệp DNG gốc. RAW+ chụp đồng thời một tệp DNG và một tệp JPEG riêng; kích thước RAW theo định dạng cảm biến/HAL công bố, không nội suy RAW. RAW/RAW+ không kết hợp với Night Shot, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Nếu thiết bị không hỗ trợ RAW hoặc RAW+ đồng thời, ứng dụng báo rõ.",
+                    "RAW lưu tệp DNG gốc. RawHDMP 1.2 chụp đồng thời một tệp DNG và một tệp JPEG riêng; kích thước RAW theo định dạng cảm biến/HAL công bố, không nội suy RAW. RAW/RawHDMP 1.2 không kết hợp với NightShotMode, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Nếu thiết bị không hỗ trợ RAW hoặc RawHDMP 1.2 đồng thời, ứng dụng báo rõ.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
@@ -459,7 +459,7 @@ var nightShotMode by remember {
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    listOf("JPEG" to "jpeg", "RAW" to "raw", "RAW+" to "raw_plus").forEach { (label, value) ->
+                    listOf("JPEG" to "jpeg", "RAW" to "raw", "RawHDMP 1.2" to "raw_plus").forEach { (label, value) ->
                         Chip(label, rawCaptureMode == value, {
                             rawCaptureMode = value
                             prefs.edit().putString("raw_capture_mode", value).apply()

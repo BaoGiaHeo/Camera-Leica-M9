@@ -908,7 +908,7 @@ fun CameraScreen(
             if (rawCaptureRequested && !rawCaptureActive) {
                 localizedToast(
                     context,
-                    "Camera này không hỗ trợ RAW/RAW+. Đã chuyển về JPEG thường.",
+                    "Camera này không hỗ trợ RAW/RawHDMP 1.2. Đã chuyển về JPEG thường.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -1956,7 +1956,7 @@ fun CameraScreen(
         if (rawModeConflictsWithComputationalCapture) {
             localizedToast(
                 context,
-                "RAW/RAW+ không ghép đồng thời với Night Shot, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Hãy tắt chế độ ghép hoặc chuyển định dạng về JPEG.",
+                "RAW/RawHDMP 1.2 không ghép đồng thời với NightShotMode, Star Trails, UHD/FHD/UHD+, Burst hoặc Bracketing. Hãy tắt chế độ ghép hoặc chuyển định dạng về JPEG.",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -2282,9 +2282,9 @@ fun CameraScreen(
                 localizedToast(
                     context,
                     if (captureUseMilkyWayStack) {
-                        "NightShot Milky Way: thu tối đa 8 khung để căn chỉnh và giảm nhiễu. Giữ máy ổn định đến khi ghép xong."
+                        "NightShotMode Milky Way: thu tối đa 8 khung để căn chỉnh và giảm nhiễu. Giữ máy ổn định đến khi ghép xong."
                     } else {
-                        "NightShot ${captureNightDurationSeconds}s · thu nhiều khung, căn chỉnh và ghép ảnh. Giữ máy ổn định đến khi ghép xong."
+                        "NightShotMode ${captureNightDurationSeconds}s · thu nhiều khung, căn chỉnh và ghép ảnh. Giữ máy ổn định đến khi ghép xong."
                     },
                     Toast.LENGTH_LONG
                 ).show()
@@ -2434,8 +2434,8 @@ fun CameraScreen(
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
                                 captureUseLunaDream -> "HDMP LunaDream 2.0 · chuẩn bị ghép 8 khung"
-                                captureUseMilkyWayStack -> "NightShot Milky Way · chuẩn bị căn chỉnh 8 khung"
-                                captureUseNightShot -> "NightShot · chuẩn bị căn chỉnh và ghép nhiều khung"
+                                captureUseMilkyWayStack -> "NightShotMode Milky Way · chuẩn bị căn chỉnh 8 khung"
+                                captureUseNightShot -> "NightShotMode · chuẩn bị căn chỉnh và ghép nhiều khung"
                                 captureUseHdmpResolution -> "HDMP ${hdmpOutputMp}MP · một khung hình · chuẩn bị AI"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
                                 else -> "Ảnh đang được xử lý"
@@ -2508,9 +2508,9 @@ fun CameraScreen(
                                                         processingLabel = if (captureUseLunaDream) {
                                                             "LunaDream 2.0: thu khung $expectedFrame/$maxFrames"
                                                         } else if (captureUseMilkyWayStack) {
-                                                            "NightShot Milky Way: thu khung $expectedFrame/$maxFrames"
+                                                            "NightShotMode Milky Way: thu khung $expectedFrame/$maxFrames"
                                                         } else if (captureUseNightShot) {
-                                                            "NightShot: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
+                                                            "NightShotMode: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
                                                         } else {
                                                             "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
@@ -2567,8 +2567,8 @@ fun CameraScreen(
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = when {
                                                         captureUseLunaDream -> "LunaDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
-                                                        captureUseMilkyWayStack -> "NightShot Milky Way: căn chỉnh và gộp " + stackedFrames.size + "/8 khung"
-                                                        captureUseNightShot -> "NightShot: căn chỉnh và gộp " + stackedFrames.size + " khung"
+                                                        captureUseMilkyWayStack -> "NightShotMode Milky Way: căn chỉnh và gộp " + stackedFrames.size + "/8 khung"
+                                                        captureUseNightShot -> "NightShotMode: căn chỉnh và gộp " + stackedFrames.size + " khung"
                                                         else -> "Multi-frame: căn chỉnh và gộp " + stackedFrames.size + "/5 khung"
                                                     }
                                                     processingProgress = 27
@@ -2584,7 +2584,7 @@ fun CameraScreen(
                                                     mainExecutor.execute {
                                                         processingLabel = when {
                                                             captureUseLunaDream -> "LunaDream 2.0: căn LK, khử nhiễu và loại bóng ma"
-                                                            captureUseNightShot -> "NightShot: căn khung và giảm nhiễu"
+                                                            captureUseNightShot -> "NightShotMode: căn khung và giảm nhiễu"
                                                             captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu"
                                                             else -> "Multi-frame: ghép 5 khung"
                                                         }
@@ -2595,7 +2595,7 @@ fun CameraScreen(
                                             }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
-                                                "mode=" + (if (captureUseLunaDream) "LunaDream-2.0" else if (captureUseNightShot) "NightShot-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
+                                                "mode=" + (if (captureUseLunaDream) "LunaDream-2.0" else if (captureUseNightShot) "NightShotMode-" + captureNightDurationSeconds + "s" else if (captureUseMilkyWayStack) "MilkyWay-8" else if (captureUseUhdPlusAlgorithm) "UHD+" else if (captureUseUhdAlgorithm) "UHD" else "FHD") + " actualFrames=" + stackedFrames.size
                                             )
                                         }
                                     } finally {
@@ -2838,14 +2838,14 @@ fun CameraScreen(
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     val message = when {
                                         captureUseNightShot && orientationLabelFixed && hdmpApplied && outputResolutionApplied ->
-                                            "Đã lưu Night Shot · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
+                                            "Đã lưu NightShotMode · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->
-                                            if (hdmpApplied && outputResolutionApplied) "Đã lưu Night Shot · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
-                                            else "Đã lưu Night Shot · đã ghép khung; ảnh gốc vẫn được giữ nếu HDMP không khả dụng."
+                                            if (hdmpApplied && outputResolutionApplied) "Đã lưu NightShotMode · " + nightShotCapturedFrameCount + "/" + nightShotTargetFrameCount + " khung thực tế, HDMP tối đa 60MP."
+                                            else "Đã lưu NightShotMode · đã ghép khung; ảnh gốc vẫn được giữ nếu HDMP không khả dụng."
                                         captureUseNightShot && captureNightShotExtension && orientationLabelFixed ->
-                                            "NightShot đã xử lý bằng chế độ NIGHT của camera."
+                                            "NightShotMode đã xử lý bằng chế độ NIGHT của camera."
                                         captureUseNightShot && orientationLabelFixed ->
-                                            "NightShot không ghép đủ khung hình; ảnh gốc vẫn được giữ."
+                                            "NightShotMode không ghép đủ khung hình; ảnh gốc vẫn được giữ."
                                         captureUseUhdPlusAlgorithm && outputResolutionApplied && orientationLabelFixed ->
                                             "Đã xuất ảnh UHD+ ${(outputResolutionResult!!.actualPixels + 500_000L) / 1_000_000L}MP" +
                                                 if (outputResolutionResult!!.reachedRequestedSize) {
@@ -3922,7 +3922,7 @@ fun CameraScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    if (nightShotMode == "night") "NightShot" else "Star Trails",
+                                    if (nightShotMode == "night") "NightShotMode" else "Star Trails",
                                     color = CamColors.Yellow,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
@@ -4229,7 +4229,7 @@ stabilization = stabilization,
                         .background(CamColors.Panel).padding(horizontal = 18.dp, vertical = 14.dp)
                 ) {
                     Text(
-                        if (milkyWayStackEnabled) "NightShot · MILKY WAY" else "NightShot · ĐANG CHỤP",
+                        if (milkyWayStackEnabled) "NightShotMode · MILKY WAY" else "NightShotMode · ĐANG CHỤP",
                         color = CamColors.Yellow, fontSize = 14.sp, fontWeight = FontWeight.Bold
                     )
                     Text(

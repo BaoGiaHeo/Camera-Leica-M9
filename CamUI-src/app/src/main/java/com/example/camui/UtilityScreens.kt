@@ -510,7 +510,7 @@ fun ToolboxScreen(
         Text("Camera Presets", color = CamColors.TextColor,
             fontSize = 17.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 16.dp, bottom = 7.dp))
-        Text("Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShot, RAW và cấu hình HDMP.",
+        Text("Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShotMode, RAW và cấu hình HDMP.",
             color = CamColors.Sub, fontSize = 11.sp,
             modifier = Modifier.padding(bottom = 8.dp))
         listOf("A", "B", "C").forEach { slot ->

@@ -1953,12 +1953,12 @@ private fun catalogLutCategory(path: String): String {
         it.matches(Regex("\\d{2}_[A-Za-z0-9_-]+"))
     }?.substringAfter('_')?.replace('_', ' ')
     if (folder != null) return "Canon · $folder"
+    if (path.contains("Panasonic-Standard", true)) return "RAW/Log · Panasonic adapter"
     val brand = parts.firstOrNull {
         it.equals("Fujifilm", true) || it.equals("Kodak", true) ||
             it.equals("Leica", true) || it.equals("Hasselblad", true) ||
             it.equals("Nikon", true) || it.equals("Arri", true) ||
-            it.equals("RED", true) || it.equals("Cineon", true) ||
-            it.equals("Panasonic-Standard", true)
+            it.equals("RED", true) || it.equals("Cineon", true)
     }
     if (brand != null) {
         val logInput = path.contains("V-Log", true) || path.contains("VLog", true) ||
@@ -1966,7 +1966,6 @@ private fun catalogLutCategory(path: String): String {
             path.contains("LogC", true) || path.contains("Cineon", true)
         return if (logInput) "RAW/Log · $brand" else brand
     }
-    if (path.contains("Panasonic-Standard", true)) return "RAW/Log · Panasonic adapter"
     return "LUT nhập"
 }
 

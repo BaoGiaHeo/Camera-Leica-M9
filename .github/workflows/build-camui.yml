@@ -1,4 +1,5 @@
 name: Build FujiFilm Mode 2.0.1Dream
+# Release pipeline for the portrait UI and LunaDream 2.0.1 capture paths.
 
 on:
   push:

@@ -2712,7 +2712,7 @@ fun CameraScreen(
                                                             captureUseLunaDream15 && mergeProgress >= 90 ->
                                                                 "LunaDream 1.5 Render · khử nhiễu và phục hồi chi tiết"
                                                             captureUseLunaDream15 ->
-                                                                "LunaDream 1.5 · căn chỉnh và ghép 5 khung"
+                                                                "LunaDream 1.5 · căn chỉnh và ghép ${stackedFrames.size}/5 khung"
                                                             captureUseRawDream20 && mergeProgress >= 90 ->
                                                                 "RawDream 2.0 Render · hoàn thiện ảnh JPEG"
                                                             captureUseRawDream20 ->

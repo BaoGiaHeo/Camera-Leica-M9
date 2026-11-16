@@ -529,10 +529,17 @@ object NightShotProcessor {
                 // Preserve the LunaDream 2.0 build-9 finishing sequence exactly:
                 // strength-2 edge-aware denoise followed by the dedicated 2.0 detail pass.
                 val detailStartedAt = SystemClock.elapsedRealtime()
-                applyLunaDreamNoiseReduction(base!!, strength = 2) { stageProgress ->
+                applyLunaDreamNoiseReduction(
+                    base!!,
+                    strength = 2,
+                    workers = lunaFusionExecutor
+                ) { stageProgress ->
                     runCatching { onProgress?.invoke(90 + (stageProgress * 3 / 100)) }
                 }
-                applyLunaDream20DetailRecovery(base!!) { stageProgress ->
+                applyLunaDream20DetailRecovery(
+                    base!!,
+                    workers = lunaFusionExecutor
+                ) { stageProgress ->
                     runCatching { onProgress?.invoke(93 + (stageProgress * 2 / 100)) }
                 }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
@@ -1246,11 +1253,137 @@ object NightShotProcessor {
      * luminance or colour boundaries, so texture and hair edges are less likely to smear.
      * The pass is row-streamed to avoid another full-resolution bitmap allocation.
      */
+    /**
+     * Row-tiled multi-core 3x3 edge-aware denoise. Each stripe snapshots its source rows
+     * plus one untouched halo row above and below. Workers only write to a separate output
+     * stripe, so adjacent jobs never read pixels another job has already modified.
+     */
+    private fun applyLunaDreamNoiseReductionParallel(
+        bitmap: Bitmap,
+        strength: Int,
+        workers: ExecutorService,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 3 || height < 3) return
+        val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val rowsPerStripe = 64
+        var carryRow = IntArray(width)
+        var carryLuma = IntArray(width)
+        bitmap.getPixels(carryRow, 0, width, 0, 0, width, 1)
+        for (x in 0 until width) carryLuma[x] = luma(carryRow[x])
+
+        var top = 0
+        while (top < height) {
+            val rowCount = min(rowsPerStripe, height - top)
+            val sourceRows = IntArray((rowCount + 2) * width)
+            val sourceLuma = IntArray((rowCount + 2) * width)
+            carryRow.copyInto(sourceRows, 0)
+            carryLuma.copyInto(sourceLuma, 0)
+            bitmap.getPixels(sourceRows, width, width, 0, top, width, rowCount + 1)
+            for (row in 1..rowCount + 1) {
+                val offset = row * width
+                for (x in 0 until width) sourceLuma[offset + x] = luma(sourceRows[offset + x])
+            }
+
+            val outputRows = IntArray(rowCount * width)
+            val totalPixels = outputRows.size
+            val jobs = (0 until workerCount).map { worker ->
+                Callable {
+                    val from = totalPixels * worker / workerCount
+                    val until = totalPixels * (worker + 1) / workerCount
+                    for (index in from until until) {
+                        val x = index % width
+                        val row = index / width + 1
+                        val centerOffset = row * width + x
+                        val center = sourceRows[centerOffset]
+                        val centerR = (center ushr 16) and 0xFF
+                        val centerG = (center ushr 8) and 0xFF
+                        val centerB = center and 0xFF
+                        val centerLuma = sourceLuma[centerOffset]
+
+                        val rangeLimit = if (centerLuma < 72) {
+                            if (strength >= 2) 27 else 23
+                        } else {
+                            if (strength >= 2) 20 else 17
+                        }
+                        var sumR = 0
+                        var sumG = 0
+                        var sumB = 0
+                        var weightSum = 0
+                        for (dy in -1..1) {
+                            val neighborRow = (row + dy) * width
+                            for (dx in -1..1) {
+                                if (dx == 0 && dy == 0) continue
+                                val nx = (x + dx).coerceIn(0, width - 1)
+                                val neighborIndex = neighborRow + nx
+                                val neighbor = sourceRows[neighborIndex]
+                                val nr = (neighbor ushr 16) and 0xFF
+                                val ng = (neighbor ushr 8) and 0xFF
+                                val nb = neighbor and 0xFF
+                                val luminanceDelta = kotlin.math.abs(sourceLuma[neighborIndex] - centerLuma)
+                                val colorDelta = max(
+                                    kotlin.math.abs(nr - centerR),
+                                    max(kotlin.math.abs(ng - centerG), kotlin.math.abs(nb - centerB))
+                                )
+                                val spatialWeight = if (dx == 0 || dy == 0) 2 else 1
+                                val weight = when {
+                                    luminanceDelta <= rangeLimit && colorDelta <= rangeLimit * 2 ->
+                                        spatialWeight
+                                    luminanceDelta <= rangeLimit * 2 && colorDelta <= rangeLimit * 3 -> 1
+                                    else -> 0
+                                }
+                                if (weight > 0) {
+                                    sumR += nr * weight
+                                    sumG += ng * weight
+                                    sumB += nb * weight
+                                    weightSum += weight
+                                }
+                            }
+                        }
+
+                        outputRows[index] = if (weightSum == 0) {
+                            center
+                        } else {
+                            val shadowBoost = (1.22f - centerLuma / 255f * 0.42f).coerceIn(0.80f, 1.22f)
+                            val blend = (baseBlendForDenoise(strength) * shadowBoost).coerceIn(0.12f, 0.38f)
+                            val averageR = sumR.toFloat() / weightSum
+                            val averageG = sumG.toFloat() / weightSum
+                            val averageB = sumB.toFloat() / weightSum
+                            packRgb(
+                                (centerR * (1f - blend) + averageR * blend).roundToInt().coerceIn(0, 255),
+                                (centerG * (1f - blend) + averageG * blend).roundToInt().coerceIn(0, 255),
+                                (centerB * (1f - blend) + averageB * blend).roundToInt().coerceIn(0, 255)
+                            )
+                        }
+                    }
+                }
+            }
+            workers.invokeAll(jobs).forEach { it.get() }
+            // Preserve the original last row before overwriting this stripe; it is the next stripe's top halo.
+            val carryOffset = rowCount * width
+            sourceRows.copyInto(carryRow, 0, carryOffset, carryOffset + width)
+            sourceLuma.copyInto(carryLuma, 0, carryOffset, carryOffset + width)
+            bitmap.setPixels(outputRows, 0, width, 0, top, width, rowCount)
+            top += rowCount
+            runCatching { onProgress?.invoke((top * 100 / height).coerceIn(0, 100)) }
+        }
+    }
+
+    private fun baseBlendForDenoise(strength: Int): Float =
+        if (strength >= 2) 0.30f else 0.23f
+
     private fun applyLunaDreamNoiseReduction(
         bitmap: Bitmap,
         strength: Int,
+        workers: ExecutorService? = null,
         onProgress: ((Int) -> Unit)? = null
     ) {
+        if (workers != null) {
+            applyLunaDreamNoiseReductionParallel(bitmap, strength, workers, onProgress)
+            return
+        }
         val width = bitmap.width
         val height = bitmap.height
         if (width < 3 || height < 3) return
@@ -1433,10 +1566,107 @@ object NightShotProcessor {
      * no synthetic texture is generated. A bounded local luminance range avoids dark
      * outlines and bright halos around high-contrast edges.
      */
-    private fun applyLunaDream20DetailRecovery(
+    /**
+     * Multi-core 2.0 edge/detail restoration using source luminance halos. The source
+     * stripe is immutable while workers calculate, then its finished rows are published.
+     */
+    private fun applyLunaDream20DetailRecoveryParallel(
         bitmap: Bitmap,
+        workers: ExecutorService,
         onProgress: ((Int) -> Unit)? = null
     ) {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 3 || height < 3) return
+        val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val rowsPerStripe = 64
+        var carryRow = IntArray(width)
+        var carryLuma = IntArray(width)
+        bitmap.getPixels(carryRow, 0, width, 0, 0, width, 1)
+        for (x in 0 until width) carryLuma[x] = luma(carryRow[x])
+
+        var top = 0
+        while (top < height) {
+            val rowCount = min(rowsPerStripe, height - top)
+            val sourceRows = IntArray((rowCount + 2) * width)
+            val sourceLuma = IntArray((rowCount + 2) * width)
+            carryRow.copyInto(sourceRows, 0)
+            carryLuma.copyInto(sourceLuma, 0)
+            bitmap.getPixels(sourceRows, width, width, 0, top, width, rowCount + 1)
+            for (row in 1..rowCount + 1) {
+                val offset = row * width
+                for (x in 0 until width) sourceLuma[offset + x] = luma(sourceRows[offset + x])
+            }
+
+            val outputRows = IntArray(rowCount * width)
+            val totalPixels = outputRows.size
+            val jobs = (0 until workerCount).map { worker ->
+                Callable {
+                    val from = totalPixels * worker / workerCount
+                    val until = totalPixels * (worker + 1) / workerCount
+                    for (index in from until until) {
+                        val x = index % width
+                        val row = index / width + 1
+                        val centerOffset = row * width + x
+                        val center = sourceRows[centerOffset]
+                        val centerLuma = sourceLuma[centerOffset].toFloat()
+                        val leftLuma = sourceLuma[row * width + (x - 1).coerceAtLeast(0)].toFloat()
+                        val rightLuma = sourceLuma[row * width + (x + 1).coerceAtMost(width - 1)].toFloat()
+                        val upLuma = sourceLuma[(row - 1) * width + x].toFloat()
+                        val downLuma = sourceLuma[(row + 1) * width + x].toFloat()
+                        val crossMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
+
+                        val upLeft = sourceLuma[(row - 1) * width + (x - 1).coerceAtLeast(0)].toFloat()
+                        val upRight = sourceLuma[(row - 1) * width + (x + 1).coerceAtMost(width - 1)].toFloat()
+                        val downLeft = sourceLuma[(row + 1) * width + (x - 1).coerceAtLeast(0)].toFloat()
+                        val downRight = sourceLuma[(row + 1) * width + (x + 1).coerceAtMost(width - 1)].toFloat()
+                        val diagonalMean = (upLeft + upRight + downLeft + downRight) * 0.25f
+
+                        val edgeDelta = centerLuma - crossMean
+                        val fineDelta = centerLuma - diagonalMean
+                        val edgeMagnitude = kotlin.math.abs(edgeDelta)
+                        val correction = if (centerLuma in 18f..238f && edgeMagnitude >= 2.5f && edgeMagnitude <= 58f) {
+                            edgeDelta * 0.24f +
+                                if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.10f else 0f
+                        } else 0f
+
+                        val localMin = minOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
+                        val localMax = maxOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
+                        val correctionLimit = minOf(7f, (edgeMagnitude * 0.48f).coerceAtLeast(2f))
+                        val clampedCorrection = correction.coerceIn(-correctionLimit, correctionLimit)
+                        val targetLuma = (centerLuma + clampedCorrection)
+                            .coerceIn((localMin - 3f).coerceAtLeast(0f), (localMax + 3f).coerceAtMost(255f))
+                        val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
+                        val red = (center ushr 16) and 0xFF
+                        val green = (center ushr 8) and 0xFF
+                        val blue = center and 0xFF
+                        outputRows[index] = packRgb(
+                            (red * gain).roundToInt().coerceIn(0, 255),
+                            (green * gain).roundToInt().coerceIn(0, 255),
+                            (blue * gain).roundToInt().coerceIn(0, 255)
+                        )
+                    }
+                }
+            }
+            workers.invokeAll(jobs).forEach { it.get() }
+            val carryOffset = rowCount * width
+            sourceRows.copyInto(carryRow, 0, carryOffset, carryOffset + width)
+            sourceLuma.copyInto(carryLuma, 0, carryOffset, carryOffset + width)
+            bitmap.setPixels(outputRows, 0, width, 0, top, width, rowCount)
+            top += rowCount
+            runCatching { onProgress?.invoke((top * 100 / height).coerceIn(0, 100)) }
+        }
+    }
+
+    private fun applyLunaDream20DetailRecovery(
+        bitmap: Bitmap,
+        workers: ExecutorService? = null,
+        onProgress: ((Int) -> Unit)? = null
+    ) {
+        if (workers != null) {
+            applyLunaDream20DetailRecoveryParallel(bitmap, workers, onProgress)
+            return
+        }
         val width = bitmap.width
         val height = bitmap.height
         if (width < 3 || height < 3) return

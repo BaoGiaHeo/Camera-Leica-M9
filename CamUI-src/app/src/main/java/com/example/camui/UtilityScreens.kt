@@ -1136,121 +1136,54 @@ private fun WatermarkTemplateCard(
                 drawLine(Color(0xFF31483E), Offset(0f, size.height * 0.82f),
                     Offset(size.width, size.height * 0.72f), strokeWidth = size.height * 0.32f)
             }
-            when (id) {
-                "standard1" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(panelColor).padding(horizontal = 6.dp, vertical = 4.dp)
+            val brandAccent = when (brand.lowercase()) {
+                "sony" -> Color(0xFF7A8E9E)
+                "nikon" -> Color(0xFFFFD200)
+                "canon" -> Color(0xFFCD0022)
+                else -> Color(0xFF23AE91)
+            }
+            Row(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
+                    .background(panelColor, RoundedCornerShape(5.dp))
+                    .padding(horizontal = 7.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.fillMaxWidth(0.315f).height(32.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Image(painter = painterResource(id = previewLogo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.26f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("23mm  •  f/2  •  1/125  •  ISO 400",
-                        color = textColor.copy(alpha = 0.82f), fontSize = 5.5.sp, maxLines = 1)
+                    Image(
+                        painter = painterResource(id = previewLogo),
+                        contentDescription = "$brand watermark logo",
+                        modifier = Modifier.fillMaxWidth(0.92f).height(15.dp)
+                            .background(Color.White, RoundedCornerShape(2.dp)).padding(2.dp),
+                        contentScale = ContentScale.Fit
+                    )
                 }
-                "standard2" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
-                        .background(panelColor, RoundedCornerShape(4.dp)).padding(5.dp)
+                Box(
+                    Modifier.width(1.dp).height(28.dp)
+                        .background(brandAccent.copy(alpha = if (frameStyle == "Transparent") 0.95f else 0.72f))
+                )
+                Column(
+                    Modifier.weight(1f).padding(start = 7.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Image(painter = painterResource(id = previewLogo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.25f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("23mm  ·  f/2.0  ·  ISO 400", color = textColor.copy(alpha = 0.82f), fontSize = 5.5.sp)
+                    Text(
+                        "MODEL · ILCE-7M4",
+                        color = textColor,
+                        fontSize = 6.8.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                    Text(
+                        "ISO 100 · 1/250s · F2.8",
+                        color = textColor.copy(alpha = 0.94f),
+                        fontSize = 6.3.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
                 }
-                "blur" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(panelColor.copy(alpha = if (frameStyle == "Transparent") 0f else 0.85f)).padding(6.dp)
-                ) {
-                    Image(painter = painterResource(id = previewLogo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.24f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("23mm   f/2.0   ISO 400", color = textColor, fontSize = 5.5.sp)
-                }
-                "balanced" -> Row(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
-                        .background(panelColor, RoundedCornerShape(5.dp))
-                        .padding(horizontal = 6.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(android.os.Build.MODEL, color = textColor, fontSize = 6.sp,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.43f), maxLines = 1)
-                    Column(Modifier.weight(0.57f), horizontalAlignment = Alignment.End) {
-                        Text("23mm · f/2.0 · 1/125s · ISO 400", color = textColor,
-                            fontSize = 5.8.sp, maxLines = 1)
-                        Text("2026.11.14  ·  18:42", color = textColor.copy(alpha = 0.82f),
-                            fontSize = 5.1.sp, maxLines = 1)
-                    }
-                }
-                "normal1" -> Column(
-                    Modifier.align(Alignment.BottomEnd).padding(6.dp),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text("23mm  f/2.0", color = textColor, fontSize = 6.sp, fontWeight = FontWeight.Bold)
-                    Text("1/125  ISO 400", color = textColor, fontSize = 5.5.sp)
-                }
-                "normal2" -> Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
-                    Text("2026.11.13  •  18:42", color = textColor, fontSize = 5.5.sp)
-                }
-                "fuji_auto" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.White).padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(painter = painterResource(id = previewLogo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.26f).height(13.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("AUTO · LANDSCAPE / PORTRAIT", color = Color.DarkGray,
-                        fontSize = 5.6.sp)
-                }
-                "fuji_classic" -> Row(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.White).padding(horizontal = 7.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        Modifier.weight(0.30f),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Image(painter = painterResource(id = previewLogo),
-                            contentDescription = "FUJIFILM",
-                            modifier = Modifier.fillMaxWidth(0.78f).height(10.dp),
-                            contentScale = ContentScale.Fit)
-                        Text("Shot on X-M5", color = Color.DarkGray, fontSize = 4.8.sp, maxLines = 1)
-                    }
-                    Text("33mm  f/1.4  1/100s  ISO 100", color = Color.Black,
-                        fontSize = 5.3.sp, maxLines = 1, modifier = Modifier.weight(0.70f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                }
-                "fuji_signature" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.White).padding(vertical = 5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(painter = painterResource(id = previewLogo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.21f).height(11.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("Shot on X-M5 | 2024.12.16", color = Color.Black,
-                        fontSize = 5.4.sp, maxLines = 1)
-                    Text("33mm  ·  f/1.4  ·  1/100s  ·  ISO 100", color = Color.DarkGray,
-                        fontSize = 5.2.sp, maxLines = 1)
-                    Text("Your location", color = Color.Gray, fontSize = 4.8.sp)
-                }
-                else -> Column(
-                    Modifier.align(Alignment.Center).padding(5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(painter = painterResource(id = previewLogo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.42f).height(15.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Box(Modifier.padding(vertical = 3.dp).fillMaxWidth(0.62f).height(1.dp)
-                        .background(frameColor.copy(alpha = 0.8f)))
-                    Text("X SERIES", color = textColor, fontSize = 5.5.sp, letterSpacing = 1.sp)
-                }
+            }
             }
         }
         Text(title, color = if (selected) CamColors.Yellow else Color.White,

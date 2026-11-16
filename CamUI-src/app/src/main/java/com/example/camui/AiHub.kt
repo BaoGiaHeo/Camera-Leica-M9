@@ -64,7 +64,7 @@ fun HdmpBottomSheet(
                 "Chọn HDMP AI 2, HDMP AI 1.5, HDMP LunaDream 2.0 hoặc OFF trước khi chụp. Mỗi chế độ giữ đúng thuật toán đã chọn.",
                 color = HdmpMuted, fontSize = 12.sp, lineHeight = 17.sp
             )
-            Text("MÔ HÌNH LÀM NÉT", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text("CHẾ ĐỘ XỬ LÝ HDMP", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf(
                     "ai2" to "HDMP AI 2",
@@ -94,7 +94,7 @@ fun HdmpBottomSheet(
                 when (HdmpSelectionPolicy.normalizeModel(renderProfile)) {
                     "off" -> "OFF HDMP AI · chụp thường, không chạy mô hình AI và không nội suy HDMP."
                     "ai15" -> "HDMP AI 1.5 · width32 · ưu tiên tốc độ, khử nhiễu và phục hồi chi tiết. Mục tiêu 10 giây."
-                    "luna" -> "HDMP LunaDream 2.0 · thu tối đa 8 khung, căn chỉnh Lucas–Kanade đa mức, khử nhiễu theo chuyển động và phục hồi độ nét. Mục tiêu tối đa 60 giây."
+                    "luna" -> "HDMP LunaDream 2.0 · thuật toán ghép đa khung riêng, không dùng NAFNet; căn chỉnh Lucas–Kanade, khử nhiễu theo chuyển động và phục hồi độ nét. Mục tiêu tối đa 60 giây."
                     else -> "HDMP AI 2 · width64 · ưu tiên chất lượng, khử nhiễu và phục hồi chi tiết. Mục tiêu 20 giây."
                 },
                 color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
@@ -141,7 +141,7 @@ fun HdmpBottomSheet(
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("NightShot", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Chụp nhiều khung hình, căn chỉnh, ghép và tăng sáng có kiểm soát. Chỉ NightShot sử dụng pipeline ghép ảnh đêm.",
+                        "NightShot có pipeline ghép ảnh đêm và tăng sáng riêng. LunaDream 2.0 là chế độ ghép đa khung HDMP độc lập.",
                         color = HdmpMuted, fontSize = 11.sp, lineHeight = 15.sp
                     )
                     Text(

@@ -3,7 +3,6 @@ package com.example.camui
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtException
-import ai.onnxruntime.OrtProvider
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import ai.onnxruntime.providers.NNAPIFlags

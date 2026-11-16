@@ -2437,10 +2437,10 @@ fun applyCameraWatermark(
         }
         require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Watermark source JPEG has invalid dimensions" }
         val estimatedBitmapBytes = bounds.outWidth.toLong() * bounds.outHeight.toLong() * 2L
-        val runtime = Runtime.getRuntime()
-        val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
-        val availableHeap = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
-        require(estimatedBitmapBytes + 48L * 1024L * 1024L <= availableHeap) {
+        val watermarkRuntime = Runtime.getRuntime()
+        val watermarkUsedHeap = (watermarkRuntime.totalMemory() - watermarkRuntime.freeMemory()).coerceAtLeast(0L)
+        val watermarkAvailableHeap = (watermarkRuntime.maxMemory() - watermarkUsedHeap).coerceAtLeast(0L)
+        require(estimatedBitmapBytes + 48L * 1024L * 1024L <= watermarkAvailableHeap) {
             "Not enough heap to safely stamp this high-resolution photo; source image is preserved"
         }
         val sourceBitmap = decodeWatermarkPixelBitmap(context, uri) ?: return@runCatching false

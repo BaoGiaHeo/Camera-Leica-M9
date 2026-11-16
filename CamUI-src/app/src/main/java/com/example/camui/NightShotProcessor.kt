@@ -119,12 +119,17 @@ object NightShotProcessor {
         val backupFile = File(context.cacheDir, "luna15-original-$stamp.jpg")
         var bitmap: Bitmap? = null
         var replacing = false
+        var stage = "copy source"
         return try {
             check(copyUriToFile(context, uri, sourceFile)) { "Cannot read LunaDream 1.5 source" }
+            stage = "read metadata and decode"
             val exif = readExif(sourceFile)
-            bitmap = decodeUpright(sourceFile, null, null, 50_000_000L)
-                ?: error("Cannot decode LunaDream 1.5 source")
+            bitmap = decodeUpright(
+                sourceFile, null, null, 50_000_000L, heapBytesPerPixel = 2.0
+            ) ?: error("Cannot decode LunaDream 1.5 source within the safe memory budget")
+            stage = "single-frame detail recovery"
             applyLunaDreamDetailRecovery(bitmap!!)
+            stage = "encode processed JPEG"
             FileOutputStream(processedFile).use { output ->
                 check(bitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, output)) {
                     "LunaDream 1.5 JPEG encoding failed"
@@ -132,7 +137,11 @@ object NightShotProcessor {
                 output.flush()
                 output.fd.sync()
             }
+            check(processedFile.exists() && processedFile.length() > 0L) {
+                "LunaDream 1.5 produced an empty output file"
+            }
             writeExif(processedFile, exif)
+            stage = "backup original"
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(backupFile).use { output ->
                     input.copyTo(output)
@@ -140,17 +149,27 @@ object NightShotProcessor {
                 }
             } ?: error("Cannot back up original LunaDream 1.5 photo")
             check(backupFile.length() > 0L) { "Original backup is empty" }
+            stage = "publish processed JPEG"
             replacing = true
             context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
                 processedFile.inputStream().use { it.copyTo(output) }
+                output.flush()
             } ?: error("Cannot write LunaDream 1.5 photo")
+            stage = "verify published JPEG"
+            val verification = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, verification)
+            } ?: error("Cannot reopen processed LunaDream 1.5 photo")
+            check(verification.outWidth >= 3 && verification.outHeight >= 3) {
+                "Published LunaDream 1.5 image is not a decodable JPEG"
+            }
             context.contentResolver.update(
                 uri,
                 ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
                 null,
                 null
             )
-            Log.i(TAG, "LunaDream 1.5 processed one frame at ${bitmap!!.width}x${bitmap!!.height}")
+            Log.i(TAG, "LunaDream 1.5 processed and verified one frame at ${verification.outWidth}x${verification.outHeight}")
             true
         } catch (failure: Throwable) {
             if (replacing && backupFile.exists()) {
@@ -160,7 +179,7 @@ object NightShotProcessor {
                     } ?: error("Rollback stream unavailable")
                 }.onFailure { Log.e(TAG, "LunaDream 1.5 rollback failed", it) }
             }
-            Log.e(TAG, "LunaDream 1.5 failed; original retained", failure)
+            Log.e(TAG, "LunaDream 1.5 failed during $stage; original retained", failure)
             false
         } finally {
             bitmap?.let { if (!it.isRecycled) it.recycle() }
@@ -385,9 +404,9 @@ object NightShotProcessor {
                 // preserves highlights better than multiplying every channel by a fixed gain.
                 brightenNightResult(base!!)
             } else if (mode == MergeMode.LUNA_DREAM_2_0) {
-                // A restrained luminance-only high-pass restores acutance after temporal denoising.
+                // Stronger edge-aware luminance detail for 2.0; local range clamps prevent dark/bright halos.
                 val detailStartedAt = SystemClock.elapsedRealtime()
-                applyLunaDreamDetailRecovery(base!!)
+                applyLunaDream20DetailRecovery(base!!)
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             }
 
@@ -850,6 +869,80 @@ object NightShotProcessor {
         }
     }
 
+    /**
+     * LunaDream 2.0 detail pass.
+     * It increases local acutance and fine texture contrast on captured pixels only:
+     * no synthetic texture is generated. A bounded local luminance range avoids dark
+     * outlines and bright halos around high-contrast edges.
+     */
+    private fun applyLunaDream20DetailRecovery(bitmap: Bitmap) {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 3 || height < 3) return
+
+        var previousRow = IntArray(width)
+        var currentRow = IntArray(width)
+        var nextRow = IntArray(width)
+        val outputRow = IntArray(width)
+        bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
+        currentRow.copyInto(previousRow)
+        bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val center = currentRow[x]
+                val centerLuma = luma(center).toFloat()
+                val leftLuma = luma(currentRow[(x - 1).coerceAtLeast(0)]).toFloat()
+                val rightLuma = luma(currentRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
+                val upLuma = luma(previousRow[x]).toFloat()
+                val downLuma = luma(nextRow[x]).toFloat()
+                val crossMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
+
+                val upLeft = luma(previousRow[(x - 1).coerceAtLeast(0)]).toFloat()
+                val upRight = luma(previousRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
+                val downLeft = luma(nextRow[(x - 1).coerceAtLeast(0)]).toFloat()
+                val downRight = luma(nextRow[(x + 1).coerceAtMost(width - 1)]).toFloat()
+                val diagonalMean = (upLeft + upRight + downLeft + downRight) * 0.25f
+
+                val edgeDelta = centerLuma - crossMean
+                val fineDelta = centerLuma - diagonalMean
+                val edgeMagnitude = kotlin.math.abs(edgeDelta)
+                val correction = if (centerLuma in 18f..238f && edgeMagnitude >= 2.5f && edgeMagnitude <= 58f) {
+                    edgeDelta * 0.24f +
+                        if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.10f else 0f
+                } else 0f
+
+                val localMin = minOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
+                val localMax = maxOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
+                val correctionLimit = minOf(7f, (edgeMagnitude * 0.48f).coerceAtLeast(2f))
+                val clampedCorrection = correction.coerceIn(-correctionLimit, correctionLimit)
+                val targetLuma = (centerLuma + clampedCorrection)
+                    .coerceIn((localMin - 3f).coerceAtLeast(0f), (localMax + 3f).coerceAtMost(255f))
+                val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
+                val red = (center ushr 16) and 0xFF
+                val green = (center ushr 8) and 0xFF
+                val blue = center and 0xFF
+                outputRow[x] = packRgb(
+                    (red * gain).roundToInt().coerceIn(0, 255),
+                    (green * gain).roundToInt().coerceIn(0, 255),
+                    (blue * gain).roundToInt().coerceIn(0, 255)
+                )
+            }
+            bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+            if (y + 1 < height) {
+                val recycled = previousRow
+                previousRow = currentRow
+                currentRow = nextRow
+                nextRow = recycled
+                if (y + 2 < height) {
+                    bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                } else {
+                    currentRow.copyInto(nextRow)
+                }
+            }
+        }
+    }
+
     private fun luma(red: Int, green: Int, blue: Int): Int =
         (red * 3 + green * 6 + blue) / 10
 
@@ -1062,7 +1155,8 @@ object NightShotProcessor {
         file: File,
         targetWidth: Int?,
         targetHeight: Int?,
-        pixelLimit: Long = MAX_OUTPUT_PIXELS
+        pixelLimit: Long = MAX_OUTPUT_PIXELS,
+        heapBytesPerPixel: Double = 4.0
     ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, bounds)
@@ -1090,7 +1184,7 @@ object NightShotProcessor {
             // Two RGB_565 full-resolution frames are live during merging. Reserve headroom
             // for decode/orientation buffers; 60MP is a ceiling, not a guaranteed output size.
             val heapSafePixelCap = (
-                Runtime.getRuntime().maxMemory().toDouble() * 0.42 / 4.0
+                Runtime.getRuntime().maxMemory().toDouble() * 0.42 / heapBytesPerPixel.coerceAtLeast(2.0)
             ).toLong().coerceAtLeast(4_000_000L)
             val effectivePixelCap = min(pixelLimit, heapSafePixelCap)
             val factor = if (pixels > effectivePixelCap) {

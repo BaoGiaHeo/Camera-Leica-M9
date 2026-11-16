@@ -128,7 +128,7 @@ fun HdmpBottomSheet(
                 )
             } else {
                 Text(
-                    "LunaDream 2.0 ghép tối đa 8 khung hình ở độ phân giải nguồn, giữ nguyên kích thước ảnh và giới hạn tối đa 60MP.",
+                    "LunaDream 2.0 ghép tối đa 8 khung hình, giữ tỷ lệ gốc và giới hạn tối đa 60MP; độ phân giải có thể tự giảm khi RAM không đủ.",
                     color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
                 )
             }

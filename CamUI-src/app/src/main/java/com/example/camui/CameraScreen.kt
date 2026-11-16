@@ -4815,9 +4815,9 @@ private val cameraLookGroups = listOf(
     "Phim màu" to listOf(
         "Portra 160", "Portra 400", "Portra 800", "Gold 200", "Ektar 100",
         "Kodachrome 64", "ColorPlus 200", "CineStill 800T", "Vision3 250D",
-        "Vision3 500T", "400H", "Ektachrome 100", "Kodak Portra 400",
-        "Agfa", "Kodak Gold", "Fuji 400"
+        "Vision3 500T", "400H", "Ektachrome 100"
     ),
+    "Cổ điển" to listOf("Kodak Portra 400", "Agfa", "Kodak Gold", "Fuji 400"),
     "Đen trắng" to listOf("Tri-X 400", "T-Max 400", "Monochrome"),
     "Leica" to listOf("Leica Vivid", "Leica Natural", "Leica Mono"),
     "Hasselblad" to listOf("Hasselblad HNCS"),
@@ -4825,17 +4825,6 @@ private val cameraLookGroups = listOf(
     "Sony" to listOf("Sony S-Cinetone", "Sony S-Log3"),
     "Điện ảnh / Log" to listOf("Cine Tone", "Cinematic Log", "Soft Log"),
     "Cơ bản" to listOf("Vivid", "Natural", "Cool", "Warm")
-) in TingfengLuo's profile pack.
-// The matching *wrapper.xmp files only select these profiles; they are not extra looks.
-private val cameraLookGroups = listOf(
-    "Bộ lọc" to listOf(
-        "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
-        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass",
-        "Acros", "Portra 160", "Portra 400", "Portra 800", "Gold 200", "Ektar 100",
-        "Kodachrome 64", "ColorPlus 200", "CineStill 800T", "Vision3 250D",
-        "Vision3 500T", "400H", "Tri-X 400", "T-Max 400", "Ektachrome 100",
-        "Vivid", "Natural", "Monochrome", "Cool", "Warm", "Cine Tone", "Soft Log"
-    )
 )
 
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {

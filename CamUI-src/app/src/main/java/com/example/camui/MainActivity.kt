@@ -125,34 +125,9 @@ class MainActivity : AppCompatActivity() {
                 var rotatePromptTarget by remember { mutableStateOf<Boolean?>(null) }
                 var showRotatePrompt by remember { mutableStateOf(false) }
 
-                val orientationListener = remember {
-                    object : OrientationEventListener(this@MainActivity) {
-                        override fun onOrientationChanged(orientation: Int) {
-                            if (orientation == ORIENTATION_UNKNOWN) return
-                            val sensorLandscape = orientation in 45..135 || orientation in 225..315
-                            if (physicalLandscape != sensorLandscape) {
-                                physicalLandscape = sensorLandscape
-                                if (sensorLandscape != appLandscape) {
-                                    rotatePromptTarget = sensorLandscape
-                                    showRotatePrompt = true
-                                } else {
-                                    rotatePromptTarget = null
-                                    showRotatePrompt = false
-                                }
-                            }
-                        }
-                    }
-                }
-                DisposableEffect(orientationListener) {
-                    if (orientationListener.canDetectOrientation()) orientationListener.enable()
-                    onDispose { orientationListener.disable() }
-                }
-                LaunchedEffect(showRotatePrompt, rotatePromptTarget) {
-                    if (showRotatePrompt && rotatePromptTarget != null) {
-                        delay(10_000L)
-                        showRotatePrompt = false
-                    }
-                }
+
+
+
 
                 DisposableEffect(Unit) {
                     val powerManager = this@MainActivity.getSystemService(Context.POWER_SERVICE) as? PowerManager

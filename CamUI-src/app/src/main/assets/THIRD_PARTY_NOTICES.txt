@@ -13,3 +13,9 @@ Commercial-release review required:
 - The existing 3D LUT assets in app/src/main/assets/film_sims are documented in their accompanying README as CC BY-NC-SA 4.0. That license does not authorize commercial use without separate permission. Obtain permission or replace those LUT assets before publishing a commercial build.
 - GPL-licensed projects discussed during development were not copied into this application.
 - No proprietary Fujifilm, Sony, Nikon or Canon font files are bundled. The watermark uses separate Android system-font families and brand-specific layout styling.
+
+
+Brand wordmark image assets:
+- Fujifilm, Sony, Nikon and Canon PNG wordmarks were sourced from DigiCamWM (gvoze32/digicamwm): https://github.com/gvoze32/digicamwm
+- DigiCamWM project code is distributed under the ISC license: https://github.com/gvoze32/digicamwm/blob/main/LICENSE
+- Manufacturer names and logos remain trademarks of their respective owners. Their inclusion is solely for camera-brand identification; the ISC software license does not grant separate trademark rights. Review commercial-use permissions before public release.

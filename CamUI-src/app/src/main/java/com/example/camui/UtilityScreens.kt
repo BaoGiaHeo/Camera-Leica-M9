@@ -2420,9 +2420,13 @@ fun applyCameraWatermark(
             "fujifilm" -> AndroidColor.rgb(0, 91, 145)
             else -> if (frameStyle == "White") AndroidColor.BLACK else AndroidColor.WHITE
         }
-        val brandLogo = if (watermarkBrand == "fujifilm") {
-            ContextCompat.getDrawable(context, R.drawable.fujifilm_logo)
-        } else null
+        val brandLogoResource = when (watermarkBrand) {
+            "sony" -> R.drawable.sony_wordmark
+            "nikon" -> R.drawable.nikon_wordmark
+            "canon" -> R.drawable.canon_wordmark
+            else -> R.drawable.fujifilm_wordmark
+        }
+        val brandLogo = ContextCompat.getDrawable(context, brandLogoResource)
         val footerRect = if (expandedFujiFooter) {
             RectF(
                 footerMarginPx.toFloat(),

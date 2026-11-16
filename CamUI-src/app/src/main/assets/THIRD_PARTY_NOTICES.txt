@@ -10,9 +10,9 @@ Reference material:
 - Changes made: the looks were re-authored as compact RGB transforms for the Android image pipeline. The original XMP preset files are not bundled.
 
 Commercial-release review required:
-- The existing 3D LUT assets in app/src/main/assets/film_sims are documented in their accompanying README as CC BY-NC-SA 4.0. That license does not authorize commercial use without separate permission. Obtain permission or replace those LUT assets before publishing a commercial build.
+- The non-commercial CC BY-NC-SA 4.0 3D LUT assets have been removed from the app package. Built-in looks now use compact app-authored approximations instead.
 - GPL-licensed projects discussed during development were not copied into this application.
-- No proprietary Fujifilm, Sony, Nikon or Canon font files are bundled. The watermark uses separate Android system-font families and brand-specific layout styling.
+- No proprietary Fujifilm, Sony, Nikon or Canon typeface files are bundled. The brand wordmarks are separate image assets; supporting text uses distinct Android system-font families.
 
 
 Brand wordmark image assets:

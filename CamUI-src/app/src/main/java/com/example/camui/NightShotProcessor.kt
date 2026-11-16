@@ -124,6 +124,7 @@ object NightShotProcessor {
         }
         val tempOutput = File(context.cacheDir, "fuji-" + prefix + System.nanoTime() + ".jpg")
         val mergeStartedAt = SystemClock.elapsedRealtime()
+        var decodeMs = 0L
         var alignmentMs = 0L
         var fusionMs = 0L
         var detailRecoveryMs = 0L
@@ -138,8 +139,10 @@ object NightShotProcessor {
             } else {
                 MAX_OUTPUT_PIXELS
             }
+            val firstDecodeStartedAt = SystemClock.elapsedRealtime()
             base = decodeUpright(frames.first(), null, null, stackPixelLimit)
                 ?: error("Could not decode first frame")
+            decodeMs += SystemClock.elapsedRealtime() - firstDecodeStartedAt
             val width = base!!.width
             val height = base!!.height
             val oldRow = IntArray(width)
@@ -178,8 +181,10 @@ object NightShotProcessor {
 
             val totalMergedFrames = (frames.size - 1).coerceAtLeast(1)
             for (frameIndex in 1 until frames.size) {
+                val frameDecodeStartedAt = SystemClock.elapsedRealtime()
                 val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
                     ?: error("Could not decode frame " + (frameIndex + 1))
+                decodeMs += SystemClock.elapsedRealtime() - frameDecodeStartedAt
                 try {
                     val alignmentStartedAt = SystemClock.elapsedRealtime()
                     val shift = when (mode) {
@@ -348,8 +353,8 @@ object NightShotProcessor {
             Log.i(
                 TAG,
                 "Merged " + frames.size + " frames as " + mode + " at " + width + "x" + height +
-                    "; align=" + alignmentMs + "ms fusion=" + fusionMs +
-                    "ms detail=" + detailRecoveryMs + "ms encode=" + encodeMs +
+                    "; decode=" + decodeMs + "ms align=" + alignmentMs +
+                    "ms fusion=" + fusionMs + "ms detail=" + detailRecoveryMs + "ms encode=" + encodeMs +
                     "ms publish=" + publishMs + "ms total=" +
                     (SystemClock.elapsedRealtime() - mergeStartedAt) + "ms"
             )
@@ -359,8 +364,9 @@ object NightShotProcessor {
                 TAG,
                 "Multi-frame merge failed for $mode after " +
                     (SystemClock.elapsedRealtime() - mergeStartedAt) +
-                    "ms; align=$alignmentMs fusion=$fusionMs detail=$detailRecoveryMs " +
-                    "encode=$encodeMs publish=$publishMs; original capture remains available",
+                    "ms; decode=$decodeMs align=$alignmentMs fusion=$fusionMs " +
+                    "detail=$detailRecoveryMs encode=$encodeMs publish=$publishMs; " +
+                    "original capture remains available",
                 failure
             )
             false

@@ -121,7 +121,7 @@ fun LunaDreamBottomSheet(
             )
             if (selectedMode == "off") {
                 Text(
-                    "LunaDream đang tắt. Không có hiệu ứng rainbow hoặc ngôi sao glass.",
+                    "LunaDream đang tắt",
                     color = LunaMuted, fontSize = 11.sp
                 )
             }

@@ -5,6 +5,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtException
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
+import ai.onnxruntime.providers.NNAPIFlags
 import android.app.ActivityManager
 import android.content.ContentValues
 import android.content.Context
@@ -30,6 +31,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.security.MessageDigest
+import java.util.EnumSet
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -89,6 +91,7 @@ internal object HdmpAiEngine {
         val height: Int,
         val tiles: Int,
         val workers: Int,
+        val backend: String,
         val setupMs: Long,
         val decodeMs: Long,
         val prepMs: Long,
@@ -99,7 +102,7 @@ internal object HdmpAiEngine {
         val totalMs: Long
     ) {
         fun summary(): String =
-            "${width}x${height}, $tiles tile, $workers luồng; " +
+            "${width}x${height}, $tiles tile, $workers luồng, EP=$backend; " +
                 "khởi tạo=${setupMs}ms, giải mã=${decodeMs}ms, nạp=${prepMs}ms, " +
                 "AI=${inferMs}ms, ghép=${postMs}ms, nghỉ nhiệt=${throttleMs}ms, " +
                 "nén=${encodeMs}ms, chạy mô hình=${totalMs}ms"
@@ -172,11 +175,12 @@ internal object HdmpAiEngine {
     private fun thermalTileThrottleMs(context: Context): Long {
         val status = readThermalStatus(context)
         val batteryTemp = readBatteryTemperatureTenths(context)
+        // Android already reduces CPU/GPU clocks under light and moderate thermal load.
+        // Avoid injecting a sleep after every tile; only severe heat receives a short,
+        // periodic cooldown (see the tile loop below).
         return when {
-            status >= PowerManager.THERMAL_STATUS_CRITICAL || batteryTemp >= 430 -> 180L
-            status >= PowerManager.THERMAL_STATUS_SEVERE || batteryTemp >= 420 -> 120L
-            status >= PowerManager.THERMAL_STATUS_MODERATE || batteryTemp > 400 -> 70L
-            status >= PowerManager.THERMAL_STATUS_LIGHT || batteryTemp >= 390 -> 25L
+            status >= PowerManager.THERMAL_STATUS_CRITICAL || batteryTemp >= 430 -> 30L
+            status >= PowerManager.THERMAL_STATUS_SEVERE || batteryTemp >= 420 -> 18L
             else -> 0L
         }
     }
@@ -252,8 +256,7 @@ internal object HdmpAiEngine {
                 retryWorkers = (retryWorkers / 2).coerceAtLeast(1)
                 workerPlan += retryWorkers
             }
-            while (workerPlan.size < 4) workerPlan += 1
-
+            // Do not repeat an identical single-worker attempt after memory pressure.
             var timing: RunTiming? = null
             var lastFailure: Throwable? = null
             for ((index, attemptWorkers) in workerPlan.withIndex()) {
@@ -330,6 +333,7 @@ internal object HdmpAiEngine {
         var outputBitmap: Bitmap? = null
         var session: OrtSession? = null
         var options: OrtSession.SessionOptions? = null
+        var reusableInputTensor: OnnxTensor? = null
         val runStartedAt = SystemClock.elapsedRealtime()
 
         try {
@@ -352,14 +356,49 @@ internal object HdmpAiEngine {
             outputBitmap = finalOutput
 
             val env = OrtEnvironment.getEnvironment()
-            options = OrtSession.SessionOptions().apply {
-                setIntraOpNumThreads(workerCount.coerceIn(1, 8))
-                setInterOpNumThreads(1)
+            val providerPlan = listOf("NNAPI_FP16", "XNNPACK", "CPU")
+            var openedSession: OrtSession? = null
+            var activeBackend = ""
+            var lastSessionFailure: Throwable? = null
+
+            // Prefer NNAPI with FP16 relaxation and NNAPI's CPU implementation disabled.
+            // Unsupported operators can still use ORT's CPU kernels. If the device/driver
+            // cannot create that session, try XNNPACK, then the regular optimized CPU EP.
+            for (backend in providerPlan) {
+                val candidateOptions = OrtSession.SessionOptions()
+                try {
+                    candidateOptions.setIntraOpNumThreads(workerCount.coerceIn(1, 8))
+                    candidateOptions.setInterOpNumThreads(1)
+                    candidateOptions.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                    candidateOptions.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                    candidateOptions.setMemoryPatternOptimization(true)
+                    candidateOptions.setCPUArenaAllocator(true)
+                    candidateOptions.setLoggerId(TAG)
+                    when (backend) {
+                        "NNAPI_FP16" -> candidateOptions.addNnapi(
+                            EnumSet.of(NNAPIFlags.USE_FP16, NNAPIFlags.CPU_DISABLED)
+                        )
+                        "XNNPACK" -> candidateOptions.addXnnpack(emptyMap())
+                        // CPU is ONNX Runtime's default fallback provider.
+                    }
+                    openedSession = env.createSession(modelFile.absolutePath, candidateOptions)
+                    options = candidateOptions
+                    activeBackend = backend
+                    Log.i(TAG, "ONNX session created with provider priority=$backend")
+                    break
+                } catch (failure: Throwable) {
+                    lastSessionFailure = failure
+                    runCatching { candidateOptions.close() }
+                    Log.w(TAG, "Could not create ONNX session with $backend; trying next provider", failure)
+                }
             }
-            val openedSession = env.createSession(modelFile.absolutePath, options)
-            session = openedSession
-            val inputName = openedSession.inputNames.firstOrNull() ?: error("ONNX input missing")
-            val outputName = openedSession.outputNames.firstOrNull() ?: error("ONNX output missing")
+
+            val activeSession = openedSession ?: throw IllegalStateException(
+                "No ONNX execution provider could create the selected model session",
+                lastSessionFailure
+            )
+            val inputName = activeSession.inputNames.firstOrNull() ?: error("ONNX input missing")
+            val outputName = activeSession.outputNames.firstOrNull() ?: error("ONNX output missing")
             val setupMs = SystemClock.elapsedRealtime() - runStartedAt
 
             val rows = ceil(height.toDouble() / CORE_SIZE).toInt()
@@ -370,6 +409,15 @@ internal object HdmpAiEngine {
             val patchPixels = IntArray(plane)
             val inputBuffer = ByteBuffer.allocateDirect(plane * 3 * 4)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer()
+            // The input tensor wraps this stable direct buffer and is reused for every tile.
+            // ORT run() is synchronous here, so the buffer is rewritten only after each run ends.
+            val inputTensor = OnnxTensor.createTensor(
+                env,
+                inputBuffer,
+                longArrayOf(1L, 3L, TILE_SIZE.toLong(), TILE_SIZE.toLong())
+            )
+            reusableInputTensor = inputTensor
+            val inputFeed = mapOf(inputName to inputTensor)
             val outputPixels = IntArray(CORE_SIZE * CORE_SIZE)
             // One full-width band (at most TILE_SIZE rows) is decoded per tile row.
             val bandPixels = IntArray(width * min(height, TILE_SIZE))
@@ -414,32 +462,43 @@ internal object HdmpAiEngine {
                     val patchLeft = coreLeft - HALO
 
                     val prepStartedAt = System.nanoTime()
-                    // Edge-replicated TILE_SIZE x TILE_SIZE patch cut from the decoded band.
+                    // Edge-replicated patch extraction. Copy whole contiguous row segments
+                    // and fill only the left/right borders instead of clamping every pixel.
                     for (py in 0 until TILE_SIZE) {
                         val globalY = (patchTop + py).coerceIn(0, height - 1)
                         val bandY = (globalY - bandTop).coerceIn(0, bandHeight - 1)
                         val rowBase = bandY * bandWidth
-                        for (px in 0 until TILE_SIZE) {
-                            val globalX = (patchLeft + px).coerceIn(0, width - 1)
-                            val bandX = globalX.coerceIn(0, bandWidth - 1)
-                            patchPixels[py * TILE_SIZE + px] = bandPixels[rowBase + bandX]
+                        val patchRow = py * TILE_SIZE
+                        val sourceLeft = patchLeft.coerceAtLeast(0)
+                        val sourceRight = (patchLeft + TILE_SIZE).coerceAtMost(width)
+                        val copyWidth = sourceRight - sourceLeft
+                        val destinationLeft = sourceLeft - patchLeft
+
+                        if (destinationLeft > 0) {
+                            val edge = bandPixels[rowBase + sourceLeft]
+                            patchPixels.fill(edge, patchRow, patchRow + destinationLeft)
+                        }
+                        System.arraycopy(
+                            bandPixels,
+                            rowBase + sourceLeft,
+                            patchPixels,
+                            patchRow + destinationLeft,
+                            copyWidth
+                        )
+                        val destinationRight = destinationLeft + copyWidth
+                        if (destinationRight < TILE_SIZE) {
+                            val edge = bandPixels[rowBase + sourceRight - 1]
+                            patchPixels.fill(edge, patchRow + destinationRight, patchRow + TILE_SIZE)
                         }
                     }
 
                     inputBuffer.clear()
                     HdmpAiColorLayout.writeRgb(patchPixels, inputBuffer)
                     inputBuffer.flip()
-
-                    val inputTensor = OnnxTensor.createTensor(
-                        env,
-                        inputBuffer,
-                        longArrayOf(1L, 3L, TILE_SIZE.toLong(), TILE_SIZE.toLong())
-                    )
                     prepNs += System.nanoTime() - prepStartedAt
 
-                    try {
-                        val inferStartedAt = System.nanoTime()
-                        openedSession.run(mapOf(inputName to inputTensor)).use { result ->
+                    val inferStartedAt = System.nanoTime()
+                    activeSession.run(inputFeed).use { result ->
                             inferNs += System.nanoTime() - inferStartedAt
                             val postStartedAt = System.nanoTime()
 
@@ -484,9 +543,6 @@ internal object HdmpAiEngine {
                                 tileHeight
                             )
                             postNs += System.nanoTime() - postStartedAt
-                        }
-                    } finally {
-                        inputTensor.close()
                     }
 
                     tileIndex++
@@ -504,7 +560,7 @@ internal object HdmpAiEngine {
                         thermalThrottleMs = thermalTileThrottleMs(context)
                         lastThermalSampleAt = thermalNow
                     }
-                    if (thermalThrottleMs > 0L) {
+                    if (thermalThrottleMs > 0L && tileIndex % 8 == 0) {
                         val sleepStartedAt = System.nanoTime()
                         SystemClock.sleep(thermalThrottleMs)
                         throttleNs += System.nanoTime() - sleepStartedAt
@@ -535,6 +591,7 @@ internal object HdmpAiEngine {
                 height = height,
                 tiles = totalTiles,
                 workers = workerCount,
+                backend = activeBackend,
                 setupMs = setupMs,
                 decodeMs = decodeNs / 1_000_000L,
                 prepMs = prepNs / 1_000_000L,
@@ -545,6 +602,7 @@ internal object HdmpAiEngine {
                 totalMs = SystemClock.elapsedRealtime() - runStartedAt
             )
         } finally {
+            runCatching { reusableInputTensor?.close() }
             runCatching { session?.close() }
             runCatching { options?.close() }
             runCatching { decoder?.recycle() }

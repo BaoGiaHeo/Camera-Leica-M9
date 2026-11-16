@@ -2811,7 +2811,8 @@ fun CameraScreen(
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
                                 val inspectorHdmpStatus = when {
-                                    captureUseLunaDream -> "HDMP LunaDream 2.0 · căn chỉnh đa khung và khử nhiễu"
+                                    captureUseLunaDream && nightShotMerged -> "HDMP LunaDream 2.0 · căn chỉnh đa khung và khử nhiễu"
+                                    captureUseLunaDream -> "HDMP LunaDream 2.0 chưa hoàn tất · giữ ảnh gốc"
                                     hdmpWorkerCount <= 0 -> if (hdmpRenderProfile == "off") "OFF HDMP AI · chụp thường" else "HDMP AI không áp dụng cho kiểu chụp này"
                                     !hdmpApplied -> "HDMP AI không hoàn tất: ${hdmpAiResult.detail.take(120)}"
                                     hdmpAiResult.model == HdmpAiEngine.Model.NAFNET_WIDTH64 -> "HDMP AI 2 · NAFNet width64"
@@ -2898,7 +2899,11 @@ fun CameraScreen(
                                             }
                                         }
                                     } else if (captureUseLunaDream) {
-                                        " HDMP LunaDream 2.0 đã ghép và khử nhiễu ảnh."
+                                        if (nightShotMerged) {
+                                            " HDMP LunaDream 2.0 đã ghép và khử nhiễu ảnh."
+                                        } else {
+                                            " HDMP LunaDream 2.0 chưa ghép được; ảnh gốc được giữ lại."
+                                        }
                                     } else if (hdmpRenderProfile == "off") {
                                         " OFF HDMP AI · ảnh chụp thường."
                                     } else ""

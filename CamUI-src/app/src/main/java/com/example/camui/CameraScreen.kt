@@ -2702,18 +2702,26 @@ fun CameraScreen(
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
                                                         processingLabel = when {
+                                                            captureUseLunaDream15 && mergeProgress >= 90 ->
+                                                                "LunaDream 1.5 Render · khử nhiễu và phục hồi chi tiết"
                                                             captureUseLunaDream15 ->
-                                                                "LunaDream 1.5: căn chỉnh, khử nhiễu và phục hồi chi tiết"
+                                                                "LunaDream 1.5 · căn chỉnh và ghép 5 khung"
+                                                            captureUseRawDream20 && mergeProgress >= 90 ->
+                                                                "RawDream 2.0 Render · hoàn thiện ảnh JPEG"
                                                             captureUseRawDream20 ->
-                                                                "RawDream 2.0: ghép JPEG đa khung bằng LunaDream 2.0"
+                                                                "RawDream 2.0 · căn chỉnh và ghép 8 khung"
+                                                            captureUseLunaDream20 && mergeProgress >= 90 ->
+                                                                "LunaDream 2.0 Render · khử nhiễu và phục hồi chi tiết"
                                                             captureUseLunaDream20 ->
-                                                                "LunaDream 2.0: căn chỉnh, khử nhiễu và phục hồi chi tiết"
+                                                                "LunaDream 2.0 · căn chỉnh và ghép 8 khung"
                                                             captureUseNightShot -> "NightShotMode: căn khung và giảm nhiễu"
                                                             captureUseMilkyWayStack -> "Milky Way: căn chỉnh sao và giảm nhiễu"
                                                             else -> "Multi-frame: ghép 5 khung"
                                                         }
-                                                        processingProgress = (27 + mergeProgress * 0.55f)
-                                                            .toInt().coerceIn(27, 82)
+                                                        processingProgress = maxOf(
+                                                            processingProgress,
+                                                            (27 + mergeProgress * 0.55f).toInt().coerceIn(27, 82)
+                                                        )
                                                     }
                                                 }
                                             }
@@ -2743,7 +2751,7 @@ fun CameraScreen(
                                         }
                                     }
                                 }
-                                withContext(Dispatchers.Main) { processingProgress = 30 }
+                                withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 30) }
                                 val orientationNormalized = if (captureIsUltraHdr) {
                                     // CameraX has already written the capture rotation. Do not
                                     // decode/recompress JPEG_R: Bitmap JPEG export discards the gain map.
@@ -2756,7 +2764,7 @@ fun CameraScreen(
                                         expectedAspectRatioForCapture
                                     )
                                 }.getOrDefault(false)
-                                withContext(Dispatchers.Main) { processingProgress = 35 }
+                                withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 35) }
                                 // RawDream preserves the first sensor DNG as the true RAW master. Its JPEG
                                 // companion is fused from eight JPEG frames using LunaDream 2.0.
                                 // LunaDream 1.5 is successful only after its bounded stack merges.
@@ -2813,7 +2821,7 @@ fun CameraScreen(
                                         }
                                     }.getOrDefault(false)
                                 } else false
-                                withContext(Dispatchers.Main) { processingProgress = 66 }
+                                withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 66) }
                                 // Keep a clean pre-filter image as the reference for every picker preview.
                                 val unfilteredPreview = if (captureIsUltraHdr) null else runCatching {
                                     decodeUprightBitmap(context, saved, maxDimension = 640)
@@ -2825,7 +2833,7 @@ fun CameraScreen(
                                     runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
                                 val frameApplied = if (captureIsUltraHdr) false else
                                     runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
-                                withContext(Dispatchers.Main) { processingProgress = 72 }
+                                withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
                                 val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,

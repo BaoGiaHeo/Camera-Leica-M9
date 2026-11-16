@@ -2,7 +2,7 @@ name: Build FujiFilm Mode 1.6 FULL HDMP AI debug APK
 
 'on':
   push:
-    branches: [main]
+    branches: [main, "feature/fujifilm-mode-1.6"]
   pull_request:
     branches: [main]
   workflow_dispatch:

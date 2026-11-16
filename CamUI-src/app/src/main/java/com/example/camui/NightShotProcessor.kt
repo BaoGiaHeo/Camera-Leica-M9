@@ -219,12 +219,14 @@ object NightShotProcessor {
                             val sourceX = (x + shiftX).coerceIn(0, width - 1)
                             val a = oldRow[x]
                             val b = newRow[sourceX]
-                            val ar = Color.red(a)
-                            val ag = Color.green(a)
-                            val ab = Color.blue(a)
-                            val br = Color.red(b)
-                            val bg = Color.green(b)
-                            val bb = Color.blue(b)
+                            // Large multi-frame stacks visit many millions of pixels.
+                            // Bit shifts preserve the same channel values without Color.* calls.
+                            val ar = (a ushr 16) and 0xFF
+                            val ag = (a ushr 8) and 0xFF
+                            val ab = a and 0xFF
+                            val br = (b ushr 16) and 0xFF
+                            val bg = (b ushr 8) and 0xFF
+                            val bb = b and 0xFF
                             if (mode == MergeMode.STAR_TRAILS) {
                                 // Max/lighten accumulation draws the path of stars, while a small
                                 // luminance threshold prevents tiny sensor noise from winning every
@@ -234,7 +236,7 @@ object NightShotProcessor {
                                 if (newLuma >= STAR_TRAIL_MIN_LUMA &&
                                     newLuma >= oldLuma + STAR_TRAIL_MIN_DELTA
                                 ) {
-                                    oldRow[x] = Color.rgb(max(ar, br), max(ag, bg), max(ab, bb))
+                                    oldRow[x] = packRgb(max(ar, br), max(ag, bg), max(ab, bb))
                                 }
                             } else if (mode == MergeMode.LUNA_DREAM_2_0) {
                                 // Robust temporal fusion: stable pixels are averaged for noise
@@ -251,7 +253,7 @@ object NightShotProcessor {
                                 when {
                                     lumaDelta <= threshold && colorDelta <= threshold * 2 -> {
                                         val divisor = frameIndex + 1
-                                        oldRow[x] = Color.rgb(
+                                        oldRow[x] = packRgb(
                                             (ar * frameIndex + br) / divisor,
                                             (ag * frameIndex + bg) / divisor,
                                             (ab * frameIndex + bb) / divisor
@@ -259,7 +261,7 @@ object NightShotProcessor {
                                     }
                                     lumaDelta <= threshold * 2 && colorDelta <= threshold * 3 -> {
                                         // Transitional motion gets only a small contribution.
-                                        oldRow[x] = Color.rgb(
+                                        oldRow[x] = packRgb(
                                             (ar * 7 + br) / 8,
                                             (ag * 7 + bg) / 8,
                                             (ab * 7 + bb) / 8
@@ -270,7 +272,7 @@ object NightShotProcessor {
                                 }
                             } else if (mode == MergeMode.NIGHT_AVERAGE || mode == MergeMode.MILKY_WAY_STACK) {
                                 val divisor = frameIndex + 1
-                                oldRow[x] = Color.rgb(
+                                oldRow[x] = packRgb(
                                     (ar * frameIndex + br) / divisor,
                                     (ag * frameIndex + bg) / divisor,
                                     (ab * frameIndex + bb) / divisor
@@ -283,7 +285,7 @@ object NightShotProcessor {
                                 // Exposure-weighted fusion preserves information from more than
                                 // one bracket frame instead of hard-switching each pixel to a
                                 // single frame. The weight sum fits in Short for a 3-frame bracket.
-                                oldRow[x] = Color.rgb(
+                                oldRow[x] = packRgb(
                                     (ar * previousWeight + br * currentWeight) / combinedWeight,
                                     (ag * previousWeight + bg * currentWeight) / combinedWeight,
                                     (ab * previousWeight + bb * currentWeight) / combinedWeight
@@ -758,10 +760,13 @@ object NightShotProcessor {
                 val detail = ((centerLuma - localAverage) * 0.18f).coerceIn(-7f, 7f)
                 val targetLuma = (centerLuma + detail).coerceIn(0f, 255f)
                 val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
-                outputRow[x] = Color.rgb(
-                    (Color.red(center) * gain).roundToInt().coerceIn(0, 255),
-                    (Color.green(center) * gain).roundToInt().coerceIn(0, 255),
-                    (Color.blue(center) * gain).roundToInt().coerceIn(0, 255)
+                val red = (center ushr 16) and 0xFF
+                val green = (center ushr 8) and 0xFF
+                val blue = center and 0xFF
+                outputRow[x] = packRgb(
+                    (red * gain).roundToInt().coerceIn(0, 255),
+                    (green * gain).roundToInt().coerceIn(0, 255),
+                    (blue * gain).roundToInt().coerceIn(0, 255)
                 )
             }
             bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
@@ -868,7 +873,11 @@ object NightShotProcessor {
     }
 
     private fun luma(color: Int): Int =
-        luma(Color.red(color), Color.green(color), Color.blue(color))
+        luma((color ushr 16) and 0xFF, (color ushr 8) and 0xFF, color and 0xFF)
+
+    /** Equivalent to Color.rgb for clamped channels. */
+    private fun packRgb(red: Int, green: Int, blue: Int): Int =
+        (0xFF shl 24) or ((red and 0xFF) shl 16) or ((green and 0xFF) shl 8) or (blue and 0xFF)
 
     /** Precompute the same two-axis luma-gradient score used by the translation matcher. */
     private fun buildGradientMap(pixels: IntArray, width: Int, height: Int): IntArray {

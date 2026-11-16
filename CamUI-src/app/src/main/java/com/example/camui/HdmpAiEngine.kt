@@ -363,13 +363,10 @@ internal object HdmpAiEngine {
                 OrtEnvironment.getAvailableProviders().map { it.name }.sorted()
             }.getOrDefault(emptyList())
             Log.i(TAG, "ONNX Runtime available execution providers=$availableProviders")
-            val providerPlan = buildList {
-                // These NAFNet exports are float models. Start with XNNPACK's optimized
-                // Arm CPU kernels; NNAPI performance and partitioning vary by device/driver.
-                if ("XNNPACK" in availableProviders) add("XNNPACK")
-                if ("NNAPI" in availableProviders) add("NNAPI_FP16")
-                add("CPU")
-            }
+            // Prefer NNAPI when the device exposes a GPU/NPU delegate. FP16 relaxation
+            // can accelerate eligible operators; unsupported session creation falls back
+            // to XNNPACK, then ORT CPU. No model or image-processing mode is changed.
+            val providerPlan = HdmpAiRuntimePolicy.providerOrder(availableProviders.toSet())
             var openedSession: OrtSession? = null
             var activeBackend = ""
             var lastSessionFailure: Throwable? = null
@@ -574,12 +571,20 @@ internal object HdmpAiEngine {
                                     )
                                     absoluteDeltaSum += delta.toDouble()
                                     validatedPixels++
+                                    val detailScale = HdmpAiRuntimePolicy.detailPreservationScale(
+                                        center = sourcePixel,
+                                        left = patchPixels[index - 1],
+                                        right = patchPixels[index + 1],
+                                        up = patchPixels[index - TILE_SIZE],
+                                        down = patchPixels[index + TILE_SIZE]
+                                    )
                                     outputPixels[outputRow + localX] = blendConservatively(
                                         sourcePixel,
                                         predictedR,
                                         predictedG,
                                         predictedB,
-                                        spec
+                                        spec,
+                                        detailScale
                                     )
                                 }
                             }
@@ -671,8 +676,12 @@ internal object HdmpAiEngine {
         predictedR: Float,
         predictedG: Float,
         predictedB: Float,
-        spec: ModelSpec
+        spec: ModelSpec,
+        detailScale: Float
     ): Int {
+        val safeDetailScale = detailScale.coerceIn(0.60f, 1f)
+        val adaptiveBlend = spec.blend * safeDetailScale
+        val adaptiveDeltaLimit = spec.deltaLimit * (0.75f + safeDetailScale * 0.25f)
         val sourceR = (original ushr 16) and 0xFF
         val sourceG = (original ushr 8) and 0xFF
         val sourceB = original and 0xFF
@@ -680,14 +689,14 @@ internal object HdmpAiEngine {
         val sourceRf = sourceR / 255f
         val sourceGf = sourceG / 255f
         val sourceBf = sourceB / 255f
-        val red = ((sourceRf + ((predictedR - sourceRf) * spec.blend)
-            .coerceIn(-spec.deltaLimit, spec.deltaLimit)).coerceIn(0f, 1f) * 255f)
+        val red = ((sourceRf + ((predictedR - sourceRf) * adaptiveBlend)
+            .coerceIn(-adaptiveDeltaLimit, adaptiveDeltaLimit)).coerceIn(0f, 1f) * 255f)
             .roundToInt().coerceIn(0, 255)
-        val green = ((sourceGf + ((predictedG - sourceGf) * spec.blend)
-            .coerceIn(-spec.deltaLimit, spec.deltaLimit)).coerceIn(0f, 1f) * 255f)
+        val green = ((sourceGf + ((predictedG - sourceGf) * adaptiveBlend)
+            .coerceIn(-adaptiveDeltaLimit, adaptiveDeltaLimit)).coerceIn(0f, 1f) * 255f)
             .roundToInt().coerceIn(0, 255)
-        val blue = ((sourceBf + ((predictedB - sourceBf) * spec.blend)
-            .coerceIn(-spec.deltaLimit, spec.deltaLimit)).coerceIn(0f, 1f) * 255f)
+        val blue = ((sourceBf + ((predictedB - sourceBf) * adaptiveBlend)
+            .coerceIn(-adaptiveDeltaLimit, adaptiveDeltaLimit)).coerceIn(0f, 1f) * 255f)
             .roundToInt().coerceIn(0, 255)
 
         return (0xFF shl 24) or (red shl 16) or (green shl 8) or blue

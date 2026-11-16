@@ -2914,6 +2914,7 @@ fun applyCameraWatermark(
             value: String,
             sourcePaint: Paint,
             centerY: Float,
+            x: Float,
             maxWidth: Float,
             baseSize: Float,
             minimumSize: Float
@@ -2939,7 +2940,7 @@ fun applyCameraWatermark(
             }
             val metrics = paint.fontMetrics
             val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
-            canvas.drawText(fittedText, if (sourcePaint === accentPaint) rightLeft else modelLeft, baseline, paint)
+            canvas.drawText(fittedText, x, baseline, paint)
         }
 
         // Explicit text anchors keep the left model/lens and right exposure/date columns balanced.
@@ -2949,10 +2950,10 @@ fun applyCameraWatermark(
         val dateSize = (minSide * 0.014f).coerceIn(13f, 46f)
         val leftTitle = modelText.ifBlank { brandTitle }
         val rightDate = dateOnlyLine.ifBlank { timeLine }
-        drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))
-        drawMeasuredLine(leftSecondary, detailPaint, leftSecondaryCenterY, modelWidth, secondarySize, (secondarySize * 0.72f).coerceAtLeast(12f))
-        drawMeasuredLine(specs, accentPaint, footerRect.top + footerHeight * 0.39f, rightContentWidth, specsSize, (specsSize * 0.72f).coerceAtLeast(15f))
-        drawMeasuredLine(rightDate, detailPaint, footerRect.top + footerHeight * 0.70f, rightContentWidth, dateSize, (dateSize * 0.72f).coerceAtLeast(12f))
+        drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelLeft, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))
+        drawMeasuredLine(leftSecondary, detailPaint, leftSecondaryCenterY, modelLeft, modelWidth, secondarySize, (secondarySize * 0.72f).coerceAtLeast(12f))
+        drawMeasuredLine(specs, accentPaint, footerRect.top + footerHeight * 0.39f, rightLeft, rightContentWidth, specsSize, (specsSize * 0.72f).coerceAtLeast(15f))
+        drawMeasuredLine(rightDate, detailPaint, footerRect.top + footerHeight * 0.70f, rightLeft, rightContentWidth, dateSize, (dateSize * 0.72f).coerceAtLeast(12f))
 
         val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use {
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)

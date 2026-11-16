@@ -1,6 +1,7 @@
 package com.example.camui
 
 import android.content.ActivityNotFoundException
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -9,6 +10,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
+import android.provider.MediaStore
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
@@ -57,20 +59,29 @@ class MainActivity : AppCompatActivity() {
         hideStatusBar()
     }
 
-    private fun openDeviceGallery(latestPhoto: Uri?): Boolean {
-        val galleryIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_APP_GALLERY)
-        }
-        try {
-            startActivity(galleryIntent)
-            return true
-        } catch (_: ActivityNotFoundException) {
-        } catch (_: SecurityException) {
-        }
+    private fun mostRecentPhotoUri(): Uri? {
+        val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(MediaStore.Images.Media._ID)
+        val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+        return runCatching {
+            contentResolver.query(collection, projection, null, null, sortOrder)?.use { cursor ->
+                if (!cursor.moveToFirst()) null else {
+                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                    ContentUris.withAppendedId(collection, id)
+                }
+            }
+        }.getOrNull()
+    }
 
-        if (latestPhoto != null) {
+    /**
+     * Open one concrete image in the device photo viewer. CATEGORY_APP_GALLERY launches
+     * the gallery home/feed, which is not the requested photo-view destination.
+     */
+    private fun openDeviceGallery(latestPhoto: Uri?): Boolean {
+        val photoUri = latestPhoto ?: mostRecentPhotoUri()
+        if (photoUri != null) {
             val imageIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(latestPhoto, "image/*")
+                setDataAndType(photoUri, "image/*")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             try {
@@ -80,7 +91,19 @@ class MainActivity : AppCompatActivity() {
             } catch (_: SecurityException) {
             }
         }
-        return false
+
+        // If no recent image is readable, open the system image picker instead of Gallery home.
+        val pickerIntent = Intent(Intent.ACTION_PICK).apply {
+            setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image/*")
+        }
+        return try {
+            startActivity(pickerIntent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     private fun hideStatusBar() {

@@ -416,6 +416,16 @@ private val fullEnglishUi = mapOf(
     "CHỌN" to "SELECT",
     "Đang phơi sáng" to "Exposing",
     "Vui lòng để điện thoại cố định" to "Please keep the phone steady",
+    "Giữ thiết bị ổn định" to "Keep the device steady",
+    "Bạn có thể di chuyển thiết bị tự do" to "You can move the device freely",
+    "LunaDream Render · bắt đầu xử lý ảnh JPEG đã ghép" to "LunaDream Render · processing the merged JPEG",
+    "LunaDream Render · bắt đầu phục hồi chi tiết" to "LunaDream Render · detail recovery started",
+    "LunaDream Render · 1.5 đang phục hồi chi tiết" to "LunaDream Render · 1.5 detail recovery",
+    "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép" to "LunaDream Render · RawDream 2.0 merged JPEG processing",
+    "LunaDream Render · 2.0 đang phục hồi chi tiết" to "LunaDream Render · 2.0 detail recovery",
+    "NightShot Render · bắt đầu hoàn tất ảnh đã ghép" to "NightShot Render · finishing the merged image",
+    "NightShot Render · đang hoàn tất ảnh đã ghép" to "NightShot Render · finishing the merged image",
+    "NightShot Render · đang hoàn tất ảnh đã chụp" to "NightShot Render · finishing the captured image",
     "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI is still under development. Errors or unexpected results may occur while using this feature.",
@@ -520,6 +530,16 @@ private val fullJapaneseUi = mapOf(
     "CHỌN" to "選択",
     "Đang phơi sáng" to "露光中",
     "Vui lòng để điện thoại cố định" to "スマートフォンを固定してください",
+    "Giữ thiết bị ổn định" to "端末をしっかり固定してください",
+    "Bạn có thể di chuyển thiết bị tự do" to "端末を自由に動かせます",
+    "LunaDream Render · bắt đầu xử lý ảnh JPEG đã ghép" to "LunaDream Render · 合成JPEGの処理を開始",
+    "LunaDream Render · bắt đầu phục hồi chi tiết" to "LunaDream Render · ディテール復元を開始",
+    "LunaDream Render · 1.5 đang phục hồi chi tiết" to "LunaDream Render · 1.5 ディテール復元中",
+    "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép" to "LunaDream Render · RawDream 2.0 合成JPEG処理中",
+    "LunaDream Render · 2.0 đang phục hồi chi tiết" to "LunaDream Render · 2.0 ディテール復元中",
+    "NightShot Render · bắt đầu hoàn tất ảnh đã ghép" to "NightShot Render · 合成画像の仕上げを開始",
+    "NightShot Render · đang hoàn tất ảnh đã ghép" to "NightShot Render · 合成画像を仕上げ中",
+    "NightShot Render · đang hoàn tất ảnh đã chụp" to "NightShot Render · 撮影画像を仕上げ中",
     "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまで動かさないでください",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI機能は開発中です。使用中にエラーが発生したり、期待と異なる結果になる場合があります。",
@@ -623,6 +643,16 @@ private val fullKoreanUi = mapOf(
     "CHỌN" to "선택",
     "Đang phơi sáng" to "노출 중",
     "Vui lòng để điện thoại cố định" to "휴대전화를 고정해 주세요",
+    "Giữ thiết bị ổn định" to "기기를 안정적으로 고정하세요",
+    "Bạn có thể di chuyển thiết bị tự do" to "이제 기기를 자유롭게 움직여도 됩니다",
+    "LunaDream Render · bắt đầu xử lý ảnh JPEG đã ghép" to "LunaDream Render · 합성 JPEG 처리 시작",
+    "LunaDream Render · bắt đầu phục hồi chi tiết" to "LunaDream Render · 디테일 복원 시작",
+    "LunaDream Render · 1.5 đang phục hồi chi tiết" to "LunaDream Render · 1.5 디테일 복원 중",
+    "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép" to "LunaDream Render · RawDream 2.0 합성 JPEG 처리 중",
+    "LunaDream Render · 2.0 đang phục hồi chi tiết" to "LunaDream Render · 2.0 디테일 복원 중",
+    "NightShot Render · bắt đầu hoàn tất ảnh đã ghép" to "NightShot Render · 합성 이미지 마무리 시작",
+    "NightShot Render · đang hoàn tất ảnh đã ghép" to "NightShot Render · 합성 이미지 마무리 중",
+    "NightShot Render · đang hoàn tất ảnh đã chụp" to "NightShot Render · 촬영 이미지 마무리 중",
     "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 휴대전화를 움직이지 마세요",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI 기능은 개발 중입니다. 사용 중 오류가 발생하거나 예상과 다른 결과가 나올 수 있습니다.",
@@ -726,6 +756,16 @@ private val fullChineseUi = mapOf(
     "CHỌN" to "选择",
     "Đang phơi sáng" to "正在曝光",
     "Vui lòng để điện thoại cố định" to "请保持手机稳定",
+    "Giữ thiết bị ổn định" to "请保持设备稳定",
+    "Bạn có thể di chuyển thiết bị tự do" to "现在可以自由移动设备",
+    "LunaDream Render · bắt đầu xử lý ảnh JPEG đã ghép" to "LunaDream Render · 开始处理合成 JPEG",
+    "LunaDream Render · bắt đầu phục hồi chi tiết" to "LunaDream Render · 开始细节恢复",
+    "LunaDream Render · 1.5 đang phục hồi chi tiết" to "LunaDream Render · 1.5 正在恢复细节",
+    "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép" to "LunaDream Render · RawDream 2.0 正在处理合成 JPEG",
+    "LunaDream Render · 2.0 đang phục hồi chi tiết" to "LunaDream Render · 2.0 正在恢复细节",
+    "NightShot Render · bắt đầu hoàn tất ảnh đã ghép" to "NightShot Render · 开始完成合成图像",
+    "NightShot Render · đang hoàn tất ảnh đã ghép" to "NightShot Render · 正在完成合成图像",
+    "NightShot Render · đang hoàn tất ảnh đã chụp" to "NightShot Render · 正在完成拍摄图像",
     "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机",
     "AI vẫn đang phát triển trong quá trình dùng chức năng có thể phát sinh lỗi hoặc không đúng như người dùng mong muốn"
         to "AI 功能仍在开发中，使用过程中可能出现错误或结果不符合预期。",
@@ -825,19 +865,23 @@ private fun translateUiText(value: String, language: String): String {
     val fragments = when {
         language.startsWith("ja") -> listOf(
             "Camera ID " to "カメラID ", "ISO " to "ISO ", "EV" to "露出補正",
-            "Không thể " to "", "Đã lưu" to "保存しました"
+            "Không thể " to "", "Đã lưu" to "保存しました",
+            "Đã xử lý: " to "処理済み: "
         )
         language.startsWith("ko") -> listOf(
             "Camera ID " to "카메라 ID ", "ISO " to "ISO ", "EV" to "노출 보정",
-            "Không thể " to "", "Đã lưu" to "저장됨"
+            "Không thể " to "", "Đã lưu" to "저장됨",
+            "Đã xử lý: " to "처리됨: "
         )
         language.startsWith("zh") -> listOf(
             "Camera ID " to "相机 ID ", "ISO " to "ISO ", "EV" to "曝光补偿",
-            "Không thể " to "", "Đã lưu" to "已保存"
+            "Không thể " to "", "Đã lưu" to "已保存",
+            "Đã xử lý: " to "已处理: "
         )
         else -> listOf(
             "Camera ID " to "Camera ID ", "Bộ lọc" to "Filter",
-            "Chưa có ảnh" to "No photos yet", "Đang tải" to "Loading"
+            "Chưa có ảnh" to "No photos yet", "Đang tải" to "Loading",
+            "Đã xử lý: " to "Processed: "
         )
     }
     fragments.forEach { (from, to) -> translated = translated.replace(from, to) }

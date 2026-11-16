@@ -587,6 +587,8 @@ fun CameraScreen(
     var noiseReductionProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
+    var multiFrameHoldActive by remember { mutableStateOf(false) }
+    var multiFrameRenderStarted by remember { mutableStateOf(false) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
@@ -2447,6 +2449,19 @@ fun CameraScreen(
                 nightShotCapturedFrameCount = 0
                 nightShotTargetFrameCount = captureNightTargetFrames
             }
+            if (captureUseLunaDream || captureUseNightShot) {
+                multiFrameHoldActive = true
+                multiFrameRenderStarted = false
+                isProcessing = true
+                processingProgress = 0
+                processingEtaSeconds = -1
+                processingLabel = when {
+                    captureUseLunaDream15 -> "LunaDream 1.5 · đang chụp khung đầu tiên"
+                    captureUseRawDream20 -> "RawDream 2.0 · đang chụp khung đầu tiên"
+                    captureUseLunaDream20 -> "LunaDream 2.0 · đang chụp khung đầu tiên"
+                    else -> "NightShotMode · đang chụp khung đầu tiên"
+                }
+            }
             val output = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -2490,6 +2505,11 @@ fun CameraScreen(
                             nightShotCaptureInProgress = false
                         }
                         if (saved != null) {
+                            if (captureNightShotExtension && captureUseNightShot) {
+                                multiFrameHoldActive = false
+                                multiFrameRenderStarted = true
+                                processingLabel = "NightShot Render · đang hoàn tất ảnh đã chụp"
+                            }
                             val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
                             val focal = info?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
                                 ?.firstOrNull()?.let { "%.1f mm".format(Locale.US, it) } ?: ""
@@ -2716,6 +2736,23 @@ fun CameraScreen(
                                         stackedFrames.forEach { runCatching { it.delete() } }
                                         withContext(Dispatchers.Main) {
                                             if (captureUseNightShot) nightShotCaptureInProgress = false
+                                            if (captureUseLunaDream || captureUseNightShot) {
+                                                multiFrameHoldActive = false
+                                                multiFrameRenderStarted = nightShotMerged
+                                                if (nightShotMerged) {
+                                                    processingLabel = when {
+                                                        captureUseRawDream20 ->
+                                                            "LunaDream Render · bắt đầu xử lý ảnh JPEG đã ghép"
+                                                        captureUseLunaDream15 ->
+                                                            "LunaDream Render · bắt đầu phục hồi chi tiết"
+                                                        captureUseLunaDream20 ->
+                                                            "LunaDream Render · bắt đầu phục hồi chi tiết"
+                                                        else ->
+                                                            "NightShot Render · bắt đầu hoàn tất ảnh đã ghép"
+                                                    }
+                                                    processingProgress = maxOf(processingProgress, 83)
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -2746,9 +2783,14 @@ fun CameraScreen(
                                 }
                                 withContext(Dispatchers.Main) {
                                     processingLabel = when {
-                                        captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · ghép khung và khử nhiễu hoàn tất"
-                                        captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG gốc + JPEG ghép 8 khung bằng LunaDream 2.0"
-                                        captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép và phục hồi chi tiết hoàn tất"
+                                        captureUseLunaDream15 && lunaDreamApplied ->
+                                            "LunaDream Render · 1.5 đang phục hồi chi tiết"
+                                        captureUseRawDream20 && lunaDreamApplied ->
+                                            "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép"
+                                        captureUseLunaDream20 && lunaDreamApplied ->
+                                            "LunaDream Render · 2.0 đang phục hồi chi tiết"
+                                        captureUseNightShot && nightShotMerged ->
+                                            "NightShot Render · đang hoàn tất ảnh đã ghép"
                                         captureUseLunaDream -> "LunaDream · xử lý chưa hoàn tất, giữ ảnh gốc"
                                         else -> "Đang hoàn tất ảnh"
                                     }
@@ -2856,6 +2898,8 @@ fun CameraScreen(
                                         isProcessing = false
                                         processingProgress = 0
                                         processingEtaSeconds = -1
+                                        multiFrameHoldActive = false
+                                        multiFrameRenderStarted = false
                                         localizedToast(
                                             context,
                                             "LunaDream chưa xử lý hoàn tất. Ảnh gốc được giữ riêng trong Pictures/FujifilmMode/Unprocessed, không xuất như ảnh LunaDream.",
@@ -2953,15 +2997,25 @@ fun CameraScreen(
                                     isProcessing = false
                                     processingProgress = 0
                                     processingEtaSeconds = -1
+                                    multiFrameHoldActive = false
+                                    multiFrameRenderStarted = false
                                 }
                             }
                         } else {
                             nightShotCaptureInProgress = false
+                            multiFrameHoldActive = false
+                            multiFrameRenderStarted = false
+                            isProcessing = false
+                            processingProgress = 0
                             localizedToast(context, "Ảnh đã chụp nhưng MediaStore không trả về URI.", Toast.LENGTH_LONG).show()
                         }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
                         nightShotCaptureInProgress = false
+                        multiFrameHoldActive = false
+                        multiFrameRenderStarted = false
+                        isProcessing = false
+                        processingProgress = 0
                         runCatching {
                             camera?.let { Camera2CameraControl.from(it.cameraControl).clearCaptureRequestOptions() }
                         }
@@ -4201,13 +4255,13 @@ stabilization = stabilization,
                         "${processingElapsedSeconds / 60}p ${processingElapsedSeconds % 60}s"
                     else -> "${processingElapsedSeconds}s"
                 }
-                val captureStatus = if (
-                    nightShotCaptureInProgress || starTrailCaptureInProgress ||
-                    burstCaptureActive || bracketCaptureActive
-                ) {
-                    "Giữ máy ổn định · đang thu/ghép khung hình"
-                } else {
-                    "Có thể di chuyển máy tự do · LunaDream đang xử lý ảnh"
+                val captureStatus = when {
+                    multiFrameHoldActive || nightShotCaptureInProgress || starTrailCaptureInProgress ||
+                        burstCaptureActive || bracketCaptureActive ->
+                        "Giữ thiết bị ổn định"
+                    multiFrameRenderStarted ->
+                        "Bạn có thể di chuyển thiết bị tự do"
+                    else -> ""
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -4219,11 +4273,20 @@ stabilization = stabilization,
                     )
                 }
                 Text(
-                    "Đã xử lý: $elapsedText · $captureStatus",
+                    "Đã xử lý: $elapsedText",
                     color = CamColors.Sub,
                     fontSize = 10.sp,
                     modifier = Modifier.padding(top = 5.dp)
                 )
+                if (captureStatus.isNotEmpty()) {
+                    Text(
+                        captureStatus,
+                        color = CamColors.Sub,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 3.dp)
+                    )
+                }
                 val androidThermalText = when (thermalStatusCode) {
                     PowerManager.THERMAL_STATUS_LIGHT -> "Nhẹ"
                     PowerManager.THERMAL_STATUS_MODERATE -> "Trung bình"

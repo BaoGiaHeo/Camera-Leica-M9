@@ -96,7 +96,7 @@ fun QuickPanel(
                         fontSize = 13.sp
                     )
                     Text(
-                        "Ưu tiên CameraX AUTO/HDR của nhà sản xuất nếu có; nếu không, dùng pipeline ISP mặc định.",
+                        "Ưu tiên ISP/OEM AUTO-HDR; sau chụp tiếp tục tối ưu dải sáng và chi tiết trên JPEG.",
                         color = CamColors.Sub,
                         fontSize = 10.sp
                     )
@@ -109,7 +109,7 @@ fun QuickPanel(
             }
             Text(
                 if (nativeImageProcessingEnabled) {
-                    "Đang bật · LunaDream bị khóa. Ảnh dùng pipeline gốc được thiết bị công bố."
+                    "Đang bật · dùng ISP/OEM nếu có và tăng cường ảnh sau chụp."
                 } else {
                     "Đang tắt · Có thể sử dụng LunaDream."
                 },
@@ -132,7 +132,7 @@ fun QuickPanel(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("Live Photo", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Text(
-                        if (livePhotoEnabled) "Đang bật · tối đa 48MP"
+                        if (livePhotoEnabled) "Đang bật · ảnh tối đa 48MP + clip chuyển động"
                         else "Đang tắt · ảnh tĩnh thông thường",
                         color = if (livePhotoEnabled) CamColors.Yellow else CamColors.Sub,
                         fontSize = 10.sp

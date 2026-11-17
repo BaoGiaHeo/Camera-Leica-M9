@@ -146,7 +146,72 @@ jobs:
 
             # Run instrumentation only after the plain install + cold start was observed.
             gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
+
+            # End-to-end crash-report test: this trigger exists only in the debug source set.
+            adb shell am force-stop com.fujifilm.mode.debug
+            adb logcat -c
+            adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.CrashTestActivity > emulator-artifacts/crash-test-start.txt 2>&1
+            report_visible=0
+            for i in $(seq 1 20); do
+              adb shell uiautomator dump /sdcard/crash-report-window.xml > emulator-artifacts/crash-test-uiautomator.txt 2>&1 || true
+              adb shell cat /sdcard/crash-report-window.xml > emulator-artifacts/crash-report-window.xml 2>&1 || true
+              if grep -q 'FujiFilm Mode đã gặp lỗi' emulator-artifacts/crash-report-window.xml && grep -q 'CRASH_REPORT_TEST_SENTINEL' emulator-artifacts/crash-report-window.xml; then
+                report_visible=1
+                break
+              fi
+              sleep 1
+            done
+            adb exec-out screencap -p > emulator-artifacts/crash-report-screen.png 2> emulator-artifacts/crash-report-screencap-error.txt || true
+            adb logcat -d -v threadtime -t 12000 > emulator-artifacts/logcat-crash-report.txt 2>&1 || true
+            if [ "$report_visible" -ne 1 ]; then
+              echo "crash_report_screen_not_shown=1" >> emulator-artifacts/command-status.txt
+              exit 24
+            fi
+            echo "crash_report_screen_shown=1" >> emulator-artifacts/command-status.txt
+
+            # Read the actual button bounds from the Android accessibility hierarchy.
+            python - <<'PY'
+            import re
+            import xml.etree.ElementTree as ET
+
+            root = ET.parse("emulator-artifacts/crash-report-window.xml").getroot()
+            buttons = {}
+            for node in root.iter("node"):
+                label = node.attrib.get("text", "")
+                if label in ("Sao chép log", "OK – Đóng ứng dụng"):
+                    match = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", node.attrib.get("bounds", ""))
+                    if match:
+                        x1, y1, x2, y2 = map(int, match.groups())
+                        buttons[label] = ((x1 + x2) // 2, (y1 + y2) // 2)
+            required = ("Sao chép log", "OK – Đóng ứng dụng")
+            missing = [label for label in required if label not in buttons]
+            if missing:
+                raise SystemExit("Crash report buttons not accessible: " + ", ".join(missing))
+            with open("emulator-artifacts/crash-report-button-centers.txt", "w") as out:
+                out.write(" ".join(map(str, buttons[required[0]] + buttons[required[1]])))
+            PY
+            read copy_x copy_y ok_x ok_y < emulator-artifacts/crash-report-button-centers.txt
+            adb shell input tap "$copy_x" "$copy_y"
+            sleep 1
+            adb shell dumpsys clipboard > emulator-artifacts/clipboard-after-copy.txt 2>&1 || true
+            adb shell input tap "$ok_x" "$ok_y"
+
+            # OK must release the original process so its uncaught exception can terminate it.
+            main_process_exited=0
+            for i in $(seq 1 15); do
+              if [ -z "$(adb shell pidof com.fujifilm.mode.debug 2>/dev/null | tr -d '\\r')" ]; then
+                main_process_exited=1
+                break
+              fi
+              sleep 1
+            done
+            adb shell dumpsys activity activities > emulator-artifacts/activity-after-crash-report-ok.txt 2>&1 || true
             adb logcat -d -v threadtime -t 20000 > emulator-artifacts/logcat-final.txt 2>&1 || true
+            if [ "$main_process_exited" -ne 1 ]; then
+              echo "crash_report_ok_did_not_release_main_process=1" >> emulator-artifacts/command-status.txt
+              exit 25
+            fi
+            echo "crash_report_ok_closed_main_process=1" >> emulator-artifacts/command-status.txt
 
       - name: Upload emulator inspection
         if: always()

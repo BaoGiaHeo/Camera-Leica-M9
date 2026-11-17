@@ -61,6 +61,14 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.view.PreviewView
+import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.MediaStoreOutputOptions
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.camera.video.VideoRecordEvent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -175,6 +183,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -182,6 +191,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -411,26 +421,32 @@ fun CameraScreen(
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    // The Compose camera UI stays portrait; only CameraX capture rotation follows the handset.
-    var isLandscape by remember { mutableStateOf(false) }
+    // Initialize from current display, then follow physical rotation even if the window
+    // configuration lags behind the camera sensor orientation.
+    var isLandscape by remember { mutableStateOf(currentDisplayIsLandscape(context)) }
+    var orientationSensorAvailable by remember { mutableStateOf(false) }
     DisposableEffect(context) {
         val orientationListener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN) return
                 val nextRotation = surfaceRotationFromDeviceOrientation(orientation)
                 if (targetRotation != nextRotation) targetRotation = nextRotation
+                when (orientation) {
+                    in 55..125, in 235..305 -> isLandscape = true
+                    in 0..35, in 145..215, in 325..359 -> isLandscape = false
+                }
             }
         }
-        if (orientationListener.canDetectOrientation()) orientationListener.enable()
+        orientationSensorAvailable = orientationListener.canDetectOrientation()
+        if (orientationSensorAvailable) orientationListener.enable()
         onDispose { orientationListener.disable() }
     }
-    // Remember exactly which geometry is active in the bound CameraX UseCaseGroup.
-    var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
-    var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
-    var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
-    // UI orientation is intentionally fixed to portrait. The sensor listener tracks photo orientation.
-    LaunchedEffect(configuration.orientation) {
-        isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // Use display configuration only when the device has no usable orientation sensor.
+    LaunchedEffect(configuration.orientation, orientationSensorAvailable) {
+        if (!orientationSensorAvailable) {
+            isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
+                currentDisplayIsLandscape(context)
+        }
     }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
     var faceTrackingEnabled by remember {
@@ -529,11 +545,11 @@ fun CameraScreen(
             }
         }
     }
-    var nativeImageProcessingEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("native_image_processing_enabled", false))
-    }
     var livePhotoEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("live_photo_enabled", false))
+    }
+    var nativeImageProcessingEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("native_image_processing_enabled", false) && !livePhotoEnabled)
     }
     LaunchedEffect(livePhotoEnabled) {
         appPrefs.edit().putBoolean("live_photo_enabled", livePhotoEnabled).apply()
@@ -619,6 +635,7 @@ fun CameraScreen(
     var shutterEffectAlpha by remember { mutableFloatStateOf(0f) }
     val filmWashProgress = remember { Animatable(0f) }
     var isProcessing by remember { mutableStateOf(false) }
+    var livePhotoCaptureInProgress by remember { mutableStateOf(false) }
     var processingProgress by remember { mutableIntStateOf(0) }
     var noiseReductionProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
@@ -731,6 +748,7 @@ fun CameraScreen(
     var photoViewerVisible by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var captureSetupReady by remember { mutableStateOf(false) }
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
@@ -887,6 +905,7 @@ fun CameraScreen(
         // Disable shutter immediately while the old UseCaseGroup is being replaced.
         camera = null
         imageCapture = null
+        videoCaptureUseCase = null
         activeCameraDetails = null
         activePhysicalCameraDetails = emptyList()
         nightExtensionActive = false
@@ -1000,7 +1019,8 @@ fun CameraScreen(
             // in software. Do not enable the vendor NIGHT extension: some HALs turn it into a
             // single high-gain/long-shutter exposure, which is not the requested behaviour.
             nightExtensionActive = false
-            val hdrCaptureRequested = !nativeImageProcessingEnabled && hdrEnabled && mode == "Photo" &&
+            val hdrCaptureRequested = !nativeImageProcessingEnabled && !livePhotoEnabled &&
+                hdrEnabled && mode == "Photo" &&
                 nightShotMode == "off" && !rawCaptureActive &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             // HDRbyHDMP is the common software path for all devices and HDMP levels.
@@ -1032,7 +1052,10 @@ fun CameraScreen(
             var activeCameraCharacteristics: CameraCharacteristics? = null
             var faceSensorToDisplayRotation = 0
 
-            fun bindCapture(outputFormat: Int) {
+            fun bindCapture(
+                outputFormat: Int,
+                livePhotoResolutionPixels: Long = 48_000_000L
+            ) {
                 var lastFaceTrackAtMs = 0L
                 var lastFaceTrackCenter: Offset? = null
                 val distortionModes = activeFacingId?.let { id ->
@@ -1274,7 +1297,7 @@ fun CameraScreen(
                         context,
                         activeFacingId,
                         nativePhotoAspect,
-                        targetPixels = if (livePhotoEnabled) 48_000_000L else 12_500_000L
+                        targetPixels = if (livePhotoEnabled) livePhotoResolutionPixels else 12_500_000L
                     )
                     if (nativePhotoSize != null) {
                         captureBuilder.setResolutionSelector(
@@ -1382,12 +1405,26 @@ fun CameraScreen(
                     ImageCapture.FLASH_MODE_OFF
                 } else flash
 
+                val livePhotoVideoCapture = if (livePhotoEnabled) {
+                    val recorder = Recorder.Builder()
+                        .setQualitySelector(
+                            QualitySelector.from(
+                                Quality.HD,
+                                FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)
+                            )
+                        )
+                        .build()
+                    VideoCapture.withOutput(recorder).also { it.targetRotation = rotation }
+                } else null
+
                 val analysis = ImageAnalysis.Builder()
                     .setTargetRotation(rotation)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 previewUseCase = preview
-                analysisUseCase = if (!nativeProcessingExtensionActive || nativeProcessingAnalysisSupported) analysis else null
+                analysisUseCase = if (livePhotoVideoCapture == null &&
+                    (!nativeProcessingExtensionActive || nativeProcessingAnalysisSupported)
+                ) analysis else null
                 var lastAnalysis = 0L
                 var lastLensCheckAt = 0L
                 var consecutiveLensWarnings = 0
@@ -1524,13 +1561,16 @@ fun CameraScreen(
                     .setViewPort(viewPort)
                     .addUseCase(preview)
                     .addUseCase(capture)
-                if (!nativeProcessingExtensionActive || nativeProcessingAnalysisSupported) {
+                if (livePhotoVideoCapture != null) {
+                    groupBuilder.addUseCase(livePhotoVideoCapture)
+                } else if (!nativeProcessingExtensionActive || nativeProcessingAnalysisSupported) {
                     groupBuilder.addUseCase(analysis)
                 }
                 val group = groupBuilder.build()
                 val bound = provider.bindToLifecycle(lifecycleOwner, selector, group)
                 camera = bound
                 imageCapture = capture
+                videoCaptureUseCase = livePhotoVideoCapture
 
                 val actualCamera2Info = runCatching {
                     Camera2CameraInfo.from(bound.cameraInfo)
@@ -1624,7 +1664,7 @@ fun CameraScreen(
             // When UHD sharpening is requested, prefer OEM HDR JPEG (or software HDR)
             // so the post-capture 2x sharpening can still run. Explicit Ultra HDR remains
             // higher priority because its gain map must be preserved without recompression.
-            val preferJpegR = !rawCaptureActive &&
+            val preferJpegR = !rawCaptureActive && !livePhotoEnabled &&
                 ultraHdr &&
                 Build.VERSION.SDK_INT >= 34
             preserveUltraHdrOutput = false
@@ -1759,6 +1799,43 @@ fun CameraScreen(
                             Toast.LENGTH_LONG
                         ).show()
                     }
+                } else if (livePhotoEnabled) {
+                    android.util.Log.w(
+                        "FUJI_LIVE_PHOTO",
+                        "48MP still + video combination failed; retrying Live Photo at 12.5MP",
+                        e
+                    )
+                    provider.unbindAll()
+                    val livePhotoRetry = runCatching {
+                        bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG, 12_500_000L)
+                    }
+                    if (livePhotoRetry.isSuccess && camera != null &&
+                        imageCapture != null && videoCaptureUseCase != null
+                    ) {
+                        localizedToast(
+                            context,
+                            "Live Photo dùng 12.5MP trên tổ hợp camera hiện tại để giữ được clip chuyển động.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        provider.unbindAll()
+                        livePhotoEnabled = false
+                        appPrefs.edit().putBoolean("live_photo_enabled", false).apply()
+                        videoCaptureUseCase = null
+                        val normalRetry = runCatching {
+                            bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG, 12_500_000L)
+                        }
+                        if (normalRetry.isFailure) {
+                            camera = null
+                            imageCapture = null
+                            videoCaptureUseCase = null
+                        }
+                        localizedToast(
+                            context,
+                            "Camera này không hỗ trợ Live Photo đồng thời với ảnh tĩnh; đã tắt Live Photo và khôi phục chế độ chụp thường.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 } else if (ultraHdr || hdrCaptureRequested) {
                     preserveUltraHdrOutput = false
                     ultraHdr = false
@@ -1783,7 +1860,8 @@ fun CameraScreen(
                     localizedToast(context, "Không mở được camera: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
-            captureSetupReady = camera != null && imageCapture != null
+            captureSetupReady = camera != null && imageCapture != null &&
+                (!livePhotoEnabled || videoCaptureUseCase != null)
                 } catch (cameraInitError: Exception) {
                     android.util.Log.e(
                         "FUJI_STARTUP",
@@ -1793,6 +1871,7 @@ fun CameraScreen(
                     runCatching { provider.unbindAll() }
                     camera = null
                     imageCapture = null
+                    videoCaptureUseCase = null
                     previewUseCase = null
                     analysisUseCase = null
                     captureSetupReady = false
@@ -1828,10 +1907,11 @@ fun CameraScreen(
     LaunchedEffect(flash, imageCapture) {
         imageCapture?.flashMode = flash
     }
-    LaunchedEffect(targetRotation, imageCapture, previewUseCase, analysisUseCase) {
+    LaunchedEffect(targetRotation, imageCapture, previewUseCase, analysisUseCase, videoCaptureUseCase) {
         imageCapture?.targetRotation = targetRotation
         previewUseCase?.targetRotation = targetRotation
         analysisUseCase?.targetRotation = targetRotation
+        videoCaptureUseCase?.targetRotation = targetRotation
         // The viewfinder layout stays portrait; this only marks the camera's latest sensor rotation as ready.
         boundCameraRotation = targetRotation
         boundCameraLandscape = isLandscape
@@ -2386,7 +2466,8 @@ fun CameraScreen(
             return
         }
         if (!captureSetupReady || camera == null || imageCapture == null ||
-            isProcessing || nightShotCaptureInProgress || starTrailCaptureInProgress
+            isProcessing || livePhotoCaptureInProgress ||
+            nightShotCaptureInProgress || starTrailCaptureInProgress
         ) return
         if (mode == "Photo" && nightShotMode == "star_trails") {
             val activeCapture = imageCapture ?: return
@@ -2408,6 +2489,10 @@ fun CameraScreen(
             val activeCamera = camera ?: return@launch
             val captureIsUltraHdr = preserveUltraHdrOutput
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
+            val captureUseDeviceProcessing = nativeImageProcessingEnabled &&
+                !captureIsUltraHdr && capture.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW &&
+                capture.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+            val captureUseLivePhoto = livePhotoEnabled
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureUseRawDream20 = !nativeImageProcessingEnabled && !livePhotoEnabled &&
@@ -2576,6 +2661,7 @@ fun CameraScreen(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 rawValues
             ).build()
+            var activeLivePhotoRecording: Recording? = null
             val imageSavedCallback = object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                         val saved = result.savedUri
@@ -2932,7 +3018,37 @@ fun CameraScreen(
                                         }
                                     }.getOrDefault(false)
                                 } else false
-                                withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 66) }
+                                if (captureUseDeviceProcessing) {
+                                    withContext(Dispatchers.Main) {
+                                        processingLabel = "Xử lý ảnh gốc thiết bị · tối ưu tông sáng và chi tiết"
+                                        processingProgress = maxOf(processingProgress, 67)
+                                    }
+                                }
+                                val deviceProcessingApplied = if (captureUseDeviceProcessing) {
+                                    withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            applySoftwarePhotoEnhancement(
+                                                context,
+                                                saved,
+                                                softwareHdr = true,
+                                                uhdSharpening = true
+                                            )
+                                        }.onFailure {
+                                            android.util.Log.e(
+                                                "FUJI_NATIVE_IMAGE",
+                                                "Device image enhancement pass failed; the original JPEG is retained",
+                                                it
+                                            )
+                                        }.getOrDefault(false)
+                                    }
+                                } else false
+                                if (captureUseDeviceProcessing) {
+                                    android.util.Log.i(
+                                        "FUJI_NATIVE_IMAGE",
+                                        "Post-capture device enhancement applied=$deviceProcessingApplied"
+                                    )
+                                }
+                                withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 70) }
                                 // Keep a clean pre-filter image as the reference for every picker preview.
                                 val unfilteredPreview = if (captureIsUltraHdr) null else runCatching {
                                     decodeUprightBitmap(context, saved, maxDimension = 640)
@@ -3100,6 +3216,8 @@ fun CameraScreen(
                                     captureUseLunaDream -> "LunaDream chưa hoàn tất · giữ ảnh gốc"
                                     captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
                                     captureUseNightShot -> "NightShotMode · chụp đêm"
+                                    captureUseDeviceProcessing && deviceProcessingApplied -> "Xử lý ảnh gốc thiết bị · ISP + tối ưu tông/chi tiết"
+                                    captureUseDeviceProcessing -> "Xử lý ảnh gốc thiết bị chưa hoàn tất · giữ ảnh JPEG"
                                     else -> "Chụp ảnh thường"
                                 }
                                 val inspectorOutputSize = outputResolutionResult?.let {
@@ -3159,6 +3277,11 @@ fun CameraScreen(
                                     }
                                     val finalMessage = if (captureIsUltraHdr) message
                                         else if (frameApplied) "$message Frame đã được áp dụng." else message
+                                    val deviceProcessingSuffix = when {
+                                        !captureUseDeviceProcessing -> ""
+                                        deviceProcessingApplied -> " Xử lý ảnh gốc thiết bị đã hoàn tất: tối ưu dải sáng và độ sắc nét."
+                                        else -> " Bước xử lý ảnh gốc thiết bị không hoàn tất; ảnh JPEG gốc vẫn được giữ."
+                                    }
                                     val lunaDreamStatusSuffix = when {
                                         captureUseLunaDream15 && lunaDreamApplied -> " LunaDream 1.5 đã ghép " + lunaDreamCapturedFrameCount + " khung hình."
                                         captureUseRawDream20 && lunaDreamApplied -> " RawDream 2.0 giữ DNG cảm biến gốc và ghép " + lunaDreamCapturedFrameCount + " JPEG bằng thuật toán LunaDream 2.0."
@@ -3166,7 +3289,7 @@ fun CameraScreen(
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""
                                     }
-                                    localizedToast(context, finalMessage + lunaDreamStatusSuffix, Toast.LENGTH_LONG).show()
+                                    localizedToast(context, finalMessage + deviceProcessingSuffix + lunaDreamStatusSuffix, Toast.LENGTH_LONG).show()
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {
@@ -3187,6 +3310,7 @@ fun CameraScreen(
                         }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
+                        activeLivePhotoRecording?.stop()
                         nightShotCaptureInProgress = false
                         multiFrameHoldActive = false
                         multiFrameRenderStarted = false
@@ -3198,6 +3322,102 @@ fun CameraScreen(
                         localizedToast(context, "Lỗi chụp ảnh: ${exception.message}", Toast.LENGTH_LONG).show()
                     }
                 }
+            if (captureUseLivePhoto) {
+                val liveVideoCapture = videoCaptureUseCase
+                if (liveVideoCapture == null) {
+                    localizedToast(
+                        context,
+                        "Live Photo chưa sẵn sàng: camera chưa tạo được luồng video. Ảnh chưa được chụp.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@launch
+                }
+                livePhotoCaptureInProgress = true
+                liveVideoCapture.targetRotation = captureRotation
+                val liveVideoName = "${name}_LIVE"
+                val videoValues = ContentValues().apply {
+                    put(MediaStore.Video.Media.DISPLAY_NAME, "$liveVideoName.mp4")
+                    put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/FujifilmMode/LivePhoto")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+                val videoOptions = MediaStoreOutputOptions.Builder(
+                    context.contentResolver,
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                ).setContentValues(videoValues).build()
+                val recordingStarted = CompletableDeferred<Boolean>()
+                try {
+                    activeLivePhotoRecording = liveVideoCapture.output
+                        .prepareRecording(context, videoOptions)
+                        .start(mainExecutor) { event ->
+                            when (event) {
+                                is VideoRecordEvent.Start -> {
+                                    if (!recordingStarted.isCompleted) recordingStarted.complete(true)
+                                    android.util.Log.i("FUJI_LIVE_PHOTO", "Motion clip started: $liveVideoName")
+                                }
+                                is VideoRecordEvent.Finalize -> {
+                                    if (!recordingStarted.isCompleted) recordingStarted.complete(false)
+                                    val videoUri = event.outputResults.outputUri
+                                    val published = if (!event.hasError() && videoUri != Uri.EMPTY) {
+                                        runCatching {
+                                            context.contentResolver.update(
+                                                videoUri,
+                                                ContentValues().apply {
+                                                    put(MediaStore.Video.Media.IS_PENDING, 0)
+                                                },
+                                                null,
+                                                null
+                                            ) > 0
+                                        }.getOrDefault(false)
+                                    } else false
+                                    if (!published && videoUri != Uri.EMPTY) {
+                                        runCatching { context.contentResolver.delete(videoUri, null, null) }
+                                    }
+                                    android.util.Log.i(
+                                        "FUJI_LIVE_PHOTO",
+                                        "Motion clip finalized uri=$videoUri success=$published error=${event.error}"
+                                    )
+                                    mainExecutor.execute {
+                                        livePhotoCaptureInProgress = false
+                                        localizedToast(
+                                            context,
+                                            if (published) {
+                                                "Đã lưu Live Photo: ảnh $name.jpg và clip $liveVideoName.mp4 trong Movies/FujifilmMode/LivePhoto."
+                                            } else {
+                                                "Không lưu được clip Live Photo; ảnh tĩnh vẫn được giữ nếu đã chụp thành công."
+                                            },
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        }
+                    val didStart = withTimeoutOrNull(2_500L) { recordingStarted.await() } == true
+                    if (!didStart) {
+                        activeLivePhotoRecording?.stop()
+                        activeLivePhotoRecording = null
+                        livePhotoCaptureInProgress = false
+                        localizedToast(
+                            context,
+                            "Camera không bắt đầu được clip Live Photo. Ảnh chưa được chụp.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@launch
+                    }
+                    delay(700L)
+                } catch (livePhotoError: Exception) {
+                    activeLivePhotoRecording?.stop()
+                    activeLivePhotoRecording = null
+                    livePhotoCaptureInProgress = false
+                    android.util.Log.e("FUJI_LIVE_PHOTO", "Could not start motion clip", livePhotoError)
+                    localizedToast(
+                        context,
+                        "Live Photo không khởi động được: ${livePhotoError.message ?: "lỗi camera"}. Ảnh chưa được chụp.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@launch
+                }
+            }
             if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
                 capture.takePicture(
                     rawOutput,
@@ -3211,6 +3431,13 @@ fun CameraScreen(
                     ContextCompat.getMainExecutor(context),
                     imageSavedCallback
                 )
+            }
+            if (captureUseLivePhoto && activeLivePhotoRecording != null) {
+                delay(1_000L)
+                runCatching { activeLivePhotoRecording?.stop() }
+                    .onFailure {
+                        android.util.Log.w("FUJI_LIVE_PHOTO", "Could not stop motion clip cleanly", it)
+                    }
             }
         }
     }
@@ -4152,7 +4379,7 @@ fun CameraScreen(
                             }
                             Box(Modifier.size(72.dp).border(4.dp, Color.White, CircleShape)
                                 .padding(7.dp).clip(CircleShape)
-                                .background(if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) Color(0xFFE53935) else CamColors.Shutter)
+                                .background(if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || livePhotoCaptureInProgress) Color(0xFFE53935) else CamColors.Shutter)
                                 .animaTClickable { takePhoto() },
                                 contentAlignment = Alignment.Center) {
                                 if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
@@ -4345,13 +4572,18 @@ fun CameraScreen(
                 livePhotoEnabled = livePhotoEnabled,
                 onLivePhotoChanged = { enabled ->
                     livePhotoEnabled = enabled
-                    if (enabled) showLunaDream = false
+                    if (enabled) {
+                        nativeImageProcessingEnabled = false
+                        appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
+                        showLunaDream = false
+                    }
                 },
                 nativeImageProcessingEnabled = nativeImageProcessingEnabled,
                 onNativeImageProcessingChanged = { enabled ->
                     nativeImageProcessingEnabled = enabled
-                    appPrefs.edit().putBoolean("native_image_processing_enabled", enabled).apply()
                     if (enabled) {
+                        livePhotoEnabled = false
+                        appPrefs.edit().putBoolean("live_photo_enabled", false).apply()
                         showLunaDream = false
                         // NightShot and Star Trails use the app's own multi-frame pipeline, not the OEM still-photo path.
                         if (nightShotMode != "off") {

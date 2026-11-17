@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <application
+        android:name=".CrashCaptureApplication"
         android:allowBackup="false"
         android:label="@string/app_name"
         android:icon="@drawable/ic_launcher"
@@ -11,6 +12,12 @@
         android:theme="@style/Theme.CamUI"
         android:supportsRtl="true"
         android:largeHeap="true">
+        <activity
+            android:name=".CrashReportActivity"
+            android:exported="false"
+            android:process=":crash_report"
+            android:screenOrientation="fullSensor"
+            android:theme="@style/Theme.CamUI" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

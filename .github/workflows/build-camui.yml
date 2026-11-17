@@ -77,31 +77,30 @@ jobs:
           emulator-boot-timeout: 600
           disable-animations: true
           script: |
-            set +e
             mkdir -p emulator-artifacts
-            adb wait-for-device
 
-            # Install and cold-launch the exact APK produced by this workflow before instrumentation.
-            adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk
-            adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA
-            adb logcat -c
-            adb shell am force-stop com.fujifilm.mode.debug
-            adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity
+            # Bound every ADB operation so an unresponsive emulator cannot stall the whole job.
+            sh -c 'timeout 60s adb wait-for-device > emulator-artifacts/adb-wait.txt 2>&1; rc=$?; echo "wait_for_device=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 90s adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk > emulator-artifacts/install.txt 2>&1; rc=$?; echo "install=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 20s adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1; rc=$?; echo "camera_permission=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 20s adb logcat -c > emulator-artifacts/logcat-clear.txt 2>&1; rc=$?; echo "logcat_clear=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 20s adb shell am force-stop com.fujifilm.mode.debug > emulator-artifacts/force-stop.txt 2>&1; rc=$?; echo "force_stop=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 45s adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1; rc=$?; echo "am_start=$rc" >> emulator-artifacts/command-status.txt'
             sleep 8
-            adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt
-            adb exec-out screencap -p > emulator-artifacts/camera-portrait.png
-            adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-portrait.txt
+            sh -c 'timeout 30s adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt 2>&1; rc=$?; echo "dumpsys_portrait=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 30s adb exec-out screencap -p > emulator-artifacts/camera-portrait.png; rc=$?; echo "screencap_portrait=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 30s adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-portrait.txt 2>&1; rc=$?; echo "logcat_portrait=$rc" >> emulator-artifacts/command-status.txt'
 
-            # Rotate the emulator, verify its configuration, and capture the second UI state.
-            adb shell settings put system accelerometer_rotation 0
-            adb shell settings put system user_rotation 1
+            # Force landscape and record whether the activity follows the display configuration.
+            sh -c 'timeout 20s adb shell settings put system accelerometer_rotation 0; rc=$?; echo "disable_auto_rotation=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 20s adb shell settings put system user_rotation 1; rc=$?; echo "set_landscape_rotation=$rc" >> emulator-artifacts/command-status.txt'
             sleep 5
-            adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt
-            adb exec-out screencap -p > emulator-artifacts/camera-landscape.png
-            adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-landscape.txt
+            sh -c 'timeout 30s adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt 2>&1; rc=$?; echo "dumpsys_landscape=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 30s adb exec-out screencap -p > emulator-artifacts/camera-landscape.png; rc=$?; echo "screencap_landscape=$rc" >> emulator-artifacts/command-status.txt'
+            sh -c 'timeout 30s adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-landscape.txt 2>&1; rc=$?; echo "logcat_landscape=$rc" >> emulator-artifacts/command-status.txt'
 
-            # Run startup + orientation instrumentation with a hard timeout.
-            sh -c 'timeout 240s gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain; test_status=$?; adb logcat -d -v threadtime -t 10000 > emulator-artifacts/logcat-final.txt; exit "$test_status"'
+            # Keep the instrumentation result as the final command's exit status.
+            sh -c 'timeout 240s gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain; test_status=$?; timeout 30s adb logcat -d -v threadtime -t 10000 > emulator-artifacts/logcat-final.txt 2>&1; exit "$test_status"'
 
       - name: Upload emulator inspection
         if: always()

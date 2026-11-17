@@ -2543,10 +2543,11 @@ fun applyCameraWatermark(
         val sourceWidthPx = sourceBitmap.width
         val sourceHeightPx = sourceBitmap.height
         val sourceMinSide = minOf(sourceWidthPx, sourceHeightPx).toFloat()
-        val footerMarginPx = (sourceMinSide * 0.025f).coerceIn(14f, 72f).toInt()
-        // A restrained ~12% footer keeps the photo area dominant while remaining readable.
-        val footerHeightPx = (sourceMinSide * 0.14f).coerceIn(88f, 360f).toInt()
-        val compactFooterHeightPx = (sourceMinSide * 0.12f).coerceIn(72f, 300f).toInt()
+        val footerMarginPx = (sourceMinSide * 0.025f).roundToInt().coerceAtLeast(14)
+        // Watermark geometry scales with the actual output resolution. Do not cap it at
+        // small JPEG dimensions: LunaDream 50/108MP must retain the same relative size.
+        val footerHeightPx = (sourceMinSide * 0.14f).roundToInt().coerceAtLeast(88)
+        val compactFooterHeightPx = (sourceMinSide * 0.12f).roundToInt().coerceAtLeast(72)
         val expandedWidth = sourceBitmap.width + footerMarginPx * 2
         val expandedHeight = sourceBitmap.height + footerMarginPx * 2 + footerHeightPx
         val expandedPixelCount = expandedWidth.toLong() * expandedHeight.toLong()
@@ -2621,7 +2622,7 @@ fun applyCameraWatermark(
         }
         val minSide = minOf(output.width, output.height).toFloat()
         // Keep logo and metadata in one restrained visual scale across output resolutions.
-        val watermarkTextSize = (minSide * 0.0125f).coerceIn(12f, 54f)
+        val watermarkTextSize = (minSide * 0.0125f).coerceAtLeast(12f)
         val watermarkLogoHeight = minSide * 0.032f
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
         fun exifNumber(tag: String): Double? = sourceExif[tag]?.let { raw ->
@@ -3040,10 +3041,10 @@ fun applyCameraWatermark(
         val centerX = footerRect.centerX()
         val centerY = footerRect.centerY()
         val pad = footerWidth * 0.045f
-        val primarySize = (minSide * 0.023f).coerceIn(19f, 80f)
-        val secondarySize = (minSide * 0.014f).coerceIn(12f, 44f)
-        val infoSize = (minSide * 0.019f).coerceIn(17f, 68f)
-        val dateSize = (minSide * 0.013f).coerceIn(12f, 40f)
+        val primarySize = (minSide * 0.023f).coerceAtLeast(19f)
+        val secondarySize = (minSide * 0.014f).coerceAtLeast(12f)
+        val infoSize = (minSide * 0.019f).coerceAtLeast(17f)
+        val dateSize = (minSide * 0.013f).coerceAtLeast(12f)
         val cameraTitle = modelLine.ifBlank { brandTitle }
         val cameraLine = listOfNotNull(
             modelLine.takeIf { it.isNotBlank() }?.let { "MODEL $it" },

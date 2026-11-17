@@ -7,6 +7,30 @@ import kotlin.math.abs
 
 class PhotoOutputGeometryTest {
     @Test
+    fun portraitAndLandscapeAspectRatioLabelsMatchTheSelectedOrientation() {
+        assertEquals("9:16", aspectRatioDisplayLabel(0, false))
+        assertEquals("16:9", aspectRatioDisplayLabel(0, true))
+        assertEquals("9:21", aspectRatioDisplayLabel(1, false))
+        assertEquals("21:9", aspectRatioDisplayLabel(1, true))
+        assertEquals("3:4", aspectRatioDisplayLabel(2, false))
+        assertEquals("4:3", aspectRatioDisplayLabel(2, true))
+        assertEquals("1:1", aspectRatioDisplayLabel(3, false))
+        assertEquals("1:1", aspectRatioDisplayLabel(3, true))
+    }
+
+    @Test
+    fun aspectRatioValuesMatchTheSelectedOrientation() {
+        assertEquals(9f / 16f, aspectRatioForOrientation(0, false), 0.0001f)
+        assertEquals(16f / 9f, aspectRatioForOrientation(0, true), 0.0001f)
+        assertEquals(9f / 21f, aspectRatioForOrientation(1, false), 0.0001f)
+        assertEquals(21f / 9f, aspectRatioForOrientation(1, true), 0.0001f)
+        assertEquals(3f / 4f, aspectRatioForOrientation(2, false), 0.0001f)
+        assertEquals(4f / 3f, aspectRatioForOrientation(2, true), 0.0001f)
+        assertEquals(1f, aspectRatioForOrientation(3, false), 0.0001f)
+        assertEquals(1f, aspectRatioForOrientation(3, true), 0.0001f)
+    }
+
+    @Test
     fun landscape21By9KeepsTheWholeSourceAndAddsSideBars() {
         val target = 60_000_000L
         val geometry = PhotoOutputGeometry.calculate(4000, 3000, target, 21f / 9f)

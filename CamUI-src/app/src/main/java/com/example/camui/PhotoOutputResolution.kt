@@ -135,7 +135,7 @@ object PhotoOutputResolution {
 
             output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
             Canvas(output!!).apply {
-                drawColor(Color.BLACK)
+                drawAmbientBackdrop(this, src, width, height)
                 drawBitmap(
                     src,
                     null,
@@ -227,6 +227,36 @@ object PhotoOutputResolution {
             output?.let { if (!it.isRecycled) it.recycle() }
             runCatching { temp.delete() }
             runCatching { backup.delete() }
+        }
+    }
+
+    /**
+     * Creates a low-detail ambient fill behind the untouched, uniformly fitted photo.
+     * This avoids solid-black bars without cropping, zooming, or stretching the main image.
+     */
+    private fun drawAmbientBackdrop(
+        canvas: Canvas,
+        source: Bitmap,
+        outputWidth: Int,
+        outputHeight: Int
+    ) {
+        val ambientSize = 128
+        val ambient = Bitmap.createBitmap(ambientSize, ambientSize, Bitmap.Config.RGB_565)
+        try {
+            Canvas(ambient).drawBitmap(
+                source,
+                null,
+                Rect(0, 0, ambientSize, ambientSize),
+                Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
+            )
+            canvas.drawBitmap(
+                ambient,
+                null,
+                Rect(0, 0, outputWidth, outputHeight),
+                Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply { alpha = 232 }
+            )
+        } finally {
+            if (!ambient.isRecycled) ambient.recycle()
         }
     }
 

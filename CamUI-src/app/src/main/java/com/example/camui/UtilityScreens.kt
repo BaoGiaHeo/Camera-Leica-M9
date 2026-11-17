@@ -1094,7 +1094,7 @@ private fun cameraWatermarkBrandLogoResource(brand: String, light: Boolean = fal
     "sony" -> R.drawable.sony_wordmark
     "nikon" -> R.drawable.nikon_wordmark
     "canon" -> R.drawable.canon_wordmark
-    "fujifilm" -> R.drawable.fujifilm_logo
+    "fujifilm" -> if (light) R.drawable.fujifilm_logo_white else R.drawable.fujifilm_logo
     "gopro" -> if (light) R.drawable.gopro_wordmark_white else R.drawable.gopro_wordmark
     "hasselblad" -> R.drawable.hasselblad_wordmark
     "insta360" -> R.drawable.insta360_wordmark

@@ -39,14 +39,14 @@ object PhotoOutputResolution {
     private const val RESERVED_HEAP_BYTES = 64L * 1024L * 1024L
 
     /**
-     * Preserve a normal camera image's pixel count while placing the complete image
-     * inside the selected aspect ratio. This gives ordinary photos the same no-crop
-     * behavior as HDMP/LunaDream output.
+     * Preserve a normal camera image's pixel count while center-cropping the original
+     * upright Bitmap to the selected portrait ratio. A null ratio keeps the complete
+     * source frame, which is used when the handset is physically landscape.
      */
     fun applyAspectRatio(
         context: Context,
         uri: Uri,
-        targetAspectRatio: Float
+        targetHeightOverWidth: Float?
     ): PhotoOutputResult? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         val decoded = context.contentResolver.openInputStream(uri)?.use { input ->
@@ -56,14 +56,14 @@ object PhotoOutputResolution {
         if (!decoded) return null
         val sourcePixels = bounds.outWidth.toLong() * bounds.outHeight.toLong()
         if (sourcePixels !in MIN_OUTPUT_PIXELS..250_000_000L) return null
-        return interpolateToMp(context, uri, sourcePixels, targetAspectRatio)
+        return interpolateToMp(context, uri, sourcePixels, targetHeightOverWidth)
     }
 
     fun interpolateToMp(
         context: Context,
         uri: Uri,
         targetPixels: Long,
-        targetAspectRatio: Float? = null
+        targetHeightOverWidth: Float? = null
     ): PhotoOutputResult? {
         require(targetPixels in MIN_OUTPUT_PIXELS..250_000_000L) {
             "Unsupported output pixel target"
@@ -84,20 +84,21 @@ object PhotoOutputResolution {
             val sourceHeight = src.height
             require(sourceWidth > 0 && sourceHeight > 0) { "Invalid source size" }
 
-            // Geometry is independently unit-tested. The whole source is fitted into
-            // the target canvas, leaving black bars where the selected ratio is wider/taller.
+            // Geometry is independently unit-tested. Portrait uses a center crop from
+            // the original Bitmap; null target ratio preserves the complete landscape frame.
             val geometry = PhotoOutputGeometry.calculate(
                 sourceWidth,
                 sourceHeight,
                 targetPixels,
-                targetAspectRatio
+                targetHeightOverWidth
             )
-            val imageRect = Rect(
-                geometry.imageLeft,
-                geometry.imageTop,
-                geometry.imageLeft + geometry.imageWidth,
-                geometry.imageTop + geometry.imageHeight
+            val sourceRect = Rect(
+                geometry.sourceLeft,
+                geometry.sourceTop,
+                geometry.sourceLeft + geometry.sourceWidth,
+                geometry.sourceTop + geometry.sourceHeight
             )
+            val destinationRect = Rect(0, 0, geometry.outputWidth, geometry.outputHeight)
 
             // Never silently lower the requested MP count. The caller either receives the
             // requested output size or an explicit failure with the original photo untouched.
@@ -119,24 +120,21 @@ object PhotoOutputResolution {
             }
 
             if (sourceWidth == width && sourceHeight == height &&
-                imageRect.left == 0 && imageRect.top == 0 &&
-                imageRect.width() == width && imageRect.height() == height
+                sourceRect.left == 0 && sourceRect.top == 0 &&
+                sourceRect.width() == sourceWidth && sourceRect.height() == sourceHeight
             ) {
                 return PhotoOutputResult(width, height, targetPixels, outputPixels)
             }
 
             output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-            Canvas(output!!).apply {
-                drawAmbientBackdrop(this, src, width, height)
-                drawBitmap(
-                    src,
-                    null,
-                    imageRect,
-                    Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                        isAntiAlias = true
-                    }
-                )
-            }
+            Canvas(output!!).drawBitmap(
+                src,
+                sourceRect,
+                destinationRect,
+                Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+                    isAntiAlias = true
+                }
+            )
             // Release the source before JPEG compression; the resized output is now complete.
             if (!src.isRecycled) src.recycle()
             source = null
@@ -192,9 +190,9 @@ object PhotoOutputResolution {
             Log.i(
                 TAG,
                 "Requested=${targetPixels / 1_000_000L}MP actual=${outputPixels / 1_000_000L}MP " +
-                    "source=${sourceWidth}x${sourceHeight}, fitted=${geometry.imageWidth}x${geometry.imageHeight}, " +
-                    "bars=${geometry.imageLeft},${geometry.imageTop}, " +
-                    "requestedAspect=${"%.5f".format(Locale.US, geometry.requestedAspectRatio)}, " +
+                    "source=${sourceWidth}x${sourceHeight}, crop=${geometry.sourceWidth}x${geometry.sourceHeight} " +
+                    "at=${geometry.sourceLeft},${geometry.sourceTop}, " +
+                    "requestedWidthOverHeight=${"%.5f".format(Locale.US, geometry.requestedWidthOverHeight)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )
             check(outputPixels >= targetPixels * 995L / 1000L) {
@@ -219,36 +217,6 @@ object PhotoOutputResolution {
             output?.let { if (!it.isRecycled) it.recycle() }
             runCatching { temp.delete() }
             runCatching { backup.delete() }
-        }
-    }
-
-    /**
-     * Creates a low-detail ambient fill behind the untouched, uniformly fitted photo.
-     * This avoids solid-black bars without cropping, zooming, or stretching the main image.
-     */
-    private fun drawAmbientBackdrop(
-        canvas: Canvas,
-        source: Bitmap,
-        outputWidth: Int,
-        outputHeight: Int
-    ) {
-        val ambientSize = 128
-        val ambient = Bitmap.createBitmap(ambientSize, ambientSize, Bitmap.Config.RGB_565)
-        try {
-            Canvas(ambient).drawBitmap(
-                source,
-                null,
-                Rect(0, 0, ambientSize, ambientSize),
-                Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
-            )
-            canvas.drawBitmap(
-                ambient,
-                null,
-                Rect(0, 0, outputWidth, outputHeight),
-                Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply { alpha = 232 }
-            )
-        } finally {
-            if (!ambient.isRecycled) ambient.recycle()
         }
     }
 

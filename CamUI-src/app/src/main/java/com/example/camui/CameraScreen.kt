@@ -836,16 +836,24 @@ fun CameraScreen(
         }
     }
 
-    // Recreate PreviewView when renderer changes; implementationMode is chosen before surface creation.
+    // CameraX owns the preview transform. Portrait fills the selected frame; landscape
+    // fits the complete sensor image so physical rotation never crops or zooms the preview.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FIT_CENTER
+            scaleType = PreviewView.ScaleType.FILL_CENTER
             setBackgroundColor(android.graphics.Color.rgb(38, 43, 51))
             implementationMode = if (renderEngine == "Performance") {
                 PreviewView.ImplementationMode.PERFORMANCE
             } else {
                 PreviewView.ImplementationMode.COMPATIBLE
             }
+        }
+    }
+    LaunchedEffect(previewView, deviceIsLandscape) {
+        previewView.scaleType = if (deviceIsLandscape) {
+            PreviewView.ScaleType.FIT_CENTER
+        } else {
+            PreviewView.ScaleType.FILL_CENTER
         }
     }
     LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, burstCaptureActive, bracketCaptureActive, isProcessing) {
@@ -2495,10 +2503,12 @@ fun CameraScreen(
             // PreviewView/Display.rotation may remain portrait while the handset is landscape.
             val captureRotation = targetRotation
             val captureIsLandscape = deviceIsLandscape
-            // Use one orientation-aware ratio source for portrait and landscape capture.
-            val expectedAspectRatioForCapture =
+            // One height/width ratio source is shared by the Preview frame and saved-photo crop.
+            // Landscape deliberately skips the output crop so the complete sensor frame is preserved.
+            val selectedFrameHeightOverWidth =
                 aspectRatioForOrientation(ratioIdx, captureIsLandscape)
-            // Orientation detection uses a neutral camera-frame ratio and never crops to it.
+            val outputHeightOverWidth = selectedFrameHeightOverWidth.takeUnless { captureIsLandscape }
+            // Orientation detection uses the camera's neutral width/height ratio and never crops to it.
             val expectedOrientationAspectRatio = if (captureIsLandscape) 4f / 3f else 3f / 4f
             if (captureRotation != targetRotation ||
                 boundCameraRotation != captureRotation ||
@@ -2951,13 +2961,13 @@ fun CameraScreen(
                                                     context,
                                                     saved,
                                                     requestedMp,
-                                                    expectedAspectRatioForCapture
+                                                    outputHeightOverWidth
                                                 )
                                             } else {
                                                 PhotoOutputResolution.applyAspectRatio(
                                                     context,
                                                     saved,
-                                                    expectedAspectRatioForCapture
+                                                    outputHeightOverWidth
                                                 )
                                             }
                                         }.onFailure {
@@ -3295,9 +3305,10 @@ fun CameraScreen(
     val showMilkyWayAdvisor = false
 
 
-    // Resize the preview frame to the selected ratio without changing the app's portrait orientation.
-    // PreviewView.FIT_CENTER + CameraX ViewPort.FIT preserve the full field of view without crop/zoom.
-    val previewAspectRatio = aspectRatioForOrientation(ratioIdx, deviceIsLandscape)
+    // The shared ratio is height / width. Compose aspectRatio expects width / height,
+    // so invert it exactly once for container measurement. CameraX handles preview scaling.
+    val previewHeightOverWidth = aspectRatioForOrientation(ratioIdx, deviceIsLandscape)
+    val previewAspectRatio = 1f / previewHeightOverWidth
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
@@ -3371,6 +3382,7 @@ fun CameraScreen(
                     Box(previewModifier.background(Color(0xFF262B33)), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
+                                .fillMaxWidth()
                                 .aspectRatio(previewAspectRatio)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF262B33))

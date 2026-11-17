@@ -62,18 +62,18 @@ private fun parseAppColor(value: String?, fallback: Color): Color {
         .getOrDefault(fallback)
 }
 
-/** Ratio values are width / height in portrait orientation. */
+/** All selected frame ratios use height / width in the portrait coordinate system. */
 val aspectRatios = listOf(
-    "9:16" to (9f / 16f),
-    "3:4" to (3f / 4f),
+    "9:16" to (16f / 9f),
+    "3:4" to (4f / 3f),
     "1:1" to 1f,
-    "9:21" to (9f / 21f)
+    "9:21" to (21f / 9f)
 )
 
-/** Returns the selected frame ratio in the current screen orientation. */
+/** Returns height / width for the selected frame in its current physical orientation. */
 fun aspectRatioForOrientation(index: Int, isLandscape: Boolean): Float {
-    val portraitRatio = aspectRatios[index.coerceIn(0, aspectRatios.lastIndex)].second
-    return if (isLandscape) 1f / portraitRatio else portraitRatio
+    val portraitHeightOverWidth = aspectRatios[index.coerceIn(0, aspectRatios.lastIndex)].second
+    return if (isLandscape) 1f / portraitHeightOverWidth else portraitHeightOverWidth
 }
 
 /** Labels are expressed in the orientation currently shown by the camera UI. */

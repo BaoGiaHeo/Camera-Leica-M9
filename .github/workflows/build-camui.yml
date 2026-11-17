@@ -92,7 +92,7 @@ jobs:
               package_service="$(adb shell service check package 2>&1 | tr -d '\r' || true)"
               activity_service="$(adb shell service check activity 2>&1 | tr -d '\r' || true)"
               printf 'attempt=%s boot=%s package=%s activity=%s\n' "$i" "$boot" "$package_service" "$activity_service" >> emulator-artifacts/boot-readiness.txt
-              if [ "$boot" = "1" ] && printf '%s' "$package_service" | grep -q found && printf '%s' "$activity_service" | grep -q found; then
+              if [ "$boot" = "1" ] && printf "%s" "$package_service" | grep -q found && printf "%s" "$activity_service" | grep -q found; then
                 ready=1
                 break
               fi

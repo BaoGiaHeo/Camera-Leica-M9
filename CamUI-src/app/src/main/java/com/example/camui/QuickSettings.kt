@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 fun QuickPanel(
     ratioIdx: Int,
     onRatio: (Int) -> Unit,
+    deviceLandscape: Boolean,
     ultraHdr: Boolean,
     onUltraHdr: () -> Unit,
     metering: String,
@@ -44,7 +45,7 @@ fun QuickPanel(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isLandscape = deviceLandscape
     val shape = RoundedCornerShape(22.dp)
     Column(
         modifier.fillMaxWidth().clip(shape).background(CamColors.Panel)

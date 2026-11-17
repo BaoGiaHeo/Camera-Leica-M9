@@ -65,9 +65,9 @@ private fun parseAppColor(value: String?, fallback: Color): Color {
 /** Ratio values are width / height in portrait orientation. */
 val aspectRatios = listOf(
     "9:16" to (9f / 16f),
-    "9:21" to (9f / 21f),
     "3:4" to (3f / 4f),
-    "1:1" to 1f
+    "1:1" to 1f,
+    "9:21" to (9f / 21f)
 )
 
 /** Returns the selected frame ratio in the current screen orientation. */
@@ -80,9 +80,9 @@ fun aspectRatioForOrientation(index: Int, isLandscape: Boolean): Float {
 fun aspectRatioDisplayLabel(index: Int, isLandscape: Boolean): String {
     return when (index.coerceIn(0, aspectRatios.lastIndex)) {
         0 -> if (isLandscape) "16:9" else "9:16"
-        1 -> if (isLandscape) "21:9" else "9:21"
-        2 -> if (isLandscape) "4:3" else "3:4"
-        else -> "1:1"
+        1 -> if (isLandscape) "4:3" else "3:4"
+        2 -> "1:1"
+        else -> if (isLandscape) "21:9" else "9:21"
     }
 }
 

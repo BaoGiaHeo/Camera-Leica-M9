@@ -6,8 +6,8 @@ import kotlin.math.sqrt
 
 /**
  * Full-frame output geometry. The source is uniformly fitted into the requested
- * aspect-ratio canvas; unused areas become black bars. The source is never cropped
- * or stretched, in either portrait or landscape orientation.
+ * aspect-ratio canvas; unused areas are filled by the photo's ambient backdrop.
+ * The source is never cropped or stretched, in either portrait or landscape orientation.
  */
 internal data class PhotoOutputGeometryResult(
     val imageLeft: Int,

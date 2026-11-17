@@ -76,16 +76,8 @@ object PhotoOutputResolution {
         var replacing = false
         return try {
             val tags = readExif(context, uri)
-            source = context.contentResolver.openInputStream(uri)?.use { input ->
-                BitmapFactory.decodeStream(
-                    input,
-                    null,
-                    BitmapFactory.Options().apply {
-                        inPreferredConfig = Bitmap.Config.RGB_565
-                        inDither = true
-                    }
-                )
-            } ?: error("Cannot decode original JPEG")
+            source = decodeExifOrientedBitmap(context, uri)
+                ?: error("Cannot decode original JPEG")
 
             val src = source!!
             val sourceWidth = src.width
@@ -258,6 +250,60 @@ object PhotoOutputResolution {
         } finally {
             if (!ambient.isRecycled) ambient.recycle()
         }
+    }
+
+    /**
+     * BitmapFactory returns the stored pixel matrix and does not apply JPEG EXIF orientation.
+     * Normalize it before measuring/fitting, then write ORIENTATION_NORMAL on the output.
+     * Without this step portrait captures can be sized as landscape (and vice versa).
+     */
+    private fun decodeExifOrientedBitmap(context: Context, uri: Uri): Bitmap? {
+        val orientation = runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                ExifInterface(descriptor.fileDescriptor).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } ?: ExifInterface.ORIENTATION_NORMAL
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+        val decoded = context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(
+                input,
+                null,
+                BitmapFactory.Options().apply {
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                    inDither = true
+                }
+            )
+        } ?: return null
+
+        val matrix = android.graphics.Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> {
+                matrix.setRotate(180f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.setRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.setRotate(-90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+            else -> return decoded
+        }
+
+        val oriented = Bitmap.createBitmap(
+            decoded, 0, 0, decoded.width, decoded.height, matrix, true
+        )
+        if (oriented !== decoded && !decoded.isRecycled) decoded.recycle()
+        return oriented
     }
 
     private fun readExif(context: Context, uri: Uri): Map<String, String> {

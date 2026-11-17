@@ -961,12 +961,9 @@ fun CameraScreen(
             imageCapture = null
 
             val rotation = targetRotation
-            val ratio = when (ratioIdx) {
-                0 -> if (isLandscape) Rational(16, 9) else Rational(9, 16)
-                1 -> if (isLandscape) Rational(21, 9) else Rational(9, 21)
-                2 -> if (isLandscape) Rational(4, 3) else Rational(3, 4)
-                else -> Rational(1, 1)
-            }
+            // Bind preview/capture to the sensor's full 4:3 field of view.
+            // Output aspect ratio is handled after capture; it must not crop the preview.
+            val ratio = Rational(3, 4)
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
@@ -3212,11 +3209,9 @@ fun CameraScreen(
     val showMilkyWayAdvisor = false
 
 
-    // The selected ratio controls the preview frame; FIT_CENTER keeps the complete sensor view
-    // visible inside it, with black letterbox bars instead of a digital crop or zoom.
-    // The preview frame follows the active display orientation and the same ratio model
-    // used by the capture output.
-    val previewAspectRatio = aspectRatioForOrientation(ratioIdx, isLandscape)
+    // Keep the live sensor preview at its native 4:3 field of view (3:4 in portrait).
+    // The selected output ratio is applied to the saved photo, never to the live preview.
+    val previewAspectRatio = 3f / 4f
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),

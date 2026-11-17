@@ -125,8 +125,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Allow the camera UI and ratio controls to follow portrait or landscape orientation.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        // Keep the app UI portrait; camera output ratio is selected independently.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         window.attributes = window.attributes.apply {
             rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
         }

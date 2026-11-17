@@ -179,7 +179,7 @@ jobs:
             for node in root.iter("node"):
                 label = node.attrib.get("text", "")
                 if label in ("Sao chép log", "OK – Đóng ứng dụng"):
-                    match = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", node.attrib.get("bounds", ""))
+                    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
                     if match:
                         x1, y1, x2, y2 = map(int, match.groups())
                         buttons[label] = ((x1 + x2) // 2, (y1 + y2) // 2)
@@ -199,7 +199,7 @@ jobs:
             # OK must release the original process so its uncaught exception can terminate it.
             main_process_exited=0
             for i in $(seq 1 15); do
-              if [ -z "$(adb shell pidof com.fujifilm.mode.debug 2>/dev/null | tr -d '\\r')" ]; then
+              if [ -z "$(adb shell pidof com.fujifilm.mode.debug 2>/dev/null | tr -d '\r')" ]; then
                 main_process_exited=1
                 break
               fi

@@ -1090,22 +1090,18 @@ private fun cameraWatermarkBrandAccent(brand: String): Int = when (brand.lowerca
     else -> AndroidColor.rgb(0, 91, 145)
 }
 
-private fun cameraWatermarkBrandAssetPath(brand: String): String? = when (brand.lowercase()) {
-    "gopro" -> "watermark-brands/gopro.webp"
-    "hasselblad" -> "watermark-brands/hasselblad.webp"
-    "insta360" -> "watermark-brands/insta360.webp"
-    "kodak" -> "watermark-brands/kodak.webp"
-    "panasonic", "lumix" -> "watermark-brands/lumix.webp"
-    "zeiss" -> "watermark-brands/zeiss.webp"
-    "dji" -> "watermark-brands/dji.webp"
-    else -> null
-}
-
 private fun cameraWatermarkBrandLogoResource(brand: String): Int? = when (brand.lowercase()) {
     "sony" -> R.drawable.sony_wordmark
     "nikon" -> R.drawable.nikon_wordmark
     "canon" -> R.drawable.canon_wordmark
-    "fujifilm" -> R.drawable.fujifilm_wordmark
+    "fujifilm" -> R.drawable.fujifilm_logo
+    "gopro" -> R.drawable.gopro_wordmark
+    "hasselblad" -> R.drawable.hasselblad_wordmark
+    "insta360" -> R.drawable.insta360_wordmark
+    "kodak" -> R.drawable.kodak_wordmark
+    "panasonic", "lumix" -> R.drawable.lumix_wordmark
+    "zeiss" -> R.drawable.zeiss_wordmark
+    "dji" -> R.drawable.dji_wordmark
     else -> null
 }
 
@@ -1132,21 +1128,9 @@ private fun WatermarkBrandMark(
     fallbackColor: Color = Color.Unspecified
 ) {
     val logoResource = cameraWatermarkBrandLogoResource(brand)
-    val assetPath = cameraWatermarkBrandAssetPath(brand)
-    val context = LocalContext.current
-    val assetBitmap = remember(context, assetPath) {
-        assetPath?.let { path -> CameraAssetStore.bitmap(context, path)?.asImageBitmap() }
-    }
     if (logoResource != null) {
         Image(
             painter = painterResource(id = logoResource),
-            contentDescription = "${cameraWatermarkBrandTitle(brand)} watermark wordmark",
-            modifier = modifier,
-            contentScale = ContentScale.Fit
-        )
-    } else if (assetBitmap != null) {
-        Image(
-            bitmap = assetBitmap,
             contentDescription = "${cameraWatermarkBrandTitle(brand)} watermark wordmark",
             modifier = modifier,
             contentScale = ContentScale.Fit
@@ -1582,30 +1566,9 @@ fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
 }
 
 /**
- * CameraX can return the sensor's default still ratio even when the preview ViewPort uses
- * a narrower/wider crop. Enforce the selected ratio on the upright pixels before LunaDream runs,
- * otherwise later upscaling simply magnifies the wrong 4:3/16:9 frame.
- */
-private fun cropBitmapToAspect(source: Bitmap, targetAspect: Float): Bitmap {
-    if (!targetAspect.isFinite() || targetAspect <= 0f) return source
-    val sourceAspect = source.width.toFloat() / source.height.coerceAtLeast(1)
-    if (kotlin.math.abs(sourceAspect / targetAspect - 1f) <= 0.0005f) return source
+ * Normalize capture orientation only. Aspect-ratio framing is applied later by
+ * PhotoOutputResolution, which preserves every sensor edge and uses black letterbox bars.
 
-    var cropWidth = source.width
-    var cropHeight = source.height
-    if (sourceAspect > targetAspect) {
-        cropWidth = (source.height * targetAspect).roundToInt().coerceIn(2, source.width)
-    } else {
-        cropHeight = (source.width / targetAspect).roundToInt().coerceIn(2, source.height)
-    }
-    // Keep the crop centered, matching CameraX FILL_CENTER composition rather than stretching.
-    val left = ((source.width - cropWidth) / 2).coerceAtLeast(0)
-    val top = ((source.height - cropHeight) / 2).coerceAtLeast(0)
-    return Bitmap.createBitmap(source, left, top, cropWidth, cropHeight)
-}
-
-/**
- * Normalize the pixels to the selected capture aspect ratio.
  *
  * The JPEG may already contain correctly oriented landscape pixels while its EXIF tag
  * still requests a 90/270-degree turn. In that case, the pixel aspect ratio is the
@@ -1702,7 +1665,7 @@ fun normalizeCapturedImage(
         } else {
             Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
         }
-        val finalBitmap = cropBitmapToAspect(orientedBitmap, safeExpectedAspect)
+        val finalBitmap = orientedBitmap
         try {
             val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
                 finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
@@ -2542,7 +2505,7 @@ fun applyCameraWatermark(
     aperture: String,
     shutter: String,
     iso: String,
-    preservePhotoAspectRatio: Boolean = false
+    preservePhotoAspectRatio: Boolean = true
 ): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     if (!prefs.getBoolean("watermark_enabled", true)) {
@@ -2567,7 +2530,6 @@ fun applyCameraWatermark(
         val sourceBitmap = decodeWatermarkPixelBitmap(context, uri) ?: return@runCatching false
         var outputBitmap: Bitmap? = null
         var watermarkCropBitmap: Bitmap? = null
-        var watermarkBrandBitmap: Bitmap? = null
         try {
         val selectedTemplate = (prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto"
         val frameStyle = (prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White"
@@ -2747,9 +2709,11 @@ fun applyCameraWatermark(
         val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
         val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand)?.let {
             ContextCompat.getDrawable(context, it)
-        } ?: cameraWatermarkBrandAssetPath(watermarkBrand)?.let { assetPath ->
-            CameraAssetStore.bitmap(context, assetPath)?.also { watermarkBrandBitmap = it }
-                ?.let { android.graphics.drawable.BitmapDrawable(context.resources, it) }
+        }
+        // Monochrome marks adapt to the selected black/white footer. Keep the original
+        // multi-colour marks for GoPro, Kodak and ZEISS instead of flattening their colours.
+        if (watermarkBrand !in setOf("gopro", "kodak", "zeiss")) {
+            brandLogo?.setTint(if (frameStyle == "Black") AndroidColor.WHITE else AndroidColor.BLACK)
         }
         val footerRect = if (expandedFujiFooter) {
             RectF(
@@ -3379,7 +3343,6 @@ fun applyCameraWatermark(
         true
         } finally {
             watermarkCropBitmap?.let { if (!it.isRecycled) it.recycle() }
-            watermarkBrandBitmap?.let { if (!it.isRecycled) it.recycle() }
             outputBitmap?.let { if (it !== sourceBitmap && !it.isRecycled) it.recycle() }
             if (!sourceBitmap.isRecycled) sourceBitmap.recycle()
         }

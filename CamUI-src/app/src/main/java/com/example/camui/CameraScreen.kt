@@ -113,7 +113,6 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterCenterFocus
-import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlipCameraAndroid
@@ -573,7 +572,15 @@ fun CameraScreen(
         appPrefs.edit().putBoolean("burst_capture_mode_enabled", burstMode).apply()
     }
     var front by remember { mutableStateOf(appPrefs.getBoolean("camera_front_facing", false)) }
-    var flash by remember { mutableIntStateOf(appPrefs.getInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF)) }
+    var flash by remember {
+        mutableIntStateOf(
+            if (appPrefs.getInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF) == ImageCapture.FLASH_MODE_ON) {
+                ImageCapture.FLASH_MODE_ON
+            } else {
+                ImageCapture.FLASH_MODE_OFF
+            }
+        )
+    }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
@@ -961,14 +968,10 @@ fun CameraScreen(
             imageCapture = null
 
             val rotation = targetRotation
-            // The preview frame and CameraX viewport use the selected ratio.
-            // FIT keeps the complete camera field visible; the app UI itself remains portrait-locked.
-            val ratio = when (ratioIdx.coerceIn(0, 3)) {
-                0 -> if (deviceIsLandscape) Rational(16, 9) else Rational(9, 16)
-                1 -> if (deviceIsLandscape) Rational(4, 3) else Rational(3, 4)
-                2 -> Rational(1, 1)
-                else -> if (deviceIsLandscape) Rational(21, 9) else Rational(9, 21)
-            }
+            // Keep CameraX at the camera's complete native 4:3 field of view.
+            // The selected ratio is applied only to the preview frame and final saved image.
+            // This prevents CameraX from cropping the sensor image before photo processing.
+            val ratio = if (deviceIsLandscape) Rational(4, 3) else Rational(3, 4)
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
@@ -3226,17 +3229,17 @@ fun CameraScreen(
     val toolbarContent: @Composable (Modifier) -> Unit = { toolbarModifier ->
                     Row(toolbarModifier, horizontalArrangement = Arrangement.SpaceBetween) {
                         CircleBtn(
-                            icon = when (flash) {
-                                ImageCapture.FLASH_MODE_ON -> Icons.Default.FlashOn
-                                ImageCapture.FLASH_MODE_AUTO -> Icons.Default.FlashAuto
-                                else -> Icons.Default.FlashOff
+                            icon = if (flash == ImageCapture.FLASH_MODE_ON) {
+                                Icons.Default.FlashOn
+                            } else {
+                                Icons.Default.FlashOff
                             },
                             desc = "Flash",
                             onClick = {
-                                flash = when (flash) {
-                                    ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO
-                                    ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON
-                                    else -> ImageCapture.FLASH_MODE_OFF
+                                flash = if (flash == ImageCapture.FLASH_MODE_OFF) {
+                                    ImageCapture.FLASH_MODE_ON
+                                } else {
+                                    ImageCapture.FLASH_MODE_OFF
                                 }
                             }
                         )

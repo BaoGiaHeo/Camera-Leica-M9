@@ -1567,9 +1567,8 @@ fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
 }
 
 /**
- * Normalize capture orientation only. Aspect-ratio framing is applied later by
- * PhotoOutputResolution, which preserves every sensor edge and uses black letterbox bars.
-
+ * Normalize capture orientation only. Portrait framing is applied later by
+ * PhotoOutputResolution with a direct center crop; Landscape preserves the complete frame.
  *
  * The JPEG may already contain correctly oriented landscape pixels while its EXIF tag
  * still requests a 90/270-degree turn. In that case, the pixel aspect ratio is the

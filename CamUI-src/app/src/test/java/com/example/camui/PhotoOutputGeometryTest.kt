@@ -56,7 +56,7 @@ class PhotoOutputGeometryTest {
     @Test
     fun portraitNineBySixteenUsesTheCorrectHeightOverWidthRatio() {
         val geometry = PhotoOutputGeometry.calculate(4000, 3000, 60_000_000L, 16f / 9f)
-        assertEquals(1688, geometry.sourceWidth)
+        assertEquals(1687, geometry.sourceWidth)
         assertEquals(3000, geometry.sourceHeight)
         assertTrue(abs(geometry.outputWidth.toDouble() / geometry.outputHeight - 9.0 / 16.0) < 0.001)
         assertTrue(abs(geometry.sourceWidth.toDouble() / geometry.sourceHeight - 9.0 / 16.0) < 0.001)

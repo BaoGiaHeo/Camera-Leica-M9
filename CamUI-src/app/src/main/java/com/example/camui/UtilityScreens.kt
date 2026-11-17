@@ -211,8 +211,7 @@ private fun LiquidGlassWatermarkPreview(
             ) {
                 WatermarkBrandMark(
                     brand = brand,
-                    modifier = Modifier.fillMaxWidth(0.88f).height(17.dp)
-                        .background(Color.White, RoundedCornerShape(3.dp)).padding(2.dp),
+                    modifier = Modifier.fillMaxWidth(0.88f).height(17.dp).padding(2.dp),
                     fallbackColor = accent
                 )
             }
@@ -1090,12 +1089,12 @@ private fun cameraWatermarkBrandAccent(brand: String): Int = when (brand.lowerca
     else -> AndroidColor.rgb(0, 91, 145)
 }
 
-private fun cameraWatermarkBrandLogoResource(brand: String): Int? = when (brand.lowercase()) {
+private fun cameraWatermarkBrandLogoResource(brand: String, light: Boolean = false): Int? = when (brand.lowercase()) {
     "sony" -> R.drawable.sony_wordmark
     "nikon" -> R.drawable.nikon_wordmark
     "canon" -> R.drawable.canon_wordmark
     "fujifilm" -> R.drawable.fujifilm_logo
-    "gopro" -> R.drawable.gopro_wordmark
+    "gopro" -> if (light) R.drawable.gopro_wordmark_white else R.drawable.gopro_wordmark
     "hasselblad" -> R.drawable.hasselblad_wordmark
     "insta360" -> R.drawable.insta360_wordmark
     "kodak" -> R.drawable.kodak_wordmark
@@ -1127,7 +1126,7 @@ private fun WatermarkBrandMark(
     modifier: Modifier = Modifier,
     fallbackColor: Color = Color.Unspecified
 ) {
-    val logoResource = cameraWatermarkBrandLogoResource(brand)
+    val logoResource = cameraWatermarkBrandLogoResource(brand, frameStyle == "Black")
     if (logoResource != null) {
         Image(
             painter = painterResource(id = logoResource),
@@ -1262,8 +1261,7 @@ private fun WatermarkTemplateCard(
                     Row(Modifier.weight(0.56f), verticalAlignment = Alignment.CenterVertically) {
                         WatermarkBrandMark(
                             brand = brand,
-                            modifier = Modifier.weight(0.38f).height(15.dp)
-                                .background(Color.White, RoundedCornerShape(2.dp)).padding(2.dp),
+                            modifier = Modifier.weight(0.38f).height(15.dp).padding(2.dp),
                             fallbackColor = brandAccent
                         )
                         Column(
@@ -2707,12 +2705,12 @@ fun applyCameraWatermark(
             else -> brandTypeface
         }
         val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
-        val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand)?.let {
+        val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand, frameStyle == "Black")?.let {
             ContextCompat.getDrawable(context, it)
         }
         // Monochrome marks adapt to the selected black/white footer. Keep the original
         // multi-colour marks for GoPro, Kodak and ZEISS instead of flattening their colours.
-        if (watermarkBrand !in setOf("gopro", "kodak", "zeiss")) {
+        if (watermarkBrand !in setOf("fujifilm", "gopro", "kodak", "zeiss")) {
             brandLogo?.setTint(if (frameStyle == "Black") AndroidColor.WHITE else AndroidColor.BLACK)
         }
         val footerRect = if (expandedFujiFooter) {

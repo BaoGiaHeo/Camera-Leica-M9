@@ -841,7 +841,7 @@ fun CameraScreen(
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
-        hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
+        hasCam, front, ratioIdx, ultraHdr, isLandscape, deviceIsLandscape, targetRotation, renderEngine,
         manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
@@ -961,9 +961,14 @@ fun CameraScreen(
             imageCapture = null
 
             val rotation = targetRotation
-            // Bind preview/capture to the sensor's full 4:3 field of view.
-            // Output aspect ratio is handled after capture; it must not crop the preview.
-            val ratio = Rational(3, 4)
+            // The preview frame and CameraX viewport use the selected ratio.
+            // FIT keeps the complete camera field visible; the app UI itself remains portrait-locked.
+            val ratio = when (ratioIdx.coerceIn(0, 3)) {
+                0 -> if (deviceIsLandscape) Rational(16, 9) else Rational(9, 16)
+                1 -> if (deviceIsLandscape) Rational(4, 3) else Rational(3, 4)
+                2 -> Rational(1, 1)
+                else -> if (deviceIsLandscape) Rational(21, 9) else Rational(9, 21)
+            }
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
@@ -3209,9 +3214,9 @@ fun CameraScreen(
     val showMilkyWayAdvisor = false
 
 
-    // Keep the live sensor preview at its native 4:3 field of view (3:4 in portrait).
-    // The selected output ratio is applied to the saved photo, never to the live preview.
-    val previewAspectRatio = 3f / 4f
+    // Resize the preview frame to the selected ratio without changing the app's portrait orientation.
+    // PreviewView.FIT_CENTER + CameraX ViewPort.FIT preserve the full field of view without crop/zoom.
+    val previewAspectRatio = aspectRatioForOrientation(ratioIdx, deviceIsLandscape)
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
@@ -4184,6 +4189,7 @@ fun CameraScreen(
             QuickPanel(
                 ratioIdx = ratioIdx,
                 onRatio = onRatio,
+                deviceLandscape = deviceIsLandscape,
                 ultraHdr = ultraHdr,
                 onUltraHdr = {
                     val activeCamera = camera

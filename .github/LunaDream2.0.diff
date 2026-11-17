@@ -1,0 +1,669 @@
+--- a/NightShotProcessor.kt
++++ b/NightShotProcessor.kt
+@@ -1,5 +1,6 @@
+ package com.example.camui
+ 
++import android.app.ActivityManager
+ import android.content.ContentValues
+ import android.content.Context
+ import android.graphics.Bitmap
+@@ -25,6 +26,8 @@
+ import java.util.concurrent.Executor
+ import java.util.concurrent.ExecutorService
+ import java.util.concurrent.Executors
++import java.util.concurrent.Future
++import java.util.concurrent.atomic.AtomicInteger
+ import kotlin.coroutines.resume
+ import kotlin.math.max
+ import kotlin.math.pow
+@@ -203,11 +206,34 @@
+             check(copyUriToFile(context, uri, sourceFile)) { "Cannot read $modeLabel source" }
+             stage = "read metadata and decode"
+             val exif = readExif(sourceFile)
+-            bitmap = decodeUpright(sourceFile, null, null, 50_000_000L)
+-                ?: error("Cannot decode $modeLabel source within the safe memory budget")
++            if (lunaDream20) {
++                // 2.0 works on a full-precision ARGB_8888 copy (same pixel count); fall back to
++                // RGB_565 only if that allocation fails. 1.5 below is unchanged.
++                bitmap = try {
++                    decodeUpright(
++                        sourceFile, null, null, 50_000_000L,
++                        config = Bitmap.Config.ARGB_8888
++                    )
++                } catch (oom: OutOfMemoryError) {
++                    Log.w(TAG, "$modeLabel: ARGB_8888 buffer unavailable, using RGB_565", oom)
++                    null
++                }
++            }
++            if (bitmap == null) {
++                bitmap = decodeUpright(sourceFile, null, null, 50_000_000L)
++                    ?: error("Cannot decode $modeLabel source within the safe memory budget")
++            }
+             stage = "single-frame detail recovery"
+-            if (lunaDream20) applyLunaDream20DetailRecovery(bitmap!!)
+-            else applyLunaDreamDetailRecovery(bitmap!!)
++            if (lunaDream20) {
++                val singleFrameWorkers = Executors.newFixedThreadPool(
++                    Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
++                )
++                try {
++                    applyLunaDream20DetailRecovery(bitmap!!, workers = singleFrameWorkers)
++                } finally {
++                    singleFrameWorkers.shutdown()
++                }
++            } else applyLunaDreamDetailRecovery(bitmap!!)
+             stage = "encode processed JPEG"
+             FileOutputStream(processedFile).use { output ->
+                 check(bitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, output)) {
+@@ -298,11 +324,19 @@
+         var alignmentReference: Bitmap? = null
+         var alignmentReferenceState: AlignmentReferenceState? = null
+         var publishing = false
++        // 2.0 pulls row chunks dynamically, so it can use more than four cores; 1.5 is unchanged.
++        val lunaWorkerCount = Runtime.getRuntime().availableProcessors().coerceIn(
++            1,
++            if (mode == MergeMode.LUNA_DREAM_2_0) LUNA20_MAX_WORKERS else 4
++        )
+         val lunaFusionExecutor: ExecutorService? = if (
+             mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
+         ) {
+-            Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
++            Executors.newFixedThreadPool(lunaWorkerCount)
+         } else null
++        // Optional next-frame decode running while the current frame is aligned and fused (2.0).
++        var frameDecoder: ExecutorService? = null
++        var pendingFrame: Future<Bitmap?>? = null
+         return try {
+             val firstExif = readExif(frames.first())
+             val stackPixelLimit = when (mode) {
+@@ -311,11 +345,38 @@
+                 else -> MAX_OUTPUT_PIXELS
+             }
+             val firstDecodeStartedAt = SystemClock.elapsedRealtime()
+-            base = decodeUpright(frames.first(), null, null, stackPixelLimit)
+-                ?: error("Could not decode first frame")
++            if (mode == MergeMode.LUNA_DREAM_2_0) {
++                // A full-precision accumulator keeps the multi-frame noise reduction from being
++                // re-quantised to 5/6/5 bits after every frame. Same pixel count as before;
++                // if the extra 2 bytes/pixel cannot be allocated we fall back to RGB_565.
++                base = try {
++                    decodeUpright(
++                        frames.first(), null, null, stackPixelLimit,
++                        config = Bitmap.Config.ARGB_8888
++                    )
++                } catch (oom: OutOfMemoryError) {
++                    Log.w(TAG, "LunaDream 2.0: ARGB_8888 accumulator unavailable, using RGB_565", oom)
++                    null
++                }
++            }
++            if (base == null) {
++                base = decodeUpright(frames.first(), null, null, stackPixelLimit)
++                    ?: error("Could not decode first frame")
++            }
+             decodeMs += SystemClock.elapsedRealtime() - firstDecodeStartedAt
+             val width = base!!.width
+             val height = base!!.height
++            val luna20FusionStripes = if (mode == MergeMode.LUNA_DREAM_2_0) {
++                arrayOf(
++                    Luna20FusionStripe(LUNA20_STRIPE_ROWS * width),
++                    Luna20FusionStripe(LUNA20_STRIPE_ROWS * width)
++                )
++            } else null
++            if (mode == MergeMode.LUNA_DREAM_2_0 && frames.size > 2 &&
++                hasMemoryForFramePrefetch(context, width, height)
++            ) {
++                frameDecoder = Executors.newSingleThreadExecutor()
++            }
+             val oldRow = IntArray(width)
+             val newRow = IntArray(width)
+             val upperRow = IntArray(width)
+@@ -357,9 +418,26 @@
+             val totalMergedFrames = (frames.size - 1).coerceAtLeast(1)
+             for (frameIndex in 1 until frames.size) {
+                 val frameDecodeStartedAt = SystemClock.elapsedRealtime()
+-                val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
++                val prefetched = pendingFrame
++                pendingFrame = null
++                val prefetchedBitmap = if (prefetched != null) {
++                    runCatching { prefetched.get() }.getOrNull()
++                } else null
++                val current = (prefetchedBitmap
++                    ?: decodeUpright(frames[frameIndex], width, height, stackPixelLimit))
+                     ?: error("Could not decode frame " + (frameIndex + 1))
+                 decodeMs += SystemClock.elapsedRealtime() - frameDecodeStartedAt
++                val decoder = frameDecoder
++                if (decoder != null && frameIndex + 1 < frames.size) {
++                    val nextIndex = frameIndex + 1
++                    pendingFrame = decoder.submit(Callable<Bitmap?> {
++                        try {
++                            decodeUpright(frames[nextIndex], width, height, stackPixelLimit)
++                        } catch (oom: OutOfMemoryError) {
++                            null
++                        }
++                    })
++                }
+                 try {
+                     val alignmentStartedAt = SystemClock.elapsedRealtime()
+                     val shift = when (mode) {
+@@ -380,7 +458,23 @@
+                     }
+ 
+                     val fusionStartedAt = SystemClock.elapsedRealtime()
+-                    if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
++                    if (mode == MergeMode.LUNA_DREAM_2_0) {
++                        fuseLunaDream20Frame(
++                            base!!,
++                            current,
++                            width,
++                            height,
++                            shiftX,
++                            shiftY,
++                            frameIndex,
++                            totalMergedFrames,
++                            lunaFusionExecutor ?: error("LunaDream fusion workers unavailable"),
++                            lunaWorkerCount,
++                            luna20FusionStripes ?: error("LunaDream 2.0 stripe buffers unavailable")
++                        ) { frameProgress ->
++                            runCatching { onProgress?.invoke(frameProgress) }
++                        }
++                    } else if (mode == MergeMode.LUNA_DREAM_1_5) {
+                         fuseLunaDreamFrameParallel(
+                             base!!,
+                             current,
+@@ -526,21 +620,16 @@
+                 }
+                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
+             } else if (mode == MergeMode.LUNA_DREAM_2_0) {
+-                // Preserve the LunaDream 2.0 build-9 finishing sequence exactly:
+-                // strength-2 edge-aware denoise followed by the dedicated 2.0 detail pass.
++                // The build-9 finishing sequence is unchanged: strength-2 edge-aware denoise
++                // followed by the dedicated 2.0 detail pass. They now run as one streamed pass
++                // with identical per-pixel results (see applyLunaDream20FinishingPass).
+                 val detailStartedAt = SystemClock.elapsedRealtime()
+-                applyLunaDreamNoiseReduction(
+-                    base!!,
+-                    strength = 2,
+-                    workers = lunaFusionExecutor
+-                ) { stageProgress ->
+-                    runCatching { onProgress?.invoke(90 + (stageProgress * 3 / 100)) }
+-                }
+-                applyLunaDream20DetailRecovery(
++                applyLunaDream20FinishingPass(
+                     base!!,
+-                    workers = lunaFusionExecutor
++                    lunaFusionExecutor ?: error("LunaDream fusion workers unavailable"),
++                    lunaWorkerCount
+                 ) { stageProgress ->
+-                    runCatching { onProgress?.invoke(93 + (stageProgress * 2 / 100)) }
++                    runCatching { onProgress?.invoke(90 + (stageProgress * 5 / 100)) }
+                 }
+                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
+             }
+@@ -608,6 +697,9 @@
+             )
+             false
+         } finally {
++            // Release a frame that was decoded ahead but never consumed (e.g. after a failure).
++            pendingFrame?.let { leftover -> runCatching { leftover.get()?.recycle() } }
++            frameDecoder?.shutdown()
+             lunaFusionExecutor?.shutdown()
+             alignmentReference?.recycle()
+             base?.recycle()
+@@ -1766,6 +1858,427 @@
+         }
+     }
+ 
++    // ------------------------------------------------------------------------------------
++    // LunaDream 2.0 engine helpers.
++    //
++    // Everything below is used ONLY by LunaDream 2.0 (multi-frame merge and RawDream's
++    // single-frame pass). LunaDream 1.5 keeps using fuseLunaDreamFrameParallel and
++    // applyLunaDream15FinishingPass unchanged.
++    //
++    // The per-pixel maths is identical to the previous 2.0 implementation (temporal fusion
++    // gating, strength-2 edge-aware denoise, bounded luminance detail recovery). What changed
++    // is how the pixels travel through memory: buffers are allocated once per merge, rows are
++    // handed to workers dynamically, and Bitmap reads/writes for the next stripe overlap
++    // with the arithmetic of the current stripe. No pixel is resampled and no detail is
++    // synthesised.
++    // ------------------------------------------------------------------------------------
++    private const val LUNA20_MAX_WORKERS = 6
++    private const val LUNA20_STRIPE_ROWS = 128
++    private const val LUNA20_CHUNK_ROWS = 32
++
++    /** Reusable stripe buffers for temporal fusion: base rows and the aligned source rows. */
++    private class Luna20FusionStripe(pixels: Int) {
++        val base = IntArray(pixels)
++        val frame = IntArray(pixels)
++        var top = 0
++        var rows = 0
++    }
++
++    /** Stripe buffers for the finishing pass: source rows with a two-row halo plus output rows. */
++    private class Luna20FinishStripe(width: Int) {
++        val src = IntArray((LUNA20_STRIPE_ROWS + 4) * width)
++        val out = IntArray(LUNA20_STRIPE_ROWS * width)
++        var top = 0
++        var rows = 0
++    }
++
++    /** Per-worker scratch for one chunk: source luma, denoised rows and their luma. */
++    private class Luna20ChunkScratch(width: Int) {
++        val srcLuma = IntArray((LUNA20_CHUNK_ROWS + 4) * width)
++        val den = IntArray((LUNA20_CHUNK_ROWS + 2) * width)
++        val denLuma = IntArray((LUNA20_CHUNK_ROWS + 2) * width)
++    }
++
++    /**
++     * Starts [workerCount] runners that pull row chunks from a shared counter, so faster cores
++     * simply take more chunks. The caller overlaps its own I/O and then awaits the futures.
++     */
++    private fun launchRowJobs(
++        workers: ExecutorService,
++        workerCount: Int,
++        rows: Int,
++        chunkRows: Int,
++        body: (worker: Int, fromRow: Int, untilRow: Int) -> Unit
++    ): List<Future<Unit>> {
++        val nextRow = AtomicInteger(0)
++        return (0 until workerCount).map { worker ->
++            workers.submit(Callable<Unit> {
++                while (true) {
++                    val from = nextRow.getAndAdd(chunkRows)
++                    if (from >= rows) break
++                    body(worker, from, min(rows, from + chunkRows))
++                }
++                Unit
++            })
++        }
++    }
++
++    private fun hasMemoryForFramePrefetch(context: Context, width: Int, height: Int): Boolean {
++        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
++            ?: return false
++        val info = ActivityManager.MemoryInfo()
++        manager.getMemoryInfo(info)
++        val frameBytes = width.toLong() * height.toLong() * 2L
++        return !info.lowMemory && info.availMem > frameBytes * 3L + 768L * 1024L * 1024L
++    }
++
++    /**
++     * Temporal fusion for LunaDream 2.0. Same gating and blend equations as
++     * fuseLunaDreamFrameParallel (which 1.5 keeps using).
++     */
++    private fun fuseLunaDream20Frame(
++        base: Bitmap,
++        current: Bitmap,
++        width: Int,
++        height: Int,
++        shiftX: Int,
++        shiftY: Int,
++        frameIndex: Int,
++        totalMergedFrames: Int,
++        workers: ExecutorService,
++        workerCount: Int,
++        stripes: Array<Luna20FusionStripe>,
++        onProgress: ((Int) -> Unit)? = null
++    ) {
++        val stripeCount = (height + LUNA20_STRIPE_ROWS - 1) / LUNA20_STRIPE_ROWS
++        fun load(stripe: Int, target: Luna20FusionStripe) {
++            val top = stripe * LUNA20_STRIPE_ROWS
++            val rows = min(LUNA20_STRIPE_ROWS, height - top)
++            base.getPixels(target.base, 0, width, 0, top, width, rows)
++            for (row in 0 until rows) {
++                val sourceY = (top + row + shiftY).coerceIn(0, height - 1)
++                current.getPixels(target.frame, row * width, width, 0, sourceY, width, 1)
++            }
++            target.top = top
++            target.rows = rows
++        }
++
++        load(0, stripes[0])
++        for (stripe in 0 until stripeCount) {
++            val active = stripes[stripe and 1]
++            val pending = launchRowJobs(workers, workerCount, active.rows, LUNA20_CHUNK_ROWS) { _, fromRow, untilRow ->
++                fuseRowsLuna20(active.base, active.frame, width, fromRow, untilRow, shiftX, frameIndex)
++            }
++            // Read the next stripe while the workers blend this one.
++            if (stripe + 1 < stripeCount) load(stripe + 1, stripes[(stripe + 1) and 1])
++            pending.forEach { it.get() }
++            base.setPixels(active.base, 0, width, 0, active.top, width, active.rows)
++            val frameFraction = (frameIndex - 1 + (active.top + active.rows).toFloat() / height) /
++                totalMergedFrames.toFloat()
++            runCatching { onProgress?.invoke((5 + frameFraction * 90f).toInt()) }
++        }
++    }
++
++    private fun fuseRowsLuna20(
++        old: IntArray,
++        frame: IntArray,
++        width: Int,
++        fromRow: Int,
++        untilRow: Int,
++        shiftX: Int,
++        frameIndex: Int
++    ) {
++        val divisor = frameIndex + 1
++        for (row in fromRow until untilRow) {
++            val rowOffset = row * width
++            for (x in 0 until width) {
++                val index = rowOffset + x
++                val sourceX = (x + shiftX).coerceIn(0, width - 1)
++                val a = old[index]
++                val b = frame[rowOffset + sourceX]
++                val ar = (a ushr 16) and 0xFF
++                val ag = (a ushr 8) and 0xFF
++                val ab = a and 0xFF
++                val br = (b ushr 16) and 0xFF
++                val bg = (b ushr 8) and 0xFF
++                val bb = b and 0xFF
++                val oldLuma = luma(ar, ag, ab)
++                val newLuma = luma(br, bg, bb)
++                val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
++                val colorDelta = max(
++                    kotlin.math.abs(ar - br),
++                    max(kotlin.math.abs(ag - bg), kotlin.math.abs(ab - bb))
++                )
++                val threshold = (16 + (oldLuma + newLuma) / 28).coerceIn(20, 38)
++                when {
++                    lumaDelta <= threshold && colorDelta <= threshold * 2 -> {
++                        old[index] = packRgb(
++                            (ar * frameIndex + br) / divisor,
++                            (ag * frameIndex + bg) / divisor,
++                            (ab * frameIndex + bb) / divisor
++                        )
++                    }
++                    lumaDelta <= threshold * 2 && colorDelta <= threshold * 3 -> {
++                        old[index] = packRgb(
++                            (ar * 7 + br) / 8,
++                            (ag * 7 + bg) / 8,
++                            (ab * 7 + bb) / 8
++                        )
++                    }
++                    // Large changes are treated as moving-object/ghost pixels.
++                    else -> Unit
++                }
++            }
++        }
++    }
++
++    /**
++     * LunaDream 2.0 finishing: strength-2 edge-aware denoise followed by the bounded 2.0
++     * luminance detail pass, computed in ONE streamed pass. Rows are processed in chunks that
++     * recompute their own one-row denoise halo, which is bit-identical to running the two passes
++     * one after the other (denoised rows are clamped at the image border exactly like the
++     * stand-alone detail pass clamps them) but reads and writes the bitmap only once.
++     */
++    private fun applyLunaDream20FinishingPass(
++        bitmap: Bitmap,
++        workers: ExecutorService,
++        workerCount: Int,
++        onProgress: ((Int) -> Unit)? = null
++    ) {
++        val width = bitmap.width
++        val height = bitmap.height
++        if (width < 3 || height < 3) return
++        val stripeCount = (height + LUNA20_STRIPE_ROWS - 1) / LUNA20_STRIPE_ROWS
++        val stripes = arrayOf(Luna20FinishStripe(width), Luna20FinishStripe(width))
++        val scratch = Array(workerCount) { Luna20ChunkScratch(width) }
++
++        fun load(stripe: Int, target: Luna20FinishStripe) {
++            val top = stripe * LUNA20_STRIPE_ROWS
++            val rows = min(LUNA20_STRIPE_ROWS, height - top)
++            // Buffer row i holds image row (top - 2 + i), replicated beyond the image border.
++            val firstY = max(0, top - 2)
++            val lastY = min(height - 1, top + rows + 1)
++            val readRows = lastY - firstY + 1
++            val firstIndex = firstY - (top - 2)
++            val lastIndex = firstIndex + readRows - 1
++            bitmap.getPixels(target.src, firstIndex * width, width, 0, firstY, width, readRows)
++            for (index in 0 until firstIndex) {
++                target.src.copyInto(target.src, index * width, firstIndex * width, (firstIndex + 1) * width)
++            }
++            for (index in lastIndex + 1 until rows + 4) {
++                target.src.copyInto(target.src, index * width, lastIndex * width, (lastIndex + 1) * width)
++            }
++            target.top = top
++            target.rows = rows
++        }
++
++        load(0, stripes[0])
++        for (stripe in 0 until stripeCount) {
++            val active = stripes[stripe and 1]
++            val pending = launchRowJobs(workers, workerCount, active.rows, LUNA20_CHUNK_ROWS) { worker, fromRow, untilRow ->
++                finishChunkLuna20(active, scratch[worker], width, height, fromRow, untilRow)
++            }
++            // The next stripe is read BEFORE this stripe is written back, so its halo rows
++            // are still the original (pre-filter) pixels.
++            if (stripe + 1 < stripeCount) load(stripe + 1, stripes[(stripe + 1) and 1])
++            pending.forEach { it.get() }
++            bitmap.setPixels(active.out, 0, width, 0, active.top, width, active.rows)
++            runCatching {
++                onProgress?.invoke(((active.top + active.rows) * 100 / height).coerceIn(0, 100))
++            }
++        }
++    }
++
++    private fun finishChunkLuna20(
++        stripe: Luna20FinishStripe,
++        scratch: Luna20ChunkScratch,
++        width: Int,
++        height: Int,
++        fromRow: Int,
++        untilRow: Int
++    ) {
++        val rc = untilRow - fromRow
++        val src = stripe.src
++        val srcLuma = scratch.srcLuma
++        val den = scratch.den
++        val denLuma = scratch.denLuma
++
++        // Luma of the rc + 4 source rows this chunk needs (two above, two below).
++        for (s in 0 until rc + 4) {
++            val colorOffset = (fromRow + s) * width
++            val lumaOffset = s * width
++            for (x in 0 until width) srcLuma[lumaOffset + x] = luma(src[colorOffset + x])
++        }
++        // Denoised rows y0 - 1 .. y0 + rc (rc + 2 rows) for the detail pass halo.
++        for (j in 0 until rc + 2) {
++            val s = j + 1
++            denoiseRowLuna20(
++                src, (fromRow + s - 1) * width, (fromRow + s) * width, (fromRow + s + 1) * width,
++                srcLuma, (s - 1) * width, s * width, (s + 1) * width,
++                width, den, denLuma, j * width
++            )
++        }
++        // At the image border the detail pass sees the denoised edge row replicated.
++        if (stripe.top + fromRow == 0) {
++            den.copyInto(den, 0, width, 2 * width)
++            denLuma.copyInto(denLuma, 0, width, 2 * width)
++        }
++        if (stripe.top + untilRow == height) {
++            den.copyInto(den, (rc + 1) * width, rc * width, (rc + 1) * width)
++            denLuma.copyInto(denLuma, (rc + 1) * width, rc * width, (rc + 1) * width)
++        }
++        for (r in 0 until rc) {
++            val j = r + 1
++            detailRowLuna20(
++                den, denLuma, (j - 1) * width, j * width, (j + 1) * width,
++                width, stripe.out, (fromRow + r) * width
++            )
++        }
++    }
++
++    /** One row of the strength-2 3x3 edge-aware denoise (same arithmetic as before). */
++    private fun denoiseRowLuna20(
++        src: IntArray,
++        srcAbove: Int,
++        srcCenter: Int,
++        srcBelow: Int,
++        lumaArray: IntArray,
++        lumaAbove: Int,
++        lumaCenter: Int,
++        lumaBelow: Int,
++        width: Int,
++        dst: IntArray,
++        dstLuma: IntArray,
++        dstOffset: Int
++    ) {
++        val baseBlend = baseBlendForDenoise(2)
++        for (x in 0 until width) {
++            val center = src[srcCenter + x]
++            val centerR = (center ushr 16) and 0xFF
++            val centerG = (center ushr 8) and 0xFF
++            val centerB = center and 0xFF
++            val centerLuma = lumaArray[lumaCenter + x]
++            val rangeLimit = if (centerLuma < 72) 27 else 20
++            var sumR = 0
++            var sumG = 0
++            var sumB = 0
++            var weightSum = 0
++            for (dy in -1..1) {
++                val colorRow = when (dy) {
++                    -1 -> srcAbove
++                    0 -> srcCenter
++                    else -> srcBelow
++                }
++                val lumaRow = when (dy) {
++                    -1 -> lumaAbove
++                    0 -> lumaCenter
++                    else -> lumaBelow
++                }
++                for (dx in -1..1) {
++                    if (dx == 0 && dy == 0) continue
++                    val nx = (x + dx).coerceIn(0, width - 1)
++                    val neighbor = src[colorRow + nx]
++                    val nr = (neighbor ushr 16) and 0xFF
++                    val ng = (neighbor ushr 8) and 0xFF
++                    val nb = neighbor and 0xFF
++                    val luminanceDelta = kotlin.math.abs(lumaArray[lumaRow + nx] - centerLuma)
++                    val colorDelta = max(
++                        kotlin.math.abs(nr - centerR),
++                        max(kotlin.math.abs(ng - centerG), kotlin.math.abs(nb - centerB))
++                    )
++                    val spatialWeight = if (dx == 0 || dy == 0) 2 else 1
++                    val weight = when {
++                        luminanceDelta <= rangeLimit && colorDelta <= rangeLimit * 2 -> spatialWeight
++                        luminanceDelta <= rangeLimit * 2 && colorDelta <= rangeLimit * 3 -> 1
++                        else -> 0
++                    }
++                    if (weight > 0) {
++                        sumR += nr * weight
++                        sumG += ng * weight
++                        sumB += nb * weight
++                        weightSum += weight
++                    }
++                }
++            }
++            val result = if (weightSum == 0) {
++                center
++            } else {
++                val shadowBoost = (1.22f - centerLuma / 255f * 0.42f).coerceIn(0.80f, 1.22f)
++                val blend = (baseBlend * shadowBoost).coerceIn(0.12f, 0.38f)
++                val averageR = sumR.toFloat() / weightSum
++                val averageG = sumG.toFloat() / weightSum
++                val averageB = sumB.toFloat() / weightSum
++                packRgb(
++                    (centerR * (1f - blend) + averageR * blend).roundToInt().coerceIn(0, 255),
++                    (centerG * (1f - blend) + averageG * blend).roundToInt().coerceIn(0, 255),
++                    (centerB * (1f - blend) + averageB * blend).roundToInt().coerceIn(0, 255)
++                )
++            }
++            dst[dstOffset + x] = result
++            dstLuma[dstOffset + x] = luma(result)
++        }
++    }
++
++    /** One row of the 2.0 luminance detail pass (same arithmetic as before, no vararg min/max). */
++    private fun detailRowLuna20(
++        colors: IntArray,
++        lumaArray: IntArray,
++        aboveOffset: Int,
++        centerOffset: Int,
++        belowOffset: Int,
++        width: Int,
++        out: IntArray,
++        outOffset: Int
++    ) {
++        for (x in 0 until width) {
++            val xl = (x - 1).coerceAtLeast(0)
++            val xr = (x + 1).coerceAtMost(width - 1)
++            val center = colors[centerOffset + x]
++            val centerLuma = lumaArray[centerOffset + x].toFloat()
++            val leftLuma = lumaArray[centerOffset + xl].toFloat()
++            val rightLuma = lumaArray[centerOffset + xr].toFloat()
++            val upLuma = lumaArray[aboveOffset + x].toFloat()
++            val downLuma = lumaArray[belowOffset + x].toFloat()
++            val crossMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
++
++            val upLeft = lumaArray[aboveOffset + xl].toFloat()
++            val upRight = lumaArray[aboveOffset + xr].toFloat()
++            val downLeft = lumaArray[belowOffset + xl].toFloat()
++            val downRight = lumaArray[belowOffset + xr].toFloat()
++            val diagonalMean = (upLeft + upRight + downLeft + downRight) * 0.25f
++
++            val edgeDelta = centerLuma - crossMean
++            val fineDelta = centerLuma - diagonalMean
++            val edgeMagnitude = kotlin.math.abs(edgeDelta)
++            val correction = if (centerLuma in 18f..238f && edgeMagnitude >= 2.5f && edgeMagnitude <= 58f) {
++                edgeDelta * 0.24f +
++                    if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.10f else 0f
++            } else 0f
++
++            val localMin = min(
++                min(min(centerLuma, leftLuma), min(rightLuma, upLuma)),
++                min(min(downLuma, upLeft), min(min(upRight, downLeft), downRight))
++            )
++            val localMax = max(
++                max(max(centerLuma, leftLuma), max(rightLuma, upLuma)),
++                max(max(downLuma, upLeft), max(max(upRight, downLeft), downRight))
++            )
++            val correctionLimit = min(7f, (edgeMagnitude * 0.48f).coerceAtLeast(2f))
++            val clampedCorrection = correction.coerceIn(-correctionLimit, correctionLimit)
++            val targetLuma = (centerLuma + clampedCorrection)
++                .coerceIn((localMin - 3f).coerceAtLeast(0f), (localMax + 3f).coerceAtMost(255f))
++            val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
++            val red = (center ushr 16) and 0xFF
++            val green = (center ushr 8) and 0xFF
++            val blue = center and 0xFF
++            out[outOffset + x] = packRgb(
++                (red * gain).roundToInt().coerceIn(0, 255),
++                (green * gain).roundToInt().coerceIn(0, 255),
++                (blue * gain).roundToInt().coerceIn(0, 255)
++            )
++        }
++    }
++
+     private fun luma(red: Int, green: Int, blue: Int): Int =
+         (red * 3 + green * 6 + blue) / 10
+ 
+@@ -1979,7 +2492,8 @@
+         targetWidth: Int?,
+         targetHeight: Int?,
+         pixelLimit: Long = MAX_OUTPUT_PIXELS,
+-        heapBytesPerPixel: Double = 4.0
++        heapBytesPerPixel: Double = 4.0,
++        config: Bitmap.Config = Bitmap.Config.RGB_565
+     ): Bitmap? {
+         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+         BitmapFactory.decodeFile(file.absolutePath, bounds)
+@@ -2025,7 +2539,7 @@
+ 
+         val options = BitmapFactory.Options().apply {
+             inSampleSize = sampleSize
+-            inPreferredConfig = Bitmap.Config.RGB_565
++            inPreferredConfig = config
+             inDither = true
+         }
+         val decoded = BitmapFactory.decodeFile(file.absolutePath, options) ?: return null
+@@ -2057,8 +2571,8 @@
+             if (scaled !== upright) upright.recycle()
+             upright = scaled
+         }
+-        if (upright.config != Bitmap.Config.RGB_565) {
+-            val compact = upright.copy(Bitmap.Config.RGB_565, false) ?: return upright
++        if (upright.config != config) {
++            val compact = upright.copy(config, false) ?: return upright
+             upright.recycle()
+             upright = compact
+         }

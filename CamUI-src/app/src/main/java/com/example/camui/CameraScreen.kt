@@ -960,11 +960,10 @@ fun CameraScreen(
 
             val rotation = targetRotation
             val ratio = when (ratioIdx) {
-                0 -> if (isLandscape) Rational(3, 2) else Rational(2, 3)
-                1 -> if (isLandscape) Rational(4, 3) else Rational(3, 4)
-                2 -> if (isLandscape) Rational(16, 9) else Rational(9, 16)
-                3 -> Rational(1, 1)
-                else -> if (isLandscape) Rational(21, 9) else Rational(9, 21)
+                0 -> if (isLandscape) Rational(16, 9) else Rational(9, 16)
+                1 -> if (isLandscape) Rational(21, 9) else Rational(9, 21)
+                2 -> if (isLandscape) Rational(4, 3) else Rational(3, 4)
+                else -> Rational(1, 1)
             }
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
@@ -1957,7 +1956,8 @@ fun CameraScreen(
                                     if (manualSensorSupported) "%.1fs".format(
                                         Locale.US, effectiveExposureNs / 1_000_000_000.0
                                     ) else "AUTO",
-                                    if (manualSensorSupported) effectiveIso.toString() else "AUTO"
+                                    if (manualSensorSupported) effectiveIso.toString() else "AUTO",
+                                    preservePhotoAspectRatio = true
                                 )
                             }.getOrDefault(false)
                             val metadata = runCatching {
@@ -2411,17 +2411,19 @@ fun CameraScreen(
             val captureRotation = targetRotation
             val captureIsLandscape = deviceIsLandscape
             val selectedBaseAspectRatio = when (ratioIdx) {
-                0 -> 3f / 2f
-                1 -> 4f / 3f
-                2 -> 16f / 9f
-                3 -> 1f
-                else -> 21f / 9f
+                0 -> 16f / 9f
+                1 -> 21f / 9f
+                2 -> 4f / 3f
+                else -> 1f
             }
+            // The selected frame ratio controls final letterboxing, not sensor orientation.
             val expectedAspectRatioForCapture = if (captureIsLandscape || ratioIdx == 3) {
                 selectedBaseAspectRatio
             } else {
                 1f / selectedBaseAspectRatio
             }
+            // Orientation detection uses a neutral camera-frame ratio and never crops to it.
+            val expectedOrientationAspectRatio = if (captureIsLandscape) 4f / 3f else 3f / 4f
             if (captureRotation != targetRotation ||
                 boundCameraRotation != captureRotation ||
                 boundCameraLandscape != isLandscape ||
@@ -2775,7 +2777,7 @@ fun CameraScreen(
                                         context,
                                         saved,
                                         captureRotationDegrees,
-                                        expectedAspectRatioForCapture
+                                        expectedOrientationAspectRatio
                                     )
                                 }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 35) }
@@ -2849,29 +2851,45 @@ fun CameraScreen(
 
                                 val outputResolutionResult = if (
                                     !captureIsUltraHdr &&
-                                    (captureUseNightShot || (captureUseLunaDream && lunaDreamApplied)) &&
                                     !captureRawOnly && (!captureRawPlus || captureUseRawDream20)
                                 ) {
-                                    val targetPixels = when {
+                                    val requestedMp = when {
                                         captureUseNightShot -> 60_000_000L
                                         captureUseLunaDream15 -> 50_000_000L
-                                        else -> 108_000_000L
+                                        captureUseLunaDream -> 108_000_000L
+                                        else -> null
                                     }
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "LunaDream đang tối ưu kích thước ${targetPixels / 1_000_000L}MP theo bộ nhớ"
+                                        processingLabel = if (requestedMp != null) {
+                                            "LunaDream đang tối ưu kích thước ${requestedMp / 1_000_000L}MP"
+                                        } else {
+                                            "Đang giữ trọn khung ảnh theo tỷ lệ đã chọn"
+                                        }
                                         processingProgress = 84
                                         processingEtaSeconds = -1
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
-                                            PhotoOutputResolution.interpolateToMp(
-                                                context,
-                                                saved,
-                                                targetPixels,
-                                                expectedAspectRatioForCapture
-                                            )
+                                            if (requestedMp != null) {
+                                                PhotoOutputResolution.interpolateToMp(
+                                                    context,
+                                                    saved,
+                                                    requestedMp,
+                                                    expectedAspectRatioForCapture
+                                                )
+                                            } else {
+                                                PhotoOutputResolution.applyAspectRatio(
+                                                    context,
+                                                    saved,
+                                                    expectedAspectRatioForCapture
+                                                )
+                                            }
                                         }.onFailure {
-                                            android.util.Log.e("FUJI_LUNADREAM", "Output sizing failed; original retained", it)
+                                            android.util.Log.e(
+                                                "FUJI_OUTPUT",
+                                                "Final aspect-ratio/MP output failed; original retained",
+                                                it
+                                            )
                                         }.getOrNull()
                                     }
                                 } else null
@@ -2924,7 +2942,7 @@ fun CameraScreen(
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = captureUseNightShot || captureUseLunaDream
+                                        preservePhotoAspectRatio = true
                                     )
                                 }.getOrDefault(false)
 

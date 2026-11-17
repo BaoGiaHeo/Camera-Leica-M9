@@ -159,7 +159,30 @@ class MainActivity : AppCompatActivity() {
                 var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
                 var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }
                 var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
-                var ratioIdx by remember { mutableIntStateOf(settingsPrefs.getInt("capture_ratio_index", 1).coerceIn(0, 4)) }
+                var ratioIdx by remember {
+                    mutableIntStateOf(
+                        if (settingsPrefs.getBoolean("capture_ratio_index_v20202", false)) {
+                            settingsPrefs.getInt("capture_ratio_index", 0).coerceIn(0, 3)
+                        } else {
+                            // Migrate the old five-choice index to the new four-choice list.
+                            val oldIndex = if (settingsPrefs.contains("capture_ratio_index")) {
+                                settingsPrefs.getInt("capture_ratio_index", 0)
+                            } else -1
+                            val migrated = when (oldIndex) {
+                                2 -> 0 // old 16:9
+                                4 -> 1 // old 21:9
+                                1 -> 2 // old 4:3 landscape is the inverse of new 3:4 portrait
+                                3 -> 3 // square
+                                else -> 0 // old 3:2 or first launch -> 16:9
+                            }
+                            settingsPrefs.edit()
+                                .putInt("capture_ratio_index", migrated)
+                                .putBoolean("capture_ratio_index_v20202", true)
+                                .apply()
+                            migrated
+                        }
+                    )
+                }
 
                 BackHandler(enabled = page != "camera") { page = "camera" }
                 Box(Modifier.fillMaxSize()) {
@@ -174,7 +197,13 @@ class MainActivity : AppCompatActivity() {
                             "settings" -> SettingsScreen(
                                 onBack = { page = "camera" },
                                 ratioIdx = ratioIdx,
-                                onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
+                                onRatio = {
+                                    ratioIdx = it.coerceIn(0, 3)
+                                    settingsPrefs.edit()
+                                        .putInt("capture_ratio_index", ratioIdx)
+                                        .putBoolean("capture_ratio_index_v20202", true)
+                                        .apply()
+                                },
                                 showGrid = showGrid,
                                 onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
                                 showHist = showHist,

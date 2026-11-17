@@ -12,7 +12,7 @@ android {
         applicationId = "com.fujifilm.mode"
         minSdk = 29
         targetSdk = 35
-        versionCode = 13
+        versionCode = 14
         versionName = "2.0.2Dream"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

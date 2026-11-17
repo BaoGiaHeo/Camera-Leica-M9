@@ -1,4 +1,4 @@
-name: Build FujiFilm Mode 2.0.1Dream
+name: Build FujiFilm Mode 2.0.2Dream
 # Release pipeline for the portrait UI and LunaDream 2.0.1 capture paths.
 
 on:
@@ -70,11 +70,11 @@ jobs:
           disable-animations: true
           script: cd CamUI-src && gradle :app:connectedDebugAndroidTest --stacktrace
 
-      - name: Upload 2.0.1Dream APKs
+      - name: Upload 2.0.2Dream APKs
         if: always() && steps.build_apks.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-2.0.1Dream
+          name: FujiFilm-Mode-2.0.2Dream
           path: |
             CamUI-src/app/build/outputs/apk/debug/*.apk
             CamUI-src/app/build/outputs/apk/release/*.apk

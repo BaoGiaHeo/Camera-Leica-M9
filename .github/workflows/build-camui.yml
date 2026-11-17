@@ -28,10 +28,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle 8.11.1
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 36 platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.11.1"
+          gradle-version: "8.13"
 
       - name: Run unit tests and build debug + release APKs
         id: build_apks
@@ -68,7 +76,30 @@ jobs:
           emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
           emulator-boot-timeout: 600
           disable-animations: true
-          script: cd CamUI-src && gradle :app:connectedDebugAndroidTest --stacktrace
+          script: |
+            set +e
+            cd CamUI-src
+            gradle :app:connectedDebugAndroidTest --stacktrace
+            TEST_EXIT=$?
+            adb shell am force-stop com.fujifilm.mode.debug
+            adb shell am start -n com.fujifilm.mode.debug/com.example.camui.MainActivity
+            sleep 5
+            mkdir -p ../emulator-artifacts
+            adb exec-out screencap -p > ../emulator-artifacts/camera-portrait.png
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            sleep 3
+            adb exec-out screencap -p > ../emulator-artifacts/camera-landscape.png
+            adb shell logcat -d -v time -t 3000 > ../emulator-artifacts/logcat.txt
+            exit $TEST_EXIT
+
+      - name: Upload emulator inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-inspection
+          path: emulator-artifacts/
+          if-no-files-found: warn
 
       - name: Upload 2.0.2Dream APKs
         if: always() && steps.build_apks.outcome == 'success'

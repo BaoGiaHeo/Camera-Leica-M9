@@ -1,6 +1,8 @@
 package com.example.camui
 
 import android.Manifest
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -8,6 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,6 +39,37 @@ class StartupSmokeTest {
                 )
             }
         } finally {
+            scenario.close()
+        }
+    }
+
+    @Test
+    fun cameraActivitySupportsLandscapeConfiguration() {
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        try {
+            scenario.onActivity { activity ->
+                assertEquals(
+                    "Activity must allow sensor-driven orientation",
+                    ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR,
+                    activity.requestedOrientation
+                )
+            }
+            automation.executeShellCommand("settings put system accelerometer_rotation 0").close()
+            automation.executeShellCommand("settings put system user_rotation 1").close()
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            Thread.sleep(2_000L)
+            scenario.onActivity { activity ->
+                assertEquals(
+                    "Camera screen must enter landscape when the emulator rotates",
+                    Configuration.ORIENTATION_LANDSCAPE,
+                    activity.resources.configuration.orientation
+                )
+                assertTrue("Activity must remain alive after rotation", !activity.isFinishing && !activity.isDestroyed)
+            }
+        } finally {
+            automation.executeShellCommand("settings put system user_rotation 0").close()
+            automation.executeShellCommand("settings put system accelerometer_rotation 1").close()
             scenario.close()
         }
     }

@@ -103,10 +103,8 @@ jobs:
             adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-landscape.txt
 
             # Run startup + orientation instrumentation with a hard timeout.
-            cd CamUI-src
-            timeout 240s gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace --console=plain
+            timeout 240s gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
             TEST_EXIT=$?
-            cd ..
             adb logcat -d -v threadtime -t 10000 > emulator-artifacts/logcat-final.txt
             exit $TEST_EXIT
 

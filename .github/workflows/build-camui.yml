@@ -31,10 +31,10 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Install Android 37 platform
+      - name: Install Android 36 platform
         run: |
           yes | sdkmanager --licenses >/dev/null
-          sdkmanager --install "platforms;android-37" "build-tools;36.0.0"
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -71,7 +71,7 @@ jobs:
         with:
           # Use the stable Google APIs image and wait for Android framework services,
           # not merely for the ADB transport, before attempting APK installation.
-          api-level: 37
+          api-level: 36
           target: google_apis
           arch: x86_64
           profile: pixel_2

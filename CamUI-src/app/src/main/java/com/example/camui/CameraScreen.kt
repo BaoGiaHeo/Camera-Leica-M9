@@ -95,7 +95,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -220,9 +219,6 @@ private fun surfaceRotationFromDeviceOrientation(orientation: Int): Int {
         else -> Surface.ROTATION_0
     }
 }
-
-private fun isDeviceOrientationLandscape(orientation: Int): Boolean =
-    orientation in 45..134 || orientation in 225..314
 
 private val meteringModes = listOf("Center", "Matrix", "Spot")
 private val wbModes = listOf(
@@ -414,7 +410,6 @@ fun CameraScreen(
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
-    var deviceIsLandscape by remember { mutableStateOf(false) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
     // The Compose camera UI stays portrait; only CameraX capture rotation follows the handset.
     var isLandscape by remember { mutableStateOf(false) }
@@ -423,9 +418,7 @@ fun CameraScreen(
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN) return
                 val nextRotation = surfaceRotationFromDeviceOrientation(orientation)
-                val nextLandscape = isDeviceOrientationLandscape(orientation)
                 if (targetRotation != nextRotation) targetRotation = nextRotation
-                if (deviceIsLandscape != nextLandscape) deviceIsLandscape = nextLandscape
             }
         }
         if (orientationListener.canDetectOrientation()) orientationListener.enable()
@@ -851,8 +844,8 @@ fun CameraScreen(
             }
         }
     }
-    LaunchedEffect(previewView, deviceIsLandscape) {
-        previewView.scaleType = if (deviceIsLandscape) {
+    LaunchedEffect(previewView, isLandscape) {
+        previewView.scaleType = if (isLandscape) {
             PreviewView.ScaleType.FIT_CENTER
         } else {
             PreviewView.ScaleType.FILL_CENTER
@@ -866,7 +859,7 @@ fun CameraScreen(
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
-        hasCam, front, ratioIdx, ultraHdr, isLandscape, deviceIsLandscape, targetRotation, renderEngine,
+        hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         nativeImageProcessingEnabled, manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
@@ -1026,7 +1019,7 @@ fun CameraScreen(
             // Keep CameraX at the camera's complete native 4:3 field of view.
             // The selected ratio is applied only to the preview frame and final saved image.
             // This prevents CameraX from cropping the sensor image before photo processing.
-            val ratio = if (deviceIsLandscape) Rational(4, 3) else Rational(3, 4)
+            val ratio = if (isLandscape) Rational(4, 3) else Rational(3, 4)
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
@@ -1895,7 +1888,7 @@ fun CameraScreen(
 
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {
         val captureRotation = targetRotation
-        val captureIsLandscape = deviceIsLandscape
+        val captureIsLandscape = isLandscape
         if (boundCameraRotation != captureRotation ||
             boundCameraLandscape != isLandscape ||
             boundCameraRatioIdx != ratioIdx
@@ -2504,7 +2497,7 @@ fun CameraScreen(
             // Freeze the physical handset orientation tracked by OrientationEventListener.
             // PreviewView/Display.rotation may remain portrait while the handset is landscape.
             val captureRotation = targetRotation
-            val captureIsLandscape = deviceIsLandscape
+            val captureIsLandscape = isLandscape
             // One height/width ratio source is shared by the Preview frame and saved-photo crop.
             // Landscape deliberately skips the output crop so the complete sensor frame is preserved.
             val selectedFrameHeightOverWidth =
@@ -3309,8 +3302,7 @@ fun CameraScreen(
 
     // The shared ratio is height / width. Compose aspectRatio expects width / height,
     // so invert it exactly once for container measurement. CameraX handles preview scaling.
-    val previewHeightOverWidth = aspectRatioForOrientation(ratioIdx, deviceIsLandscape)
-    val previewAspectRatio = 1f / previewHeightOverWidth
+    val previewHeightOverWidth = aspectRatioForOrientation(ratioIdx, isLandscape)
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
@@ -3318,6 +3310,7 @@ fun CameraScreen(
     )
 
     val toolbarContent: @Composable (Modifier) -> Unit = { toolbarModifier ->
+                    val toolbarButtonSize = if (isLandscape) 46.dp else 36.dp
                     Row(toolbarModifier, horizontalArrangement = Arrangement.SpaceBetween) {
                         CircleBtn(
                             icon = if (flash == ImageCapture.FLASH_MODE_ON) {
@@ -3333,12 +3326,12 @@ fun CameraScreen(
                                     ImageCapture.FLASH_MODE_OFF
                                 }
                             }
-                        )
+                        , size = toolbarButtonSize)
                         CircleBtn(
                             Icons.Default.Timer, "Timer",
                             onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 } },
                             tint = if (timerSec > 0) CamColors.Yellow else Color.White
-                        )
+                        , size = toolbarButtonSize)
                         if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" &&
                             rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
                         ) {
@@ -3346,36 +3339,36 @@ fun CameraScreen(
                                 Icons.Default.BurstMode, "Burst ×25",
                                 onClick = { burstMode = !burstMode },
                                 tint = if (burstMode) CamColors.Yellow else Color.White
-                            )
+                            , size = toolbarButtonSize)
                         }
                         CircleBtn(
                             Icons.Default.Tune, "Metering",
                             onClick = { metering = (metering + 1) % meteringModes.size },
                             tint = if (metering > 0) CamColors.Yellow else Color.White
-                        )
+                        , size = toolbarButtonSize)
 
                         CircleBtn(
                             Icons.Default.BarChart, "Histogram",
                             onClick = { onShowHist(!showHist) },
                             tint = if (showHist) CamColors.Yellow else Color.White
-                        )
+                        , size = toolbarButtonSize)
                         CircleBtn(
                             Icons.Default.FilterCenterFocus, "Focus Peaking",
                             onClick = { onFocusPeaking(!focusPeaking) },
                             tint = if (focusPeaking) Color(0xFF00FFB0) else Color.White
-                        )
+                        , size = toolbarButtonSize)
                         CircleBtn(
                             Icons.Default.Settings, "Quick settings",
                             onClick = { showQuick = !showQuick },
                             tint = if (showQuick) CamColors.Yellow else Color.White
-                        )
+                        , size = toolbarButtonSize)
                         if (mode == "Photo" && nightShotMode == "star_trails") {
                             CircleBtn(
                                 Icons.Default.Bedtime,
                                 "Star Trails · nhấn chụp để bắt đầu/dừng",
                                 onClick = onOpenSettings,
                                 tint = CamColors.Yellow
-                            )
+                            , size = toolbarButtonSize)
                         }
                     }
     }
@@ -3385,13 +3378,16 @@ fun CameraScreen(
                         previewModifier.background(Color(0xFF262B33)),
                         contentAlignment = Alignment.Center
                     ) {
-                        // The frame width is always the available screen width. Its height is
-                        // explicitly width * (height / width), even when the parent preview slot
-                        // is shorter; the constrained aspectRatio modifier would shrink the frame.
+                        // Keep the selected aspect ratio, but fit the frame inside the actual
+                        // preview slot. This prevents tall ratios and small screens from overflowing.
+                        val safeHeightOverWidth = previewHeightOverWidth
+                            .takeIf { it.isFinite() && it > 0f } ?: (4f / 3f)
+                        val frameWidth = minOf(maxWidth, maxHeight / safeHeightOverWidth)
+                        val frameHeight = frameWidth * safeHeightOverWidth
                         Box(
                             Modifier
-                                .fillMaxWidth()
-                                .requiredHeight(maxWidth * previewHeightOverWidth)
+                                .width(frameWidth)
+                                .height(frameHeight)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF262B33))
                                 .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
@@ -4300,7 +4296,9 @@ fun CameraScreen(
                     enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
                     exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
                 ) {
-                    controlsContent(Modifier.fillMaxWidth())
+                    controlsContent(
+                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                    )
                 }
             }
         }
@@ -4308,7 +4306,7 @@ fun CameraScreen(
             QuickPanel(
                 ratioIdx = ratioIdx,
                 onRatio = onRatio,
-                deviceLandscape = deviceIsLandscape,
+                deviceLandscape = isLandscape,
                 ultraHdr = ultraHdr,
                 onUltraHdr = {
                     val activeCamera = camera

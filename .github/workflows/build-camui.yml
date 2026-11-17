@@ -66,13 +66,19 @@ jobs:
           PY
           sha256sum app/build/outputs/apk/debug/*.apk app/build/outputs/apk/release/*.apk
 
-      - name: Cold-start smoke test on Android emulator
+      - name: Update Android command-line tools for API 37 preview emulator
+        run: |
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "cmdline-tools;latest" --channel=3
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+      - name: Cold-start smoke test on Android 17 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # Use the stable Google APIs image and wait for Android framework services,
-          # not merely for the ADB transport, before attempting APK installation.
-          api-level: 36
-          target: google_apis
+          # Use the Android 17 Preview Google APIs 16 KB system image.
+          api-level: "37.0"
+          target: google_apis_ps16k
+          channel: canary
           arch: x86_64
           profile: pixel_2
           emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect

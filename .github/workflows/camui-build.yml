@@ -29,10 +29,10 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Install Android 36 platform
+      - name: Install Android 17 platform 37.0
         run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" --channel=3
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

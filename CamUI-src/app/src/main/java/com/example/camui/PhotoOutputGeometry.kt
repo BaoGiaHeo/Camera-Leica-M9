@@ -1,23 +1,25 @@
 package com.example.camui
 
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
- * Pure output-geometry calculation shared by photo export and unit tests.
- * The requested aspect ratio is applied as a centered crop before scaling.
+ * Full-frame output geometry. The source is uniformly fitted into the requested
+ * aspect-ratio canvas; unused areas become black bars. The source is never cropped
+ * or stretched, in either portrait or landscape orientation.
  */
 internal data class PhotoOutputGeometryResult(
-    val cropLeft: Int,
-    val cropTop: Int,
-    val cropWidth: Int,
-    val cropHeight: Int,
+    val imageLeft: Int,
+    val imageTop: Int,
+    val imageWidth: Int,
+    val imageHeight: Int,
     val outputWidth: Int,
     val outputHeight: Int,
     val requestedAspectRatio: Double
 ) {
-    val croppedPixels: Long get() = cropWidth.toLong() * cropHeight.toLong()
     val outputPixels: Long get() = outputWidth.toLong() * outputHeight.toLong()
+    val imagePixels: Long get() = imageWidth.toLong() * imageHeight.toLong()
 }
 
 internal object PhotoOutputGeometry {
@@ -34,27 +36,11 @@ internal object PhotoOutputGeometry {
             ?.takeIf { it.isFinite() && it > 0f }
             ?.toDouble()
             ?: (sourceWidth.toDouble() / sourceHeight.toDouble())
-        val rawAspect = sourceWidth.toDouble() / sourceHeight.toDouble()
 
-        var cropLeft = 0
-        var cropTop = 0
-        var cropWidth = sourceWidth
-        var cropHeight = sourceHeight
-        if (rawAspect > requestedAspect) {
-            cropWidth = (sourceHeight * requestedAspect).roundToInt().coerceIn(2, sourceWidth)
-            cropLeft = (sourceWidth - cropWidth) / 2
-        } else if (rawAspect < requestedAspect) {
-            cropHeight = (sourceWidth / requestedAspect).roundToInt().coerceIn(2, sourceHeight)
-            cropTop = (sourceHeight - cropHeight) / 2
-        }
-
-        val croppedPixels = cropWidth.toLong() * cropHeight.toLong()
-        require(croppedPixels > 0L) { "Invalid cropped source dimensions" }
-        val scale = sqrt(targetPixels.toDouble() / croppedPixels.toDouble())
-        var outputHeight = (cropHeight * scale).roundToInt().coerceAtLeast(2)
+        var outputHeight = sqrt(targetPixels.toDouble() / requestedAspect).roundToInt().coerceAtLeast(2)
         var outputWidth = (outputHeight * requestedAspect).roundToInt().coerceAtLeast(2)
 
-        // Integer dimensions must never exceed the requested or memory-safe pixel budget.
+        // Keep the requested pixel budget after integer rounding.
         while (outputWidth.toLong() * outputHeight.toLong() > targetPixels) {
             val actualAspect = outputWidth.toDouble() / outputHeight.toDouble()
             if (actualAspect > requestedAspect && outputWidth > 2) {
@@ -68,11 +54,21 @@ internal object PhotoOutputGeometry {
             }
         }
 
+        // Fit the complete source inside the output canvas using one uniform scale.
+        val scale = min(
+            outputWidth.toDouble() / sourceWidth.toDouble(),
+            outputHeight.toDouble() / sourceHeight.toDouble()
+        )
+        val imageWidth = (sourceWidth * scale).roundToInt().coerceIn(2, outputWidth)
+        val imageHeight = (sourceHeight * scale).roundToInt().coerceIn(2, outputHeight)
+        val imageLeft = (outputWidth - imageWidth) / 2
+        val imageTop = (outputHeight - imageHeight) / 2
+
         return PhotoOutputGeometryResult(
-            cropLeft = cropLeft,
-            cropTop = cropTop,
-            cropWidth = cropWidth,
-            cropHeight = cropHeight,
+            imageLeft = imageLeft,
+            imageTop = imageTop,
+            imageWidth = imageWidth,
+            imageHeight = imageHeight,
             outputWidth = outputWidth,
             outputHeight = outputHeight,
             requestedAspectRatio = requestedAspect

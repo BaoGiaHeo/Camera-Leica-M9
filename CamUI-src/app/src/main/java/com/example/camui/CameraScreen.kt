@@ -2240,8 +2240,10 @@ fun CameraScreen(
             localizedToast(context, "Chọn HDR Bracketing hoặc Focus Bracketing, không bật đồng thời.", Toast.LENGTH_LONG).show()
             return
         }
-        if ((hdrBracketMode || focusBracketMode) && mode == "Photo" && nightShotMode == "off" &&
-            rawCaptureMode == "jpeg" && lunaDreamMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+        if (!livePhotoEnabled && (hdrBracketMode || focusBracketMode) &&
+            mode == "Photo" && nightShotMode == "off" &&
+            rawCaptureMode == "jpeg" && lunaDreamMode == "off" &&
+            !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
         ) {
             if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
                 nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive
@@ -2395,8 +2397,10 @@ fun CameraScreen(
             localizedToast(context, "Đang dừng Burst sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
             return
         }
-        if (burstMode && mode == "Photo" && nightShotMode == "off" &&
-            rawCaptureMode == "jpeg" && lunaDreamMode == "off" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
+        if (!livePhotoEnabled && burstMode && mode == "Photo" &&
+            nightShotMode == "off" && rawCaptureMode == "jpeg" &&
+            lunaDreamMode == "off" && !uhdCaptureEnabled &&
+            !fhdCaptureEnabled && !uhdPlusCaptureEnabled
         ) {
             if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
                 nightShotCaptureInProgress || starTrailCaptureInProgress
@@ -4580,6 +4584,13 @@ fun CameraScreen(
                         nativeImageProcessingEnabled = false
                         appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
                         showLunaDream = false
+                        burstMode = false
+                        hdrBracketMode = false
+                        focusBracketMode = false
+                        if (nightShotMode != "off") {
+                            nightShotMode = "off"
+                            appPrefs.edit().putString("nightshot_mode", "off").apply()
+                        }
                     }
                 },
                 nativeImageProcessingEnabled = nativeImageProcessingEnabled,

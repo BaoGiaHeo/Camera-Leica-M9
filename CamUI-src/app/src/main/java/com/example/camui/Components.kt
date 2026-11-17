@@ -64,11 +64,10 @@ private fun parseAppColor(value: String?, fallback: Color): Color {
 
 /** Ratio values are width / height in portrait orientation. */
 val aspectRatios = listOf(
-    "3:2" to (2f / 3f),
-    "4:3" to (3f / 4f),
     "16:9" to (9f / 16f),
-    "1:1" to 1f,
-    "21:9" to (9f / 21f)
+    "21:9" to (9f / 21f),
+    "3:4" to (3f / 4f),
+    "1:1" to 1f
 )
 
 @Composable

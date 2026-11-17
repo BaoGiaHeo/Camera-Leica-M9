@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
@@ -34,8 +35,29 @@ data class PhotoOutputResult(
  */
 object PhotoOutputResolution {
     private const val TAG = "FUJI_LUNADREAM_RESAMPLE"
-    private const val MIN_OUTPUT_PIXELS = 10_000_000L
+    private const val MIN_OUTPUT_PIXELS = 4L
     private const val RESERVED_HEAP_BYTES = 64L * 1024L * 1024L
+
+    /**
+     * Preserve a normal camera image's pixel count while placing the complete image
+     * inside the selected aspect ratio. This gives ordinary photos the same no-crop
+     * behavior as HDMP/LunaDream output.
+     */
+    fun applyAspectRatio(
+        context: Context,
+        uri: Uri,
+        targetAspectRatio: Float
+    ): PhotoOutputResult? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val decoded = context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+            bounds.outWidth > 0 && bounds.outHeight > 0
+        } ?: false
+        if (!decoded) return null
+        val sourcePixels = bounds.outWidth.toLong() * bounds.outHeight.toLong()
+        if (sourcePixels !in MIN_OUTPUT_PIXELS..250_000_000L) return null
+        return interpolateToMp(context, uri, sourcePixels, targetAspectRatio)
+    }
 
     fun interpolateToMp(
         context: Context,
@@ -70,23 +92,20 @@ object PhotoOutputResolution {
             val sourceHeight = src.height
             require(sourceWidth > 0 && sourceHeight > 0) { "Invalid source size" }
 
-            // Keep geometry independent from bitmap allocation so 21:9, 16:9,
-            // 4:3, 3:2, square and portrait crops can be regression-tested without
-            // allocating a 250MP bitmap in a unit test.
+            // Geometry is independently unit-tested. The whole source is fitted into
+            // the target canvas, leaving black bars where the selected ratio is wider/taller.
             val geometry = PhotoOutputGeometry.calculate(
                 sourceWidth,
                 sourceHeight,
                 targetPixels,
                 targetAspectRatio
             )
-            val sourceRect = Rect(
-                geometry.cropLeft,
-                geometry.cropTop,
-                geometry.cropLeft + geometry.cropWidth,
-                geometry.cropTop + geometry.cropHeight
+            val imageRect = Rect(
+                geometry.imageLeft,
+                geometry.imageTop,
+                geometry.imageLeft + geometry.imageWidth,
+                geometry.imageTop + geometry.imageHeight
             )
-            val cropWidth = geometry.cropWidth
-            val cropHeight = geometry.cropHeight
 
             // Never silently lower the requested MP count. The caller either receives the
             // requested output size or an explicit failure with the original photo untouched.
@@ -107,19 +126,25 @@ object PhotoOutputResolution {
                 "Not enough free heap for the requested output; original photo retained"
             }
 
-            if (sourceWidth == width && sourceHeight == height) {
+            if (sourceWidth == width && sourceHeight == height &&
+                imageRect.left == 0 && imageRect.top == 0 &&
+                imageRect.width() == width && imageRect.height() == height
+            ) {
                 return PhotoOutputResult(width, height, targetPixels, outputPixels)
             }
 
             output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-            Canvas(output!!).drawBitmap(
-                src,
-                sourceRect,
-                Rect(0, 0, width, height),
-                Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    isAntiAlias = true
-                }
-            )
+            Canvas(output!!).apply {
+                drawColor(Color.BLACK)
+                drawBitmap(
+                    src,
+                    null,
+                    imageRect,
+                    Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+                        isAntiAlias = true
+                    }
+                )
+            }
             // Release the source before JPEG compression; the resized output is now complete.
             if (!src.isRecycled) src.recycle()
             source = null
@@ -175,7 +200,8 @@ object PhotoOutputResolution {
             Log.i(
                 TAG,
                 "Requested=${targetPixels / 1_000_000L}MP actual=${outputPixels / 1_000_000L}MP " +
-                    "source=${sourceWidth}x${sourceHeight}, crop=${cropWidth}x${cropHeight}, " +
+                    "source=${sourceWidth}x${sourceHeight}, fitted=${geometry.imageWidth}x${geometry.imageHeight}, " +
+                    "bars=${geometry.imageLeft},${geometry.imageTop}, " +
                     "requestedAspect=${"%.5f".format(Locale.US, geometry.requestedAspectRatio)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )

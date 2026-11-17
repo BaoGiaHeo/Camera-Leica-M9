@@ -3322,10 +3322,10 @@ fun applyCameraWatermark(
             }
     
             // Explicit text anchors keep the left model/lens and right exposure/date columns balanced.
-            val titleSize = (minSide * 0.023f).coerceIn(20f, 82f)
-            val secondarySize = (minSide * 0.014f).coerceIn(13f, 46f)
-            val specsSize = (minSide * 0.020f).coerceIn(18f, 72f)
-            val dateSize = (minSide * 0.014f).coerceIn(13f, 46f)
+            val titleSize = (minSide * 0.023f).coerceAtLeast(20f)
+            val secondarySize = (minSide * 0.014f).coerceAtLeast(13f)
+            val specsSize = (minSide * 0.020f).coerceAtLeast(18f)
+            val dateSize = (minSide * 0.014f).coerceAtLeast(13f)
             val leftTitle = modelText.ifBlank { brandTitle }
             val rightDate = dateOnlyLine.ifBlank { timeLine }
             drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelLeft, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))

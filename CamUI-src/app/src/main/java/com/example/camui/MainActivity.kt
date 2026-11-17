@@ -161,23 +161,35 @@ class MainActivity : AppCompatActivity() {
                 var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
                 var ratioIdx by remember {
                     mutableIntStateOf(
-                        if (settingsPrefs.getBoolean("capture_ratio_index_v20202", false)) {
+                        if (settingsPrefs.getBoolean("capture_ratio_index_v20203", false)) {
                             settingsPrefs.getInt("capture_ratio_index", 0).coerceIn(0, 3)
                         } else {
-                            // Migrate the old five-choice index to the new four-choice list.
                             val oldIndex = if (settingsPrefs.contains("capture_ratio_index")) {
                                 settingsPrefs.getInt("capture_ratio_index", 0)
                             } else -1
-                            val migrated = when (oldIndex) {
-                                2 -> 0 // old 16:9
-                                4 -> 1 // old 21:9
-                                1 -> 2 // old 4:3 landscape is the inverse of new 3:4 portrait
-                                3 -> 3 // square
-                                else -> 0 // old 3:2 or first launch -> 16:9
+                            val migrated = if (settingsPrefs.getBoolean("capture_ratio_index_v20202", false)) {
+                                // Previous order: 9:16, 9:21, 3:4, 1:1.
+                                when (oldIndex) {
+                                    0 -> 0
+                                    1 -> 3
+                                    2 -> 1
+                                    3 -> 2
+                                    else -> 0
+                                }
+                            } else {
+                                // Legacy five-choice order: 3:2, 4:3, 16:9, 1:1, 21:9.
+                                when (oldIndex) {
+                                    2 -> 0
+                                    1 -> 1
+                                    3 -> 2
+                                    4 -> 3
+                                    else -> 0
+                                }
                             }
                             settingsPrefs.edit()
                                 .putInt("capture_ratio_index", migrated)
                                 .putBoolean("capture_ratio_index_v20202", true)
+                                .putBoolean("capture_ratio_index_v20203", true)
                                 .apply()
                             migrated
                         }

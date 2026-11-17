@@ -211,7 +211,6 @@ private fun LiquidGlassWatermarkPreview(
             ) {
                 WatermarkBrandMark(
                     brand = brand,
-                    frameStyle = frameStyle,
                     modifier = Modifier.fillMaxWidth(0.88f).height(17.dp).padding(2.dp),
                     fallbackColor = accent
                 )

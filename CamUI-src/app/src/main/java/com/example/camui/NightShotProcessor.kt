@@ -38,6 +38,27 @@ import kotlin.math.sqrt
  * accumulate into trails. Processing is row-based and keeps only two RGB_565
  * frames in memory at a time.
  */
+internal data class LunaDreamDetailStripeReadPlan(
+    val sourceRowsToRead: Int,
+    val duplicateFinalRow: Boolean
+)
+
+/** Bounds the extra bottom-halo row used by the LunaDream 2.0 detail stripe. */
+internal fun lunaDreamDetailStripeReadPlan(
+    top: Int,
+    rowCount: Int,
+    imageHeight: Int
+): LunaDreamDetailStripeReadPlan {
+    require(top >= 0 && rowCount > 0 && imageHeight > 0 && top + rowCount <= imageHeight) {
+        "Invalid LunaDream detail stripe bounds"
+    }
+    val rowsToRead = min(rowCount + 1, imageHeight - top)
+    return LunaDreamDetailStripeReadPlan(
+        sourceRowsToRead = rowsToRead,
+        duplicateFinalRow = rowsToRead == rowCount
+    )
+}
+
 object NightShotProcessor {
     private const val TAG = "FUJI_NIGHTSHOT"
     private const val MAX_OUTPUT_PIXELS = 108_000_000L
@@ -1309,9 +1330,9 @@ object NightShotProcessor {
                         val centerLuma = sourceLuma[centerOffset]
 
                         val rangeLimit = if (centerLuma < 72) {
-                            if (strength >= 2) 27 else 23
+                            if (strength >= 2) 22 else 23
                         } else {
-                            if (strength >= 2) 20 else 17
+                            if (strength >= 2) 18 else 17
                         }
                         var sumR = 0
                         var sumG = 0
@@ -1352,7 +1373,7 @@ object NightShotProcessor {
                             center
                         } else {
                             val shadowBoost = (1.22f - centerLuma / 255f * 0.42f).coerceIn(0.80f, 1.22f)
-                            val blend = (baseBlendForDenoise(strength) * shadowBoost).coerceIn(0.12f, 0.38f)
+                            val blend = (baseBlendForDenoise(strength) * shadowBoost).coerceIn(0.08f, 0.27f)
                             val averageR = sumR.toFloat() / weightSum
                             val averageG = sumG.toFloat() / weightSum
                             val averageB = sumB.toFloat() / weightSum
@@ -1377,7 +1398,7 @@ object NightShotProcessor {
     }
 
     private fun baseBlendForDenoise(strength: Int): Float =
-        if (strength >= 2) 0.30f else 0.23f
+        if (strength >= 2) 0.22f else 0.23f
 
     private fun applyLunaDreamNoiseReduction(
         bitmap: Bitmap,
@@ -1410,7 +1431,7 @@ object NightShotProcessor {
         fillLumaRow(currentRow, currentLuma)
         fillLumaRow(nextRow, nextLuma)
 
-        val baseBlend = if (strength >= 2) 0.30f else 0.23f
+        val baseBlend = if (strength >= 2) 0.22f else 0.23f
         val progressInterval = (height / 48).coerceAtLeast(1)
         for (y in 0 until height) {
             for (x in 0 until width) {
@@ -1420,9 +1441,9 @@ object NightShotProcessor {
                 val centerB = center and 0xFF
                 val centerLuma = currentLuma[x]
                 val rangeLimit = if (centerLuma < 72) {
-                    if (strength >= 2) 27 else 23
+                    if (strength >= 2) 22 else 23
                 } else {
-                    if (strength >= 2) 20 else 17
+                    if (strength >= 2) 18 else 17
                 }
 
                 var sumR = 0
@@ -1473,7 +1494,7 @@ object NightShotProcessor {
                     outputRow[x] = center
                 } else {
                     val shadowBoost = (1.22f - centerLuma / 255f * 0.42f).coerceIn(0.80f, 1.22f)
-                    val blend = (baseBlend * shadowBoost).coerceIn(0.12f, 0.38f)
+                    val blend = (baseBlend * shadowBoost).coerceIn(0.08f, 0.27f)
                     val averageR = sumR.toFloat() / weightSum
                     val averageG = sumG.toFloat() / weightSum
                     val averageB = sumB.toFloat() / weightSum
@@ -1597,7 +1618,20 @@ object NightShotProcessor {
             val sourceLuma = IntArray((rowCount + 2) * width)
             carryRow.copyInto(sourceRows, 0)
             carryLuma.copyInto(sourceLuma, 0)
-            bitmap.getPixels(sourceRows, width, width, 0, top, width, rowCount + 1)
+            val readPlan = lunaDreamDetailStripeReadPlan(top, rowCount, height)
+            bitmap.getPixels(
+                sourceRows, width, width, 0, top, width, readPlan.sourceRowsToRead
+            )
+            if (readPlan.duplicateFinalRow) {
+                // The final stripe has no following row. Replicate its last valid row as the
+                // bottom halo instead of asking Bitmap.getPixels() to read beyond the bitmap.
+                sourceRows.copyInto(
+                    sourceRows,
+                    (rowCount + 1) * width,
+                    rowCount * width,
+                    (rowCount + 1) * width
+                )
+            }
             for (row in 1..rowCount + 1) {
                 val offset = row * width
                 for (x in 0 until width) sourceLuma[offset + x] = luma(sourceRows[offset + x])
@@ -1631,16 +1665,16 @@ object NightShotProcessor {
                         val fineDelta = centerLuma - diagonalMean
                         val edgeMagnitude = kotlin.math.abs(edgeDelta)
                         val correction = if (centerLuma in 18f..238f && edgeMagnitude >= 2.5f && edgeMagnitude <= 58f) {
-                            edgeDelta * 0.24f +
-                                if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.10f else 0f
+                            edgeDelta * 0.18f +
+                                if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.06f else 0f
                         } else 0f
 
                         val localMin = minOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
                         val localMax = maxOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
-                        val correctionLimit = minOf(7f, (edgeMagnitude * 0.48f).coerceAtLeast(2f))
+                        val correctionLimit = minOf(4.5f, (edgeMagnitude * 0.32f).coerceAtLeast(1f))
                         val clampedCorrection = correction.coerceIn(-correctionLimit, correctionLimit)
                         val targetLuma = (centerLuma + clampedCorrection)
-                            .coerceIn((localMin - 3f).coerceAtLeast(0f), (localMax + 3f).coerceAtMost(255f))
+                            .coerceIn((localMin - 2f).coerceAtLeast(0f), (localMax + 2f).coerceAtMost(255f))
                         val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
                         val red = (center ushr 16) and 0xFF
                         val green = (center ushr 8) and 0xFF
@@ -1714,16 +1748,16 @@ object NightShotProcessor {
                 val fineDelta = centerLuma - diagonalMean
                 val edgeMagnitude = kotlin.math.abs(edgeDelta)
                 val correction = if (centerLuma in 18f..238f && edgeMagnitude >= 2.5f && edgeMagnitude <= 58f) {
-                    edgeDelta * 0.24f +
-                        if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.10f else 0f
+                    edgeDelta * 0.18f +
+                        if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.06f else 0f
                 } else 0f
 
                 val localMin = minOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
                 val localMax = maxOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
-                val correctionLimit = minOf(7f, (edgeMagnitude * 0.48f).coerceAtLeast(2f))
+                val correctionLimit = minOf(4.5f, (edgeMagnitude * 0.32f).coerceAtLeast(1f))
                 val clampedCorrection = correction.coerceIn(-correctionLimit, correctionLimit)
                 val targetLuma = (centerLuma + clampedCorrection)
-                    .coerceIn((localMin - 3f).coerceAtLeast(0f), (localMax + 3f).coerceAtMost(255f))
+                    .coerceIn((localMin - 2f).coerceAtLeast(0f), (localMax + 2f).coerceAtMost(255f))
                 val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
                 val red = (center ushr 16) and 0xFF
                 val green = (center ushr 8) and 0xFF

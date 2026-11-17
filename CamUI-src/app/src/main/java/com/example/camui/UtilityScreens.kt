@@ -211,6 +211,7 @@ private fun LiquidGlassWatermarkPreview(
             ) {
                 WatermarkBrandMark(
                     brand = brand,
+                    frameStyle = frameStyle,
                     modifier = Modifier.fillMaxWidth(0.88f).height(17.dp).padding(2.dp),
                     fallbackColor = accent
                 )
@@ -1123,6 +1124,7 @@ private fun cameraWatermarkExampleModel(brand: String): String = when (brand.low
 @Composable
 private fun WatermarkBrandMark(
     brand: String,
+    frameStyle: String = "White",
     modifier: Modifier = Modifier,
     fallbackColor: Color = Color.Unspecified
 ) {
@@ -1228,6 +1230,7 @@ private fun WatermarkTemplateCard(
                 ) {
                     WatermarkBrandMark(
                         brand = brand,
+                        frameStyle = frameStyle,
                         modifier = Modifier.width(58.dp).height(12.dp),
                         fallbackColor = brandAccent
                     )
@@ -1261,6 +1264,7 @@ private fun WatermarkTemplateCard(
                     Row(Modifier.weight(0.56f), verticalAlignment = Alignment.CenterVertically) {
                         WatermarkBrandMark(
                             brand = brand,
+                            frameStyle = frameStyle,
                             modifier = Modifier.weight(0.38f).height(15.dp).padding(2.dp),
                             fallbackColor = brandAccent
                         )

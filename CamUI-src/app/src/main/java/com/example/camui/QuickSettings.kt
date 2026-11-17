@@ -33,8 +33,6 @@ fun QuickPanel(
     onRatio: (Int) -> Unit,
     ultraHdr: Boolean,
     onUltraHdr: () -> Unit,
-stabilization: Boolean,
-    onStabilization: () -> Unit,
     metering: String,
     onMetering: () -> Unit,
     renderEngine: String,
@@ -59,11 +57,9 @@ stabilization: Boolean,
         // Ultra HDR is hidden from the UI; its camera pipeline remains intact.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             FeatureCard("Render Engine", renderEngine, true, onRenderEngine, Modifier.weight(1f))
-            FeatureCard("Stabilization", if (stabilization) "ON" else "OFF", stabilization,
-                onStabilization, Modifier.weight(1f))
+            SmallCard("Metering", metering, null, onMetering, Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            SmallCard("Metering", metering, null, onMetering, Modifier.weight(1f))
             SmallCard("Toolbox", "Assistive tools", Icons.Default.Palette, onToolbox, Modifier.weight(1f))
             SmallCard("Contents", "Frames", Icons.Default.Tune, onContentManagement, Modifier.weight(1f))
         }

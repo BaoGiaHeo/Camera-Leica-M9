@@ -59,7 +59,7 @@ import kotlinx.coroutines.withContext
 private data class SettingItem(val title: String, val subtitle: String)
 private val settingItems = listOf(
     SettingItem("Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
-    SettingItem("Focus & Lens", "Camera ID · Stabilization · Sensor information"),
+    SettingItem("Focus & Lens", "Camera ID · Lens · Sensor information"),
     SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
     SettingItem("Photo Mode Setting", "HDR · Noise reduction"),
     SettingItem("NightShotMode", "NightShotMode · Long Exposure / Star Trails"),

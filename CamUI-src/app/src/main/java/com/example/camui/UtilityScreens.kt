@@ -17,7 +17,6 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.media.ExifInterface
-import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -270,7 +269,7 @@ fun ToolboxScreen(
     val presetKeys = remember {
         listOf(
             "capture_ratio_index", "camera_zoom_ratio", "camera_flash_mode", "camera_timer_seconds",
-            "camera_stabilization_enabled", "camera_metering_index", "camera_mode",
+            "camera_metering_index", "camera_mode",
             "selected_filter", "image_quality", "noise_reduction", "hdr_enabled",
             "nightshot_mode", "nightshot_duration_seconds", "star_trails_exposure_seconds",
             "milky_way_stack_enabled", "raw_capture_mode",
@@ -405,27 +404,20 @@ fun ToolboxScreen(
     }
     var hudAutoHideEnabled by remember { mutableStateOf(prefs.getBoolean("hud_auto_hide_enabled", true)) }
     var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
-    var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
-    var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
-    var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
-    var liquidGlassDispersion by remember { mutableStateOf(prefs.getFloat("watermark_glass_dispersion", 0.28f).coerceIn(0f, 1f)) }
-    var liquidGlassBlur by remember { mutableStateOf(prefs.getFloat("watermark_glass_blur", 8f).coerceIn(0f, 20f)) }
-    var liquidGlassRoughness by remember { mutableStateOf(prefs.getFloat("watermark_glass_roughness", 0.16f).coerceIn(0f, 1f)) }
-    var liquidGlassRim by remember { mutableStateOf(prefs.getFloat("watermark_glass_rim", 0.72f).coerceIn(0f, 1f)) }
-    var liquidGlassGloss by remember { mutableStateOf(prefs.getFloat("watermark_glass_gloss", 0.72f).coerceIn(0f, 1f)) }
-    var liquidGlassCorner by remember { mutableStateOf(prefs.getFloat("watermark_glass_corner", 0.58f).coerceIn(0f, 1f)) }
-    var liquidGlassGooey by remember { mutableStateOf(prefs.getFloat("watermark_glass_gooey", 0.34f).coerceIn(0f, 1f)) }
-    var liquidGlassTint by remember { mutableStateOf(prefs.getString("watermark_glass_tint", "Auto") ?: "Auto") }
+    var watermarkStyle by remember { mutableStateOf((prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White") }
     var watermarkTemplate by remember { mutableStateOf((prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto") }
-    var watermarkBrand by remember { mutableStateOf(prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm") }
+    var watermarkBrand by remember { mutableStateOf((prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
     var watermarkShowModel by remember { mutableStateOf(prefs.getBoolean("watermark_show_model", true)) }
     var watermarkShowSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
+    LaunchedEffect(watermarkStyle) { prefs.edit().putString("watermark_style", watermarkStyle).apply() }
+    LaunchedEffect(watermarkBrand) { prefs.edit().putString("watermark_brand", watermarkBrand).apply() }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
     var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Film Wash") ?: "Film Wash") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
     var shutterSoundUri by remember { mutableStateOf(prefs.getString("shutter_sound_uri", null)) }
+    var shutterSoundAsset by remember { mutableStateOf(prefs.getString("shutter_sound_asset", "classic") ?: "classic") }
     val shutterSoundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             val persisted = runCatching {
@@ -719,100 +711,11 @@ fun ToolboxScreen(
         Text("Màu khung", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 7.dp, top = 5.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf("White", "Black", "Transparent", "Liquid Glass").forEach { label ->
-                val style = if (label == "Liquid Glass") "LiquidGlass" else label
-                Chip(label, watermarkStyle == style, {
+            listOf("White", "Black").forEach { style ->
+                Chip(style, watermarkStyle == style, {
                     watermarkStyle = style
                     prefs.edit().putString("watermark_style", style).apply()
                 }, Modifier.weight(1f))
-            }
-        }
-        AnimatedVisibility(
-            visible = watermarkStyle == "LiquidGlass",
-            enter = fadeIn(tween(240)) + scaleIn(
-                initialScale = 0.94f,
-                animationSpec = spring(dampingRatio = 0.62f, stiffness = 430f)
-            ),
-            exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.96f)
-        ) {
-            Column(
-                Modifier.fillMaxWidth().padding(top = 12.dp)
-                    .clip(RoundedCornerShape(16.dp)).background(CamColors.Card)
-                    .padding(12.dp)
-            ) {
-                Text("Liquid Glass · Live preview", color = Color.White, fontWeight = FontWeight.SemiBold)
-                LiquidGlassWatermarkPreview(
-                    template = watermarkTemplate,
-                    refraction = liquidGlassRefraction,
-                    thickness = liquidGlassThickness,
-                    dispersion = liquidGlassDispersion,
-                    blur = liquidGlassBlur,
-                    roughness = liquidGlassRoughness,
-                    rim = liquidGlassRim,
-                    gloss = liquidGlassGloss,
-                    corner = liquidGlassCorner,
-                    gooey = liquidGlassGooey,
-                    tint = liquidGlassTint,
-                    brand = watermarkBrand,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                )
-                Text("Hình khối & tán sắc", color = CamColors.Yellow, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
-                GlassParameterSlider("Khúc xạ / độ cong", liquidGlassRefraction, 0f..1f) {
-                    liquidGlassRefraction = it
-                    prefs.edit().putFloat("watermark_glass_refraction", it).apply()
-                }
-                GlassParameterSlider("Độ dày / chiều sâu", liquidGlassThickness, 0f..1f) {
-                    liquidGlassThickness = it
-                    prefs.edit().putFloat("watermark_glass_thickness", it).apply()
-                }
-                GlassParameterSlider("Tán sắc màu", liquidGlassDispersion, 0f..1f) {
-                    liquidGlassDispersion = it
-                    prefs.edit().putFloat("watermark_glass_dispersion", it).apply()
-                }
-                Text("Bề mặt & độ mờ", color = CamColors.Yellow, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
-                GlassParameterSlider("Blur / Frosting", liquidGlassBlur, 0f..20f) {
-                    liquidGlassBlur = it
-                    prefs.edit().putFloat("watermark_glass_blur", it).apply()
-                }
-                GlassParameterSlider("Độ nhám / hạt mịn", liquidGlassRoughness, 0f..1f) {
-                    liquidGlassRoughness = it
-                    prefs.edit().putFloat("watermark_glass_roughness", it).apply()
-                }
-                Text("Ánh sáng & viền", color = CamColors.Yellow, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
-                GlassParameterSlider("Rim light / phản chiếu viền", liquidGlassRim, 0f..1f) {
-                    liquidGlassRim = it
-                    prefs.edit().putFloat("watermark_glass_rim", it).apply()
-                }
-                GlassParameterSlider("Glossiness / độ bóng", liquidGlassGloss, 0f..1f) {
-                    liquidGlassGloss = it
-                    prefs.edit().putFloat("watermark_glass_gloss", it).apply()
-                }
-                GlassParameterSlider("Corner radius / squircle", liquidGlassCorner, 0f..1f) {
-                    liquidGlassCorner = it
-                    prefs.edit().putFloat("watermark_glass_corner", it).apply()
-                }
-                GlassParameterSlider("Gooeyness / hòa quyện", liquidGlassGooey, 0f..1f) {
-                    liquidGlassGooey = it
-                    prefs.edit().putFloat("watermark_glass_gooey", it).apply()
-                }
-                Text("Màu nhuộm kính", color = Color.White, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf("Auto", "Milky", "Smoke").forEach { tint ->
-                        Chip(tint, liquidGlassTint == tint, {
-                            liquidGlassTint = tint
-                            prefs.edit().putString("watermark_glass_tint", tint).apply()
-                        }, Modifier.weight(1f))
-                    }
-                }
-                Text(
-                    "Preview mô phỏng mẫu watermark đang chọn. Các thông số được áp dụng lên lớp kính khi lưu JPEG; DNG RAW luôn giữ nguyên dữ liệu cảm biến.",
-                    color = CamColors.Sub, fontSize = 10.sp,
-                    modifier = Modifier.padding(top = 9.dp)
-                )
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -887,6 +790,26 @@ fun ToolboxScreen(
             shutterSound = it
             prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
         }
+        Text("Âm thanh có sẵn", color = CamColors.Sub, fontSize = 12.sp,
+            modifier = Modifier.padding(top = 9.dp, bottom = 6.dp))
+        val shutterSoundChoices = listOf(
+            "digital" to "Digital", "lens" to "Lens", "click" to "Click",
+            "mechanical" to "Mechanical", "classic" to "Classic",
+            "nikon" to "Nikon", "vintage" to "Vintage"
+        )
+        shutterSoundChoices.chunked(2).forEach { soundRow ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                soundRow.forEach { (id, label) ->
+                    Chip(label, shutterSoundUri.isNullOrBlank() && shutterSoundAsset == id, {
+                        shutterSoundAsset = id
+                        shutterSoundUri = null
+                        prefs.edit().putString("shutter_sound_asset", id).remove("shutter_sound_uri").apply()
+                    }, Modifier.weight(1f))
+                }
+                if (soundRow.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(6.dp))
+        }
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -901,7 +824,7 @@ fun ToolboxScreen(
             if (!shutterSoundUri.isNullOrBlank()) {
                 TextButton(onClick = {
                     shutterSoundUri = null
-                    prefs.edit().remove("shutter_sound_uri").apply()
+                    prefs.edit().remove("shutter_sound_uri").putString("shutter_sound_asset", shutterSoundAsset).apply()
                     Toast.makeText(context, "Đã quay về âm thanh mặc định.", Toast.LENGTH_SHORT).show()
                 }) {
                     Text("Mặc định")
@@ -910,7 +833,7 @@ fun ToolboxScreen(
         }
         Text(
             if (shutterSoundUri.isNullOrBlank()) {
-                "Đang dùng tiếng màn trập mặc định của Android."
+                "Đang dùng âm thanh màn trập đã chọn trong danh sách."
             } else {
                 "Đã chọn tệp âm thanh tùy chỉnh. Quyền đọc được lưu để dùng sau khi mở lại ứng dụng."
             },
@@ -990,7 +913,7 @@ private fun CameraFrameSettingsPanel() {
         }
     }
     Text(
-        "Transparent bỏ viền và panel của frame dựng sẵn; với frame PNG sẽ giữ nguyên độ trong suốt gốc.",
+        "Frame có viền trắng hoặc đen; ảnh PNG nhập vào vẫn giữ độ trong suốt gốc.",
         color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp)
     )
     if (customFrames.isEmpty()) {
@@ -1125,14 +1048,10 @@ private val cameraWatermarkBrands = listOf(
     "nikon" to "Nikon",
     "canon" to "Canon",
     "leica" to "Leica",
-    "panasonic" to "Panasonic / LUMIX",
-    "olympus" to "Olympus",
-    "om_system" to "OM System",
-    "pentax" to "PENTAX",
+    "panasonic" to "LUMIX",
     "ricoh" to "RICOH",
     "hasselblad" to "Hasselblad",
     "kodak" to "Kodak",
-    "sigma" to "SIGMA",
     "zeiss" to "ZEISS",
     "gopro" to "GoPro",
     "dji" to "DJI",
@@ -1145,17 +1064,13 @@ private fun cameraWatermarkBrandTitle(brand: String): String = when (brand.lower
     "canon" -> "Canon"
     "leica" -> "LEICA"
     "panasonic" -> "LUMIX"
-    "olympus" -> "OLYMPUS"
-    "om_system" -> "OM SYSTEM"
-    "pentax" -> "PENTAX"
     "ricoh" -> "RICOH"
     "hasselblad" -> "HASSELBLAD"
     "kodak" -> "KODAK"
-    "sigma" -> "SIGMA"
     "zeiss" -> "ZEISS"
     "gopro" -> "GoPro"
     "dji" -> "DJI"
-    "insta360" -> "insta360"
+    "insta360" -> "Insta360"
     else -> "FUJIFILM"
 }
 
@@ -1165,18 +1080,25 @@ private fun cameraWatermarkBrandAccent(brand: String): Int = when (brand.lowerca
     "canon" -> AndroidColor.rgb(205, 0, 34)
     "leica" -> AndroidColor.rgb(220, 20, 35)
     "panasonic" -> AndroidColor.rgb(0, 66, 125)
-    "olympus" -> AndroidColor.rgb(24, 35, 48)
-    "om_system" -> AndroidColor.rgb(0, 143, 202)
-    "pentax" -> AndroidColor.rgb(196, 24, 45)
     "ricoh" -> AndroidColor.rgb(218, 25, 35)
     "hasselblad" -> AndroidColor.rgb(137, 105, 45)
     "kodak" -> AndroidColor.rgb(205, 26, 34)
-    "sigma" -> AndroidColor.rgb(0, 73, 135)
     "zeiss" -> AndroidColor.rgb(0, 128, 184)
     "gopro" -> AndroidColor.rgb(0, 174, 239)
     "dji" -> AndroidColor.rgb(46, 54, 62)
     "insta360" -> AndroidColor.rgb(35, 174, 145)
     else -> AndroidColor.rgb(0, 91, 145)
+}
+
+private fun cameraWatermarkBrandAssetPath(brand: String): String? = when (brand.lowercase()) {
+    "gopro" -> "watermark-brands/gopro.webp"
+    "hasselblad" -> "watermark-brands/hasselblad.webp"
+    "insta360" -> "watermark-brands/insta360.webp"
+    "kodak" -> "watermark-brands/kodak.webp"
+    "panasonic", "lumix" -> "watermark-brands/lumix.webp"
+    "zeiss" -> "watermark-brands/zeiss.webp"
+    "dji" -> "watermark-brands/dji.webp"
+    else -> null
 }
 
 private fun cameraWatermarkBrandLogoResource(brand: String): Int? = when (brand.lowercase()) {
@@ -1193,13 +1115,9 @@ private fun cameraWatermarkExampleModel(brand: String): String = when (brand.low
     "canon" -> "EOS R5"
     "leica" -> "M11"
     "panasonic" -> "LUMIX S5II"
-    "olympus" -> "OM-D E-M1"
-    "om_system" -> "OM-1"
-    "pentax" -> "K-3 III"
     "ricoh" -> "GR III"
     "hasselblad" -> "X2D 100C"
     "kodak" -> "PIXPRO"
-    "sigma" -> "fp L"
     "zeiss" -> "ZX1"
     "gopro" -> "HERO"
     "dji" -> "Osmo"
@@ -1214,9 +1132,21 @@ private fun WatermarkBrandMark(
     fallbackColor: Color = Color.Unspecified
 ) {
     val logoResource = cameraWatermarkBrandLogoResource(brand)
+    val assetPath = cameraWatermarkBrandAssetPath(brand)
+    val context = LocalContext.current
+    val assetBitmap = remember(context, assetPath) {
+        assetPath?.let { path -> CameraAssetStore.bitmap(context, path)?.asImageBitmap() }
+    }
     if (logoResource != null) {
         Image(
             painter = painterResource(id = logoResource),
+            contentDescription = "${cameraWatermarkBrandTitle(brand)} watermark wordmark",
+            modifier = modifier,
+            contentScale = ContentScale.Fit
+        )
+    } else if (assetBitmap != null) {
+        Image(
+            bitmap = assetBitmap,
             contentDescription = "${cameraWatermarkBrandTitle(brand)} watermark wordmark",
             modifier = modifier,
             contentScale = ContentScale.Fit
@@ -2637,9 +2567,10 @@ fun applyCameraWatermark(
         val sourceBitmap = decodeWatermarkPixelBitmap(context, uri) ?: return@runCatching false
         var outputBitmap: Bitmap? = null
         var watermarkCropBitmap: Bitmap? = null
+        var watermarkBrandBitmap: Bitmap? = null
         try {
         val selectedTemplate = (prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto"
-        val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
+        val frameStyle = (prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White"
         val template = if (selectedTemplate == "fuji_auto") {
             if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
         } else {
@@ -2803,7 +2734,7 @@ fun applyCameraWatermark(
             java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(it)
         }.orEmpty().takeIf { showTime }.orEmpty()
         val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
-        val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase()
+        val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
         val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
         // Brand-matched typefaces are bundled with their OFL notices in assets/fonts.
         val brandTypeface = resolveWatermarkTypeface(context, watermarkBrand)
@@ -2816,6 +2747,9 @@ fun applyCameraWatermark(
         val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
         val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand)?.let {
             ContextCompat.getDrawable(context, it)
+        } ?: cameraWatermarkBrandAssetPath(watermarkBrand)?.let { assetPath ->
+            CameraAssetStore.bitmap(context, assetPath)?.also { watermarkBrandBitmap = it }
+                ?.let { android.graphics.drawable.BitmapDrawable(context.resources, it) }
         }
         val footerRect = if (expandedFujiFooter) {
             RectF(
@@ -2835,8 +2769,18 @@ fun applyCameraWatermark(
         fun drawBrandLogo(rect: RectF) {
             val logo = brandLogo
             if (logo != null) {
+                val intrinsicWidth = logo.intrinsicWidth.coerceAtLeast(1).toFloat()
+                val intrinsicHeight = logo.intrinsicHeight.coerceAtLeast(1).toFloat()
+                val fitScale = minOf(rect.width() / intrinsicWidth, rect.height() / intrinsicHeight)
+                val drawWidth = intrinsicWidth * fitScale
+                val drawHeight = intrinsicHeight * fitScale
+                val drawLeft = rect.centerX() - drawWidth * 0.5f
+                val drawTop = rect.centerY() - drawHeight * 0.5f
                 canvas.save()
-                logo.setBounds(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
+                logo.setBounds(
+                    drawLeft.toInt(), drawTop.toInt(),
+                    (drawLeft + drawWidth).toInt(), (drawTop + drawHeight).toInt()
+                )
                 logo.draw(canvas)
                 canvas.restore()
                 return
@@ -3435,6 +3379,7 @@ fun applyCameraWatermark(
         true
         } finally {
             watermarkCropBitmap?.let { if (!it.isRecycled) it.recycle() }
+            watermarkBrandBitmap?.let { if (!it.isRecycled) it.recycle() }
             outputBitmap?.let { if (it !== sourceBitmap && !it.isRecycled) it.recycle() }
             if (!sourceBitmap.isRecycled) sourceBitmap.recycle()
         }
@@ -4108,8 +4053,8 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
                     ?: return@runCatching false
             }
             val canvas = Canvas(output)
-        val frameStyle = prefs.getString("frame_style", "White") ?: "White"
-        val transparent = frameStyle == "Transparent"
+        val frameStyle = (prefs.getString("frame_style", "White") ?: "White").takeIf { it == "Black" || it == "White" } ?: "White"
+        val transparent = false
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
         val textColor = if (frameStyle == "Black" || transparent) AndroidColor.WHITE else AndroidColor.BLACK
         val minSide = minOf(output.width, output.height).toFloat()
@@ -4359,7 +4304,7 @@ fun CameraFrameDialog(
             Text("Frame color", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 10.dp, bottom = 7.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                listOf("White", "Black", "Transparent").forEach { style ->
+                listOf("White", "Black").forEach { style ->
                     Chip(style, selectedStyle == style, { onSelectStyle(style) }, Modifier.weight(1f))
                 }
             }

@@ -13,7 +13,6 @@ import android.graphics.Point
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.media.AudioAttributes
-import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.BatteryManager
@@ -233,40 +232,55 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
-private fun playConfiguredShutterSound(context: Context, systemPlayer: MediaActionSound) {
-    val customUri = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        .getString("shutter_sound_uri", null)
-        ?.takeIf { it.isNotBlank() }
-    if (customUri != null) {
-        val player = MediaPlayer()
-        val prepared = runCatching {
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
+private val bundledShutterSoundAssets = mapOf(
+    "digital" to "shutter-sounds/mixkit-camera-digital-shutter-1432.mp3",
+    "lens" to "shutter-sounds/mixkit-camera-lens-shutter-1433.mp3",
+    "click" to "shutter-sounds/mixkit-camera-shutter-click-1133.mp3",
+    "mechanical" to "shutter-sounds/mixkit-camera-shutter-hard-click-1430.mp3",
+    "classic" to "shutter-sounds/mixkit-classic-camera-click-1440.mp3",
+    "nikon" to "shutter-sounds/mixkit-nikon-camera-shutter-1434.mp3",
+    "vintage" to "shutter-sounds/mixkit-vintage-camera-shutter-1438.mp3"
+)
+
+private fun playConfiguredShutterSound(context: Context) {
+    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val customUri = prefs.getString("shutter_sound_uri", null)?.takeIf { it.isNotBlank() }
+    val player = MediaPlayer()
+    val prepared = runCatching {
+        player.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        )
+        if (customUri != null) {
             player.setDataSource(context, Uri.parse(customUri))
-            player.setOnPreparedListener { mediaPlayer ->
-                val started = runCatching { mediaPlayer.start() }.isSuccess
-                if (!started) {
-                    mediaPlayer.release()
-                    runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
-                }
+        } else {
+            val selectedSound = prefs.getString("shutter_sound_asset", "classic") ?: "classic"
+            val assetPath = bundledShutterSoundAssets[selectedSound] ?: bundledShutterSoundAssets.getValue("classic")
+            val soundFile = requireNotNull(CameraAssetStore.file(context, assetPath)) {
+                "Bundled shutter sound is missing: $assetPath"
             }
-            player.setOnCompletionListener { it.release() }
-            player.setOnErrorListener { mediaPlayer, _, _ ->
+            player.setDataSource(soundFile.absolutePath)
+        }
+        player.setOnPreparedListener { mediaPlayer ->
+            runCatching { mediaPlayer.start() }.onFailure {
+                android.util.Log.w("FUJI_SHUTTER", "Could not start selected shutter audio", it)
                 mediaPlayer.release()
-                runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
-                true
             }
-            player.prepareAsync()
-        }.isSuccess
-        if (prepared) return
+        }
+        player.setOnCompletionListener { it.release() }
+        player.setOnErrorListener { mediaPlayer, what, extra ->
+            android.util.Log.w("FUJI_SHUTTER", "Selected shutter audio failed: $what/$extra")
+            mediaPlayer.release()
+            true
+        }
+        player.prepareAsync()
+    }.isSuccess
+    if (!prepared) {
         runCatching { player.release() }
-        android.util.Log.w("FUJI_SHUTTER", "Custom shutter audio unavailable; using Android default")
+        android.util.Log.w("FUJI_SHUTTER", "No shutter sound played; Android system sound is intentionally not used")
     }
-    runCatching { systemPlayer.play(MediaActionSound.SHUTTER_CLICK) }
 }
 
 /**
@@ -570,7 +584,7 @@ fun CameraScreen(
     // Ultra HDR is hidden from the UI. Keep the legacy camera path but start disabled.
     var ultraHdr by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { appPrefs.edit().putBoolean("ultra_hdr_enabled", false).apply() }
-    var stabilization by remember { mutableStateOf(appPrefs.getBoolean("camera_stabilization_enabled", false)) }
+    LaunchedEffect(Unit) { appPrefs.edit().remove("camera_stabilization_enabled").apply() }
     var renderEngine by remember { mutableStateOf(appPrefs.getString("camera_render_engine", "Performance") ?: "Performance") }
     var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)) }
     var focusLocked by remember { mutableStateOf(false) }
@@ -667,12 +681,6 @@ fun CameraScreen(
         delay(5_000L)
         hudVisible = false
     }
-    val shutterSoundPlayer = remember {
-        MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) }
-    }
-    DisposableEffect(shutterSoundPlayer) {
-        onDispose { shutterSoundPlayer.release() }
-    }
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
     // Keep the EV thumb independent from delayed per-frame Camera2 results while dragging.
     var evSliderPosition by remember { mutableFloatStateOf(evIndex.toFloat()) }
@@ -752,7 +760,7 @@ fun CameraScreen(
     }
     var showLunaDream by remember { mutableStateOf(false) }
     LaunchedEffect(
-        mode, front, flash, timerSec, ultraHdr, stabilization, renderEngine, metering,
+        mode, front, flash, timerSec, ultraHdr, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
@@ -764,7 +772,6 @@ fun CameraScreen(
             .putInt("camera_flash_mode", flash)
             .putInt("camera_timer_seconds", timerSec)
             .putBoolean("ultra_hdr_enabled", ultraHdr)
-            .putBoolean("camera_stabilization_enabled", stabilization)
             .putString("camera_render_engine", renderEngine)
             .putInt("camera_metering_index", metering)
             .putString("nightshot_mode", nightShotMode)
@@ -816,6 +823,7 @@ fun CameraScreen(
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FIT_CENTER
+            setBackgroundColor(android.graphics.Color.BLACK)
             implementationMode = if (renderEngine == "Performance") {
                 PreviewView.ImplementationMode.PERFORMANCE
             } else {
@@ -1537,7 +1545,6 @@ fun CameraScreen(
                         }
                     }
                 }
-                if (stabilization) applyStabilization(bound, true)
             }
 
             // When UHD sharpening is requested, prefer OEM HDR JPEG (or software HDR)
@@ -1814,7 +1821,7 @@ fun CameraScreen(
         previewUseCase?.targetRotation = captureRotation
         analysisUseCase?.targetRotation = captureRotation
         if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-            playConfiguredShutterSound(context, shutterSoundPlayer)
+            playConfiguredShutterSound(context)
         }
 
         val info = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
@@ -2380,10 +2387,6 @@ fun CameraScreen(
             }
             // Haptic feedback is synchronous and does not wait for camera capture.
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            // ISO/shutter are applied only for the still shot, never continuously to the preview stream.
-            if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-                playConfiguredShutterSound(context, shutterSoundPlayer)
-            }
             val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
             scope.launch {
                 if (shutterEffectType == "Film Wash") {
@@ -3198,7 +3201,8 @@ fun CameraScreen(
     val showMilkyWayAdvisor = false
 
 
-    // Animate the preview's ratio when the device changes orientation.
+    // The selected ratio controls the preview frame; FIT_CENTER keeps the complete sensor view
+    // visible inside it, with black letterbox bars instead of a digital crop or zoom.
     val basePreviewRatio = aspectRatios[ratioIdx.coerceIn(0, aspectRatios.lastIndex)].second
     val targetPreviewRatio = if (isLandscape) 1f / basePreviewRatio else basePreviewRatio
     // Change crop ratio atomically with CameraX's ViewPort. The surrounding layout still
@@ -3274,7 +3278,7 @@ fun CameraScreen(
     }
 
     val previewContent: @Composable (Modifier) -> Unit = { previewModifier ->
-                    Box(previewModifier, contentAlignment = Alignment.Center) {
+                    Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
                                 .aspectRatio(previewAspectRatio)
@@ -4201,11 +4205,6 @@ fun CameraScreen(
                         ultraHdr = !ultraHdr
                     }
                 },
-stabilization = stabilization,
-                onStabilization = {
-                    stabilization = !stabilization
-                    camera?.let { runCatching { applyStabilization(it, stabilization) } }
-                },
                 metering = meteringModes[metering],
                 onMetering = { metering = (metering + 1) % meteringModes.size },
                 renderEngine = renderEngine,
@@ -4875,16 +4874,6 @@ private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
         .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_FAST)
         .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, gains)
         .build()
-    Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
-}
-
-private fun applyStabilization(camera: Camera, enabled: Boolean) {
-    val options = CaptureRequestOptions.Builder()
-        .setCaptureRequestOption(
-            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-            if (enabled) CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON
-            else CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF
-        ).build()
     Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
 }
 

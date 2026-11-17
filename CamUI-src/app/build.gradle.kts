@@ -43,6 +43,10 @@ android {
         compose = true
     }
 
+    androidResources {
+        noCompress += listOf("mp3")
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true

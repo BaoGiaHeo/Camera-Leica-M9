@@ -69,37 +69,84 @@ jobs:
       - name: Cold-start smoke test on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
-          target: default
+          # Use the stable Google APIs image and wait for Android framework services,
+          # not merely for the ADB transport, before attempting APK installation.
+          api-level: 34
+          target: google_apis
           arch: x86_64
           profile: pixel_2
           emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
           emulator-boot-timeout: 900
           script: |
+            set -eu
             mkdir -p emulator-artifacts
+            : > emulator-artifacts/command-status.txt
 
-            # Bound every ADB operation so an unresponsive emulator cannot stall the whole job.
-            sh -c 'timeout 60s adb wait-for-device > emulator-artifacts/adb-wait.txt 2>&1; rc=$?; echo "wait_for_device=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 90s adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk > emulator-artifacts/install.txt 2>&1; rc=$?; echo "install=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 20s adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1; rc=$?; echo "camera_permission=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 20s adb logcat -c > emulator-artifacts/logcat-clear.txt 2>&1; rc=$?; echo "logcat_clear=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 20s adb shell am force-stop com.fujifilm.mode.debug > emulator-artifacts/force-stop.txt 2>&1; rc=$?; echo "force_stop=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 45s adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1; rc=$?; echo "am_start=$rc" >> emulator-artifacts/command-status.txt'
-            sleep 8
-            sh -c 'timeout 30s adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt 2>&1; rc=$?; echo "dumpsys_portrait=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 30s adb exec-out screencap -p > emulator-artifacts/camera-portrait.png; rc=$?; echo "screencap_portrait=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 30s adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-portrait.txt 2>&1; rc=$?; echo "logcat_portrait=$rc" >> emulator-artifacts/command-status.txt'
+            timeout 60s adb wait-for-device > emulator-artifacts/adb-wait.txt 2>&1
+            echo "wait_for_device=0" >> emulator-artifacts/command-status.txt
 
-            # Force landscape and record whether the activity follows the display configuration.
-            sh -c 'timeout 20s adb shell settings put system accelerometer_rotation 0; rc=$?; echo "disable_auto_rotation=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 20s adb shell settings put system user_rotation 1; rc=$?; echo "set_landscape_rotation=$rc" >> emulator-artifacts/command-status.txt'
+            # adb wait-for-device can return before PackageManager/ActivityManager are ready.
+            ready=0
+            for i in $(seq 1 90); do
+              boot="$(adb shell getprop sys.boot_completed 2>&1 | tr -d '\r' || true)"
+              package_service="$(adb shell service check package 2>&1 | tr -d '\r' || true)"
+              activity_service="$(adb shell service check activity 2>&1 | tr -d '\r' || true)"
+              printf 'attempt=%s boot=%s package=%s activity=%s\n' "$i" "$boot" "$package_service" "$activity_service" >> emulator-artifacts/boot-readiness.txt
+              if [ "$boot" = "1" ] && printf '%s' "$package_service" | grep -q found && printf '%s' "$activity_service" | grep -q found; then
+                ready=1
+                break
+              fi
+              sleep 4
+            done
+
+            adb shell getprop > emulator-artifacts/getprop.txt 2>&1 || true
+            adb shell service list > emulator-artifacts/services.txt 2>&1 || true
+            if [ "$ready" -ne 1 ]; then
+              echo "Android framework services did not become ready; app was not installed/launched." > emulator-artifacts/boot-failure.txt
+              adb logcat -b all -d -v threadtime -t 15000 > emulator-artifacts/logcat-boot-failure.txt 2>&1 || true
+              adb shell ps -A > emulator-artifacts/processes-boot-failure.txt 2>&1 || true
+              echo "framework_ready=0" >> emulator-artifacts/command-status.txt
+              exit 21
+            fi
+            echo "framework_ready=1" >> emulator-artifacts/command-status.txt
+
+            adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk > emulator-artifacts/install.txt 2>&1
+            echo "install=0" >> emulator-artifacts/command-status.txt
+            adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1
+            adb logcat -c
+            adb shell am force-stop com.fujifilm.mode.debug > emulator-artifacts/force-stop.txt 2>&1
+            adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1
+            echo "am_start=0" >> emulator-artifacts/command-status.txt
+            sleep 15
+
+            adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid.txt 2>&1 || true
+            adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt 2>&1 || true
+            adb exec-out screencap -p > emulator-artifacts/camera-portrait.png 2> emulator-artifacts/screencap-portrait-error.txt || true
+            adb logcat -d -v threadtime -t 12000 > emulator-artifacts/logcat-portrait.txt 2>&1 || true
+
+            # Exercise orientation only after a successful cold launch.
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
             sleep 5
-            sh -c 'timeout 30s adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt 2>&1; rc=$?; echo "dumpsys_landscape=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 30s adb exec-out screencap -p > emulator-artifacts/camera-landscape.png; rc=$?; echo "screencap_landscape=$rc" >> emulator-artifacts/command-status.txt'
-            sh -c 'timeout 30s adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-landscape.txt 2>&1; rc=$?; echo "logcat_landscape=$rc" >> emulator-artifacts/command-status.txt'
+            adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt 2>&1 || true
+            adb exec-out screencap -p > emulator-artifacts/camera-landscape.png 2> emulator-artifacts/screencap-landscape-error.txt || true
+            adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid-landscape.txt 2>&1 || true
+            adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-landscape.txt 2>&1 || true
 
-            # Keep the instrumentation result as the final command's exit status.
-            sh -c 'timeout 240s gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain; test_status=$?; timeout 30s adb logcat -d -v threadtime -t 10000 > emulator-artifacts/logcat-final.txt 2>&1; exit "$test_status"'
+            # Keep raw logs even when startup fails; report app crash signatures separately.
+            if grep -Eq 'FATAL EXCEPTION|Fatal signal [0-9]+|am_crash|Process: com\.fujifilm\.mode' emulator-artifacts/logcat-landscape.txt; then
+              echo "app_crash_signature=1" >> emulator-artifacts/command-status.txt
+              exit 22
+            fi
+            if [ ! -s emulator-artifacts/app-pid.txt ]; then
+              echo "app_process_missing_after_launch=1" >> emulator-artifacts/command-status.txt
+              exit 23
+            fi
+            echo "app_process_alive=1" >> emulator-artifacts/command-status.txt
+
+            # Run instrumentation only after the plain install + cold start was observed.
+            gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
+            adb logcat -d -v threadtime -t 20000 > emulator-artifacts/logcat-final.txt 2>&1 || true
 
       - name: Upload emulator inspection
         if: always()

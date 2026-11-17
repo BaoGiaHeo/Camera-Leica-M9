@@ -532,6 +532,12 @@ fun CameraScreen(
     var nativeImageProcessingEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("native_image_processing_enabled", false))
     }
+    var livePhotoEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("live_photo_enabled", false))
+    }
+    LaunchedEffect(livePhotoEnabled) {
+        appPrefs.edit().putBoolean("live_photo_enabled", livePhotoEnabled).apply()
+    }
     LaunchedEffect(nativeImageProcessingEnabled) {
         appPrefs.edit()
             .putBoolean("native_image_processing_enabled", nativeImageProcessingEnabled)
@@ -860,7 +866,7 @@ fun CameraScreen(
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
-        nativeImageProcessingEnabled, manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
+        nativeImageProcessingEnabled, livePhotoEnabled, manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
         if (!hasCam) return@LaunchedEffect
@@ -920,8 +926,9 @@ fun CameraScreen(
                     ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
                 }.getOrDefault(emptySet())
             }.orEmpty()
-            val rawDreamRequested = rawCaptureMode == "raw_dream" && !nativeImageProcessingEnabled
-            val rawCaptureRequested = !nativeImageProcessingEnabled &&
+            val rawDreamRequested = rawCaptureMode == "raw_dream" &&
+                !nativeImageProcessingEnabled && !livePhotoEnabled
+            val rawCaptureRequested = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Photo" && nightShotMode == "off" &&
                 (lunaDreamMode == "off" || rawDreamRequested) &&
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
@@ -1231,11 +1238,13 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, captureExposure)
                         .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(captureExposure, 10_000_000L))
                 }
-                val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled &&
+                val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                     appPrefs.getString("lunadream_mode", "off") != "off"
-                val isComputationalHighResolution = lunaDreamRequestedInPrefs || uhdCaptureEnabled || fhdCaptureEnabled ||
-                    uhdPlusCaptureEnabled || (mode == "Photo" && nightShotMode == "night")
-                val isOrdinaryPhotoJpeg = mode == "Photo" && nightShotMode == "off" &&
+                val isComputationalHighResolution = !livePhotoEnabled &&
+                    (lunaDreamRequestedInPrefs || uhdCaptureEnabled || fhdCaptureEnabled ||
+                        uhdPlusCaptureEnabled || (mode == "Photo" && nightShotMode == "night"))
+                val isOrdinaryPhotoJpeg = mode == "Photo" &&
+                    (nightShotMode == "off" || livePhotoEnabled) &&
                     !rawCaptureActive && !isComputationalHighResolution
                 if (rawCaptureActive) {
                     val rawAspect = ratio.toFloat().let { if (it < 1f) 1f / it else it }
@@ -1261,7 +1270,12 @@ fun CameraScreen(
                     }
                 } else if (isOrdinaryPhotoJpeg) {
                     val nativePhotoAspect = ratio.toFloat().let { if (it < 1f) 1f / it else it }
-                    val nativePhotoSize = preferredPhotoJpegSize(context, activeFacingId, nativePhotoAspect)
+                    val nativePhotoSize = preferredPhotoJpegSize(
+                        context,
+                        activeFacingId,
+                        nativePhotoAspect,
+                        targetPixels = if (livePhotoEnabled) 48_000_000L else 12_500_000L
+                    )
                     if (nativePhotoSize != null) {
                         captureBuilder.setResolutionSelector(
                             ResolutionSelector.Builder()
@@ -2396,9 +2410,9 @@ fun CameraScreen(
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val captureUseRawDream20 = !nativeImageProcessingEnabled &&
+            val captureUseRawDream20 = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Photo" && rawCaptureMode == "raw_dream"
-            val lunaDreamSelected = !nativeImageProcessingEnabled &&
+            val lunaDreamSelected = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Photo" && (lunaDreamMode != "off" || captureUseRawDream20)
             val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
@@ -2416,8 +2430,8 @@ fun CameraScreen(
                 ).show()
                 return@launch
             }
-            val captureUseNightShot = !nativeImageProcessingEnabled && mode == "Photo" &&
-                nightShotMode == "night" && !captureUseLunaDream
+            val captureUseNightShot = !nativeImageProcessingEnabled && !livePhotoEnabled &&
+                mode == "Photo" && nightShotMode == "night" && !captureUseLunaDream
             val captureUseMilkyWayStack = captureUseNightShot && !front &&
                 kotlin.math.abs(zoomSel - 1f) < 0.08f && milkyWayStackEnabled &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
@@ -4207,25 +4221,29 @@ fun CameraScreen(
                             Box(Modifier.clip(RoundedCornerShape(16.dp))
                                 .background(
                                     when {
-                                        nativeImageProcessingEnabled -> Color(0x553A3A3A)
+                                        livePhotoEnabled || nativeImageProcessingEnabled -> Color(0x553A3A3A)
                                         lunaDreamMode != "off" || nightShotMode == "night" -> Color(0x66F5C842)
                                         else -> CamColors.Glass
                                     }
                                 )
                                 .animaTClickable {
-                                    if (nativeImageProcessingEnabled) {
-                                        localizedToast(
+                                    when {
+                                        livePhotoEnabled -> localizedToast(
+                                            context,
+                                            "Vui lòng tắt Live Photo",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        nativeImageProcessingEnabled -> localizedToast(
                                             context,
                                             "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.",
                                             Toast.LENGTH_LONG
                                         ).show()
-                                    } else {
-                                        showLunaDream = true
+                                        else -> showLunaDream = true
                                     }
                                 }
                                 .padding(horizontal = 15.dp, vertical = 7.dp)) {
                                 Text("LunaDream",
-                                    color = if (nativeImageProcessingEnabled) Color(0xFF777777)
+                                    color = if (livePhotoEnabled || nativeImageProcessingEnabled) Color(0xFF777777)
                                         else if (lunaDreamMode != "off" || nightShotMode == "night") CamColors.Yellow
                                         else CamColors.TextColor,
                                     fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -4324,6 +4342,11 @@ fun CameraScreen(
                 onMetering = { metering = (metering + 1) % meteringModes.size },
                 renderEngine = renderEngine,
                 onRenderEngine = { renderEngine = if (renderEngine == "Performance") "Compatible" else "Performance" },
+                livePhotoEnabled = livePhotoEnabled,
+                onLivePhotoChanged = { enabled ->
+                    livePhotoEnabled = enabled
+                    if (enabled) showLunaDream = false
+                },
                 nativeImageProcessingEnabled = nativeImageProcessingEnabled,
                 onNativeImageProcessingChanged = { enabled ->
                     nativeImageProcessingEnabled = enabled
@@ -4523,7 +4546,7 @@ fun CameraScreen(
             )
         }
 
-        if (showLunaDream && !nativeImageProcessingEnabled) {
+        if (showLunaDream && !nativeImageProcessingEnabled && !livePhotoEnabled) {
             LunaDreamBottomSheet(
                 onDismiss = { showLunaDream = false },
                 nightShotEnabled = nightShotMode == "night",

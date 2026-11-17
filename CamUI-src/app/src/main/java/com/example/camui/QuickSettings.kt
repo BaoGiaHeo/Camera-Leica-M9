@@ -48,6 +48,8 @@ fun QuickPanel(
     onMetering: () -> Unit,
     renderEngine: String,
     onRenderEngine: () -> Unit,
+    livePhotoEnabled: Boolean,
+    onLivePhotoChanged: (Boolean) -> Unit,
     nativeImageProcessingEnabled: Boolean,
     onNativeImageProcessingChanged: (Boolean) -> Unit,
     onToolbox: () -> Unit,
@@ -119,6 +121,22 @@ fun QuickPanel(
                 }
             }
             // Ultra HDR is hidden from the UI; its camera pipeline remains intact.
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .background(CamColors.Chip).padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Live Photo", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text(
+                        if (livePhotoEnabled) "Đang bật · tối đa 48MP"
+                        else "Đang tắt · ảnh tĩnh thông thường",
+                        color = if (livePhotoEnabled) CamColors.Yellow else CamColors.Sub,
+                        fontSize = 10.sp
+                    )
+                }
+                Switch(checked = livePhotoEnabled, onCheckedChange = onLivePhotoChanged)
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 FeatureCard("Render Engine", renderEngine, true, onRenderEngine, Modifier.weight(1f))
                 SmallCard("Metering", metering, null, onMetering, Modifier.weight(1f))

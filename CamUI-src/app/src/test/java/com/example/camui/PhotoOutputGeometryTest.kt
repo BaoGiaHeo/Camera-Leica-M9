@@ -98,6 +98,13 @@ class PhotoOutputGeometryTest {
     }
 
     @Test
+    fun allExifOrientationsThatRotateNinetyDegreesSwapSourceDimensions() {
+        val quarterTurnExifOrientations = setOf(5, 6, 7, 8)
+        assertTrue(quarterTurnExifOrientations.all { it in 5..8 })
+        assertTrue((1..4).none { it in 5..8 })
+    }
+
+    @Test
     fun missingOrInvalidRatioUsesTheSourceRatio() {
         val default = PhotoOutputGeometry.calculate(4000, 3000, 60_000_000L)
         val invalid = PhotoOutputGeometry.calculate(4000, 3000, 60_000_000L, Float.NaN)

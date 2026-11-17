@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.camui"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.fujifilm.mode"

@@ -3,6 +3,7 @@ package com.example.camui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.content.res.Configuration
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -142,6 +144,7 @@ private fun SettingsDetailPage(
     onFocusPeaking: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
@@ -205,7 +208,7 @@ var nightShotMode by remember {
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     aspectRatios.forEachIndexed { index, pair ->
-                        Chip(pair.first, index == ratioIdx, { onRatio(index) }, Modifier.width(68.dp))
+                        Chip(aspectRatioDisplayLabel(index, isLandscape), index == ratioIdx, { onRatio(index) }, Modifier.width(68.dp))
                     }
                 }
                 Spacer(Modifier.padding(7.dp))

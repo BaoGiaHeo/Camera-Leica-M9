@@ -17,7 +17,9 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +44,7 @@ fun QuickPanel(
     onSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val shape = RoundedCornerShape(22.dp)
     Column(
         modifier.fillMaxWidth().clip(shape).background(CamColors.Panel)
@@ -51,7 +54,7 @@ fun QuickPanel(
         Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             aspectRatios.forEachIndexed { index, pair ->
-                Chip(pair.first, index == ratioIdx, { onRatio(index) }, Modifier.weight(1f))
+                Chip(aspectRatioDisplayLabel(index, isLandscape), index == ratioIdx, { onRatio(index) }, Modifier.weight(1f))
             }
         }
         // Ultra HDR is hidden from the UI; its camera pipeline remains intact.

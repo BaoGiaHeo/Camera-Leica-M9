@@ -125,8 +125,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The app starts in portrait. Sensor rotation only offers a button; it never rotates the UI itself.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        // Allow the camera UI and ratio controls to follow portrait or landscape orientation.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
         window.attributes = window.attributes.apply {
             rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
         }

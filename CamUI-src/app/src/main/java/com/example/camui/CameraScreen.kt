@@ -435,7 +435,9 @@ fun CameraScreen(
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
     var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
     // UI orientation is intentionally fixed to portrait. The sensor listener tracks photo orientation.
-    LaunchedEffect(configuration.orientation) { isLandscape = false }
+    LaunchedEffect(configuration.orientation) {
+        isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
     var faceTrackingEnabled by remember {
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
@@ -823,7 +825,7 @@ fun CameraScreen(
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FIT_CENTER
-            setBackgroundColor(android.graphics.Color.BLACK)
+            setBackgroundColor(android.graphics.Color.rgb(38, 43, 51))
             implementationMode = if (renderEngine == "Performance") {
                 PreviewView.ImplementationMode.PERFORMANCE
             } else {
@@ -2410,18 +2412,9 @@ fun CameraScreen(
             // PreviewView/Display.rotation may remain portrait while the handset is landscape.
             val captureRotation = targetRotation
             val captureIsLandscape = deviceIsLandscape
-            val selectedBaseAspectRatio = when (ratioIdx) {
-                0 -> 16f / 9f
-                1 -> 21f / 9f
-                2 -> 4f / 3f
-                else -> 1f
-            }
-            // The selected frame ratio controls final letterboxing, not sensor orientation.
-            val expectedAspectRatioForCapture = if (captureIsLandscape || ratioIdx == 3) {
-                selectedBaseAspectRatio
-            } else {
-                1f / selectedBaseAspectRatio
-            }
+            // Use one orientation-aware ratio source for portrait and landscape capture.
+            val expectedAspectRatioForCapture =
+                aspectRatioForOrientation(ratioIdx, captureIsLandscape)
             // Orientation detection uses a neutral camera-frame ratio and never crops to it.
             val expectedOrientationAspectRatio = if (captureIsLandscape) 4f / 3f else 3f / 4f
             if (captureRotation != targetRotation ||
@@ -3221,11 +3214,9 @@ fun CameraScreen(
 
     // The selected ratio controls the preview frame; FIT_CENTER keeps the complete sensor view
     // visible inside it, with black letterbox bars instead of a digital crop or zoom.
-    val basePreviewRatio = aspectRatios[ratioIdx.coerceIn(0, aspectRatios.lastIndex)].second
-    val targetPreviewRatio = if (isLandscape) 1f / basePreviewRatio else basePreviewRatio
-    // Change crop ratio atomically with CameraX's ViewPort. The surrounding layout still
-    // receives a subtle orientation animation below, without a temporary preview/photo mismatch.
-    val previewAspectRatio = targetPreviewRatio
+    // The preview frame follows the active display orientation and the same ratio model
+    // used by the capture output.
+    val previewAspectRatio = aspectRatioForOrientation(ratioIdx, isLandscape)
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
@@ -3296,12 +3287,12 @@ fun CameraScreen(
     }
 
     val previewContent: @Composable (Modifier) -> Unit = { previewModifier ->
-                    Box(previewModifier.background(Color.Black), contentAlignment = Alignment.Center) {
+                    Box(previewModifier.background(Color(0xFF262B33)), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
                                 .aspectRatio(previewAspectRatio)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.Black)
+                                .background(Color(0xFF262B33))
                                 .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()
@@ -3357,12 +3348,7 @@ fun CameraScreen(
                             key(renderEngine) {
                                 AndroidView(
                                     factory = { previewView },
-                                    modifier = Modifier.fillMaxSize().graphicsLayer {
-                                        val pulse = kotlin.math.sin(lensTransitionPulse.value * Math.PI).toFloat()
-                                        scaleX = 1f + pulse * 0.045f
-                                        scaleY = 1f + pulse * 0.045f
-                                        alpha = 1f - pulse * 0.14f
-                                    }
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             }
                             if (shutterEffectAlpha > 0f || filmWashProgress.value > 0f) {
@@ -4149,16 +4135,9 @@ fun CameraScreen(
                 }
             }
     ) {
-        // A subtle scale/fade pulse makes the reflow feel deliberate without rotating text.
-        val orientationMotion = Modifier.graphicsLayer {
-            val pulse = kotlin.math.sin(orientationProgress * Math.PI).toFloat()
-            scaleX = 1f + pulse * 0.018f
-            scaleY = 1f + pulse * 0.018f
-            alpha = 1f - pulse * 0.10f
-        }
         if (isLandscape) {
             Row(
-                Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp).then(orientationMotion),
+                Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Column(Modifier.weight(1.24f).fillMaxHeight()) {
@@ -4186,7 +4165,7 @@ fun CameraScreen(
             }
         } else {
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 7.dp).then(orientationMotion)
+                Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 7.dp)
             ) {
                 AnimatedVisibility(
                     visible = hudVisible,

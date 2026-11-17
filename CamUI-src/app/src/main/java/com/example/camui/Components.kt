@@ -64,11 +64,27 @@ private fun parseAppColor(value: String?, fallback: Color): Color {
 
 /** Ratio values are width / height in portrait orientation. */
 val aspectRatios = listOf(
-    "16:9" to (9f / 16f),
-    "21:9" to (9f / 21f),
+    "9:16" to (9f / 16f),
+    "9:21" to (9f / 21f),
     "3:4" to (3f / 4f),
     "1:1" to 1f
 )
+
+/** Returns the selected frame ratio in the current screen orientation. */
+fun aspectRatioForOrientation(index: Int, isLandscape: Boolean): Float {
+    val portraitRatio = aspectRatios[index.coerceIn(0, aspectRatios.lastIndex)].second
+    return if (isLandscape) 1f / portraitRatio else portraitRatio
+}
+
+/** Labels are expressed in the orientation currently shown by the camera UI. */
+fun aspectRatioDisplayLabel(index: Int, isLandscape: Boolean): String {
+    return when (index.coerceIn(0, aspectRatios.lastIndex)) {
+        0 -> if (isLandscape) "16:9" else "9:16"
+        1 -> if (isLandscape) "21:9" else "9:21"
+        2 -> if (isLandscape) "4:3" else "3:4"
+        else -> "1:1"
+    }
+}
 
 @Composable
 fun CamTheme(content: @Composable () -> Unit) {

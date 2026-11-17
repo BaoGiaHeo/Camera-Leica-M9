@@ -86,6 +86,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -94,9 +95,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredAspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -3380,11 +3381,17 @@ fun CameraScreen(
     }
 
     val previewContent: @Composable (Modifier) -> Unit = { previewModifier ->
-                    Box(previewModifier.background(Color(0xFF262B33)), contentAlignment = Alignment.Center) {
+                    BoxWithConstraints(
+                        previewModifier.background(Color(0xFF262B33)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // The frame width is always the available screen width. Its height is
+                        // explicitly width * (height / width), even when the parent preview slot
+                        // is shorter; the constrained aspectRatio modifier would shrink the frame.
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .requiredAspectRatio(previewAspectRatio)
+                                .requiredHeight(maxWidth * previewHeightOverWidth)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF262B33))
                                 .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {

@@ -4,8 +4,6 @@ name: Build FujiFilm Mode 2.0.2Dream
 on:
   push:
     branches: [main, "feature/fujifilm-mode-1.6"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -103,10 +101,7 @@ jobs:
             adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-landscape.txt
 
             # Run startup + orientation instrumentation with a hard timeout.
-            timeout 240s gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
-            TEST_EXIT=$?
-            adb logcat -d -v threadtime -t 10000 > emulator-artifacts/logcat-final.txt
-            exit $TEST_EXIT
+            sh -c 'timeout 240s gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain; test_status=$?; adb logcat -d -v threadtime -t 10000 > emulator-artifacts/logcat-final.txt; exit "$test_status"'
 
       - name: Upload emulator inspection
         if: always()

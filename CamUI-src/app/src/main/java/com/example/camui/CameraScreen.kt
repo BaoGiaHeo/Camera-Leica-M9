@@ -448,6 +448,10 @@ fun CameraScreen(
                 currentDisplayIsLandscape(context)
         }
     }
+    // Track camera use-case geometry so the shutter waits until the landscape binding is current.
+    var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
+    var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
+    var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
     var faceTrackingEnabled by remember {
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)

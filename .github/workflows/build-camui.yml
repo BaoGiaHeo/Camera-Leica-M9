@@ -80,19 +80,34 @@ jobs:
           disable-animations: true
           script: |
             set +e
-            cd CamUI-src
-            gradle :app:connectedDebugAndroidTest --stacktrace
-            TEST_EXIT=$?
+            mkdir -p emulator-artifacts
+            adb wait-for-device
+
+            # Install and cold-launch the exact APK produced by this workflow before instrumentation.
+            adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk
+            adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA
+            adb logcat -c
             adb shell am force-stop com.fujifilm.mode.debug
-            adb shell am start -n com.fujifilm.mode.debug/com.example.camui.MainActivity
-            sleep 5
-            mkdir -p ../emulator-artifacts
-            adb exec-out screencap -p > ../emulator-artifacts/camera-portrait.png
+            adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity
+            sleep 8
+            adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt
+            adb exec-out screencap -p > emulator-artifacts/camera-portrait.png
+            adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-portrait.txt
+
+            # Rotate the emulator, verify its configuration, and capture the second UI state.
             adb shell settings put system accelerometer_rotation 0
             adb shell settings put system user_rotation 1
-            sleep 3
-            adb exec-out screencap -p > ../emulator-artifacts/camera-landscape.png
-            adb shell logcat -d -v time -t 3000 > ../emulator-artifacts/logcat.txt
+            sleep 5
+            adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt
+            adb exec-out screencap -p > emulator-artifacts/camera-landscape.png
+            adb logcat -d -v threadtime -t 5000 > emulator-artifacts/logcat-landscape.txt
+
+            # Run startup + orientation instrumentation with a hard timeout.
+            cd CamUI-src
+            timeout 240s gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace --console=plain
+            TEST_EXIT=$?
+            cd ..
+            adb logcat -d -v threadtime -t 10000 > emulator-artifacts/logcat-final.txt
             exit $TEST_EXIT
 
       - name: Upload emulator inspection

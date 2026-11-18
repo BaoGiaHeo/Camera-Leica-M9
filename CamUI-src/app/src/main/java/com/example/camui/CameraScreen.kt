@@ -720,7 +720,7 @@ fun CameraScreen(
             1f,
             animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
         )
-        val passDuration = if (activeEffect == "night") 1_900 else 2_600
+        val passDuration = if (activeEffect == "night") 6_500 else 8_500
         while (isProcessing && previewFreezeEffect == activeEffect) {
             previewEffectPosition.snapTo(-0.35f)
             previewEffectPosition.animateTo(
@@ -2612,42 +2612,14 @@ fun CameraScreen(
             val captureNightDurationSeconds = nightShotDurationSeconds.coerceIn(3, 10)
             val captureNightTargetFrames = NightShotFramePlan.targetFrames(captureNightDurationSeconds)
             val captureNightStartedAtNanos = SystemClock.elapsedRealtimeNanos()
-            val captureNightDeadlineNanos = captureNightStartedAtNanos +
-                captureNightDurationSeconds * 1_000_000_000L
             // LunaDream 1.5 is a bounded five-frame stack. Version 2.0 and RawDream
             // keep their existing eight-frame stack depth.
             val captureUseFiveFrameStack = false
-            if (captureUseLunaDream15) {
-                localizedToast(
-                    context,
-                    "LunaDream 1.5 · thu tối đa 5 khung hình để căn chỉnh, khử nhiễu và phục hồi chi tiết · 50MP.",
-                    Toast.LENGTH_LONG
-                ).show()
-            } else if (captureUseRawDream20) {
-                localizedToast(
-                    context,
-                    "RawDream 2.0 · lưu DNG + JPEG, phục hồi chi tiết bằng LunaDream 2.0, đầu ra JPEG mục tiêu 108MP.",
-                    Toast.LENGTH_LONG
-                ).show()
-            } else if (captureUseLunaDream20) {
-                localizedToast(
-                    context,
-                    "LunaDream 2.0 · thu đa khung hình để phục hồi chi tiết, đầu ra 108MP.",
-                    Toast.LENGTH_LONG
-                ).show()
-            } else if (captureUseNightShot) {
-                localizedToast(
-                    context,
-                    if (captureUseMilkyWayStack) {
-                        "NightShotMode Milky Way: thu tối đa 8 khung để căn chỉnh và giảm nhiễu. Giữ máy ổn định đến khi ghép xong."
-                    } else {
-                        "NightShotMode ${captureNightDurationSeconds}s · thu nhiều khung, căn chỉnh và ghép ảnh. Giữ máy ổn định đến khi ghép xong."
-                    },
-                    Toast.LENGTH_LONG
-                ).show()
-            }
             // Haptic feedback is synchronous and does not wait for camera capture.
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
+                playConfiguredShutterSound(context)
+            }
             val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
             scope.launch {
                 if (shutterEffectType == "Film Wash") {
@@ -2857,9 +2829,7 @@ fun CameraScreen(
                                             while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
                                                 while (!stopSubmitting &&
                                                     pendingCaptures.size < maxInFlightCaptures &&
-                                                    stackedFrames.size + pendingCaptures.size < maxFrames &&
-                                                    (!captureUseNightShot ||
-                                                        SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)
+                                                    stackedFrames.size + pendingCaptures.size < maxFrames
                                                 ) {
                                                     if ((captureUseNightShot || captureUseMilkyWayStack) &&
                                                         context.cacheDir.usableSpace < 256L * 1024L * 1024L
@@ -2948,7 +2918,11 @@ fun CameraScreen(
                                             // 1.5 aims for five frames, but a three-frame stack is
                                             // enough to complete a valid multi-frame result when the
                                             // camera HAL rejects a late request. 2.0 keeps its prior rule.
-                                            val minimumFramesRequired = if (captureUseLunaDream15) 3 else 2
+                                            val minimumFramesRequired = when {
+                                                captureUseNightShot -> maxFrames
+                                                captureUseLunaDream15 -> 3
+                                                else -> 2
+                                            }
                                             lunaDreamCapturedFrameCount = stackedFrames.size
                                             if (stackedFrames.size >= minimumFramesRequired) {
                                                 withContext(Dispatchers.Main) {
@@ -3371,7 +3345,7 @@ fun CameraScreen(
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""
                                     }
-                                    localizedToast(context, finalMessage + deviceProcessingSuffix + lunaDreamStatusSuffix, Toast.LENGTH_LONG).show()
+                                    android.util.Log.i("FUJI_CAPTURE", finalMessage + deviceProcessingSuffix + lunaDreamStatusSuffix)
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {
@@ -4146,31 +4120,28 @@ fun CameraScreen(
                                     ) {
                                         val position = previewEffectPosition.value
                                         if (effectMode == "luna") {
-                                            val head = Offset(size.width * position, size.height * 0.72f)
-                                            val tail = Offset(size.width * (position - 0.38f), size.height * 0.28f)
-                                            drawLine(
-                                                color = Color.White.copy(alpha = 0.24f),
-                                                start = tail,
-                                                end = head,
-                                                strokeWidth = size.height * 0.24f,
-                                                cap = StrokeCap.Round
-                                            )
                                             val rainbow = listOf(
-                                                Color(0xFFFF5A72),
-                                                Color(0xFFFFB347),
-                                                Color(0xFFFFE66D),
-                                                Color(0xFF65E6A5),
-                                                Color(0xFF58C8FF),
-                                                Color(0xFF9A7BFF),
-                                                Color(0xFFE18BFF)
+                                                Color(0xFFFF668A), Color(0xFFFFB86B), Color(0xFFFFE58A),
+                                                Color(0xFF78E8B2), Color(0xFF70D4FF), Color(0xFF9C8BFF),
+                                                Color(0xFFE6A0FF)
                                             )
+                                            val drift = ((position + 0.35f) / 1.70f).coerceIn(0f, 1f)
+                                            val shortSide = minOf(size.width, size.height)
                                             rainbow.forEachIndexed { index, color ->
-                                                val offsetY = (index - 3) * size.height * 0.035f
+                                                val phase = (drift * 0.58f + index * 0.173f) % 1.35f
+                                                val centerX = (phase - 0.16f) * size.width
+                                                val centerY = (((index * 0.23f + drift * 0.42f) % 1.28f) - 0.12f) * size.height
+                                                val center = Offset(centerX, centerY)
+                                                drawCircle(
+                                                    color = color.copy(alpha = 0.095f),
+                                                    radius = shortSide * 0.24f,
+                                                    center = center
+                                                )
                                                 drawLine(
-                                                    color = color.copy(alpha = 0.72f),
-                                                    start = Offset(tail.x, tail.y + offsetY),
-                                                    end = Offset(head.x, head.y + offsetY),
-                                                    strokeWidth = (size.height * 0.025f).coerceAtLeast(2.dp.toPx()),
+                                                    color = color.copy(alpha = 0.075f),
+                                                    start = Offset(centerX - size.width * 0.62f, centerY + size.height * 0.28f),
+                                                    end = Offset(centerX + size.width * 0.62f, centerY - size.height * 0.28f),
+                                                    strokeWidth = shortSide * 0.22f,
                                                     cap = StrokeCap.Round
                                                 )
                                             }
@@ -4678,56 +4649,32 @@ fun CameraScreen(
                 }
             }
     ) {
-        if (isLandscape) {
-            Row(
-                Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            Modifier.fillMaxSize().padding(
+                horizontal = if (isLandscape) 10.dp else 12.dp,
+                vertical = 7.dp
+            )
+        ) {
+            AnimatedVisibility(
+                visible = hudVisible,
+                enter = fadeIn(tween(180)) + slideInVertically { -it / 12 },
+                exit = fadeOut(tween(170)) + slideOutVertically { -it / 16 }
             ) {
-                Column(Modifier.weight(1.24f).fillMaxHeight()) {
-                    AnimatedVisibility(
-                        visible = hudVisible,
-                        enter = fadeIn(tween(180)) + slideInHorizontally { -it / 24 },
-                        exit = fadeOut(tween(170)) + slideOutHorizontally { -it / 28 }
-                    ) {
-                        toolbarContent(Modifier.fillMaxWidth())
-                    }
-                    Spacer(Modifier.height(5.dp))
-                    previewContent(Modifier.weight(1f).fillMaxWidth())
-                }
-                AnimatedVisibility(
-                    visible = hudVisible,
-                    enter = fadeIn(tween(180)) + slideInHorizontally { it / 24 },
-                    exit = fadeOut(tween(170)) + slideOutHorizontally { it / 28 }
-                ) {
-                    controlsContent(
-                        Modifier.weight(0.76f).fillMaxHeight()
-                            .verticalScroll(rememberScrollState())
-                            .padding(bottom = 8.dp)
-                    )
-                }
+                toolbarContent(Modifier.fillMaxWidth())
             }
-        } else {
-            Column(
-                Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 7.dp)
+            Spacer(Modifier.height(if (isLandscape) 5.dp else 7.dp))
+            previewContent(Modifier.weight(1f).fillMaxWidth())
+            AnimatedVisibility(
+                visible = hudVisible,
+                enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
+                exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
             ) {
-                AnimatedVisibility(
-                    visible = hudVisible,
-                    enter = fadeIn(tween(180)) + slideInVertically { -it / 12 },
-                    exit = fadeOut(tween(170)) + slideOutVertically { -it / 16 }
-                ) {
-                    toolbarContent(Modifier.fillMaxWidth())
-                }
-                Spacer(Modifier.height(7.dp))
-                previewContent(Modifier.weight(1f).fillMaxWidth())
-                AnimatedVisibility(
-                    visible = hudVisible,
-                    enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
-                    exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
-                ) {
-                    controlsContent(
-                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                    )
-                }
+                controlsContent(
+                    Modifier.fillMaxWidth()
+                        .then(if (isLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = if (isLandscape) 4.dp else 0.dp)
+                )
             }
         }
         if (showQuick) {
@@ -4848,7 +4795,7 @@ fun CameraScreen(
                         color = CamColors.Yellow, fontSize = 14.sp, fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "$nightShotCapturedFrameCount/$nightShotTargetFrameCount khung hình · 30 FPS mục tiêu",
+                        "$nightShotCapturedFrameCount/$nightShotTargetFrameCount khung hình · đủ khung mới render",
                         color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 7.dp)
                     )

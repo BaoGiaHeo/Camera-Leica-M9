@@ -2696,7 +2696,7 @@ fun CameraScreen(
             val captureRotation = targetRotation
             val captureIsLandscape = isLandscape
             // One height/width ratio source is shared by the Preview frame and saved-photo crop.
-            // Landscape deliberately skips the output crop so the complete sensor frame is preserved.
+            // Landscape uses the reciprocal height/width ratio; the selected crop still applies.
             val selectedFrameHeightOverWidth =
                 aspectRatioForOrientation(ratioIdx, captureIsLandscape)
             val outputHeightOverWidth = selectedFrameHeightOverWidth

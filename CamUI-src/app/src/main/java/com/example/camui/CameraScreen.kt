@@ -3552,6 +3552,7 @@ fun CameraScreen(
                                     ).show()
                                 }
                             }
+                            }
                         } else {
                             nightShotCaptureInProgress = false
                             multiFrameHoldActive = false

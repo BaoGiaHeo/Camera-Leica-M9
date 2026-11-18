@@ -240,7 +240,7 @@ var nightShotMode by remember {
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     aspectRatios.forEachIndexed { index, pair ->
-                        Chip(aspectRatioDisplayLabel(index, isLandscape), index == ratioIdx, { onRatio(index) }, Modifier.width(68.dp))
+                        FujiChip(aspectRatioDisplayLabel(index, isLandscape), index == ratioIdx, { onRatio(index) }, Modifier.width(68.dp))
                     }
                 }
                 Spacer(Modifier.padding(7.dp))
@@ -250,7 +250,7 @@ var nightShotMode by remember {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf("Low", "Medium", "High", "Best").forEach { option ->
-                        Chip(option, imageQuality == option, {
+                        FujiChip(option, imageQuality == option, {
                             imageQuality = option
                             prefs.edit().putString("image_quality", option).apply()
                         }, Modifier.width(75.dp))
@@ -439,7 +439,7 @@ var nightShotMode by remember {
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
                         listOf(5, 10, 3).forEach { seconds ->
-                            Chip(
+                            FujiChip(
                                 "$seconds giây",
                                 nightShotDurationSeconds == seconds,
                                 {
@@ -455,7 +455,8 @@ var nightShotMode by remember {
                     Spacer(Modifier.padding(5.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(CamColors.Card).padding(horizontal = 13.dp, vertical = 12.dp),
+                            .background(FujiSkin.lcd).border(1.dp, Color(0xFF344247), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
@@ -466,7 +467,7 @@ var nightShotMode by remember {
                                 modifier = Modifier.padding(top = 3.dp)
                             )
                         }
-                        Switch(
+                        FujiSwitch(
                             checked = milkyWayNightShotEnabled,
                             onCheckedChange = {
                                 milkyWayNightShotEnabled = it
@@ -489,7 +490,7 @@ var nightShotMode by remember {
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
                         listOf(1, 2, 4, 8).forEach { seconds ->
-                            Chip(
+                            FujiChip(
                                 "$seconds giây",
                                 starTrailExposureSeconds == seconds,
                                 {
@@ -533,7 +534,7 @@ var nightShotMode by remember {
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     listOf("JPEG" to "jpeg", "RAW" to "raw", "RawDream 2.0" to "raw_dream").forEach { (label, value) ->
-                        Chip(label, rawCaptureMode == value, {
+                        FujiChip(label, rawCaptureMode == value, {
                             rawCaptureMode = value
                             prefs.edit().putString("raw_capture_mode", value).apply()
                         }, Modifier.width(92.dp))
@@ -549,7 +550,7 @@ var nightShotMode by remember {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("Off", "Low", "Medium", "High").forEach { option ->
-                        Chip(option, noiseReduction == option, {
+                        FujiChip(option, noiseReduction == option, {
                             noiseReduction = option
                             prefs.edit().putString("noise_reduction", option).apply()
                         }, Modifier.width(75.dp))
@@ -598,13 +599,12 @@ private fun CameraHardwareScannerPanel() {
             color = CamColors.Sub,
             fontSize = 12.sp
         )
-        Button(
-            onClick = { refreshToken++ },
-            enabled = !loading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (loading) "Đang quét camera…" else "Quét lại phần cứng camera")
-        }
+        FujiChip(
+            if (loading) "ĐANG QUÉT CAMERA…" else "QUÉT LẠI PHẦN CỨNG CAMERA",
+            false,
+            { if (!loading) refreshToken++ },
+            Modifier.fillMaxWidth()
+        )
 
         if (loading && report == null) {
             Text("Đang đọc CameraCharacteristics…", color = CamColors.Sub, fontSize = 12.sp)

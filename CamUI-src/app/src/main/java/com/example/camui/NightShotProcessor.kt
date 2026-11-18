@@ -2026,7 +2026,7 @@ object NightShotProcessor {
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             values
         ) ?: return null
-        val merged = mergeFramesIntoUri(context, frames, uri, MergeMode.STAR_TRAILS, onProgress)
+        val merged = mergeFramesIntoUri(context, frames, uri, MergeMode.STAR_TRAILS, onProgress = onProgress)
         if (!merged) {
             runCatching { context.contentResolver.delete(uri, null, null) }
             return null
@@ -2081,7 +2081,7 @@ object NightShotProcessor {
                 copyUriToFile(context, frameUris[index], tempFrames[index])
             }
             if (!copied) error("Could not stage every source bracket frame")
-            val merged = mergeFramesIntoUri(context, tempFrames, outputUri, mode, onProgress)
+            val merged = mergeFramesIntoUri(context, tempFrames, outputUri, mode, onProgress = onProgress)
             if (!merged) error("Bracket merge did not finish")
             val published = context.contentResolver.update(
                 outputUri,

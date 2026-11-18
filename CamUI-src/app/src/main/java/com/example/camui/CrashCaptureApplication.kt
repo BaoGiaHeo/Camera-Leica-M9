@@ -23,6 +23,8 @@ import java.util.UUID
 class CrashCaptureApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        if (!BuildConfig.DEVELOPER_LOG_ENABLED) return
+        LunaDreamDiagnostics.initialize(this)
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {
@@ -35,6 +37,11 @@ class CrashCaptureApplication : Application() {
                     error.printStackTrace(PrintWriter(writer))
                 }.toString()
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z", Locale.US).format(Date())
+                LunaDreamDiagnostics.record(
+                    "APP_CRASH",
+                    "thread=${thread.name}; threadId=${thread.id}; exception=${error.javaClass.name}",
+                    error
+                )
                 val report = buildString {
                     appendLine("FUJIFILM MODE - CRASH REPORT")
                     appendLine("Time: $timestamp")
@@ -45,6 +52,9 @@ class CrashCaptureApplication : Application() {
                     appendLine()
                     appendLine("EXCEPTION")
                     appendLine(stack)
+                    appendLine()
+                    appendLine("LUNADREAM WORKING LOG")
+                    appendLine(LunaDreamDiagnostics.read(this@CrashCaptureApplication))
                 }
                 reportFile.writeText(report, Charsets.UTF_8)
                 Log.e("FujiFilmCrash", "Uncaught exception captured. Report: ${reportFile.absolutePath}", error)

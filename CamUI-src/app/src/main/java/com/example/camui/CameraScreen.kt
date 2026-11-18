@@ -441,6 +441,9 @@ fun CameraScreen(
     // Initialize from current display, then follow physical rotation even if the window
     // configuration lags behind the camera sensor orientation.
     var isLandscape by remember { mutableStateOf(currentDisplayIsLandscape(context)) }
+    // The camera controls stay in portrait layout; only the live preview and camera use-cases
+    // follow the physical handset orientation reported by OrientationEventListener.
+    val uiIsLandscape = false
     var orientationSensorAvailable by remember { mutableStateOf(false) }
     DisposableEffect(context) {
         val orientationListener = object : OrientationEventListener(context) {
@@ -3660,7 +3663,7 @@ fun CameraScreen(
     )
 
     val toolbarContent: @Composable (Modifier) -> Unit = { toolbarModifier ->
-                    val toolbarButtonSize = if (isLandscape) 46.dp else 36.dp
+                    val toolbarButtonSize = if (uiIsLandscape) 46.dp else 36.dp
                     Row(toolbarModifier, horizontalArrangement = Arrangement.SpaceBetween) {
                         CircleBtn(
                             icon = if (flash == ImageCapture.FLASH_MODE_ON) {
@@ -4704,7 +4707,7 @@ fun CameraScreen(
     ) {
         Column(
             Modifier.fillMaxSize().padding(
-                horizontal = if (isLandscape) 10.dp else 12.dp,
+                horizontal = if (uiIsLandscape) 10.dp else 12.dp,
                 vertical = 7.dp
             )
         ) {
@@ -4715,7 +4718,7 @@ fun CameraScreen(
             ) {
                 toolbarContent(Modifier.fillMaxWidth())
             }
-            Spacer(Modifier.height(if (isLandscape) 5.dp else 7.dp))
+            Spacer(Modifier.height(if (uiIsLandscape) 5.dp else 7.dp))
             previewContent(Modifier.weight(1f).fillMaxWidth())
             AnimatedVisibility(
                 visible = hudVisible,
@@ -4724,9 +4727,9 @@ fun CameraScreen(
             ) {
                 controlsContent(
                     Modifier.fillMaxWidth()
-                        .then(if (isLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
+                        .then(if (uiIsLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = if (isLandscape) 4.dp else 0.dp)
+                        .padding(bottom = if (uiIsLandscape) 4.dp else 0.dp)
                 )
             }
         }
@@ -4734,7 +4737,7 @@ fun CameraScreen(
             QuickPanel(
                 ratioIdx = ratioIdx,
                 onRatio = onRatio,
-                deviceLandscape = isLandscape,
+                deviceLandscape = uiIsLandscape,
                 ultraHdr = ultraHdr,
                 onUltraHdr = {
                     val activeCamera = camera
@@ -4785,8 +4788,8 @@ fun CameraScreen(
                 onToolbox = { showQuick = false; onOpenToolbox() },
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },
-                modifier = Modifier.align(if (isLandscape) Alignment.TopEnd else Alignment.TopCenter)
-                    .padding(start = 10.dp, end = 10.dp, top = if (isLandscape) 8.dp else 64.dp)
+                modifier = Modifier.align(if (uiIsLandscape) Alignment.TopEnd else Alignment.TopCenter)
+                    .padding(start = 10.dp, end = 10.dp, top = if (uiIsLandscape) 8.dp else 64.dp)
             )
         }
 

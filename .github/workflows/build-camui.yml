@@ -1,9 +1,9 @@
-name: FujiFilm Mode landscape UI validation
+name: LunaDream 2.5.0dream landscape UI validation
 # Build APK and publish it even if the hosted Android Emulator cannot complete.
 
 on:
   push:
-    branches: [main, "feature/fujifilm-mode-1.6"]
+    branches: [main, "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream"]
   workflow_dispatch:
 
 permissions:
@@ -53,7 +53,7 @@ jobs:
         if: always() && !cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-1.6-app-debug
+          name: LunaDream-2.5.0dream-app-debug
           path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

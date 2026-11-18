@@ -221,17 +221,48 @@ private fun currentDisplayIsLandscape(context: Context): Boolean {
 }
 
 /**
- * Convert the physical device attitude reported by OrientationEventListener into the
- * corresponding CameraX target rotation. Do not rely on Display.rotation here: an app can
- * remain portrait-locked while the handset itself is physically landscape.
+ * Physical device orientation is independent of the locked landscape UI.
+ * The circular low-pass filter and 12-degree hysteresis prevent the capture rotation
+ * from oscillating around the 45/135/225/315-degree transition boundaries.
  */
-private fun surfaceRotationFromDeviceOrientation(orientation: Int): Int {
-    if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return Surface.ROTATION_0
-    return when (orientation) {
-        in 45..134 -> Surface.ROTATION_270
-        in 135..224 -> Surface.ROTATION_180
-        in 225..314 -> Surface.ROTATION_90
-        else -> Surface.ROTATION_0
+private class SensorOrientationManager {
+    private var smoothedDegrees: Float? = null
+    private var lastValidRotation: Int? = null
+
+    fun update(rawDegrees: Int): Int? {
+        if (rawDegrees == OrientationEventListener.ORIENTATION_UNKNOWN) return null
+        val raw = ((rawDegrees % 360) + 360) % 360
+        val previous = smoothedDegrees
+        val filtered = if (previous == null) {
+            raw.toFloat()
+        } else {
+            val delta = ((raw - previous + 540f) % 360f) - 180f
+            (previous + delta * 0.28f + 360f) % 360f
+        }
+        smoothedDegrees = filtered
+
+        val candidate = when {
+            filtered >= 315f || filtered < 45f -> Surface.ROTATION_0
+            filtered < 135f -> Surface.ROTATION_270
+            filtered < 225f -> Surface.ROTATION_180
+            else -> Surface.ROTATION_90
+        }
+        val current = lastValidRotation
+        if (current == null) {
+            lastValidRotation = candidate
+            return candidate
+        }
+        if (candidate != current) {
+            val center = when (candidate) {
+                Surface.ROTATION_0 -> 0f
+                Surface.ROTATION_90 -> 270f
+                Surface.ROTATION_180 -> 180f
+                else -> 90f
+            }
+            val difference = kotlin.math.abs(((filtered - center + 540f) % 360f) - 180f)
+            if (difference <= 33f) lastValidRotation = candidate
+        }
+        return lastValidRotation
     }
 }
 
@@ -428,10 +459,10 @@ fun CameraScreen(
     var isLandscape by remember { mutableStateOf(false) }
     val uiIsLandscape = true
     DisposableEffect(context) {
+        val orientationManager = SensorOrientationManager()
         val orientationListener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
-                if (orientation == ORIENTATION_UNKNOWN) return
-                val nextRotation = surfaceRotationFromDeviceOrientation(orientation)
+                val nextRotation = orientationManager.update(orientation) ?: return
                 if (targetRotation != nextRotation) targetRotation = nextRotation
             }
         }
@@ -440,6 +471,20 @@ fun CameraScreen(
     }
     // Fade only the live viewfinder while its geometry changes; the hardware UI stays landscape.
     val previewOrientationAlpha = remember { Animatable(1f) }
+    val ratioUiAlpha = remember { Animatable(1f) }
+    var ratioTransitionInProgress by remember { mutableStateOf(false) }
+    fun changeAspectRatio(nextIndex: Int) {
+        val safeIndex = nextIndex.coerceIn(0, aspectRatios.lastIndex)
+        if (safeIndex == ratioIdx || ratioTransitionInProgress) return
+        scope.launch {
+            ratioTransitionInProgress = true
+            ratioUiAlpha.animateTo(0f, animationSpec = tween(200, easing = FastOutSlowInEasing))
+            onRatio(safeIndex)
+            delay(24L)
+            ratioUiAlpha.animateTo(1f, animationSpec = tween(250, easing = FastOutSlowInEasing))
+            ratioTransitionInProgress = false
+        }
+    }
     // Track camera use-case geometry so the shutter waits until the landscape binding is current.
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
@@ -4758,7 +4803,7 @@ fun CameraScreen(
         if (leftHandedLayout) leftHardwareContent else rightHardwareContent
 
     FujiLeatherSurface(
-        Modifier.fillMaxSize().animaTContent()
+        Modifier.fillMaxSize().graphicsLayer { alpha = ratioUiAlpha.value }.animaTContent()
             .pointerInput(hudAutoHideEnabled) {
                 if (hudAutoHideEnabled) {
                     awaitPointerEventScope {
@@ -4826,7 +4871,7 @@ fun CameraScreen(
         if (showQuick) {
             QuickPanel(
                 ratioIdx = ratioIdx,
-                onRatio = onRatio,
+                onRatio = { changeAspectRatio(it) },
                 deviceLandscape = isLandscape,
                 ultraHdr = ultraHdr,
                 onUltraHdr = {

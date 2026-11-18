@@ -2659,11 +2659,11 @@ fun CameraScreen(
                 LunaDreamDiagnostics.record(
                     context,
                     "CAPTURE_REQUESTED",
-                    "mode=" + when {
+                    "mode=" + (when {
                         captureUseRawDream20 -> "RawDream 2.0"
                         captureUseLunaDream15 -> "LunaDream 1.5"
                         else -> "LunaDream 2.0"
-                    } + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
+                    }) + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
                 )
             }
             val captureUseNightShot = !nativeImageProcessingEnabled && !livePhotoEnabled &&

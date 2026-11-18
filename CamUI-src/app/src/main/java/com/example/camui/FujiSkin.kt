@@ -529,7 +529,7 @@ fun FujiShutterButton(
                     },
                     onTap = {
                         if (enabled) {
-                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                             onCapture()
                         }
                     }

@@ -39,9 +39,10 @@ object PhotoOutputResolution {
     private const val RESERVED_HEAP_BYTES = 64L * 1024L * 1024L
 
     /**
-     * Preserve a normal camera image's pixel count while center-cropping the original
-     * upright Bitmap to the selected portrait ratio. A null ratio keeps the complete
-     * source frame, which is used when the handset is physically landscape.
+     * Center-crop the upright JPEG to the selected frame ratio while preserving the
+     * source pixel density. The crop must not be upscaled back to the uncropped pixel
+     * count: that wastes heap and can cause high-resolution captures to silently keep
+     * their original 4:3 frame.
      */
     fun applyAspectRatio(
         context: Context,
@@ -56,7 +57,21 @@ object PhotoOutputResolution {
         if (!decoded) return null
         val sourcePixels = bounds.outWidth.toLong() * bounds.outHeight.toLong()
         if (sourcePixels !in MIN_OUTPUT_PIXELS..250_000_000L) return null
-        return interpolateToMp(context, uri, sourcePixels, targetHeightOverWidth)
+        val crop = PhotoOutputGeometry.calculate(
+            bounds.outWidth,
+            bounds.outHeight,
+            sourcePixels,
+            targetHeightOverWidth
+        )
+        val nativeCropPixels = crop.sourceCropPixels
+        if (nativeCropPixels !in MIN_OUTPUT_PIXELS..sourcePixels) return null
+        Log.i(
+            TAG,
+            "Aspect crop budget: source=${bounds.outWidth}x${bounds.outHeight} " +
+                "crop=${crop.sourceWidth}x${crop.sourceHeight} " +
+                "nativeCropPixels=$nativeCropPixels"
+        )
+        return interpolateToMp(context, uri, nativeCropPixels, targetHeightOverWidth)
     }
 
     fun interpolateToMp(

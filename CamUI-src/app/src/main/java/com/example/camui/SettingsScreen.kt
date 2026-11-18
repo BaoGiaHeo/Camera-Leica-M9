@@ -606,7 +606,7 @@ var nightShotMode by remember {
                     (context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager)
                         .defaultDisplay.refreshRate
                 }.getOrDefault(60f)
-                Text("Refresh rate ~ ${activeRefreshRate.toInt()}Hz", color = CamColors.Sub, fontSize = 12.sp,
+                Text("${localizedUiText(context, "Refresh rate")} ~ ${activeRefreshRate.toInt()}Hz", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 5.dp))
             }
         }

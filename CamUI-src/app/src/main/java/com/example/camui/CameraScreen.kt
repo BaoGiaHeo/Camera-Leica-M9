@@ -4245,47 +4245,6 @@ fun CameraScreen(
 
     val controlsContent: @Composable (Modifier) -> Unit = { controlsModifier ->
         Column(controlsModifier) {
-                        // Lens quick-select values come from the physical cameras exposed by
-                        // this logical CameraX camera, then are clamped to its real zoom range.
-                        val zoomStateForUi = camera?.cameraInfo?.zoomState?.value
-                        val zoomMinForUi = zoomStateForUi?.minZoomRatio ?: 1f
-                        val zoomMaxForUi = Camera2Info.maxSelectableZoom(
-                            activeCameraDetails,
-                            activePhysicalCameraDetails,
-                            zoomStateForUi?.maxZoomRatio ?: 1f
-                        )
-                        val zoomSteps = Camera2Info.opticalZoomStops(
-                            logical = activeCameraDetails,
-                            physical = activePhysicalCameraDetails,
-                            minZoom = zoomMinForUi,
-                            maxZoom = zoomMaxForUi,
-                            quickMaxZoom = zoomMaxForUi
-                        )
-                        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally) {
-                            Row(Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically) {
-                                zoomSteps.forEach { z ->
-                                    val selectedZoom = abs(zoomSel - z) < 0.08f
-                                    val label = if (z < 1f || abs(z - z.toInt()) > 0.01f) {
-                                        String.format(Locale.US, "%.1f×", z)
-                                    } else {
-                                        "${z.toInt()}×"
-                                    }
-                                    FujiChip(
-                                        text = label,
-                                        selected = selectedZoom,
-                                        onClick = {
-                                            val next = z.coerceIn(zoomMinForUi, zoomMaxForUi)
-                                            animateZoomTo(next)
-                                        },
-                                        modifier = Modifier.padding(horizontal = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-            
                         val selected = proSel
                         if (selected != null && mode == "Pro") {
                             Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -4566,110 +4525,206 @@ fun CameraScreen(
                             }
                         }
             
-                        Row(Modifier.fillMaxWidth().padding(vertical = 9.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(52.dp).clip(RoundedCornerShape(13.dp)).background(CamColors.Glass)
-                                .animaTClickable { onOpenAlbum(lastUri) }, contentAlignment = Alignment.Center) {
-                                val image = thumb
-                                if (image != null) Image(image, "Mở ảnh vừa chụp", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                                else Icon(Icons.Default.PhotoLibrary, "Mở album", tint = Color.White)
-                            }
-                            FujiShutterButton(
-                                enabled = !isProcessing,
-                                onHalfPress = {
-                                    focusLocked = false
-                                    if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
-                                        camera?.let { active -> runCatching { applyAutoFocus(active) } }
-                                    }
-                                },
-                                onCapture = { takePhoto() },
-                                modifier = Modifier.size(74.dp)
-                            ) {
-                                if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        if (bracketCaptureActive) "Bracketing" else if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(25.dp)
-                                    )
-                                } else if (shutterButtonBitmap != null) {
-                                    Image(
-                                        shutterButtonBitmap!!,
-                                        "Custom shutter button",
-                                        Modifier.fillMaxSize().clip(CircleShape),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-                            }
-                            CircleBtn(Icons.Default.FlipCameraAndroid, "Đổi camera",
-                                onClick = { front = !front; manualFocus = 0f }, size = 52.dp)
-                        }
-            
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            FujiChip(
-                                text = "PRO",
-                                selected = mode == "Pro",
-                                onClick = { mode = "Pro" },
-                                modifier = Modifier.padding(horizontal = 3.dp)
-                            )
-                            FujiChip(
-                                text = "PHOTO",
-                                selected = mode == "Photo",
-                                onClick = {
-                                    mode = "Photo"
-                                    proSel = null
-                                    manualExposure = false
-                                    manualIsoEnabled = false
-                                    manualShutterEnabled = false
-                                    manualColorTempEnabled = false
-                                    manualFocus = 0f
-                                    milkyWayInfinityFocusEnabled = false
-                                    focusLocked = false
-                                    manualCaptureRevision++
-                                    camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
-                                },
-                                modifier = Modifier.padding(horizontal = 3.dp)
-                            )
-                        }
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 3.dp, bottom = 2.dp),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            FujiChip(
-                                text = if (activeFilter != "None") "FILM · " + cameraLookDisplayName(context, activeFilter) else "FILM FILTERS",
-                                selected = activeFilter != "None",
-                                onClick = {
-                                    if (activeFilter != "None") {
-                                        activeFilter = "None"
-                                        appPrefs.edit().putString("selected_filter", "None").apply()
-                                    } else {
-                                        activeFilter = appPrefs.getString("selected_filter", "None") ?: "None"
-                                        filterDialogVisible = true
-                                    }
-                                },
-                                modifier = Modifier.padding(horizontal = 3.dp)
-                            )
-                            FujiChip(
-                                text = "LUNADREAM",
-                                selected = lunaDreamMode != "off" || nightShotMode == "night",
-                                onClick = {
-                                    when {
-                                        livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
-                                        nativeImageProcessingEnabled -> localizedToast(
-                                            context,
-                                            "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        else -> showLunaDream = true
-                                    }
-                                },
-                                modifier = Modifier.padding(horizontal = 3.dp)
-                            )
-                        }
 
+        }
+    }
+
+
+    val leftHardwareContent: @Composable (Modifier) -> Unit = { sideModifier ->
+        Column(
+            sideModifier.width(82.dp).fillMaxHeight().padding(horizontal = 3.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Box(
+                Modifier.size(58.dp).clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF070909))
+                    .border(2.dp, FujiSkin.silver, RoundedCornerShape(4.dp))
+                    .animaTClickable { onOpenAlbum(lastUri) },
+                contentAlignment = Alignment.Center
+            ) {
+                val image = thumb
+                if (image != null) {
+                    Image(image, "Ảnh gần nhất", Modifier.fillMaxSize().padding(2.dp), contentScale = ContentScale.Crop)
+                } else {
+                    Icon(Icons.Default.PhotoLibrary, "Mở thư viện", tint = FujiSkin.lcdGreen, modifier = Modifier.size(24.dp))
+                }
+            }
+            FujiChip("PLAY", false, { onOpenAlbum(lastUri) }, Modifier.fillMaxWidth())
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF454B4D)))
+            FujiChip(
+                "PRO",
+                mode == "Pro",
+                { mode = "Pro" },
+                Modifier.fillMaxWidth()
+            )
+            FujiChip(
+                "PHOTO",
+                mode == "Photo",
+                {
+                    mode = "Photo"
+                    proSel = null
+                    manualExposure = false
+                    manualIsoEnabled = false
+                    manualShutterEnabled = false
+                    manualColorTempEnabled = false
+                    manualFocus = 0f
+                    milkyWayInfinityFocusEnabled = false
+                    focusLocked = false
+                    manualCaptureRevision++
+                    camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
+                },
+                Modifier.fillMaxWidth()
+            )
+            FujiChip(
+                "FILTER",
+                filterDialogVisible || activeFilter != "None",
+                {
+                    activeFilter = appPrefs.getString("selected_filter", activeFilter) ?: activeFilter
+                    filterDialogVisible = true
+                },
+                Modifier.fillMaxWidth()
+            )
+            FujiChip(
+                "LUNA",
+                lunaDreamMode != "off" || nightShotMode == "night",
+                {
+                    when {
+                        livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
+                        nativeImageProcessingEnabled -> localizedToast(
+                            context,
+                            "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        else -> showLunaDream = true
+                    }
+                },
+                Modifier.fillMaxWidth()
+            )
+        }
+    }
+
+    val rightHardwareContent: @Composable (Modifier) -> Unit = { sideModifier ->
+        val zoomStateForDial = camera?.cameraInfo?.zoomState?.value
+        val dialZoomMinimum = zoomStateForDial?.minZoomRatio ?: 1f
+        val dialZoomMaximum = Camera2Info.maxSelectableZoom(
+            activeCameraDetails,
+            activePhysicalCameraDetails,
+            zoomStateForDial?.maxZoomRatio ?: 1f
+        )
+        val dialZoomStops = Camera2Info.opticalZoomStops(
+            logical = activeCameraDetails,
+            physical = activePhysicalCameraDetails,
+            minZoom = dialZoomMinimum,
+            maxZoom = dialZoomMaximum,
+            quickMaxZoom = dialZoomMaximum
+        )
+        val zoomLabel = if (zoomSel < 1f || abs(zoomSel - zoomSel.toInt()) > 0.01f) {
+            String.format(Locale.US, "%.1fx", zoomSel)
+        } else {
+            "${zoomSel.toInt()}x"
+        }
+        val commandValue = if (mode == "Pro" && proSel != null) {
+            when (proSel) {
+                "ISO" -> isoText
+                "Tv" -> shutterText
+                "AF" -> afText
+                "Tone" -> toneText
+                "EV" -> evText
+                else -> evText
+            }
+        } else evText
+        Column(
+            sideModifier.width(88.dp).fillMaxHeight().padding(horizontal = 3.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                FujiDial(
+                    value = zoomLabel,
+                    onStep = { steps ->
+                        if (dialZoomStops.isNotEmpty()) {
+                            val currentIndex = dialZoomStops.indices.minByOrNull { index ->
+                                abs(dialZoomStops[index] - zoomSel)
+                            } ?: 0
+                            val nextIndex = (currentIndex + steps).coerceIn(0, dialZoomStops.lastIndex)
+                            animateZoomTo(dialZoomStops[nextIndex])
+                        }
+                    },
+                    modifier = Modifier.size(66.dp)
+                )
+                Text("ZOOM", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+            FujiShutterButton(
+                enabled = !isProcessing,
+                onHalfPress = {
+                    focusLocked = false
+                    if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
+                        camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                    }
+                },
+                onCapture = { takePhoto() },
+                modifier = Modifier.size(74.dp)
+            ) {
+                if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
+                    Icon(
+                        Icons.Default.Close,
+                        if (bracketCaptureActive) "Bracketing" else if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
+                        tint = Color.White,
+                        modifier = Modifier.size(25.dp)
+                    )
+                } else if (shutterButtonBitmap != null) {
+                    Image(
+                        shutterButtonBitmap!!,
+                        "Custom shutter button",
+                        Modifier.fillMaxSize().clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                FujiDial(
+                    value = commandValue,
+                    onStep = { steps ->
+                        val active = camera
+                        val range = evRange
+                        if ((mode != "Pro" || proSel == null || proSel == "EV") && active != null && range != null) {
+                            evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
+                            manualExposure = false
+                            runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
+                        } else if (mode == "Pro" && proSel == "ISO" && manualSensorSupported && isoRange != null) {
+                            val low = isoRange.lower
+                            val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
+                            manualIso = (manualIso + steps * 100).coerceIn(low, high)
+                            manualIsoEnabled = true
+                            manualExposure = true
+                            runCatching {
+                                applyManualExposure(active ?: return@runCatching, manualIso, manualShutterNs)
+                            }
+                            manualCaptureRevision++
+                        } else if (mode == "Pro" && proSel == "Tone") {
+                            manualColorTemp = (manualColorTemp + steps * 150).coerceIn(2500, 8000)
+                            manualColorTempEnabled = true
+                            active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
+                        }
+                    },
+                    modifier = Modifier.size(62.dp),
+                    stepSize = 26f
+                )
+                Text(
+                    if (mode == "Pro" && proSel != null) proSel.uppercase() else "EV",
+                    color = FujiSkin.ivory,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+            FujiChip(
+                "SWAP",
+                false,
+                { front = !front; manualFocus = 0f },
+                Modifier.fillMaxWidth()
+            )
         }
     }
 
@@ -4690,10 +4745,7 @@ fun CameraScreen(
             }
     ) {
         Column(
-            Modifier.fillMaxSize().padding(
-                horizontal = if (uiIsLandscape) 10.dp else 12.dp,
-                vertical = 6.dp
-            )
+            Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             AnimatedVisibility(
                 visible = hudVisible,
@@ -4702,21 +4754,42 @@ fun CameraScreen(
             ) {
                 toolbarContent(Modifier.fillMaxWidth())
             }
-            Spacer(Modifier.height(if (uiIsLandscape) 5.dp else 7.dp))
-            previewContent(Modifier.weight(1f).fillMaxWidth())
-            AnimatedVisibility(
-                visible = hudVisible,
-                enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
-                exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
+            Spacer(Modifier.height(4.dp))
+            Row(
+                Modifier.fillMaxWidth().weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                controlsContent(
-                    Modifier.fillMaxWidth()
-                        // Keep the landscape hardware-control strip compact so the LCD preview
-                        // retains enough space for either a portrait or landscape capture frame.
-                        .then(if (uiIsLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = if (uiIsLandscape) 4.dp else 0.dp)
-                )
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    modifier = Modifier.width(82.dp).fillMaxHeight(),
+                    enter = fadeIn(tween(180)) + slideInHorizontally { -it / 10 },
+                    exit = fadeOut(tween(160)) + slideOutHorizontally { -it / 12 }
+                ) {
+                    leftHardwareContent(Modifier.fillMaxHeight())
+                }
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    previewContent(Modifier.weight(1f).fillMaxWidth())
+                    AnimatedVisibility(
+                        visible = hudVisible,
+                        enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
+                        exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
+                    ) {
+                        controlsContent(
+                            Modifier.fillMaxWidth().heightIn(max = 112.dp)
+                                .verticalScroll(rememberScrollState())
+                                .padding(bottom = 3.dp)
+                        )
+                    }
+                }
+                AnimatedVisibility(
+                    visible = hudVisible,
+                    modifier = Modifier.width(88.dp).fillMaxHeight(),
+                    enter = fadeIn(tween(180)) + slideInHorizontally { it / 10 },
+                    exit = fadeOut(tween(160)) + slideOutHorizontally { it / 12 }
+                ) {
+                    rightHardwareContent(Modifier.fillMaxHeight())
+                }
             }
         }
         if (showQuick) {

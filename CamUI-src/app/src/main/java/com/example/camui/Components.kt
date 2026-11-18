@@ -100,7 +100,7 @@ fun CamTheme(content: @Composable () -> Unit) {
     }
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = CamColors.Yellow,
+            primary = FujiSkin.orange,
             onPrimary = Color.Black,
             background = CamColors.Bg,
             surface = CamColors.Card
@@ -132,14 +132,7 @@ fun CircleBtn(
 
 @Composable
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier.height(38.dp).clip(RoundedCornerShape(12.dp))
-            .background(if (selected) CamColors.Yellow else CamColors.Chip).animaTClickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text, color = if (selected) Color.Black else Color.White,
-            fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1)
-    }
+    FujiChip(text = text, selected = selected, onClick = onClick, modifier = modifier)
 }
 
 

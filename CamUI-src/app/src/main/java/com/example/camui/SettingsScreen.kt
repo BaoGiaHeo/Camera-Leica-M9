@@ -117,7 +117,7 @@ fun SettingsScreen(
                         }
                     }
                     val visible = tabState.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
-                    val maxIndex = (settingItems.size - visible).coerceAtLeast(1)
+                    val maxIndex = (visibleSettingItems.size - visible).coerceAtLeast(1)
                     FujiScrollbar(
                         fraction = (tabState.firstVisibleItemIndex.toFloat() / maxIndex).coerceIn(0f, 1f),
                         visibleFraction = (visible.toFloat() / visibleSettingItems.size).coerceIn(0.08f, 1f),

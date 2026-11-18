@@ -84,6 +84,7 @@ fun SettingsScreen(
     onFocusPeaking: (Boolean) -> Unit
 ) {
     var selectedPage by remember { mutableStateOf<String?>(null) }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     AnimatedContent(
         targetState = selectedPage,
         modifier = Modifier.fillMaxSize(),
@@ -114,16 +115,52 @@ fun SettingsScreen(
                     }
                     Text("Settings", color = CamColors.TextColor, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                 }
-                LazyColumn(
-                    Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item { SectionTitle("Capture") }
-                    items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
-                    item { SectionTitle("Imaging") }
-                    items(settingItems.drop(3).filter { it.title != "Sao lưu & Khôi phục" }) { item -> SettingCard(item) { selectedPage = item.title } }
-                    item { SectionTitle("Dữ liệu") }
-                    item { SettingCard(settingItems.first { it.title == "Sao lưu & Khôi phục" }) { selectedPage = "Sao lưu & Khôi phục" } }
+                if (isLandscape) {
+                    Row(
+                        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        LazyColumn(
+                            Modifier.weight(1f).fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            item { SectionTitle("Capture") }
+                            items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
+                        }
+                        LazyColumn(
+                            Modifier.weight(1f).fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            item { SectionTitle("Imaging") }
+                            items(settingItems.drop(3).filter { it.title != "Sao lưu & Khôi phục" }) { item ->
+                                SettingCard(item) { selectedPage = item.title }
+                            }
+                            item { SectionTitle("Dữ liệu") }
+                            item {
+                                SettingCard(settingItems.first { it.title == "Sao lưu & Khôi phục" }) {
+                                    selectedPage = "Sao lưu & Khôi phục"
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        item { SectionTitle("Capture") }
+                        items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
+                        item { SectionTitle("Imaging") }
+                        items(settingItems.drop(3).filter { it.title != "Sao lưu & Khôi phục" }) { item ->
+                            SettingCard(item) { selectedPage = item.title }
+                        }
+                        item { SectionTitle("Dữ liệu") }
+                        item {
+                            SettingCard(settingItems.first { it.title == "Sao lưu & Khôi phục" }) {
+                                selectedPage = "Sao lưu & Khôi phục"
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -182,7 +219,8 @@ var nightShotMode by remember {
 
     Column(
         Modifier.fillMaxSize().background(CamColors.Bg)
-            .verticalScroll(rememberScrollState()).padding(16.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = if (isLandscape) 28.dp else 16.dp, vertical = 16.dp)
     ) {
         Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.material3.IconButton(onClick = onBack) {

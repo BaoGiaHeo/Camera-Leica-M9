@@ -4785,7 +4785,8 @@ fun CameraScreen(
                 onToolbox = { showQuick = false; onOpenToolbox() },
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },
-                modifier = Modifier.align(Alignment.TopCenter).padding(start = 10.dp, end = 10.dp, top = 64.dp)
+                modifier = Modifier.align(if (isLandscape) Alignment.TopEnd else Alignment.TopCenter)
+                    .padding(start = 10.dp, end = 10.dp, top = if (isLandscape) 8.dp else 64.dp)
             )
         }
 
@@ -5181,8 +5182,9 @@ private fun FilterLookDialog(
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
-    val dialogMaxHeight = (configuration.screenHeightDp * 0.84f).dp
-    val previewHeight = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 82.dp else 150.dp
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    val dialogMaxHeight = (configuration.screenHeightDp * if (isLandscape) 0.94f else 0.84f).dp
+    val previewHeight = if (isLandscape) 112.dp else 150.dp
     val scope = rememberCoroutineScope()
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var filterSearch by remember { mutableStateOf("") }
@@ -5236,9 +5238,119 @@ private fun FilterLookDialog(
         }
     val activeFilterName = cameraLookDisplayName(context, activeFilter)
 
+    val previewPane: @Composable (Modifier) -> Unit = { paneModifier ->
+        Box(
+            paneModifier.fillMaxWidth().height(previewHeight)
+                .clip(RoundedCornerShape(12.dp)).background(CamColors.Card)
+        ) {
+            FilterLookPreviewImage(
+                source = previewSource,
+                preset = activeFilter,
+                modifier = Modifier.fillMaxSize(),
+                maxDimension = 720
+            )
+            if (activeFilter != "None") {
+                Text(
+                    activeFilterName,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                        .background(Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 5.dp)
+                )
+            }
+        }
+    }
+    val searchPane: @Composable (Modifier) -> Unit = { paneModifier ->
+        Box(
+            paneModifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                .background(CamColors.Card).padding(horizontal = 10.dp, vertical = 8.dp)
+        ) {
+            if (filterSearch.isBlank()) {
+                Text("Tìm bộ lọc…", color = CamColors.Sub, fontSize = 12.sp)
+            }
+            BasicTextField(
+                value = filterSearch,
+                onValueChange = { filterSearch = it },
+                singleLine = true,
+                textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+    val categoryPane: @Composable (Modifier) -> Unit = { paneModifier ->
+        Row(
+            paneModifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                .padding(top = 7.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            lookCategories.forEach { category ->
+                val selected = selectedLookCategory == category
+                Box(
+                    Modifier.clip(RoundedCornerShape(14.dp))
+                        .background(if (selected) CamColors.Yellow else CamColors.Card)
+                        .animaTClickable { selectedLookCategory = category }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        category,
+                        color = if (selected) Color.Black else CamColors.TextColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+    val presetGrid: @Composable (Modifier) -> Unit = { listModifier ->
+        LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            items(visiblePresets.chunked(2), key = { pair -> pair.firstOrNull() ?: "empty" }) { pair ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    pair.forEach { preset ->
+                        val selected = activeFilter == preset
+                        val itemName = cameraLookDisplayName(context, preset)
+                        Column(
+                            Modifier.weight(1f).padding(bottom = 8.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (selected) Color(0xFF393326) else CamColors.Card)
+                                .animaTClickable { onSelectFilter(preset) }.padding(7.dp)
+                        ) {
+                            Box(Modifier.fillMaxWidth().height(76.dp).clip(RoundedCornerShape(8.dp))) {
+                                FilterLookPreviewImage(
+                                    source = previewSource,
+                                    preset = preset,
+                                    modifier = Modifier.fillMaxSize(),
+                                    maxDimension = 192
+                                )
+                                if (selected) {
+                                    Text(
+                                        "✓",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.align(Alignment.BottomStart)
+                                            .background(Color(0xAA000000)).padding(4.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                itemName,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 7.dp)
+                            )
+                        }
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxWidth(0.96f).heightIn(max = dialogMaxHeight)
+            Modifier.fillMaxWidth(0.96f)
+                .then(if (isLandscape) Modifier.fillMaxHeight(0.94f) else Modifier.heightIn(max = dialogMaxHeight))
                 .clip(RoundedCornerShape(22.dp)).background(CamColors.Bg).padding(15.dp)
         ) {
             Row(
@@ -5254,124 +5366,46 @@ private fun FilterLookDialog(
                     fontSize = 12.sp
                 )
             }
-            Text(
-                if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
-                color = CamColors.Yellow,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
-            Box(
-                Modifier.fillMaxWidth().height(previewHeight)
-                    .clip(RoundedCornerShape(12.dp)).background(CamColors.Card)
-            ) {
-                FilterLookPreviewImage(
-                    source = previewSource,
-                    preset = activeFilter,
-                    modifier = Modifier.fillMaxSize(),
-                    maxDimension = 720
-                )
-                if (activeFilter != "None") {
-                    Text(
-                        activeFilterName,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.BottomStart)
-                            .background(Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 5.dp)
-                    )
-                }
-            }
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                    .background(CamColors.Card).padding(horizontal = 10.dp, vertical = 8.dp)
-            ) {
-                if (filterSearch.isBlank()) {
-                    Text("Tìm bộ lọc…", color = CamColors.Sub, fontSize = 12.sp)
-                }
-                BasicTextField(
-                    value = filterSearch,
-                    onValueChange = { filterSearch = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                    .padding(top = 7.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                lookCategories.forEach { category ->
-                    val selected = selectedLookCategory == category
-                    Box(
-                        Modifier.clip(RoundedCornerShape(14.dp))
-                            .background(if (selected) CamColors.Yellow else CamColors.Card)
-                            .animaTClickable { selectedLookCategory = category }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+            if (isLandscape) {
+                Row(
+                    Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Column(
+                        Modifier.weight(0.92f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            category,
-                            color = if (selected) Color.Black else CamColors.TextColor,
-                            fontSize = 10.sp,
+                            if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
+                            color = CamColors.Yellow,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
+                        previewPane(Modifier)
+                        searchPane(Modifier)
+                        categoryPane(Modifier)
+                        Text("${visiblePresets.size} bộ lọc", color = CamColors.Sub, fontSize = 10.sp)
                     }
+                    presetGrid(Modifier.weight(1.28f).fillMaxHeight())
                 }
-            }
-            Text(
-                "${visiblePresets.size} bộ lọc",
-                color = CamColors.Sub,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(bottom = 5.dp)
-            )
-            LazyColumn(
-                Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                items(visiblePresets.chunked(2), key = { pair -> pair.firstOrNull() ?: "empty" }) { pair ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        pair.forEach { preset ->
-                            val selected = activeFilter == preset
-                            val itemName = cameraLookDisplayName(context, preset)
-                            Column(
-                                Modifier.weight(1f).padding(bottom = 8.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (selected) Color(0xFF393326) else CamColors.Card)
-                                    .animaTClickable { onSelectFilter(preset) }.padding(7.dp)
-                            ) {
-                                Box(
-                                    Modifier.fillMaxWidth().height(76.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                ) {
-                                    FilterLookPreviewImage(
-                                        source = previewSource,
-                                        preset = preset,
-                                        modifier = Modifier.fillMaxSize(),
-                                        maxDimension = 192
-                                    )
-                                    if (selected) {
-                                        Text(
-                                            "✓",
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.align(Alignment.BottomStart)
-                                                .background(Color(0xAA000000)).padding(4.dp)
-                                        )
-                                    }
-                                }
-                                Text(
-                                    itemName,
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = 7.dp)
-                                )
-                            }
-                        }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
+            } else {
+                Text(
+                    if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
+                    color = CamColors.Yellow,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                previewPane(Modifier)
+                searchPane(Modifier)
+                categoryPane(Modifier)
+                Text(
+                    "${visiblePresets.size} bộ lọc",
+                    color = CamColors.Sub,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(bottom = 5.dp)
+                )
+                presetGrid(Modifier.weight(1f))
             }
         }
     }

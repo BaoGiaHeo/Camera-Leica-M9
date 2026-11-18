@@ -1,4 +1,4 @@
-name: CamUI Android smoke build (algorithmic HDMP)
+name: CamUI PR compile and unit-test check
 
 'on':
   pull_request:
@@ -42,9 +42,3 @@ jobs:
       - name: Build CamUI debug APK
         run: gradle -p CamUI-src testDebugUnitTest assembleDebug --no-daemon --stacktrace
 
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Fujifilm-Mode-CamUI-debug
-          path: CamUI-src/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error

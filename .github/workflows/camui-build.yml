@@ -1,10 +1,6 @@
 name: CamUI PR compile and unit-test check
 
 'on':
-  pull_request:
-    paths:
-      - 'CamUI-src/**'
-      - '.github/workflows/camui-build.yml'
   workflow_dispatch:
 
 permissions:

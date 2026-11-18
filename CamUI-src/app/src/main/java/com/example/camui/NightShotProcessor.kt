@@ -295,9 +295,19 @@ object NightShotProcessor {
         frames: List<File>,
         destinationUri: Uri,
         mode: MergeMode,
+        onFailure: ((String, Throwable?) -> Unit)? = null,
         onProgress: ((Int) -> Unit)? = null
     ): Boolean {
-        if (frames.size < 2 || frames.any { !it.exists() || it.length() <= 0L }) return false
+        val invalidFrameIndex = frames.indexOfFirst { !it.exists() || it.length() <= 0L }
+        if (frames.size < 2 || invalidFrameIndex >= 0) {
+            val reason = when {
+                frames.size < 2 -> "Need at least 2 valid frames; received ${frames.size}"
+                else -> "Frame ${invalidFrameIndex + 1} is missing or empty"
+            }
+            Log.e(TAG, "Merge rejected for $mode: $reason")
+            runCatching { onFailure?.invoke(reason, null) }
+            return false
+        }
         val prefix = when (mode) {
             MergeMode.STAR_TRAILS -> "star-"
             MergeMode.LUNA_DREAM_1_5 -> "luna15-"
@@ -640,15 +650,20 @@ object NightShotProcessor {
                     } ?: error("Could not restore the original first frame after merge failure")
                 }.onFailure { Log.e(TAG, "Could not restore original JPEG after merge publish failure", it) }
             }
+            val elapsedMs = SystemClock.elapsedRealtime() - mergeStartedAt
+            val reason = failure.message?.takeIf { it.isNotBlank() }
+                ?: failure.javaClass.simpleName
             Log.e(
                 TAG,
                 "Multi-frame merge failed for $mode after " +
-                    (SystemClock.elapsedRealtime() - mergeStartedAt) +
+                    elapsedMs +
                     "ms; decode=$decodeMs align=$alignmentMs fusion=$fusionMs " +
                     "detail=$detailRecoveryMs encode=$encodeMs publish=$publishMs; " +
-                    "original capture remains available",
+                    "heapUsed=" + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) +
+                    "; reason=$reason; original capture remains available",
                 failure
             )
+            runCatching { onFailure?.invoke(reason, failure) }
             false
         } finally {
             lunaFusionExecutor?.shutdown()

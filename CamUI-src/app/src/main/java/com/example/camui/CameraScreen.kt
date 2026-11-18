@@ -3624,16 +3624,6 @@ fun CameraScreen(
     val showMilkyWayAdvisor = false
 
 
-    // Each selected ratio is stored as portrait height / width in aspectRatios.
-    // Convert once to the actual frame width / height for the current display orientation.
-    val selectedPortraitHeightOverWidth = aspectRatios[
-        ratioIdx.coerceIn(0, aspectRatios.lastIndex)
-    ].second
-    val previewFrameWidthOverHeight = if (isLandscape) {
-        selectedPortraitHeightOverWidth
-    } else {
-        1f / selectedPortraitHeightOverWidth
-    }
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
@@ -3709,19 +3699,27 @@ fun CameraScreen(
                         previewModifier.background(Color(0xFF262B33)),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Measure using width / height directly: landscape 16:9 is 1.777,
-                        // square is 1.0, and landscape 21:9 is 2.333. This is independent
-                        // of CameraX's native sensor viewport ratio.
-                        val safeWidthOverHeight = previewFrameWidthOverHeight
-                            .takeIf { it.isFinite() && it > 0f } ?: 1f
-                        val frameWidth = minOf(maxWidth, maxHeight * safeWidthOverHeight)
-                        val frameHeight = frameWidth / safeWidthOverHeight
+                        // Use the actual preview slot bounds, not the sensor angle or stale
+                        // configuration. The selected landscape ratio is derived from the same
+                        // ratio list as the portrait ratio, then fitted without cropping.
+                        val selectedPortraitHeightOverWidth = aspectRatios[
+                            ratioIdx.coerceIn(0, aspectRatios.lastIndex)
+                        ].second
+                        val previewAreaIsLandscape = maxWidth > maxHeight
+                        val frameWidthOverHeight = if (previewAreaIsLandscape) {
+                            selectedPortraitHeightOverWidth
+                        } else {
+                            1f / selectedPortraitHeightOverWidth
+                        }
+                        val frameWidth = minOf(maxWidth, maxHeight * frameWidthOverHeight)
+                        val frameHeight = frameWidth / frameWidthOverHeight
                         Box(
                             Modifier
                                 .width(frameWidth)
                                 .height(frameHeight)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF262B33))
+                                .border(1.dp, Color.White.copy(alpha = 0.24f), RoundedCornerShape(12.dp))
                                 .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()

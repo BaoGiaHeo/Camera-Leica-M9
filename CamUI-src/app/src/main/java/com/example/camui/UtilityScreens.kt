@@ -124,6 +124,14 @@ import java.util.zip.ZipInputStream
 import java.net.URL
 
 @Composable
+private fun FujiSliderCompat(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>
+) {
+    FujiSlider(value = value, valueRange = valueRange, onValueChange = onValueChange)
+}
+@Composable
 private fun GlassParameterSlider(
     label: String,
     value: Float,
@@ -137,7 +145,7 @@ private fun GlassParameterSlider(
             color = CamColors.Sub, fontSize = 10.sp
         )
     }
-    Slider(value = value, onValueChange = onValueChange, valueRange = range)
+    FujiSlider(value = value, valueRange = range, onValueChange = onValueChange)
 }
 
 @Composable
@@ -553,42 +561,42 @@ fun ToolboxScreen(
                 modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
             Text("Highlight · ${String.format(Locale.US, "%+.2f", filmHighlight)}",
                 color = CamColors.Sub, fontSize = 12.sp)
-            Slider(filmHighlight, {
+            FujiSliderCompat(filmHighlight, {
                 filmHighlight = it
                 prefs.edit().putFloat("film_custom_highlight", it).apply()
             }, valueRange = -1f..1f)
             Text("Shadow · ${String.format(Locale.US, "%+.2f", filmShadow)}",
                 color = CamColors.Sub, fontSize = 12.sp)
-            Slider(filmShadow, {
+            FujiSliderCompat(filmShadow, {
                 filmShadow = it
                 prefs.edit().putFloat("film_custom_shadow", it).apply()
             }, valueRange = -1f..1f)
             Text("Color Chrome · ${String.format(Locale.US, "%.2f", filmColorChrome)}",
                 color = CamColors.Sub, fontSize = 12.sp)
-            Slider(filmColorChrome, {
+            FujiSliderCompat(filmColorChrome, {
                 filmColorChrome = it
                 prefs.edit().putFloat("film_custom_color_chrome", it).apply()
             }, valueRange = 0f..1f)
             Text("Grain · ${String.format(Locale.US, "%.2f", filmGrain)}",
                 color = CamColors.Sub, fontSize = 12.sp)
-            Slider(filmGrain, {
+            FujiSliderCompat(filmGrain, {
                 filmGrain = it
                 prefs.edit().putFloat("film_custom_grain", it).apply()
             }, valueRange = 0f..1f)
             Text("Color Temperature · ${String.format(Locale.US, "%+.2f", filmTemperature)}",
                 color = CamColors.Sub, fontSize = 12.sp)
-            Slider(filmTemperature, {
+            FujiSliderCompat(filmTemperature, {
                 filmTemperature = it
                 prefs.edit().putFloat("film_custom_temperature", it).apply()
             }, valueRange = -1f..1f)
             Text("Color Tone · ${String.format(Locale.US, "%+.2f", filmTone)}  (Green ↔ Magenta)", color = CamColors.Sub, fontSize = 12.sp)
-            Slider(filmTone, {
+            FujiSliderCompat(filmTone, {
                 filmTone = it
                 prefs.edit().putFloat("film_custom_tone", it).apply()
             }, valueRange = -1f..1f)
             Text("Saturation · ${String.format(Locale.US, "%.2f", filmSaturation)}",
                 color = CamColors.Sub, fontSize = 12.sp)
-            Slider(filmSaturation, {
+            FujiSliderCompat(filmSaturation, {
                 filmSaturation = it
                 prefs.edit().putFloat("film_custom_saturation", it).apply()
             }, valueRange = 0.5f..1.5f)
@@ -3589,21 +3597,20 @@ private fun PageHeader(title: String, onBack: () -> Unit) {
 private fun ToolToggle(
     title: String,
     description: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: String,
     checked: Boolean,
     onChecked: (Boolean) -> Unit
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(RoundedCornerShape(16.dp))
-            .background(CamColors.Card).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(bottom = 10.dp).background(FujiSkin.lcd).border(1.dp, Color(0xFF344247)).padding(horizontal = 9.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = CamColors.Yellow)
+        FujiIconGlyph(icon, Modifier.size(18.dp), FujiSkin.lcdGreen)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(title, color = Color.White, fontWeight = FontWeight.SemiBold)
             Text(description, color = CamColors.Sub, fontSize = 11.sp)
         }
-        Switch(checked = checked, onCheckedChange = onChecked)
+        FujiSwitch(checked = checked, onCheckedChange = onChecked)
     }
 }
 

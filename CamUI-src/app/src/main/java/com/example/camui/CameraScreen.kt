@@ -172,6 +172,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Observer
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -971,6 +972,21 @@ fun CameraScreen(
             // COMPATIBLE uses a TextureView-backed preview so PreviewView.bitmap can
             // preserve the exact last displayed frame during computational capture.
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        }
+    }
+    var previewStreamState by remember(previewView) {
+        mutableStateOf(
+            previewView.previewStreamState.value ?: PreviewView.StreamState.IDLE
+        )
+    }
+    DisposableEffect(previewView, lifecycleOwner) {
+        val observer = Observer<PreviewView.StreamState> { state ->
+            previewStreamState = state ?: PreviewView.StreamState.IDLE
+        }
+        previewView.previewStreamState.observe(lifecycleOwner, observer)
+        onDispose {
+            previewView.previewStreamState.removeObserver(observer)
+            previewStreamState = PreviewView.StreamState.IDLE
         }
     }
     // Keep FIT_CENTER in both orientations so the preview never auto-crops or zooms.
@@ -4818,7 +4834,7 @@ fun CameraScreen(
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.align(Alignment.Center)
                                 )
-                            } else if (camera == null) {
+                            } else if (previewStreamState != PreviewView.StreamState.STREAMING) {
                                 Text(
                                     localizedUiText(context, "STARTING..."),
                                     color = FujiSkin.lcdGreen,

@@ -791,10 +791,8 @@ fun CameraScreen(
             processingPanelOffset = Offset.Zero
         }
     }
+    // EV is a command value. Do not overwrite it with delayed per-frame Camera2 results.
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
-    // Keep the EV thumb independent from delayed per-frame Camera2 results while dragging.
-    var evSliderPosition by remember { mutableFloatStateOf(evIndex.toFloat()) }
-    var evUserAdjusting by remember { mutableStateOf(false) }
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
     var focusDiopter by remember { mutableFloatStateOf(0f) }
@@ -938,9 +936,7 @@ fun CameraScreen(
     // the regular EV slider while either NightShot capture mode is selected.
     LaunchedEffect(nightShotMode, mode, camera) {
         if (mode == "Photo" && nightShotMode != "off") {
-            evUserAdjusting = false
             evIndex = 0
-            evSliderPosition = 0f
             camera?.let { active ->
                 runCatching {
                     Camera2CameraControl.from(active.cameraControl).clearCaptureRequestOptions()
@@ -1314,12 +1310,7 @@ fun CameraScreen(
                             live.iso?.let { if (iso != it) iso = it }
                             live.shutterNs?.let { if (shutterNs != it) shutterNs = it }
                             live.focusDiopter?.let { if (focusDiopter != it) focusDiopter = it }
-                            if (!evUserAdjusting) {
-                                live.evIndex?.let {
-                                    if (evIndex != it) evIndex = it
-                                    evSliderPosition = it.toFloat()
-                                }
-                            }
+                            // Camera2 results can arrive after the user's command; keep evIndex authoritative.
                         }
                     }
                 )
@@ -1736,8 +1727,6 @@ fun CameraScreen(
                 boundCameraRotation = rotation
                 boundCameraLandscape = isLandscape
                 evIndex = appPrefs.getInt("pro_ev_index", 0)
-                evSliderPosition = evIndex.toFloat()
-                evUserAdjusting = false
                 val zoomStateOnBind = bound.cameraInfo.zoomState.value
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
                 val maxSelectableZoom = Camera2Info.maxSelectableZoom(
@@ -4604,8 +4593,6 @@ fun CameraScreen(
                                         if (range != null) {
                                             val next = (evIndex - 1).coerceIn(range.lower, range.upper)
                                             evIndex = next
-                                            evSliderPosition = next.toFloat()
-                                            evUserAdjusting = false
                                             manualExposure = false
                                             camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
                                         }
@@ -4628,8 +4615,6 @@ fun CameraScreen(
                                         if (range != null) {
                                             val next = (evIndex + 1).coerceIn(range.lower, range.upper)
                                             evIndex = next
-                                            evSliderPosition = next.toFloat()
-                                            evUserAdjusting = false
                                             manualExposure = false
                                             camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
                                         }
@@ -4640,9 +4625,7 @@ fun CameraScreen(
                                 FujiKey(
                                     "0",
                                     onClick = {
-                                        evUserAdjusting = false
                                         evIndex = 0
-                                        evSliderPosition = 0f
                                         manualExposure = false
                                         camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(0) } }
                                     },
@@ -4819,7 +4802,6 @@ fun CameraScreen(
                     val range = evRange
                     if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
                         evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
-                        evSliderPosition = evIndex.toFloat()
                         manualExposure = false
                         runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
                     } else if (mode == "Pro" && activeDialSelection == "ISO" && active != null && manualSensorSupported && isoRange != null) {
@@ -4859,7 +4841,6 @@ fun CameraScreen(
                     val range = evRange
                     if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
                         evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
-                        evSliderPosition = evIndex.toFloat()
                         manualExposure = false
                         runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
                     } else if (mode == "Pro" && activeDialSelection == "ISO" && active != null && manualSensorSupported && isoRange != null) {

@@ -4274,7 +4274,7 @@ fun CameraScreen(
                                     "EV" -> {
                                         val range = evRange
                                         if (range != null && range.upper > range.lower) {
-                                            Slider(
+                                            FujiSlider(
                                                 value = evIndex.toFloat().coerceIn(range.lower.toFloat(), range.upper.toFloat()),
                                                 onValueChange = {
                                                     manualExposure = false
@@ -4286,7 +4286,7 @@ fun CameraScreen(
                                                 },
                                                 valueRange = range.lower.toFloat()..range.upper.toFloat(),
                                                 steps = (range.upper - range.lower - 1).coerceAtLeast(0),
-                                                colors = cameraSliderColors()
+
                                             )
                                         } else Text("EV không được hỗ trợ", color = CamColors.Sub, fontSize = 11.sp)
                                     }
@@ -4297,7 +4297,7 @@ fun CameraScreen(
                                                 if (manualSensorSupported && range != null && range.upper > range.lower) {
                                                     val lo = range.lower
                                                     val hi = range.upper.coerceAtMost(2400).coerceAtLeast(range.lower)
-                                                    Slider(
+                                                    FujiSlider(
                                                         modifier = Modifier.weight(1f),
                                                         value = ((manualIso.coerceIn(lo, hi) - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0f, 1f),
                                                         onValueChange = { f ->
@@ -4314,7 +4314,7 @@ fun CameraScreen(
                                                             }
                                                         },
                                                         onValueChangeFinished = { manualCaptureRevision++ },
-                                                        colors = cameraSliderColors()
+
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else FujiSkin.orange,
@@ -4335,7 +4335,7 @@ fun CameraScreen(
                                                 if (manualSensorSupported && range != null && range.upper > range.lower) {
                                                     val lo = range.lower
                                                     val hi = range.upper.coerceAtMost(1_000_000_000L).coerceAtLeast(range.lower)
-                                                    Slider(
+                                                    FujiSlider(
                                                         modifier = Modifier.weight(1f),
                                                         value = shutterFraction(manualShutterNs.coerceAtMost(1_000_000_000L), lo, hi),
                                                         onValueChange = { f ->
@@ -4348,7 +4348,7 @@ fun CameraScreen(
                                                             }
                                                         },
                                                         onValueChangeFinished = { manualCaptureRevision++ },
-                                                        colors = cameraSliderColors()
+
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else FujiSkin.orange,
@@ -4366,7 +4366,7 @@ fun CameraScreen(
                                         Column(Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 if (maxFocus > 0f) {
-                                                    Slider(
+                                                    FujiSlider(
                                                         modifier = Modifier.weight(1f),
                                                         value = (manualFocus / maxFocus).coerceIn(0f, 1f),
                                                         onValueChange = { f ->
@@ -4375,7 +4375,7 @@ fun CameraScreen(
                                                             focusLocked = false
                                                             camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
                                                         },
-                                                        colors = cameraSliderColors()
+
                                                     )
                                                 } else Text("AF tự động", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
                                                 Text("AUTO", color = FujiSkin.orange, fontSize = 10.sp,
@@ -4393,7 +4393,7 @@ fun CameraScreen(
                                         Column(Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text("Ấm", color = CamColors.Sub, fontSize = 9.sp)
-                                                Slider(
+                                                FujiSlider(
                                                     modifier = Modifier.weight(1f),
                                                     value = ((manualColorTemp - 2500) / 5500f).coerceIn(0f, 1f),
                                                     onValueChange = { fraction ->
@@ -4401,7 +4401,7 @@ fun CameraScreen(
                                                         manualColorTempEnabled = true
                                                         camera?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
                                                     },
-                                                    colors = cameraSliderColors()
+
                                                 )
                                                 Text("Lạnh", color = CamColors.Sub, fontSize = 9.sp)
                                                 Text("AUTO", color = if (manualColorTempEnabled) CamColors.Sub else FujiSkin.orange,
@@ -4505,7 +4505,7 @@ fun CameraScreen(
                                 Text("EV", color = FujiSkin.orange, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 val range = evRange
                                 if (range != null && range.upper > range.lower) {
-                                    Slider(
+                                    FujiSlider(
                                         modifier = Modifier.weight(1f),
                                         value = evSliderPosition.coerceIn(range.lower.toFloat(), range.upper.toFloat()),
                                         onValueChange = {
@@ -4525,7 +4525,7 @@ fun CameraScreen(
                                         },
                                         valueRange = range.lower.toFloat()..range.upper.toFloat(),
                                         steps = (range.upper - range.lower - 1).coerceAtLeast(0),
-                                        colors = cameraSliderColors()
+
                                     )
                                 } else {
                                     Text("EV không được hỗ trợ", color = CamColors.Sub, fontSize = 10.sp,

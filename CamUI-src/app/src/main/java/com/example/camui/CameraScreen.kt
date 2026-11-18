@@ -4553,10 +4553,17 @@ fun CameraScreen(
                                 if (image != null) Image(image, "Mở ảnh vừa chụp", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                 else Icon(Icons.Default.PhotoLibrary, "Mở album", tint = Color.White)
                             }
-                            Box(Modifier.size(72.dp).border(4.dp, Color.White, CircleShape)
+                            Box(Modifier.size(72.dp).border(4.dp, Color.White.copy(alpha = if (isProcessing) 0.45f else 1f), CircleShape)
                                 .padding(7.dp).clip(CircleShape)
-                                .background(if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || livePhotoCaptureInProgress) Color(0xFFE53935) else CamColors.Shutter)
-                                .animaTClickable { takePhoto() },
+                                .background(
+                                    when {
+                                        isProcessing -> Color(0xFF59616D)
+                                        starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || livePhotoCaptureInProgress -> Color(0xFFE53935)
+                                        else -> CamColors.Shutter
+                                    }
+                                )
+                                .graphicsLayer { alpha = if (isProcessing) 0.55f else 1f }
+                                .animaTClickable { if (!isProcessing) takePhoto() },
                                 contentAlignment = Alignment.Center) {
                                 if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
                                     Icon(

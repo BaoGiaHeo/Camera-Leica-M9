@@ -94,7 +94,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -260,7 +259,7 @@ private class SensorOrientationManager {
     }
 }
 
-private const val DEBUG_FUJI_LAYOUT = true
+private const val DEBUG_FUJI_LAYOUT = false
 
 private enum class RatioUiTransitionState { Idle, FadingOut, Swapping, FadingIn }
 
@@ -594,14 +593,7 @@ fun CameraScreen(
         if (!hasCam) permissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    val appPrefs = remember {
-        context.getSharedPreferences("fujifilm_settings", 0).also { prefs ->
-            if (!prefs.getBoolean("shutter_effect_v2_migrated", false)) {
-                prefs.edit().putString("shutter_effect", "Film Wash")
-                    .putBoolean("shutter_effect_v2_migrated", true).apply()
-            }
-        }
-    }
+    val appPrefs = remember { context.getSharedPreferences("fujifilm_settings", 0) }
     var livePhotoEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("live_photo_enabled", false))
     }
@@ -686,8 +678,7 @@ fun CameraScreen(
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
     var filterPreviewSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val fallbackFilterPreviewBitmap = remember { createFilmLookPreviewSample() }
-    var shutterEffectAlpha by remember { mutableFloatStateOf(0f) }
-    val filmWashProgress = remember { Animatable(0f) }
+    val shutterEffectProgress = remember { Animatable(0f) }
     var frozenPreviewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewFreezeEffect by remember { mutableStateOf("off") }
     var previewFreezeVisible by remember { mutableStateOf(false) }
@@ -975,7 +966,7 @@ fun CameraScreen(
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            setBackgroundColor(android.graphics.Color.rgb(38, 43, 51))
+            setBackgroundColor(android.graphics.Color.BLACK)
             // COMPATIBLE uses a TextureView-backed preview so PreviewView.bitmap can
             // preserve the exact last displayed frame during computational capture.
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
@@ -990,7 +981,7 @@ fun CameraScreen(
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
-        hasCam, front, ultraHdr, isLandscape, targetRotation, renderEngine,
+        hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         nativeImageProcessingEnabled, livePhotoEnabled, manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
@@ -1150,10 +1141,13 @@ fun CameraScreen(
             imageCapture = null
 
             val rotation = targetRotation
-            // Keep the CameraX viewport at the camera's native sensor ratio. The selected
-            // preview-frame ratio is a Compose-only matte; FIT_CENTER + ViewPort.FIT show the
-            // complete sensor image without cropping, stretching, or adding digital zoom.
-            val ratio = if (isLandscape) Rational(4, 3) else Rational(3, 4)
+            // Match CameraX Preview/ImageCapture crop geometry to the selected frame ratio.
+            // aspectRatioForOrientation returns image height / width for the current grip.
+            val selectedHeightOverWidth = aspectRatioForOrientation(ratioIdx, isLandscape)
+            val ratio = Rational(
+                1000,
+                (selectedHeightOverWidth * 1000f).roundToInt().coerceAtLeast(1)
+            )
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
@@ -1661,7 +1655,7 @@ fun CameraScreen(
                 // Use the exact ratio used by the Compose preview container. Reading
                 // PreviewView.width/height here can pick up the previous layout during rotation.
                 val viewPort = ViewPort.Builder(ratio, rotation)
-                    .setScaleType(ViewPort.FIT)
+                    .setScaleType(ViewPort.FILL_CENTER)
                     .build()
                 val groupBuilder = UseCaseGroup.Builder()
                     .setViewPort(viewPort)
@@ -2680,22 +2674,13 @@ fun CameraScreen(
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
                 playConfiguredShutterSound(context)
             }
-            val shutterEffectType = appPrefs.getString("shutter_effect", "Film Wash")
+            // Mechanical shutter curtain: close from the top, hold briefly, then reopen.
+            // A black curtain is used instead of a white flash or color wash.
             scope.launch {
-                if (shutterEffectType == "Film Wash") {
-                    // Warm emulsion wash: a soft amber veil and a moving light band.
-                    filmWashProgress.snapTo(1f)
-                    filmWashProgress.animateTo(
-                        targetValue = 0f,
-                        animationSpec = tween(durationMillis = 1050, easing = FastOutSlowInEasing)
-                    )
-                } else {
-                    shutterEffectAlpha = 0.72f
-                    delay(70)
-                    shutterEffectAlpha = 0.34f
-                    delay(80)
-                    shutterEffectAlpha = 0f
-                }
+                shutterEffectProgress.snapTo(0f)
+                shutterEffectProgress.animateTo(1f, tween(40, easing = FastOutSlowInEasing))
+                if (actualShutterNs > 33_333_333L) delay(60L) else delay(30L)
+                shutterEffectProgress.animateTo(0f, tween(60, easing = FastOutSlowInEasing))
             }
             // Freeze display rotation and the active camera's sensor-relative rotation for
             // this still capture. CameraX combines target rotation with SENSOR_ORIENTATION.
@@ -3714,7 +3699,7 @@ fun CameraScreen(
                     flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 })
                 FujiTopKey(label = "DRIVE", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
-                    timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 }
+                    timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
                 }, onLongClick = {
                     if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
                 })
@@ -3753,20 +3738,6 @@ fun CameraScreen(
                                 .border(3.dp, Color(0xFF050607), RoundedCornerShape(6.dp))
                                 .border(1.dp, FujiSkin.silver.copy(alpha = 0.60f), RoundedCornerShape(6.dp))
                                 .graphicsLayer { alpha = previewOrientationAlpha.value }
-                                .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
-                                    detectTransformGestures { _, _, zoomChange, _ ->
-                                        zoomAnimationJob?.cancel()
-                                        val zoomState = camera?.cameraInfo?.zoomState?.value ?: return@detectTransformGestures
-                                        val maxZoom = Camera2Info.maxSelectableZoom(
-                                            activeCameraDetails, activePhysicalCameraDetails, zoomState.maxZoomRatio
-                                        )
-                                        val nextZoom = (zoomState.zoomRatio * zoomChange)
-                                            .coerceIn(zoomState.minZoomRatio, maxZoom)
-                                        camera?.cameraControl?.setZoomRatio(nextZoom)
-                                        zoomSel = nextZoom
-                                        appPrefs.edit().putFloat("camera_zoom_ratio", nextZoom).apply()
-                                    }
-                                }
                                 .pointerInput(camera, metering, mode) {
                                     detectTapGestures(
                                         onTap = { offset ->
@@ -3834,37 +3805,12 @@ fun CameraScreen(
                                     }
                                 }
                             }
-                            if (shutterEffectAlpha > 0f || filmWashProgress.value > 0f) {
+                            if (shutterEffectProgress.value > 0f) {
                                 Canvas(Modifier.fillMaxSize()) {
-                                    if (shutterEffectAlpha > 0f) {
-                                        drawRect(Color.White.copy(alpha = shutterEffectAlpha))
-                                    }
-                                    val wash = filmWashProgress.value
-                                    if (wash > 0f) {
-                                        drawRect(Color(0xFFFFC078).copy(alpha = 0.24f * wash))
-                                        val bandTop = size.height * (1f - wash * 0.88f)
-                                        drawRect(
-                                            Color(0xFFFFF0D2).copy(alpha = 0.38f * wash),
-                                            Offset(0f, bandTop),
-                                            DrawSize(size.width, size.height * 0.12f)
-                                        )
-                                        drawRect(
-                                            Color(0xFFFFE5B2).copy(alpha = 0.20f * wash),
-                                            Offset(0f, bandTop + size.height * 0.13f),
-                                            DrawSize(size.width, size.height * 0.025f)
-                                        )
-                                        drawRect(
-                                            Color(0xFF5A2915).copy(alpha = 0.10f * wash),
-                                            Offset(0f, size.height * 0.84f),
-                                            DrawSize(size.width, size.height * 0.16f)
-                                        )
-                                    }
+                                    val curtainHeight = size.height * shutterEffectProgress.value.coerceIn(0f, 1f)
+                                    drawRect(Color.Black, Offset(0f, 0f), DrawSize(size.width, curtainHeight))
                                 }
                             }
-                            FilmWashLabel(
-                                progress = filmWashProgress.value,
-                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp)
-                            )
                             if (showGrid) {
                                 Canvas(Modifier.fillMaxSize()) {
                                     val c = Color(0x66FFFFFF)
@@ -5170,26 +5116,6 @@ fun CameraScreen(
     }
 }
 
-
-@Composable
-private fun FilmWashLabel(progress: Float, modifier: Modifier = Modifier) {
-    AnimatedVisibility(
-        visible = progress > 0.08f,
-        modifier = modifier,
-        enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.92f),
-        exit = fadeOut(tween(260))
-    ) {
-        Text(
-            "FILM WASH",
-            color = Color(0xFFFFE8BD).copy(alpha = progress.coerceIn(0f, 1f)),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                .background(Color(0x99351B10)).padding(horizontal = 12.dp, vertical = 7.dp)
-        )
-    }
-}
 
 @Composable
 private fun LensTransitionOverlay(

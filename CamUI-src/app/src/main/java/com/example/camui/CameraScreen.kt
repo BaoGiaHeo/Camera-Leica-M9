@@ -423,13 +423,10 @@ fun CameraScreen(
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    // The Activity itself rotates to landscape, but the camera controls remain in their
-    // portrait-style vertical stack. Use the real window configuration for preview geometry;
-    // the orientation sensor is used only for CameraX target rotation, not for layout sizing.
-    var isLandscape by remember {
-        mutableStateOf(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
-    }
-    val uiIsLandscape = false
+    // The Activity is locked to landscape for the entire UI. This state follows the physical
+    // handset orientation independently, so the preview and saved frame can be portrait or landscape.
+    var isLandscape by remember { mutableStateOf(false) }
+    val uiIsLandscape = true
     DisposableEffect(context) {
         val orientationListener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
@@ -4726,8 +4723,8 @@ fun CameraScreen(
             ) {
                 controlsContent(
                     Modifier.fillMaxWidth()
-                        // Keep the portrait control stack compact in landscape so the
-                        // selected-ratio preview still has enough room to render horizontally.
+                        // Keep the landscape hardware-control strip compact so the LCD preview
+                        // retains enough space for either a portrait or landscape capture frame.
                         .then(if (uiIsLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = if (uiIsLandscape) 4.dp else 0.dp)

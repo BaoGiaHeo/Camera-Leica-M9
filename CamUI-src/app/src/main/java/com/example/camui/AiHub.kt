@@ -65,6 +65,7 @@ fun LunaDreamBottomSheet(
     nightShotEnabled: Boolean,
     nightShotDurationSeconds: Int,
     onCycleNightShot: () -> Unit,
+    onNightShotToggle: (Boolean) -> Unit,
     selectedMode: String,
     onSelectedModeChange: (String) -> Unit
 ) {
@@ -76,6 +77,11 @@ fun LunaDreamBottomSheet(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(250)) + slideInHorizontally(initialOffsetX = { it / 18 }, animationSpec = tween(250)),
+            exit = fadeOut(tween(180)) + slideOutHorizontally(targetOffsetX = { it / 24 }, animationSpec = tween(180))
+        ) {
         FujiPanel(
             title = "LUNADREAM",
             modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = maxPanelHeight),
@@ -139,12 +145,36 @@ fun LunaDreamBottomSheet(
                     fontWeight = FontWeight.Bold
                 )
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF354247)))
-                FujiListRow(
-                    title = "NightShotMode",
-                    value = if (nightShotEnabled) "${nightShotDurationSeconds}s" else "OFF",
-                    onClick = onCycleNightShot,
-                    description = "Night capture and Star Trails use separate processing pipelines · chạm để đổi OFF / 5s / 10s / 3s."
-                )
+                Row(
+                    Modifier.fillMaxWidth().background(Color(0xFF101516))
+                        .border(1.dp, if (nightShotEnabled) FujiSkin.orange else Color(0xFF344247), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 10.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("NightShotMode", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("Night capture and Star Trails use separate processing pipelines",
+                            color = FujiSkin.muted, fontSize = 9.sp, lineHeight = 13.sp)
+                    }
+                    FujiSwitch(checked = nightShotEnabled, onCheckedChange = onNightShotToggle)
+                }
+                if (nightShotEnabled) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf(5, 10, 3).forEach { seconds ->
+                            FujiChip(
+                                text = "${seconds}s",
+                                selected = nightShotDurationSeconds == seconds,
+                                onClick = {
+                                    if (nightShotDurationSeconds != seconds) onCycleNightShot()
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
                 Text(
                     if (nightShotEnabled) "NIGHTSHOT · BẬT · ${nightShotDurationSeconds}s" else "NIGHTSHOT · TẮT",
                     color = if (nightShotEnabled) FujiSkin.orange else FujiSkin.muted,
@@ -157,6 +187,7 @@ fun LunaDreamBottomSheet(
                     fontSize = 9.sp
                 )
             }
+        }
         }
     }
 }

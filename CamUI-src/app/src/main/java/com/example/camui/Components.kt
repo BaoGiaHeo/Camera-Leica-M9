@@ -116,6 +116,12 @@ fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifie
 
 
 private val englishUi = mapOf(
+    "SETTINGS · MENU" to "SETTINGS · MENU", "TOOLBOX" to "TOOLBOX", "CONTENTS MANAGEMENT" to "CONTENTS MANAGEMENT",
+    "PHOTO FRAMES" to "PHOTO FRAMES", "FILM FILTERS" to "FILM FILTERS", "LUNADREAM" to "LUNADREAM",
+    "OTHER · DEVICE OPTIONS" to "OTHER · DEVICE OPTIONS", "MENU TABS" to "MENU TABS", "OPEN" to "OPEN",
+    "STARTING..." to "STARTING...", "NO SIGNAL" to "NO SIGNAL",
+    "DISPLAY / APPEARANCE" to "DISPLAY / APPEARANCE", "SOUND & HAPTIC" to "SOUND & HAPTIC", "NIGHTSHOTMODE" to "NIGHTSHOTMODE",
+    "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK" to "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK",
     "Settings" to "Settings", "Toolbox" to "Toolbox", "Viewfinder overlays" to "Viewfinder overlays",
     "Grid Lines" to "Grid Lines", "Thirds composition guide" to "Thirds composition guide",
     "Histogram" to "Histogram", "Live luminance histogram" to "Live luminance histogram",
@@ -179,6 +185,12 @@ private val englishUi = mapOf(
 )
 
 private val japaneseUi = mapOf(
+    "SETTINGS · MENU" to "設定 · メニュー", "TOOLBOX" to "ツールボックス", "CONTENTS MANAGEMENT" to "コンテンツ管理",
+    "PHOTO FRAMES" to "フォトフレーム", "FILM FILTERS" to "フィルムフィルター", "LUNADREAM" to "LUNADREAM",
+    "OTHER · DEVICE OPTIONS" to "その他 · デバイス設定", "MENU TABS" to "メニュータブ", "OPEN" to "開く",
+    "STARTING..." to "起動中...", "NO SIGNAL" to "信号なし",
+    "DISPLAY / APPEARANCE" to "表示 / 外観", "SOUND & HAPTIC" to "サウンドと振動", "NIGHTSHOTMODE" to "NightShotMode",
+    "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK" to "▲▼ 選択    MENU/OK 開く    DISP/BACK 戻る",
     "Settings" to "設定", "Toolbox" to "ツールボックス", "Viewfinder overlays" to "ファインダー表示",
     "Grid Lines" to "グリッド線", "Thirds composition guide" to "三分割構図ガイド",
     "Histogram" to "ヒストグラム", "Live luminance histogram" to "リアルタイム輝度ヒストグラム",
@@ -222,6 +234,12 @@ private val japaneseUi = mapOf(
 )
 
 private val koreanUi = mapOf(
+    "SETTINGS · MENU" to "설정 · 메뉴", "TOOLBOX" to "도구 상자", "CONTENTS MANAGEMENT" to "콘텐츠 관리",
+    "PHOTO FRAMES" to "사진 프레임", "FILM FILTERS" to "필름 필터", "LUNADREAM" to "LUNADREAM",
+    "OTHER · DEVICE OPTIONS" to "기타 · 기기 옵션", "MENU TABS" to "메뉴 탭", "OPEN" to "열기",
+    "STARTING..." to "시작 중...", "NO SIGNAL" to "신호 없음",
+    "DISPLAY / APPEARANCE" to "디스플레이 / 모양", "SOUND & HAPTIC" to "사운드 및 햅틱", "NIGHTSHOTMODE" to "NightShotMode",
+    "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK" to "▲▼ 선택    MENU/OK 열기    DISP/BACK 뒤로",
     "Settings" to "설정", "Toolbox" to "도구 상자", "Viewfinder overlays" to "뷰파인더 오버레이",
     "Grid Lines" to "격자선", "Thirds composition guide" to "삼분할 구도 가이드",
     "Histogram" to "히스토그램", "Live luminance histogram" to "실시간 밝기 히스토그램",
@@ -262,6 +280,12 @@ private val koreanUi = mapOf(
 )
 
 private val chineseUi = mapOf(
+    "SETTINGS · MENU" to "设置 · 菜单", "TOOLBOX" to "工具箱", "CONTENTS MANAGEMENT" to "内容管理",
+    "PHOTO FRAMES" to "照片边框", "FILM FILTERS" to "胶片滤镜", "LUNADREAM" to "LUNADREAM",
+    "OTHER · DEVICE OPTIONS" to "其他 · 设备选项", "MENU TABS" to "菜单标签", "OPEN" to "打开",
+    "STARTING..." to "正在启动...", "NO SIGNAL" to "无信号",
+    "DISPLAY / APPEARANCE" to "显示 / 外观", "SOUND & HAPTIC" to "声音与触觉反馈", "NIGHTSHOTMODE" to "NightShotMode",
+    "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK" to "▲▼ 选择    MENU/OK 打开    DISP/BACK 返回",
     "Settings" to "设置", "Toolbox" to "工具箱", "Viewfinder overlays" to "取景器辅助线",
     "Grid Lines" to "网格线", "Thirds composition guide" to "三分构图辅助",
     "Histogram" to "直方图", "Live luminance histogram" to "实时亮度直方图",

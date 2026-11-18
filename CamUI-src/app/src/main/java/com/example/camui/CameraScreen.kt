@@ -5106,12 +5106,8 @@ fun CameraScreen(
                 onDismiss = { showLunaDream = false },
                 nightShotEnabled = nightShotMode == "night",
                 nightShotDurationSeconds = nightShotDurationSeconds,
-                onCycleNightShot = {
-                    nightShotDurationSeconds = when (nightShotDurationSeconds) {
-                        5 -> 10
-                        10 -> 3
-                        else -> 5
-                    }
+                onNightShotDurationChange = { seconds ->
+                    nightShotDurationSeconds = seconds.coerceIn(1, 30)
                     appPrefs.edit().putInt("nightshot_duration_seconds", nightShotDurationSeconds).apply()
                 },
                 onNightShotToggle = { enabled ->

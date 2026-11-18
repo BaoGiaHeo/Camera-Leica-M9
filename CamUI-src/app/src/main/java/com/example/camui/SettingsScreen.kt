@@ -601,6 +601,13 @@ var nightShotMode by remember {
                     })
                 Text("Version ${BuildConfig.VERSION_NAME} · Build ${BuildConfig.VERSION_CODE}", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
+                val activeRefreshRate = runCatching {
+                    @Suppress("DEPRECATION")
+                    (context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager)
+                        .defaultDisplay.refreshRate
+                }.getOrDefault(60f)
+                Text("Refresh rate ~ ${activeRefreshRate.toInt()}Hz", color = CamColors.Sub, fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 5.dp))
             }
         }
     }

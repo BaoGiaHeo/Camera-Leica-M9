@@ -95,9 +95,19 @@ class StartupSmokeTest {
 
             device.findObject(By.text("Settings")).click()
             assertTrue("Settings Capture section must be accessible", waitForAny(device, 8_000L, By.text("Capture & Quality")))
+            assertTrue("Settings Focus & Lens entry must be accessible", device.wait(Until.hasObject(By.text("Focus & Lens")), 5_000L))
             assertTrue("Settings Imaging section must be accessible", waitForAny(device, 5_000L, By.text("NightShotMode")))
-            assertTrue("Settings data/about entries must remain accessible", waitForAny(device, 5_000L, By.text("About")))
-            assertTrue("Settings screen must remain alive", device.wait(Until.hasObject(By.text("Focus & Lens")), 5_000L))
+            // The right-hand settings column is independently scrollable; verify its final entry is reachable.
+            val settingsScrollX = (device.displayWidth * 0.75f).toInt()
+            device.swipe(
+                settingsScrollX,
+                (device.displayHeight * 0.82f).toInt(),
+                settingsScrollX,
+                (device.displayHeight * 0.28f).toInt(),
+                16
+            )
+            assertTrue("Settings About entry must remain reachable after scrolling", waitForAny(device, 5_000L, By.text("About")))
+            assertTrue("Settings screen must remain alive", device.wait(Until.hasObject(By.text("Settings")), 5_000L))
         } finally {
             restorePortrait(automation)
             scenario.close()

@@ -121,6 +121,37 @@ class PhotoOutputGeometryTest {
         assertEquals(3000, invalid.sourceHeight)
     }
 
+    @Test
+    fun landscapeSelectedRatiosCropToTheRequestedWideFrame() {
+        val ratios = listOf(
+            (3f / 4f) to (4.0 / 3.0),
+            (9f / 16f) to (16.0 / 9.0),
+            (9f / 21f) to (21.0 / 9.0),
+            1f to 1.0
+        )
+        ratios.forEach { (heightOverWidth, expectedWidthOverHeight) ->
+            val geometry = PhotoOutputGeometry.calculate(
+                sourceWidth = 4000,
+                sourceHeight = 3000,
+                targetPixels = 12_000_000L,
+                targetHeightOverWidth = heightOverWidth
+            )
+            assertTrue(
+                "output ratio for target h/w=$heightOverWidth",
+                abs(geometry.outputWidth.toDouble() / geometry.outputHeight - expectedWidthOverHeight) < 0.001
+            )
+            assertTrue(
+                "source crop ratio for target h/w=$heightOverWidth",
+                abs(geometry.sourceWidth.toDouble() / geometry.sourceHeight - expectedWidthOverHeight) < 0.001
+            )
+            assertTrue(geometry.sourceLeft >= 0 && geometry.sourceTop >= 0)
+            assertTrue(geometry.sourceLeft + geometry.sourceWidth <= 4000)
+            assertTrue(geometry.sourceTop + geometry.sourceHeight <= 3000)
+            assertTrue(abs(geometry.sourceLeft - (4000 - geometry.sourceWidth) / 2) <= 1)
+            assertTrue(abs(geometry.sourceTop - (3000 - geometry.sourceHeight) / 2) <= 1)
+        }
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun invalidDimensionsAreRejected() {
         PhotoOutputGeometry.calculate(0, 3000, 60_000_000L, 16f / 9f)

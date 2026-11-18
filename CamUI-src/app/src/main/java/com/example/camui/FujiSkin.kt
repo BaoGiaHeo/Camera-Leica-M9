@@ -7,7 +7,14 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -32,7 +39,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,7 +54,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
@@ -56,9 +64,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.min
 
 /**
  * Small preference-aware feedback layer shared by the physical-looking controls.
@@ -143,39 +153,56 @@ fun FujiLeatherSurface(
 @Composable
 fun FujiMetalTopPlate(
     modifier: Modifier = Modifier,
+    height: Dp = 60.dp,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
-        modifier
-            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+        modifier = modifier.fillMaxWidth().height(height)
+            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp, bottomStart = 3.dp, bottomEnd = 3.dp))
             .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFFF8F8F4), FujiSkin.silver, Color(0xFF9FA4A8), Color(0xFFE6E7E5))
+                Brush.horizontalGradient(
+                    listOf(Color(0xFFF2F2EE), Color(0xFFE5E6E3), Color(0xFFD3D5D8))
                 )
             )
-            .border(1.dp, Color.White.copy(alpha = 0.68f), RoundedCornerShape(12.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.82f), RoundedCornerShape(12.dp))
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val spacing = 3.dp.toPx()
-            var y = 2.dp.toPx()
+            // Fine horizontal brushed-metal grain; the base remains tile-like and has no dark centre band.
+            val lineGap = 2.4.dp.toPx()
+            var y = 0.5.dp.toPx()
+            var index = 0
             while (y < size.height) {
+                val alpha = if (index % 3 == 0) 0.075f else 0.032f
                 drawLine(
-                    Color.White.copy(alpha = 0.055f),
-                    androidx.compose.ui.geometry.Offset(0f, y),
-                    androidx.compose.ui.geometry.Offset(size.width, y),
-                    strokeWidth = 0.45.dp.toPx()
+                    Color.White.copy(alpha = alpha),
+                    Offset(0f, y),
+                    Offset(size.width, y),
+                    strokeWidth = 0.35.dp.toPx()
                 )
-                y += spacing
+                if (index % 4 == 0) {
+                    drawLine(
+                        Color(0xFF7D8589).copy(alpha = 0.045f),
+                        Offset(0f, y + 0.8.dp.toPx()),
+                        Offset(size.width, y + 0.8.dp.toPx()),
+                        strokeWidth = 0.25.dp.toPx()
+                    )
+                }
+                y += lineGap
+                index++
             }
+            drawLine(Color.White.copy(alpha = 0.85f), Offset(0f, 0.5.dp.toPx()), Offset(size.width, 0.5.dp.toPx()), 1.dp.toPx())
+            drawLine(Color(0xFF777D80).copy(alpha = 0.65f), Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), 1.dp.toPx())
         }
         content()
         Row(
-            Modifier.align(Alignment.CenterStart).padding(start = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            Modifier.align(Alignment.CenterStart).padding(start = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) { repeat(2) { FujiScrew() } }
         Row(
-            Modifier.align(Alignment.CenterEnd).padding(end = 7.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            Modifier.align(Alignment.CenterEnd).padding(end = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) { repeat(2) { FujiScrew() } }
     }
 }
@@ -183,19 +210,135 @@ fun FujiMetalTopPlate(
 @Composable
 private fun FujiScrew() {
     Box(
-        Modifier.size(5.dp).clip(CircleShape)
-            .background(Brush.radialGradient(listOf(Color(0xFFFAFAF8), Color(0xFF74797C))))
-            .border(0.5.dp, Color(0xFF666B6E), CircleShape),
+        Modifier.size(6.dp).clip(CircleShape)
+            .background(Brush.radialGradient(listOf(Color(0xFFF8F8F5), Color(0xFF9CA2A4), Color(0xFF6B7174))))
+            .border(0.55.dp, Color(0xFF62686B), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Box(Modifier.width(3.dp).height(0.6.dp).background(Color(0xFF55595B)))
+        Canvas(Modifier.size(3.5.dp)) {
+            val stroke = 0.45.dp.toPx()
+            drawLine(Color(0xFF414648), Offset(0f, 0f), Offset(size.width, size.height), stroke)
+            drawLine(Color(0xFF414648), Offset(size.width, 0f), Offset(0f, size.height), stroke)
+        }
+    }
+}
+
+@Composable
+fun FujiIconGlyph(
+    name: String,
+    modifier: Modifier = Modifier,
+    tint: Color = FujiSkin.ivory
+) {
+    Canvas(modifier.size(22.dp)) {
+        val unit = min(size.width, size.height) / 24f
+        val stroke = 1.6.dp.toPx()
+        fun point(x: Float, y: Float) = Offset(x * unit, y * unit)
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = stroke) {
+            drawLine(tint, point(x1, y1), point(x2, y2), width, StrokeCap.Round)
+        }
+        fun circle(x: Float, y: Float, r: Float, fill: Boolean = false) {
+            drawCircle(tint, r * unit, point(x, y), style = if (fill) androidx.compose.ui.graphics.drawscope.Fill else Stroke(stroke, cap = StrokeCap.Round))
+        }
+        fun poly(vararg xy: Float) {
+            val path = Path()
+            if (xy.size >= 4) {
+                path.moveTo(xy[0] * unit, xy[1] * unit)
+                var i = 2
+                while (i + 1 < xy.size) { path.lineTo(xy[i] * unit, xy[i + 1] * unit); i += 2 }
+                drawPath(path, tint, style = Stroke(stroke, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
+        when (name) {
+            "flash", "flash_on", "flash_off" -> {
+                poly(13f, 2.5f, 6.5f, 13.5f, 11.5f, 13.5f, 9.5f, 21.5f, 17.5f, 10.5f, 12.5f, 10.5f, 13f, 2.5f)
+                if (name == "flash_off") line(3f, 4f, 21f, 21f, stroke)
+            }
+            "timer" -> {
+                circle(12f, 13f, 8.2f)
+                line(12f, 3f, 12f, 5f)
+                line(9f, 2.5f, 15f, 2.5f)
+                line(12f, 13f, 12f, 7.5f)
+                line(12f, 13f, 16.5f, 15f)
+            }
+            "film" -> {
+                drawRoundRect(tint, point(3f, 4f), androidx.compose.ui.geometry.Size(18f * unit, 16f * unit), androidx.compose.ui.geometry.CornerRadius(1.6f * unit), style = Stroke(stroke))
+                for (y in listOf(7f, 12f, 17f)) {
+                    circle(5f, y, 0.7f, true); circle(19f, y, 0.7f, true)
+                }
+                line(8f, 4f, 8f, 20f, 1.1.dp.toPx()); line(16f, 4f, 16f, 20f, 1.1.dp.toPx())
+            }
+            "sliders", "tune" -> {
+                line(3f, 6f, 21f, 6f); line(3f, 12f, 21f, 12f); line(3f, 18f, 21f, 18f)
+                circle(8f, 6f, 2f); circle(16f, 12f, 2f); circle(11f, 18f, 2f)
+            }
+            "histogram" -> {
+                line(3f, 20f, 21f, 20f, 1.1.dp.toPx())
+                drawLine(tint, point(5f, 19f), point(5f, 14f), stroke)
+                drawLine(tint, point(9.5f, 19f), point(9.5f, 8f), stroke)
+                drawLine(tint, point(14f, 19f), point(14f, 11f), stroke)
+                drawLine(tint, point(18.5f, 19f), point(18.5f, 4f), stroke)
+            }
+            "af" -> {
+                line(4f, 9f, 4f, 4f); line(4f, 4f, 9f, 4f)
+                line(15f, 4f, 20f, 4f); line(20f, 4f, 20f, 9f)
+                line(4f, 15f, 4f, 20f); line(4f, 20f, 9f, 20f)
+                line(15f, 20f, 20f, 20f); line(20f, 20f, 20f, 15f)
+                circle(12f, 12f, 1.4f, true)
+            }
+            "close" -> { line(6f, 6f, 18f, 18f); line(18f, 6f, 6f, 18f) }
+            "moon" -> {
+                val path = Path().apply {
+                    moveTo(15f * unit, 3f * unit)
+                    cubicTo(7f * unit, 3f * unit, 4f * unit, 9f * unit, 6f * unit, 15f * unit)
+                    cubicTo(8f * unit, 21f * unit, 16f * unit, 22f * unit, 21f * unit, 16f * unit)
+                    cubicTo(14f * unit, 18f * unit, 10f * unit, 11f * unit, 15f * unit, 3f * unit)
+                }
+                drawPath(path, tint, style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+            "tab_01" -> {
+                line(3f, 9f, 3f, 3f); line(3f, 3f, 9f, 3f); line(15f, 3f, 21f, 3f); line(21f, 3f, 21f, 9f)
+                line(3f, 15f, 3f, 21f); line(3f, 21f, 9f, 21f); line(15f, 21f, 21f, 21f); line(21f, 21f, 21f, 15f)
+                line(12f, 7f, 12f, 17f, 1.1.dp.toPx()); line(7f, 12f, 17f, 12f, 1.1.dp.toPx())
+            }
+            "tab_02" -> { circle(12f, 12f, 9f); circle(12f, 12f, 5.2f); circle(12f, 12f, 1.2f, true) }
+            "tab_03" -> {
+                drawRect(tint, point(3f, 3f), androidx.compose.ui.geometry.Size(18f * unit, 18f * unit), style = Stroke(stroke))
+                drawRect(tint, point(7f, 7f), androidx.compose.ui.geometry.Size(10f * unit, 10f * unit), style = Stroke(stroke))
+            }
+            "tab_04" -> {
+                val path = Path().apply { moveTo(3f * unit, 18f * unit); cubicTo(4f * unit, 7f * unit, 20f * unit, 7f * unit, 21f * unit, 18f * unit) }
+                drawPath(path, tint, style = Stroke(stroke, cap = StrokeCap.Round)); line(3f, 18f, 21f, 18f)
+            }
+            "tab_05" -> {
+                val path = Path().apply { moveTo(15f * unit, 3f * unit); cubicTo(6f * unit, 4f * unit, 4f * unit, 17f * unit, 14f * unit, 21f * unit); cubicTo(8f * unit, 15f * unit, 9f * unit, 7f * unit, 15f * unit, 3f * unit) }
+                drawPath(path, tint, style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+            "tab_06" -> {
+                drawRect(tint, point(3f, 3f), androidx.compose.ui.geometry.Size(18f * unit, 18f * unit), style = Stroke(stroke))
+                line(3f, 3f, 21f, 21f); line(21f, 3f, 3f, 21f)
+            }
+            "tab_07" -> {
+                val path = Path().apply { moveTo(4f * unit, 9f * unit); lineTo(8f * unit, 9f * unit); lineTo(14f * unit, 4f * unit); lineTo(14f * unit, 20f * unit); lineTo(8f * unit, 15f * unit); lineTo(4f * unit, 15f * unit); close() }
+                drawPath(path, tint, style = Stroke(stroke, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                line(17f, 9f, 20f, 6f); line(17f, 15f, 20f, 18f)
+            }
+            "tab_08" -> {
+                circle(12f, 12f, 9f); line(3f, 12f, 21f, 12f)
+                val path = Path().apply { moveTo(12f * unit, 3f * unit); cubicTo(6f * unit, 8f * unit, 6f * unit, 16f * unit, 12f * unit, 21f * unit) }
+                drawPath(path, tint, style = Stroke(stroke))
+                val path2 = Path().apply { moveTo(12f * unit, 3f * unit); cubicTo(18f * unit, 8f * unit, 18f * unit, 16f * unit, 12f * unit, 21f * unit) }
+                drawPath(path2, tint, style = Stroke(stroke))
+            }
+            "tab_09" -> { circle(12f, 12f, 9f); line(12f, 10f, 12f, 16f); circle(12f, 7f, 0.8f, true) }
+            else -> { circle(12f, 12f, 8f); line(8f, 12f, 16f, 12f) }
+        }
     }
 }
 
 @Composable
 fun FujiTopKey(
     label: String,
-    icon: ImageVector,
+    icon: String,
     selected: Boolean = false,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
@@ -203,11 +346,14 @@ fun FujiTopKey(
     onLongClick: (() -> Unit)? = null
 ) {
     val view = LocalView.current
-    val pressedOffset by animateDpAsState(if (selected) 1.dp else 0.dp, tween(90), label = "fuji-key")
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressedOffset by animateDpAsState(if (pressed) 1.5.dp else 0.dp, tween(80), label = "fuji-key-press")
     Column(
-        modifier = modifier
-            .padding(horizontal = 2.dp, vertical = 3.dp)
+        modifier = modifier.widthIn(min = 48.dp)
             .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
                 onClick = {
                     if (enabled) {
                         if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -219,45 +365,170 @@ fun FujiTopKey(
                 },
                 onLongClick = if (enabled) onLongClick else null
             )
-            .padding(horizontal = 3.dp),
+            .padding(horizontal = 1.dp, vertical = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            Modifier
-                .offset(y = pressedOffset)
-                .size(31.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFFFFFFFF), Color(0xFFD6D8D8), Color(0xFF9DA2A5))
-                    )
-                )
-                .border(1.dp, Color(0xFF777D80), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = if (enabled) Color(0xFF16191A) else Color(0xFF777777),
-                modifier = Modifier.size(17.dp)
+        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.offset(y = 1.dp).size(46.dp).clip(CircleShape)
+                    .background(Color(0xFF8A9093).copy(alpha = 0.36f))
+                    .border(1.dp, Color(0xFF777D80), CircleShape)
             )
-            if (selected) {
-                Box(
-                    Modifier.align(Alignment.TopEnd).padding(2.dp).size(5.dp)
-                        .clip(CircleShape).background(FujiSkin.orange)
-                )
+            Box(
+                Modifier.offset(y = pressedOffset).size(44.dp).clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFFF4F4F1), Color(0xFFE0E2E1), Color(0xFFC9CCCF))
+                        )
+                    )
+                    .border(1.dp, Color(0xFF7D8588), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    drawCircle(Color.White.copy(alpha = 0.72f), size.minDimension * 0.43f, Offset(size.width * 0.38f, size.height * 0.33f), style = Stroke(0.7.dp.toPx()))
+                }
+                if (label.equals("Q", true)) {
+                    Box(Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)).border(1.dp, Color(0xFF32383A), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                        MaterialText("Q", color = Color(0xFF202426), fontSize = 16.sp, fontWeight = FontWeight.Black, lineHeight = 17.sp)
+                    }
+                } else {
+                    FujiIconGlyph(icon, Modifier.size(22.dp), Color(0xE01B1B1B))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp), Color.White.copy(alpha = 0.70f))
+                }
             }
         }
         MaterialText(
             label.uppercase(),
-            color = Color(0xFF202426),
-            fontSize = 7.sp,
-            lineHeight = 8.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 0.65.sp,
+            color = Color(0xFF2A2A2A),
+            fontSize = 9.sp,
+            lineHeight = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.72.sp,
             maxLines = 1
         )
+        Box(
+            Modifier.padding(top = 1.dp).width(18.dp).height(0.5.dp)
+                .background(Color.White.copy(alpha = 0.70f))
+        )
+        if (selected) {
+            Box(Modifier.padding(top = 1.dp).size(4.dp).clip(CircleShape).background(FujiSkin.orange))
+        } else {
+            Spacer(Modifier.height(5.dp))
+        }
+    }
+}
+
+@Composable
+fun FujiKey(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val view = LocalView.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val y by animateDpAsState(if (pressed) 1.dp else 0.dp, tween(90), label = "fuji-wide-key")
+    Box(
+        modifier.heightIn(min = 36.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF4B5255), Color(0xFF15191A))))
+            .border(1.dp, Color(0xFF7C8588), RoundedCornerShape(3.dp))
+            .combinedClickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = {
+                    if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE).getBoolean("haptic_feedback_enabled", true)) {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    }
+                    FujiFeedback.keyTick(view.context)
+                    onClick()
+                },
+                onLongClick = null
+            )
+            .padding(horizontal = 3.dp, vertical = 1.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        MaterialText(
+            label.uppercase(),
+            modifier = Modifier.offset(y = y),
+            color = if (enabled) Color(0xFFE8ECE9) else Color(0xFF858B8D),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.9.sp,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+fun FujiScreenScaffold(
+    title: String,
+    breadcrumb: String? = null,
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+    showVersion: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier.fillMaxSize()
+            .clip(RoundedCornerShape(5.dp))
+            .background(FujiSkin.body)
+            .border(1.dp, Color(0xFF9CA2A4), RoundedCornerShape(5.dp))
+    ) {
+        Row(
+            Modifier.fillMaxWidth().height(48.dp)
+                .background(Brush.horizontalGradient(listOf(Color(0xFFF2F2EE), FujiSkin.silver, Color(0xFFD3D5D8))))
+                .padding(start = 12.dp, end = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                MaterialText(
+                    title.uppercase() + (breadcrumb?.takeIf { it.isNotBlank() }?.let { "  ›  ${it.uppercase()}" } ?: ""),
+                    color = Color(0xFF171A1B),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 0.85.sp,
+                    maxLines = 1
+                )
+            }
+            if (onBack != null) {
+                FujiKey("DISP/BACK", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))
+            }
+        }
+        Column(
+            Modifier.weight(1f).fillMaxWidth()
+                .background(FujiSkin.lcd)
+                .padding(horizontal = 9.dp, vertical = 7.dp),
+            content = content
+        )
+        Row(
+            Modifier.fillMaxWidth().height(27.dp)
+                .background(Color(0xFF101516))
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            MaterialText(
+                "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK",
+                color = FujiSkin.lcdGreen,
+                fontSize = 7.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.4.sp,
+                maxLines = 1
+            )
+            if (showVersion) {
+                MaterialText(
+                    "LUNADREAM ${BuildConfig.VERSION_NAME.removeSuffix("dream")}".uppercase(),
+                    color = FujiSkin.muted,
+                    fontSize = 7.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
@@ -266,50 +537,16 @@ fun FujiPanel(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    breadcrumb: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(FujiSkin.body)
-            .border(1.dp, Color(0xFF9CA2A4), RoundedCornerShape(10.dp))
-    ) {
-        Row(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(FujiSkin.ivory, FujiSkin.silver, Color(0xFFADB2B4))))
-                .padding(start = 12.dp, end = 7.dp, top = 5.dp, bottom = 5.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MaterialText(
-                title.uppercase(),
-                modifier = Modifier.weight(1f),
-                color = Color(0xFF171A1B),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.2.sp
-            )
-            if (onBack != null) {
-                MaterialText(
-                    "DISP/BACK",
-                    modifier = Modifier.clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF2B2F30))
-                        .combinedClickable(
-                            onClick = onBack,
-                            onLongClick = null
-                        )
-                        .padding(horizontal = 9.dp, vertical = 5.dp),
-                    color = FujiSkin.ivory,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
-            }
-        }
-        Column(
-            Modifier.fillMaxWidth().background(FujiSkin.lcd).padding(10.dp),
-            content = content
-        )
-    }
+    FujiScreenScaffold(
+        title = title,
+        breadcrumb = breadcrumb,
+        modifier = modifier,
+        onBack = onBack,
+        content = content
+    )
 }
 
 @Composable
@@ -320,7 +557,11 @@ fun FujiSwitch(
     enabled: Boolean = true
 ) {
     val view = LocalView.current
-    val knobX by animateDpAsState(if (checked) 22.dp else 2.dp, tween(150), label = "fuji-switch")
+    val knobX by animateDpAsState(
+        if (checked) 23.dp else 2.dp,
+        spring(dampingRatio = 0.68f, stiffness = 520f),
+        label = "fuji-switch"
+    )
     Row(
         modifier = modifier.combinedClickable(
             enabled = enabled,
@@ -334,24 +575,28 @@ fun FujiSwitch(
             onLongClick = null
         ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Box(
-            Modifier.size(width = 44.dp, height = 24.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF34393B), Color(0xFF0C0D0E))))
-                .border(1.dp, Color(0xFF737B7E), RoundedCornerShape(5.dp))
+            Modifier.size(width = 46.dp, height = 24.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF292E30), Color(0xFF07090A))))
+                .border(1.dp, Color(0xFF7C8588), RoundedCornerShape(3.dp))
         ) {
             Box(
                 Modifier.offset(x = knobX, y = 2.dp).size(18.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Brush.verticalGradient(listOf(FujiSkin.ivory, FujiSkin.silver, Color(0xFF82898C))))
-                    .border(0.6.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFFF5F5F1), Color(0xFFD2D6D7), Color(0xFF899195))))
+                    .border(0.7.dp, Color.White.copy(alpha = 0.58f), RoundedCornerShape(3.dp))
             )
         }
-        Box(
-            Modifier.size(6.dp).clip(CircleShape)
-                .background(if (checked) FujiSkin.orange else Color(0xFF34383A))
+        Box(Modifier.size(5.dp).clip(CircleShape).background(if (checked) FujiSkin.orange else Color(0xFF34383A)))
+        MaterialText(
+            if (checked) "ON" else "OFF",
+            color = if (checked) FujiSkin.lcdGreen else FujiSkin.muted,
+            fontSize = 7.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp
         )
     }
 }
@@ -392,7 +637,7 @@ fun FujiTile(
     value: String,
     selected: Boolean,
     onClick: () -> Unit,
-    icon: ImageVector? = null,
+    icon: String? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -403,7 +648,7 @@ fun FujiTile(
             .padding(9.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        if (icon != null) Icon(icon, contentDescription = null, tint = FujiSkin.lcdGreen, modifier = Modifier.size(16.dp))
+        if (icon != null) FujiIconGlyph(icon, Modifier.size(16.dp), FujiSkin.lcdGreen)
         MaterialText(title.uppercase(), color = Color(0xFFC7D0D1), fontSize = 8.sp, letterSpacing = 0.7.sp, maxLines = 1)
         MaterialText(value, color = FujiSkin.lcdGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
     }
@@ -415,20 +660,31 @@ fun FujiListRow(
     value: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    description: String? = null
+    description: String? = null,
+    adjustable: Boolean = false,
+    navigate: Boolean = true
 ) {
     Column(
         modifier.fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = null)
-            .padding(vertical = 8.dp)
+            .padding(vertical = 6.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             MaterialText(title, color = Color(0xFFE8EBE9), fontSize = 11.sp, modifier = Modifier.weight(1f))
-            MaterialText(value, color = FujiSkin.lcdGreen, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            MaterialText("  >", color = FujiSkin.lcdGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            MaterialText(
+                when {
+                    adjustable -> "<  $value  >"
+                    else -> value
+                },
+                color = FujiSkin.lcdGreen,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1
+            )
+            if (navigate && !adjustable) MaterialText("  ›", color = FujiSkin.lcdGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
         if (description != null) MaterialText(description, color = FujiSkin.muted, fontSize = 8.sp, modifier = Modifier.padding(top = 3.dp))
-        Box(Modifier.fillMaxWidth().padding(top = 7.dp).height(0.6.dp).background(Color(0xFF2A383B)))
+        Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(0.6.dp).background(Color(0xFF2A383B)))
     }
 }
 
@@ -439,25 +695,37 @@ fun FujiSearchField(
     modifier: Modifier = Modifier,
     placeholder: String = "Tìm..."
 ) {
+    val cursorTransition = rememberInfiniteTransition(label = "fuji-search-cursor")
+    val cursorAlpha by cursorTransition.animateFloat(
+        initialValue = 0.22f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(530), repeatMode = RepeatMode.Reverse),
+        label = "fuji-search-cursor-alpha"
+    )
     Row(
-        modifier.clip(RoundedCornerShape(3.dp))
+        modifier.clip(RoundedCornerShape(2.dp))
             .background(Color(0xFF060909))
-            .border(1.dp, Color(0xFF3D5155), RoundedCornerShape(3.dp))
+            .border(1.dp, Color(0xFF536C6E), RoundedCornerShape(2.dp))
             .padding(horizontal = 9.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        MaterialText("⌕", color = FujiSkin.lcdGreen, fontSize = 15.sp)
+        FujiIconGlyph("tab_02", Modifier.size(15.dp), FujiSkin.lcdGreen)
         Spacer(Modifier.width(7.dp))
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) MaterialText(placeholder, color = FujiSkin.muted, fontSize = 10.sp)
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = TextStyle(color = FujiSkin.lcdGreen, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                cursorBrush = SolidColor(FujiSkin.lcdGreen.copy(alpha = cursorAlpha)),
+                textStyle = TextStyle(color = FujiSkin.lcdGreen, fontSize = 10.sp, fontFamily = FontFamily.Monospace),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) MaterialText(placeholder, color = FujiSkin.muted, fontSize = 10.sp)
+                        inner()
+                    }
+                }
             )
         }
-        MaterialText("▏", color = FujiSkin.lcdGreen, fontSize = 11.sp)
     }
 }
 

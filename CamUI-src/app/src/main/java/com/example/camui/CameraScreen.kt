@@ -5246,7 +5246,8 @@ private fun FilterLookDialog(
     val previewPane: @Composable (Modifier) -> Unit = { paneModifier ->
         Box(
             paneModifier.fillMaxWidth().height(previewHeight)
-                .clip(RoundedCornerShape(12.dp)).background(CamColors.Card)
+                .clip(RoundedCornerShape(3.dp)).background(FujiSkin.lcd)
+                .border(1.dp, Color(0xFF758084), RoundedCornerShape(3.dp))
         ) {
             FilterLookPreviewImage(
                 source = previewSource,
@@ -5267,60 +5268,43 @@ private fun FilterLookDialog(
         }
     }
     val searchPane: @Composable (Modifier) -> Unit = { paneModifier ->
-        Box(
-            paneModifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                .background(CamColors.Card).padding(horizontal = 10.dp, vertical = 8.dp)
-        ) {
-            if (filterSearch.isBlank()) {
-                Text("Tìm bộ lọc…", color = CamColors.Sub, fontSize = 12.sp)
-            }
-            BasicTextField(
-                value = filterSearch,
-                onValueChange = { filterSearch = it },
-                singleLine = true,
-                textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        FujiSearchField(
+            value = filterSearch,
+            onValueChange = { filterSearch = it },
+            modifier = paneModifier.fillMaxWidth(),
+            placeholder = "Tìm bộ lọc..."
+        )
     }
     val categoryPane: @Composable (Modifier) -> Unit = { paneModifier ->
         Row(
-            paneModifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                .padding(top = 7.dp, bottom = 8.dp),
+            paneModifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 7.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             lookCategories.forEach { category ->
-                val selected = selectedLookCategory == category
-                Box(
-                    Modifier.clip(RoundedCornerShape(14.dp))
-                        .background(if (selected) CamColors.Yellow else CamColors.Card)
-                        .animaTClickable { selectedLookCategory = category }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        category,
-                        color = if (selected) Color.Black else CamColors.TextColor,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                FujiChip(
+                    text = category,
+                    selected = selectedLookCategory == category,
+                    onClick = { selectedLookCategory = category }
+                )
             }
         }
     }
     val presetGrid: @Composable (Modifier) -> Unit = { listModifier ->
         LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            items(visiblePresets.chunked(2), key = { pair -> pair.firstOrNull() ?: "empty" }) { pair ->
+            items(visiblePresets.chunked(if (isLandscape) 3 else 2), key = { pair -> pair.firstOrNull() ?: "empty" }) { pair ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     pair.forEach { preset ->
                         val selected = activeFilter == preset
                         val itemName = cameraLookDisplayName(context, preset)
                         Column(
                             Modifier.weight(1f).padding(bottom = 8.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) Color(0xFF393326) else CamColors.Card)
-                                .animaTClickable { onSelectFilter(preset) }.padding(7.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF15191A))
+                                .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
+                                .animaTClickable { onSelectFilter(preset) }.padding(6.dp)
                         ) {
-                            Box(Modifier.fillMaxWidth().height(76.dp).clip(RoundedCornerShape(8.dp))) {
+                            Box(Modifier.fillMaxWidth().height(76.dp).clip(RoundedCornerShape(2.dp))
+                                .border(1.dp, Color(0xFF687277), RoundedCornerShape(2.dp))) {
                                 FilterLookPreviewImage(
                                     source = previewSource,
                                     preset = preset,
@@ -5353,63 +5337,51 @@ private fun FilterLookDialog(
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            Modifier.fillMaxWidth(0.96f)
-                .then(if (isLandscape) Modifier.fillMaxHeight(0.94f) else Modifier.heightIn(max = dialogMaxHeight))
-                .clip(RoundedCornerShape(22.dp)).background(CamColors.Bg).padding(15.dp)
+        FujiPanel(
+            title = "FILM FILTERS",
+            modifier = Modifier.fillMaxWidth(0.97f)
+                .then(if (isLandscape) Modifier.fillMaxHeight(0.94f) else Modifier.heightIn(max = dialogMaxHeight)),
+            onBack = onDismiss
         ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Bộ lọc phim", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Đóng",
-                    color = CamColors.Yellow,
-                    modifier = Modifier.animaTClickable(onClick = onDismiss).padding(6.dp),
-                    fontSize = 12.sp
-                )
-            }
             if (isLandscape) {
                 Row(
                     Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Column(
-                        Modifier.weight(0.92f).fillMaxHeight(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Modifier.weight(0.9f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text(
                             if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
-                            color = CamColors.Yellow,
-                            fontSize = 12.sp,
+                            color = FujiSkin.lcdGreen,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold
                         )
-                        previewPane(Modifier)
+                        previewPane(Modifier.weight(1f).fillMaxWidth())
                         searchPane(Modifier)
                         categoryPane(Modifier)
-                        Text("${visiblePresets.size} bộ lọc", color = CamColors.Sub, fontSize = 10.sp)
+                        Text(
+                            "${visiblePresets.size} bộ lọc",
+                            color = FujiSkin.lcdGreen,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontSize = 9.sp
+                        )
                     }
-                    presetGrid(Modifier.weight(1.28f).fillMaxHeight())
+                    presetGrid(Modifier.weight(1.15f).fillMaxHeight())
                 }
             } else {
                 Text(
                     if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
-                    color = CamColors.Yellow,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                previewPane(Modifier)
-                searchPane(Modifier)
-                categoryPane(Modifier)
-                Text(
-                    "${visiblePresets.size} bộ lọc",
-                    color = CamColors.Sub,
+                    color = FujiSkin.lcdGreen,
                     fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 5.dp)
                 )
+                previewPane(Modifier.fillMaxWidth().height(140.dp))
+                searchPane(Modifier)
+                categoryPane(Modifier)
+                Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
                 presetGrid(Modifier.weight(1f))
             }
         }

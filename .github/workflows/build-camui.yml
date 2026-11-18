@@ -60,14 +60,15 @@ jobs:
         env:
           ANDROID_I_WANT_MY_TCG: "yes"
         with:
-          # Use the Android 17 Preview Google APIs 16 KB system image.
-          api-level: "37.0"
-          target: google_apis_ps16k
-          channel: canary
+          # Use a stable Android 15 Google APIs image; the Android 17 Preview
+          # image booted but its Settings/ADB service disconnected before tests.
+          api-level: "35"
+          target: google_apis
+          channel: stable
           arch: x86_64
           profile: pixel_2
           emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
-          emulator-boot-timeout: 900
+          emulator-boot-timeout: 600
           script: |
             set -eu
             mkdir -p emulator-artifacts
@@ -203,6 +204,15 @@ jobs:
               exit 25
             fi
             echo "crash_report_ok_closed_main_process=1" >> emulator-artifacts/command-status.txt
+
+      - name: Upload tested debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-1.6-app-debug
+          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload emulator inspection
         if: always()

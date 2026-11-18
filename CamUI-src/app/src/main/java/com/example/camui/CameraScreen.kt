@@ -4733,7 +4733,7 @@ fun CameraScreen(
                     stepSize = 26f
                 )
                 Text(
-                    if (mode == "Pro" && proSel != null) proSel.uppercase() else "EV",
+                    if (mode == "Pro" && activeDialSelection != null) activeDialSelection.uppercase() else "EV",
                     color = FujiSkin.ivory,
                     fontSize = 7.sp,
                     fontWeight = FontWeight.Bold,

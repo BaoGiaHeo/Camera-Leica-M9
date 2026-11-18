@@ -3457,9 +3457,11 @@ fun CameraScreen(
                                     } ?: 0
                                     val message = when {
                                         captureUseRawDream20 && lunaDream20FallbackApplied ->
-                                            "RawDream 2.0 could not finish; the DNG master was preserved and the JPEG was rescued with LunaDream 1.5 at ${actualOutputMp}MP. Reason: " + (lunaDreamFailureReason ?: "unknown")
+                                            localizedUiText(context, "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:") +
+                                                " " + (lunaDreamFailureReason ?: "unknown") + " · JPEG ${actualOutputMp}MP; DNG gốc được giữ."
                                         captureUseLunaDream20 && lunaDream20FallbackApplied ->
-                                            "LunaDream 2.0 could not finish; the photo was rescued with LunaDream 1.5 at ${actualOutputMp}MP. Reason: " + (lunaDreamFailureReason ?: "unknown")
+                                            localizedUiText(context, "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:") +
+                                                " " + (lunaDreamFailureReason ?: "unknown") + " · ${actualOutputMp}MP"
                                         captureUseLunaDream15 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 1.5 · 50MP."
                                             else "Đã lưu LunaDream 1.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."

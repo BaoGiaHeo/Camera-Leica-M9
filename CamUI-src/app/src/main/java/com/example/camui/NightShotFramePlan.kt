@@ -1,8 +1,8 @@
 package com.example.camui
 
 /**
- * Maximum frame counts for NightShotMode's selected capture duration.
- * The existing duration deadline remains active, so slower cameras may capture fewer frames.
+ * Required frame targets for the selected NightShot capture duration.
+ * Capture completes the target count before alignment and rendering may begin.
  */
 internal object NightShotFramePlan {
     fun targetFrames(durationSeconds: Int): Int = when (durationSeconds) {

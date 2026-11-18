@@ -1,5 +1,5 @@
 name: FujiFilm Mode landscape UI validation
-# Build internally for Android Emulator validation; do not publish APK artifacts.
+# Build APK and publish it even if the hosted Android Emulator cannot complete.
 
 on:
   push:
@@ -205,8 +205,8 @@ jobs:
             fi
             echo "crash_report_ok_closed_main_process=1" >> emulator-artifacts/command-status.txt
 
-      - name: Upload tested debug APK
-        if: success()
+      - name: Upload debug APK (also when Emulator validation fails)
+        if: always() && !cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: FujiFilm-Mode-1.6-app-debug

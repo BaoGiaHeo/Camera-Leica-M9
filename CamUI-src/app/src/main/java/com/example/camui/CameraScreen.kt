@@ -3953,7 +3953,7 @@ fun CameraScreen(
                             if (focusLocked) {
                                 Text("AF LOCK", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
-                                        .clip(RoundedCornerShape(8.dp)).background(CamColors.Yellow).padding(horizontal = 9.dp, vertical = 5.dp))
+                                        .clip(RoundedCornerShape(8.dp)).background(FujiSkin.orange).padding(horizontal = 9.dp, vertical = 5.dp))
                             }
                             if (showMilkyWayAdvisor) {
                                 Column(
@@ -3964,7 +3964,7 @@ fun CameraScreen(
                                 ) {
                                     Text(
                                         "MILKY WAY INTELLIGENCE · CẢNH TỐI",
-                                        color = CamColors.Yellow,
+                                        color = FujiSkin.orange,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -4001,7 +4001,7 @@ fun CameraScreen(
                                         Text(
                                             if (milkyWayStackEnabled) "TẮT MILKY WAY STACK ×8"
                                             else "ÁP DỤNG GỢI Ý + BẬT ASTRO STACK ×8",
-                                            color = CamColors.Yellow,
+                                            color = FujiSkin.orange,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(top = 7.dp).clickable {
@@ -4066,7 +4066,7 @@ fun CameraScreen(
                                         Text(
                                             if (milkyWayInfinityFocusEnabled) "ĐANG KHÓA NÉT VÔ CỰC · CHẠM ĐỂ TRỞ VỀ AF"
                                             else "ĐẶT LẤY NÉT VÔ CỰC",
-                                            color = CamColors.Yellow,
+                                            color = FujiSkin.orange,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(top = 7.dp)
@@ -4096,7 +4096,7 @@ fun CameraScreen(
                             }
                             Text(
                                 if (focusLocked) "AF LOCK" else "TAP AF · HOLD LOCK",
-                                color = if (focusLocked) CamColors.Yellow else Color.White.copy(alpha = 0.72f),
+                                color = if (focusLocked) FujiSkin.orange else Color.White.copy(alpha = 0.72f),
                                 fontSize = 8.sp,
                                 modifier = Modifier.align(Alignment.TopEnd).padding(7.dp)
                                     .clip(RoundedCornerShape(6.dp)).background(Color(0x66000000))
@@ -4268,7 +4268,7 @@ fun CameraScreen(
                         val selected = proSel
                         if (selected != null && mode == "Pro") {
                             Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(selected, color = CamColors.Yellow, fontWeight = FontWeight.Bold,
+                                Text(selected, color = FujiSkin.orange, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.width(42.dp), fontSize = 12.sp)
                                 when (selected) {
                                     "EV" -> {
@@ -4317,7 +4317,7 @@ fun CameraScreen(
                                                         colors = cameraSliderColors()
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
-                                                Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else CamColors.Yellow,
+                                                Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else FujiSkin.orange,
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualIsoEnabled = false
                                                         manualExposure = manualShutterEnabled
@@ -4351,7 +4351,7 @@ fun CameraScreen(
                                                         colors = cameraSliderColors()
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
-                                                Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else CamColors.Yellow,
+                                                Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else FujiSkin.orange,
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualShutterEnabled = false
                                                         manualExposure = manualIsoEnabled
@@ -4378,7 +4378,7 @@ fun CameraScreen(
                                                         colors = cameraSliderColors()
                                                     )
                                                 } else Text("AF tự động", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                                                Text("AUTO", color = CamColors.Yellow, fontSize = 10.sp,
+                                                Text("AUTO", color = FujiSkin.orange, fontSize = 10.sp,
                                                     modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualFocus = 0f
                                                         milkyWayInfinityFocusEnabled = false
@@ -4404,7 +4404,7 @@ fun CameraScreen(
                                                     colors = cameraSliderColors()
                                                 )
                                                 Text("Lạnh", color = CamColors.Sub, fontSize = 9.sp)
-                                                Text("AUTO", color = if (manualColorTempEnabled) CamColors.Sub else CamColors.Yellow,
+                                                Text("AUTO", color = if (manualColorTempEnabled) CamColors.Sub else FujiSkin.orange,
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualColorTempEnabled = false
                                                         camera?.let { runCatching { applyAutoWhiteBalance(it) } }
@@ -4434,7 +4434,7 @@ fun CameraScreen(
                                     val active = proSel == key
                                     Column(
                                         Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(CamColors.Glass)
-                                            .border(0.5.dp, if (active) CamColors.Yellow else CamColors.Stroke, RoundedCornerShape(11.dp))
+                                            .border(0.5.dp, if (active) FujiSkin.orange else CamColors.Stroke, RoundedCornerShape(11.dp))
                                             .animaTClickable {
                                                 if (key == "AUTO") {
                                                     manualExposure = false
@@ -4474,7 +4474,7 @@ fun CameraScreen(
                                             }.padding(vertical = 6.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        Text(value, color = if (active) CamColors.Yellow else Color.White,
+                                        Text(value, color = if (active) FujiSkin.orange else Color.White,
                                             fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                                         Text(label, color = CamColors.Sub, fontSize = 9.sp)
                                     }
@@ -4487,7 +4487,7 @@ fun CameraScreen(
                             ) {
                                 Text(
                                     if (nightShotMode == "night") "NightShotMode" else "Star Trails",
-                                    color = CamColors.Yellow,
+                                    color = FujiSkin.orange,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
                                 )
@@ -4502,7 +4502,7 @@ fun CameraScreen(
                             }
                         } else {
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("EV", color = CamColors.Yellow, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("EV", color = FujiSkin.orange, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 val range = evRange
                                 if (range != null && range.upper > range.lower) {
                                     Slider(
@@ -4898,12 +4898,12 @@ fun CameraScreen(
                         .padding(horizontal = 26.dp, vertical = 24.dp)
                 ) {
                     Icon(Icons.Default.Bedtime, contentDescription = null,
-                        tint = CamColors.Yellow, modifier = Modifier.size(38.dp))
+                        tint = FujiSkin.orange, modifier = Modifier.size(38.dp))
                     Text("ĐANG GHI STAR TRAILS", color = Color.White, fontSize = 16.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
                     Text(
                         starTrailFrameCount.toString() + " khung hình đã chụp",
-                        color = CamColors.Yellow,
+                        color = FujiSkin.orange,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 8.dp)
@@ -4937,7 +4937,7 @@ fun CameraScreen(
                 ) {
                     Text(
                         if (milkyWayStackEnabled) "NightShotMode · MILKY WAY" else "NightShotMode · ĐANG CHỤP",
-                        color = CamColors.Yellow, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                        color = FujiSkin.orange, fontSize = 14.sp, fontWeight = FontWeight.Bold
                     )
                     Text(
                         "$nightShotCapturedFrameCount/$nightShotTargetFrameCount khung hình · đủ khung mới render",
@@ -4994,7 +4994,7 @@ fun CameraScreen(
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text(
                         if (etaText.isNotEmpty()) "${etaText} · ${visibleProgress}%" else "${visibleProgress}%",
-                        color = CamColors.Yellow, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                        color = FujiSkin.orange, fontSize = 11.sp, fontWeight = FontWeight.Bold
                     )
                 }
                 Text(
@@ -5030,7 +5030,7 @@ fun CameraScreen(
                 }
                 Text(
                     "Nhiệt pin: ${if (measuredBatteryTempC >= 0) "$measuredBatteryTempC°C" else "--"} · $thermalLoadText",
-                    color = if (measuredBatteryTempC > 40) CamColors.Yellow else CamColors.Sub,
+                    color = if (measuredBatteryTempC > 40) FujiSkin.orange else CamColors.Sub,
                     fontSize = 10.sp,
                     modifier = Modifier.padding(top = 5.dp)
                 )
@@ -5042,7 +5042,7 @@ fun CameraScreen(
                 )
                 Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
                     drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
-                    drawRoundRect(CamColors.Yellow, size = DrawSize(size.width * visibleProgress / 100f, size.height),
+                    drawRoundRect(FujiSkin.orange, size = DrawSize(size.width * visibleProgress / 100f, size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                 }
             }
@@ -5113,7 +5113,7 @@ fun CameraScreen(
                         ) {
                             Text(
                                 if (viewerShowsOriginal) "ẢNH GỐC · TRƯỚC LUNADREAM" else "ẢNH ĐÃ XỬ LÝ · LUNADREAM",
-                                color = CamColors.Yellow,
+                                color = FujiSkin.orange,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(bottom = 8.dp)
@@ -5130,7 +5130,7 @@ fun CameraScreen(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.clip(RoundedCornerShape(18.dp))
-                                            .background(if (viewerShowsOriginal == showOriginal) CamColors.Yellow else Color.Transparent)
+                                            .background(if (viewerShowsOriginal == showOriginal) FujiSkin.orange else Color.Transparent)
                                             .clickable { viewerShowsOriginal = showOriginal }
                                             .padding(horizontal = 14.dp, vertical = 9.dp)
                                     )
@@ -5196,7 +5196,7 @@ private fun LensTransitionOverlay(
         ) {
             Text("LENS TRANSITION", color = Color(0xFFBDBDBD), fontSize = 9.sp,
                 letterSpacing = 1.5.sp)
-            Text(lensLabel, color = CamColors.Yellow,
+            Text(lensLabel, color = FujiSkin.orange,
                 fontSize = 17.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp))
         }
@@ -5565,15 +5565,15 @@ private fun shutterFromFraction(value: Float, minValue: Long, maxValue: Long): L
 
 @Composable
 private fun cameraSliderColors() = SliderDefaults.colors(
-    thumbColor = CamColors.Yellow,
-    activeTrackColor = CamColors.Yellow,
+    thumbColor = FujiSkin.orange,
+    activeTrackColor = FujiSkin.orange,
     inactiveTrackColor = Color(0xFF3A3A3A)
 )
 
 @Composable
 private fun MiniChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(Modifier.clip(RoundedCornerShape(7.dp))
-        .background(if (selected) CamColors.Yellow else CamColors.Chip)
+        .background(if (selected) FujiSkin.orange else CamColors.Chip)
         .animaTClickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 7.dp)) {
         Text(label, color = if (selected) Color.Black else Color.White,
             fontSize = 9.sp, fontWeight = FontWeight.SemiBold)

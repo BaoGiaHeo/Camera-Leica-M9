@@ -197,6 +197,14 @@ fun SettingsScreen(
                             onClick = { selectedPage = selectedItem.title },
                             description = "MENU/OK · Mở nhóm cài đặt đang chọn"
                         )
+                        if (selectedItem.title != "About") {
+                            FujiListRow(
+                                title = "Sao lưu & Khôi phục",
+                                value = "BACKUP",
+                                onClick = { selectedPage = "Sao lưu & Khôi phục" },
+                                description = "Lưu hoặc nạp lại các thiết lập camera"
+                            )
+                        }
                         Spacer(Modifier.weight(1f))
                         Row(
                             Modifier.fillMaxWidth(),
@@ -423,7 +431,7 @@ var nightShotMode by remember {
                     prefs.edit().putBoolean("haptic_feedback_enabled", it).apply()
                 }
                 Text(
-                    "Âm thanh tùy chỉnh sẽ chỉ xuất hiện khi asset tương ứng đã được đóng gói trong ứng dụng.",
+                    "Màn trập cơ dùng WAV riêng 210 ms; tiếng phím và detent được tạo tổng hợp, có thể tắt riêng.",
                     color = FujiSkin.muted,
                     fontSize = 9.sp,
                     modifier = Modifier.padding(top = 8.dp)

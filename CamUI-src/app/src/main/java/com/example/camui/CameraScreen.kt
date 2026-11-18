@@ -491,7 +491,7 @@ fun CameraScreen(
         while (true) {
             delay(100L)
             if (ratioUiAlpha.value <= 0.001f && ratioTransitionState != RatioUiTransitionState.Swapping) {
-                delay(650L)
+                delay(600L)
                 if (ratioUiAlpha.value <= 0.001f && ratioTransitionState != RatioUiTransitionState.Swapping) {
                     withContext(NonCancellable) {
                         ratioUiAlpha.snapTo(1f)
@@ -3702,8 +3702,8 @@ fun CameraScreen(
         label = "camera orientation transition"
     )
 
-    val toolbarContent: @Composable (Modifier) -> Unit = { toolbarModifier ->
-        FujiMetalTopPlate(toolbarModifier, height = 60.dp) {
+    val toolbarContent: @Composable (Modifier, Dp) -> Unit = { toolbarModifier, plateHeight ->
+        FujiMetalTopPlate(toolbarModifier, height = plateHeight) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 1.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -4774,7 +4774,7 @@ fun CameraScreen(
             val chromeAlpha = if (hudVisible) ratioUiAlpha.value else 0f
             val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
 
-            Column(Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 4.dp)) {
+            Column(Modifier.fillMaxSize().padding(vertical = 4.dp)) {
                 Box(
                     Modifier.fillMaxWidth().height(topPlateHeight)
                         .graphicsLayer { alpha = chromeAlpha }
@@ -4782,7 +4782,7 @@ fun CameraScreen(
                             Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
                         }
                 ) {
-                    toolbarContent(Modifier.fillMaxSize())
+                    toolbarContent(Modifier.fillMaxSize(), topPlateHeight)
                     if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.13f)))
                 }
                 Row(

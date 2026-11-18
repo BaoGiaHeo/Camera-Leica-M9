@@ -3011,7 +3011,7 @@ fun CameraScreen(
                                                 LunaDreamDiagnostics.record(
                                                     context,
                                                     "FRAME_CAPTURE_SUMMARY",
-                                                    "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0" +
+                                                    "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
                                                         "; validFrames=${stackedFrames.size}; targetFrames=$maxFrames; minimumRequired=$minimumFramesRequired; " +
                                                         "captureElapsed=${burstElapsedMs}ms; stoppedForStorage=$stoppedForStorage"
                                                 )
@@ -3023,7 +3023,7 @@ fun CameraScreen(
                                                 LunaDreamDiagnostics.record(
                                                     context,
                                                     "FRAME_COUNT_INSUFFICIENT",
-                                                    "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else "LunaDream 2.0" +
+                                                    "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else "LunaDream 2.0") +
                                                         "; validFrames=${stackedFrames.size}; required=$minimumFramesRequired; reason=${lunaDreamFailureReason}"
                                                 )
                                             }
@@ -3061,7 +3061,7 @@ fun CameraScreen(
                                                             LunaDreamDiagnostics.record(
                                                                 context,
                                                                 "MERGE_CALLBACK_FAILURE",
-                                                                "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0" +
+                                                                "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
                                                                     "; reason=$reason; validFrames=${stackedFrames.size}",
                                                                 failure
                                                             )
@@ -3257,7 +3257,7 @@ fun CameraScreen(
                                     LunaDreamDiagnostics.record(
                                         context,
                                         if (lunaDreamApplied) "CAPTURE_PROCESSING_COMPLETE" else "CAPTURE_PROCESSING_INCOMPLETE",
-                                        "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0" +
+                                        "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
                                             "; validFrames=$lunaDreamCapturedFrameCount; fallbackApplied=$lunaDream20FallbackApplied; " +
                                             "merged=$nightShotMerged; reason=${lunaDreamFailureReason ?: "none"}"
                                     )

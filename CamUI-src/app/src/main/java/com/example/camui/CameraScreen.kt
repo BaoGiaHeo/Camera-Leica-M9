@@ -4810,8 +4810,22 @@ fun CameraScreen(
                                 }
                         ) {
                             previewContent(Modifier.fillMaxSize())
-                            if (camera == null && hasCam) {
-                                Text("STARTING...", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+                            if (!hasCam) {
+                                Text(
+                                    localizedUiText(context, "NO SIGNAL"),
+                                    color = Color(0xFFE8442B),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            } else if (camera == null) {
+                                Text(
+                                    localizedUiText(context, "STARTING..."),
+                                    color = FujiSkin.lcdGreen,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
                             }
                             if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Yellow.copy(alpha = 0.12f)))
                         }

@@ -3716,7 +3716,7 @@ fun CameraScreen(
 
     val previewContent: @Composable (Modifier) -> Unit = { previewModifier ->
                     BoxWithConstraints(
-                        previewModifier.background(Color(0xFF262B33)),
+                        previewModifier.background(FujiSkin.body).padding(4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         // The LCD is always landscape, but the live image frame follows the
@@ -3735,9 +3735,10 @@ fun CameraScreen(
                             Modifier
                                 .width(frameWidth)
                                 .height(frameHeight)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF262B33))
-                                .border(1.dp, Color.White.copy(alpha = 0.24f), RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(FujiSkin.lcd)
+                                .border(3.dp, Color(0xFF050607), RoundedCornerShape(6.dp))
+                                .border(1.dp, FujiSkin.silver.copy(alpha = 0.60f), RoundedCornerShape(6.dp))
                                 .graphicsLayer { alpha = previewOrientationAlpha.value }
                                 .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
                                     detectTransformGestures { _, _, zoomChange, _ ->
@@ -3796,6 +3797,25 @@ fun CameraScreen(
                                     factory = { previewView },
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            }
+                            // LCD scanline texture is an optional display-only overlay. It is
+                            // drawn above PreviewView and never enters ImageCapture or saved pixels.
+                            if (appPrefs.getBoolean("lcd_texture_overlay_enabled", false) &&
+                                !appPrefs.getBoolean("simple_ui_mode_enabled", false)
+                            ) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val spacing = 4.dp.toPx()
+                                    var scanY = 0f
+                                    while (scanY < size.height) {
+                                        drawLine(
+                                            Color.White.copy(alpha = 0.018f),
+                                            Offset(0f, scanY),
+                                            Offset(size.width, scanY),
+                                            strokeWidth = 0.5.dp.toPx()
+                                        )
+                                        scanY += spacing
+                                    }
+                                }
                             }
                             if (shutterEffectAlpha > 0f || filmWashProgress.value > 0f) {
                                 Canvas(Modifier.fillMaxSize()) {

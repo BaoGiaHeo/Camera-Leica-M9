@@ -35,13 +35,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalConfiguration
@@ -63,159 +59,74 @@ import kotlinx.coroutines.withContext
 
 private data class SettingItem(val icon: String, val title: String, val subtitle: String)
 private val settingItems = listOf(
-    SettingItem("⊞", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
-    SettingItem("◎", "Focus & Lens", "Camera ID · Lens · Sensor information"),
-    SettingItem("▣", "Capture & Quality", "Aspect ratio · Image quality · Save location"),
-    SettingItem("◐", "Photo Mode Setting", "HDR · Noise reduction · RAW"),
-    SettingItem("☾", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
-    SettingItem("◩", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
-    SettingItem("♫", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
-    SettingItem("文", "Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
-    SettingItem("ⓘ", "About", "LunaDream 2.5.0dream")
+    SettingItem("tab_01", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
+    SettingItem("tab_02", "Focus & Lens", "Camera ID · Lens · Sensor information"),
+    SettingItem("tab_03", "Capture & Quality", "Aspect ratio · Image quality · Save location"),
+    SettingItem("tab_04", "Photo Mode Setting", "HDR · Noise reduction · RAW"),
+    SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
+    SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
+    SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
+    SettingItem("tab_08", "Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
+    SettingItem("tab_09", "About", "LunaDream 2.5.0")
 )
 
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
-    ratioIdx: Int,
-    onRatio: (Int) -> Unit,
-    showGrid: Boolean,
-    onShowGrid: (Boolean) -> Unit,
-    showHist: Boolean,
-    onShowHist: (Boolean) -> Unit,
-    focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onBack: () -> Unit, ratioIdx: Int, onRatio: (Int) -> Unit,
+    showGrid: Boolean, onShowGrid: (Boolean) -> Unit,
+    showHist: Boolean, onShowHist: (Boolean) -> Unit,
+    focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit
 ) {
-    var selectedPage by remember { mutableStateOf<String?>(null) }
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
-    val selectedItem = settingItems.firstOrNull { it.title == selectedCategory } ?: settingItems.first()
-
-    AnimatedContent(
-        targetState = selectedPage,
-        modifier = Modifier.fillMaxSize(),
-        transitionSpec = { AnimaT.enter() togetherWith AnimaT.exit() },
-        label = "LunaDream settings menu transition"
-    ) { page ->
-        if (page != null) {
-            SettingsDetailPage(
-                title = page,
-                onBack = { selectedPage = null },
-                ratioIdx = ratioIdx,
-                onRatio = onRatio,
-                showGrid = showGrid,
-                onShowGrid = onShowGrid,
-                showHist = showHist,
-                onShowHist = onShowHist,
-                focusPeaking = focusPeaking,
-                onFocusPeaking = onFocusPeaking
-            )
-        } else {
-            FujiPanel(
-                title = "SETTINGS · MENU",
-                modifier = Modifier.fillMaxSize(),
-                onBack = onBack
-            ) {
-                Row(
-                    Modifier.fillMaxSize().padding(horizontal = 9.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(
-                        Modifier.width(142.dp).fillMaxHeight()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            "MENU TABS",
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-                        )
-                        settingItems.forEachIndexed { index, item ->
+    var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
+    val tabState = rememberLazyListState()
+    LaunchedEffect(selectedCategory) {
+        val index = settingItems.indexOfFirst { it.title == selectedCategory }
+        if (index >= 0) tabState.animateScrollToItem(index)
+    }
+    FujiScreenScaffold(
+        title = "SETTINGS · MENU", modifier = Modifier.fillMaxSize(),
+        onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
+    ) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.width(164.dp).fillMaxHeight()) {
+                Text("MENU TABS", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(state = tabState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        itemsIndexed(settingItems) { index, item ->
+                            val active = selectedCategory == item.title
                             Row(
-                                Modifier.fillMaxWidth()
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(if (selectedCategory == item.title) Color(0xFF20292B) else Color(0xFF0A0D0E))
-                                    .border(
-                                        1.dp,
-                                        if (selectedCategory == item.title) FujiSkin.orange else Color(0xFF283538),
-                                        RoundedCornerShape(2.dp)
-                                    )
+                                Modifier.fillMaxWidth().background(if (active) Color(0xFF20292B) else Color(0xFF0A0D0E))
+                                    .border(1.dp, if (active) FujiSkin.orange else Color(0xFF283538))
                                     .animaTClickable { selectedCategory = item.title }
                                     .padding(horizontal = 6.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    item.icon,
-                                    color = if (selectedCategory == item.title) FujiSkin.orange else FujiSkin.lcdGreen,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.width(23.dp)
-                                )
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        "%02d  %s".format(index + 1, item.title.uppercase()),
-                                        color = if (selectedCategory == item.title) Color.White else Color(0xFFC7D0D1),
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                    Box(
-                                        Modifier.padding(top = 3.dp)
-                                            .width(if (selectedCategory == item.title) 24.dp else 8.dp)
-                                            .height(2.dp)
-                                            .background(if (selectedCategory == item.title) FujiSkin.orange else Color(0xFF526064))
-                                    )
+                                FujiIconGlyph(item.icon, Modifier.size(22.dp), if (active) FujiSkin.orange else FujiSkin.lcdGreen)
+                                Column(Modifier.weight(1f).padding(start = 6.dp)) {
+                                    Text("%02d  %s".format(index + 1, item.title.uppercase()), color = if (active) Color.White else Color(0xFFC7D0D1), fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 2, lineHeight = 9.sp)
+                                    Box(Modifier.padding(top = 3.dp).width(if (active) 24.dp else 8.dp).height(2.dp).background(if (active) FujiSkin.orange else Color(0xFF526064)))
                                 }
                             }
                         }
                     }
-                    Column(
-                        Modifier.weight(1f).fillMaxHeight()
-                            .background(Color(0xFF080B0C))
-                            .border(1.dp, Color(0xFF2C3A3D), RoundedCornerShape(2.dp))
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(9.dp)
-                    ) {
-                        Text(
-                            selectedItem.title.uppercase(),
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp
-                        )
-                        Text(
-                            selectedItem.subtitle,
-                            color = FujiSkin.muted,
-                            fontSize = 10.sp
-                        )
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF354247)))
-                        FujiListRow(
-                            title = selectedItem.title,
-                            value = "OPEN  >",
-                            onClick = { selectedPage = selectedItem.title },
-                            description = "MENU/OK · Mở nhóm cài đặt đang chọn"
-                        )
-                        if (selectedItem.title != "About") {
-                            FujiListRow(
-                                title = "Sao lưu & Khôi phục",
-                                value = "BACKUP",
-                                onClick = { selectedPage = "Sao lưu & Khôi phục" },
-                                description = "Lưu hoặc nạp lại các thiết lập camera"
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("LUNADREAM 2.5.0DREAM", color = FujiSkin.muted, fontSize = 8.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-                            Text("DISP/BACK", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                    val visible = tabState.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
+                    val maxIndex = (settingItems.size - visible).coerceAtLeast(1)
+                    FujiScrollbar(
+                        fraction = (tabState.firstVisibleItemIndex.toFloat() / maxIndex).coerceIn(0f, 1f),
+                        visibleFraction = (visible.toFloat() / settingItems.size).coerceIn(0.08f, 1f),
+                        modifier = Modifier.fillMaxHeight().padding(start = 3.dp)
+                    )
+                }
+            }
+            Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF080B0C)).border(1.dp, Color(0xFF2C3A3D)).padding(9.dp)) {
+                if (selectedCategory == "Capture & Quality") {
+                    SettingsDetailPage("Capture & Quality", {}, ratioIdx, onRatio, showGrid, onShowGrid, showHist, onShowHist, focusPeaking, onFocusPeaking, embedded = true, modifier = Modifier.weight(1f))
+                    FujiListRow("Sao lưu & Khôi phục", "BACKUP",
+                        onClick = { categoryBeforeBackup = selectedCategory; selectedCategory = "Sao lưu & Khôi phục" },
+                        description = "Lưu hoặc nạp lại các thiết lập camera")
+                } else {
+                    SettingsDetailPage(selectedCategory, {}, ratioIdx, onRatio, showGrid, onShowGrid, showHist, onShowHist, focusPeaking, onFocusPeaking, embedded = true, modifier = Modifier.fillMaxSize())
                 }
             }
         }
@@ -233,7 +144,9 @@ private fun SettingsDetailPage(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    embedded: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -281,8 +194,9 @@ var nightShotMode by remember {
 
     FujiPanel(
         title = title,
-        modifier = Modifier.fillMaxSize(),
-        onBack = onBack
+        modifier = modifier.fillMaxSize(),
+        onBack = onBack,
+        embedded = embedded
     ) {
         Column(
             Modifier.fillMaxSize()
@@ -681,7 +595,7 @@ var nightShotMode by remember {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
                         }
                     })
-                Text("Version 2.5.0dream · Build 15", color = CamColors.Sub, fontSize = 12.sp,
+                Text("Version ${BuildConfig.VERSION_NAME} · Build ${BuildConfig.VERSION_CODE}", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
             }
         }

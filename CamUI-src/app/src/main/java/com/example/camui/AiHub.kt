@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -67,7 +68,8 @@ fun LunaDreamBottomSheet(
     onSelectedModeChange: (String) -> Unit
 ) {
     val configuration = LocalConfiguration.current
-    val maxSheetHeight = (configuration.screenHeightDp * 0.84f).dp
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    val maxSheetHeight = (configuration.screenHeightDp * if (isLandscape) 0.94f else 0.84f).dp
     val transition = rememberInfiniteTransition(label = "lunadream-rainbow")
     val rainbowPhase by transition.animateFloat(
         initialValue = 0f,
@@ -92,10 +94,12 @@ fun LunaDreamBottomSheet(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
+                .widthIn(max = if (isLandscape) 980.dp else configuration.screenWidthDp.dp)
                 .heightIn(max = maxSheetHeight)
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(horizontal = 18.dp).padding(bottom = 22.dp),
+                .padding(horizontal = if (isLandscape) 24.dp else 18.dp)
+                .padding(bottom = 22.dp),
             verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             Text("LunaDream", color = LunaYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -103,22 +107,50 @@ fun LunaDreamBottomSheet(
                 "Chọn chế độ trước khi chụp. LunaDream giữ nguyên lựa chọn trong suốt quá trình xử lý.",
                 color = LunaMuted, fontSize = 12.sp, lineHeight = 17.sp
             )
-            LunaDreamModeRow(
-                title = "LunaDream 1.5",
-                subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
-                selected = selectedMode == "luna15",
-                intensity = 0.58f,
-                phase = rainbowPhase,
-                onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
-            )
-            LunaDreamModeRow(
-                title = "LunaDream 2.0",
-                subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
-                selected = selectedMode == "luna20",
-                intensity = 1f,
-                phase = rainbowPhase,
-                onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
-            )
+            if (isLandscape) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        LunaDreamModeRow(
+                            title = "LunaDream 1.5",
+                            subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
+                            selected = selectedMode == "luna15",
+                            intensity = 0.58f,
+                            phase = rainbowPhase,
+                            onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
+                        )
+                    }
+                    Box(Modifier.weight(1f)) {
+                        LunaDreamModeRow(
+                            title = "LunaDream 2.0",
+                            subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
+                            selected = selectedMode == "luna20",
+                            intensity = 1f,
+                            phase = rainbowPhase,
+                            onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
+                        )
+                    }
+                }
+            } else {
+                LunaDreamModeRow(
+                    title = "LunaDream 1.5",
+                    subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
+                    selected = selectedMode == "luna15",
+                    intensity = 0.58f,
+                    phase = rainbowPhase,
+                    onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
+                )
+                LunaDreamModeRow(
+                    title = "LunaDream 2.0",
+                    subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
+                    selected = selectedMode == "luna20",
+                    intensity = 1f,
+                    phase = rainbowPhase,
+                    onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
+                )
+            }
             if (selectedMode == "off") {
                 Text(
                     "LunaDream đang tắt",

@@ -62,30 +62,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Slider
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -3510,11 +3492,9 @@ private fun documentDisplayName(context: Context, uri: Uri): String {
 
 @Composable
 private fun PageHeader(title: String, onBack: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-        }
-        Text(title, color = CamColors.TextColor, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title.uppercase(), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        FujiKey("DISP/BACK", onClick = onBack, modifier = Modifier.width(82.dp))
     }
 }
 
@@ -3540,23 +3520,8 @@ private fun ToolToggle(
 }
 
 @Composable
-private fun ManagedItem(name: String, onDelete: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(10.dp))
-            .background(CamColors.Card).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon("film", contentDescription = null, tint = CamColors.Sub)
-        Text(name, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = CamColors.Sub)
-        }
-    }
-}
-
-@Composable
 private fun EmptyNote(text: String) {
-    Text(text, color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(vertical = 10.dp))
+    Text(text, color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(vertical = 8.dp))
 }
 
 
@@ -3710,35 +3675,21 @@ fun AlbumScreen(onBack: () -> Unit) {
     }
 
     if (inspectorVisible && selectedPhoto != null) {
-        AlertDialog(
-            onDismissRequest = { inspectorVisible = false },
-            title = { Text("Photo Inspector", color = CamColors.TextColor) },
-            text = {
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Dialog(onDismissRequest = { inspectorVisible = false }) {
+            FujiPanel(title = "PHOTO INSPECTOR", modifier = Modifier.width(380.dp)) {
+                Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                     val rows = inspectorRows
                     if (rows == null) {
-                        Text("Đang đọc metadata ảnh…", color = CamColors.Sub)
+                        Text("Đang đọc metadata ảnh…", color = FujiSkin.lcdGreen)
                     } else {
                         rows.forEach { (label, value) ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(label, color = CamColors.Sub, fontSize = 12.sp,
-                                    modifier = Modifier.weight(0.42f))
-                                Text(value, color = CamColors.TextColor, fontSize = 12.sp,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                                    modifier = Modifier.weight(0.58f))
-                            }
+                            FujiListRow(title = label, value = value, onClick = {}, navigate = false)
                         }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { inspectorVisible = false }) { Text("Đóng") }
+                FujiKey("ĐÓNG", onClick = { inspectorVisible = false }, modifier = Modifier.fillMaxWidth())
             }
-        )
+        }
     }
 }
 
@@ -4143,9 +4094,7 @@ fun CameraFrameDialog(
             }
             Text("Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ.",
                 color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
-            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                Text("Áp dụng frame")
-            }
+            FujiKey("ÁP DỤNG FRAME", onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
         }
     }
 }

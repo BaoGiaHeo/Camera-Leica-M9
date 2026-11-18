@@ -1,5 +1,8 @@
 package com.example.camui
 
+import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -56,6 +59,44 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+/**
+ * Small preference-aware feedback layer shared by the physical-looking controls.
+ * The generated tones are deliberately short low-volume UI ticks; the shutter itself
+ * continues to use the bundled camera-shutter recording in the capture pipeline.
+ */
+object FujiFeedback {
+    @Volatile private var generator: ToneGenerator? = null
+
+    private fun tone(context: Context, tone: Int, durationMs: Int, enabledKey: String) {
+        if (!context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                .getBoolean(enabledKey, true)
+        ) return
+        runCatching {
+            val player = generator ?: synchronized(this) {
+                generator ?: ToneGenerator(AudioManager.STREAM_SYSTEM, 18).also { generator = it }
+            }
+            player.startTone(tone, durationMs)
+        }
+    }
+
+    fun haptic(context: Context, feedback: Int) {
+        if (context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                .getBoolean("haptic_feedback_enabled", true)
+        ) {
+            // The view-based call is performed by the caller to preserve view feedback settings.
+        }
+    }
+
+    fun keyTick(context: Context) =
+        tone(context, ToneGenerator.TONE_PROP_BEEP, 16, "ui_sound_enabled")
+
+    fun switchClack(context: Context) =
+        tone(context, ToneGenerator.TONE_PROP_ACK, 25, "ui_sound_enabled")
+
+    fun dialClick(context: Context) =
+        tone(context, ToneGenerator.TONE_PROP_BEEP2, 22, "dial_click_enabled")
+}
 
 object FujiSkin {
     val body = Color(0xFF1A1A1A)
@@ -177,7 +218,10 @@ fun FujiTopKey(
             .combinedClickable(
                 onClick = {
                     if (enabled) {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                                .getBoolean("haptic_feedback_enabled", true)
+                        ) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        FujiFeedback.keyTick(view.context)
                         onClick()
                     }
                 },
@@ -289,7 +333,10 @@ fun FujiSwitch(
         modifier = modifier.combinedClickable(
             enabled = enabled,
             onClick = {
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                        .getBoolean("haptic_feedback_enabled", true)
+                ) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                FujiFeedback.switchClack(view.context)
                 onCheckedChange(!checked)
             },
             onLongClick = null
@@ -331,7 +378,10 @@ fun FujiChip(
             .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF4A5255), RoundedCornerShape(4.dp))
             .combinedClickable(
                 onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                            .getBoolean("haptic_feedback_enabled", true)
+                    ) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    FujiFeedback.keyTick(view.context)
                     onClick()
                 },
                 onLongClick = null
@@ -443,7 +493,10 @@ fun FujiDial(
                         accumulated -= steps
                         rotation += steps * 12f
                         onStep(steps)
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                                .getBoolean("haptic_feedback_enabled", true)
+                        ) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        FujiFeedback.dialClick(view.context)
                     }
                 }
             },
@@ -523,7 +576,9 @@ fun FujiShutterButton(
                     onPress = {
                         if (enabled) {
                             pressed = true
-                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                                    .getBoolean("haptic_feedback_enabled", true)
+                            ) view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             onHalfPress()
                             tryAwaitRelease()
                             pressed = false
@@ -531,7 +586,9 @@ fun FujiShutterButton(
                     },
                     onTap = {
                         if (enabled) {
-                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                                    .getBoolean("haptic_feedback_enabled", true)
+                            ) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                             onCapture()
                         }
                     }

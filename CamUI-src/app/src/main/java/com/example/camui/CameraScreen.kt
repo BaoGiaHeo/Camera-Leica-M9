@@ -4738,7 +4738,7 @@ fun CameraScreen(
             QuickPanel(
                 ratioIdx = ratioIdx,
                 onRatio = onRatio,
-                deviceLandscape = uiIsLandscape,
+                deviceLandscape = isLandscape,
                 ultraHdr = ultraHdr,
                 onUltraHdr = {
                     val activeCamera = camera
@@ -4789,6 +4789,7 @@ fun CameraScreen(
                 onToolbox = { showQuick = false; onOpenToolbox() },
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },
+                onDismiss = { showQuick = false },
                 modifier = Modifier.align(if (uiIsLandscape) Alignment.TopEnd else Alignment.TopCenter)
                     .padding(start = 10.dp, end = 10.dp, top = if (uiIsLandscape) 8.dp else 64.dp)
             )

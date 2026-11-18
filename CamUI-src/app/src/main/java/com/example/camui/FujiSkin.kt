@@ -80,14 +80,6 @@ object FujiFeedback {
         }
     }
 
-    fun haptic(context: Context, feedback: Int) {
-        if (context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-                .getBoolean("haptic_feedback_enabled", true)
-        ) {
-            // The view-based call is performed by the caller to preserve view feedback settings.
-        }
-    }
-
     fun keyTick(context: Context) =
         tone(context, ToneGenerator.TONE_PROP_BEEP, 16, "ui_sound_enabled")
 
@@ -502,7 +494,7 @@ fun FujiDial(
             },
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.fillMaxSize().padding(5.dp)) {
+        Canvas(Modifier.fillMaxSize().padding(5.dp).graphicsLayer { rotationZ = animatedRotation }) {
             val radius = size.minDimension / 2f
             for (i in 0 until 36) {
                 val angle = i * (Math.PI * 2.0 / 36.0)

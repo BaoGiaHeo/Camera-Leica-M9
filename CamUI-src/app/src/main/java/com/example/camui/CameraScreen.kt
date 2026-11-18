@@ -787,15 +787,11 @@ fun CameraScreen(
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var captureSetupReady by remember { mutableStateOf(false) }
 
-    // Rotate the preview independently from the portrait control layout. Fade it away first,
-    // update the preview orientation, then wait for CameraX to finish the new binding before
-    // revealing the live image again.
-    LaunchedEffect(configuration.orientation) {
-        val nextLandscape = when (configuration.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> true
-            Configuration.ORIENTATION_PORTRAIT -> false
-            else -> currentDisplayIsLandscape(context)
-        }
+    // The camera screen stays landscape, so use the physical sensor-derived CameraX rotation
+    // for preview geometry and the capture orientation. 0/180 = portrait; 90/270 = landscape.
+    LaunchedEffect(targetRotation) {
+        val nextLandscape = targetRotation == Surface.ROTATION_90 ||
+            targetRotation == Surface.ROTATION_270
         if (nextLandscape == isLandscape) return@LaunchedEffect
 
         val previousBindGeneration = cameraBindGeneration
@@ -3661,67 +3657,64 @@ fun CameraScreen(
     )
 
     val toolbarContent: @Composable (Modifier) -> Unit = { toolbarModifier ->
-                    val toolbarButtonSize = if (uiIsLandscape) 46.dp else 36.dp
-                    Row(toolbarModifier, horizontalArrangement = Arrangement.SpaceBetween) {
-                        CircleBtn(
-                            icon = if (flash == ImageCapture.FLASH_MODE_ON) {
-                                Icons.Default.FlashOn
-                            } else {
-                                Icons.Default.FlashOff
-                            },
-                            desc = "Đèn LED liên tục",
-                            onClick = {
-                                flash = if (flash == ImageCapture.FLASH_MODE_OFF) {
-                                    ImageCapture.FLASH_MODE_ON
-                                } else {
-                                    ImageCapture.FLASH_MODE_OFF
-                                }
-                            }
-                        , size = toolbarButtonSize)
-                        CircleBtn(
-                            Icons.Default.Timer, "Timer",
-                            onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 } },
-                            tint = if (timerSec > 0) CamColors.Yellow else Color.White
-                        , size = toolbarButtonSize)
+        FujiMetalTopPlate(toolbarModifier.heightIn(min = 54.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FujiTopKey(
+                    label = "FLASH",
+                    icon = if (flash == ImageCapture.FLASH_MODE_ON) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                    selected = flash == ImageCapture.FLASH_MODE_ON,
+                    onClick = {
+                        flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON
+                        else ImageCapture.FLASH_MODE_OFF
+                    }
+                )
+                FujiTopKey(
+                    label = "DRIVE",
+                    icon = Icons.Default.Timer,
+                    selected = timerSec > 0 || burstMode,
+                    onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 } },
+                    onLongClick = {
                         if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" &&
                             rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
-                        ) {
-                            CircleBtn(
-                                Icons.Default.BurstMode, "Burst ×25",
-                                onClick = { burstMode = !burstMode },
-                                tint = if (burstMode) CamColors.Yellow else Color.White
-                            , size = toolbarButtonSize)
-                        }
-                        CircleBtn(
-                            Icons.Default.Tune, "Metering",
-                            onClick = { metering = (metering + 1) % meteringModes.size },
-                            tint = if (metering > 0) CamColors.Yellow else Color.White
-                        , size = toolbarButtonSize)
-
-                        CircleBtn(
-                            Icons.Default.BarChart, "Histogram",
-                            onClick = { onShowHist(!showHist) },
-                            tint = if (showHist) CamColors.Yellow else Color.White
-                        , size = toolbarButtonSize)
-                        CircleBtn(
-                            Icons.Default.FilterCenterFocus, "Focus Peaking",
-                            onClick = { onFocusPeaking(!focusPeaking) },
-                            tint = if (focusPeaking) Color(0xFF00FFB0) else Color.White
-                        , size = toolbarButtonSize)
-                        CircleBtn(
-                            Icons.Default.Settings, "Quick settings",
-                            onClick = { showQuick = !showQuick },
-                            tint = if (showQuick) CamColors.Yellow else Color.White
-                        , size = toolbarButtonSize)
-                        if (mode == "Photo" && nightShotMode == "star_trails") {
-                            CircleBtn(
-                                Icons.Default.Bedtime,
-                                "Star Trails · nhấn chụp để bắt đầu/dừng",
-                                onClick = onOpenSettings,
-                                tint = CamColors.Yellow
-                            , size = toolbarButtonSize)
-                        }
+                        ) burstMode = !burstMode
                     }
+                )
+                FujiTopKey(
+                    label = "FILM",
+                    icon = Icons.Default.PhotoLibrary,
+                    selected = filterDialogVisible || activeFilter != "None",
+                    onClick = { filterDialogVisible = true }
+                )
+                FujiTopKey(
+                    label = "ADJ",
+                    icon = Icons.Default.Tune,
+                    selected = metering > 0,
+                    onClick = { metering = (metering + 1) % meteringModes.size }
+                )
+                FujiTopKey(
+                    label = "HISTO",
+                    icon = Icons.Default.BarChart,
+                    selected = showHist,
+                    onClick = { onShowHist(!showHist) }
+                )
+                FujiTopKey(
+                    label = "AF",
+                    icon = Icons.Default.FilterCenterFocus,
+                    selected = focusPeaking,
+                    onClick = { onFocusPeaking(!focusPeaking) }
+                )
+                FujiTopKey(
+                    label = "Q",
+                    icon = Icons.Default.Settings,
+                    selected = showQuick,
+                    onClick = { showQuick = !showQuick }
+                )
+            }
+        }
     }
 
     val previewContent: @Composable (Modifier) -> Unit = { previewModifier ->
@@ -3729,14 +3722,12 @@ fun CameraScreen(
                         previewModifier.background(Color(0xFF262B33)),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Use the actual preview slot bounds, not the sensor angle or stale
-                        // configuration. The selected landscape ratio is derived from the same
-                        // ratio list as the portrait ratio, then fitted without cropping.
+                        // The LCD is always landscape, but the live image frame follows the
+                        // physical handset orientation so portrait capture is letterboxed centrally.
                         val selectedPortraitHeightOverWidth = aspectRatios[
                             ratioIdx.coerceIn(0, aspectRatios.lastIndex)
                         ].second
-                        val previewAreaIsLandscape = maxWidth > maxHeight
-                        val frameWidthOverHeight = if (previewAreaIsLandscape) {
+                        val frameWidthOverHeight = if (isLandscape) {
                             selectedPortraitHeightOverWidth
                         } else {
                             1f / selectedPortraitHeightOverWidth
@@ -4697,8 +4688,8 @@ fun CameraScreen(
         }
     }
 
-    Box(
-        Modifier.fillMaxSize().background(CamColors.Bg).navigationBarsPadding().animaTContent()
+    FujiLeatherSurface(
+        Modifier.fillMaxSize().animaTContent()
             .pointerInput(hudAutoHideEnabled) {
                 if (hudAutoHideEnabled) {
                     awaitPointerEventScope {
@@ -4716,7 +4707,7 @@ fun CameraScreen(
         Column(
             Modifier.fillMaxSize().padding(
                 horizontal = if (uiIsLandscape) 10.dp else 12.dp,
-                vertical = 7.dp
+                vertical = 6.dp
             )
         ) {
             AnimatedVisibility(
@@ -4737,9 +4728,9 @@ fun CameraScreen(
                     Modifier.fillMaxWidth()
                         // Keep the portrait control stack compact in landscape so the
                         // selected-ratio preview still has enough room to render horizontally.
-                        .then(if (isLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
+                        .then(if (uiIsLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = if (isLandscape) 4.dp else 0.dp)
+                        .padding(bottom = if (uiIsLandscape) 4.dp else 0.dp)
                 )
             }
         }

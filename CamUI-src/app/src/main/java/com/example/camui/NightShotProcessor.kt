@@ -374,8 +374,13 @@ object NightShotProcessor {
             }
             currentStage = "decode first frame"
             val firstDecodeStartedAt = SystemClock.elapsedRealtime()
-            base = decodeUpright(frames.first(), null, null, stackPixelLimit)
-                ?: error("Could not decode first frame")
+            base = decodeUpright(
+                frames.first(),
+                null,
+                null,
+                stackPixelLimit,
+                mutable = isLunaDreamMerge
+            ) ?: error("Could not decode first frame")
             decodeMs += SystemClock.elapsedRealtime() - firstDecodeStartedAt
             val width = base!!.width
             val height = base!!.height
@@ -750,6 +755,8 @@ object NightShotProcessor {
         workers: ExecutorService,
         onProgress: ((Int) -> Unit)? = null
     ) {
+        check(!base.isRecycled) { "LunaDream fusion base bitmap was recycled" }
+        check(base.isMutable) { "LunaDream fusion base bitmap must be mutable before pixel writes" }
         val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         val rowsPerStripe = 64
         for (top in 0 until height step rowsPerStripe) {
@@ -2169,7 +2176,8 @@ object NightShotProcessor {
         targetWidth: Int?,
         targetHeight: Int?,
         pixelLimit: Long = MAX_OUTPUT_PIXELS,
-        heapBytesPerPixel: Double = 4.0
+        heapBytesPerPixel: Double = 4.0,
+        mutable: Boolean = false
     ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, bounds)
@@ -2217,6 +2225,7 @@ object NightShotProcessor {
             inSampleSize = sampleSize
             inPreferredConfig = Bitmap.Config.RGB_565
             inDither = true
+            inMutable = mutable
         }
         val decoded = BitmapFactory.decodeFile(file.absolutePath, options) ?: return null
         val matrix = Matrix()
@@ -2248,9 +2257,17 @@ object NightShotProcessor {
             upright = scaled
         }
         if (upright.config != Bitmap.Config.RGB_565) {
-            val compact = upright.copy(Bitmap.Config.RGB_565, false) ?: return upright
-            upright.recycle()
+            val compact = upright.copy(Bitmap.Config.RGB_565, mutable) ?: return null
+            if (compact !== upright) upright.recycle()
             upright = compact
+        }
+        // EXIF rotation and scaling may return an immutable Bitmap even when the decoder
+        // was asked for a mutable one. Fusion writes its accumulated pixels back into the
+        // base image, so enforce mutability after every transform.
+        if (mutable && !upright.isMutable) {
+            val writable = upright.copy(Bitmap.Config.RGB_565, true) ?: return null
+            if (writable !== upright) upright.recycle()
+            upright = writable
         }
         return upright
     }

@@ -350,10 +350,9 @@ object NightShotProcessor {
             // accumulated output as a reference would allow drift to build up over a burst.
             if (mode != MergeMode.STAR_TRAILS) {
                 alignmentReference = makeAlignmentThumbnail(base!!)
-                if (mode == MergeMode.LUNA_DREAM_2_0) {
-                    // The reference pyramid and Shi–Tomasi feature list do not change during this stack.
-                    alignmentReferenceState = preparePyramidalAlignmentReference(alignmentReference!!)
-                }
+                // Reuse one feature pyramid for every computational stack. This provides
+                // software stabilization even when the phone has no OIS/EIS hardware.
+                alignmentReferenceState = preparePyramidalAlignmentReference(alignmentReference!!)
             }
             if (bestScores != null || exposureWeights != null) {
                 for (y in 0 until height) {
@@ -383,15 +382,13 @@ object NightShotProcessor {
                 decodeMs += SystemClock.elapsedRealtime() - frameDecodeStartedAt
                 try {
                     val alignmentStartedAt = SystemClock.elapsedRealtime()
-                    val shift = when (mode) {
-                        MergeMode.STAR_TRAILS -> 0 to 0
-                        // 1.5 uses the cheaper robust global translation on its five-frame stack.
-                        // 2.0 retains the pyramidal Lucas–Kanade path used by its reference build.
-                        MergeMode.LUNA_DREAM_1_5 ->
-                            estimateGlobalTranslation(alignmentReference!!, current)
-                        MergeMode.LUNA_DREAM_2_0 ->
-                            estimatePyramidalLucasKanade(alignmentReferenceState!!, current)
-                        else -> estimateGlobalTranslation(alignmentReference!!, current)
+                    val shift = if (mode == MergeMode.STAR_TRAILS) {
+                        // Star trails intentionally preserve each star's position over time.
+                        0 to 0
+                    } else {
+                        // Sparse pyramidal LK rejects moving features; it falls back to
+                        // gradient translation when the scene has too few reliable features.
+                        estimatePyramidalLucasKanade(alignmentReferenceState!!, current)
                     }
                     alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt
                     val shiftX = shift.first.coerceIn(-width / 12, width / 12)
@@ -488,12 +485,36 @@ object NightShotProcessor {
                                         else -> Unit
                                     }
                                 } else if (mode == MergeMode.NIGHT_AVERAGE || mode == MergeMode.MILKY_WAY_STACK) {
-                                    val divisor = frameIndex + 1
-                                    oldRow[x] = packRgb(
-                                        (ar * frameIndex + br) / divisor,
-                                        (ag * frameIndex + bg) / divisor,
-                                        (ab * frameIndex + bb) / divisor
+                                    // Motion-aware averaging prevents walking subjects, branches and lights
+                                    // from appearing twice when the device has no OIS/EIS hardware.
+                                    val oldLuma = luma(ar, ag, ab)
+                                    val newLuma = luma(br, bg, bb)
+                                    val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
+                                    val colorDelta = max(
+                                        kotlin.math.abs(ar - br),
+                                        max(kotlin.math.abs(ag - bg), kotlin.math.abs(ab - bb))
                                     )
+                                    val threshold = (22 + (oldLuma + newLuma) / 36).coerceIn(22, 34)
+                                    when {
+                                        lumaDelta <= threshold && colorDelta <= threshold * 2 -> {
+                                            val divisor = frameIndex + 1
+                                            oldRow[x] = packRgb(
+                                                (ar * frameIndex + br) / divisor,
+                                                (ag * frameIndex + bg) / divisor,
+                                                (ab * frameIndex + bb) / divisor
+                                            )
+                                        }
+                                        lumaDelta <= threshold * 2 && colorDelta <= threshold * 3 -> {
+                                            // Keep a dominant reference exposure for uncertain/moving pixels.
+                                            oldRow[x] = packRgb(
+                                                (ar * 7 + br) / 8,
+                                                (ag * 7 + bg) / 8,
+                                                (ab * 7 + bb) / 8
+                                            )
+                                        }
+                                        // Strong temporal disagreement is treated as motion/ghosting.
+                                        else -> Unit
+                                    }
                                 } else if (mode == MergeMode.HDR_BRACKET) {
                                     val scoreIndex = y * width + x
                                     val currentWeight = exposureMidtoneScore(luma(b)).coerceAtLeast(1)
@@ -535,11 +556,12 @@ object NightShotProcessor {
             }
 
             if (mode == MergeMode.NIGHT_AVERAGE) {
-                // Frame averaging reduces random noise but does not recover brightness by itself.
-                // Milky Way stacking deliberately skips this night-scene lift to preserve the sky background.
-                // Lift dark mid-tones after alignment/averaging, with a smooth gamma curve that
-                // preserves highlights better than multiplying every channel by a fixed gain.
+                // Lift dark mid-tones after motion-aware averaging, preserving bright star cores.
                 brightenNightResult(base!!)
+                enhanceNightStarPeaks(base!!)
+            } else if (mode == MergeMode.MILKY_WAY_STACK) {
+                // Add restrained optical star peaks to point sources already present in the stack.
+                enhanceNightStarPeaks(base!!)
             } else if (mode == MergeMode.LUNA_DREAM_1_5) {
                 val detailStartedAt = SystemClock.elapsedRealtime()
                 applyLunaDream15FinishingPass(base!!) { stageProgress ->
@@ -807,6 +829,73 @@ object NightShotProcessor {
             }
         }
         Log.i(TAG, "Adaptive night brightness applied: median=$medianLuma gamma=$gamma")
+    }
+
+    private data class NightStarPeak(val x: Int, val y: Int, val brightness: Int)
+
+    /**
+     * Detects compact, high-contrast point sources and adds a restrained four-point peak.
+     * It never paints stars into empty sky: every highlight must already exist in the image.
+     */
+    private fun enhanceNightStarPeaks(bitmap: Bitmap) {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 5 || height < 5) return
+
+        val above = IntArray(width)
+        val center = IntArray(width)
+        val below = IntArray(width)
+        val candidates = ArrayList<NightStarPeak>(512)
+        for (y in 1 until height - 1) {
+            bitmap.getPixels(above, 0, width, 0, y - 1, width, 1)
+            bitmap.getPixels(center, 0, width, 0, y, width, 1)
+            bitmap.getPixels(below, 0, width, 0, y + 1, width, 1)
+            for (x in 1 until width - 1) {
+                val brightness = luma(center[x])
+                if (brightness < 190) continue
+                val brightestNeighbour = maxOf(
+                    luma(above[x - 1]), luma(above[x]), luma(above[x + 1]),
+                    luma(center[x - 1]), luma(center[x + 1]),
+                    luma(below[x - 1]), luma(below[x]), luma(below[x + 1])
+                )
+                if (brightness - brightestNeighbour >= 14) {
+                    candidates.add(NightStarPeak(x, y, brightness))
+                }
+            }
+        }
+        if (candidates.isEmpty()) return
+
+        val strongest = candidates.sortedByDescending { it.brightness }.take(1_200)
+        val arm = (min(width, height) / 1_000f).coerceIn(2.5f, 8f)
+        val canvas = android.graphics.Canvas(bitmap)
+        val glowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(34, 255, 250, 230)
+            style = android.graphics.Paint.Style.FILL
+        }
+        val rayPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(96, 255, 255, 248)
+            style = android.graphics.Paint.Style.STROKE
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeWidth = (arm * 0.30f).coerceAtLeast(1f)
+        }
+        val fineRayPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(48, 220, 238, 255)
+            style = android.graphics.Paint.Style.STROKE
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeWidth = (arm * 0.16f).coerceAtLeast(0.7f)
+        }
+        strongest.forEach { star ->
+            val strength = ((star.brightness - 190) / 65f).coerceIn(0.35f, 1f)
+            val radius = arm * (0.75f + strength * 0.55f)
+            val x = star.x.toFloat()
+            val y = star.y.toFloat()
+            canvas.drawCircle(x, y, radius * 1.25f, glowPaint)
+            canvas.drawLine(x - radius * 2.2f, y, x + radius * 2.2f, y, rayPaint)
+            canvas.drawLine(x, y - radius * 2.2f, x, y + radius * 2.2f, rayPaint)
+            canvas.drawLine(x - radius, y - radius, x + radius, y + radius, fineRayPaint)
+            canvas.drawLine(x - radius, y + radius, x + radius, y - radius, fineRayPaint)
+        }
+        Log.i(TAG, "Enhanced ${strongest.size} existing star point sources with restrained peak highlights")
     }
 
     private const val ALIGNMENT_MAX_DIMENSION = 128

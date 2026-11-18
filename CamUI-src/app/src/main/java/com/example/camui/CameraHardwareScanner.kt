@@ -24,6 +24,7 @@ data class CameraHardwareEntry(
     val lensRole: String,
     val focalLengths: String,
     val equivalent35mm: Float?,
+    val minimumFocusDistanceDiopter: Float?,
     val sensorPixels: String,
     val sensorSizeMm: String,
     val jpegMax: String,
@@ -132,7 +133,8 @@ object CameraHardwareScanner {
                     else -> "Không rõ"
                 }
                 val equivalent = equivalent35mm(c)
-                val role = classifyLensRole(facingValue, equivalent, mainReference)
+                val minimumFocusDistance = c.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
+                val role = classifyLensRole(facingValue, equivalent, mainReference, minimumFocusDistance)
                 val focal = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
                     ?.joinToString(" / ") { String.format(Locale.US, "%.1f mm", it) }
                     ?: "Không công bố"
@@ -168,6 +170,7 @@ object CameraHardwareScanner {
                     lensRole = role,
                     focalLengths = focal,
                     equivalent35mm = equivalent,
+                    minimumFocusDistanceDiopter = minimumFocusDistance,
                     sensorPixels = pixels?.let { "${it.width} × ${it.height}" } ?: "Không công bố",
                     sensorSizeMm = sensor?.let {
                         String.format(Locale.US, "%.2f × %.2f mm", it.width, it.height)
@@ -242,7 +245,8 @@ object CameraHardwareScanner {
     private fun classifyLensRole(
         facing: Int?,
         equivalent35: Float?,
-        mainReference: Float?
+        mainReference: Float?,
+        minimumFocusDistanceDiopter: Float?
     ): String {
         if (facing == CameraCharacteristics.LENS_FACING_FRONT) return "Camera trước"
         if (facing == CameraCharacteristics.LENS_FACING_EXTERNAL) return "Camera ngoài"
@@ -251,6 +255,7 @@ object CameraHardwareScanner {
             return "Camera sau · chưa đủ dữ liệu tiêu cự"
         }
         val ratio = equivalent35 / mainReference
+        // Camera2 provides optical metadata but no reliable OEM-independent role label.
         return when {
             ratio < 0.78f -> "Ultra-wide"
             ratio > 1.25f -> "Telephoto"

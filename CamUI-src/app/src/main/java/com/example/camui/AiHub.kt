@@ -1,6 +1,20 @@
 package com.example.camui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,152 +22,139 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
-private val HdmpYellow = Color(0xFFF5C518)
-private val HdmpMuted = Color(0xFFAAAAAA)
+private val LunaYellow = Color(0xFFF5C518)
+private val LunaMuted = Color(0xFFAAAAAA)
+private val LunaRainbow = listOf(
+    Color(0xFFFF5C8A), Color(0xFFFFB45C), Color(0xFFFFE66D),
+    Color(0xFF67E8B5), Color(0xFF62C9FF), Color(0xFFAA83FF),
+    Color(0xFFFF76D2)
+)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HdmpBottomSheet(
+fun LunaDreamBottomSheet(
     onDismiss: () -> Unit,
-    uhdEnabled: Boolean,
-    onUhdEnabledChange: (Boolean) -> Unit,
-    fhdEnabled: Boolean,
-    onFhdEnabledChange: (Boolean) -> Unit,
-    uhdPlusEnabled: Boolean,
-    onUhdPlusEnabledChange: (Boolean) -> Unit,
     nightShotEnabled: Boolean,
     nightShotDurationSeconds: Int,
     onCycleNightShot: () -> Unit,
-    renderProfile: String,
-    onRenderProfileChange: (String) -> Unit
+    selectedMode: String,
+    onSelectedModeChange: (String) -> Unit
 ) {
-    ModalBottomSheet(
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    val maxPanelHeight = (configuration.screenHeightDp * 0.94f).dp
+
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF161616),
-        contentColor = Color.White,
-        scrimColor = Color(0x99000000),
-        tonalElevation = 0.dp,
-        dragHandle = {
-            HorizontalDivider(
-                modifier = Modifier.width(42.dp).padding(top = 10.dp, bottom = 8.dp),
-                thickness = 4.dp,
-                color = Color(0xFF666666)
-            )
-        }
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding()
-                .padding(horizontal = 20.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        FujiPanel(
+            title = "LUNADREAM",
+            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = maxPanelHeight),
+            onBack = onDismiss
         ) {
-            Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "HDMP điều phối HDMP AI 2 và HDMP AI 2 Fast; HDMP kiểm tra và hoàn tất ảnh cuối.",
-                color = HdmpMuted, fontSize = 12.sp
-            )
-            Text("Chế độ xử lý HDMP AI", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf(
-                    "quality" to "Chất lượng",
-                    "balanced" to "Cân bằng",
-                    "speed" to "Tốc độ"
-                ).forEach { (value, title) ->
-                    val selected = renderProfile == value
-                    Box(
-                        modifier = Modifier.weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (selected) HdmpYellow else Color(0xFF292929))
-                            .clickable { onRenderProfileChange(value) }
-                            .padding(vertical = 11.dp, horizontal = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            title,
-                            color = if (selected) Color.Black else Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-            Text(
-                when (renderProfile) {
-                    "quality" -> "Ưu tiên HDMP AI 2; số luồng vẫn tự giới hạn theo CPU, RAM và nhiệt độ."
-                    "speed" -> "Bắt đầu trực tiếp bằng HDMP AI 2 Fast để rút ngắn thời gian xử lý."
-                    else -> "Ưu tiên HDMP AI 2 với mức tải cân bằng; hệ thống tự điều chỉnh theo thiết bị."
-                },
-                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
-            )
-            HdmpToggleRow(
-                title = "UHD · 108MP",
-                enabled = uhdEnabled, onEnabledChange = onUhdEnabledChange,
-                status = if (uhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
-            )
-            HorizontalDivider(color = Color(0xFF333333))
-            HdmpToggleRow(
-                title = "FHD · 60MP",
-                enabled = fhdEnabled, onEnabledChange = onFhdEnabledChange,
-                status = if (fhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
-            )
-            HorizontalDivider(color = Color(0xFF333333))
-            HdmpToggleRow(
-                title = "UHD+ · 250MP",
-                enabled = uhdPlusEnabled, onEnabledChange = onUhdPlusEnabledChange,
-                status = if (uhdPlusEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
-            )
-            HorizontalDivider(color = Color(0xFF333333))
-            Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF202020)).animaTClickable(onClick = onCycleNightShot).padding(13.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Night Shot", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Chạm lần lượt: 5s → 10s → 3s → Tắt. Mục tiêu 30 FPS: 5s/150 khung, 10s/300 khung, 3s/90 khung. Tự thu nhanh nhất camera cho phép rồi mới căn chỉnh và ghép; đầu ra tối đa 60MP.",
-                        color = HdmpMuted, fontSize = 11.sp, lineHeight = 15.sp
-                    )
-                    Text(
-                        if (nightShotEnabled) "ĐANG BẬT · ${nightShotDurationSeconds}s" else "NIGHT SHOT · TẮT",
-                        color = if (nightShotEnabled) HdmpYellow else Color(0xFF888888),
-                        fontSize = 10.sp, fontWeight = FontWeight.Medium
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    if (nightShotEnabled) "${nightShotDurationSeconds}s" else "OFF",
-                    color = if (nightShotEnabled) HdmpYellow else Color(0xFFAAAAAA),
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold
-                )
-            }
             Column(
-                modifier = Modifier.fillMaxWidth()
-                    .background(Color(0xFF202020), RoundedCornerShape(12.dp)).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Cách phân bổ xử lý", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "FHD, UHD và UHD+ dùng pipeline HDMP với số luồng tự điều chỉnh theo CPU, RAM và trạng thái nhiệt. Night Shot có trần 60MP nhưng tự hạ độ phân giải nếu RAM không đủ.",
-                    color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+                    "Choose a mode before capture. LunaDream keeps that selection throughout processing.",
+                    color = FujiSkin.muted,
+                    fontSize = 10.sp,
+                    lineHeight = 15.sp
+                )
+                if (isLandscape) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            LunaDreamModeRow(
+                                title = "LunaDream 1.5",
+                                subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
+                                selected = selectedMode == "luna15",
+                                intensity = 0.58f,
+                                phase = 0f,
+                                onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
+                            )
+                        }
+                        Box(Modifier.weight(1f)) {
+                            LunaDreamModeRow(
+                                title = "LunaDream 2.0",
+                                subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
+                                selected = selectedMode == "luna20",
+                                intensity = 1f,
+                                phase = 0f,
+                                onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
+                            )
+                        }
+                    }
+                } else {
+                    LunaDreamModeRow(
+                        title = "LunaDream 1.5",
+                        subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
+                        selected = selectedMode == "luna15",
+                        intensity = 0.58f,
+                        phase = 0f,
+                        onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
+                    )
+                    LunaDreamModeRow(
+                        title = "LunaDream 2.0",
+                        subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
+                        selected = selectedMode == "luna20",
+                        intensity = 1f,
+                        phase = 0f,
+                        onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
+                    )
+                }
+                Text(
+                    if (selectedMode == "off") "LUNADREAM IS OFF" else "LUNADREAM · ${selectedMode.uppercase()}",
+                    color = FujiSkin.lcdGreen,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF354247)))
+                FujiListRow(
+                    title = "NightShotMode",
+                    value = if (nightShotEnabled) "${nightShotDurationSeconds}s" else "OFF",
+                    onClick = onCycleNightShot,
+                    description = "Night capture and Star Trails use separate processing pipelines · chạm để đổi OFF / 5s / 10s / 3s."
+                )
+                Text(
+                    if (nightShotEnabled) "NIGHTSHOT · BẬT · ${nightShotDurationSeconds}s" else "NIGHTSHOT · TẮT",
+                    color = if (nightShotEnabled) FujiSkin.orange else FujiSkin.muted,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Milky Way được bật/tắt trong Cài đặt → NightShotMode.",
+                    color = FujiSkin.muted,
+                    fontSize = 9.sp
                 )
             }
         }
@@ -161,27 +162,28 @@ fun HdmpBottomSheet(
 }
 
 @Composable
-private fun HdmpToggleRow(
+private fun LunaDreamModeRow(
     title: String,
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    status: String
+    subtitle: String,
+    selected: Boolean,
+    intensity: Float,
+    phase: Float,
+    onCheckedChange: (Boolean) -> Unit
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(status, color = if (enabled) HdmpYellow else Color(0xFF888888),
-                fontSize = 10.sp, fontWeight = FontWeight.Medium)
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(4.dp))
+            .background(FujiSkin.lcd)
+            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF344247), RoundedCornerShape(4.dp))
+            .clickable { onCheckedChange(!selected) }
+            .padding(horizontal = 11.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title.uppercase(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = FujiSkin.muted, fontSize = 9.sp, lineHeight = 13.sp)
         }
-        Spacer(Modifier.width(12.dp))
-        Switch(
-            checked = enabled,
-            onCheckedChange = onEnabledChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(0xFF161616), checkedTrackColor = HdmpYellow,
-                uncheckedThumbColor = Color(0xFFBDBDBD), uncheckedTrackColor = Color(0xFF444444),
-                checkedBorderColor = HdmpYellow, uncheckedBorderColor = Color(0xFF666666)
-            )
-        )
+        Spacer(Modifier.width(8.dp))
+        FujiSwitch(checked = selected, onCheckedChange = onCheckedChange)
     }
 }

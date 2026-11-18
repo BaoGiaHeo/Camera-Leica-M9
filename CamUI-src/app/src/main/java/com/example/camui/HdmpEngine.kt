@@ -86,6 +86,10 @@ internal object HdmpEngine {
                                 PixelColor.green(pixel) * 0.7152f +
                                 PixelColor.blue(pixel) * 0.0722f) / 255f
 
+                        // Precompute luminance once per source pixel in this stripe. The original
+                        // loop recalculated RGB-to-luma for the same neighbours up to ten times.
+                        val inputLuma = FloatArray(input.size) { index -> luma(input[index]) }
+
                         for (y in top until bottom) {
                             val localY = y - inputTop
                             val row = localY * width
@@ -94,21 +98,25 @@ internal object HdmpEngine {
                             val outRow = (y - top) * width
                             for (x in 0 until width) {
                                 val center = input[row + x]
-                                val centerLuma = luma(center)
-                                val left = input[row + max(0, x - 1)]
-                                val right = input[row + min(width - 1, x + 1)]
-                                val up = input[upRow + x]
-                                val down = input[downRow + x]
+                                val centerLuma = inputLuma[row + x]
+                                val leftIndex = row + max(0, x - 1)
+                                val rightIndex = row + min(width - 1, x + 1)
+                                val upIndex = upRow + x
+                                val downIndex = downRow + x
+                                val left = input[leftIndex]
+                                val right = input[rightIndex]
+                                val up = input[upIndex]
+                                val down = input[downIndex]
 
                                 // Edge-aware cross-neighbour smoothing suppresses similar-pixel noise.
                                 var weightSum = 2.5f
                                 var redSum = PixelColor.red(center) * 2.5f
                                 var greenSum = PixelColor.green(center) * 2.5f
                                 var blueSum = PixelColor.blue(center) * 2.5f
-                                val leftWeight = edgeWeight(centerLuma, luma(left))
-                                val rightWeight = edgeWeight(centerLuma, luma(right))
-                                val upWeight = edgeWeight(centerLuma, luma(up))
-                                val downWeight = edgeWeight(centerLuma, luma(down))
+                                val leftWeight = edgeWeight(centerLuma, inputLuma[leftIndex])
+                                val rightWeight = edgeWeight(centerLuma, inputLuma[rightIndex])
+                                val upWeight = edgeWeight(centerLuma, inputLuma[upIndex])
+                                val downWeight = edgeWeight(centerLuma, inputLuma[downIndex])
                                 weightSum += leftWeight + rightWeight + upWeight + downWeight
                                 redSum += PixelColor.red(left) * leftWeight +
                                     PixelColor.red(right) * rightWeight +
@@ -129,20 +137,20 @@ internal object HdmpEngine {
                                 val baseLuma = (baseRed * 0.2126f + baseGreen * 0.7152f +
                                     baseBlue * 0.0722f) / 255f
 
-                                val neighbourLuma = (luma(left) + luma(right) +
-                                    luma(up) + luma(down)) * 0.25f
+                                val neighbourLuma = (
+                                    inputLuma[leftIndex] + inputLuma[rightIndex] +
+                                        inputLuma[upIndex] + inputLuma[downIndex]
+                                    ) * 0.25f
                                 val detail = baseLuma - neighbourLuma
 
                                 // Diagonal micro-detail pass helps recover fine texture direction
                                 // around hair, foliage, fabric and small edges without inventing
                                 // high-contrast outlines. The threshold rejects low-level sensor noise.
-                                val upLeft = input[upRow + max(0, x - 1)]
-                                val upRight = input[upRow + min(width - 1, x + 1)]
-                                val downLeft = input[downRow + max(0, x - 1)]
-                                val downRight = input[downRow + min(width - 1, x + 1)]
                                 val diagonalMean = (
-                                    luma(upLeft) + luma(upRight) +
-                                        luma(downLeft) + luma(downRight)
+                                    inputLuma[upRow + max(0, x - 1)] +
+                                        inputLuma[upRow + min(width - 1, x + 1)] +
+                                        inputLuma[downRow + max(0, x - 1)] +
+                                        inputLuma[downRow + min(width - 1, x + 1)]
                                     ) * 0.25f
                                 val microDetail = baseLuma - diagonalMean
                                 val recoveredDetail = (if (abs(detail) < 0.012f) 0f else {

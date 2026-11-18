@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "FujifilmMode"
+rootProject.name = "FujiFilmMode"
 include(":app")

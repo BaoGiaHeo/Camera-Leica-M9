@@ -1,0 +1,23 @@
+THIRD-PARTY AND FILTER ASSET NOTICES
+
+The camera filter picker intentionally shows filter names and previews only. Licensing and attribution information is kept here, outside the camera interface.
+
+The new film-look recipes added for this rebuild are simplified RGB interpretations authored for this application. They are not exact Lightroom/XMP conversions, official manufacturer profiles, or endorsements.
+
+Reference material:
+- Hernan Stockebrand, "Lightroom Presets & Film Simulations": https://github.com/hstockeb/film-simulations-and-presets
+- The reference repository licenses its XMP presets and supporting text under Creative Commons Attribution 4.0 International (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+- Changes made: the looks were re-authored as compact RGB transforms for the Android image pipeline. The original XMP preset files are not bundled.
+
+Commercial-release review required:
+- The non-commercial CC BY-NC-SA 4.0 3D LUT assets have been removed from the app package. Built-in looks now use compact app-authored approximations instead.
+- GPL-licensed projects discussed during development were not copied into this application.
+- The app bundles the following typefaces for its watermark canvases: Creato Display Light (Nikon), Inter Variable Light (Sony), Liberation Sans Regular (Canon), and Jost Variable Light (Fujifilm). Each font's accompanying SIL Open Font License 1.1 text is included beside the font under assets/fonts/.
+- Font sources: Creato Display by Anugrah Pasau (https://github.com/straculencuandrei/koltzi); Inter by the Inter Project / Google Fonts (https://github.com/google/fonts/tree/main/ofl/inter); Jost by the Jost Project / Google Fonts (https://github.com/google/fonts/tree/main/ofl/jost); Liberation Sans by the Liberation Fonts project (https://github.com/liberationfonts/liberation-fonts). The Liberation Sans Regular TTF binary was obtained from the taylor/fonts mirror; its project license text is from the upstream Liberation Fonts repository.
+- Typeface files are separate from manufacturer logos and wordmarks. No claim of manufacturer endorsement is made.
+
+
+Brand wordmark image assets:
+- Fujifilm, Sony, Nikon and Canon PNG wordmarks were sourced from DigiCamWM (gvoze32/digicamwm): https://github.com/gvoze32/digicamwm
+- DigiCamWM project code is distributed under the ISC license: https://github.com/gvoze32/digicamwm/blob/main/LICENSE
+- Manufacturer names and logos remain trademarks of their respective owners. Their inclusion is solely for camera-brand identification; the ISC software license does not grant separate trademark rights. Review commercial-use permissions before public release.

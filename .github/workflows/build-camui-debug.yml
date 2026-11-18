@@ -1,51 +1,47 @@
-name: Build Fujifilm Mode CameraX debug APK
+name: Manual FujiFilm Mode CamUI Debug APK (after emulator validation)
 
-'on':
+on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'CamUI-src/**'
-      - '.github/workflows/build-camui-debug.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'CamUI-src/**'
-      - '.github/workflows/build-camui-debug.yml'
 
 permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build app-debug.apk (algorithmic HDMP)
+  build-debug:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Java 17
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-      - name: Setup Gradle 8.11.1
+          java-version: "17"
+ 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android 17 platform 37.0
+        run: |
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" --channel=3
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.11.1'
+          gradle-version: "9.3.1"
+
       - name: Build debug APK
         working-directory: CamUI-src
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
-      - name: Verify APK exists
-        run: |
-          APK='CamUI-src/app/build/outputs/apk/debug/app-debug.apk'
-          test -s "$APK"
-          sha256sum "$APK" | tee CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt
-      - name: Upload Fujifilm Mode app-debug
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Upload app-debug.apk
         uses: actions/upload-artifact@v4
         with:
-          name: Fujifilm-Mode-app-debug
-          path: |
-            CamUI-src/app/build/outputs/apk/debug/app-debug.apk
-            CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt
+          name: app-debug
+          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

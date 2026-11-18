@@ -1,20 +1,22 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.example.camui"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.fujifilm.mode"
         minSdk = 29
+        // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4.1"
-
+        versionCode = 14
+        versionName = "2.0.2Dream"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -24,6 +26,8 @@ android {
         }
         release {
             isMinifyEnabled = false
+            // Debug signing keeps CI output directly installable for on-device testing.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -32,13 +36,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf("-opt-in=androidx.camera.camera2.interop.ExperimentalCamera2Interop")
-    }
-
     buildFeatures {
         compose = true
+    }
+
+    androidResources {
+        noCompress += listOf("mp3")
     }
 
     packaging {
@@ -48,7 +51,20 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("androidx.camera.camera2.interop.ExperimentalCamera2Interop")
+    }
+}
+
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     val camerax = "1.6.2"
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
@@ -56,9 +72,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
-    // CPU ONNX Runtime keeps AI inference deterministic across Android camera vendors.
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
-    implementation(platform("androidx.compose:compose-bom:2024.10.01"))
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.foundation:foundation")
@@ -68,5 +82,6 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
     implementation("androidx.camera:camera-extensions:$camerax")
 }

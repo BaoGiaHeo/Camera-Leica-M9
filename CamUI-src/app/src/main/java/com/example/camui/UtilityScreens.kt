@@ -17,7 +17,6 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.media.ExifInterface
-import android.media.MediaActionSound
 import android.media.MediaPlayer
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -26,6 +25,9 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.content.ContentUris
 import android.util.Size
+import java.util.Locale
+import kotlin.math.roundToInt
+import kotlin.math.abs
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -68,6 +70,7 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.ui.graphics.ImageBitmap
@@ -116,6 +119,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import kotlin.math.roundToInt
 import java.util.zip.ZipInputStream
 import java.net.URL
 
@@ -149,6 +153,7 @@ private fun LiquidGlassWatermarkPreview(
     corner: Float,
     gooey: Float,
     tint: String,
+    brand: String = "fujifilm",
     modifier: Modifier = Modifier
 ) {
     val tintColor = when (tint) {
@@ -170,12 +175,13 @@ private fun LiquidGlassWatermarkPreview(
                 topLeft = Offset(size.width * 0.40f, size.height * 0.59f),
                 size = androidx.compose.ui.geometry.Size(size.width * 0.82f, size.height * 0.58f))
         }
-        val isCenter = template == "center_logo"
         val panelShape = RoundedCornerShape((12f + corner * 14f + gooey * 5f).dp)
-        Column(
-            Modifier.align(if (isCenter) Alignment.Center else Alignment.BottomCenter)
-                .fillMaxWidth(if (isCenter) 0.78f else 0.93f)
-                .padding(bottom = if (isCenter) 0.dp else 9.dp)
+        val accent = Color(cameraWatermarkBrandAccent(brand))
+        val exampleModel = cameraWatermarkExampleModel(brand)
+        Row(
+            Modifier.align(Alignment.BottomCenter)
+                .fillMaxWidth(0.93f)
+                .padding(bottom = 9.dp)
                 .clip(panelShape)
                 .background(
                     Brush.linearGradient(
@@ -197,18 +203,40 @@ private fun LiquidGlassWatermarkPreview(
                     panelShape
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalAlignment = if (isCenter) Alignment.CenterHorizontally else Alignment.Start
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.fujifilm_logo),
-                contentDescription = "FUJIFILM",
-                modifier = Modifier.fillMaxWidth(if (isCenter) 0.46f else 0.34f).height(16.dp).background(Color.White, RoundedCornerShape(3.dp)).padding(2.dp),
-                contentScale = ContentScale.Fit
+            Box(
+                Modifier.fillMaxWidth(0.315f).height(44.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                WatermarkBrandMark(
+                    brand = brand,
+                    modifier = Modifier.fillMaxWidth(0.88f).height(17.dp).padding(2.dp),
+                    fallbackColor = accent
+                )
+            }
+            Box(
+                Modifier.width(1.dp).height(38.dp).background(accent.copy(alpha = 0.88f))
             )
-            Text("23mm  ·  f/2.0  ·  1/125s  ·  ISO 400",
-                color = Color.White.copy(alpha = 0.88f), fontSize = 9.sp)
-            Text("2026.11.14  ·  Liquid Glass",
-                color = Color.White.copy(alpha = 0.73f), fontSize = 8.sp)
+            Column(
+                Modifier.weight(1f).padding(start = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "MODEL · $exampleModel",
+                    color = Color.White.copy(alpha = 0.96f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Text(
+                    "ISO 100 · 1/250s · F2.8",
+                    color = Color.White.copy(alpha = 0.90f),
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
         }
         Text(
             "REFRACTION " + (refraction * 100f).toInt() +
@@ -228,66 +256,433 @@ fun ToolboxScreen(
     showHist: Boolean,
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
-    onFocusPeaking: (Boolean) -> Unit
+    onFocusPeaking: (Boolean) -> Unit,
+    animationPerformanceMode: Boolean = false,
+    onAnimationPerformanceModeChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    val presetStore = remember { context.getSharedPreferences("fujifilm_camera_presets", Context.MODE_PRIVATE) }
+    val filmRecipeStore = remember { context.getSharedPreferences("fujifilm_film_recipes", Context.MODE_PRIVATE) }
+    var presetUiRevision by remember { mutableStateOf(0) }
+    val presetKeys = remember {
+        listOf(
+            "capture_ratio_index", "camera_zoom_ratio", "camera_flash_mode", "camera_timer_seconds",
+            "camera_metering_index", "camera_mode",
+            "selected_filter", "image_quality", "noise_reduction", "hdr_enabled",
+            "nightshot_mode", "nightshot_duration_seconds", "star_trails_exposure_seconds",
+            "milky_way_stack_enabled", "raw_capture_mode",
+            "uhd_capture_enabled", "fhd_capture_enabled", "uhd_plus_capture_enabled",
+            "burst_capture_mode_enabled", "hdr_bracketing_enabled", "focus_bracketing_enabled",
+            "viewfinder_grid_enabled", "viewfinder_histogram_enabled",
+            "viewfinder_focus_peaking_enabled", "viewfinder_rgb_histogram_enabled",
+            "viewfinder_zebra_enabled", "viewfinder_level_enabled",
+            "face_tracking_enabled", "hud_auto_hide_enabled", "lens_correction_enabled",
+            "pro_manual_exposure_enabled", "pro_manual_iso_enabled",
+            "pro_manual_shutter_enabled", "pro_manual_wb_enabled",
+            "pro_manual_iso", "pro_manual_shutter_ns", "pro_manual_wb_kelvin",
+            "pro_manual_focus", "pro_hud_show_ev", "pro_hud_show_shutter",
+            "pro_hud_show_iso", "pro_hud_show_focus", "pro_hud_show_white_balance"
+        )
+    }
+    fun saveCameraPreset(slot: String) {
+        val values = prefs.all
+        val editor = presetStore.edit()
+        presetKeys.forEach { key ->
+            val storedKey = "$slot.$key"
+            when (val value = values[key]) {
+                is Boolean -> editor.putBoolean(storedKey, value)
+                is Int -> editor.putInt(storedKey, value)
+                is Long -> editor.putLong(storedKey, value)
+                is Float -> editor.putFloat(storedKey, value)
+                is String -> editor.putString(storedKey, value)
+                is Set<*> -> editor.putStringSet(storedKey, value.filterIsInstance<String>().toSet())
+                null -> editor.remove(storedKey)
+            }
+        }
+        editor.putBoolean("$slot.exists", true)
+            .putString("$slot.name", "Preset $slot")
+            .putLong("$slot.saved_at", System.currentTimeMillis())
+            .apply()
+        presetUiRevision++
+        Toast.makeText(context, "Đã lưu Camera Preset $slot", Toast.LENGTH_SHORT).show()
+    }
+    fun loadCameraPreset(slot: String) {
+        if (!presetStore.getBoolean("$slot.exists", false)) {
+            Toast.makeText(context, "Preset $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val saved = presetStore.all
+        val editor = prefs.edit()
+        presetKeys.forEach { key ->
+            when (val value = saved["$slot.$key"]) {
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Float -> editor.putFloat(key, value)
+                is String -> editor.putString(key, value)
+                is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                null -> editor.remove(key)
+            }
+        }
+        editor.apply()
+        Toast.makeText(context, "Đã nạp Camera Preset $slot · cấu hình chụp đã khôi phục", Toast.LENGTH_LONG).show()
+        onBack()
+    }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
-    var watermarkStyle by remember { mutableStateOf(prefs.getString("watermark_style", "White") ?: "White") }
-    var liquidGlassRefraction by remember { mutableStateOf(prefs.getFloat("watermark_glass_refraction", 0.55f).coerceIn(0f, 1f)) }
-    var liquidGlassThickness by remember { mutableStateOf(prefs.getFloat("watermark_glass_thickness", 0.48f).coerceIn(0f, 1f)) }
-    var liquidGlassDispersion by remember { mutableStateOf(prefs.getFloat("watermark_glass_dispersion", 0.28f).coerceIn(0f, 1f)) }
-    var liquidGlassBlur by remember { mutableStateOf(prefs.getFloat("watermark_glass_blur", 8f).coerceIn(0f, 20f)) }
-    var liquidGlassRoughness by remember { mutableStateOf(prefs.getFloat("watermark_glass_roughness", 0.16f).coerceIn(0f, 1f)) }
-    var liquidGlassRim by remember { mutableStateOf(prefs.getFloat("watermark_glass_rim", 0.72f).coerceIn(0f, 1f)) }
-    var liquidGlassGloss by remember { mutableStateOf(prefs.getFloat("watermark_glass_gloss", 0.72f).coerceIn(0f, 1f)) }
-    var liquidGlassCorner by remember { mutableStateOf(prefs.getFloat("watermark_glass_corner", 0.58f).coerceIn(0f, 1f)) }
-    var liquidGlassGooey by remember { mutableStateOf(prefs.getFloat("watermark_glass_gooey", 0.34f).coerceIn(0f, 1f)) }
-    var liquidGlassTint by remember { mutableStateOf(prefs.getString("watermark_glass_tint", "Auto") ?: "Auto") }
-    var watermarkTemplate by remember { mutableStateOf(prefs.getString("watermark_template", "standard1") ?: "standard1") }
+    var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
+    var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
+    var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", false)) }
+    var proHudShowEv by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_ev", true)) }
+    var proHudShowShutter by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_shutter", true)) }
+    var proHudShowIso by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_iso", true)) }
+    var proHudShowFocus by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_focus", true)) }
+    var proHudShowWhiteBalance by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_white_balance", true)) }
+    var hdrBracketMode by remember { mutableStateOf(prefs.getBoolean("hdr_bracketing_enabled", false)) }
+    var focusBracketMode by remember { mutableStateOf(prefs.getBoolean("focus_bracketing_enabled", false)) }
+    var faceTrackingEnabled by remember { mutableStateOf(prefs.getBoolean("face_tracking_enabled", false)) }
+    var filmHighlight by remember { mutableStateOf(prefs.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)) }
+    var filmShadow by remember { mutableStateOf(prefs.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)) }
+    var filmColorChrome by remember { mutableStateOf(prefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)) }
+    var filmGrain by remember { mutableStateOf(prefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)) }
+    var filmTemperature by remember { mutableStateOf(prefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)) }
+    var filmTone by remember { mutableStateOf(prefs.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)) }
+    var filmSaturation by remember { mutableStateOf(prefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)) }
+
+    val filmRecipeKeys = remember {
+        listOf(
+            "film_custom_highlight", "film_custom_shadow", "film_custom_color_chrome",
+            "film_custom_grain", "film_custom_temperature", "film_custom_tone", "film_custom_saturation",
+            "selected_filter"
+        )
+    }
+    fun saveFilmRecipe(slot: String) {
+        val editor = filmRecipeStore.edit()
+        filmRecipeKeys.forEach { key ->
+            when (key) {
+                "film_custom_highlight" -> editor.putFloat("$slot.$key", filmHighlight)
+                "film_custom_shadow" -> editor.putFloat("$slot.$key", filmShadow)
+                "film_custom_color_chrome" -> editor.putFloat("$slot.$key", filmColorChrome)
+                "film_custom_grain" -> editor.putFloat("$slot.$key", filmGrain)
+                "film_custom_temperature" -> editor.putFloat("$slot.$key", filmTemperature)
+                "film_custom_tone" -> editor.putFloat("$slot.$key", filmTone)
+                "film_custom_saturation" -> editor.putFloat("$slot.$key", filmSaturation)
+                "selected_filter" -> editor.putString("$slot.$key", prefs.getString(key, "None") ?: "None")
+            }
+        }
+        editor.putBoolean("$slot.exists", true)
+            .putLong("$slot.saved_at", System.currentTimeMillis())
+            .apply()
+        Toast.makeText(context, "Đã lưu Film Recipe $slot", Toast.LENGTH_SHORT).show()
+    }
+    fun loadFilmRecipe(slot: String) {
+        if (!filmRecipeStore.getBoolean("$slot.exists", false)) {
+            Toast.makeText(context, "Film Recipe $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val values = filmRecipeStore
+        filmHighlight = values.getFloat("$slot.film_custom_highlight", 0f).coerceIn(-1f, 1f)
+        filmShadow = values.getFloat("$slot.film_custom_shadow", 0f).coerceIn(-1f, 1f)
+        filmColorChrome = values.getFloat("$slot.film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+        filmGrain = values.getFloat("$slot.film_custom_grain", 0f).coerceIn(0f, 1f)
+        filmTemperature = values.getFloat("$slot.film_custom_temperature", 0f).coerceIn(-1f, 1f)
+        filmTone = values.getFloat("$slot.film_custom_tone", 0f).coerceIn(-1f, 1f)
+        filmSaturation = values.getFloat("$slot.film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
+        val selected = values.getString("$slot.selected_filter", "None") ?: "None"
+        prefs.edit()
+            .putFloat("film_custom_highlight", filmHighlight)
+            .putFloat("film_custom_shadow", filmShadow)
+            .putFloat("film_custom_color_chrome", filmColorChrome)
+            .putFloat("film_custom_grain", filmGrain)
+            .putFloat("film_custom_temperature", filmTemperature)
+            .putFloat("film_custom_tone", filmTone)
+            .putFloat("film_custom_saturation", filmSaturation)
+            .putString("selected_filter", selected)
+            .apply()
+        Toast.makeText(context, "Đã nạp Film Recipe $slot", Toast.LENGTH_SHORT).show()
+    }
+    var hudAutoHideEnabled by remember { mutableStateOf(prefs.getBoolean("hud_auto_hide_enabled", true)) }
+    var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
+    var watermarkStyle by remember { mutableStateOf((prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White") }
+    var watermarkTemplate by remember { mutableStateOf((prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto") }
+    var watermarkBrand by remember { mutableStateOf((prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
     var watermarkShowModel by remember { mutableStateOf(prefs.getBoolean("watermark_show_model", true)) }
     var watermarkShowSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
+    LaunchedEffect(watermarkStyle) { prefs.edit().putString("watermark_style", watermarkStyle).apply() }
+    LaunchedEffect(watermarkBrand) { prefs.edit().putString("watermark_brand", watermarkBrand).apply() }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
     var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Film Wash") ?: "Film Wash") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
+    // Sound selection was removed: use one fixed bundled default, with only the on/off switch.
+    LaunchedEffect(Unit) {
+        prefs.edit()
+            .remove("shutter_sound_uri")
+            .putString("shutter_sound_asset", "classic")
+            .apply()
+    }
 
     Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
         PageHeader("Toolbox", onBack)
         Text("Viewfinder overlays", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+        Text("Pro HUD elements", color = CamColors.Sub, fontSize = 13.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 15.dp, bottom = 8.dp))
+        ToolToggle("EV display", "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowEv) {
+            proHudShowEv = it
+            prefs.edit().putBoolean("pro_hud_show_ev", it).apply()
+        }
+        ToolToggle("Shutter display", "Hiện hoặc ẩn tốc độ màn trập trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowShutter) {
+            proHudShowShutter = it
+            prefs.edit().putBoolean("pro_hud_show_shutter", it).apply()
+        }
+        ToolToggle("ISO display", "Hiện hoặc ẩn độ nhạy ISO trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowIso) {
+            proHudShowIso = it
+            prefs.edit().putBoolean("pro_hud_show_iso", it).apply()
+        }
+        ToolToggle("Focus display", "Hiện hoặc ẩn trạng thái lấy nét trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowFocus) {
+            proHudShowFocus = it
+            prefs.edit().putBoolean("pro_hud_show_focus", it).apply()
+        }
+        ToolToggle("White balance display", "Hiện hoặc ẩn nhiệt độ màu / cân bằng trắng trong hàng Pro HUD.",
+            Icons.Default.Tune, proHudShowWhiteBalance) {
+            proHudShowWhiteBalance = it
+            prefs.edit().putBoolean("pro_hud_show_white_balance", it).apply()
+        }
         ToolToggle("Grid Lines", "Thirds composition guide", Icons.Default.GridOn, showGrid, onShowGrid)
         ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
+        ToolToggle("RGB Histogram", "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview.", Icons.Default.ShowChart, rgbHistogramEnabled) {
+            rgbHistogramEnabled = it
+            prefs.edit().putBoolean("viewfinder_rgb_histogram_enabled", it).apply()
+        }
         ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
             focusPeaking, onFocusPeaking)
+        ToolToggle("Smart Focus Tracking", "Ưu tiên khuôn mặt khi Camera2/HAL công bố face detection; tự đưa AF về vùng mặt.",
+            Icons.Default.Tune, faceTrackingEnabled) {
+            faceTrackingEnabled = it
+            prefs.edit().putBoolean("face_tracking_enabled", it).apply()
+        }
+        ToolToggle("Auto-hide Camera HUD", "Ẩn thanh điều khiển sau 5 giây không thao tác; chạm màn hình để hiện lại.",
+            Icons.Default.Tune, hudAutoHideEnabled) {
+            hudAutoHideEnabled = it
+            prefs.edit().putBoolean("hud_auto_hide_enabled", it).apply()
+        }
+        ToolToggle(
+            "Animation Performance Mode",
+            "Giảm trượt/scale khi máy nóng hoặc khi bật thủ công; Android tự kích hoạt khi nhiệt độ đạt mức trung bình.",
+            Icons.Default.Tune,
+            animationPerformanceMode,
+            onAnimationPerformanceModeChanged
+        )
+        ToolToggle("Lens Correction", "Yêu cầu Camera2/HAL hiệu chỉnh méo hình, viền màu và tối góc bằng các chế độ công khai nếu ống kính hỗ trợ; không tự bịa dữ liệu lens profile.",
+            Icons.Default.Tune, lensCorrectionEnabled) {
+            lensCorrectionEnabled = it
+            prefs.edit().putBoolean("lens_correction_enabled", it).apply()
+        }
+        ToolToggle("Zebra Warning", "Đánh dấu vùng sáng gần cháy sáng trên kính ngắm (không ảnh hưởng ảnh lưu).",
+            Icons.Default.Warning, zebraEnabled) {
+            zebraEnabled = it
+            prefs.edit().putBoolean("viewfinder_zebra_enabled", it).apply()
+        }
+        ToolToggle("Camera Level & Horizon", "Đo độ nghiêng bằng cảm biến thiết bị và hiển thị đường chân trời trong kính ngắm.",
+            Icons.Default.Tune, levelEnabled) {
+            levelEnabled = it
+            prefs.edit().putBoolean("viewfinder_level_enabled", it).apply()
+        }
+        ToolToggle("HDR Bracketing", "Chụp 3 khung JPEG với EV thấp / chuẩn / cao nếu camera công bố dải phơi sáng.",
+            Icons.Default.ShowChart, hdrBracketMode) {
+            hdrBracketMode = it
+            if (it) focusBracketMode = false
+            prefs.edit()
+                .putBoolean("hdr_bracketing_enabled", it)
+                .putBoolean("focus_bracketing_enabled", if (it) false else focusBracketMode)
+                .apply()
+        }
+        ToolToggle("Focus Bracketing", "Chụp 5 khoảng nét từ gần đến vô cực khi ống kính hỗ trợ lấy nét thủ công.",
+            Icons.Default.Tune, focusBracketMode) {
+            focusBracketMode = it
+            if (it) hdrBracketMode = false
+            prefs.edit()
+                .putBoolean("focus_bracketing_enabled", it)
+                .putBoolean("hdr_bracketing_enabled", if (it) false else hdrBracketMode)
+                .apply()
+        }
+        Text("Camera Presets", color = CamColors.TextColor,
+            fontSize = 17.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp, bottom = 7.dp))
+        Text("Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShotMode, RAW và cấu hình LunaDream.",
+            color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 8.dp))
+        listOf("A", "B", "C").forEach { slot ->
+            val savedName = presetStore.getString("$slot.name", "Trống") ?: "Trống"
+            val savedAt = presetStore.getLong("$slot.saved_at", 0L)
+            val timeLabel = if (savedAt > 0L) {
+                java.text.SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(java.util.Date(savedAt))
+            } else "Chưa lưu"
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(11.dp)).background(CamColors.Card)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("$savedName · $timeLabel", color = CamColors.TextColor,
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = { saveCameraPreset(slot) }) { Text("Lưu") }
+                TextButton(
+                    onClick = { loadCameraPreset(slot) },
+                    enabled = presetStore.getBoolean("$slot.exists", false)
+                ) { Text("Nạp") }
+            }
+        }
+        // Read the revision so the slot labels refresh immediately after saving.
+        if (presetUiRevision < 0) Text(" ", fontSize = 1.sp)
+        Spacer(Modifier.height(12.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                .background(CamColors.Card).padding(12.dp)
+        ) {
+            Text("Film Simulation Customizer", color = CamColors.TextColor,
+                fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
+                color = CamColors.Sub, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            Text("Highlight · ${String.format(Locale.US, "%+.2f", filmHighlight)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmHighlight, {
+                filmHighlight = it
+                prefs.edit().putFloat("film_custom_highlight", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Shadow · ${String.format(Locale.US, "%+.2f", filmShadow)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmShadow, {
+                filmShadow = it
+                prefs.edit().putFloat("film_custom_shadow", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Color Chrome · ${String.format(Locale.US, "%.2f", filmColorChrome)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmColorChrome, {
+                filmColorChrome = it
+                prefs.edit().putFloat("film_custom_color_chrome", it).apply()
+            }, valueRange = 0f..1f)
+            Text("Grain · ${String.format(Locale.US, "%.2f", filmGrain)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmGrain, {
+                filmGrain = it
+                prefs.edit().putFloat("film_custom_grain", it).apply()
+            }, valueRange = 0f..1f)
+            Text("Color Temperature · ${String.format(Locale.US, "%+.2f", filmTemperature)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmTemperature, {
+                filmTemperature = it
+                prefs.edit().putFloat("film_custom_temperature", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Color Tone · ${String.format(Locale.US, "%+.2f", filmTone)}  (Green ↔ Magenta)", color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmTone, {
+                filmTone = it
+                prefs.edit().putFloat("film_custom_tone", it).apply()
+            }, valueRange = -1f..1f)
+            Text("Saturation · ${String.format(Locale.US, "%.2f", filmSaturation)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Slider(filmSaturation, {
+                filmSaturation = it
+                prefs.edit().putFloat("film_custom_saturation", it).apply()
+            }, valueRange = 0.5f..1.5f)
+            TextButton(onClick = {
+                filmHighlight = 0f
+                filmShadow = 0f
+                filmColorChrome = 0f
+                filmGrain = 0f
+                filmTemperature = 0f
+                filmTone = 0f
+                filmSaturation = 1f
+                prefs.edit()
+                    .putFloat("film_custom_highlight", 0f)
+                    .putFloat("film_custom_shadow", 0f)
+                    .putFloat("film_custom_color_chrome", 0f)
+                    .putFloat("film_custom_grain", 0f)
+                    .putFloat("film_custom_temperature", 0f)
+                    .putFloat("film_custom_tone", 0f)
+                    .putFloat("film_custom_saturation", 1f)
+                    .apply()
+            }) { Text("Reset Recipe") }
+            Text("Saved Film Recipes", color = CamColors.TextColor,
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            listOf("A", "B", "C").forEach { slot ->
+                val savedAt = filmRecipeStore.getLong("$slot.saved_at", 0L)
+                val savedLabel = if (filmRecipeStore.getBoolean("$slot.exists", false)) {
+                    java.text.SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
+                        .format(java.util.Date(savedAt))
+                } else "Trống"
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Recipe $slot · $savedLabel", color = CamColors.Sub,
+                        fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { saveFilmRecipe(slot) }) { Text("Lưu") }
+                    TextButton(
+                        onClick = { loadFilmRecipe(slot) },
+                        enabled = filmRecipeStore.getBoolean("$slot.exists", false)
+                    ) { Text("Nạp") }
+                }
+            }
+        }
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        ToolToggle("Enable Watermark", "Logo FUJIFILM gốc và thông số theo bố cục watermark đã chọn",
+        ToolToggle("Enable Watermark", "Logo thương hiệu, thông số chụp và bố cục watermark đã chọn",
             Icons.Default.Image, watermarkEnabled) {
             watermarkEnabled = it
             prefs.edit().putBoolean("watermark_enabled", it).apply()
         }
+        Text("Thương hiệu watermark", color = CamColors.Sub, fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 7.dp, top = 9.dp))
+        cameraWatermarkBrands.chunked(3).forEach { brandRow ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                brandRow.forEach { (id, label) ->
+                    Chip(label, watermarkBrand == id, {
+                        watermarkBrand = id
+                        prefs.edit().putString("watermark_brand", id).apply()
+                    }, Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
         Text("Mẫu watermark · chọn riêng từng kiểu", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 8.dp, top = 9.dp))
+        val watermarkBrandLabel = cameraWatermarkBrands.firstOrNull { it.first == watermarkBrand }?.second
+            ?: cameraWatermarkBrandTitle(watermarkBrand)
         val watermarkTemplates = listOf(
-            Triple("standard1", "Standard 1", "EXIF cổ điển"),
-            Triple("standard2", "Standard 2", "Viền bo + khoảng trống"),
-            Triple("blur", "Blur", "Nền mờ, thông số nổi"),
-            Triple("normal1", "Normal 1", "Thông số góc phải"),
-            Triple("normal2", "Normal 2", "Ngày chụp tối giản"),
-            Triple("balanced", "Balanced", "Model trái · thông số phải · ngày dưới"),
-            Triple("center_logo", "Center Logo", "Logo FUJIFILM ở chính giữa"),
-            Triple("fuji_auto", "Fuji Auto", "Tự chọn ngang hoặc dọc theo ảnh"),
-            Triple("fuji_classic", "Fuji Classic", "Logo trái · thông số phải · nền trắng"),
-            Triple("fuji_signature", "Fuji Signature", "Logo giữa · Shot on · ngày chụp")
+            Triple("fuji_auto", "$watermarkBrandLabel Auto", "Tự chọn bố cục ngang hoặc dọc"),
+            Triple("fuji_classic", "$watermarkBrandLabel Classic", "Logo + model trái · EXIF phải"),
+            Triple("fuji_signature", "$watermarkBrandLabel Signature", "Chữ ký máy · vị trí · ngày chụp"),
+            Triple("classic", "Classic Bar", "Thanh trắng · máy trái · thông số phải"),
+            Triple("dark", "Dark Bar", "Bố cục Classic trên nền đen"),
+            Triple("minimal", "Minimal", "Một dòng thông tin gọn, không logo"),
+            Triple("simple", "Simple", "Logo giữa · model bên dưới"),
+            Triple("micro", "Micro", "Dải thông số siêu mảnh một dòng"),
+            Triple("vintage", "Vintage", "Giấy ngà · chữ máy ảnh kiểu film"),
+            Triple("polaroid", "Polaroid", "Viền ảnh trắng · model nổi bật"),
+            Triple("gallery", "Gallery", "Passe-partout kiểu ảnh triển lãm"),
+            Triple("frosted", "Frosted", "Panel kính mờ trên ảnh"),
+            Triple("film", "Film Strip", "Viền phim 35mm · lỗ kéo film"),
+            Triple("datestamp", "Date Stamp", "Ngày chụp kiểu máy compact 90s")
         )
         watermarkTemplates.chunked(2).forEach { rowItems ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 rowItems.forEach { (id, title, subtitle) ->
                     WatermarkTemplateCard(
                         id = id, title = title, subtitle = subtitle,
+                        brand = watermarkBrand,
                         frameStyle = watermarkStyle,
                         selected = watermarkTemplate == id,
                         onClick = {
@@ -303,99 +698,11 @@ fun ToolboxScreen(
         Text("Màu khung", color = CamColors.Sub, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 7.dp, top = 5.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf("White", "Black", "Transparent", "Liquid Glass").forEach { label ->
-                val style = if (label == "Liquid Glass") "LiquidGlass" else label
-                Chip(label, watermarkStyle == style, {
+            listOf("White", "Black").forEach { style ->
+                Chip(style, watermarkStyle == style, {
                     watermarkStyle = style
                     prefs.edit().putString("watermark_style", style).apply()
                 }, Modifier.weight(1f))
-            }
-        }
-        AnimatedVisibility(
-            visible = watermarkStyle == "LiquidGlass",
-            enter = fadeIn(tween(240)) + scaleIn(
-                initialScale = 0.94f,
-                animationSpec = spring(dampingRatio = 0.62f, stiffness = 430f)
-            ),
-            exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.96f)
-        ) {
-            Column(
-                Modifier.fillMaxWidth().padding(top = 12.dp)
-                    .clip(RoundedCornerShape(16.dp)).background(CamColors.Card)
-                    .padding(12.dp)
-            ) {
-                Text("Liquid Glass · Live preview", color = Color.White, fontWeight = FontWeight.SemiBold)
-                LiquidGlassWatermarkPreview(
-                    template = watermarkTemplate,
-                    refraction = liquidGlassRefraction,
-                    thickness = liquidGlassThickness,
-                    dispersion = liquidGlassDispersion,
-                    blur = liquidGlassBlur,
-                    roughness = liquidGlassRoughness,
-                    rim = liquidGlassRim,
-                    gloss = liquidGlassGloss,
-                    corner = liquidGlassCorner,
-                    gooey = liquidGlassGooey,
-                    tint = liquidGlassTint,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                )
-                Text("Hình khối & tán sắc", color = CamColors.Yellow, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
-                GlassParameterSlider("Khúc xạ / độ cong", liquidGlassRefraction, 0f..1f) {
-                    liquidGlassRefraction = it
-                    prefs.edit().putFloat("watermark_glass_refraction", it).apply()
-                }
-                GlassParameterSlider("Độ dày / chiều sâu", liquidGlassThickness, 0f..1f) {
-                    liquidGlassThickness = it
-                    prefs.edit().putFloat("watermark_glass_thickness", it).apply()
-                }
-                GlassParameterSlider("Tán sắc màu", liquidGlassDispersion, 0f..1f) {
-                    liquidGlassDispersion = it
-                    prefs.edit().putFloat("watermark_glass_dispersion", it).apply()
-                }
-                Text("Bề mặt & độ mờ", color = CamColors.Yellow, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
-                GlassParameterSlider("Blur / Frosting", liquidGlassBlur, 0f..20f) {
-                    liquidGlassBlur = it
-                    prefs.edit().putFloat("watermark_glass_blur", it).apply()
-                }
-                GlassParameterSlider("Độ nhám / hạt mịn", liquidGlassRoughness, 0f..1f) {
-                    liquidGlassRoughness = it
-                    prefs.edit().putFloat("watermark_glass_roughness", it).apply()
-                }
-                Text("Ánh sáng & viền", color = CamColors.Yellow, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
-                GlassParameterSlider("Rim light / phản chiếu viền", liquidGlassRim, 0f..1f) {
-                    liquidGlassRim = it
-                    prefs.edit().putFloat("watermark_glass_rim", it).apply()
-                }
-                GlassParameterSlider("Glossiness / độ bóng", liquidGlassGloss, 0f..1f) {
-                    liquidGlassGloss = it
-                    prefs.edit().putFloat("watermark_glass_gloss", it).apply()
-                }
-                GlassParameterSlider("Corner radius / squircle", liquidGlassCorner, 0f..1f) {
-                    liquidGlassCorner = it
-                    prefs.edit().putFloat("watermark_glass_corner", it).apply()
-                }
-                GlassParameterSlider("Gooeyness / hòa quyện", liquidGlassGooey, 0f..1f) {
-                    liquidGlassGooey = it
-                    prefs.edit().putFloat("watermark_glass_gooey", it).apply()
-                }
-                Text("Màu nhuộm kính", color = Color.White, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf("Auto", "Milky", "Smoke").forEach { tint ->
-                        Chip(tint, liquidGlassTint == tint, {
-                            liquidGlassTint = tint
-                            prefs.edit().putString("watermark_glass_tint", tint).apply()
-                        }, Modifier.weight(1f))
-                    }
-                }
-                Text(
-                    "Preview mô phỏng mẫu watermark đang chọn. Các thông số được áp dụng lên lớp kính khi lưu JPEG; DNG RAW luôn giữ nguyên dữ liệu cảm biến.",
-                    color = CamColors.Sub, fontSize = 10.sp,
-                    modifier = Modifier.padding(top = 9.dp)
-                )
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -465,7 +772,7 @@ fun ToolboxScreen(
                 prefs.edit().putString("shutter_effect", "Mechanical").apply()
             }, Modifier.weight(1f))
         }
-        ToolToggle("Âm thanh màn trập", "Bật/tắt tiếng click mặc định của Android khi chụp",
+        ToolToggle("Âm thanh màn trập", "Bật/tắt âm thanh chụp mặc định.",
             Icons.Default.Tune, shutterSound) {
             shutterSound = it
             prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
@@ -543,7 +850,7 @@ private fun CameraFrameSettingsPanel() {
         }
     }
     Text(
-        "Transparent bỏ viền và panel của frame dựng sẵn; với frame PNG sẽ giữ nguyên độ trong suốt gốc.",
+        "Frame có viền trắng hoặc đen; ảnh PNG nhập vào vẫn giữ độ trong suốt gốc.",
         color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp)
     )
     if (customFrames.isEmpty()) {
@@ -671,16 +978,129 @@ private fun CameraFrameTemplateCard(
 
 
 
+
+private val cameraWatermarkBrands = listOf(
+    "fujifilm" to "Fujifilm",
+    "sony" to "Sony",
+    "nikon" to "Nikon",
+    "canon" to "Canon",
+    "leica" to "Leica",
+    "panasonic" to "LUMIX",
+    "ricoh" to "RICOH",
+    "hasselblad" to "Hasselblad",
+    "kodak" to "Kodak",
+    "zeiss" to "ZEISS",
+    "gopro" to "GoPro",
+    "dji" to "DJI",
+    "insta360" to "Insta360"
+)
+
+private fun cameraWatermarkBrandTitle(brand: String): String = when (brand.lowercase()) {
+    "sony" -> "SONY"
+    "nikon" -> "NIKON"
+    "canon" -> "Canon"
+    "leica" -> "LEICA"
+    "panasonic" -> "LUMIX"
+    "ricoh" -> "RICOH"
+    "hasselblad" -> "HASSELBLAD"
+    "kodak" -> "KODAK"
+    "zeiss" -> "ZEISS"
+    "gopro" -> "GoPro"
+    "dji" -> "DJI"
+    "insta360" -> "Insta360"
+    else -> "FUJIFILM"
+}
+
+private fun cameraWatermarkBrandAccent(brand: String): Int = when (brand.lowercase()) {
+    "sony" -> AndroidColor.rgb(65, 78, 91)
+    "nikon" -> AndroidColor.rgb(255, 210, 0)
+    "canon" -> AndroidColor.rgb(205, 0, 34)
+    "leica" -> AndroidColor.rgb(220, 20, 35)
+    "panasonic" -> AndroidColor.rgb(0, 66, 125)
+    "ricoh" -> AndroidColor.rgb(218, 25, 35)
+    "hasselblad" -> AndroidColor.rgb(137, 105, 45)
+    "kodak" -> AndroidColor.rgb(205, 26, 34)
+    "zeiss" -> AndroidColor.rgb(0, 128, 184)
+    "gopro" -> AndroidColor.rgb(0, 174, 239)
+    "dji" -> AndroidColor.rgb(46, 54, 62)
+    "insta360" -> AndroidColor.rgb(35, 174, 145)
+    else -> AndroidColor.rgb(0, 91, 145)
+}
+
+private fun cameraWatermarkBrandLogoResource(brand: String, light: Boolean = false): Int? = when (brand.lowercase()) {
+    "sony" -> R.drawable.sony_wordmark
+    "nikon" -> R.drawable.nikon_wordmark
+    "canon" -> R.drawable.canon_wordmark
+    "fujifilm" -> if (light) R.drawable.fujifilm_logo_white else R.drawable.fujifilm_logo
+    "gopro" -> if (light) R.drawable.gopro_wordmark_white else R.drawable.gopro_wordmark
+    "hasselblad" -> R.drawable.hasselblad_wordmark
+    "insta360" -> R.drawable.insta360_wordmark
+    "kodak" -> R.drawable.kodak_wordmark
+    "panasonic", "lumix" -> R.drawable.lumix_wordmark
+    "zeiss" -> R.drawable.zeiss_wordmark
+    "dji" -> R.drawable.dji_wordmark
+    else -> null
+}
+
+private fun cameraWatermarkExampleModel(brand: String): String = when (brand.lowercase()) {
+    "sony" -> "ILCE-7M4"
+    "nikon" -> "Z8"
+    "canon" -> "EOS R5"
+    "leica" -> "M11"
+    "panasonic" -> "LUMIX S5II"
+    "ricoh" -> "GR III"
+    "hasselblad" -> "X2D 100C"
+    "kodak" -> "PIXPRO"
+    "zeiss" -> "ZX1"
+    "gopro" -> "HERO"
+    "dji" -> "Osmo"
+    "insta360" -> "X4"
+    else -> "X-T5"
+}
+
+@Composable
+private fun WatermarkBrandMark(
+    brand: String,
+    frameStyle: String = "White",
+    modifier: Modifier = Modifier,
+    fallbackColor: Color = Color.Unspecified
+) {
+    val logoResource = cameraWatermarkBrandLogoResource(brand, frameStyle == "Black")
+    if (logoResource != null) {
+        Image(
+            painter = painterResource(id = logoResource),
+            contentDescription = "${cameraWatermarkBrandTitle(brand)} watermark wordmark",
+            modifier = modifier,
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Box(modifier, contentAlignment = Alignment.Center) {
+            Text(
+                text = cameraWatermarkBrandTitle(brand),
+                color = if (fallbackColor == Color.Unspecified) Color(cameraWatermarkBrandAccent(brand)) else fallbackColor,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
 @Composable
 private fun WatermarkTemplateCard(
     id: String,
     title: String,
     subtitle: String,
+    brand: String,
     frameStyle: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val previewModel = cameraWatermarkExampleModel(brand)
+    val brandAccent = Color(cameraWatermarkBrandAccent(brand))
     Column(
         modifier.clip(RoundedCornerShape(13.dp))
             .background(if (selected) Color(0xFF333126) else CamColors.Card)
@@ -697,13 +1117,25 @@ private fun WatermarkTemplateCard(
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF475550))
         ) {
-            val panelColor = when (frameStyle) {
-                "White" -> Color.White
-                "Black" -> Color.Black
-                "LiquidGlass" -> Color.White.copy(alpha = 0.20f)
-                else -> Color.Transparent
+            val panelColor = when (id) {
+                "dark", "film" -> Color(0xFF121416)
+                "vintage" -> Color(0xFFECE3CF)
+                "polaroid" -> Color(0xFFFAF9F5)
+                "gallery" -> Color(0xFFF3F1EC)
+                "frosted" -> Color.White.copy(alpha = 0.24f)
+                else -> when (frameStyle) {
+                    "White" -> Color.White
+                    "Black" -> Color.Black
+                    "LiquidGlass" -> Color.White.copy(alpha = 0.20f)
+                    else -> Color.Transparent
+                }
             }
-            val textColor = if (frameStyle == "White") Color.Black else Color.White
+            val textColor = when (id) {
+                "dark", "film" -> Color.White
+                "vintage" -> Color(0xFF4B3A29)
+                "polaroid", "gallery" -> Color(0xFF222222)
+                else -> if (frameStyle == "White") Color.Black else Color.White
+            }
             val frameColor = when (frameStyle) {
                 "Black" -> Color.Black
                 "Transparent" -> Color.Transparent
@@ -718,112 +1150,81 @@ private fun WatermarkTemplateCard(
                 drawLine(Color(0xFF31483E), Offset(0f, size.height * 0.82f),
                     Offset(size.width, size.height * 0.72f), strokeWidth = size.height * 0.32f)
             }
-            when (id) {
-                "standard1" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(panelColor).padding(horizontal = 6.dp, vertical = 4.dp)
-                ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.26f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("23mm  •  f/2  •  1/125  •  ISO 400",
-                        color = textColor.copy(alpha = 0.82f), fontSize = 5.5.sp, maxLines = 1)
-                }
-                "standard2" -> Column(
+            if (id == "minimal") {
+                Text(
+                    "$previewModel · 35mm · F2.8 · 1/250s · ISO 100",
+                    color = textColor, fontSize = 6.sp, maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .padding(5.dp).background(panelColor, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 7.dp)
+                )
+            } else if (id == "simple") {
+                Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
-                        .background(panelColor, RoundedCornerShape(4.dp)).padding(5.dp)
+                        .background(panelColor, RoundedCornerShape(5.dp)).padding(5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.25f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("23mm  ·  f/2.0  ·  ISO 400", color = textColor.copy(alpha = 0.82f), fontSize = 5.5.sp)
+                    WatermarkBrandMark(
+                        brand = brand,
+                        frameStyle = frameStyle,
+                        modifier = Modifier.width(58.dp).height(12.dp),
+                        fallbackColor = brandAccent
+                    )
+                    Text("$previewModel", color = textColor, fontSize = 6.sp,
+                        fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
-                "blur" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(panelColor.copy(alpha = if (frameStyle == "Transparent") 0f else 0.85f)).padding(6.dp)
-                ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.24f).height(9.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("23mm   f/2.0   ISO 400", color = textColor, fontSize = 5.5.sp)
-                }
-                "balanced" -> Row(
+            } else if (id == "datestamp") {
+                Text(
+                    "24 11 17",
+                    color = Color(0xFFFF9637), fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)
+                        .background(Color.Black.copy(alpha = 0.25f), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 5.dp, vertical = 3.dp)
+                )
+            } else if (id == "micro") {
+                Text(
+                    "$previewModel · 35mm F2.8 · 1/250s · ISO 100",
+                    color = textColor, fontSize = 5.3.sp, maxLines = 1,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
+                        .background(panelColor, RoundedCornerShape(3.dp))
+                        .padding(horizontal = 5.dp, vertical = 4.dp)
+                )
+            } else {
+                Row(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(5.dp)
                         .background(panelColor, RoundedCornerShape(5.dp))
-                        .padding(horizontal = 6.dp, vertical = 5.dp),
+                        .padding(horizontal = 7.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(android.os.Build.MODEL, color = textColor, fontSize = 6.sp,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.43f), maxLines = 1)
-                    Column(Modifier.weight(0.57f), horizontalAlignment = Alignment.End) {
-                        Text("23mm · f/2.0 · 1/125s · ISO 400", color = textColor,
-                            fontSize = 5.8.sp, maxLines = 1)
-                        Text("2026.11.14  ·  18:42", color = textColor.copy(alpha = 0.82f),
-                            fontSize = 5.1.sp, maxLines = 1)
+                    Row(Modifier.weight(0.56f), verticalAlignment = Alignment.CenterVertically) {
+                        WatermarkBrandMark(
+                            brand = brand,
+                            frameStyle = frameStyle,
+                            modifier = Modifier.weight(0.38f).height(15.dp).padding(2.dp),
+                            fallbackColor = brandAccent
+                        )
+                        Column(
+                            Modifier.weight(0.62f).padding(start = 3.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text("MODEL · $previewModel", color = textColor,
+                                fontSize = 5.9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("FE 24–70mm", color = textColor.copy(alpha = 0.82f),
+                                fontSize = 5.4.sp, maxLines = 1)
+                        }
                     }
-                }
-                "normal1" -> Column(
-                    Modifier.align(Alignment.BottomEnd).padding(6.dp),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text("23mm  f/2.0", color = textColor, fontSize = 6.sp, fontWeight = FontWeight.Bold)
-                    Text("1/125  ISO 400", color = textColor, fontSize = 5.5.sp)
-                }
-                "normal2" -> Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
-                    Text("2026.11.13  •  18:42", color = textColor, fontSize = 5.5.sp)
-                }
-                "fuji_auto" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.White).padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.26f).height(13.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("AUTO · LANDSCAPE / PORTRAIT", color = Color.DarkGray,
-                        fontSize = 5.6.sp)
-                }
-                "fuji_classic" -> Row(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.White).padding(horizontal = 7.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.weight(0.31f).height(15.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("33mm  f/1.4  1/100s  ISO 100", color = Color.Black,
-                        fontSize = 5.6.sp, maxLines = 1, modifier = Modifier.weight(0.69f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                }
-                "fuji_signature" -> Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.White).padding(vertical = 5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.25f).height(13.dp),
-                        contentScale = ContentScale.Fit)
-                    Text("Shot on X-M5 | 2024.12.16", color = Color.Black,
-                        fontSize = 5.8.sp, maxLines = 1)
-                    Text("Your location", color = Color.Gray, fontSize = 5.sp)
-                }
-                else -> Column(
-                    Modifier.align(Alignment.Center).padding(5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(painter = painterResource(id = R.drawable.fujifilm_logo),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.fillMaxWidth(0.42f).height(15.dp).background(Color.White, RoundedCornerShape(2.dp)).padding(1.dp),
-                        contentScale = ContentScale.Fit)
-                    Box(Modifier.padding(vertical = 3.dp).fillMaxWidth(0.62f).height(1.dp)
-                        .background(frameColor.copy(alpha = 0.8f)))
-                    Text("X SERIES", color = textColor, fontSize = 5.5.sp, letterSpacing = 1.sp)
+                    Box(
+                        Modifier.padding(horizontal = 4.dp).width(1.dp).height(28.dp)
+                            .background(brandAccent.copy(alpha = if (frameStyle == "Transparent") 0.95f else 0.72f))
+                    )
+                    Column(Modifier.weight(0.44f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("35mm · F2.8 · 1/250s · ISO 100", color = textColor,
+                            fontSize = 5.7.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Text("2026.11.17", color = textColor.copy(alpha = 0.82f),
+                            fontSize = 5.5.sp, maxLines = 1)
+                    }
                 }
             }
         }
@@ -928,6 +1329,18 @@ private fun decodeRawPixelBitmap(context: Context, uri: Uri): Bitmap? {
     val options = BitmapFactory.Options().apply {
         inPreferredConfig = Bitmap.Config.ARGB_8888
         inMutable = true
+    }
+    return context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, options)
+    }
+}
+
+/** RGB_565 watermark surface halves the working-set size on 50–108MP LunaDream images. */
+private fun decodeWatermarkPixelBitmap(context: Context, uri: Uri): Bitmap? {
+    val options = BitmapFactory.Options().apply {
+        inPreferredConfig = Bitmap.Config.RGB_565
+        inMutable = true
+        inDither = true
     }
     return context.contentResolver.openInputStream(uri)?.use { input ->
         BitmapFactory.decodeStream(input, null, options)
@@ -1092,7 +1505,8 @@ fun finalizeCapturedImageMetadata(context: Context, uri: Uri): Boolean {
 }
 
 /**
- * Normalize the pixels to the selected capture aspect ratio.
+ * Normalize capture orientation only. Portrait framing is applied later by
+ * PhotoOutputResolution with a direct center crop; Landscape preserves the complete frame.
  *
  * The JPEG may already contain correctly oriented landscape pixels while its EXIF tag
  * still requests a 90/270-degree turn. In that case, the pixel aspect ratio is the
@@ -1184,31 +1598,40 @@ fun normalizeCapturedImage(
             if (selected.flipHorizontal) preScale(-1f, 1f)
             if (selected.degrees != 0) postRotate(selected.degrees.toFloat())
         }
-        val finalBitmap = if (selected.degrees == 0 && !selected.flipHorizontal) {
+        val orientedBitmap = if (selected.degrees == 0 && !selected.flipHorizontal) {
             rawBitmap
         } else {
             Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
         }
+        val finalBitmap = orientedBitmap
+        try {
+            val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
+            } ?: false
+            if (!outputWritten) return@runCatching false
 
-        val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
-        } ?: false
-        if (!outputWritten) return@runCatching false
+            val exifWritten = writeUprightExifMetadata(
+                context, uri, finalBitmap.width, finalBitmap.height
+            )
+            setMediaStoreOrientationUpright(context, uri)
 
-        val exifWritten = writeUprightExifMetadata(
-            context, uri, finalBitmap.width, finalBitmap.height
-        )
-        setMediaStoreOrientationUpright(context, uri)
-
-        android.util.Log.d(
-            "FUJI_ORIENTATION",
-            "source=" + selected.source + ", degrees=" + selected.degrees +
-                ", raw=" + rawBitmap.width + "x" + rawBitmap.height +
-                ", final=" + finalBitmap.width + "x" + finalBitmap.height +
-                ", expectedAspect=" + safeExpectedAspect +
-                ", error=" + selected.aspectError + ", exifWritten=" + exifWritten
-        )
-        exifWritten
+            val finalAspect = finalBitmap.width.toFloat() / finalBitmap.height.coerceAtLeast(1)
+            android.util.Log.d(
+                "FUJI_ORIENTATION",
+                "source=" + selected.source + ", degrees=" + selected.degrees +
+                    ", raw=" + rawBitmap.width + "x" + rawBitmap.height +
+                    ", oriented=" + orientedBitmap.width + "x" + orientedBitmap.height +
+                    ", final=" + finalBitmap.width + "x" + finalBitmap.height +
+                    ", expectedAspect=" + safeExpectedAspect +
+                    ", finalAspect=" + finalAspect +
+                    ", orientationError=" + selected.aspectError + ", exifWritten=" + exifWritten
+            )
+            exifWritten
+        } finally {
+            if (finalBitmap !== orientedBitmap && !finalBitmap.isRecycled) finalBitmap.recycle()
+            if (orientedBitmap !== rawBitmap && !orientedBitmap.isRecycled) orientedBitmap.recycle()
+            if (!rawBitmap.isRecycled) rawBitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_ORIENTATION", "normalizeCapturedImage failed", it)
     }.getOrDefault(false)
@@ -1294,18 +1717,49 @@ private fun parseCubeLutText(text: String): CubeLut? {
     }.getOrNull()
 }
 
+/**
+ * Canon catalog LUTs are raw RGB8 33x33x33 volumes (the same byte layout used by
+ * WebGL RGB8 3D textures). Red is the fastest-varying lattice axis, matching CubeLut.value().
+ */
+private const val CANON_LUT_SIZE = 33
+private const val CANON_LUT_BYTE_COUNT = CANON_LUT_SIZE * CANON_LUT_SIZE * CANON_LUT_SIZE * 3
 
-/** Custom LUTs are stored inside app-private storage; source document permissions are not needed after import. */
-data class CustomCameraLut(val id: String, val name: String)
+private fun parseCanonBinaryLut(bytes: ByteArray): CubeLut? {
+    if (bytes.size != CANON_LUT_BYTE_COUNT) return null
+    val values = FloatArray(bytes.size) { index ->
+        (bytes[index].toInt() and 0xFF) / 255f
+    }
+    return CubeLut(
+        CANON_LUT_SIZE,
+        floatArrayOf(0f, 0f, 0f),
+        floatArrayOf(1f, 1f, 1f),
+        values
+    )
+}
+
+private data class LutImportEntry(
+    val name: String,
+    val category: String,
+    val bytes: ByteArray,
+    val binaryRgb33: Boolean
+)
+
+/** Custom LUTs remain in app-private storage; source document permissions are not needed after import. */
+data class CustomCameraLut(
+    val id: String,
+    val name: String,
+    val category: String = "LUT tùy chỉnh"
+)
 
 private const val CUSTOM_CAMERA_LUT_PREFIX = "camera_lut:"
 private const val CUSTOM_CAMERA_LUT_IDS = "camera_lut_ids"
 private const val ACTIVE_CAMERA_LUT_IDS = "active_camera_lut_ids"
-private const val MAX_LUT_INPUT_BYTES = 64L * 1024L * 1024L
-private const val MAX_LUT_ENTRY_BYTES = 32 * 1024 * 1024
-private const val MAX_LUT_ARCHIVE_ENTRIES = 160
-private const val MAX_LUT_EXPANDED_BYTES = 128L * 1024L * 1024L
-private val customCameraLutCache = mutableMapOf<String, CubeLut>()
+private const val MAX_LUT_INPUT_BYTES = 256L * 1024L * 1024L
+private const val MAX_LUT_ENTRY_BYTES = 8 * 1024 * 1024
+private const val MAX_LUT_ARCHIVE_ENTRIES = 1500
+private const val MAX_LUT_EXPANDED_BYTES = 320L * 1024L * 1024L
+private const val MAX_LUTS_PER_IMPORT = 700
+private val customCameraLutCache = LinkedHashMap<String, CubeLut>()
 
 private data class LutImportBudget(var entries: Int = 0, var expandedBytes: Long = 0L)
 
@@ -1324,13 +1778,35 @@ private fun readBoundedLutBytes(input: InputStream, maxBytes: Int): ByteArray {
     return output.toByteArray()
 }
 
+private fun catalogLutCategory(path: String): String {
+    val parts = path.replace('\\', '/').split('/').filter { it.isNotBlank() }
+    val folder = parts.firstOrNull {
+        it.matches(Regex("\\d{2}_[A-Za-z0-9_-]+"))
+    }?.substringAfter('_')?.replace('_', ' ')
+    if (folder != null) return "Canon · $folder"
+    if (path.contains("Panasonic-Standard", true)) return "RAW/Log · Panasonic adapter"
+    val brand = parts.firstOrNull {
+        it.equals("Fujifilm", true) || it.equals("Kodak", true) ||
+            it.equals("Leica", true) || it.equals("Hasselblad", true) ||
+            it.equals("Nikon", true) || it.equals("Arri", true) ||
+            it.equals("RED", true) || it.equals("Cineon", true)
+    }
+    if (brand != null) {
+        val logInput = path.contains("V-Log", true) || path.contains("VLog", true) ||
+            path.contains("N-Log", true) || path.contains("FLog", true) ||
+            path.contains("LogC", true) || path.contains("Cineon", true)
+        return if (logInput) "RAW/Log · $brand" else brand
+    }
+    return "LUT nhập"
+}
+
 private fun scanLutZip(
     archiveBytes: ByteArray,
     depth: Int,
     budget: LutImportBudget
-): List<Pair<String, String>> {
+): List<LutImportEntry> {
     require(depth <= 3) { "ZIP LUT lồng quá nhiều cấp." }
-    val found = ArrayList<Pair<String, String>>()
+    val found = ArrayList<LutImportEntry>()
     ZipInputStream(ByteArrayInputStream(archiveBytes)).use { zip ->
         while (true) {
             val entry = zip.nextEntry ?: break
@@ -1345,21 +1821,29 @@ private fun scanLutZip(
                     "Dung lượng giải nén ZIP vượt giới hạn an toàn."
                 }
                 val extension = entry.name.substringAfterLast('.', "").lowercase()
+                val innerName = entry.name.substringAfterLast('/').substringBeforeLast('.')
+                    .ifBlank { "LUT nhập" }
+                val category = catalogLutCategory(entry.name)
                 when (extension) {
                     "zip" -> found.addAll(scanLutZip(bytes, depth + 1, budget))
                     "cube" -> {
-                        val text = String(bytes, StandardCharsets.UTF_8)
-                        require(parseCubeLutText(text) != null) {
+                        require(parseCubeLutText(String(bytes, StandardCharsets.UTF_8)) != null) {
                             "Tệp .cube bên trong ZIP không đúng định dạng LUT 3D."
                         }
-                        val innerName = entry.name.substringAfterLast('/').substringBeforeLast('.')
-                            .ifBlank { "Xiaomi LUT" }
-                        found.add(innerName to text)
+                        found.add(LutImportEntry(innerName, category, bytes, false))
+                    }
+                    "bin" -> {
+                        require(parseCanonBinaryLut(bytes) != null) {
+                            "Tệp .bin không phải LUT RGB 33x33x33 được hỗ trợ."
+                        }
+                        found.add(LutImportEntry(innerName, category, bytes, true))
                     }
                 }
             }
             zip.closeEntry()
-            require(found.size <= 48) { "ZIP chứa quá nhiều LUT." }
+            require(found.size <= MAX_LUTS_PER_IMPORT) {
+                "Gói LUT vượt quá $MAX_LUTS_PER_IMPORT bộ lọc."
+            }
         }
     }
     return found
@@ -1380,7 +1864,9 @@ fun loadCustomCameraLuts(context: Context, activeOnly: Boolean = false): List<Cu
         if (!file.isFile) return@mapNotNull null
         val name = prefs.getString("camera_lut_name_" + id, null)
             ?: file.nameWithoutExtension
-        CustomCameraLut(id, name)
+        val category = prefs.getString("camera_lut_category_" + id, "LUT tùy chỉnh")
+            ?: "LUT tùy chỉnh"
+        CustomCameraLut(id, name, category)
     }.sortedBy { it.name.lowercase() }
 }
 
@@ -1421,6 +1907,7 @@ fun deleteCustomCameraLut(context: Context, id: String) {
         .putStringSet(CUSTOM_CAMERA_LUT_IDS, ids)
         .putStringSet(ACTIVE_CAMERA_LUT_IDS, activeIds)
         .remove("camera_lut_name_" + id)
+        .remove("camera_lut_category_" + id)
         .apply()
     file.delete()
     synchronized(customCameraLutCache) { customCameraLutCache.remove(id) }
@@ -1436,57 +1923,69 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
     val input = context.contentResolver.openInputStream(uri)
         ?: error("Không thể mở tệp LUT đã chọn.")
     val inputBytes = input.use { readBoundedLutBytes(it, MAX_LUT_INPUT_BYTES.toInt()) }
-    val lutTexts = when (extension) {
+    val entries = when (extension) {
         "cube" -> {
-            val text = String(inputBytes, StandardCharsets.UTF_8)
-            require(parseCubeLutText(text) != null) {
+            require(parseCubeLutText(String(inputBytes, StandardCharsets.UTF_8)) != null) {
                 "Tệp .cube không hợp lệ hoặc không phải LUT 3D."
             }
-            listOf(displayName.substringBeforeLast('.') to text)
+            listOf(
+                LutImportEntry(
+                    displayName.substringBeforeLast('.'),
+                    "LUT tùy chỉnh",
+                    inputBytes,
+                    false
+                )
+            )
+        }
+        "bin" -> {
+            require(parseCanonBinaryLut(inputBytes) != null) {
+                "Tệp .bin không phải LUT RGB 33x33x33 được hỗ trợ."
+            }
+            listOf(
+                LutImportEntry(
+                    displayName.substringBeforeLast('.'),
+                    "Canon Picture Styles",
+                    inputBytes,
+                    true
+                )
+            )
         }
         "zip" -> scanLutZip(inputBytes, 0, LutImportBudget())
-        else -> error("Chỉ hỗ trợ Xiaomi LUT dạng .zip và Blackmagic LUT dạng .cube.")
+        else -> error("Hỗ trợ .cube, LUT .bin RGB 33x33x33 và ZIP chứa các định dạng này.")
     }
-    require(lutTexts.isNotEmpty()) {
-        "Không tìm thấy tệp .cube hợp lệ bên trong ZIP. Hãy kiểm tra gói Xiaomi LUT."
+    require(entries.isNotEmpty()) {
+        "Không tìm thấy LUT .cube hoặc .bin hợp lệ bên trong ZIP."
     }
     val directory = File(context.filesDir, "camera_luts").apply { mkdirs() }
     val prefs = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
     val ids = prefs.getStringSet(CUSTOM_CAMERA_LUT_IDS, emptySet()).orEmpty().toMutableSet()
     val imported = ArrayList<CustomCameraLut>()
-    lutTexts.forEach { (rawName, text) ->
+    entries.forEach { entry ->
         val id = UUID.randomUUID().toString()
-        val safeName = rawName.substringAfterLast('/').substringAfterLast('\\')
-            .ifBlank { "Imported LUT" }.take(80)
+        val safeName = entry.name.substringAfterLast('/').substringAfterLast('\\')
+            .ifBlank { "Imported LUT" }.take(100)
         val target = File(directory, id + ".cube")
         val temporary = File(directory, id + ".tmp")
-        temporary.writeText(text, StandardCharsets.UTF_8)
+        temporary.writeBytes(entry.bytes)
         if (!temporary.renameTo(target)) {
             temporary.copyTo(target, overwrite = true)
             temporary.delete()
         }
         ids.add(id)
-        imported.add(CustomCameraLut(id, safeName))
+        imported.add(CustomCameraLut(id, safeName, entry.category))
     }
     val editor = prefs.edit().putStringSet(CUSTOM_CAMERA_LUT_IDS, ids)
-    imported.forEach { editor.putString("camera_lut_name_" + it.id, it.name) }
+    imported.forEach { lut ->
+        editor.putString("camera_lut_name_" + lut.id, lut.name)
+        editor.putString("camera_lut_category_" + lut.id, lut.category)
+    }
     editor.apply()
     return imported
 }
 
-private val filmSimulationAssets = mapOf(
-    "Provia" to "film_sims/provia.cube",
-    "Velvia" to "film_sims/velvia.cube",
-    "Astia" to "film_sims/astia.cube",
-    "Classic Chrome" to "film_sims/classic_chrome.cube",
-    "Classic Neg" to "film_sims/classic_neg.cube",
-    "Eterna" to "film_sims/eterna.cube",
-    "Pro Neg Std" to "film_sims/pro_neg_std.cube",
-    "Pro Neg Hi" to "film_sims/pro_neg_hi.cube",
-    "Nostalgic Neg" to "film_sims/nostalgic_neg.cube",
-    "Reala Ace" to "film_sims/reala_ace.cube",
-    "Bleach Bypass" to "film_sims/bleach_bypass.cube"
-)
+// Built-in looks use the app-authored sRGB transforms in transformPreset.
+// Non-commercial LUT files are not bundled into this commercial application.
+private val filmSimulationAssets = emptyMap<String, String>()
 
 private val filmSimulationCache = mutableMapOf<String, CubeLut>()
 
@@ -1510,9 +2009,20 @@ private fun readCameraLookLut(context: Context, preset: String): CubeLut? {
         customCameraLutCache[customId]?.let { return it }
     }
     val file = customCameraLutFile(context, customId) ?: return null
-    val parsed = runCatching { file.readText(StandardCharsets.UTF_8).let(::parseCubeLutText) }
-        .getOrNull() ?: return null
-    synchronized(customCameraLutCache) { customCameraLutCache[customId] = parsed }
+    val parsed = runCatching {
+        val bytes = file.readBytes()
+        parseCanonBinaryLut(bytes)
+            ?: parseCubeLutText(String(bytes, StandardCharsets.UTF_8))
+    }.getOrNull() ?: return null
+    synchronized(customCameraLutCache) {
+        // A 33^3 RGB float LUT is ~430 KB; retain only a few so importing hundreds
+        // of profiles does not turn the picker into a large permanent heap allocation.
+        if (customCameraLutCache.size >= 4) {
+            val oldest = customCameraLutCache.keys.firstOrNull()
+            if (oldest != null) customCameraLutCache.remove(oldest)
+        }
+        customCameraLutCache[customId] = parsed
+    }
     return parsed
 }
 
@@ -1533,8 +2043,52 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
         g = (g - 128f) * amount + 128f
         b = (b - 128f) * amount + 128f
     }
+    fun warmHighlights(amount: Float) {
+        val weight = ((luma - 76f) / 179f).coerceIn(0f, 1f)
+        r += amount * weight
+        g += amount * 0.34f * weight
+        b -= amount * 0.62f * weight
+    }
+    fun coolShadows(amount: Float) {
+        val weight = ((150f - luma) / 150f).coerceIn(0f, 1f)
+        r -= amount * 0.28f * weight
+        g += amount * 0.08f * weight
+        b += amount * weight
+    }
     when (name) {
+        "Provia" -> { saturation(1.04f); contrast(1.03f) }
+        "Velvia" -> { saturation(1.30f); contrast(1.13f); b += 3f; g += 1f }
+        "Astia" -> { saturation(0.96f); contrast(0.97f); warmHighlights(3f) }
+        "Classic Chrome" -> { saturation(0.82f); contrast(1.07f); coolShadows(3f); r += 2f }
+        "Classic Neg" -> { saturation(0.98f); contrast(1.11f); warmHighlights(4f); g += 2f }
+        "Eterna" -> { saturation(0.78f); contrast(0.91f); r += 3f; g += 3f; b += 4f }
+        "Pro Neg Std" -> { saturation(0.90f); contrast(0.93f); warmHighlights(2f) }
+        "Pro Neg Hi" -> { saturation(0.96f); contrast(1.10f); warmHighlights(2f) }
+        "Nostalgic Neg" -> { saturation(0.94f); contrast(0.97f); warmHighlights(7f); coolShadows(2f) }
+        "Reala Ace" -> { saturation(1.04f); contrast(1.06f) }
+        "Bleach Bypass" -> { saturation(0.48f); contrast(1.34f) }
         "Acros" -> { r = luma; g = luma; b = luma; contrast(1.22f) }
+        "Portra 160" -> { saturation(0.90f); contrast(0.93f); warmHighlights(7f); coolShadows(2f) }
+        "Portra 400" -> { saturation(0.88f); contrast(0.94f); warmHighlights(5f); coolShadows(3f) }
+        "Portra 800" -> { saturation(0.91f); contrast(0.96f); warmHighlights(6f); coolShadows(3f) }
+        "Gold 200" -> { saturation(1.13f); contrast(1.06f); warmHighlights(11f); r += 2f }
+        "Ektar 100" -> { saturation(1.22f); contrast(1.10f); warmHighlights(3f); b += 2f }
+        "Kodachrome 64" -> { saturation(1.06f); contrast(1.13f); r += 3f; g += 1f; b -= 2f }
+        "ColorPlus 200" -> { saturation(1.08f); contrast(1.02f); warmHighlights(8f) }
+        "CineStill 800T" -> { saturation(1.04f); contrast(0.96f); coolShadows(10f); warmHighlights(6f) }
+        "Vision3 250D" -> { saturation(0.94f); contrast(0.91f); warmHighlights(4f); coolShadows(2f) }
+        "Vision3 500T" -> { saturation(0.92f); contrast(0.94f); coolShadows(8f); warmHighlights(3f) }
+        "400H" -> { saturation(0.88f); contrast(0.91f); r += 3f; g += 4f; b += 2f }
+        "Tri-X 400" -> { r = luma; g = luma; b = luma; contrast(1.20f) }
+        "T-Max 400" -> { r = luma; g = luma; b = luma; contrast(1.15f) }
+        "Ektachrome 100" -> { saturation(1.10f); contrast(1.10f); coolShadows(3f); warmHighlights(3f) }
+        "Vivid" -> { saturation(1.24f); contrast(1.14f) }
+        "Natural" -> { saturation(0.96f); contrast(1.02f) }
+        "Monochrome" -> { r = luma; g = luma; b = luma; contrast(1.16f) }
+        "Cool" -> { saturation(1.08f); contrast(1.09f); r -= 5f; b += 9f }
+        "Warm" -> { saturation(1.05f); contrast(1.07f); r += 8f; b -= 5f }
+        "Cine Tone" -> { saturation(0.88f); contrast(0.92f); r += 5f; b -= 2f }
+        "Soft Log" -> { saturation(0.78f); r = 42f + r * 0.78f; g = 42f + g * 0.78f; b = 42f + b * 0.78f }
         "Kodak Portra 400" -> { saturation(0.88f); contrast(0.94f); r += 8f; g += 3f; b -= 5f }
         "Agfa" -> { saturation(1.2f); r += 7f; g += 2f; b -= 5f }
         "Kodak Gold" -> { saturation(1.12f); r += 10f; g += 4f; b -= 8f }
@@ -1556,8 +2110,21 @@ private fun transformPreset(name: String, red: Float, green: Float, blue: Float)
  * Applies a built-in Fujifilm profile or a retained non-Fujifilm filter to the saved photo.
  * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
  */
-private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?): Boolean {
+private fun applyCameraLookPixels(
+    context: Context,
+    bitmap: Bitmap,
+    preset: String,
+    cube: CubeLut?
+): Boolean {
     if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) return false
+    val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
+    val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
+    val colorChrome = recipe.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+    val grain = recipe.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)
+    val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
+    val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
+    val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -1571,11 +2138,49 @@ private fun applyCameraLookPixels(bitmap: Bitmap, preset: String, cube: CubeLut?
                 ?: transformPreset(preset, red, green, blue).let {
                     Triple(it.first / 255f, it.second / 255f, it.third / 255f)
                 }
+
+            var r = mapped.first.coerceIn(0f, 1f)
+            var g = mapped.second.coerceIn(0f, 1f)
+            var b = mapped.third.coerceIn(0f, 1f)
+            val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
+            val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
+            val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
+            val tonalShift = highlight * highlightWeight * 0.12f +
+                shadow * shadowWeight * 0.12f
+            r += tonalShift
+            g += tonalShift
+            b += tonalShift
+
+            val chromeChroma = maxOf(abs(r - luma), abs(g - luma), abs(b - luma))
+            val chromeFactor = 1f + colorChrome * (0.05f + chromeChroma * 0.18f)
+            val saturationFactor = saturation * chromeFactor
+            r = luma + (r - luma) * saturationFactor
+            g = luma + (g - luma) * saturationFactor
+            b = luma + (b - luma) * saturationFactor
+
+            r += temperature * 0.045f
+            g += temperature * 0.006f
+            b -= temperature * 0.045f
+            // Color Tone shifts green/magenta independently from global color temperature.
+            r += tone * 0.018f
+            g -= tone * 0.035f
+            b += tone * 0.018f
+
+            if (grain > 0.001f) {
+                // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
+                val seed = (x.toLong() * 73_856_093L) xor
+                    (y.toLong() * 19_349_663L) xor preset.hashCode().toLong()
+                val noise = ((((seed ushr 13) and 0xFFFFL).toFloat() / 32_767.5f) - 1f) *
+                    grain * 0.035f
+                r += noise
+                g += noise
+                b += noise
+            }
             row[x] = AndroidColor.argb(
                 alpha,
-                clamp8(mapped.first * 255f),
-                clamp8(mapped.second * 255f),
-                clamp8(mapped.third * 255f)
+                clamp8(r.coerceIn(0f, 1f) * 255f),
+                clamp8(g.coerceIn(0f, 1f) * 255f),
+                clamp8(b.coerceIn(0f, 1f) * 255f)
             )
         }
         bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -1607,7 +2212,7 @@ fun renderCameraLookPreview(
         val output = scaled.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching null
         if (scaled !== source) scaled.recycle()
         val cube = readCameraLookLut(context, preset)
-        if (!applyCameraLookPixels(output, preset, cube)) {
+        if (!applyCameraLookPixels(context, output, preset, cube)) {
             output.recycle()
             return@runCatching null
         }
@@ -1683,35 +2288,111 @@ fun createFilmLookPreviewSample(): Bitmap {
     return bitmap
 }
 
+private val watermarkExifTags = listOf(
+    "ImageDescription", "Make", "Model", "Software", "DateTime", "Artist", "Copyright",
+    "ExposureTime", "FNumber", "ExposureProgram", "SpectralSensitivity", "ISOSpeedRatings",
+    "SensitivityType", "StandardOutputSensitivity", "RecommendedExposureIndex",
+    "PhotographicSensitivity", "ExifVersion", "DateTimeOriginal", "DateTimeDigitized",
+    "ComponentsConfiguration", "CompressedBitsPerPixel", "ShutterSpeedValue", "ApertureValue",
+    "BrightnessValue", "ExposureBiasValue", "MaxApertureValue", "SubjectDistance", "MeteringMode",
+    "LightSource", "Flash", "FocalLength", "SubjectArea", "UserComment", "SubSecTime",
+    "SubSecTimeOriginal", "SubSecTimeDigitized", "FlashpixVersion", "ColorSpace",
+    "FocalLengthIn35mmFilm", "SceneType", "CustomRendered", "ExposureMode", "WhiteBalance",
+    "DigitalZoomRatio", "SceneCaptureType", "GainControl", "Contrast", "Saturation", "Sharpness",
+    "SubjectDistanceRange", "ImageUniqueID", "CameraOwnerName", "BodySerialNumber",
+    "LensSpecification", "LensMake", "LensModel", "LensSerialNumber",
+    "GPSVersionID", "GPSLatitudeRef", "GPSLatitude", "GPSLongitudeRef", "GPSLongitude",
+    "GPSAltitudeRef", "GPSAltitude", "GPSTimeStamp", "GPSSatellites", "GPSStatus",
+    "GPSMeasureMode", "GPSDOP", "GPSSpeedRef", "GPSSpeed", "GPSTrackRef", "GPSTrack",
+    "GPSImgDirectionRef", "GPSImgDirection", "GPSMapDatum", "GPSDestLatitudeRef",
+    "GPSDestLatitude", "GPSDestLongitudeRef", "GPSDestLongitude", "GPSDestBearingRef",
+    "GPSDestBearing", "GPSDestDistanceRef", "GPSDestDistance", "GPSProcessingMethod",
+    "GPSAreaInformation", "GPSDateStamp", "GPSDifferential", "GPSHPositioningError"
+)
+
+private fun readImageExifAttributes(context: Context, uri: Uri): Map<String, String> {
+    return runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val exif = ExifInterface(input)
+            watermarkExifTags.mapNotNull { tag ->
+                exif.getAttribute(tag)?.takeIf { it.isNotBlank() }?.let { tag to it }
+            }.toMap()
+        }.orEmpty()
+    }.onFailure {
+        android.util.Log.w("FUJI_EXIF", "Could not read source EXIF attributes", it)
+    }.getOrDefault(emptyMap())
+}
+
+/** Reapply source EXIF after JPEG recompression; pixel dimensions and orientation follow new pixels. */
+private fun restoreImageExifAttributes(
+    context: Context,
+    uri: Uri,
+    attributes: Map<String, String>,
+    width: Int,
+    height: Int
+): Boolean {
+    return runCatching {
+        val descriptor = context.contentResolver.openFileDescriptor(uri, "rw")
+            ?: return@runCatching false
+        descriptor.use {
+            ExifInterface(it.fileDescriptor).apply {
+                attributes.forEach { (tag, value) ->
+                    runCatching { setAttribute(tag, value) }
+                        .onFailure { failure ->
+                            android.util.Log.d("FUJI_EXIF", "Skipped unsupported EXIF tag $tag", failure)
+                        }
+                }
+                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                setAttribute(ExifInterface.TAG_THUMBNAIL_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+                setAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION, width.toString())
+                setAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION, height.toString())
+                setAttribute(ExifInterface.TAG_IMAGE_WIDTH, width.toString())
+                setAttribute(ExifInterface.TAG_IMAGE_LENGTH, height.toString())
+                saveAttributes()
+            }
+        }
+        true
+    }.onFailure {
+        android.util.Log.e("FUJI_EXIF", "Could not restore source EXIF attributes", it)
+    }.getOrDefault(false)
+}
+
 fun applyCameraLook(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val preset = prefs.getString("selected_filter", "None") ?: "None"
-    if (preset == "None") return false
+    val hasCustomAdjustments =
+        kotlin.math.abs(prefs.getFloat("film_custom_highlight", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_shadow", 0f)) > 0.001f ||
+        prefs.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
+        prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+    if (preset == "None" && !hasCustomAdjustments) return false
 
     return runCatching {
-        // Fujifilm's 11 bundled 32³ sRGB profiles use the same CubeLut renderer as
-        // filter-picker previews. Other retained presets use their matching pixel transform.
-        val cube = readCameraLookLut(context, preset)
+        // Film customizer controls are active even when the selected LUT/profile is None.
+        val cube = if (preset == "None") null else readCameraLookLut(context, preset)
         if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) {
             android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
             return@runCatching false
         }
 
+        val sourceExif = readImageExifAttributes(context, uri)
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        if (!applyCameraLookPixels(bitmap, preset, cube)) return@runCatching false
-        val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
-        } ?: false
-        if (!written) return@runCatching false
+        try {
+            if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
+            val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
+            } ?: false
+            if (!written) return@runCatching false
 
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-            ExifInterface(descriptor.fileDescriptor).apply {
-                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                saveAttributes()
-            }
+            val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, bitmap.width, bitmap.height)
+            setMediaStoreOrientationUpright(context, uri)
+            exifWritten
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
         }
-        setMediaStoreOrientationUpright(context, uri)
-        true
     }.onFailure {
         android.util.Log.e("FUJI_FILTER", "Could not apply selected filter", it)
     }.getOrDefault(false)
@@ -1721,13 +2402,48 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
  * Draws a camera-spec frame directly onto the upright pixel matrix. No portrait/landscape
  * heuristic is applied here: the image pixels, metadata and watermark all share one orientation.
  */
+private val watermarkTypefaceCache = mutableMapOf<String, android.graphics.Typeface>()
+
+private fun resolveWatermarkTypeface(context: Context, brand: String): android.graphics.Typeface {
+    val key = brand.lowercase()
+    synchronized(watermarkTypefaceCache) {
+        watermarkTypefaceCache[key]?.let { return it }
+        val (assetName, variation, fallbackFamily, fallbackStyle) = when (key) {
+            "sony" -> arrayOf("Inter-Variable.ttf", "'wght' 300, 'opsz' 14", "sans-serif-light", "0")
+            "nikon" -> arrayOf("CreatoDisplay-Light.otf", "", "sans-serif-light", "0")
+            "canon" -> arrayOf("LiberationSans-Regular.ttf", "", "sans-serif", "0")
+            else -> arrayOf("Jost-Variable.ttf", "'wght' 300", "sans-serif-light", "0")
+        }
+        val typeface = runCatching {
+            val directory = File(context.cacheDir, "watermark-fonts").apply { mkdirs() }
+            val fontFile = File(directory, assetName)
+            if (!fontFile.isFile || fontFile.length() == 0L) {
+                context.assets.open("fonts/" + assetName).use { input ->
+                    fontFile.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            android.graphics.Typeface.Builder(fontFile)
+                .apply { if (variation.isNotBlank()) setFontVariationSettings(variation) }
+                .build()
+        }.getOrElse {
+            android.graphics.Typeface.create(
+                fallbackFamily,
+                fallbackStyle.toIntOrNull() ?: android.graphics.Typeface.NORMAL
+            )
+        }
+        watermarkTypefaceCache[key] = typeface
+        return typeface
+    }
+}
+
 fun applyCameraWatermark(
     context: Context,
     uri: Uri,
     focal: String,
     aperture: String,
     shutter: String,
-    iso: String
+    iso: String,
+    preservePhotoAspectRatio: Boolean = true
 ): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     if (!prefs.getBoolean("watermark_enabled", true)) {
@@ -1736,39 +2452,61 @@ fun applyCameraWatermark(
     }
 
     return runCatching {
-        val sourceBitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        val selectedTemplate = prefs.getString("watermark_template", "standard1") ?: "standard1"
+        val sourceExif = readImageExifAttributes(context, uri)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Watermark source JPEG has invalid dimensions" }
+        val estimatedBitmapBytes = bounds.outWidth.toLong() * bounds.outHeight.toLong() * 2L
+        val watermarkRuntime = Runtime.getRuntime()
+        val watermarkUsedHeap = (watermarkRuntime.totalMemory() - watermarkRuntime.freeMemory()).coerceAtLeast(0L)
+        val watermarkAvailableHeap = (watermarkRuntime.maxMemory() - watermarkUsedHeap).coerceAtLeast(0L)
+        require(estimatedBitmapBytes + 48L * 1024L * 1024L <= watermarkAvailableHeap) {
+            "Not enough heap to safely stamp this high-resolution photo; source image is preserved"
+        }
+        val sourceBitmap = decodeWatermarkPixelBitmap(context, uri) ?: return@runCatching false
+        var outputBitmap: Bitmap? = null
+        var watermarkCropBitmap: Bitmap? = null
+        try {
+        val selectedTemplate = (prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto"
+        val frameStyle = (prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White"
         val template = if (selectedTemplate == "fuji_auto") {
             if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
         } else {
             selectedTemplate
         }
-        val isFujiFooterTemplate = template == "fuji_classic" || template == "fuji_signature"
+        val isFujiFooterTemplate = template != "minimal" && template != "simple" && template != "micro" && template != "datestamp"
         val sourceWidthPx = sourceBitmap.width
         val sourceHeightPx = sourceBitmap.height
         val sourceMinSide = minOf(sourceWidthPx, sourceHeightPx).toFloat()
-        val footerMarginPx = (sourceMinSide * 0.025f).coerceIn(14f, 72f).toInt()
-        val footerHeightPx = (sourceMinSide * 0.28f).coerceIn(112f, 760f).toInt()
-        val compactFooterHeightPx = (sourceMinSide * 0.16f).coerceIn(80f, 420f).toInt()
+        val footerMarginPx = (sourceMinSide * 0.025f).roundToInt().coerceAtLeast(14)
+        // Watermark geometry scales with the actual output resolution. Do not cap it at
+        // small JPEG dimensions: LunaDream 50/108MP must retain the same relative size.
+        val footerHeightPx = (sourceMinSide * 0.14f).roundToInt().coerceAtLeast(88)
+        val compactFooterHeightPx = (sourceMinSide * 0.12f).roundToInt().coerceAtLeast(72)
         val expandedWidth = sourceBitmap.width + footerMarginPx * 2
         val expandedHeight = sourceBitmap.height + footerMarginPx * 2 + footerHeightPx
         val expandedPixelCount = expandedWidth.toLong() * expandedHeight.toLong()
-        // A second full ARGB_8888 canvas is allocated while the decoded source is still live.
-        // Budget its entire allocation, not just the appended footer pixels.
-        val extraBytes = expandedPixelCount * 4L
+        // The source and expanded watermark canvas both use RGB_565. Budget the full
+        // appended canvas while the decoded source is still live.
+        val extraBytes = expandedPixelCount * 2L
         val runtime = Runtime.getRuntime()
         val freeHeapBytes = (runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory()))
             .coerceAtLeast(0L)
         // The reference layouts append a real white footer without downscaling the captured photo.
         // If the additional canvas would threaten the current heap, keep the original dimensions
         // and render the footer as an in-image plate instead of risking an OOM.
-        val expandedFujiFooter = isFujiFooterTemplate &&
+        val expandedFujiFooter = !preservePhotoAspectRatio &&
+            isFujiFooterTemplate &&
+            frameStyle in setOf("White", "Black") &&
             expandedWidth <= 32768 && expandedHeight <= 32768 &&
             expandedPixelCount <= 100_000_000L && extraBytes <= (freeHeapBytes * 0.42f).toLong()
         val output = if (expandedFujiFooter) {
-            Bitmap.createBitmap(expandedWidth, expandedHeight, Bitmap.Config.ARGB_8888).also { expanded ->
+            Bitmap.createBitmap(expandedWidth, expandedHeight, Bitmap.Config.RGB_565).also { expanded ->
+                outputBitmap = expanded
                 val expandedCanvas = Canvas(expanded)
-                expandedCanvas.drawColor(AndroidColor.WHITE)
+                expandedCanvas.drawColor(if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE)
                 val photoRect = RectF(
                     footerMarginPx.toFloat(),
                     footerMarginPx.toFloat(),
@@ -1779,21 +2517,18 @@ fun applyCameraWatermark(
                     sourceBitmap, null, photoRect,
                     Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
                 )
-                val photoBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.rgb(31, 67, 83)
-                    style = Paint.Style.STROKE
-                    strokeWidth = (sourceMinSide * 0.0022f).coerceAtLeast(1.5f)
-                }
-                expandedCanvas.drawRect(photoRect, photoBorder)
+                // Do not add an automatic outline around the photograph.
+                // Optional camera frames are rendered only when the user selects one.
                 sourceBitmap.recycle()
             }
         } else if (sourceBitmap.isMutable) {
-            sourceBitmap
+            sourceBitmap.also { outputBitmap = it }
         } else {
-            sourceBitmap.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching false
+            sourceBitmap.copy(Bitmap.Config.RGB_565, true)?.also { outputBitmap = it }
+                ?: return@runCatching false
         }
+        outputBitmap = output
         val canvas = Canvas(output)
-        val frameStyle = prefs.getString("watermark_style", "White") ?: "White"
         val showTime = prefs.getBoolean("watermark_show_time", true)
         val showModel = prefs.getBoolean("watermark_show_model", true)
         val showSpecs = prefs.getBoolean("watermark_show_specs", true)
@@ -1823,18 +2558,102 @@ fun applyCameraWatermark(
             else -> AndroidColor.TRANSPARENT
         }
         val minSide = minOf(output.width, output.height).toFloat()
+        // Keep logo and metadata in one restrained visual scale across output resolutions.
+        val watermarkTextSize = (minSide * 0.0125f).coerceAtLeast(12f)
+        val watermarkLogoHeight = minSide * 0.032f
         val margin = (minSide * 0.035f).coerceAtLeast(18f)
-        val model = prefs.getString("watermark_custom_model", "")?.trim()
-            ?.takeIf { it.isNotEmpty() } ?: "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
-        val specs = listOf(focal, aperture, shutter, "ISO $iso")
-            .filter { it.isNotBlank() }.joinToString("   •   ").takeIf { showSpecs }.orEmpty()
+        fun exifNumber(tag: String): Double? = sourceExif[tag]?.let { raw ->
+            val value = raw.trim()
+            runCatching {
+                if ('/' in value) {
+                    val parts = value.split('/', limit = 2)
+                    parts[0].toDouble() / parts[1].toDouble()
+                } else value.toDouble()
+            }.getOrNull()?.takeIf { it.isFinite() }
+        }
+        fun formatDecimal(value: Double, pattern: String): String =
+            String.format(java.util.Locale.US, pattern, value)
+        val exifFocal = exifNumber("FocalLength")?.let { formatDecimal(it, "%.1f mm") }
+            ?: focal.takeIf { it.isNotBlank() }
+        val equivalent35mm = sourceExif["FocalLengthIn35mmFilm"]?.toIntOrNull()
+            ?.takeIf { it > 0 }?.let { "$it mm equiv" }
+        val exifAperture = exifNumber("FNumber")?.let {
+            "F" + formatDecimal(it, "%.1f").trimEnd('0').trimEnd('.')
+        } ?: aperture.takeIf { it.isNotBlank() }?.replace("f/", "F", ignoreCase = true)
+        val exposureSeconds = exifNumber("ExposureTime")
+        val exifShutter = exposureSeconds?.let { seconds ->
+            when {
+                seconds >= 1.0 -> formatDecimal(seconds, "%.2f s").trimEnd('0').trimEnd('.')
+                seconds > 0.0 -> "1/${(1.0 / seconds).roundToInt().coerceAtLeast(1)} s"
+                else -> null
+            }
+        } ?: shutter.takeIf { it.isNotBlank() }
+        val exifIso = sourceExif["PhotographicSensitivity"]
+            ?: sourceExif["ISOSpeedRatings"]
+            ?: iso.takeIf { it.isNotBlank() }
+        val exposureBias = exifNumber("ExposureBiasValue")?.let { ev ->
+            (if (ev > 0.0) "+" else "") + formatDecimal(ev, "%.1f EV")
+        }
+        val lensModel = sourceExif["LensModel"]?.trim()?.takeIf { it.isNotBlank() }
+        val exifMake = sourceExif["Make"]?.trim()?.takeIf { it.isNotBlank() }
+        val exifModel = sourceExif["Model"]?.trim()?.takeIf { it.isNotBlank() }
+        val cameraLabel = listOf(exifMake, exifModel).distinct().filterNotNull()
+            .joinToString(" ").ifBlank { "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}" }
+        val customModelLabel = prefs.getString("watermark_custom_model", "")?.trim().orEmpty()
+        // Keep the body model distinct from the selected brand wordmark. The watermark
+        // should read "SONY | MODEL ILCE-7M4", not repeat the manufacturer in the model line.
+        val rawModelLabel = exifModel ?: android.os.Build.MODEL
+        val makePrefix = (exifMake ?: android.os.Build.MANUFACTURER).trim()
+        val cleanModelLabel = if (makePrefix.isNotBlank() &&
+            rawModelLabel.startsWith(makePrefix, ignoreCase = true)
+        ) rawModelLabel.drop(makePrefix.length).trim() else rawModelLabel.trim()
+        val model = customModelLabel.ifBlank { cleanModelLabel }
+        // Prioritize the three exposure values the user needs to read at a glance.
+        // Focal length and exposure compensation follow only when space permits.
+        val specs = listOf(
+            exifFocal,
+            exifAperture,
+            exifShutter?.replace(" s", "s"),
+            exifIso?.let { "ISO $it" },
+            exposureBias
+        ).filterNotNull().filter { it.isNotBlank() }
+            .joinToString("  ·  ")
+            .takeIf { showSpecs }.orEmpty()
         val modelLine = model.takeIf { showModel }.orEmpty()
-        val timeLine = java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US)
-            .format(java.util.Date()).takeIf { showTime }.orEmpty()
-        val dateOnlyLine = java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US)
-            .format(java.util.Date()).takeIf { showTime }.orEmpty()
+        val capturedDateRaw = sourceExif["DateTimeOriginal"] ?: sourceExif["DateTime"]
+        val capturedDate = capturedDateRaw?.let { raw ->
+            runCatching {
+                java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", java.util.Locale.US).apply {
+                    isLenient = false
+                }.parse(raw)
+            }.getOrNull()
+        }
+        val timeLine = capturedDate?.let {
+            java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US).format(it)
+        }.orEmpty().takeIf { showTime }.orEmpty()
+        val dateOnlyLine = capturedDate?.let {
+            java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(it)
+        }.orEmpty().takeIf { showTime }.orEmpty()
         val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
-        val brandLogo = ContextCompat.getDrawable(context, R.drawable.fujifilm_logo)
+        val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
+        val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
+        // Brand-matched typefaces are bundled with their OFL notices in assets/fonts.
+        val brandTypeface = resolveWatermarkTypeface(context, watermarkBrand)
+        val detailTypeface = when (watermarkBrand) {
+            "sony" -> brandTypeface
+            "nikon" -> brandTypeface
+            "canon" -> brandTypeface
+            else -> brandTypeface
+        }
+        val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
+        val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand, frameStyle == "Black")?.let {
+            ContextCompat.getDrawable(context, it)
+        }
+        // Monochrome marks adapt to the selected black/white footer. Keep the original
+        // multi-colour marks for GoPro, Kodak and ZEISS instead of flattening their colours.
+        if (watermarkBrand !in setOf("fujifilm", "gopro", "kodak", "zeiss")) {
+            brandLogo?.setTint(if (frameStyle == "Black") AndroidColor.WHITE else AndroidColor.BLACK)
+        }
         val footerRect = if (expandedFujiFooter) {
             RectF(
                 footerMarginPx.toFloat(),
@@ -1851,25 +2670,59 @@ fun applyCameraWatermark(
             )
         }
         fun drawBrandLogo(rect: RectF) {
-            val logo = brandLogo ?: return
-            canvas.save()
-            logo.setBounds(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
-            logo.draw(canvas)
-            canvas.restore()
+            val logo = brandLogo
+            if (logo != null) {
+                val intrinsicWidth = logo.intrinsicWidth.coerceAtLeast(1).toFloat()
+                val intrinsicHeight = logo.intrinsicHeight.coerceAtLeast(1).toFloat()
+                val fitScale = minOf(rect.width() / intrinsicWidth, rect.height() / intrinsicHeight)
+                val drawWidth = intrinsicWidth * fitScale
+                val drawHeight = intrinsicHeight * fitScale
+                val drawLeft = rect.centerX() - drawWidth * 0.5f
+                val drawTop = rect.centerY() - drawHeight * 0.5f
+                canvas.save()
+                logo.setBounds(
+                    drawLeft.toInt(), drawTop.toInt(),
+                    (drawLeft + drawWidth).toInt(), (drawTop + drawHeight).toInt()
+                )
+                logo.draw(canvas)
+                canvas.restore()
+                return
+            }
+            if (watermarkBrand == "nikon" || watermarkBrand == "kodak") {
+                val plate = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.rgb(255, 221, 0)
+                    style = Paint.Style.FILL
+                }
+                canvas.drawRoundRect(rect, rect.height() * 0.08f, rect.height() * 0.08f, plate)
+            }
+            val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = brandInk
+                typeface = brandTypeface
+                textAlign = Paint.Align.CENTER
+                textSize = minOf(rect.height() * 0.76f, rect.width() * 0.34f)
+                if (watermarkBrand == "sony") textScaleX = 1.06f
+            }
+            val baseline = rect.centerY() - (markPaint.ascent() + markPaint.descent()) * 0.5f
+            canvas.drawText(brandTitle, rect.centerX(), baseline, markPaint)
         }
 
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            typeface = brandTypeface
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             alpha = 235
-            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            typeface = detailTypeface
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            typeface = android.graphics.Typeface.create("sans-serif-bold", android.graphics.Typeface.NORMAL)
+            typeface = brandTypeface
+        }
+        if (frameStyle == "Transparent") {
+            titlePaint.setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
+            detailPaint.setShadowLayer((minSide * 0.0018f).coerceAtLeast(1.5f), 0f, 1f, AndroidColor.BLACK)
+            accentPaint.setShadowLayer((minSide * 0.0018f).coerceAtLeast(1.5f), 0f, 1f, AndroidColor.BLACK)
         }
         fun fitText(value: String, paint: Paint, x: Float, baseline: Float, maxWidth: Float, baseSize: Float) {
             if (value.isBlank()) return
@@ -1887,6 +2740,7 @@ fun applyCameraWatermark(
             val cropWidth = (right - left).coerceAtLeast(1)
             val cropHeight = (bottom - top).coerceAtLeast(1)
             val crop = Bitmap.createBitmap(cropWidth, cropHeight, Bitmap.Config.ARGB_8888)
+            watermarkCropBitmap = crop
             Canvas(crop).drawBitmap(output, -left.toFloat(), -top.toFloat(), null)
 
             val blurRadius = (minSide * glassBlur / 1200f).toInt().coerceIn(0, 30)
@@ -1998,7 +2852,8 @@ fun applyCameraWatermark(
             canvas.drawRoundRect(innerRect, (safeRadius - inset).coerceAtLeast(2f),
                 (safeRadius - inset).coerceAtLeast(2f), innerHighlight)
             canvas.restore()
-            crop.recycle()
+            if (!crop.isRecycled) crop.recycle()
+            watermarkCropBitmap = null
         }
 
         fun drawFrame(rect: RectF, radius: Float) {
@@ -2032,7 +2887,7 @@ fun applyCameraWatermark(
                 color = frameColor
                 alpha = 245
                 style = Paint.Style.STROKE
-                strokeWidth = (minSide * 0.0022f).coerceAtLeast(2f)
+                strokeWidth = (minSide * 0.0014f).coerceAtLeast(1.5f)
             }
             canvas.drawRoundRect(rect, radius, radius, framePaint)
         }
@@ -2052,269 +2907,368 @@ fun applyCameraWatermark(
             }
             return plate
         }
+        fun drawWatermarkFooter(rect: RectF, radius: Float = 0f) {
+            when (frameStyle) {
+                "White", "Black" -> {
+                    val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+                        style = Paint.Style.FILL
+                    }
+                    if (radius > 0f) canvas.drawRoundRect(rect, radius, radius, fill)
+                    else canvas.drawRect(rect, fill)
+                }
+                "LiquidGlass" -> drawLiquidGlassPanel(rect, radius.coerceAtLeast(minSide * 0.012f))
+                "Transparent" -> Unit
+            }
+        }
+        fun brandAccentColor(): Int = cameraWatermarkBrandAccent(watermarkBrand)
+        fun drawBrandAccent(rect: RectF, thickness: Float) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = brandAccentColor()
+                style = Paint.Style.FILL
+            }
+            canvas.drawRect(rect.left, rect.top, rect.right, rect.top + thickness, paint)
+        }
 
-        // The watermark must not draw a full-photo outline. Optional photo frames
-        // are handled independently by CameraFrameSettingsPanel.
+        val sharedFooterRadius = (minSide * 0.012f).coerceAtLeast(7f)
+        val sharedLogoRatio = brandLogo?.let {
+            if (it.intrinsicHeight > 0) it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat() else 3f
+        } ?: when {
+            watermarkBrand == "hasselblad" -> 4.9f
+            watermarkBrand == "panasonic" || watermarkBrand == "om_system" -> 4.6f
+            watermarkBrand == "insta360" -> 3.9f
+            else -> 4.4f
+        }
+        fun drawTemplateText(
+            value: String,
+            source: Paint,
+            x: Float,
+            centerY: Float,
+            maxWidth: Float,
+            size: Float,
+            centered: Boolean = false
+        ) {
+            if (value.isBlank()) return
+            val paint = Paint(source).apply {
+                textAlign = if (centered) Paint.Align.CENTER else Paint.Align.LEFT
+                textSize = size
+            }
+            var rendered = value
+            while (paint.measureText(rendered) > maxWidth && paint.textSize > 9f) {
+                paint.textSize = (paint.textSize * 0.93f).coerceAtLeast(9f)
+            }
+            if (paint.measureText(rendered) > maxWidth) {
+                while (rendered.length > 1 && paint.measureText(rendered + "…") > maxWidth) {
+                    rendered = rendered.dropLast(1)
+                }
+                rendered = rendered.trimEnd() + "…"
+            }
+            val metrics = paint.fontMetrics
+            val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
+            canvas.drawText(rendered, x, baseline, paint)
+        }
+
+        fun drawTemplateFooter(color: Int) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.FILL }
+            canvas.drawRect(footerRect, paint)
+        }
+
+        val footerWidth = footerRect.width().coerceAtLeast(1f)
+        val footerHeight = footerRect.height().coerceAtLeast(1f)
+        val centerX = footerRect.centerX()
+        val centerY = footerRect.centerY()
+        val pad = footerWidth * 0.045f
+        val primarySize = (minSide * 0.023f).coerceAtLeast(19f)
+        val secondarySize = (minSide * 0.014f).coerceAtLeast(12f)
+        val infoSize = (minSide * 0.019f).coerceAtLeast(17f)
+        val dateSize = (minSide * 0.013f).coerceAtLeast(12f)
+        val cameraTitle = modelLine.ifBlank { brandTitle }
+        val cameraLine = listOfNotNull(
+            modelLine.takeIf { it.isNotBlank() }?.let { "MODEL $it" },
+            lensModel?.takeIf { it.isNotBlank() }
+        ).joinToString("  ·  ").ifBlank { cameraLabel }
+        val exposureLine = specs.ifBlank { "ISO N/A" }
+        val dateLabel = dateOnlyLine.ifBlank { timeLine }
+
         when (template) {
-            "standard2" -> {
-                val plate = drawBottomPlate(0.145f, margin * 1.25f)
-                val logoHeight = plate.height() * 0.34f
-                val logoWidth = logoHeight * (brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: 5.95f)
-                val logoLeft = plate.left + plate.height() * 0.10f
-                drawBrandLogo(RectF(logoLeft, plate.centerY() - logoHeight / 2f,
-                    logoLeft + logoWidth, plate.centerY() + logoHeight / 2f))
-                val left = logoLeft + logoWidth + plate.height() * 0.14f
-                val textWidth = (plate.right - left - plate.height() * 0.12f).coerceAtLeast(1f)
-                fitText(modelLine.uppercase(), titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.024f)
-                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
-                fitText(timeLine, detailPaint, plate.left + 5f, plate.top - margin * 0.25f,
-                    plate.width(), minSide * 0.010f)
+            "dark" -> {
+                drawTemplateFooter(AndroidColor.rgb(18, 20, 23))
+                val white = Paint(titlePaint).apply { color = AndroidColor.WHITE }
+                val muted = Paint(detailPaint).apply { color = AndroidColor.rgb(190, 196, 202) }
+                val accent = Paint(accentPaint).apply { color = brandAccentColor() }
+                drawTemplateText(cameraLine, white, footerRect.left + pad, centerY - footerHeight * 0.16f,
+                    footerWidth * 0.53f, primarySize)
+                drawTemplateText(exposureLine, accent, footerRect.left + pad, centerY + footerHeight * 0.20f,
+                    footerWidth * 0.53f, secondarySize)
+                drawTemplateText(dateLabel, muted, footerRect.right - pad - footerWidth * 0.34f,
+                    centerY + footerHeight * 0.20f, footerWidth * 0.34f, dateSize)
+                val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = brandAccentColor(); strokeWidth = (minSide * 0.0012f).coerceAtLeast(1.5f)
+                }
+                canvas.drawLine(footerRect.left + footerWidth * 0.61f, footerRect.top + footerHeight * 0.2f,
+                    footerRect.left + footerWidth * 0.61f, footerRect.bottom - footerHeight * 0.2f, rule)
+                val logoH = footerHeight * 0.35f
+                val logoW = minOf(footerWidth * 0.26f, logoH * sharedLogoRatio)
+                drawBrandLogo(RectF(footerRect.right - pad - logoW, centerY - logoH / 2f,
+                    footerRect.right - pad, centerY + logoH / 2f))
             }
-            "blur" -> {
-                val plate = drawBottomPlate(0.17f, margin)
-                val logoHeight = plate.height() * 0.31f
-                val logoWidth = logoHeight * (brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: 5.95f)
-                val logoLeft = plate.left + plate.height() * 0.10f
-                drawBrandLogo(RectF(logoLeft, plate.centerY() - logoHeight / 2f,
-                    logoLeft + logoWidth, plate.centerY() + logoHeight / 2f))
-                val left = logoLeft + logoWidth + plate.height() * 0.12f
-                val textWidth = (plate.right - left - plate.height() * 0.10f).coerceAtLeast(1f)
-                fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.026f)
-                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
-                fitText(timeLine, accentPaint, left, plate.top - margin * 0.25f,
-                    textWidth, minSide * 0.011f)
+            "minimal" -> {
+                val darkText = frameStyle == "White" || frameStyle == "LiquidGlass"
+                val linePaint = Paint(titlePaint).apply {
+                    color = if (darkText) AndroidColor.BLACK else AndroidColor.WHITE
+                    textSize = secondarySize
+                }
+                if (frameStyle == "White" || frameStyle == "Black") drawTemplateFooter(frameColor)
+                val oneLine = listOfNotNull(cameraTitle.takeIf { it.isNotBlank() }, exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                    .joinToString("   ·   ")
+                linePaint.setShadowLayer(if (frameStyle == "Transparent") 3f else 0f, 0f, 1f, AndroidColor.BLACK)
+                drawTemplateText(oneLine, linePaint, centerX, footerRect.top + footerHeight * 0.55f,
+                    footerWidth * 0.92f, secondarySize, centered = true)
             }
-"balanced" -> {
-                val plate = drawBottomPlate(0.16f, margin)
-                val left = plate.left + plate.height() * 0.19f
-                val right = plate.right - plate.height() * 0.19f
-                val sharedBaseline = plate.top + plate.height() * 0.43f
-                val sharedTextSize = minSide * 0.020f
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.RIGHT
-                fitText(modelLine, titlePaint, left, sharedBaseline,
-                    plate.width() * 0.43f, sharedTextSize)
-                fitText(specs, detailPaint, right, sharedBaseline,
-                    plate.width() * 0.53f, sharedTextSize)
-                val datePaint = Paint(detailPaint).apply {
-                    color = textColor
-                    alpha = 215
+            "simple" -> {
+                if (frameStyle == "White" || frameStyle == "Black") drawTemplateFooter(frameColor)
+                else if (frameStyle == "LiquidGlass") drawLiquidGlassPanel(footerRect, sharedFooterRadius)
+                val logoH = footerHeight * 0.38f
+                val logoW = minOf(footerWidth * 0.48f, logoH * sharedLogoRatio)
+                drawBrandLogo(RectF(centerX - logoW / 2f, footerRect.top + footerHeight * 0.08f,
+                    centerX + logoW / 2f, footerRect.top + footerHeight * 0.08f + logoH))
+                drawTemplateText(cameraTitle, titlePaint, centerX, footerRect.top + footerHeight * 0.70f,
+                    footerWidth * 0.86f, primarySize, centered = true)
+            }
+            "micro" -> {
+                val bg = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+                if (frameStyle != "Transparent" && frameStyle != "LiquidGlass") drawTemplateFooter(bg)
+                else if (frameStyle == "LiquidGlass") drawLiquidGlassPanel(footerRect, sharedFooterRadius)
+                val text = listOfNotNull(cameraTitle, specs.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                    .filter { it.isNotBlank() }.joinToString("  ·  ")
+                val ink = Paint(detailPaint).apply {
+                    color = if (frameStyle == "White" || frameStyle == "LiquidGlass") AndroidColor.BLACK else AndroidColor.WHITE
+                    textSize = dateSize
+                }
+                drawTemplateText(text, ink, centerX, centerY, footerWidth * 0.94f,
+                    dateSize, centered = true)
+            }
+            "vintage" -> {
+                drawTemplateFooter(AndroidColor.rgb(236, 227, 207))
+                val ink = Paint(titlePaint).apply {
+                    color = AndroidColor.rgb(75, 58, 41)
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
+                val faded = Paint(detailPaint).apply {
+                    color = AndroidColor.rgb(134, 112, 79)
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
+                val lineOne = cameraTitle.uppercase()
+                val lineTwo = listOfNotNull(exifFocal, exifAperture, exifShutter, exifIso?.let { "ISO $it" })
+                    .joinToString("  ")
+                drawTemplateText(lineOne, ink, centerX, footerRect.top + footerHeight * 0.39f,
+                    footerWidth * 0.88f, primarySize * 0.8f, centered = true)
+                drawTemplateText(lineTwo, faded, centerX, footerRect.top + footerHeight * 0.70f,
+                    footerWidth * 0.90f, secondarySize, centered = true)
+                val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.rgb(75, 58, 41); strokeWidth = (minSide * 0.001f).coerceAtLeast(1f)
+                }
+                canvas.drawLine(footerRect.left + pad, footerRect.top + footerHeight * 0.12f,
+                    footerRect.right - pad, footerRect.top + footerHeight * 0.12f, rule)
+            }
+            "polaroid" -> {
+                drawTemplateFooter(AndroidColor.rgb(250, 249, 245))
+                val captionPaint = Paint(titlePaint).apply {
+                    color = AndroidColor.rgb(35, 35, 35)
+                    typeface = android.graphics.Typeface.create("serif", android.graphics.Typeface.NORMAL)
+                }
+                val small = Paint(detailPaint).apply { color = AndroidColor.rgb(115, 115, 115) }
+                drawTemplateText(cameraTitle, captionPaint, footerRect.left + pad,
+                    footerRect.top + footerHeight * 0.56f, footerWidth * 0.62f,
+                    primarySize * 1.05f)
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                    .joinToString("  ·  "), small, footerRect.right - pad - footerWidth * 0.32f,
+                    footerRect.top + footerHeight * 0.56f, footerWidth * 0.32f,
+                    secondarySize)
+            }
+            "gallery" -> {
+                drawTemplateFooter(AndroidColor.rgb(243, 241, 236))
+                val ink = Paint(titlePaint).apply { color = AndroidColor.rgb(29, 29, 29) }
+                val quiet = Paint(detailPaint).apply { color = AndroidColor.rgb(112, 108, 100) }
+                val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.rgb(218, 215, 207); style = Paint.Style.STROKE
+                    strokeWidth = (minSide * 0.001f).coerceAtLeast(1f)
+                }
+                canvas.drawRect(footerRect.left + pad * 0.45f, footerRect.top + footerHeight * 0.12f,
+                    footerRect.right - pad * 0.45f, footerRect.bottom - footerHeight * 0.12f, border)
+                drawTemplateText(cameraTitle, ink, centerX, footerRect.top + footerHeight * 0.43f,
+                    footerWidth * 0.86f, primarySize, centered = true)
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                    .joinToString("  ·  "), quiet, centerX, footerRect.top + footerHeight * 0.72f,
+                    footerWidth * 0.86f, secondarySize, centered = true)
+            }
+            "frosted" -> {
+                drawLiquidGlassPanel(footerRect, (sharedFooterRadius * (1f + glassGooey * 0.6f)).coerceAtLeast(8f))
+                val ink = Paint(titlePaint).apply { color = if (sampleBitmapLuminance(output) > 0.52f) AndroidColor.BLACK else AndroidColor.WHITE }
+                val quiet = Paint(detailPaint).apply { color = ink.color; alpha = 210 }
+                val logoH = footerHeight * 0.38f
+                val logoW = minOf(footerWidth * 0.30f, logoH * sharedLogoRatio)
+                drawBrandLogo(RectF(footerRect.left + pad, centerY - logoH / 2f,
+                    footerRect.left + pad + logoW, centerY + logoH / 2f))
+                drawTemplateText(cameraLine, ink, footerRect.left + pad + logoW + pad * 0.45f,
+                    centerY - footerHeight * 0.12f, footerWidth * 0.48f, primarySize * 0.8f)
+                drawTemplateText(exposureLine, quiet, footerRect.left + pad + logoW + pad * 0.45f,
+                    centerY + footerHeight * 0.20f, footerWidth * 0.48f, secondarySize)
+            }
+            "film" -> {
+                drawTemplateFooter(AndroidColor.rgb(18, 17, 16))
+                val orange = Paint(titlePaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = android.graphics.Typeface.MONOSPACE }
+                val line = Paint(detailPaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = android.graphics.Typeface.MONOSPACE }
+                val holeW = footerWidth * 0.024f
+                val holeH = footerHeight * 0.16f
+                val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.rgb(230, 224, 211) }
+                for (i in 0..((footerWidth / (holeW * 2.6f)).toInt().coerceAtMost(60))) {
+                    val x = footerRect.left + i * holeW * 2.6f + holeW
+                    canvas.drawRoundRect(RectF(x, footerRect.top + footerHeight * 0.08f,
+                        x + holeW, footerRect.top + footerHeight * 0.08f + holeH),
+                        holeW * 0.18f, holeW * 0.18f, holePaint)
+                    canvas.drawRoundRect(RectF(x, footerRect.bottom - footerHeight * 0.08f - holeH,
+                        x + holeW, footerRect.bottom - footerHeight * 0.08f),
+                        holeW * 0.18f, holeW * 0.18f, holePaint)
+                }
+                drawTemplateText(cameraTitle.uppercase(), orange, footerRect.left + pad,
+                    footerRect.top + footerHeight * 0.44f, footerWidth * 0.55f,
+                    secondarySize, centered = false)
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                    .joinToString("  ·  "), line, footerRect.right - pad - footerWidth * 0.34f,
+                    footerRect.top + footerHeight * 0.44f, footerWidth * 0.34f,
+                    dateSize, centered = false)
+            }
+            "datestamp" -> {
+                val stamp = timeLine.ifBlank { dateLabel }
+                val ink = Paint(titlePaint).apply {
+                    color = AndroidColor.rgb(255, 150, 55)
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
                     textAlign = Paint.Align.RIGHT
                 }
-                fitText(timeLine, datePaint, right,
-                    plate.top + plate.height() * 0.78f,
-                    plate.width() * 0.53f, sharedTextSize * 0.88f)
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.LEFT
-            }
-            "normal1" -> {
-                val right = output.width - margin
-                if (glassEnabled) {
-                    drawLiquidGlassPanel(
-                        RectF(output.width * 0.34f, output.height - margin * 3.85f,
-                            output.width - margin * 0.55f, output.height - margin * 0.45f),
-                        margin * 0.28f
-                    )
-                }
-                titlePaint.textAlign = Paint.Align.RIGHT
-                detailPaint.textAlign = Paint.Align.RIGHT
-                var baseline = output.height - margin * 1.18f
-                fitText(timeLine, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.014f)
-                baseline -= margin * 0.92f
-                fitText(specs, detailPaint, right, baseline, output.width * 0.60f, minSide * 0.016f)
-                baseline -= margin * 0.98f
-                fitText(modelLine, titlePaint, right, baseline, output.width * 0.60f, minSide * 0.022f)
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.LEFT
-            }
-            "normal2" -> {
-                if (glassEnabled) {
-                    drawLiquidGlassPanel(
-                        RectF(margin * 0.48f, output.height - margin * 3.55f,
-                            output.width * 0.82f, output.height - margin * 0.42f),
-                        margin * 0.28f
-                    )
-                }
-                val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
-                optionalLines.forEachIndexed { index, line ->
-                    fitText(line, detailPaint, margin,
-                        output.height - margin * (1.12f + index * 0.82f),
-                        output.width - margin * 2f, minSide * 0.013f)
-                }
-            }
-            "fuji_classic" -> {
-                canvas.drawRect(footerRect, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.WHITE
-                    style = Paint.Style.FILL
-                })
-                val logoWidth = minOf(footerRect.width() * 0.19f, footerRect.height() * 0.82f)
-                val logoHeight = brandLogo?.let {
-                    logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: logoWidth * 0.18f
-                val leftLogo = footerRect.left + footerRect.height() * 0.22f
-                val logoRect = RectF(
-                    leftLogo,
-                    footerRect.centerY() - logoHeight / 2f,
-                    leftLogo + logoWidth,
-                    footerRect.centerY() + logoHeight / 2f
-                )
-                drawBrandLogo(logoRect)
-
-                val footerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.BLACK
-                    typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-                }
-                if (showModel) {
-                    footerText.textAlign = Paint.Align.LEFT
-                    fitText(model, footerText, leftLogo,
-                        footerRect.centerY() + logoHeight * 0.88f,
-                        footerRect.width() * 0.34f, minSide * 0.009f)
-                }
-                if (showSpecs) {
-                    val compactSpecs = listOf(focal, aperture, shutter, "ISO $iso")
-                        .filter { it.isNotBlank() }.joinToString(" ")
-                    val right = footerRect.right - footerRect.height() * 0.18f
-                    footerText.textAlign = Paint.Align.RIGHT
-                    fitText(compactSpecs, footerText, right, footerRect.centerY() + footerText.textSize * 0.34f,
-                        footerRect.width() * 0.61f, minSide * 0.018f)
-                    if (compactSpecs.isNotBlank()) {
-                        val dotRadius = (footerRect.height() * 0.055f).coerceIn(3f, 18f)
-                        val dotX = right - footerText.measureText(compactSpecs) - dotRadius * 2.4f
-                        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = AndroidColor.rgb(35, 174, 145)
-                            style = Paint.Style.FILL
-                        }
-                        canvas.drawCircle(dotX, footerRect.centerY(), dotRadius, dotPaint)
-                    }
-                }
-                if (showTime) {
-                    footerText.textAlign = Paint.Align.RIGHT
-                    fitText(timeLine, footerText, footerRect.right - footerRect.height() * 0.18f,
-                        footerRect.bottom - footerRect.height() * 0.20f,
-                        footerRect.width() * 0.61f, minSide * 0.0085f)
-                }
-            }
-            "fuji_signature" -> {
-                canvas.drawRect(footerRect, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.WHITE
-                    style = Paint.Style.FILL
-                })
-                val centerX = footerRect.centerX()
-                val logoWidth = minOf(footerRect.width() * 0.30f, footerRect.height() * 1.10f)
-                val logoHeight = brandLogo?.let {
-                    logoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: logoWidth * 0.18f
-                val logoTop = footerRect.top + footerRect.height() * 0.09f
-                drawBrandLogo(RectF(
-                    centerX - logoWidth / 2f, logoTop,
-                    centerX + logoWidth / 2f, logoTop + logoHeight
-                ))
-                val footerText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.BLACK
-                    textAlign = Paint.Align.CENTER
-                    typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-                }
-                val shotLabel = if (showModel) "Shot on $model" else ""
-                val signature = listOf(shotLabel, dateOnlyLine).filter { it.isNotBlank() }.joinToString(" | ")
-                fitText(signature, footerText, centerX,
-                    footerRect.top + footerRect.height() * 0.66f,
-                    footerRect.width() * 0.86f, minSide * 0.019f)
-                if (showSpecs) {
-                    fitText(specs, footerText, centerX,
-                        footerRect.top + footerRect.height() * 0.78f,
-                        footerRect.width() * 0.88f, minSide * 0.010f)
-                }
-                if (locationLine.isNotBlank()) {
-                    val locationPaint = Paint(footerText).apply {
-                        color = AndroidColor.rgb(132, 132, 132)
-                        textAlign = Paint.Align.CENTER
-                    }
-                    fitText(locationLine, locationPaint, centerX,
-                        footerRect.top + footerRect.height() * 0.93f,
-                        footerRect.width() * 0.88f, minSide * 0.0105f)
-                }
-            }
-            "center_logo" -> {
-                val centerX = output.width / 2f
-                val centerY = output.height * 0.52f
-                val panel = RectF(output.width * 0.12f, centerY - minSide * 0.085f,
-                    output.width * 0.88f, centerY + minSide * 0.105f)
-                val backing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = panelColor
-                    style = Paint.Style.FILL
-                }
-                if (glassEnabled) {
-                    drawLiquidGlassPanel(panel, minSide * 0.018f)
-                } else if (frameStyle != "Transparent") {
-                    canvas.drawRoundRect(panel, minSide * 0.018f, minSide * 0.018f, backing)
-                }
-                drawFrame(panel, minSide * 0.018f)
-                val centerLogoWidth = minOf(panel.width() * 0.36f, minSide * 0.25f)
-                val centerLogoHeight = brandLogo?.let {
-                    centerLogoWidth * it.intrinsicHeight.toFloat() / it.intrinsicWidth.toFloat()
-                } ?: centerLogoWidth * 0.18f
-                val centerLogoRect = RectF(
-                    centerX - centerLogoWidth / 2f,
-                    centerY - centerLogoHeight * 0.72f,
-                    centerX + centerLogoWidth / 2f,
-                    centerY + centerLogoHeight * 0.28f
-                )
-                val logoBacking = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = AndroidColor.WHITE
-                    style = Paint.Style.FILL
-                }
-                canvas.drawRoundRect(
-                    RectF(centerLogoRect.left - minSide * 0.009f,
-                        centerLogoRect.top - minSide * 0.004f,
-                        centerLogoRect.right + minSide * 0.009f,
-                        centerLogoRect.bottom + minSide * 0.004f),
-                    minSide * 0.006f, minSide * 0.006f, logoBacking
-                )
-                drawBrandLogo(centerLogoRect)
-                if (frameStyle != "Transparent") {
-                    val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = frameColor
-                        alpha = 245
-                        strokeWidth = (minSide * 0.0015f).coerceAtLeast(2f)
-                    }
-                    canvas.drawLine(output.width * 0.30f, centerY + minSide * 0.025f,
-                        output.width * 0.70f, centerY + minSide * 0.025f, line)
-                }
-                detailPaint.textAlign = Paint.Align.CENTER
-                val optionalLines = listOf(modelLine, specs, timeLine).filter { it.isNotBlank() }
-                optionalLines.forEachIndexed { index, value ->
-                    fitText(value, detailPaint, centerX,
-                        centerY + minSide * (0.060f + index * 0.032f),
-                        panel.width() * 0.88f, minSide * 0.011f)
-                }
-                titlePaint.textAlign = Paint.Align.LEFT
-                detailPaint.textAlign = Paint.Align.LEFT
+                val metrics = ink.fontMetrics
+                canvas.drawText(stamp, footerRect.right - pad,
+                    footerRect.bottom - pad - metrics.descent, ink)
             }
             else -> {
-                val plate = drawBottomPlate(0.12f, margin)
-                val logoHeight = plate.height() * 0.30f
-                val logoWidth = logoHeight * (brandLogo?.let {
-                    it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat()
-                } ?: 5.95f)
-                val logoLeft = plate.left + plate.height() * 0.10f
-                drawBrandLogo(RectF(logoLeft, plate.centerY() - logoHeight / 2f,
-                    logoLeft + logoWidth, plate.centerY() + logoHeight / 2f))
-                val left = logoLeft + logoWidth + plate.height() * 0.12f
-                val textWidth = (plate.right - left - plate.height() * 0.10f).coerceAtLeast(1f)
-                fitText(modelLine, titlePaint, left, plate.top + plate.height() * 0.38f,
-                    textWidth, minSide * 0.023f)
-                fitText(specs, detailPaint, left, plate.top + plate.height() * 0.70f,
-                    textWidth, minSide * 0.014f)
-                fitText(timeLine, accentPaint, margin + 2f,
-                    margin + minSide * 0.012f, output.width - margin * 2f, minSide * 0.0105f)
+                    // The existing Fuji/Sony/Nikon/Canon lockup is retained for Auto and Signature.
+    
+            // brand logo + camera model on the left; shooting settings + capture date on the right.
+            // The logo is vertically centred against the left text stack, not against the footer top.
+            val footerRadius = (minSide * 0.012f).coerceAtLeast(7f)
+            drawWatermarkFooter(footerRect, footerRadius)
+    
+            val footerWidth = footerRect.width().coerceAtLeast(1f)
+            val footerHeight = footerRect.height().coerceAtLeast(1f)
+            val horizontalInset = footerWidth * 0.045f
+            val dividerX = footerRect.left + footerWidth * 0.565f
+            val leftContentWidth = (dividerX - footerRect.left - horizontalInset * 1.5f).coerceAtLeast(1f)
+            val rightLeft = dividerX + footerWidth * 0.045f
+            val rightRight = footerRect.right - horizontalInset
+            val rightContentWidth = (rightRight - rightLeft).coerceAtLeast(1f)
+    
+            val logoColumnLeft = footerRect.left + horizontalInset
+            val logoColumnWidth = leftContentWidth * 0.34f
+            val modelLeft = logoColumnLeft + logoColumnWidth + footerWidth * 0.025f
+            val modelWidth = (dividerX - modelLeft - footerWidth * 0.035f).coerceAtLeast(1f)
+            val modelText = modelLine.takeIf { it.isNotBlank() }?.let { "MODEL  $it" }.orEmpty()
+            val leftSecondary = when {
+                lensModel.isNullOrBlank() && locationLine.isBlank() -> ""
+                template == "fuji_signature" && locationLine.isNotBlank() -> locationLine
+                else -> lensModel.orEmpty()
+            }
+            val leftHasTitle = modelText.isNotBlank() || brandTitle.isNotBlank()
+            val leftHasSecondary = leftSecondary.isNotBlank()
+            val rowTopY = footerRect.top + footerHeight * 0.34f
+            val rowBottomY = footerRect.top + footerHeight * 0.68f
+            val leftTitleCenterY = if (leftHasTitle && leftHasSecondary) rowTopY else footerRect.top + footerHeight * 0.51f
+            val leftSecondaryCenterY = if (leftHasTitle && leftHasSecondary) rowBottomY else leftTitleCenterY
+            val logoCenterY = if (leftHasTitle && leftHasSecondary) {
+                (leftTitleCenterY + leftSecondaryCenterY) * 0.5f
+            } else {
+                leftTitleCenterY
+            }
+    
+            val logoRatio = brandLogo?.let {
+                if (it.intrinsicHeight > 0) it.intrinsicWidth.toFloat() / it.intrinsicHeight.toFloat() else 3f
+            } ?: when (watermarkBrand) {
+                "sony" -> 2.8f
+                "nikon" -> 3.1f
+                "canon" -> 3.0f
+                else -> 5.95f
+            }
+            val logoHeight = minOf(footerHeight * 0.46f, logoColumnWidth / logoRatio)
+            val logoWidth = logoHeight * logoRatio
+            val logoCenterX = logoColumnLeft + logoColumnWidth * 0.5f
+            drawBrandLogo(
+                RectF(
+                    logoCenterX - logoWidth * 0.5f,
+                    logoCenterY - logoHeight * 0.5f,
+                    logoCenterX + logoWidth * 0.5f,
+                    logoCenterY + logoHeight * 0.5f
+                )
+            )
+    
+            val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = brandAccentColor()
+                alpha = if (frameStyle == "Transparent") 215 else 155
+                style = Paint.Style.STROKE
+                strokeWidth = (minSide * 0.0012f).coerceIn(1.5f, 4.5f)
+                strokeCap = Paint.Cap.ROUND
+            }
+            canvas.drawLine(
+                dividerX,
+                footerRect.top + footerHeight * 0.20f,
+                dividerX,
+                footerRect.bottom - footerHeight * 0.20f,
+                dividerPaint
+            )
+    
+            fun drawMeasuredLine(
+                value: String,
+                sourcePaint: Paint,
+                centerY: Float,
+                x: Float,
+                maxWidth: Float,
+                baseSize: Float,
+                minimumSize: Float
+            ) {
+                if (value.isBlank()) return
+                val paint = Paint(sourcePaint).apply {
+                    textAlign = Paint.Align.LEFT
+                    textSize = baseSize
+                }
+                var fittedText = value
+                while (paint.measureText(fittedText) > maxWidth && paint.textSize > minimumSize) {
+                    paint.textSize = (paint.textSize * 0.94f).coerceAtLeast(minimumSize)
+                }
+                if (paint.measureText(fittedText) > maxWidth) {
+                    val ellipsis = "…"
+                    var endIndex = fittedText.length
+                    while (endIndex > 1 &&
+                        paint.measureText(fittedText.substring(0, endIndex).trimEnd() + ellipsis) > maxWidth
+                    ) {
+                        endIndex--
+                    }
+                    fittedText = fittedText.substring(0, endIndex).trimEnd() + ellipsis
+                }
+                val metrics = paint.fontMetrics
+                val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
+                canvas.drawText(fittedText, x, baseline, paint)
+            }
+    
+            // Explicit text anchors keep the left model/lens and right exposure/date columns balanced.
+            val titleSize = (minSide * 0.023f).coerceAtLeast(20f)
+            val secondarySize = (minSide * 0.014f).coerceAtLeast(13f)
+            val specsSize = (minSide * 0.020f).coerceAtLeast(18f)
+            val dateSize = (minSide * 0.014f).coerceAtLeast(13f)
+            val leftTitle = modelText.ifBlank { brandTitle }
+            val rightDate = dateOnlyLine.ifBlank { timeLine }
+            drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelLeft, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))
+            drawMeasuredLine(leftSecondary, detailPaint, leftSecondaryCenterY, modelLeft, modelWidth, secondarySize, (secondarySize * 0.72f).coerceAtLeast(12f))
+            drawMeasuredLine(specs, accentPaint, footerRect.top + footerHeight * 0.39f, rightLeft, rightContentWidth, specsSize, (specsSize * 0.72f).coerceAtLeast(15f))
+            drawMeasuredLine(rightDate, detailPaint, footerRect.top + footerHeight * 0.70f, rightLeft, rightContentWidth, dateSize, (dateSize * 0.72f).coerceAtLeast(12f))
             }
         }
 
@@ -2322,14 +3276,15 @@ fun applyCameraWatermark(
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)
         } ?: false
         if (!outputWritten) return@runCatching false
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
-            ExifInterface(descriptor.fileDescriptor).apply {
-                setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-                saveAttributes()
-            }
-        }
+        val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, output.width, output.height)
+        if (!exifWritten) return@runCatching false
         setMediaStoreOrientationUpright(context, uri)
         true
+        } finally {
+            watermarkCropBitmap?.let { if (!it.isRecycled) it.recycle() }
+            outputBitmap?.let { if (it !== sourceBitmap && !it.isRecycled) it.recycle() }
+            if (!sourceBitmap.isRecycled) sourceBitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_WATERMARK", "applyCameraWatermark failed", it)
     }.getOrDefault(false)
@@ -2452,6 +3407,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         mutableStateOf(prefs.getStringSet("frames", emptySet()).orEmpty().toList())
     }
     var luts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
+    var lutSearch by remember { mutableStateOf("") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var pendingDeleteLut by remember { mutableStateOf<CustomCameraLut?>(null) }
     var isImportingLut by remember { mutableStateOf(false) }
@@ -2466,7 +3422,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                     activeLutIds = activeCustomCameraLutIds(context)
                     Toast.makeText(
                         context,
-                        "Đã nhập " + imported.size + " LUT. Chọn Add to Filters để đưa vào mục LUT.",
+                        "Đã nhập " + imported.size + " LUT. Chọn Add để bật từng bộ lọc.",
                         Toast.LENGTH_LONG
                     ).show()
                 } catch (failure: Throwable) {
@@ -2500,10 +3456,17 @@ fun ContentManagementScreen(onBack: () -> Unit) {
 
         Text("LUT Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(
-            "Nhập Xiaomi Mi-LOG bằng tệp .zip (ứng dụng tự tìm .cube bên trong, kể cả ZIP lồng) hoặc LUT Blackmagic .cube.",
+            "Nhập LUT .cube, LUT Canon RGB 33x33x33 (.bin), hoặc ZIP chứa tối đa 700 LUT .cube/.bin. Hỗ trợ ZIP lồng. LUT Log được giữ riêng, không áp nhầm lên JPEG sRGB.",
             color = CamColors.Sub,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+        )
+        OutlinedTextField(
+            value = lutSearch,
+            onValueChange = { lutSearch = it },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            singleLine = true,
+            label = { Text("Tìm LUT theo tên hoặc nhóm") }
         )
         Button(
             onClick = { lutPicker.launch(arrayOf("*/*")) },
@@ -2514,9 +3477,20 @@ fun ContentManagementScreen(onBack: () -> Unit) {
             Text(if (isImportingLut) "Đang nhập LUT…" else "Import LUT")
         }
         if (luts.isEmpty()) {
-            EmptyNote("Chưa có LUT nào. Hỗ trợ Xiaomi .zip và Blackmagic .cube.")
+            EmptyNote("Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT.")
         } else {
-            luts.forEach { entry ->
+            val matchingLuts = luts.filter {
+                lutSearch.isBlank() ||
+                    it.name.contains(lutSearch.trim(), ignoreCase = true) ||
+                    it.category.contains(lutSearch.trim(), ignoreCase = true)
+            }
+            Text(
+                "Hiển thị ${matchingLuts.size.coerceAtMost(100)} / ${matchingLuts.size} LUT khớp · Tổng ${luts.size}",
+                color = CamColors.Sub,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(bottom = 5.dp)
+            )
+            matchingLuts.take(100).forEach { entry ->
                 val isActive = activeLutIds.contains(entry.id)
                 Row(
                     Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -2528,7 +3502,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                     Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                         Text(entry.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (isActive) "Đã thêm vào Bộ lọc → LUT" else "Đã nhập · Chưa thêm vào Bộ lọc",
+                            (if (isActive) "Đã thêm · " else "Chưa thêm · ") + entry.category,
                             color = CamColors.Sub,
                             fontSize = 9.sp
                         )
@@ -2658,11 +3632,35 @@ private fun EmptyNote(text: String) {
 private data class AlbumPhotoEntry(val uri: Uri, val dateAdded: Long)
 
 @Composable
+private fun AlbumLoadingSkeleton() {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Text("Đang tải thư viện ảnh…", color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(start = 3.dp, bottom = 8.dp))
+        repeat(3) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                repeat(3) {
+                    Box(
+                        Modifier.weight(1f).aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CamColors.Card)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AlbumScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var photos by remember { mutableStateOf<List<AlbumPhotoEntry>>(emptyList()) }
     var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
     var selectedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var inspectorVisible by remember { mutableStateOf(false) }
+    var inspectorRows by remember { mutableStateOf<List<Pair<String, String>>?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -2695,10 +3693,22 @@ fun AlbumScreen(onBack: () -> Unit) {
         isLoading = false
     }
 
+    LaunchedEffect(selectedPhoto, inspectorVisible) {
+        if (!inspectorVisible) {
+            inspectorRows = null
+        } else {
+            val uri = selectedPhoto ?: return@LaunchedEffect
+            inspectorRows = withContext(Dispatchers.IO) {
+                runCatching { readPhotoInspectorInfo(context, uri) }
+                    .getOrElse { listOf("Thông tin ảnh" to "Không thể đọc metadata: ${it.message ?: "lỗi không xác định"}") }
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(CamColors.Bg).padding(12.dp)) {
         PageHeader("Album · Fujifilm Mode", onBack)
         when {
-            isLoading -> Text("Đang tải ảnh…", color = CamColors.Sub, modifier = Modifier.padding(12.dp))
+            isLoading -> AlbumLoadingSkeleton()
             photos.isEmpty() -> EmptyNote("Chưa có ảnh. Ảnh chụp trong ứng dụng sẽ xuất hiện ở đây.")
             else -> Text("${photos.size} ảnh", color = CamColors.Sub, fontSize = 11.sp,
                 modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
@@ -2749,13 +3759,175 @@ fun AlbumScreen(onBack: () -> Unit) {
                 } else {
                     Text("Đang tải ảnh…", color = Color.White, modifier = Modifier.align(Alignment.Center))
                 }
-                Text("Đóng", color = Color.White,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(20.dp)
-                        .clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
-                        .animaTClickable { selectedPhoto = null; selectedBitmap = null }.padding(12.dp))
+                Row(
+                    Modifier.align(Alignment.TopEnd).padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Thông tin", color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
+                            .animaTClickable { inspectorVisible = true }.padding(horizontal = 12.dp, vertical = 10.dp))
+                    Text("Đóng", color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(CamColors.Glass)
+                            .animaTClickable {
+                                selectedPhoto = null
+                                selectedBitmap = null
+                                inspectorVisible = false
+                            }.padding(horizontal = 12.dp, vertical = 10.dp))
+                }
             }
         }
     }
+
+    if (inspectorVisible && selectedPhoto != null) {
+        AlertDialog(
+            onDismissRequest = { inspectorVisible = false },
+            title = { Text("Photo Inspector", color = CamColors.TextColor) },
+            text = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    val rows = inspectorRows
+                    if (rows == null) {
+                        Text("Đang đọc metadata ảnh…", color = CamColors.Sub)
+                    } else {
+                        rows.forEach { (label, value) ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label, color = CamColors.Sub, fontSize = 12.sp,
+                                    modifier = Modifier.weight(0.42f))
+                                Text(value, color = CamColors.TextColor, fontSize = 12.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                    modifier = Modifier.weight(0.58f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { inspectorVisible = false }) { Text("Đóng") }
+            }
+        )
+    }
+}
+
+
+private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String, String>> {
+    var fileName = "Không có"
+    var fileSize = -1L
+    var mimeType = "Không có"
+    var width = -1
+    var height = -1
+    runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(
+                OpenableColumns.DISPLAY_NAME,
+                OpenableColumns.SIZE,
+                MediaStore.MediaColumns.MIME_TYPE,
+                MediaStore.Images.Media.WIDTH,
+                MediaStore.Images.Media.HEIGHT
+            ),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                fun stringAt(column: String): String? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else null
+                }
+                fun longAt(column: String): Long? {
+                    val index = cursor.getColumnIndex(column)
+                    return if (index >= 0 && !cursor.isNull(index)) cursor.getLong(index) else null
+                }
+                fileName = stringAt(OpenableColumns.DISPLAY_NAME) ?: fileName
+                fileSize = longAt(OpenableColumns.SIZE) ?: fileSize
+                mimeType = stringAt(MediaStore.MediaColumns.MIME_TYPE) ?: mimeType
+                width = longAt(MediaStore.Images.Media.WIDTH)?.toInt() ?: width
+                height = longAt(MediaStore.Images.Media.HEIGHT)?.toInt() ?: height
+            }
+        }
+    }
+    val exif = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input -> ExifInterface(input) }
+    }.getOrNull()
+    // MediaStore WIDTH/HEIGHT may lag behind a replaced JPEG after LunaDream output.
+    // Prefer the actual encoded pixel bounds, then apply EXIF axis rotation so the
+    // Inspector reports the dimensions as the user sees the upright photo.
+    val exifOrientation = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 0) ?: 0
+    val actualDimensions = runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+        PhotoInspectorGeometry.fromEncoded(bounds.outWidth, bounds.outHeight, exifOrientation)
+    }.getOrNull()
+    actualDimensions?.let {
+        width = it.width
+        height = it.height
+    }
+    val photoPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val lunaDreamStatus = photoPrefs.getString("photo_lunadream_status:$uri", "Không có dữ liệu phiên LunaDream") ?: "Không có dữ liệu phiên LunaDream"
+    val logicalCameraId = photoPrefs.getString("photo_camera_id:$uri", "Không công bố") ?: "Không công bố"
+    val physicalCameraId = photoPrefs.getString("photo_physical_camera_id:$uri", "HAL không công bố") ?: "HAL không công bố"
+    val processedOutputSize = photoPrefs.getString("photo_output_size:$uri", "Không ghi nhận") ?: "Không ghi nhận"
+    fun tag(name: String): String? = exif?.getAttribute(name)?.trim()?.takeIf { it.isNotEmpty() }
+    if (width <= 0) width = tag(ExifInterface.TAG_IMAGE_WIDTH)?.toIntOrNull() ?: -1
+    if (height <= 0) height = tag(ExifInterface.TAG_IMAGE_LENGTH)?.toIntOrNull() ?: -1
+    val makeModel = listOfNotNull(tag(ExifInterface.TAG_MAKE), tag(ExifInterface.TAG_MODEL))
+        .distinct().joinToString(" ").ifBlank { "Không có EXIF" }
+    val resolution = if (width > 0 && height > 0) {
+        String.format(Locale.US, "%,d × %,d px", width, height)
+    } else "Không có"
+    val sizeLabel = when {
+        fileSize < 0L -> "Không có"
+        fileSize >= 1024L * 1024L -> String.format(Locale.US, "%.2f MB", fileSize / (1024.0 * 1024.0))
+        fileSize >= 1024L -> String.format(Locale.US, "%.1f KB", fileSize / 1024.0)
+        else -> "$fileSize bytes"
+    }
+    val exposure = tag(ExifInterface.TAG_EXPOSURE_TIME)?.let { raw ->
+        raw.toDoubleOrNull()?.let { seconds ->
+            if (seconds > 0.0 && seconds < 1.0) "1/${(1.0 / seconds).toInt()}s"
+            else if (seconds >= 1.0) String.format(Locale.US, "%.2fs", seconds)
+            else raw
+        } ?: raw
+    } ?: "Không có"
+    val focal = tag(ExifInterface.TAG_FOCAL_LENGTH)?.let { "$it mm" } ?: "Không có"
+    val aperture = tag(ExifInterface.TAG_F_NUMBER)?.let { "f/$it" } ?: "Không có"
+    val qualityBitmap = runCatching {
+        decodeUprightBitmap(context, uri, maxDimension = 640)
+    }.getOrNull()
+    val qualityReport: PhotoQualityReport? = try {
+        qualityBitmap?.let { bitmap -> PhotoQualityAnalyzer.analyze(bitmap) }
+    } catch (failure: Throwable) {
+        android.util.Log.w("FUJI_PHOTO_QUALITY", "Quick quality analysis failed", failure)
+        null
+    } finally {
+        qualityBitmap?.let { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() }
+    }
+    return listOf(
+        "Tên tệp" to fileName,
+        "Độ phân giải" to resolution,
+        "Dung lượng" to sizeLabel,
+        "Định dạng" to mimeType,
+        "Thiết bị" to makeModel,
+        "Camera ID logic" to logicalCameraId,
+        "Physical Camera ID thực tế" to physicalCameraId,
+        "Ống kính" to (tag("LensModel") ?: "Không có EXIF"),
+        "ISO" to (tag(ExifInterface.TAG_ISO_SPEED_RATINGS) ?: "Không có"),
+        "Tốc độ màn trập" to exposure,
+        "Khẩu độ" to aperture,
+        "Tiêu cự" to focal,
+        "Ngày chụp" to (tag(ExifInterface.TAG_DATETIME_ORIGINAL) ?: "Không có EXIF"),
+        "Độ nét (ước tính)" to (qualityReport?.sharpnessLabel ?: "Không phân tích được"),
+        "Vùng cháy sáng" to (qualityReport?.highlightClippingLabel ?: "Không phân tích được"),
+        "Vùng tối bệt" to (qualityReport?.shadowClippingLabel ?: "Không phân tích được"),
+        "Nhiễu nền (ước tính)" to (qualityReport?.noiseLabel ?: "Không phân tích được"),
+        "Gợi ý chất lượng" to (qualityReport?.recommendation ?: "Không phân tích được"),
+        "Kích thước sau xử lý" to processedOutputSize,
+        "Trạng thái LunaDream" to lunaDreamStatus
+    )
 }
 
 
@@ -2766,16 +3938,25 @@ fun AlbumScreen(onBack: () -> Unit) {
  */
 fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val brandId = prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm"
+    val brandTitle = cameraWatermarkBrandTitle(brandId)
     val template = prefs.getString("selected_frame_template", "none") ?: "none"
     if (template == "none") return false
 
     return runCatching {
+        val sourceExif = readImageExifAttributes(context, uri)
         val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        val output = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
-            ?: return@runCatching false
-        val canvas = Canvas(output)
-        val frameStyle = prefs.getString("frame_style", "White") ?: "White"
-        val transparent = frameStyle == "Transparent"
+        var outputBitmap: Bitmap? = null
+        try {
+            val output = if (bitmap.isMutable) {
+                bitmap.also { outputBitmap = it }
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, true)?.also { outputBitmap = it }
+                    ?: return@runCatching false
+            }
+            val canvas = Canvas(output)
+        val frameStyle = (prefs.getString("frame_style", "White") ?: "White").takeIf { it == "Black" || it == "White" } ?: "White"
+        val transparent = false
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
         val textColor = if (frameStyle == "Black" || transparent) AndroidColor.WHITE else AndroidColor.BLACK
         val minSide = minOf(output.width, output.height).toFloat()
@@ -2831,14 +4012,17 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
             val imported = context.contentResolver.openInputStream(frameUri)?.use {
                 BitmapFactory.decodeStream(it)
             } ?: return@runCatching false
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            if (!transparent) {
-                paint.colorFilter = android.graphics.PorterDuffColorFilter(
-                    frameColor, android.graphics.PorterDuff.Mode.SRC_IN
-                )
+            try {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                if (!transparent) {
+                    paint.colorFilter = android.graphics.PorterDuffColorFilter(
+                        frameColor, android.graphics.PorterDuff.Mode.SRC_IN
+                    )
+                }
+                canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
+            } finally {
+                if (!imported.isRecycled) imported.recycle()
             }
-            canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
-            imported.recycle()
         } else {
             val outer = RectF(margin, margin, output.width - margin, output.height - margin)
             val inner = RectF(margin * 1.55f, margin * 1.55f,
@@ -2847,7 +4031,7 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
                 "classic" -> {
                     border(outer, stroke * 1.8f)
                     border(inner, stroke * 0.55f)
-                    caption("FUJIFILM  /  X SERIES", "PHOTO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}")
+                    caption("${brandTitle}  /  CAMERA", "PHOTO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}")
                 }
                 "clean" -> {
                     val corner = minSide * 0.085f
@@ -2948,9 +4132,13 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
             output.compress(Bitmap.CompressFormat.JPEG, 98, it)
         } ?: false
         if (!written) return@runCatching false
-        writeUprightExifMetadata(context, uri, output.width, output.height)
+        val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, output.width, output.height)
         setMediaStoreOrientationUpright(context, uri)
-        true
+        exifWritten
+        } finally {
+            outputBitmap?.let { if (it !== bitmap && !it.isRecycled) it.recycle() }
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
     }.onFailure {
         android.util.Log.e("FUJI_FRAME", "Could not apply selected frame", it)
     }.getOrDefault(false)
@@ -3018,7 +4206,7 @@ fun CameraFrameDialog(
             Text("Frame color", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 10.dp, bottom = 7.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                listOf("White", "Black", "Transparent").forEach { style ->
+                listOf("White", "Black").forEach { style ->
                     Chip(style, selectedStyle == style, { onSelectStyle(style) }, Modifier.weight(1f))
                 }
             }

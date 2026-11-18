@@ -65,16 +65,33 @@ internal object HdrByHdmpEngine {
             var previous = IntArray(width)
             var current = IntArray(width)
             var next = IntArray(width)
+            var previousLuma = FloatArray(width)
+            var currentLuma = FloatArray(width)
+            var nextLuma = FloatArray(width)
             val output = IntArray(width)
+
+            fun fillLuminance(source: IntArray, destination: FloatArray) {
+                for (x in source.indices) {
+                    val pixel = source[x]
+                    destination[x] = (
+                        Color.red(pixel) * 0.2126f +
+                            Color.green(pixel) * 0.7152f +
+                            Color.blue(pixel) * 0.0722f
+                        ) / 255f
+                }
+            }
+
             frame.getPixels(current, 0, width, 0, 0, width, 1)
             current.copyInto(previous)
-            if (height > 1) frame.getPixels(next, 0, width, 0, 1, width, 1)
-            else current.copyInto(next)
-
-            fun luminance(pixel: Int): Float =
-                (Color.red(pixel) * 0.2126f +
-                    Color.green(pixel) * 0.7152f +
-                    Color.blue(pixel) * 0.0722f) / 255f
+            fillLuminance(current, currentLuma)
+            currentLuma.copyInto(previousLuma)
+            if (height > 1) {
+                frame.getPixels(next, 0, width, 0, 1, width, 1)
+                fillLuminance(next, nextLuma)
+            } else {
+                current.copyInto(next)
+                currentLuma.copyInto(nextLuma)
+            }
 
             for (y in 0 until height) {
                 for (x in 0 until width) {
@@ -83,12 +100,12 @@ internal object HdrByHdmpEngine {
                     val red = Color.red(pixel).toFloat()
                     val green = Color.green(pixel).toFloat()
                     val blue = Color.blue(pixel).toFloat()
-                    val luma = luminance(pixel)
+                    val luma = currentLuma[x]
 
-                    val left = luminance(current[max(0, x - 1)])
-                    val right = luminance(current[min(width - 1, x + 1)])
-                    val up = luminance(previous[x])
-                    val down = luminance(next[x])
+                    val left = currentLuma[max(0, x - 1)]
+                    val right = currentLuma[min(width - 1, x + 1)]
+                    val up = previousLuma[x]
+                    val down = nextLuma[x]
                     val localMean = (left + right + up + down) * 0.25f
 
                     val shadowLift = 0.105f * profile * (1f - luma) * (1f - luma)
@@ -117,9 +134,19 @@ internal object HdrByHdmpEngine {
                     previous = current
                     current = next
                     next = recycled
+
+                    val recycledLuma = previousLuma
+                    previousLuma = currentLuma
+                    currentLuma = nextLuma
+                    nextLuma = recycledLuma
+
                     if (y + 2 < height) {
                         frame.getPixels(next, 0, width, 0, y + 2, width, 1)
-                    } else current.copyInto(next)
+                        fillLuminance(next, nextLuma)
+                    } else {
+                        current.copyInto(next)
+                        currentLuma.copyInto(nextLuma)
+                    }
                 }
 
                 if (y % STRIPE_HEIGHT == 0 || y == height - 1) {

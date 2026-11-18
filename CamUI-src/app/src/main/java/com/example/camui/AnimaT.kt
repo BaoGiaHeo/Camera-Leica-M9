@@ -19,6 +19,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 
@@ -27,8 +30,8 @@ object AnimaT {
     private val motionEasing = FastOutSlowInEasing
 
     /** Soft right-to-left entrance shared by top-level pages and Settings detail pages. */
-    fun enter(): EnterTransition =
-        slideInHorizontally(
+    fun enter(performanceMode: Boolean = false): EnterTransition =
+        if (performanceMode) fadeIn(animationSpec = tween(durationMillis = 90)) else slideInHorizontally(
             initialOffsetX = { fullWidth -> fullWidth / 18 },
             animationSpec = tween(durationMillis = 320, easing = motionEasing)
         ) +
@@ -39,8 +42,8 @@ object AnimaT {
             )
 
     /** Light reverse drift with a clean fade; avoids the old abrupt shrink effect. */
-    fun exit(): ExitTransition =
-        slideOutHorizontally(
+    fun exit(performanceMode: Boolean = false): ExitTransition =
+        if (performanceMode) fadeOut(animationSpec = tween(durationMillis = 70)) else slideOutHorizontally(
             targetOffsetX = { fullWidth -> -fullWidth / 32 },
             animationSpec = tween(durationMillis = 220, easing = motionEasing)
         ) +
@@ -58,6 +61,12 @@ fun Modifier.animaTContent(): Modifier = animateContentSize(
 fun Modifier.animaTClickable(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val context = LocalContext.current
+    val hapticFeedback = LocalHapticFeedback.current
+    val hapticsEnabled = remember(context) {
+        context.getSharedPreferences("fujifilm_settings", 0)
+            .getBoolean("haptic_feedback_enabled", true)
+    }
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.985f else 1f,
         animationSpec = tween(durationMillis = 145, easing = FastOutSlowInEasing),
@@ -66,5 +75,14 @@ fun Modifier.animaTClickable(enabled: Boolean = true, onClick: () -> Unit): Modi
     this.graphicsLayer {
         scaleX = scale
         scaleY = scale
-    }.clickable(interactionSource = interactionSource, indication = null, enabled = enabled, onClick = onClick)
+    }.clickable(
+        interactionSource = interactionSource,
+        indication = null,
+        enabled = enabled
+    ) {
+        if (hapticsEnabled) {
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+        onClick()
+    }
 }

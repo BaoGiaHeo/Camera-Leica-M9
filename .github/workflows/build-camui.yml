@@ -1,19 +1,22 @@
-name: Build CamerAwesome UI experiment (debug APK)
+name: FujiFilm Mode landscape UI validation
+# Build APK and publish it even if the hosted Android Emulator cannot complete.
 
-'on':
+on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches: [main, "feature/fujifilm-mode-1.6"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: landscape-ui-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -21,108 +24,202 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare Fujifilm camera source
-        run: |
-          set -e
-          test -d CamUI-src
-          cp -R CamUI-src CamUI
-          echo "Camera source files:"
-          find CamUI -maxdepth 8 -type f | sort
-
-      - name: Export extracted CamUI source for repair
-        uses: actions/upload-artifact@v4
-        with:
-          name: CamUI-source-for-repair
-          path: CamUI/**
-          include-hidden-files: true
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Verify Android SDK
-        run: |
-          test -d "$ANDROID_HOME"
-          test -x "$ANDROID_HOME/platform-tools/adb" || true
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls "$ANDROID_HOME"
-
-      - name: Set up Python for deterministic NAFNet ONNX export
-        uses: actions/setup-python@v5
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
         with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: .github/workflows/build-camui.yml
+          packages: platform-tools
 
-      - name: Export and smoke-test NAFNet primary and fallback models
-        env:
-          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      - name: Install Android 17 platform 37.0
         run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install --index-url https://download.pytorch.org/whl/cpu \
-            "torch==2.5.1+cpu" "torchvision==0.20.1+cpu"
-          python -m pip install \
-            "numpy==1.26.4" \
-            "opencv-python-headless==4.10.0.84" \
-            "pillow==11.0.0" \
-            "onnx==1.17.0" \
-            "onnxruntime==1.20.1"
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" --channel=3
 
-          git clone --depth 1 https://github.com/mikecokina/nafnetlib.git "$RUNNER_TEMP/nafnetlib"
-          MODEL_DIR="$RUNNER_TEMP/nafnet-model-weights"
-          OUTPUT_DIR="$GITHUB_WORKSPACE/CamUI/app/src/main/assets/models"
-          mkdir -p "$MODEL_DIR" "$OUTPUT_DIR"
-          python scripts/export_nafnet_onnx.py \
-            --nafnetlib-src "$RUNNER_TEMP/nafnetlib/src" \
-            --model-dir "$MODEL_DIR" \
-            --output-dir "$OUTPUT_DIR"
-
-          test -s "$OUTPUT_DIR/nafnet_sidd_width64.onnx"
-          test -s "$OUTPUT_DIR/nafnetlib_sidd_width32.onnx"
-          test -s "$OUTPUT_DIR/manifest.sha256"
-          (cd "$OUTPUT_DIR" && sha256sum -c manifest.sha256)
-          echo "Verified bundled NAFNet ONNX assets:"
-          ls -lh "$OUTPUT_DIR"
-
-      - name: Set up Gradle 8.11.1
+      - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.11.1"
+          gradle-version: "9.3.1"
 
-      - name: Build debug APK
-        working-directory: CamUI
-        run: gradle assembleDebug --stacktrace
+      - name: Run unit tests and build an internal emulator APK
+        working-directory: CamUI-src
+        run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
-      - name: Verify APK contains both hash-pinned HDMP AI models
-        working-directory: CamUI
-        run: |
-          python - <<'PY'
-          import glob
-          import zipfile
-
-          apks = glob.glob("app/build/outputs/apk/debug/*.apk")
-          assert apks, "Debug APK was not produced"
-          required = {
-              "assets/models/nafnet_sidd_width64.onnx",
-              "assets/models/nafnetlib_sidd_width32.onnx",
-              "assets/models/manifest.sha256",
-          }
-          with zipfile.ZipFile(apks[0]) as apk:
-              names = set(apk.namelist())
-              missing = sorted(required - names)
-              assert not missing, f"APK missing HDMP AI assets: {missing}"
-              for name in sorted(required):
-                  info = apk.getinfo(name)
-                  assert info.file_size > 0, f"Empty APK asset: {name}"
-                  print(f"{name}: {info.file_size:,} bytes")
-          PY
-
-      - name: Upload debug APK
+      - name: Publish debug APK immediately after build
+        if: always() && !cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: Fujifilm-CamerAwesome-HDMP-AI-debug
-          path: CamUI/app/build/outputs/apk/debug/*.apk
+          name: FujiFilm-Mode-1.6-app-debug
+          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
+
+
+      - name: Update Android command-line tools for API 37 preview emulator
+        run: |
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "cmdline-tools;latest" --channel=3
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+      - name: Cold-start smoke test on Android 17 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: "yes"
+        with:
+          # Use a stable Android 15 Google APIs image; the Android 17 Preview
+          # image booted but its Settings/ADB service disconnected before tests.
+          api-level: "35"
+          target: google_apis
+          channel: stable
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
+          emulator-boot-timeout: 600
+          script: |
+            set -eu
+            mkdir -p emulator-artifacts
+            : > emulator-artifacts/command-status.txt
+
+            timeout 60s adb wait-for-device > emulator-artifacts/adb-wait.txt 2>&1
+            echo "wait_for_device=0" >> emulator-artifacts/command-status.txt
+
+            # adb wait-for-device can return before PackageManager/ActivityManager are ready.
+            ready=0
+            for i in $(seq 1 90); do
+              boot="$(adb shell getprop sys.boot_completed 2>&1 | tr -d '\r' || true)"
+              package_service="$(adb shell service check package 2>&1 | tr -d '\r' || true)"
+              activity_service="$(adb shell service check activity 2>&1 | tr -d '\r' || true)"
+              printf 'attempt=%s boot=%s package=%s activity=%s\n' "$i" "$boot" "$package_service" "$activity_service" >> emulator-artifacts/boot-readiness.txt
+              if [ "$boot" = "1" ] && printf "%s" "$package_service" | grep -q found && printf "%s" "$activity_service" | grep -q found; then
+                ready=1
+                break
+              fi
+              sleep 4
+            done
+
+            adb shell getprop > emulator-artifacts/getprop.txt 2>&1 || true
+            adb shell service list > emulator-artifacts/services.txt 2>&1 || true
+            if [ "$ready" -ne 1 ]; then
+              echo "Android framework services did not become ready; app was not installed/launched." > emulator-artifacts/boot-failure.txt
+              adb logcat -b all -d -v threadtime -t 15000 > emulator-artifacts/logcat-boot-failure.txt 2>&1 || true
+              adb shell ps -A > emulator-artifacts/processes-boot-failure.txt 2>&1 || true
+              echo "framework_ready=0" >> emulator-artifacts/command-status.txt
+              exit 21
+            fi
+            echo "framework_ready=1" >> emulator-artifacts/command-status.txt
+
+            adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk > emulator-artifacts/install.txt 2>&1
+            echo "install=0" >> emulator-artifacts/command-status.txt
+            adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1
+            adb logcat -c
+            adb shell am force-stop com.fujifilm.mode.debug > emulator-artifacts/force-stop.txt 2>&1
+            adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1
+            echo "am_start=0" >> emulator-artifacts/command-status.txt
+            sleep 15
+
+            adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid.txt 2>&1 || true
+            adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt 2>&1 || true
+            adb exec-out screencap -p > emulator-artifacts/camera-portrait.png 2> emulator-artifacts/screencap-portrait-error.txt || true
+            adb logcat -d -v threadtime -t 12000 > emulator-artifacts/logcat-portrait.txt 2>&1 || true
+
+            # Exercise orientation only after a successful cold launch.
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            sleep 5
+            adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt 2>&1 || true
+            adb exec-out screencap -p > emulator-artifacts/camera-landscape.png 2> emulator-artifacts/screencap-landscape-error.txt || true
+            adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid-landscape.txt 2>&1 || true
+            adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-landscape.txt 2>&1 || true
+
+            # Keep raw logs even when startup fails; report app crash signatures separately.
+            if grep -Eq 'FATAL EXCEPTION|Fatal signal [0-9]+|am_crash|Process: com\.fujifilm\.mode' emulator-artifacts/logcat-landscape.txt; then
+              echo "app_crash_signature=1" >> emulator-artifacts/command-status.txt
+              exit 22
+            fi
+            if [ ! -s emulator-artifacts/app-pid.txt ]; then
+              echo "app_process_missing_after_launch=1" >> emulator-artifacts/command-status.txt
+              exit 23
+            fi
+            echo "app_process_alive=1" >> emulator-artifacts/command-status.txt
+
+            # Run instrumentation only after the plain install + cold start was observed.
+            gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
+
+            # End-to-end crash-report test: this trigger exists only in the debug source set.
+            adb shell am force-stop com.fujifilm.mode.debug
+            adb logcat -c
+            adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.CrashTestActivity > emulator-artifacts/crash-test-start.txt 2>&1
+            report_visible=0
+            for i in $(seq 1 20); do
+              adb shell uiautomator dump /sdcard/crash-report-window.xml > emulator-artifacts/crash-test-uiautomator.txt 2>&1 || true
+              adb shell cat /sdcard/crash-report-window.xml > emulator-artifacts/crash-report-window.xml 2>&1 || true
+              if grep -q 'FujiFilm Mode đã gặp lỗi' emulator-artifacts/crash-report-window.xml && grep -q 'CRASH_REPORT_TEST_SENTINEL' emulator-artifacts/crash-report-window.xml; then
+                report_visible=1
+                break
+              fi
+              sleep 1
+            done
+            adb exec-out screencap -p > emulator-artifacts/crash-report-screen.png 2> emulator-artifacts/crash-report-screencap-error.txt || true
+            adb logcat -d -v threadtime -t 12000 > emulator-artifacts/logcat-crash-report.txt 2>&1 || true
+            if [ "$report_visible" -ne 1 ]; then
+              echo "crash_report_screen_not_shown=1" >> emulator-artifacts/command-status.txt
+              exit 24
+            fi
+            echo "crash_report_screen_shown=1" >> emulator-artifacts/command-status.txt
+
+            # Read the actual button bounds from the Android accessibility hierarchy.
+            python - <<'PY'
+            import re
+            import xml.etree.ElementTree as ET
+
+            root = ET.parse("emulator-artifacts/crash-report-window.xml").getroot()
+            buttons = {}
+            for node in root.iter("node"):
+                label = node.attrib.get("text", "")
+                if label in ("Sao chép log", "OK – Đóng ứng dụng"):
+                    match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
+                    if match:
+                        x1, y1, x2, y2 = map(int, match.groups())
+                        buttons[label] = ((x1 + x2) // 2, (y1 + y2) // 2)
+            required = ("Sao chép log", "OK – Đóng ứng dụng")
+            missing = [label for label in required if label not in buttons]
+            if missing:
+                raise SystemExit("Crash report buttons not accessible: " + ", ".join(missing))
+            with open("emulator-artifacts/crash-report-button-centers.txt", "w") as out:
+                out.write(" ".join(map(str, buttons[required[0]] + buttons[required[1]])))
+            PY
+            read copy_x copy_y ok_x ok_y < emulator-artifacts/crash-report-button-centers.txt
+            adb shell input tap "$copy_x" "$copy_y"
+            sleep 1
+            adb shell dumpsys clipboard > emulator-artifacts/clipboard-after-copy.txt 2>&1 || true
+            adb shell input tap "$ok_x" "$ok_y"
+
+            # OK must release the original process so its uncaught exception can terminate it.
+            main_process_exited=0
+            for i in $(seq 1 15); do
+              if [ -z "$(adb shell pidof com.fujifilm.mode.debug 2>/dev/null | tr -d '\r')" ]; then
+                main_process_exited=1
+                break
+              fi
+              sleep 1
+            done
+            adb shell dumpsys activity activities > emulator-artifacts/activity-after-crash-report-ok.txt 2>&1 || true
+            adb logcat -d -v threadtime -t 20000 > emulator-artifacts/logcat-final.txt 2>&1 || true
+            if [ "$main_process_exited" -ne 1 ]; then
+              echo "crash_report_ok_did_not_release_main_process=1" >> emulator-artifacts/command-status.txt
+              exit 25
+            fi
+            echo "crash_report_ok_closed_main_process=1" >> emulator-artifacts/command-status.txt
+
+      - name: Upload emulator inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-inspection
+          path: emulator-artifacts/
+          if-no-files-found: warn
+

@@ -5,10 +5,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -71,20 +71,14 @@ class CrashReportActivity : Activity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        val copyButton = Button(this).apply {
-            text = "Sao chép log"
-            setOnClickListener {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("FujiFilm Mode crash log", reportText))
-                Toast.makeText(this@CrashReportActivity, "Đã sao chép log", Toast.LENGTH_SHORT).show()
-            }
+        val copyButton = mechanicalAction("Sao chép log") {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("FujiFilm Mode crash log", reportText))
+            Toast.makeText(this@CrashReportActivity, "Đã sao chép log", Toast.LENGTH_SHORT).show()
         }
-        val okButton = Button(this).apply {
-            text = "OK – Đóng ứng dụng"
-            setOnClickListener {
-                runCatching { ackPath?.let { File(it).writeText("ok") } }
-                finish()
-            }
+        val okButton = mechanicalAction("OK – Đóng ứng dụng") {
+            runCatching { ackPath?.let { File(it).writeText("ok") } }
+            finish()
         }
 
         root.addView(title)
@@ -99,6 +93,24 @@ class CrashReportActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
         setContentView(root)
+    }
+
+    private fun mechanicalAction(label: String, action: () -> Unit): TextView = TextView(this).apply {
+        text = label.uppercase()
+        textSize = 10f
+        gravity = Gravity.CENTER
+        setTextColor(Color.rgb(238, 241, 239))
+        setPadding(dp(12), dp(11), dp(12), dp(11))
+        background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(Color.rgb(76, 83, 86), Color.rgb(24, 29, 31))
+        ).apply {
+            cornerRadius = dp(3).toFloat()
+            setStroke(dp(1), Color.rgb(130, 139, 142))
+        }
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { action() }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

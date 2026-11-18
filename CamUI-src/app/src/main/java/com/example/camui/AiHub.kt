@@ -7,11 +7,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,13 +41,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-private val LunaYellow = Color(0xFFF5C518)
-private val LunaMuted = Color(0xFFAAAAAA)
-private val LunaRainbow = listOf(
-    Color(0xFFFF5C8A), Color(0xFFFFB45C), Color(0xFFFFE66D),
-    Color(0xFF67E8B5), Color(0xFF62C9FF), Color(0xFFAA83FF),
-    Color(0xFFFF76D2)
-)
 
 @Composable
 fun LunaDreamBottomSheet(

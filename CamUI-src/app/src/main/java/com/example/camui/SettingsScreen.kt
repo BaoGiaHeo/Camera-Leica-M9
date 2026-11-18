@@ -202,7 +202,10 @@ var nightShotMode by remember {
     var milkyWayNightShotEnabled by remember {
         mutableStateOf(prefs.getBoolean("milky_way_stack_enabled", false))
     }
-    var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFFFFFFF") ?: "#FFFFFFFF") }
+    var lcdTextureEnabled by remember { mutableStateOf(prefs.getBoolean("lcd_texture_overlay_enabled", false)) }
+    var simpleUiMode by remember { mutableStateOf(prefs.getBoolean("simple_ui_mode_enabled", false)) }
+    var leftHandedLayout by remember { mutableStateOf(prefs.getBoolean("left_handed_layout_enabled", false)) }
+    var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFD9DBDD") ?: "#FFD9DBDD") }
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
     val shutterImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -260,29 +263,59 @@ var nightShotMode by remember {
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
             }
             "Appearance" -> {
-                Text("Shutter button", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                SettingsSwitch(
+                    "LCD texture",
+                    "Scanline overlay chỉ hiển thị trên preview, không lưu vào ảnh.",
+                    lcdTextureEnabled
+                ) {
+                    lcdTextureEnabled = it
+                    prefs.edit().putBoolean("lcd_texture_overlay_enabled", it).apply()
+                }
+                SettingsSwitch(
+                    "Simple mode",
+                    "Giảm texture và hiệu ứng để tiết kiệm GPU trên máy yếu.",
+                    simpleUiMode
+                ) {
+                    simpleUiMode = it
+                    prefs.edit().putBoolean("simple_ui_mode_enabled", it).apply()
+                }
+                SettingsSwitch(
+                    "Left-hand layout",
+                    "Đảo vị trí cụm chế độ và cụm nút/dial.",
+                    leftHandedLayout
+                ) {
+                    leftHandedLayout = it
+                    prefs.edit().putBoolean("left_handed_layout_enabled", it).apply()
+                }
+                Text("Custom shutter button", color = FujiSkin.lcdGreen, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 Text("Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf(
-                        "White" to "#FFFFFFFF",
-                        "Yellow" to "#FFF5C842",
-                        "Blue" to "#FF58A6FF",
-                        "Black" to "#FF202020"
+                        "Silver Classic" to "#FFD9DBDD",
+                        "Black" to "#FF17191A",
+                        "Chrome · Orange" to "#FFE8442B",
+                        "Soft Release" to "#FFAEB7BA"
                     ).forEach { (label, hex) ->
-                        Chip(label, shutterButtonColor == hex && shutterButtonImageUri == null, {
-                            shutterButtonColor = hex
-                            shutterButtonImageUri = null
-                            prefs.edit().putString("shutter_button_color", hex).remove("shutter_button_image_uri").apply()
-                            CamColors.Shutter = Color(android.graphics.Color.parseColor(hex))
-                        }, Modifier.width(78.dp))
+                        FujiChip(
+                            label,
+                            shutterButtonColor == hex && shutterButtonImageUri == null,
+                            {
+                                shutterButtonColor = hex
+                                shutterButtonImageUri = null
+                                prefs.edit().putString("shutter_button_color", hex).remove("shutter_button_image_uri").apply()
+                                CamColors.Shutter = Color(android.graphics.Color.parseColor(hex))
+                            },
+                            Modifier
+                        )
                     }
                 }
-                Button(onClick = { shutterImagePicker.launch(arrayOf("image/*")) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                    Text(if (shutterButtonImageUri == null) "Import ảnh cho nút chụp" else "Đổi ảnh nút chụp")
-                }
+                FujiListRow(
+                    title = if (shutterButtonImageUri == null) "Import ảnh cho nút chụp" else "Đổi ảnh nút chụp",
+                    value = "PNG / JPG",
+                    onClick = { shutterImagePicker.launch(arrayOf("image/*")) }
+                )
                 if (shutterButtonImageUri != null) {
                     Text("Đã chọn ảnh cho nút chụp.",
                         color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))

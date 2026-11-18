@@ -4489,7 +4489,7 @@ fun CameraScreen(
                                     enabled = range != null && evIndex > range.lower
                                 )
                                 Text(
-                                    if (range != null) evText else "EV N/A",
+                                    if (range != null) evText else localizedUiText(context, "EV N/A"),
                                     color = CamColors.TextColor,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold,

@@ -123,6 +123,7 @@ object PhotoOutputResolution {
                 sourceRect.left == 0 && sourceRect.top == 0 &&
                 sourceRect.width() == sourceWidth && sourceRect.height() == sourceHeight
             ) {
+                verifyStoredOutput(context, uri, width, height)
                 return PhotoOutputResult(width, height, targetPixels, outputPixels)
             }
 
@@ -186,6 +187,7 @@ object PhotoOutputResolution {
                 null
             )
 
+            verifyStoredOutput(context, uri, width, height)
             val actualAspect = width.toDouble() / height.toDouble()
             Log.i(
                 TAG,
@@ -218,6 +220,48 @@ object PhotoOutputResolution {
             runCatching { temp.delete() }
             runCatching { backup.delete() }
         }
+    }
+
+    /**
+     * Reopen the final MediaStore item and verify the data that other apps will read.
+     * The in-memory output dimensions alone are not sufficient because stream replacement,
+     * EXIF writes or MediaStore metadata can fail independently.
+     */
+    private fun verifyStoredOutput(
+        context: Context,
+        uri: Uri,
+        expectedWidth: Int,
+        expectedHeight: Int
+    ) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val readable = context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+            bounds.outWidth > 0 && bounds.outHeight > 0
+        } ?: false
+        check(readable) { "Could not read the saved image dimensions from MediaStore" }
+        check(bounds.outWidth == expectedWidth && bounds.outHeight == expectedHeight) {
+            "Saved dimensions mismatch: expected ${expectedWidth}x${expectedHeight}, got ${bounds.outWidth}x${bounds.outHeight}"
+        }
+        val orientation = context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+            ExifInterface(descriptor.fileDescriptor).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } ?: error("Could not reopen saved EXIF metadata")
+        check(orientation == ExifInterface.ORIENTATION_NORMAL) {
+            "Saved EXIF orientation is not normalized: $orientation"
+        }
+        val actualAspect = bounds.outWidth.toDouble() / bounds.outHeight.toDouble()
+        val expectedAspect = expectedWidth.toDouble() / expectedHeight.toDouble()
+        val tolerance = maxOf(0.0005, 2.0 / minOf(expectedWidth, expectedHeight).toDouble())
+        check(kotlin.math.abs(actualAspect - expectedAspect) <= tolerance) {
+            "Saved aspect ratio mismatch: expected $expectedAspect, got $actualAspect"
+        }
+        Log.i(
+            TAG,
+            "Stored output verified: ${bounds.outWidth}x${bounds.outHeight}, " +
+                "EXIF orientation=$orientation, aspect=${"%.5f".format(Locale.US, actualAspect)}"
+        )
     }
 
     /**

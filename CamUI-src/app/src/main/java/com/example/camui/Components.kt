@@ -541,7 +541,10 @@ private val fullEnglishUi = mapOf(
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "Could not restore. Select a valid Fujifilm Mode backup file.",
     "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "Note: this file stores camera settings and references to frames and shutter-button images; source frame/image files are not embedded. Re-import custom frames/images and grant read access after reinstalling or moving devices.",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "Prefer the camera's multi-frame HDR extension or Ultra HDR JPEG_R. If neither is supported, Software HDR uses GPU or CPU single-image tone mapping; clipped highlights cannot be recovered.",
-    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "Capture at the highest JPEG resolution supported by the camera, then apply 2× sharpening on the GPU when memory allows; large images or unsupported GPUs fall back to CPU. No detail beyond the sensor is created."
+    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "Capture at the highest JPEG resolution supported by the camera, then apply 2× sharpening on the GPU when memory allows; large images or unsupported GPUs fall back to CPU. No detail beyond the sensor is created.",
+    "LunaDream không thể hoàn tất; ảnh gốc đã được giữ. Lý do:" to "LunaDream could not finish; the original photo was preserved. Reason:",
+    "Ảnh đã chụp nhưng hậu kỳ gặp lỗi; tệp ảnh hợp lệ gần nhất đã được giữ. Lý do:" to "The photo was captured but post-processing failed; the last valid image file was preserved. Reason:",
+    "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to "LunaDream 2.0 did not finish; the LunaDream 1.5 fallback was used. Reason:"
 )
 
 private val fullJapaneseUi = mapOf(
@@ -734,7 +737,10 @@ private val fullJapaneseUi = mapOf(
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "復元できません。有効なFujifilm Modeバックアップファイルを選択してください。",
     "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "このファイルにはカメラ設定とフレーム・シャッターボタン画像への参照が保存されます。元のフレーム・画像ファイルは含まれません。再インストールや機種変更後はカスタムフレーム・画像を再インポートし、読み取り権限を付与してください。",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "カメラのマルチフレームHDR拡張またはUltra HDR JPEG_Rを優先します。どちらも非対応の場合、GPUまたはCPUで単一画像のトーンマッピングを行います。白飛びしたディテールは復元できません。",
-    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "カメラが対応する最大JPEG解像度で撮影し、メモリが許す場合はGPUで2倍シャープ化します。大きな画像や非対応GPUではCPUに切り替えます。センサー以上のディテールは生成されません。"
+    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "カメラが対応する最大JPEG解像度で撮影し、メモリが許す場合はGPUで2倍シャープ化します。大きな画像や非対応GPUではCPUに切り替えます。センサー以上のディテールは生成されません。",
+    "LunaDream không thể hoàn tất; ảnh gốc đã được giữ. Lý do:" to "LunaDreamを完了できませんでした。元の写真を保存しました。理由：",
+    "Ảnh đã chụp nhưng hậu kỳ gặp lỗi; tệp ảnh hợp lệ gần nhất đã được giữ. Lý do:" to "撮影後の処理に失敗しました。最後に有効だった画像ファイルを保存しました。理由：",
+    "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to "LunaDream 2.0が完了しなかったため、LunaDream 1.5のフォールバックを使用しました。理由："
 )
 
 private val fullKoreanUi = mapOf(
@@ -927,7 +933,10 @@ private val fullKoreanUi = mapOf(
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "복원할 수 없습니다. 유효한 Fujifilm Mode 백업 파일을 선택하세요.",
     "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "이 파일에는 카메라 설정과 프레임·셔터 버튼 이미지 참조만 저장되며 원본 프레임·이미지 파일은 포함되지 않습니다. 재설치하거나 기기를 변경한 후에는 사용자 지정 프레임·이미지를 다시 가져오고 읽기 권한을 부여해야 합니다.",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "카메라의 멀티 프레임 HDR 확장 또는 Ultra HDR JPEG_R을 우선 사용합니다. 둘 다 지원하지 않으면 GPU 또는 CPU로 단일 이미지 톤 매핑을 수행합니다. 날아간 하이라이트 디테일은 복원할 수 없습니다.",
-    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "카메라가 지원하는 최대 JPEG 해상도로 촬영한 뒤 메모리가 허용하면 GPU로 2배 선명화합니다. 큰 이미지나 미지원 GPU에서는 CPU로 전환합니다. 센서 이상의 세부 정보를 생성하지는 않습니다."
+    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "카메라가 지원하는 최대 JPEG 해상도로 촬영한 뒤 메모리가 허용하면 GPU로 2배 선명화합니다. 큰 이미지나 미지원 GPU에서는 CPU로 전환합니다. 센서 이상의 세부 정보를 생성하지는 않습니다.",
+    "LunaDream không thể hoàn tất; ảnh gốc đã được giữ. Lý do:" to "LunaDream을 완료하지 못했습니다. 원본 사진을 보존했습니다. 원인:",
+    "Ảnh đã chụp nhưng hậu kỳ gặp lỗi; tệp ảnh hợp lệ gần nhất đã được giữ. Lý do:" to "촬영 후 처리에 실패했습니다. 마지막으로 유효한 이미지 파일을 보존했습니다. 원인:",
+    "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to "LunaDream 2.0이 완료되지 않아 LunaDream 1.5 대체 처리를 사용했습니다. 원인:"
 )
 
 private val fullChineseUi = mapOf(
@@ -1120,7 +1129,10 @@ private val fullChineseUi = mapOf(
     "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to "无法恢复。请选择有效的 Fujifilm Mode 备份文件。",
     "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to "此文件保存相机设置以及边框和快门按钮图片的引用，不包含原始边框/图片文件。重新安装应用或更换设备后，需要重新导入自定义边框/图片并授予读取权限。",
     "Ưu tiên HDR Extension nhiều khung hình của camera hoặc Ultra HDR JPEG_R. Nếu máy không hỗ trợ cả hai, ứng dụng dùng Software HDR bằng GPU hoặc CPU để cân bằng sáng một ảnh; không thể khôi phục chi tiết vùng đã cháy sáng." to "优先使用相机多帧 HDR 扩展或 Ultra HDR JPEG_R。如果两者均不支持，则使用 GPU 或 CPU 对单张图像进行软件色调映射；无法恢复已经过曝丢失的细节。",
-    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "先以相机支持的最高 JPEG 分辨率拍摄，再在内存允许时使用 GPU 进行 2 倍锐化；大图或 GPU 不兼容时改用 CPU。不会生成超出传感器能力的细节。"
+    "Chọn độ phân giải JPEG cao nhất mà camera hỗ trợ, sau đó tăng độ nét 2× bằng GPU khi ảnh vừa bộ nhớ; ảnh lớn hoặc GPU không phù hợp sẽ chuyển sang CPU. Không tạo thêm chi tiết vượt cảm biến." to "先以相机支持的最高 JPEG 分辨率拍摄，再在内存允许时使用 GPU 进行 2 倍锐化；大图或 GPU 不兼容时改用 CPU。不会生成超出传感器能力的细节。",
+    "LunaDream không thể hoàn tất; ảnh gốc đã được giữ. Lý do:" to "LunaDream 未能完成；已保留原始照片。原因：",
+    "Ảnh đã chụp nhưng hậu kỳ gặp lỗi; tệp ảnh hợp lệ gần nhất đã được giữ. Lý do:" to "照片已拍摄，但后期处理失败；已保留最后一个有效图像文件。原因：",
+    "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to "LunaDream 2.0 未能完成；已改用 LunaDream 1.5 备用处理。原因："
 )
 
 private fun translateFullUiText(value: String, language: String): String? {

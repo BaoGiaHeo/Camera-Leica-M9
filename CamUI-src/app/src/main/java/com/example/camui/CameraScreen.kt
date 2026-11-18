@@ -37,6 +37,7 @@ import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Rational
 import android.util.Log
+import android.util.Log
 import android.util.Size
 import android.view.Surface
 import android.view.HapticFeedbackConstants
@@ -113,6 +114,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -167,6 +173,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
@@ -191,6 +198,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -4772,71 +4780,75 @@ fun CameraScreen(
         if (leftHandedLayout) leftHardwareContent else rightHardwareContent
 
     FujiLeatherSurface(
-        Modifier.fillMaxSize().graphicsLayer { alpha = ratioUiAlpha.value }.animaTContent()
-            .pointerInput(hudAutoHideEnabled) {
-                if (hudAutoHideEnabled) {
-                    awaitPointerEventScope {
-                        var wasPressed = false
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            val pressed = event.changes.any { it.pressed }
-                            if (pressed && !wasPressed) hudActivityToken++
-                            wasPressed = pressed
-                        }
-                    }
-                }
-            }
-        ,
+        Modifier.fillMaxSize().animaTContent(),
         simpleMode = simpleUiMode
     ) {
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 5.dp)
-        ) {
-            AnimatedVisibility(
-                visible = hudVisible,
-                enter = fadeIn(tween(180)) + slideInVertically { -it / 12 },
-                exit = fadeOut(tween(170)) + slideOutVertically { -it / 16 }
-            ) {
-                toolbarContent(Modifier.fillMaxWidth())
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(
-                Modifier.fillMaxWidth().weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AnimatedVisibility(
-                    visible = hudVisible,
-                    modifier = Modifier.width(88.dp).fillMaxHeight(),
-                    enter = fadeIn(tween(180)) + slideInHorizontally { -it / 10 },
-                    exit = fadeOut(tween(160)) + slideOutHorizontally { -it / 12 }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val topPlateHeight = (maxHeight * 0.15f).coerceIn(52.dp, 68.dp)
+            val leftColumnWidth = (maxWidth * 0.13f).coerceIn(96.dp, 128.dp)
+            val rightColumnWidth = (maxWidth * 0.20f).coerceIn(150.dp, 200.dp)
+            val chromeAlpha = if (hudVisible) ratioUiAlpha.value else 0f
+            val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
+
+            Column(Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 4.dp)) {
+                Box(
+                    Modifier.fillMaxWidth().height(topPlateHeight)
+                        .graphicsLayer { alpha = chromeAlpha }
+                        .onSizeChanged {
+                            Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
+                        }
                 ) {
-                    leftPanelContent(Modifier.fillMaxHeight())
+                    toolbarContent(Modifier.fillMaxSize())
+                    if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.13f)))
                 }
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    previewContent(Modifier.weight(1f).fillMaxWidth())
-                    AnimatedVisibility(
-                        visible = hudVisible,
-                        enter = fadeIn(tween(180)) + slideInVertically { it / 14 },
-                        exit = fadeOut(tween(170)) + slideOutVertically { it / 18 }
+                Row(
+                    Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.width(leftColumnWidth).fillMaxHeight()
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .graphicsLayer { alpha = chromeAlpha }
+                            .onSizeChanged {
+                                Log.d("LUNA_LAYOUT", "LEFT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
+                            }
                     ) {
-                        controlsContent(
-                            Modifier.fillMaxWidth().heightIn(max = 112.dp)
-                                .verticalScroll(rememberScrollState())
-                                .padding(bottom = 3.dp)
-                        )
+                        leftPanelContent(Modifier.fillMaxSize())
+                        if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Blue.copy(alpha = 0.17f)))
+                    }
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        Box(
+                            Modifier.weight(1f).fillMaxWidth()
+                                .onSizeChanged {
+                                    Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
+                                }
+                        ) {
+                            previewContent(Modifier.fillMaxSize())
+                            if (camera == null && hasCam) {
+                                Text("STARTING...", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+                            }
+                            if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Yellow.copy(alpha = 0.12f)))
+                        }
+                        if (mode == "Pro") {
+                            Box(Modifier.fillMaxWidth().height(44.dp).graphicsLayer { alpha = chromeAlpha }) {
+                                controlsContent(Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
+                            }
+                        }
+                    }
+                    Box(
+                        Modifier.width(rightColumnWidth).fillMaxHeight()
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .graphicsLayer { alpha = chromeAlpha }
+                            .onSizeChanged {
+                                Log.d("LUNA_LAYOUT", "RIGHT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
+                            }
+                    ) {
+                        rightPanelContent(Modifier.fillMaxSize())
+                        if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color(0xFF9B59B6).copy(alpha = 0.18f)))
                     }
                 }
-                AnimatedVisibility(
-                    visible = hudVisible,
-                    modifier = Modifier.width(88.dp).fillMaxHeight(),
-                    enter = fadeIn(tween(180)) + slideInHorizontally { it / 10 },
-                    exit = fadeOut(tween(160)) + slideOutHorizontally { it / 12 }
-                ) {
-                    rightPanelContent(Modifier.fillMaxHeight())
-                }
             }
-        }
         if (showQuick) {
             QuickPanel(
                 ratioIdx = ratioIdx,
@@ -5170,6 +5182,7 @@ fun CameraScreen(
                         indication = null
                     ) { }
             )
+        }
         }
     }
 }

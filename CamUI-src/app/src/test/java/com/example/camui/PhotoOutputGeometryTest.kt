@@ -25,8 +25,8 @@ class PhotoOutputGeometryTest {
         assertEquals(1f, aspectRatioForOrientation(2, false), 0.0001f)
         assertEquals(21f / 9f, aspectRatioForOrientation(3, false), 0.0001f)
 
-        // Physical landscape reverses the height/width value, while photo processing
-        // deliberately passes no target ratio and preserves the complete sensor frame.
+        // Physical landscape reverses height/width. CameraScreen passes this selected
+        // ratio into the crop pipeline; null is reserved for callers that request no crop.
         assertEquals(9f / 16f, aspectRatioForOrientation(0, true), 0.0001f)
         assertEquals(3f / 4f, aspectRatioForOrientation(1, true), 0.0001f)
         assertEquals(1f, aspectRatioForOrientation(2, true), 0.0001f)

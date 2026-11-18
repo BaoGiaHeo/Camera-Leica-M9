@@ -15,11 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -128,15 +123,15 @@ fun QuickPanel(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FujiTile(
                         "Toolbox", "Assistive tools", false, onToolbox,
-                        icon = Icons.Default.Palette, modifier = Modifier.weight(1f)
+                        icon = "tab_08", modifier = Modifier.weight(1f)
                     )
                     FujiTile(
                         "Contents", "Frames", false, onContentManagement,
-                        icon = Icons.Default.Tune, modifier = Modifier.weight(1f)
+                        icon = "sliders", modifier = Modifier.weight(1f)
                     )
                     FujiTile(
                         "Other", "Device options", false, { showOther = true },
-                        icon = Icons.Default.MoreHoriz, modifier = Modifier.weight(1f)
+                        icon = "more", modifier = Modifier.weight(1f)
                     )
                 }
                 Row(

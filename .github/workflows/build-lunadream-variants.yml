@@ -25,22 +25,28 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
-      - name: Verify Gradle wrapper
-        working-directory: CamUI-src
+      - name: Install Android API 37 and build tools
         run: |
-          chmod +x ./gradlew
-          ./gradlew --version
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" --channel=3
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
 
       - name: Build Debug and Developer APKs
         working-directory: CamUI-src
-        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleDeveloper
+        run: gradle --no-daemon :app:assembleDebug :app:assembleDeveloper --stacktrace
 
       - name: Run unit tests for both variants
         working-directory: CamUI-src
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:testDeveloperUnitTest
+        run: gradle --no-daemon :app:testDebugUnitTest :app:testDeveloperUnitTest --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4

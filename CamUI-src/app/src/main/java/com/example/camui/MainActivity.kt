@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
     private fun hideStatusBar() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.statusBars())
+            hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 
@@ -125,8 +125,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Let Android rotate the display to landscape; CameraScreen keeps its controls in portrait layout.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        // Keep the camera UI in landscape in both directions. Physical handset orientation is
+        // still read by CameraScreen's OrientationEventListener for portrait/landscape capture.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         window.attributes = window.attributes.apply {
             rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
         }

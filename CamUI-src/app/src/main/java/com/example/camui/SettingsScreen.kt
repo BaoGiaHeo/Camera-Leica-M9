@@ -759,7 +759,7 @@ var nightShotMode by remember {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
                         }
                     })
-                Text("Version 2.5.0dream · Build 9", color = CamColors.Sub, fontSize = 12.sp,
+                Text("Version 2.5.0dream · Build 15", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
             }
         }

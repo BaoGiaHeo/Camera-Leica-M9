@@ -1,5 +1,5 @@
-name: Build FujiFilm Mode 2.0.2Dream
-# Release pipeline for the portrait UI and LunaDream 2.0.1 capture paths.
+name: FujiFilm Mode landscape UI validation
+# Build internally for Android Emulator validation; do not publish APK artifacts.
 
 on:
   push:
@@ -41,30 +41,9 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Run unit tests and build debug + release APKs
-        id: build_apks
+      - name: Run unit tests and build an internal emulator APK
         working-directory: CamUI-src
-        run: gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --stacktrace
-
-      - name: Verify APK metadata and absence of bundled AI models
-        working-directory: CamUI-src
-        run: |
-          python - <<'PY'
-          import glob
-          import zipfile
-
-          debug_apks = glob.glob("app/build/outputs/apk/debug/*.apk")
-          release_apks = glob.glob("app/build/outputs/apk/release/*.apk")
-          assert debug_apks, "Debug APK was not produced"
-          assert release_apks, "Release APK was not produced"
-          for path in debug_apks + release_apks:
-              with zipfile.ZipFile(path) as apk:
-                  names = set(apk.namelist())
-                  forbidden = [name for name in names if "nafnet" in name.lower() or "onnx" in name.lower()]
-                  assert not forbidden, f"AI model payload still present in {path}: {forbidden}"
-              print(f"Verified {path}")
-          PY
-          sha256sum app/build/outputs/apk/debug/*.apk app/build/outputs/apk/release/*.apk
+        run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
       - name: Update Android command-line tools for API 37 preview emulator
         run: |
@@ -227,12 +206,3 @@ jobs:
           path: emulator-artifacts/
           if-no-files-found: warn
 
-      - name: Upload 2.0.2Dream APKs
-        if: always() && steps.build_apks.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: FujiFilm-Mode-2.0.2Dream
-          path: |
-            CamUI-src/app/build/outputs/apk/debug/*.apk
-            CamUI-src/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error

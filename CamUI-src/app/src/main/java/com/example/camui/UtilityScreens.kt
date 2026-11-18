@@ -401,7 +401,6 @@ fun ToolboxScreen(
             .apply()
         Toast.makeText(context, "Đã nạp Film Recipe $slot", Toast.LENGTH_SHORT).show()
     }
-    var hudAutoHideEnabled by remember { mutableStateOf(prefs.getBoolean("hud_auto_hide_enabled", true)) }
     var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf((prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White") }
     var watermarkTemplate by remember { mutableStateOf((prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto") }
@@ -423,79 +422,75 @@ fun ToolboxScreen(
             .apply()
     }
 
-    Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
-        PageHeader("Toolbox", onBack)
+    FujiPanel(title = "SETTINGS · MENU", breadcrumb = "TOOLBOX", modifier = Modifier.fillMaxSize(), onBack = onBack) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(end = 4.dp)) {
         Text("Viewfinder overlays", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
         Text("Pro HUD elements", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, top = 15.dp, bottom = 8.dp))
         ToolToggle("EV display", "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD.",
-            Icons.Default.Tune, proHudShowEv) {
+            "sliders", proHudShowEv) {
             proHudShowEv = it
             prefs.edit().putBoolean("pro_hud_show_ev", it).apply()
         }
         ToolToggle("Shutter display", "Hiện hoặc ẩn tốc độ màn trập trong hàng Pro HUD.",
-            Icons.Default.Tune, proHudShowShutter) {
+            "sliders", proHudShowShutter) {
             proHudShowShutter = it
             prefs.edit().putBoolean("pro_hud_show_shutter", it).apply()
         }
         ToolToggle("ISO display", "Hiện hoặc ẩn độ nhạy ISO trong hàng Pro HUD.",
-            Icons.Default.Tune, proHudShowIso) {
+            "sliders", proHudShowIso) {
             proHudShowIso = it
             prefs.edit().putBoolean("pro_hud_show_iso", it).apply()
         }
         ToolToggle("Focus display", "Hiện hoặc ẩn trạng thái lấy nét trong hàng Pro HUD.",
-            Icons.Default.Tune, proHudShowFocus) {
+            "sliders", proHudShowFocus) {
             proHudShowFocus = it
             prefs.edit().putBoolean("pro_hud_show_focus", it).apply()
         }
         ToolToggle("White balance display", "Hiện hoặc ẩn nhiệt độ màu / cân bằng trắng trong hàng Pro HUD.",
-            Icons.Default.Tune, proHudShowWhiteBalance) {
+            "sliders", proHudShowWhiteBalance) {
             proHudShowWhiteBalance = it
             prefs.edit().putBoolean("pro_hud_show_white_balance", it).apply()
         }
-        ToolToggle("Grid Lines", "Thirds composition guide", Icons.Default.GridOn, showGrid, onShowGrid)
-        ToolToggle("Histogram", "Live luminance histogram", Icons.Default.ShowChart, showHist, onShowHist)
-        ToolToggle("RGB Histogram", "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview.", Icons.Default.ShowChart, rgbHistogramEnabled) {
+        ToolToggle("Grid Lines", "Thirds composition guide", "tab_01", showGrid, onShowGrid)
+        ToolToggle("Histogram", "Live luminance histogram", "histogram", showHist, onShowHist)
+        ToolToggle("RGB Histogram", "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview.", "histogram", rgbHistogramEnabled) {
             rgbHistogramEnabled = it
             prefs.edit().putBoolean("viewfinder_rgb_histogram_enabled", it).apply()
         }
-        ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", Icons.Default.Tune,
+        ToolToggle("Focus Peaking", "Highlight high-contrast focus edges", "sliders",
             focusPeaking, onFocusPeaking)
         ToolToggle("Smart Focus Tracking", "Ưu tiên khuôn mặt khi Camera2/HAL công bố face detection; tự đưa AF về vùng mặt.",
-            Icons.Default.Tune, faceTrackingEnabled) {
+            "sliders", faceTrackingEnabled) {
             faceTrackingEnabled = it
             prefs.edit().putBoolean("face_tracking_enabled", it).apply()
-        }
-        ToolToggle("Auto-hide Camera HUD", "Ẩn thanh điều khiển sau 5 giây không thao tác; chạm màn hình để hiện lại.",
-            Icons.Default.Tune, hudAutoHideEnabled) {
-            hudAutoHideEnabled = it
-            prefs.edit().putBoolean("hud_auto_hide_enabled", it).apply()
         }
         ToolToggle(
             "Animation Performance Mode",
             "Giảm trượt/scale khi máy nóng hoặc khi bật thủ công; Android tự kích hoạt khi nhiệt độ đạt mức trung bình.",
-            Icons.Default.Tune,
+            "sliders",
             animationPerformanceMode,
             onAnimationPerformanceModeChanged
         )
         ToolToggle("Lens Correction", "Yêu cầu Camera2/HAL hiệu chỉnh méo hình, viền màu và tối góc bằng các chế độ công khai nếu ống kính hỗ trợ; không tự bịa dữ liệu lens profile.",
-            Icons.Default.Tune, lensCorrectionEnabled) {
+            "sliders", lensCorrectionEnabled) {
             lensCorrectionEnabled = it
             prefs.edit().putBoolean("lens_correction_enabled", it).apply()
         }
         ToolToggle("Zebra Warning", "Đánh dấu vùng sáng gần cháy sáng trên kính ngắm (không ảnh hưởng ảnh lưu).",
-            Icons.Default.Warning, zebraEnabled) {
+            "warning", zebraEnabled) {
             zebraEnabled = it
             prefs.edit().putBoolean("viewfinder_zebra_enabled", it).apply()
         }
         ToolToggle("Camera Level & Horizon", "Đo độ nghiêng bằng cảm biến thiết bị và hiển thị đường chân trời trong kính ngắm.",
-            Icons.Default.Tune, levelEnabled) {
+            "sliders", levelEnabled) {
             levelEnabled = it
             prefs.edit().putBoolean("viewfinder_level_enabled", it).apply()
         }
         ToolToggle("HDR Bracketing", "Chụp 3 khung JPEG với EV thấp / chuẩn / cao nếu camera công bố dải phơi sáng.",
-            Icons.Default.ShowChart, hdrBracketMode) {
+            "histogram", hdrBracketMode) {
             hdrBracketMode = it
             if (it) focusBracketMode = false
             prefs.edit()
@@ -504,7 +499,7 @@ fun ToolboxScreen(
                 .apply()
         }
         ToolToggle("Focus Bracketing", "Chụp 5 khoảng nét từ gần đến vô cực khi ống kính hỗ trợ lấy nét thủ công.",
-            Icons.Default.Tune, focusBracketMode) {
+            "sliders", focusBracketMode) {
             focusBracketMode = it
             if (it) hdrBracketMode = false
             prefs.edit()
@@ -544,6 +539,8 @@ fun ToolboxScreen(
         }
         // Read the revision so the slot labels refresh immediately after saving.
         if (presetUiRevision < 0) Text(" ", fontSize = 1.sp)
+            }
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 4.dp)) {
         Spacer(Modifier.height(12.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
@@ -640,7 +637,7 @@ fun ToolboxScreen(
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         ToolToggle("Enable Watermark", "Logo thương hiệu, thông số chụp và bố cục watermark đã chọn",
-            Icons.Default.Image, watermarkEnabled) {
+            "film", watermarkEnabled) {
             watermarkEnabled = it
             prefs.edit().putBoolean("watermark_enabled", it).apply()
         }
@@ -707,17 +704,17 @@ fun ToolboxScreen(
         }
         Spacer(Modifier.height(10.dp))
         ToolToggle("Hiện thời gian", "Bật/tắt ngày và giờ trên watermark",
-            Icons.Default.Tune, watermarkShowTime) {
+            "sliders", watermarkShowTime) {
             watermarkShowTime = it
             prefs.edit().putBoolean("watermark_show_time", it).apply()
         }
         ToolToggle("Hiện model máy", "Bật/tắt tên model điện thoại",
-            Icons.Default.Tune, watermarkShowModel) {
+            "sliders", watermarkShowModel) {
             watermarkShowModel = it
             prefs.edit().putBoolean("watermark_show_model", it).apply()
         }
         ToolToggle("Hiện thông số", "Bật/tắt tiêu cự, khẩu độ, tốc độ màn trập và ISO",
-            Icons.Default.Tune, watermarkShowSpecs) {
+            "sliders", watermarkShowSpecs) {
             watermarkShowSpecs = it
             prefs.edit().putBoolean("watermark_show_specs", it).apply()
         }
@@ -773,11 +770,13 @@ fun ToolboxScreen(
             }, Modifier.weight(1f))
         }
         ToolToggle("Âm thanh màn trập", "Bật/tắt âm thanh chụp mặc định.",
-            Icons.Default.Tune, shutterSound) {
+            "sliders", shutterSound) {
             shutterSound = it
             prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
         }
 
+            }
+        }
     }
 }
 
@@ -3498,7 +3497,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                         .padding(start = 12.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Tune, contentDescription = null, tint = CamColors.Yellow)
+                    Icon("sliders", contentDescription = null, tint = CamColors.Yellow)
                     Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                         Text(entry.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
@@ -3615,7 +3614,7 @@ private fun ManagedItem(name: String, onDelete: () -> Unit) {
             .background(CamColors.Card).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Default.Image, contentDescription = null, tint = CamColors.Sub)
+        Icon("film", contentDescription = null, tint = CamColors.Sub)
         Text(name, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
         IconButton(onClick = onDelete) {
             Icon(Icons.Default.Delete, contentDescription = "Remove", tint = CamColors.Sub)

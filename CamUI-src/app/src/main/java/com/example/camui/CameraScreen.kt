@@ -160,6 +160,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -3691,7 +3692,12 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("LUNADREAM", color = Color(0xFF303638), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.3.sp, maxLines = 1)
+                Image(
+                    painter = painterResource(R.drawable.fujifilm_logo),
+                    contentDescription = null,
+                    modifier = Modifier.width(76.dp).height(13.dp),
+                    contentScale = ContentScale.Fit
+                )
                 FujiTopKey(label = "FLASH", icon = if (flash == ImageCapture.FLASH_MODE_ON) "flash_on" else "flash_off", selected = flash == ImageCapture.FLASH_MODE_ON, onClick = {
                     flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 })

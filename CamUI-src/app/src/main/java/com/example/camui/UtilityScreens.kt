@@ -512,7 +512,7 @@ fun ToolboxScreen(
             } else "Chưa lưu"
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(11.dp)).background(CamColors.Card)
+                    .clip(RoundedCornerShape(11.dp)).background(FujiSkin.lcd)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -532,7 +532,7 @@ fun ToolboxScreen(
         Spacer(Modifier.height(12.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(CamColors.Card).padding(12.dp)
+                .background(FujiSkin.lcd).padding(12.dp)
         ) {
             Text("Film Simulation Customizer", color = CamColors.TextColor,
                 fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -842,9 +842,8 @@ private fun CameraFrameTemplateCard(
     }
     val textColor = if (frameStyle == "White") Color.Black else Color.White
     Column(
-        modifier.clip(RoundedCornerShape(12.dp))
-            .background(if (selected) Color(0x553F3822) else CamColors.Card)
-            .border(1.dp, if (selected) CamColors.Yellow else CamColors.Stroke, RoundedCornerShape(12.dp))
+        modifier.background(if (selected) Color(0xFF25312F) else FujiSkin.lcd)
+            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF344247))
             .animaTClickable(onClick = onClick)
             .padding(7.dp)
     ) {
@@ -930,7 +929,7 @@ private fun CameraFrameTemplateCard(
                     modifier = Modifier.align(Alignment.Center).background(Color(0xAA000000)).padding(5.dp))
             }
         }
-        Text(title, color = if (selected) CamColors.Yellow else CamColors.TextColor,
+        Text(title, color = if (selected) FujiSkin.orange else CamColors.TextColor,
             fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
             modifier = Modifier.padding(top = 6.dp))
         Text(if (id.startsWith("custom|")) "Imported frame" else "Preview · $frameStyle",
@@ -1064,13 +1063,8 @@ private fun WatermarkTemplateCard(
     val previewModel = cameraWatermarkExampleModel(brand)
     val brandAccent = Color(cameraWatermarkBrandAccent(brand))
     Column(
-        modifier.clip(RoundedCornerShape(13.dp))
-            .background(if (selected) Color(0xFF333126) else CamColors.Card)
-            .border(
-                width = if (selected) 1.5.dp else 0.7.dp,
-                color = if (selected) CamColors.Yellow else Color(0x334C535B),
-                shape = RoundedCornerShape(13.dp)
-            )
+        modifier.background(if (selected) Color(0xFF25312F) else FujiSkin.lcd)
+            .border(width = if (selected) 1.5.dp else 0.7.dp, color = if (selected) FujiSkin.orange else Color(0xFF344247))
             .animaTClickable(onClick = onClick)
             .padding(7.dp)
     ) {
@@ -1190,7 +1184,7 @@ private fun WatermarkTemplateCard(
                 }
             }
         }
-        Text(title, color = if (selected) CamColors.Yellow else Color.White,
+        Text(title, color = if (selected) FujiSkin.orange else Color.White,
             fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 6.dp))
         Text(subtitle, color = CamColors.Sub, fontSize = 9.sp,
@@ -3542,7 +3536,7 @@ private fun AlbumLoadingSkeleton() {
                     Box(
                         Modifier.weight(1f).aspectRatio(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(CamColors.Card)
+                            .background(FujiSkin.lcd)
                     )
                 }
             }
@@ -3627,7 +3621,7 @@ fun AlbumScreen(onBack: () -> Unit) {
                 }
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(8.dp))
-                        .background(CamColors.Card).animaTClickable { selectedPhoto = entry.uri }
+                        .background(FujiSkin.lcd).animaTClickable { selectedPhoto = entry.uri }
                 ) {
                     if (bitmap != null) {
                         Image(bitmap!!, "Photo thumbnail", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -4054,48 +4048,40 @@ fun CameraFrameDialog(
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            Modifier.fillMaxWidth(0.94f).heightIn(max = 680.dp)
-                .clip(RoundedCornerShape(20.dp)).background(CamColors.Panel)
-                .verticalScroll(rememberScrollState()).padding(15.dp)
+        FujiPanel(
+            title = "SETTINGS · MENU", breadcrumb = "PHOTO FRAMES",
+            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 680.dp),
+            onBack = onDismiss
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
-                Text("Photo Frames", color = CamColors.TextColor, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text("Đóng", color = CamColors.Yellow,
-                    modifier = Modifier.animaTClickable(onClick = onDismiss).padding(6.dp), fontSize = 12.sp)
-            }
-            Text("Chọn frame để xem trước và đóng lên ảnh sau khi chụp.",
-                color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
-            options.chunked(2).forEach { rowOptions ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    rowOptions.forEach { (id, label) ->
-                        Column(
-                            Modifier.weight(1f).padding(bottom = 7.dp).clip(RoundedCornerShape(11.dp))
-                                .background(if (selectedTemplate == id) Color(0x553F3822) else CamColors.Card)
-                                .border(1.dp, if (selectedTemplate == id) CamColors.Yellow else CamColors.Stroke,
-                                    RoundedCornerShape(11.dp))
-                                .animaTClickable { onSelectTemplate(id) }.padding(10.dp)
-                        ) {
-                            Text(label, color = if (selectedTemplate == id) CamColors.Yellow else CamColors.TextColor,
-                                fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-                            Text(if (id.startsWith("custom|")) "PNG trong suốt khuyên dùng · JPG có thể che ảnh" else "Frame dựng sẵn",
-                                color = CamColors.Sub, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp)) {
+                Text("Chọn frame để xem trước và đóng lên ảnh sau khi chụp.",
+                    color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 10.dp))
+                options.chunked(2).forEach { rowOptions ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        rowOptions.forEach { (id, label) ->
+                            Column(
+                                Modifier.weight(1f).padding(bottom = 7.dp)
+                                    .background(if (selectedTemplate == id) Color(0xFF25312F) else FujiSkin.lcd)
+                                    .border(1.dp, if (selectedTemplate == id) FujiSkin.orange else Color(0xFF344247))
+                                    .animaTClickable { onSelectTemplate(id) }.padding(10.dp)
+                            ) {
+                                Text(label, color = if (selectedTemplate == id) FujiSkin.lcdGreen else Color.White, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+                                Text(if (id.startsWith("custom|")) "PNG trong suốt khuyên dùng · JPG có thể che ảnh" else "Frame dựng sẵn",
+                                    color = FujiSkin.muted, fontSize = 8.sp, modifier = Modifier.padding(top = 3.dp))
+                            }
                         }
+                        if (rowOptions.size == 1) Spacer(Modifier.weight(1f))
                     }
-                    if (rowOptions.size == 1) Spacer(Modifier.weight(1f))
                 }
-            }
-            Text("Frame color", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 10.dp, bottom = 7.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                listOf("White", "Black").forEach { style ->
-                    Chip(style, selectedStyle == style, { onSelectStyle(style) }, Modifier.weight(1f))
+                Text("Frame color", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 7.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf("White", "Black").forEach { style ->
+                        Chip(style, selectedStyle == style, { onSelectStyle(style) }, Modifier.weight(1f))
+                    }
                 }
+                Text("Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ.", color = FujiSkin.muted, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
+                FujiKey("ÁP DỤNG FRAME", onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
             }
-            Text("Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ.",
-                color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp))
-            FujiKey("ÁP DỤNG FRAME", onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
         }
     }
 }

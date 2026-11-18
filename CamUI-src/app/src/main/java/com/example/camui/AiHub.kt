@@ -64,7 +64,7 @@ fun LunaDreamBottomSheet(
     onDismiss: () -> Unit,
     nightShotEnabled: Boolean,
     nightShotDurationSeconds: Int,
-    onCycleNightShot: () -> Unit,
+    onNightShotDurationChange: (Int) -> Unit,
     onNightShotToggle: (Boolean) -> Unit,
     selectedMode: String,
     onSelectedModeChange: (String) -> Unit
@@ -168,7 +168,7 @@ fun LunaDreamBottomSheet(
                                 text = "${seconds}s",
                                 selected = nightShotDurationSeconds == seconds,
                                 onClick = {
-                                    if (nightShotDurationSeconds != seconds) onCycleNightShot()
+                                    if (nightShotDurationSeconds != seconds) onNightShotDurationChange(seconds)
                                 },
                                 modifier = Modifier.weight(1f)
                             )

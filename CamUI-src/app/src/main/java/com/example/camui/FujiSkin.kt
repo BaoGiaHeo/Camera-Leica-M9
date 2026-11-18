@@ -39,7 +39,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -390,7 +389,7 @@ fun FujiTopKey(
                 }
                 if (label.equals("Q", true)) {
                     Box(Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)).border(1.dp, Color(0xFF32383A), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-                        MaterialText("Q", color = Color(0xFF202426), fontSize = 16.sp, fontWeight = FontWeight.Black, lineHeight = 17.sp)
+                        Text("Q", color = Color(0xFF202426), fontSize = 16.sp, fontWeight = FontWeight.Black, lineHeight = 17.sp)
                     }
                 } else {
                     FujiIconGlyph(icon, Modifier.size(22.dp), Color(0xE01B1B1B))
@@ -398,7 +397,7 @@ fun FujiTopKey(
                 }
             }
         }
-        MaterialText(
+        Text(
             label.uppercase(),
             color = Color(0xFF2A2A2A),
             fontSize = 9.sp,
@@ -451,7 +450,7 @@ fun FujiKey(
             .padding(horizontal = 3.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
     ) {
-        MaterialText(
+        Text(
             label.uppercase(),
             modifier = Modifier.offset(y = y),
             color = if (enabled) Color(0xFFE8ECE9) else Color(0xFF858B8D),
@@ -485,7 +484,7 @@ fun FujiScreenScaffold(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                MaterialText(
+                Text(
                     title.uppercase() + (breadcrumb?.takeIf { it.isNotBlank() }?.let { "  ›  ${it.uppercase()}" } ?: ""),
                     color = Color(0xFF171A1B),
                     fontSize = 10.sp,
@@ -511,7 +510,7 @@ fun FujiScreenScaffold(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            MaterialText(
+            Text(
                 "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK",
                 color = FujiSkin.lcdGreen,
                 fontSize = 7.sp,
@@ -520,7 +519,7 @@ fun FujiScreenScaffold(
                 maxLines = 1
             )
             if (showVersion) {
-                MaterialText(
+                Text(
                     "LUNADREAM ${BuildConfig.VERSION_NAME.removeSuffix("dream")}".uppercase(),
                     color = FujiSkin.muted,
                     fontSize = 7.sp,
@@ -596,7 +595,7 @@ fun FujiSwitch(
             )
         }
         Box(Modifier.size(5.dp).clip(CircleShape).background(if (checked) FujiSkin.orange else Color(0xFF34383A)))
-        MaterialText(
+        Text(
             if (checked) "ON" else "OFF",
             color = if (checked) FujiSkin.lcdGreen else FujiSkin.muted,
             fontSize = 7.sp,
@@ -631,7 +630,7 @@ fun FujiChip(
             .padding(horizontal = 9.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MaterialText(text, color = if (selected) FujiSkin.lcdGreen else Color(0xFFE2E4E3), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+        Text(text, color = if (selected) FujiSkin.lcdGreen else Color(0xFFE2E4E3), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
         if (selected) Spacer(Modifier.padding(top = 2.dp).width(12.dp).height(2.dp).background(FujiSkin.orange))
     }
 }
@@ -654,8 +653,8 @@ fun FujiTile(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         if (icon != null) FujiIconGlyph(icon, Modifier.size(16.dp), FujiSkin.lcdGreen)
-        MaterialText(title.uppercase(), color = Color(0xFFC7D0D1), fontSize = 8.sp, letterSpacing = 0.7.sp, maxLines = 1)
-        MaterialText(value, color = FujiSkin.lcdGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+        Text(title.uppercase(), color = Color(0xFFC7D0D1), fontSize = 8.sp, letterSpacing = 0.7.sp, maxLines = 1)
+        Text(value, color = FujiSkin.lcdGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
     }
 }
 
@@ -675,8 +674,8 @@ fun FujiListRow(
             .padding(vertical = 6.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            MaterialText(title, color = Color(0xFFE8EBE9), fontSize = 11.sp, modifier = Modifier.weight(1f))
-            MaterialText(
+            Text(title, color = Color(0xFFE8EBE9), fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text(
                 when {
                     adjustable -> "<  $value  >"
                     else -> value
@@ -686,9 +685,9 @@ fun FujiListRow(
                 fontFamily = FontFamily.Monospace,
                 maxLines = 1
             )
-            if (navigate && !adjustable) MaterialText("  ›", color = FujiSkin.lcdGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            if (navigate && !adjustable) Text("  ›", color = FujiSkin.lcdGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
-        if (description != null) MaterialText(description, color = FujiSkin.muted, fontSize = 8.sp, modifier = Modifier.padding(top = 3.dp))
+        if (description != null) Text(description, color = FujiSkin.muted, fontSize = 8.sp, modifier = Modifier.padding(top = 3.dp))
         Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(0.6.dp).background(Color(0xFF2A383B)))
     }
 }
@@ -725,7 +724,7 @@ fun FujiSearchField(
                 textStyle = TextStyle(color = FujiSkin.lcdGreen, fontSize = 10.sp, fontFamily = FontFamily.Monospace),
                 decorationBox = { inner ->
                     Box {
-                        if (value.isEmpty()) MaterialText(placeholder, color = FujiSkin.muted, fontSize = 10.sp)
+                        if (value.isEmpty()) Text(placeholder, color = FujiSkin.muted, fontSize = 10.sp)
                         inner()
                     }
                 }
@@ -791,7 +790,7 @@ fun FujiDial(
                 .border(1.dp, Color(0xFF697174), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            MaterialText(value, color = Color(0xFF1A2022), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black, fontSize = 11.sp, maxLines = 1)
+            Text(value, color = Color(0xFF1A2022), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black, fontSize = 11.sp, maxLines = 1)
         }
         Box(Modifier.align(Alignment.TopCenter).padding(top = 3.dp).size(3.dp).clip(CircleShape).background(FujiSkin.orange))
     }

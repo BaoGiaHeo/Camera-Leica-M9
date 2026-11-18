@@ -316,7 +316,7 @@ var nightShotMode by remember {
                 if (shutterButtonImageUri != null) {
                     Text("Đã chọn ảnh cho nút chụp.",
                         color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
-                    Text("Dùng nút màu", color = CamColors.Yellow, fontSize = 12.sp,
+                    Text("Dùng nút màu", color = FujiSkin.orange, fontSize = 12.sp,
                         modifier = Modifier.animaTClickable {
                             shutterButtonImageUri = null
                             prefs.edit().remove("shutter_button_image_uri").apply()
@@ -343,7 +343,7 @@ var nightShotMode by remember {
                         Modifier.fillMaxWidth().padding(vertical = 4.dp)
                             .clip(RoundedCornerShape(13.dp))
                             .background(if (selectedLanguage == id) Color(0x553F3822) else CamColors.Card)
-                            .border(1.dp, if (selectedLanguage == id) CamColors.Yellow else CamColors.Stroke,
+                            .border(1.dp, if (selectedLanguage == id) FujiSkin.orange else CamColors.Stroke,
                                 RoundedCornerShape(13.dp))
                             .animaTClickable {
                                 selectedLanguage = id
@@ -353,10 +353,10 @@ var nightShotMode by remember {
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(label, color = if (selectedLanguage == id) CamColors.Yellow else CamColors.TextColor,
+                        Text(label, color = if (selectedLanguage == id) FujiSkin.orange else CamColors.TextColor,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         if (selectedLanguage == id) {
-                            Text("✓", color = CamColors.Yellow, fontWeight = FontWeight.Bold)
+                            Text("✓", color = FujiSkin.orange, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -403,7 +403,7 @@ var nightShotMode by remember {
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     label,
-                                    color = if (nightShotMode == value) CamColors.Yellow else Color.White,
+                                    color = if (nightShotMode == value) FujiSkin.orange else Color.White,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
@@ -419,7 +419,7 @@ var nightShotMode by remember {
                             }
                             Text(
                                 if (nightShotMode == value) "✓" else "○",
-                                color = if (nightShotMode == value) CamColors.Yellow else CamColors.Sub,
+                                color = if (nightShotMode == value) FujiSkin.orange else CamColors.Sub,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -560,7 +560,7 @@ var nightShotMode by remember {
                 Text("FujiFilm Mode · LunaDream Camera", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text("Người làm App: Baoaka06", color = CamColors.TextColor, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 18.dp))
-                Text("TikTok: @baoaka06", color = CamColors.Yellow, fontSize = 14.sp,
+                Text("TikTok: @baoaka06", color = FujiSkin.orange, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 8.dp).animaTClickable {
                         runCatching {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))

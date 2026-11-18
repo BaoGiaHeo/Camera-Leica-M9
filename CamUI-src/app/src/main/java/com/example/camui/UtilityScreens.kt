@@ -404,11 +404,11 @@ fun ToolboxScreen(
     LaunchedEffect(watermarkBrand) { prefs.edit().putString("watermark_brand", watermarkBrand).apply() }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
-    var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Film Wash") ?: "Film Wash") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
     // Sound selection was removed: use one fixed bundled default, with only the on/off switch.
     LaunchedEffect(Unit) {
         prefs.edit()
+            .remove("shutter_effect")
             .remove("shutter_sound_uri")
             .putString("shutter_sound_asset", "classic")
             .apply()
@@ -720,19 +720,7 @@ fun ToolboxScreen(
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
 
         Spacer(Modifier.height(20.dp))
-        Text("Shutter", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        Text("Hiệu ứng khi bấm chụp", color = CamColors.Sub, fontSize = 12.sp,
-            modifier = Modifier.padding(top = 5.dp, bottom = 8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("Rửa film", shutterEffect == "Film Wash", {
-                shutterEffect = "Film Wash"
-                prefs.edit().putString("shutter_effect", "Film Wash").apply()
-            }, Modifier.weight(1f))
-            Chip("Chớp nhanh", shutterEffect == "Mechanical", {
-                shutterEffect = "Mechanical"
-                prefs.edit().putString("shutter_effect", "Mechanical").apply()
-            }, Modifier.weight(1f))
-        }
+        Text(localizedUiText(context, "Shutter sound"), color = CamColors.TextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         ToolToggle("Âm thanh màn trập", "Bật/tắt âm thanh chụp mặc định.",
             "sliders", shutterSound) {
             shutterSound = it

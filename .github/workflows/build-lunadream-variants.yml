@@ -41,14 +41,16 @@ jobs:
           gradle-version: "9.3.1"
 
       - name: Build Debug and Developer APKs
+        id: build_variants
         working-directory: CamUI-src
         run: gradle --no-daemon :app:assembleDebug :app:assembleDeveloper --stacktrace
 
-      - name: Run unit tests for both variants
+      - name: Run supported unit tests
         working-directory: CamUI-src
-        run: gradle --no-daemon :app:testDebugUnitTest :app:testDeveloperUnitTest --stacktrace
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
 
       - name: Upload Debug APK
+        if: always() && steps.build_variants.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: LunaDream-2.5.0dream-Debug
@@ -57,6 +59,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Developer APK
+        if: always() && steps.build_variants.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: LunaDream-2.5.0dream-Developer

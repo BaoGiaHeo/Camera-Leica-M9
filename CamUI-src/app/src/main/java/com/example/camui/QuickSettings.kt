@@ -122,6 +122,56 @@ fun QuickPanel(
                 color = if (nativeImageProcessingEnabled) CamColors.Yellow else CamColors.Sub,
                 fontSize = 10.sp
             )
+        } else if (isLandscape) {
+            // Landscape keeps the ratio selector full-width, then places controls in two columns.
+            Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                aspectRatios.forEachIndexed { index, pair ->
+                    Chip(aspectRatioDisplayLabel(index, true), index == ratioIdx, { onRatio(index) }, Modifier.weight(1f))
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(CamColors.Chip).padding(horizontal = 9.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Live Photo", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Text(
+                                if (livePhotoEnabled) "Đang bật · ảnh tối đa 48MP + clip chuyển động"
+                                else "Đang tắt · ảnh tĩnh thông thường",
+                                color = if (livePhotoEnabled) CamColors.Yellow else CamColors.Sub,
+                                fontSize = 9.sp
+                            )
+                        }
+                        Switch(checked = livePhotoEnabled, onCheckedChange = onLivePhotoChanged)
+                    }
+                    FeatureCard("Render Engine", renderEngine, true, onRenderEngine, Modifier.fillMaxWidth())
+                    SmallCard("Metering", metering, null, onMetering, Modifier.fillMaxWidth())
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        SmallCard("Toolbox", "Assistive tools", Icons.Default.Palette, onToolbox, Modifier.weight(1f))
+                        SmallCard("Contents", "Frames", Icons.Default.Tune, onContentManagement, Modifier.weight(1f))
+                    }
+                    SmallCard("Other", "Device options", Icons.Default.MoreHoriz, { showOther = true }, Modifier.fillMaxWidth())
+                    Row(
+                        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp))
+                            .background(CamColors.Chip).animaTClickable(onClick = onSettings).padding(horizontal = 15.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Settings", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
+                    }
+                }
+            }
         } else {
             Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

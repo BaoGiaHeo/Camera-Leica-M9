@@ -1,43 +1,45 @@
-# FujiFilm Mode 2.0.1Dream
+# LunaDream 2.5.0dream
 
-FujiFilm Mode is an Android camera application built with CameraX, Camera2 metadata discovery and Jetpack Compose.
+LunaDream is an Android camera application built with Kotlin, Jetpack Compose, CameraX and Camera2 metadata discovery.
 
-## 2.0.0Dream
+## 2.5.0dream — hardware-inspired camera interface
 
-- App label: **FujiFilm Mode**
-- Version: **2.0.0Dream** (versionCode 8)
-- LunaDream 1.5: one camera frame, a restrained detail-restoration pass and a 50MP output target.
-- LunaDream 2.0: multi-frame alignment/fusion, motion-aware denoising, restrained detail recovery and a 108MP output target.
-- LunaDream 1.5 and 2.0 use different capture pipelines. The selected mode stays selected after capture; failures retain the original image and report that processing did not complete.
-- The old megapixel chooser and the ONNX/NAFNet AI inference module are removed from the application and the build.
-- LunaDream selection uses a rainbow fade and a frosted-glass star accent only while a mode is enabled.
-- Physical rotation displays an in-app rotate button. The app starts in portrait and rotates only after the user taps the offered landscape/portrait action; the control fades away after 10 seconds.
-- NightShotMode remains a separate capture pipeline.
-- Landscape camera controls, settings, filter selection and the LunaDream panel are height-aware and scroll within available space.
+- Launcher name: **LunaDream**
+- Version: **2.5.0dream** (versionCode 15)
+- The camera UI is locked to landscape-left / landscape-right. Android system bars are hidden in immersive mode and can be revealed temporarily with an edge swipe.
+- The camera body uses a black leatherette-style surface, brushed silver top plate, knurled rotary controls, engraved labels and a separate LCD preview layer.
+- Photo has seven top-plate keys. Pro hides FILM and has six top-plate keys plus a six-cell LCD information strip for EV, Tv, ISO, AF, WB and RESET.
+- The left-hand mode rail and right-hand shutter / zoom / command controls can be reversed in Appearance settings.
+- Film Filters uses a landscape split view: live-look preview on the left and searchable, categorized 35 mm film tiles on the right. Press and hold the preview to compare the original image. The built-in film-look catalog remains in the camera source.
+- LunaDream 1.5 and LunaDream 2.0 retain their existing capture and processing state. NightShotMode has a separate physical switch and duration selection.
+- Q Menu and Settings use the shared FujiSkin component family (FujiPanel, FujiTopKey, FujiSwitch, FujiChip, FujiTile, FujiListRow, FujiSearchField, FujiDial and FujiScrollbar).
+- Aspect-ratio changes fade the camera surface out for 200 ms, apply the selected ratio, then fade it in over 250 ms. Input is blocked during the transition.
+- Physical capture orientation is read independently of the fixed landscape UI. Sensor readings use circular smoothing and a 12-degree hysteresis band; an unknown / flat reading retains the last valid orientation.
+- LCD scanline texture is drawn only on the viewfinder display layer and is not passed to the still-image capture output.
+- Sound and haptic preferences control the shutter, dial detents, key/switch feedback and vibration. The bundled LunaDream shutter sound is an original 210 ms mono WAV at 44.1 kHz.
 
-## Processing limits and validation
+## Camera processing is retained
 
-LunaDream 1.5 requests a 50MP output and LunaDream 2.0 requests 108MP. The output sizer uses a device-memory guard, so a lower actual pixel count can be reported rather than risking an out-of-memory crash. Interpolation sets the pixel dimensions; it does not create optical information that was not captured. A claim that LunaDream outperforms every other mode requires side-by-side testing on real captures, with fine detail, noise, motion ghosts, black/bright halos, output resolution and processing time measured separately.
+The 2.5.0dream interface update keeps the existing CameraX use cases, Camera2 controls, focus/zoom behavior, filter recipes, LunaDream 1.5 / 2.0 processing paths, NightShotMode and image-orientation normalization. UI work must not silently replace a selected capture mode or change the corresponding processor.
 
-The release workflow runs the app unit tests and assembles both debug and release APKs. The workflow uses the debug signing key for the release variant so it can be installed for device testing. That is **not** a production signing key and the APK is not ready for Play Store publication without the owner's production signing setup.
+## Important validation notes
 
-## Camera implementation notes
+The orientation manager and layout have not yet been physically validated across all combinations. Before calling the release complete, test:
 
-The camera inventory reads only public Camera2 logical and physical camera IDs exposed by each device. Lens switching and output sizes remain dependent on the device HAL. Runtime verification is still required for camera switching, autofocus, stabilization, RAW, NightShotMode, landscape orientation, sustained heat and 108MP image output.
+- Four physical orientations: landscape-left, landscape-right, portrait and portrait-upside-down.
+- Four aspect ratios: 4:3, 16:9, 1:1 and 21:9 (display labels change with device hold direction).
+- Front and rear cameras.
+- Preview frame geometry, tap-to-focus mapping, output pixel width/height, EXIF orientation and gallery rendering.
+- Camera switching, zoom lens transitions, timer capture, burst, LunaDream 1.5 / 2.0, NightShotMode, Star Trails and device thermal behavior.
+
+Upscaling a captured image to a requested megapixel count changes output dimensions; it does not create optical detail that the sensor did not capture. A claim of improved detail or denoising quality requires side-by-side real-device captures and measurements.
 
 ## Build locally
 
-From the CamUI-src directory with JDK 17 and Android SDK configured, run:
+From the `CamUI-src` directory with JDK 17 and Android SDK configured:
 
-    gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+```bash
+gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+```
 
-
-## 2.0.1Dream rebuild
-
-- The camera filter picker is a single, neutral list showing filter names and image previews only.
-- Added additional film-look recipes, including Fujifilm-inspired, Kodak-inspired, CineStill-inspired and monochrome looks.
-- Added Fujifilm, Sony, Nikon and Canon watermark styles with separate typographic treatments.
-- Changed camera preview scaling to fit the complete frame in portrait and landscape layouts.
-- Combined LunaDream denoising and detail recovery into one streamed image pass.
-- Reduced the alignment thumbnail and sparse tracking workload for LunaDream 2.0.
-- Kept the capture/merge stability message and the free-to-move message transition unchanged.
+The workflow's release APK is debug-signed for installable device testing. It is not a production Play Store signing configuration.

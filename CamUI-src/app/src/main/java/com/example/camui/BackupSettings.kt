@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -102,29 +101,26 @@ fun BackupRestorePanel(onRestoreComplete: () -> Unit = {}) {
             "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật.",
             color = CamColors.Sub, fontSize = 12.sp
         )
-        Button(
+        FujiKey(
+            "XUẤT BẢN SAO LƯU",
             onClick = {
                 val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                 exportLauncher.launch("FujifilmMode-Backup-$stamp.json")
             },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Xuất bản sao lưu")
-        }
-        Button(
+        )
+        FujiKey(
+            "KHÔI PHỤC BẢN SAO LƯU",
             onClick = { importLauncher.launch(arrayOf("application/json", "text/json", "application/octet-stream")) },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Khôi phục bản sao lưu")
-        }
+        )
         Text(
             status,
             color = CamColors.TextColor,
             fontSize = 11.sp,
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .background(CamColors.Card).padding(12.dp)
+            modifier = Modifier.fillMaxWidth().background(FujiSkin.lcd).border(1.dp, Color(0xFF344247)).padding(10.dp)
         )
         Text(
             "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng.",

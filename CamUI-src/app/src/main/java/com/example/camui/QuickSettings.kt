@@ -1,8 +1,5 @@
 package com.example.camui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,31 +9,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import android.content.res.Configuration
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,204 +48,113 @@ fun QuickPanel(
     onToolbox: () -> Unit,
     onContentManagement: () -> Unit,
     onSettings: () -> Unit,
+    onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isLandscape = deviceLandscape
-    val configuration = LocalConfiguration.current
-    val shape = RoundedCornerShape(22.dp)
     var showOther by remember { mutableStateOf(false) }
-    Column(
-        modifier.widthIn(max = if (isLandscape) 460.dp else 620.dp)
+    FujiPanel(
+        title = if (showOther) "OTHER · DEVICE OPTIONS" else "Q MENU",
+        modifier = modifier
+            .widthIn(max = if (deviceLandscape) 560.dp else 620.dp)
             .fillMaxWidth()
-            .heightIn(max = (configuration.screenHeightDp * if (isLandscape) 0.94f else 0.84f).dp)
-            .clip(shape).background(CamColors.Panel)
-            .border(0.5.dp, CamColors.Stroke, shape).padding(14.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .heightIn(max = 440.dp),
+        onBack = { if (showOther) showOther = false else onDismiss() }
     ) {
-        if (showOther) {
-            Row(
-                Modifier.fillMaxWidth().height(34.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    Modifier.size(32.dp).clip(RoundedCornerShape(10.dp))
-                        .background(CamColors.Chip).animaTClickable { showOther = false },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Text("Other", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            }
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(CamColors.Chip).padding(horizontal = 12.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "Xử lý ảnh gốc thiết bị",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        "Ưu tiên ISP/OEM AUTO-HDR; sau chụp tiếp tục tối ưu dải sáng và chi tiết trên JPEG.",
-                        color = CamColors.Sub,
-                        fontSize = 10.sp
-                    )
-                }
-                Spacer(Modifier.size(8.dp))
-                Switch(
-                    checked = nativeImageProcessingEnabled,
-                    onCheckedChange = onNativeImageProcessingChanged
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            if (showOther) {
+                FujiListRow(
+                    "Xử lý ảnh gốc thiết bị",
+                    if (nativeImageProcessingEnabled) "ON" else "OFF",
+                    onClick = { onNativeImageProcessingChanged(!nativeImageProcessingEnabled) },
+                    description = "Ưu tiên ISP/OEM AUTO-HDR; sau chụp tiếp tục tối ưu dải sáng và chi tiết trên JPEG."
                 )
-            }
-            Text(
-                if (nativeImageProcessingEnabled) {
-                    "Đang bật · dùng ISP/OEM nếu có và tăng cường ảnh sau chụp."
-                } else {
-                    "Đang tắt · Có thể sử dụng LunaDream."
-                },
-                color = if (nativeImageProcessingEnabled) CamColors.Yellow else CamColors.Sub,
-                fontSize = 10.sp
-            )
-        } else if (isLandscape) {
-            // Landscape keeps the ratio selector full-width, then places controls in two columns.
-            Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                aspectRatios.forEachIndexed { index, pair ->
-                    Chip(aspectRatioDisplayLabel(index, true), index == ratioIdx, { onRatio(index) }, Modifier.weight(1f))
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                            .background(CamColors.Chip).padding(horizontal = 9.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("Live Photo", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                            Text(
-                                if (livePhotoEnabled) "Đang bật · ảnh tối đa 48MP + clip chuyển động"
-                                else "Đang tắt · ảnh tĩnh thông thường",
-                                color = if (livePhotoEnabled) CamColors.Yellow else CamColors.Sub,
-                                fontSize = 9.sp
-                            )
-                        }
-                        Switch(checked = livePhotoEnabled, onCheckedChange = onLivePhotoChanged)
-                    }
-                    FeatureCard("Render Engine", renderEngine, true, onRenderEngine, Modifier.fillMaxWidth())
-                    SmallCard("Metering", metering, null, onMetering, Modifier.fillMaxWidth())
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        SmallCard("Toolbox", "Assistive tools", Icons.Default.Palette, onToolbox, Modifier.weight(1f))
-                        SmallCard("Contents", "Frames", Icons.Default.Tune, onContentManagement, Modifier.weight(1f))
-                    }
-                    SmallCard("Other", "Device options", Icons.Default.MoreHoriz, { showOther = true }, Modifier.fillMaxWidth())
-                    Row(
-                        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp))
-                            .background(CamColors.Chip).animaTClickable(onClick = onSettings).padding(horizontal = 15.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Settings", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-                    }
-                }
-            }
-        } else {
-            Text("Aspect Ratio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                aspectRatios.forEachIndexed { index, pair ->
-                    Chip(aspectRatioDisplayLabel(index, isLandscape), index == ratioIdx, { onRatio(index) }, Modifier.weight(1f))
-                }
-            }
-            // Ultra HDR is hidden from the UI; its camera pipeline remains intact.
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(CamColors.Chip).padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("Live Photo", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
-                        if (livePhotoEnabled) "Đang bật · ảnh tối đa 48MP + clip chuyển động"
-                        else "Đang tắt · ảnh tĩnh thông thường",
-                        color = if (livePhotoEnabled) CamColors.Yellow else CamColors.Sub,
-                        fontSize = 10.sp
+                        if (nativeImageProcessingEnabled) "ĐANG BẬT · ISP/OEM" else "ĐANG TẮT · LUNADREAM CÓ THỂ DÙNG",
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    FujiSwitch(nativeImageProcessingEnabled, onNativeImageProcessingChanged)
+                }
+            } else {
+                Text("ASPECT RATIO", color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    aspectRatios.forEachIndexed { index, _ ->
+                        FujiChip(
+                            aspectRatioDisplayLabel(index, deviceLandscape),
+                            index == ratioIdx,
+                            { onRatio(index) },
+                            Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("LIVE PHOTO", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text(
+                            if (livePhotoEnabled) "Đang bật · ảnh + clip chuyển động"
+                            else "Đang tắt · ảnh tĩnh thông thường",
+                            color = FujiSkin.muted,
+                            fontSize = 8.sp
+                        )
+                    }
+                    FujiSwitch(livePhotoEnabled, onLivePhotoChanged)
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    FujiTile(
+                        "Render Engine", renderEngine, true, onRenderEngine,
+                        modifier = Modifier.weight(1f)
+                    )
+                    FujiTile(
+                        "Metering", metering, false, onMetering,
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                Switch(checked = livePhotoEnabled, onCheckedChange = onLivePhotoChanged)
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                FeatureCard("Render Engine", renderEngine, true, onRenderEngine, Modifier.weight(1f))
-                SmallCard("Metering", metering, null, onMetering, Modifier.weight(1f))
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                SmallCard("Toolbox", "Assistive tools", Icons.Default.Palette, onToolbox, Modifier.weight(1f))
-                SmallCard("Contents", "Frames", Icons.Default.Tune, onContentManagement, Modifier.weight(1f))
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                SmallCard("Other", "Device options", Icons.Default.MoreHoriz, { showOther = true }, Modifier.weight(1f))
-                Spacer(Modifier.weight(1f))
-            }
-            Row(
-                Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp))
-                    .background(CamColors.Chip).animaTClickable(onClick = onSettings).padding(horizontal = 15.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Settings", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    FujiTile(
+                        "Toolbox", "Assistive tools", false, onToolbox,
+                        icon = Icons.Default.Palette, modifier = Modifier.weight(1f)
+                    )
+                    FujiTile(
+                        "Contents", "Frames", false, onContentManagement,
+                        icon = Icons.Default.Tune, modifier = Modifier.weight(1f)
+                    )
+                    FujiTile(
+                        "Other", "Device options", false, { showOther = true },
+                        icon = Icons.Default.MoreHoriz, modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 3.dp)
+                        .height(37.dp)
+                        .background(Color(0xFF242A2C))
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("MENU/OK  >  SETTINGS", color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "SETTINGS  ›",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickableFuji(onSettings)
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun FeatureCard(
-    title: String,
-    value: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier.height(72.dp).clip(RoundedCornerShape(14.dp))
-            .background(if (selected) CamColors.Yellow else CamColors.Chip)
-            .animaTClickable(onClick = onClick).padding(10.dp),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(title, color = if (selected) Color.Black else Color.White,
-            fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-        Text(value, color = if (selected) Color.Black else CamColors.Sub,
-            fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
-    }
-}
-
-@Composable
-private fun SmallCard(
-    title: String,
-    subtitle: String?,
-    icon: ImageVector?,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(modifier.height(66.dp).clip(RoundedCornerShape(14.dp)).background(CamColors.Chip)
-        .animaTClickable(onClick = onClick).padding(10.dp)) {
-        Column(Modifier.align(Alignment.BottomStart)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-            if (subtitle != null) Text(subtitle, color = CamColors.Sub, fontSize = 9.sp)
-        }
-        if (icon != null) Icon(icon, contentDescription = title, tint = Color.White,
-            modifier = Modifier.align(Alignment.TopEnd).size(18.dp))
     }
 }

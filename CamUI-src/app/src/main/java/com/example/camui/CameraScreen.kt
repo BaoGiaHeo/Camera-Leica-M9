@@ -275,9 +275,6 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
-private const val DEFAULT_SHUTTER_SOUND_ASSET =
-    "shutter-sounds/mixkit-classic-camera-click-1440.mp3"
-
 private val systemShutterSound = MediaActionSound().apply {
     load(MediaActionSound.SHUTTER_CLICK)
 }
@@ -288,37 +285,33 @@ private fun playSystemShutterFallback() {
 }
 
 private fun playConfiguredShutterSound(context: Context) {
-    val player = MediaPlayer()
-    val prepared = runCatching {
-        player.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
+    val attributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+    val player = runCatching {
+        MediaPlayer.create(
+            context,
+            R.raw.lunadream_shutter,
+            attributes,
+            android.media.AudioManager.AUDIO_SESSION_ID_GENERATE
         )
-        val soundFile = requireNotNull(CameraAssetStore.file(context, DEFAULT_SHUTTER_SOUND_ASSET)) {
-            "Bundled default shutter sound is missing: $DEFAULT_SHUTTER_SOUND_ASSET"
-        }
-        player.setDataSource(soundFile.absolutePath)
-        player.setOnPreparedListener { mediaPlayer ->
-            runCatching { mediaPlayer.start() }.onFailure {
-                android.util.Log.w("FUJI_SHUTTER", "Could not start default shutter audio", it)
-                mediaPlayer.release()
-                playSystemShutterFallback()
-            }
-        }
-        player.setOnCompletionListener { it.release() }
-        player.setOnErrorListener { mediaPlayer, what, extra ->
-            android.util.Log.w("FUJI_SHUTTER", "Default shutter audio failed: $what/$extra")
-            mediaPlayer.release()
-            playSystemShutterFallback()
-            true
-        }
-        player.prepareAsync()
-    }.isSuccess
-    if (!prepared) {
+    }.getOrNull()
+    if (player == null) {
+        android.util.Log.w("LUNADREAM_SHUTTER", "Bundled shutter WAV could not be opened; using system fallback")
+        playSystemShutterFallback()
+        return
+    }
+    player.setOnCompletionListener { it.release() }
+    player.setOnErrorListener { mediaPlayer, what, extra ->
+        android.util.Log.w("LUNADREAM_SHUTTER", "Shutter WAV playback failed: $what/$extra")
+        mediaPlayer.release()
+        playSystemShutterFallback()
+        true
+    }
+    runCatching { player.start() }.onFailure {
+        android.util.Log.w("LUNADREAM_SHUTTER", "Could not start bundled shutter WAV", it)
         runCatching { player.release() }
-        android.util.Log.w("FUJI_SHUTTER", "Default shutter audio unavailable; using Android camera shutter sound")
         playSystemShutterFallback()
     }
 }

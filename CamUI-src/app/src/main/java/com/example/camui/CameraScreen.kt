@@ -82,6 +82,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -92,6 +93,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -149,11 +151,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.geometry.Size as DrawSize
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
@@ -638,6 +642,11 @@ fun CameraScreen(
     val fallbackFilterPreviewBitmap = remember { createFilmLookPreviewSample() }
     var shutterEffectAlpha by remember { mutableFloatStateOf(0f) }
     val filmWashProgress = remember { Animatable(0f) }
+    var frozenPreviewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var previewFreezeEffect by remember { mutableStateOf("off") }
+    val previewFreezeAlpha = remember { Animatable(0f) }
+    val previewEffectPosition = remember { Animatable(-0.35f) }
+    val previewFreezeBlockInteraction = remember { MutableInteractionSource() }
     var isProcessing by remember { mutableStateOf(false) }
     var livePhotoCaptureInProgress by remember { mutableStateOf(false) }
     var processingProgress by remember { mutableIntStateOf(0) }
@@ -685,6 +694,35 @@ fun CameraScreen(
             }
         } else {
             processingElapsedSeconds = 0
+        }
+    }
+    LaunchedEffect(previewFreezeEffect, isProcessing) {
+        val activeEffect = previewFreezeEffect
+        if (activeEffect == "off") {
+            previewFreezeAlpha.snapTo(0f)
+            return@LaunchedEffect
+        }
+        if (!isProcessing) {
+            previewFreezeAlpha.animateTo(
+                0f,
+                animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
+            )
+            frozenPreviewBitmap = null
+            previewFreezeEffect = "off"
+            return@LaunchedEffect
+        }
+        previewFreezeAlpha.snapTo(0f)
+        previewFreezeAlpha.animateTo(
+            1f,
+            animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
+        )
+        val passDuration = if (activeEffect == "night") 1_900 else 2_600
+        while (isProcessing && previewFreezeEffect == activeEffect) {
+            previewEffectPosition.snapTo(-0.35f)
+            previewEffectPosition.animateTo(
+                1.35f,
+                animationSpec = tween(durationMillis = passDuration, easing = LinearEasing)
+            )
         }
     }
     LaunchedEffect(isProcessing) {
@@ -865,11 +903,9 @@ fun CameraScreen(
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
             setBackgroundColor(android.graphics.Color.rgb(38, 43, 51))
-            implementationMode = if (renderEngine == "Performance") {
-                PreviewView.ImplementationMode.PERFORMANCE
-            } else {
-                PreviewView.ImplementationMode.COMPATIBLE
-            }
+            // COMPATIBLE uses a TextureView-backed preview so PreviewView.bitmap can
+            // preserve the exact last displayed frame during computational capture.
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
     LaunchedEffect(previewView, isLandscape) {
@@ -1405,9 +1441,8 @@ fun CameraScreen(
                     }
                 }
                 val capture = captureBuilder.build()
-                capture.flashMode = if (nightShotMode == "night" || uhdCaptureEnabled || fhdCaptureEnabled || uhdPlusCaptureEnabled) {
-                    ImageCapture.FLASH_MODE_OFF
-                } else flash
+                // Torch illumination is independent from still-capture flash; do not strobe on shutter.
+                capture.flashMode = ImageCapture.FLASH_MODE_OFF
 
                 val livePhotoVideoCapture = if (livePhotoEnabled) {
                     val recorder = Recorder.Builder()
@@ -1908,8 +1943,35 @@ fun CameraScreen(
         }, mainExecutor)
     }
 
-    LaunchedEffect(flash, imageCapture) {
-        imageCapture?.flashMode = flash
+    LaunchedEffect(flash, camera, front) {
+        val activeCamera = camera ?: return@LaunchedEffect
+        val hasTorch = !front && activeCamera.cameraInfo.hasFlashUnit()
+        if (flash == ImageCapture.FLASH_MODE_ON && !hasTorch) {
+            flash = ImageCapture.FLASH_MODE_OFF
+            if (!front) {
+                localizedToast(context, "Camera đang chọn không có đèn LED hỗ trợ Torch.", Toast.LENGTH_LONG).show()
+            }
+            return@LaunchedEffect
+        }
+        runCatching {
+            activeCamera.cameraControl.enableTorch(flash == ImageCapture.FLASH_MODE_ON && hasTorch)
+        }.onFailure {
+            android.util.Log.w("FUJI_TORCH", "Could not change continuous LED torch state", it)
+            if (flash == ImageCapture.FLASH_MODE_ON) {
+                flash = ImageCapture.FLASH_MODE_OFF
+                localizedToast(context, "Không thể bật đèn LED liên tục trên camera này.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    DisposableEffect(camera) {
+        val activeCamera = camera
+        onDispose {
+            runCatching { activeCamera?.cameraControl?.enableTorch(false) }
+        }
+    }
+    LaunchedEffect(imageCapture) {
+        // The shutter must never pulse the LED: illumination is controlled only by Torch Mode.
+        imageCapture?.flashMode = ImageCapture.FLASH_MODE_OFF
     }
     LaunchedEffect(targetRotation, imageCapture, previewUseCase, analysisUseCase, videoCaptureUseCase) {
         imageCapture?.targetRotation = targetRotation
@@ -2188,7 +2250,7 @@ fun CameraScreen(
                     Toast.LENGTH_LONG
                 ).show()
             } finally {
-                activeCapture.flashMode = flash
+                activeCapture.flashMode = ImageCapture.FLASH_MODE_OFF
                 starTrailTimerJob?.cancel()
                 starTrailTimerJob = null
                 frames.forEach { runCatching { it.delete() } }
@@ -2647,6 +2709,14 @@ fun CameraScreen(
                 nightShotTargetFrameCount = captureNightTargetFrames
             }
             if (captureUseLunaDream || captureUseNightShot) {
+                frozenPreviewBitmap = runCatching { previewView.bitmap?.asImageBitmap() }.getOrNull()
+                previewFreezeEffect = if (captureUseNightShot) "night" else "luna"
+                if (frozenPreviewBitmap == null) {
+                    android.util.Log.w(
+                        "FUJI_PREVIEW_FREEZE",
+                        "PreviewView could not provide a frame snapshot; processing effects will still be shown."
+                    )
+                }
                 multiFrameHoldActive = true
                 multiFrameRenderStarted = false
                 isProcessing = true
@@ -3567,7 +3637,7 @@ fun CameraScreen(
                             } else {
                                 Icons.Default.FlashOff
                             },
-                            desc = "Flash",
+                            desc = "Đèn LED liên tục",
                             onClick = {
                                 flash = if (flash == ImageCapture.FLASH_MODE_OFF) {
                                     ImageCapture.FLASH_MODE_ON
@@ -4047,6 +4117,100 @@ fun CameraScreen(
                                     modifier = Modifier.align(Alignment.Center)
                                         .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
                                 )
+                            }
+                            if (previewFreezeEffect != "off" && isProcessing) {
+                                val effectMode = previewFreezeEffect
+                                val overlayAlpha = previewFreezeAlpha.value
+                                Box(Modifier.fillMaxSize()) {
+                                    frozenPreviewBitmap?.let { frame ->
+                                        Image(
+                                            bitmap = frame,
+                                            contentDescription = "Khung hình Preview được đóng băng",
+                                            modifier = Modifier.fillMaxSize()
+                                                .blur(16.dp)
+                                                .graphicsLayer { alpha = overlayAlpha },
+                                            contentScale = ContentScale.FillBounds
+                                        )
+                                    }
+                                    Box(
+                                        Modifier.fillMaxSize()
+                                            .background(Color(0x55080D18))
+                                            .graphicsLayer { alpha = overlayAlpha }
+                                    )
+                                    Canvas(
+                                        Modifier.fillMaxSize().graphicsLayer { alpha = overlayAlpha }
+                                    ) {
+                                        val position = previewEffectPosition.value
+                                        if (effectMode == "luna") {
+                                            val head = Offset(size.width * position, size.height * 0.72f)
+                                            val tail = Offset(size.width * (position - 0.38f), size.height * 0.28f)
+                                            drawLine(
+                                                color = Color.White.copy(alpha = 0.24f),
+                                                start = tail,
+                                                end = head,
+                                                strokeWidth = size.height * 0.24f,
+                                                cap = StrokeCap.Round
+                                            )
+                                            val rainbow = listOf(
+                                                Color(0xFFFF5A72),
+                                                Color(0xFFFFB347),
+                                                Color(0xFFFFE66D),
+                                                Color(0xFF65E6A5),
+                                                Color(0xFF58C8FF),
+                                                Color(0xFF9A7BFF),
+                                                Color(0xFFE18BFF)
+                                            )
+                                            rainbow.forEachIndexed { index, color ->
+                                                val offsetY = (index - 3) * size.height * 0.035f
+                                                drawLine(
+                                                    color = color.copy(alpha = 0.72f),
+                                                    start = Offset(tail.x, tail.y + offsetY),
+                                                    end = Offset(head.x, head.y + offsetY),
+                                                    strokeWidth = (size.height * 0.025f).coerceAtLeast(2.dp.toPx()),
+                                                    cap = StrokeCap.Round
+                                                )
+                                            }
+                                        } else {
+                                            val headX = size.width * position
+                                            val headY = size.height * (0.48f - position * 0.10f)
+                                            val head = Offset(headX, headY)
+                                            val tail = Offset(headX - size.width * 0.24f, headY + size.height * 0.10f)
+                                            drawLine(
+                                                color = Color(0xFF8EDBFF).copy(alpha = 0.36f),
+                                                start = tail,
+                                                end = head,
+                                                strokeWidth = 18.dp.toPx(),
+                                                cap = StrokeCap.Round
+                                            )
+                                            drawLine(
+                                                color = Color.White.copy(alpha = 0.90f),
+                                                start = tail,
+                                                end = head,
+                                                strokeWidth = 4.dp.toPx(),
+                                                cap = StrokeCap.Round
+                                            )
+                                            drawCircle(Color(0xFFFFF4C2).copy(alpha = 0.34f), 15.dp.toPx(), head)
+                                            drawCircle(Color.White, 5.dp.toPx(), head)
+                                        }
+                                    }
+                                    Box(
+                                        Modifier.fillMaxSize().clickable(
+                                            interactionSource = previewFreezeBlockInteraction,
+                                            indication = null
+                                        ) {}
+                                    )
+                                    Text(
+                                        if (effectMode == "luna") "LUNADREAM · ĐANG XỬ LÝ" else "NIGHT SHOT · ĐANG GHÉP ẢNH",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.align(Alignment.Center)
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(Color(0xAA111722))
+                                            .padding(horizontal = 15.dp, vertical = 9.dp)
+                                            .graphicsLayer { alpha = overlayAlpha }
+                                    )
+                                }
                             }
                         }
                     }

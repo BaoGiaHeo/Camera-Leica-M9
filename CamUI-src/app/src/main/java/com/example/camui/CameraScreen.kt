@@ -37,7 +37,6 @@ import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Rational
 import android.util.Log
-import android.util.Log
 import android.util.Size
 import android.view.Surface
 import android.view.HapticFeedbackConstants

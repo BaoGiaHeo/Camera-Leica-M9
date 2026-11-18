@@ -122,6 +122,13 @@ class MainActivity : AppCompatActivity() {
             params.preferredDisplayModeId = highestMode.modeId
             params.preferredRefreshRate = highestMode.refreshRate
             window.attributes = params
+            if (android.os.Build.VERSION.SDK_INT >= 35) {
+                // Android 15+ high frame-rate category is a system preference, not a lock.
+                window.decorView.setRequestedFrameRate(
+                    android.view.View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+                )
+                window.decorView.invalidate()
+            }
             getSharedPreferences("fujifilm_settings", MODE_PRIVATE).edit()
                 .putFloat("preferred_refresh_rate", highestMode.refreshRate)
                 .apply()
@@ -141,6 +148,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         hideStatusBar()
+        requestHighestSupportedRefreshRate()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

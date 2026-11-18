@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -32,11 +33,13 @@ import androidx.compose.material3.Text as MaterialText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -490,5 +493,63 @@ fun FujiScrollbar(
             size = androidx.compose.ui.geometry.Size(size.width, indicatorHeight),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width / 2)
         )
+    }
+}
+
+
+/** Two-stage mechanical shutter: half-press focuses; release triggers the existing capture action. */
+@Composable
+fun FujiShutterButton(
+    enabled: Boolean,
+    onHalfPress: () -> Unit,
+    onCapture: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit = {}
+) {
+    val view = LocalView.current
+    var pressed by remember { mutableStateOf(false) }
+    val pressScale by animateFloatAsState(if (pressed) 0.94f else 1f, tween(90), label = "fuji-shutter")
+    Box(
+        modifier
+            .size(76.dp)
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
+            .clip(CircleShape)
+            .background(Brush.radialGradient(listOf(Color(0xFF52585B), Color(0xFF111516))))
+            .border(2.dp, Color(0xFF060808), CircleShape)
+            .pointerInput(enabled) {
+                detectTapGestures(
+                    onPress = {
+                        if (enabled) {
+                            pressed = true
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            onHalfPress()
+                            tryAwaitRelease()
+                            pressed = false
+                        }
+                    },
+                    onTap = {
+                        if (enabled) {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            onCapture()
+                        }
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier.size(62.dp).clip(CircleShape)
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFD6D8D8), Color(0xFF737B7F))))
+                .border(2.dp, Color(0xFF222729), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                Modifier.size(50.dp).clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(Color(0xFFEEF0EE), Color(0xFF9DA4A7), Color(0xFF6F777A))))
+                    .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape),
+                contentAlignment = Alignment.Center,
+                content = content
+            )
+        }
     }
 }

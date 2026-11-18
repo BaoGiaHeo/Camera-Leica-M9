@@ -2679,7 +2679,8 @@ fun CameraScreen(
             scope.launch {
                 shutterEffectProgress.snapTo(0f)
                 shutterEffectProgress.animateTo(1f, tween(40, easing = FastOutSlowInEasing))
-                if (actualShutterNs > 33_333_333L) delay(60L) else delay(30L)
+                val shutterForCurtainNs = if (manualShutterEnabled) manualShutterNs else shutterNs
+                if (shutterForCurtainNs > 33_333_333L) delay(60L) else delay(30L)
                 shutterEffectProgress.animateTo(0f, tween(60, easing = FastOutSlowInEasing))
             }
             // Freeze display rotation and the active camera's sensor-relative rotation for
@@ -2692,7 +2693,7 @@ fun CameraScreen(
             // Landscape deliberately skips the output crop so the complete sensor frame is preserved.
             val selectedFrameHeightOverWidth =
                 aspectRatioForOrientation(ratioIdx, captureIsLandscape)
-            val outputHeightOverWidth = selectedFrameHeightOverWidth.takeUnless { captureIsLandscape }
+            val outputHeightOverWidth = selectedFrameHeightOverWidth
             // Orientation detection uses the camera's neutral width/height ratio and never crops to it.
             val expectedOrientationAspectRatio = if (captureIsLandscape) 4f / 3f else 3f / 4f
             if (captureRotation != targetRotation ||
@@ -4463,47 +4464,63 @@ fun CameraScreen(
                                 )
                             }
                         } else {
-                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
                                 Text("EV", color = FujiSkin.orange, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 val range = evRange
-                                if (range != null && range.upper > range.lower) {
-                                    FujiSlider(
-                                        modifier = Modifier.weight(1f),
-                                        value = evSliderPosition.coerceIn(range.lower.toFloat(), range.upper.toFloat()),
-                                        onValueChange = {
-                                            evUserAdjusting = true
-                                            evSliderPosition = it
-                                            val value = it.roundToInt()
-                                            evIndex = value
-                                            camera?.let { c -> runCatching { c.cameraControl.setExposureCompensationIndex(value) } }
-                                        },
-                                        onValueChangeFinished = {
-                                            // Camera2 reports exposure asynchronously; keep the user's
-                                            // position stable until the new exposure has propagated.
-                                            scope.launch {
-                                                delay(500)
-                                                evUserAdjusting = false
-                                            }
-                                        },
-                                        valueRange = range.lower.toFloat()..range.upper.toFloat(),
-                                        steps = (range.upper - range.lower - 1).coerceAtLeast(0),
-
-                                    )
-                                } else {
-                                    Text("EV không được hỗ trợ", color = CamColors.Sub, fontSize = 10.sp,
-                                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-                                }
-                                Text(evText, color = CamColors.TextColor, fontSize = 11.sp)
-                                Text("AUTO", color = CamColors.Sub, fontSize = 9.sp,
-                                    modifier = Modifier.padding(start = 10.dp).animaTClickable {
+                                FujiKey(
+                                    "−",
+                                    onClick = {
+                                        if (range != null) {
+                                            val next = (evIndex - 1).coerceIn(range.lower, range.upper)
+                                            evIndex = next
+                                            evSliderPosition = next.toFloat()
+                                            evUserAdjusting = false
+                                            manualExposure = false
+                                            camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
+                                        }
+                                    },
+                                    modifier = Modifier.width(34.dp),
+                                    enabled = range != null && evIndex > range.lower
+                                )
+                                Text(
+                                    if (range != null) evText else "EV N/A",
+                                    color = CamColors.TextColor,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                FujiKey(
+                                    "+",
+                                    onClick = {
+                                        if (range != null) {
+                                            val next = (evIndex + 1).coerceIn(range.lower, range.upper)
+                                            evIndex = next
+                                            evSliderPosition = next.toFloat()
+                                            evUserAdjusting = false
+                                            manualExposure = false
+                                            camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
+                                        }
+                                    },
+                                    modifier = Modifier.width(34.dp),
+                                    enabled = range != null && evIndex < range.upper
+                                )
+                                FujiKey(
+                                    "0",
+                                    onClick = {
                                         evUserAdjusting = false
                                         evIndex = 0
-                                        evSliderPosition = 0f.coerceIn(
-                                            (evRange?.lower ?: 0).toFloat(),
-                                            (evRange?.upper ?: 0).toFloat()
-                                        )
-                                        camera?.let { runCatching { it.cameraControl.setExposureCompensationIndex(0) } }
-                                    })
+                                        evSliderPosition = 0f
+                                        manualExposure = false
+                                        camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(0) } }
+                                    },
+                                    modifier = Modifier.width(34.dp)
+                                )
                             }
                         }
             
@@ -4594,13 +4611,6 @@ fun CameraScreen(
             activePhysicalCameraDetails,
             zoomStateForDial?.maxZoomRatio ?: 1f
         )
-        val dialZoomStops = Camera2Info.opticalZoomStops(
-            logical = activeCameraDetails,
-            physical = activePhysicalCameraDetails,
-            minZoom = dialZoomMinimum,
-            maxZoom = dialZoomMaximum,
-            quickMaxZoom = dialZoomMaximum
-        )
         val zoomLabel = if (zoomSel < 1f || abs(zoomSel - zoomSel.toInt()) > 0.01f) {
             String.format(Locale.US, "%.1fx", zoomSel)
         } else {
@@ -4623,18 +4633,29 @@ fun CameraScreen(
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                FujiDial(
-                    value = zoomLabel,
-                    onStep = { steps ->
-                        if (dialZoomStops.isNotEmpty()) {
-                            val currentIndex = dialZoomStops.indices.minByOrNull { index ->
-                                abs(dialZoomStops[index] - zoomSel)
-                            } ?: 0
-                            val nextIndex = (currentIndex + steps).coerceIn(0, dialZoomStops.lastIndex)
-                            animateZoomTo(dialZoomStops[nextIndex])
-                        }
-                    },
-                    modifier = Modifier.size(66.dp)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    FujiKey(
+                        "W",
+                        onClick = { animateZoomTo((zoomSel - 0.1f).coerceAtLeast(dialZoomMinimum)) },
+                        modifier = Modifier.weight(1f),
+                        enabled = zoomStateForDial != null && zoomSel > dialZoomMinimum + 0.001f
+                    )
+                    FujiKey(
+                        "T",
+                        onClick = { animateZoomTo((zoomSel + 0.1f).coerceAtMost(dialZoomMaximum)) },
+                        modifier = Modifier.weight(1f),
+                        enabled = zoomStateForDial != null && zoomSel < dialZoomMaximum - 0.001f
+                    )
+                }
+                Text(
+                    zoomLabel,
+                    color = FujiSkin.lcdGreen,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
                 )
                 Text("ZOOM", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
@@ -4660,42 +4681,74 @@ fun CameraScreen(
                     )
                 }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                FujiDial(
-                    value = commandValue,
-                    onStep = { steps ->
-                        val active = camera
-                        val range = evRange
-                        if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
-                            evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
-                            manualExposure = false
-                            runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
-                        } else if (mode == "Pro" && activeDialSelection == "ISO" && manualSensorSupported && isoRange != null) {
-                            val low = isoRange.lower
-                            val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
-                            manualIso = (manualIso + steps * 100).coerceIn(low, high)
-                            manualIsoEnabled = true
-                            manualExposure = true
-                            runCatching {
-                                applyManualExposure(active ?: return@runCatching, manualIso, manualShutterNs)
-                            }
-                            manualCaptureRevision++
-                        } else if (mode == "Pro" && activeDialSelection == "Tone") {
-                            manualColorTemp = (manualColorTemp + steps * 150).coerceIn(2500, 8000)
-                            manualColorTempEnabled = true
-                            active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
-                        }
-                    },
-                    modifier = Modifier.size(62.dp),
-                    stepSize = 26f
-                )
-                Text(
-                    if (mode == "Pro" && activeDialSelection != null) activeDialSelection.uppercase() else "EV",
-                    color = FujiSkin.ivory,
-                    fontSize = 7.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FujiKey("−", onClick = {
+                    val steps = -1
+                    val active = camera
+                    val range = evRange
+                    if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
+                        evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
+                        evSliderPosition = evIndex.toFloat()
+                        manualExposure = false
+                        runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
+                    } else if (mode == "Pro" && activeDialSelection == "ISO" && manualSensorSupported && isoRange != null) {
+                        val low = isoRange.lower
+                        val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
+                        manualIso = (manualIso + steps * 100).coerceIn(low, high)
+                        manualIsoEnabled = true
+                        manualExposure = true
+                        runCatching { applyManualExposure(active, manualIso, manualShutterNs) }
+                        manualCaptureRevision++
+                    } else if (mode == "Pro" && activeDialSelection == "Tone") {
+                        manualColorTemp = (manualColorTemp + steps * 150).coerceIn(2500, 8000)
+                        manualColorTempEnabled = true
+                        active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
+                    }
+                }, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1.3f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        commandValue,
+                        color = FujiSkin.lcdGreen,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Text(
+                        if (mode == "Pro" && activeDialSelection != null) activeDialSelection.uppercase() else "EV",
+                        color = FujiSkin.ivory,
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.7.sp
+                    )
+                }
+                FujiKey("+", onClick = {
+                    val steps = 1
+                    val active = camera
+                    val range = evRange
+                    if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
+                        evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
+                        evSliderPosition = evIndex.toFloat()
+                        manualExposure = false
+                        runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
+                    } else if (mode == "Pro" && activeDialSelection == "ISO" && manualSensorSupported && isoRange != null) {
+                        val low = isoRange.lower
+                        val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
+                        manualIso = (manualIso + steps * 100).coerceIn(low, high)
+                        manualIsoEnabled = true
+                        manualExposure = true
+                        runCatching { applyManualExposure(active, manualIso, manualShutterNs) }
+                        manualCaptureRevision++
+                    } else if (mode == "Pro" && activeDialSelection == "Tone") {
+                        manualColorTemp = (manualColorTemp + steps * 150).coerceIn(2500, 8000)
+                        manualColorTempEnabled = true
+                        active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
+                    }
+                }, modifier = Modifier.weight(1f))
             }
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
             FujiKey("DISP/BACK", onClick = { hudVisible = !hudVisible }, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp))

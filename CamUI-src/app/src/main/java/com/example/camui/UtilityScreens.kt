@@ -415,24 +415,12 @@ fun ToolboxScreen(
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
     var shutterEffect by remember { mutableStateOf(prefs.getString("shutter_effect", "Film Wash") ?: "Film Wash") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
-    var shutterSoundUri by remember { mutableStateOf(prefs.getString("shutter_sound_uri", null)) }
-    var shutterSoundAsset by remember { mutableStateOf(prefs.getString("shutter_sound_asset", "classic") ?: "classic") }
-    val shutterSoundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            val persisted = runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }.isSuccess
-            if (persisted) {
-                shutterSoundUri = uri.toString()
-                prefs.edit().putString("shutter_sound_uri", uri.toString()).apply()
-                Toast.makeText(context, "Đã chọn âm thanh màn trập tùy chỉnh.", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "Không thể lưu quyền đọc tệp âm thanh này.", Toast.LENGTH_LONG).show()
-            }
-        }
+    // Sound selection was removed: use one fixed bundled default, with only the on/off switch.
+    LaunchedEffect(Unit) {
+        prefs.edit()
+            .remove("shutter_sound_uri")
+            .putString("shutter_sound_asset", "classic")
+            .apply()
     }
 
     Column(Modifier.fillMaxSize().background(CamColors.Bg).verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -784,61 +772,11 @@ fun ToolboxScreen(
                 prefs.edit().putString("shutter_effect", "Mechanical").apply()
             }, Modifier.weight(1f))
         }
-        ToolToggle("Âm thanh màn trập", "Bật/tắt âm thanh khi chụp; có thể dùng MP3 hoặc tệp âm thanh riêng.",
+        ToolToggle("Âm thanh màn trập", "Bật/tắt âm thanh chụp mặc định.",
             Icons.Default.Tune, shutterSound) {
             shutterSound = it
             prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
         }
-        Text("Âm thanh có sẵn", color = CamColors.Sub, fontSize = 12.sp,
-            modifier = Modifier.padding(top = 9.dp, bottom = 6.dp))
-        val shutterSoundChoices = listOf(
-            "digital" to "Digital", "lens" to "Lens", "click" to "Click",
-            "mechanical" to "Mechanical", "classic" to "Classic",
-            "nikon" to "Nikon", "vintage" to "Vintage"
-        )
-        shutterSoundChoices.chunked(2).forEach { soundRow ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                soundRow.forEach { (id, label) ->
-                    Chip(label, shutterSoundUri.isNullOrBlank() && shutterSoundAsset == id, {
-                        shutterSoundAsset = id
-                        shutterSoundUri = null
-                        prefs.edit().putString("shutter_sound_asset", id).remove("shutter_sound_uri").apply()
-                    }, Modifier.weight(1f))
-                }
-                if (soundRow.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(6.dp))
-        }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(
-                onClick = { shutterSoundPicker.launch(arrayOf("audio/mpeg", "audio/*")) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(if (shutterSoundUri.isNullOrBlank()) "Nhập âm thanh / MP3" else "Đổi âm thanh")
-            }
-            if (!shutterSoundUri.isNullOrBlank()) {
-                TextButton(onClick = {
-                    shutterSoundUri = null
-                    prefs.edit().remove("shutter_sound_uri").putString("shutter_sound_asset", shutterSoundAsset).apply()
-                    Toast.makeText(context, "Đã quay về âm thanh mặc định.", Toast.LENGTH_SHORT).show()
-                }) {
-                    Text("Mặc định")
-                }
-            }
-        }
-        Text(
-            if (shutterSoundUri.isNullOrBlank()) {
-                "Đang dùng âm thanh màn trập đã chọn trong danh sách."
-            } else {
-                "Đã chọn tệp âm thanh tùy chỉnh. Quyền đọc được lưu để dùng sau khi mở lại ứng dụng."
-            },
-            color = CamColors.Sub,
-            fontSize = 10.sp
-        )
 
     }
 }

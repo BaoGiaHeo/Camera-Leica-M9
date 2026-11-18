@@ -483,15 +483,14 @@ fun FujiScreenScaffold(
                 .padding(start = 12.dp, end = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                Text(
-                    title.uppercase() + (breadcrumb?.takeIf { it.isNotBlank() }?.let { "  ›  ${it.uppercase()}" } ?: ""),
-                    color = Color(0xFF171A1B),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.85.sp,
-                    maxLines = 1
-                )
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Text(title.uppercase(), color = Color(0xFF171A1B), fontSize = 10.sp,
+                    fontWeight = FontWeight.Black, letterSpacing = 0.85.sp, maxLines = 1)
+                breadcrumb?.takeIf { it.isNotBlank() }?.let { crumb ->
+                    Text("  ›  ", color = Color(0xFF454D50), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(crumb.uppercase(), color = Color(0xFF333A3D), fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp, maxLines = 1)
+                }
             }
             if (onBack != null) {
                 FujiKey("DISP/BACK", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))

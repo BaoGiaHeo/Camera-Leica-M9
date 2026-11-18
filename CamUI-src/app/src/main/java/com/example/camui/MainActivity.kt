@@ -125,8 +125,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Let the camera UI adapt to portrait and landscape device orientations.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        // Keep the interface upright in portrait. CameraScreen rotates only its preview from device sensors.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         window.attributes = window.attributes.apply {
             rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
         }

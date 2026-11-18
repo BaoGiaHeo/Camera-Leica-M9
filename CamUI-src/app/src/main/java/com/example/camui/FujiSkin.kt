@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 object FujiSkin {
     val body = Color(0xFF1A1A1A)
@@ -551,5 +553,93 @@ fun FujiShutterButton(
                 content = content
             )
         }
+    }
+}
+
+
+/** LCD-style fader with etched tick marks; replaces the default Material slider. */
+@Composable
+fun FujiSlider(
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    steps: Int = 0,
+    enabled: Boolean = true,
+    onValueChangeFinished: (() -> Unit)? = null
+) {
+    BoxWithConstraints(
+        modifier = modifier.height(26.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        val span = (valueRange.endInclusive - valueRange.start).takeIf { it > 0f } ?: 1f
+        val fraction = ((value - valueRange.start) / span).coerceIn(0f, 1f)
+        val thumbX = (maxWidth * fraction).coerceIn(7.dp, (maxWidth - 7.dp).coerceAtLeast(7.dp))
+        Canvas(Modifier.fillMaxSize()) {
+            val centerY = size.height / 2f
+            val endX = size.width
+            val currentX = endX * fraction
+            drawLine(
+                Color(0xFF344145),
+                androidx.compose.ui.geometry.Offset(0f, centerY),
+                androidx.compose.ui.geometry.Offset(endX, centerY),
+                strokeWidth = 4.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                FujiSkin.lcdGreen.copy(alpha = if (enabled) 0.88f else 0.35f),
+                androidx.compose.ui.geometry.Offset(0f, centerY),
+                androidx.compose.ui.geometry.Offset(currentX, centerY),
+                strokeWidth = 4.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            val tickCount = (steps + 1).coerceIn(1, 60)
+            if (steps > 0) {
+                for (i in 0..tickCount) {
+                    val x = endX * i / tickCount
+                    drawLine(
+                        Color(0xFF778387),
+                        androidx.compose.ui.geometry.Offset(x, centerY - 7.dp.toPx()),
+                        androidx.compose.ui.geometry.Offset(x, centerY + 7.dp.toPx()),
+                        strokeWidth = 0.7.dp.toPx()
+                    )
+                }
+            }
+        }
+        Box(
+            Modifier.offset(x = thumbX - 7.dp)
+                .size(14.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFFFFFFFF), FujiSkin.silver, Color(0xFF8A9295))
+                    )
+                )
+                .border(1.dp, if (enabled) FujiSkin.orange else Color(0xFF667075), CircleShape)
+        )
+        if (enabled) {
+            Modifier.pointerInput(valueRange, steps) {
+                detectTapGestures { position ->
+                    val raw = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
+                    onValueChange(valueRange.start + span * snapped)
+                    onValueChangeFinished?.invoke()
+                }
+            }.pointerInput(valueRange, steps) {
+                detectDragGestures(
+                    onDragStart = { position ->
+                        val raw = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                        val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
+                        onValueChange(valueRange.start + span * snapped)
+                    },
+                    onDragEnd = { onValueChangeFinished?.invoke() },
+                    onDragCancel = { onValueChangeFinished?.invoke() }
+                ) { change, _ ->
+                    val raw = (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
+                    onValueChange(valueRange.start + span * snapped)
+                    change.consume()
+                }
+            }.let { }
     }
 }

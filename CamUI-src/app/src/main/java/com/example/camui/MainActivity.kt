@@ -106,6 +106,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Request the highest refresh mode advertised for the display's current resolution.
+     * The system/HyperOS may still select a lower LTPO rate when appropriate.
+     */
+    @Suppress("DEPRECATION")
+    private fun requestHighestSupportedRefreshRate() {
+        runCatching {
+            val activeDisplay = windowManager.defaultDisplay
+            val currentMode = activeDisplay.mode
+            val highestMode = activeDisplay.supportedModes
+                .filter { it.physicalWidth == currentMode.physicalWidth && it.physicalHeight == currentMode.physicalHeight }
+                .maxByOrNull { it.refreshRate }
+                ?: return
+            val params = window.attributes
+            params.preferredDisplayModeId = highestMode.modeId
+            params.preferredRefreshRate = highestMode.refreshRate
+            window.attributes = params
+            getSharedPreferences("fujifilm_settings", MODE_PRIVATE).edit()
+                .putFloat("preferred_refresh_rate", highestMode.refreshRate)
+                .apply()
+            android.util.Log.i("LUNADREAM_DISPLAY", "Requested ${highestMode.refreshRate}Hz at ${highestMode.physicalWidth}x${highestMode.physicalHeight}")
+        }.onFailure {
+            android.util.Log.w("LUNADREAM_DISPLAY", "Could not request maximum supported refresh mode; using system default", it)
+        }
+    }
+
     private fun hideStatusBar() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -136,6 +161,7 @@ class MainActivity : AppCompatActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
         hideStatusBar()
+        requestHighestSupportedRefreshRate()
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         setContent {
             CamTheme {

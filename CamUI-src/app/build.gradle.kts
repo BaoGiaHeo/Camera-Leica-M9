@@ -23,9 +23,17 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = ""
+            buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "false")
+        }
+        create("developer") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".developer"
+            versionNameSuffix = "-developer"
+            buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "true")
         }
         release {
             isMinifyEnabled = false
+            buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "false")
             // Debug signing keeps CI output directly installable for on-device testing.
             signingConfig = signingConfigs.getByName("debug")
         }

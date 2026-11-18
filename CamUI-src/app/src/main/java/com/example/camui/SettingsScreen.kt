@@ -105,16 +105,11 @@ fun SettingsScreen(
                 onFocusPeaking = onFocusPeaking
             )
         } else {
-            Column(Modifier.fillMaxSize().background(CamColors.Bg)) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                    Text("Settings", color = CamColors.TextColor, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                }
+            FujiPanel(
+                title = "SETTINGS",
+                modifier = Modifier.fillMaxSize(),
+                onBack = onBack
+            ) {
                 if (isLandscape) {
                     Row(
                         Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -217,17 +212,16 @@ var nightShotMode by remember {
         }
     }
 
-    Column(
-        Modifier.fillMaxSize().background(CamColors.Bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = if (isLandscape) 28.dp else 16.dp, vertical = 16.dp)
+    FujiPanel(
+        title = title,
+        modifier = Modifier.fillMaxSize(),
+        onBack = onBack
     ) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-            }
-            Text(title, color = CamColors.TextColor, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-        }
+        Column(
+            Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = if (isLandscape) 22.dp else 12.dp, vertical = 10.dp)
+        ) {
         when (title) {
             "Assistive Tools" -> {
                 Text("Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm.",
@@ -703,8 +697,8 @@ private fun CameraHardwareScannerPanel() {
 @Composable
 private fun InfoCard(title: String, subtitle: String, content: @Composable () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().padding(bottom = 9.dp).clip(RoundedCornerShape(15.dp))
-            .background(CamColors.Card).padding(14.dp)
+        Modifier.fillMaxWidth().padding(bottom = 9.dp).clip(RoundedCornerShape(4.dp))
+            .background(FujiSkin.lcd).border(1.dp, Color(0xFF344247), RoundedCornerShape(4.dp)).padding(12.dp)
     ) {
         Text(title, color = Color.White, fontWeight = FontWeight.SemiBold)
         Text(subtitle, color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
@@ -723,36 +717,37 @@ private fun InfoLine(label: String, value: String) {
 @Composable
 private fun SettingsSwitch(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(16.dp))
-            .background(CamColors.Card).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(4.dp))
+            .background(FujiSkin.lcd).border(1.dp, Color(0xFF344247), RoundedCornerShape(4.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, color = Color.White, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = CamColors.Sub, fontSize = 11.sp)
         }
-        Switch(checked = checked, onCheckedChange = onChecked)
+        FujiSwitch(checked = checked, onCheckedChange = onChecked)
     }
 }
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, color = CamColors.Sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+    Text(text.uppercase(), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 3.dp))
 }
 
 @Composable
 private fun SettingCard(item: SettingItem, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CamColors.Card)
-            .animaTClickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
+            .background(FujiSkin.lcd).border(1.dp, Color(0xFF344247), RoundedCornerShape(4.dp))
+            .animaTClickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(item.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(item.subtitle, color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(item.title.uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f))
+            Text(">", color = FujiSkin.lcdGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Open",
-            tint = CamColors.Sub)
+        Text(item.subtitle, color = FujiSkin.muted, fontSize = 8.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }

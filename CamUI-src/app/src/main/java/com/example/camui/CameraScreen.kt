@@ -2832,6 +2832,7 @@ fun CameraScreen(
                             scope.launch(Dispatchers.IO) {
                                 var nightShotMerged = false
                                 var lunaDreamCapturedFrameCount = 0
+                                var lunaDreamFailureReason: String? = null
                                 if ((captureUseNightShot || captureUseFiveFrameStack ||
                                         captureUseLunaDream15 || captureUseLunaDream20Stack) &&
                                     (!captureNightShotExtension || captureUseLunaDream15 || captureUseLunaDream20Stack)
@@ -2973,6 +2974,11 @@ fun CameraScreen(
                                                 else -> 2
                                             }
                                             lunaDreamCapturedFrameCount = stackedFrames.size
+                                            if (stackedFrames.size < minimumFramesRequired && captureUseLunaDream) {
+                                                lunaDreamFailureReason =
+                                                    "Chỉ thu được ${stackedFrames.size}/$minimumFramesRequired khung hình hợp lệ"
+                                                android.util.Log.e("FUJI_LUNADREAM", lunaDreamFailureReason!!)
+                                            }
                                             if (stackedFrames.size >= minimumFramesRequired) {
                                                 withContext(Dispatchers.Main) {
                                                     processingLabel = when {
@@ -3000,6 +3006,14 @@ fun CameraScreen(
                                                         captureUseMilkyWayStack ->
                                                             NightShotProcessor.MergeMode.MILKY_WAY_STACK
                                                         else -> NightShotProcessor.MergeMode.NIGHT_AVERAGE
+                                                    },
+                                                    onFailure = { reason, failure ->
+                                                        lunaDreamFailureReason = reason
+                                                        android.util.Log.e(
+                                                            "FUJI_LUNADREAM",
+                                                            "Merge failed; preserving original JPEG as fallback: $reason",
+                                                            failure
+                                                        )
                                                     }
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
@@ -3207,8 +3221,8 @@ fun CameraScreen(
                                 ) {
                                     val requestedMp = when {
                                         captureUseNightShot -> 60_000_000L
-                                        captureUseLunaDream15 -> 50_000_000L
-                                        captureUseLunaDream -> 108_000_000L
+                                        captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
+                                        captureUseLunaDream && lunaDreamApplied -> 108_000_000L
                                         else -> null
                                     }
                                     withContext(Dispatchers.Main) {
@@ -3299,47 +3313,29 @@ fun CameraScreen(
                                 }.getOrDefault(false)
 
                                 if (captureUseLunaDream && !lunaDreamApplied) {
-                                    // Never expose the untouched JPEG as a successful LunaDream result.
-                                    // Preserve it in a separate recovery folder so the user does not lose the shot.
-                                    val moved = runCatching {
+                                    val reason = lunaDreamFailureReason
+                                        ?.takeIf { it.isNotBlank() }
+                                        ?: "Không thu đủ dữ liệu hoặc engine không trả kết quả ghép"
+                                    runCatching {
                                         context.contentResolver.update(
                                             saved,
                                             ContentValues().apply {
-                                                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Unprocessed")
                                                 put(MediaStore.Images.Media.IS_PENDING, 0)
                                             },
                                             null,
                                             null
-                                        ) > 0
-                                    }.getOrDefault(false)
-                                    if (!moved) {
-                                        runCatching {
-                                            context.contentResolver.update(
-                                                saved,
-                                                ContentValues().apply {
-                                                    put(MediaStore.Images.Media.IS_PENDING, 0)
-                                                },
-                                                null,
-                                                null
-                                            )
-                                        }
+                                        )
+                                    }.onFailure {
+                                        android.util.Log.e("FUJI_LUNADREAM", "Could not publish fallback JPEG", it)
                                     }
+                                    android.util.Log.w(
+                                        "FUJI_LUNADREAM",
+                                        "Fallback JPEG saved at original capture URI; reason=$reason"
+                                    )
                                     withContext(Dispatchers.Main) {
-                                        lastUri = null
-                                        thumb = null
-                                        photoViewerVisible = false
-                                        isProcessing = false
-                                        processingProgress = 0
-                                        processingEtaSeconds = -1
-                                        multiFrameHoldActive = false
-                                        multiFrameRenderStarted = false
-                                        localizedToast(
-                                            context,
-                                            "LunaDream chưa xử lý hoàn tất. Ảnh gốc được giữ riêng trong Pictures/FujifilmMode/Unprocessed, không xuất như ảnh LunaDream.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        processingLabel = "LunaDream fallback · $reason"
+                                        processingProgress = maxOf(processingProgress, 90)
                                     }
-                                    return@launch
                                 }
 
                                 val metadataPublished = runCatching {
@@ -3354,7 +3350,7 @@ fun CameraScreen(
                                     captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · ghép " + lunaDreamCapturedFrameCount + "/5 khung"
                                     captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG gốc + JPEG ghép " + lunaDreamCapturedFrameCount + "/8 khung bằng LunaDream 2.0"
                                     captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép đa khung và phục hồi chi tiết"
-                                    captureUseLunaDream -> "LunaDream chưa hoàn tất · giữ ảnh gốc"
+                                    captureUseLunaDream -> "LunaDream fallback · " + (lunaDreamFailureReason ?: "engine failure")
                                     captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
                                     captureUseNightShot -> "NightShotMode · chụp đêm"
                                     captureUseDeviceProcessing && deviceProcessingApplied -> "Xử lý ảnh gốc thiết bị · ISP + tối ưu tông/chi tiết"
@@ -3392,7 +3388,7 @@ fun CameraScreen(
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
                                             else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream && !lunaDreamApplied ->
-                                            "LunaDream chưa xử lý hoàn tất. Ảnh gốc được giữ lại; chế độ LunaDream vẫn được chọn."
+                                            "LunaDream không hoàn tất: " + (lunaDreamFailureReason ?: "engine không cung cấp nguyên nhân") + ". Đã lưu JPEG gốc làm ảnh dự phòng."
                                         captureUseRawDream20 && lunaDreamApplied && !outputResolutionApplied ->
                                             "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn."
                                         captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied ->

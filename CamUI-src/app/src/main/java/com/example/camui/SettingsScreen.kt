@@ -76,7 +76,9 @@ fun SettingsScreen(
     onBack: () -> Unit, ratioIdx: Int, onRatio: (Int) -> Unit,
     showGrid: Boolean, onShowGrid: (Boolean) -> Unit,
     showHist: Boolean, onShowHist: (Boolean) -> Unit,
-    focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit
+    focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit,
+    onOpenToolbox: () -> Unit = {},
+    onOpenContentsManagement: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
@@ -126,6 +128,10 @@ fun SettingsScreen(
                     FujiListRow("Sao lưu & Khôi phục", "BACKUP",
                         onClick = { categoryBeforeBackup = selectedCategory; selectedCategory = "Sao lưu & Khôi phục" },
                         description = "Lưu hoặc nạp lại các thiết lập camera")
+                } else if (selectedCategory == "Assistive Tools") {
+                    SettingsDetailPage(selectedCategory, {}, ratioIdx, onRatio, showGrid, onShowGrid, showHist, onShowHist, focusPeaking, onFocusPeaking, embedded = true, modifier = Modifier.weight(1f))
+                    FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "EV display · Shutter display · ISO display · HUD")
+                    FujiListRow("Contents Management", "OPEN", onClick = onOpenContentsManagement, description = "LUT Manager · Frame Manager")
                 } else {
                     SettingsDetailPage(selectedCategory, {}, ratioIdx, onRatio, showGrid, onShowGrid, showHist, onShowHist, focusPeaking, onFocusPeaking, embedded = true, modifier = Modifier.fillMaxSize())
                 }

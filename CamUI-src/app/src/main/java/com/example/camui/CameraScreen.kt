@@ -921,20 +921,15 @@ fun CameraScreen(
     // fits the complete sensor image so physical rotation never crops or zooms the preview.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            // Fit the entire sensor image into the selected frame; never crop or enlarge it.
+            scaleType = PreviewView.ScaleType.FIT_CENTER
             setBackgroundColor(android.graphics.Color.rgb(38, 43, 51))
             // COMPATIBLE uses a TextureView-backed preview so PreviewView.bitmap can
             // preserve the exact last displayed frame during computational capture.
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
-    LaunchedEffect(previewView, isLandscape) {
-        previewView.scaleType = if (isLandscape) {
-            PreviewView.ScaleType.FIT_CENTER
-        } else {
-            PreviewView.ScaleType.FILL_CENTER
-        }
-    }
+    // Keep FIT_CENTER in both orientations so the preview never auto-crops or zooms.
     LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, burstCaptureActive, bracketCaptureActive, isProcessing) {
         previewView.keepScreenOn =
             nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || isProcessing
@@ -1103,10 +1098,11 @@ fun CameraScreen(
             imageCapture = null
 
             val rotation = targetRotation
-            // Keep CameraX at the camera's complete native 4:3 field of view.
-            // The selected ratio is applied only to the preview frame and final saved image.
-            // This prevents CameraX from cropping the sensor image before photo processing.
-            val ratio = if (isLandscape) Rational(4, 3) else Rational(3, 4)
+            // Match CameraX's viewport to the selected preview frame in the current orientation.
+            // FIT below preserves the entire sensor field of view with letterboxing where needed.
+            val selectedHeightOverWidth = aspectRatioForOrientation(ratioIdx, isLandscape)
+            val selectedWidthOverHeight = 1f / selectedHeightOverWidth
+            val ratio = Rational((selectedWidthOverHeight * 10_000f).roundToInt(), 10_000)
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null

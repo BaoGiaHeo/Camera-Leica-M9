@@ -2913,7 +2913,11 @@ fun CameraScreen(
                                                 android.util.Log.w("FUJI_NIGHTSHOT", "Stopped early to protect free cache storage; processing " + stackedFrames.size + " frames")
                                             }
                                             if (captureUseNightShot && stackedFrames.size < maxFrames) {
-                                                android.util.Log.w("FUJI_NIGHTSHOT", "Actual stack is partial: " + stackedFrames.size + "/" + maxFrames + "; proceeding without rejecting capture")
+                                                android.util.Log.w(
+                                                    "FUJI_NIGHTSHOT",
+                                                    "Incomplete stack " + stackedFrames.size + "/" + maxFrames +
+                                                        "; merge/render is blocked and the original frame will be preserved"
+                                                )
                                             }
                                             // 1.5 aims for five frames, but a three-frame stack is
                                             // enough to complete a valid multi-frame result when the
@@ -3003,6 +3007,42 @@ fun CameraScreen(
                                             }
                                         }
                                     }
+                                }
+                                if (captureUseNightShot && !nightShotMerged && !captureNightShotExtension) {
+                                    val preserved = runCatching {
+                                        context.contentResolver.update(
+                                            saved,
+                                            ContentValues().apply {
+                                                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Unprocessed/NightShot")
+                                                put(MediaStore.Images.Media.IS_PENDING, 0)
+                                            },
+                                            null,
+                                            null
+                                        ) > 0
+                                    }.getOrDefault(false)
+                                    val originalThumbnail = if (preserved) {
+                                        runCatching {
+                                            decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()
+                                        }.getOrNull()
+                                    } else null
+                                    withContext(Dispatchers.Main) {
+                                        if (preserved) {
+                                            lastUri = saved
+                                            thumb = originalThumbnail
+                                        }
+                                        nightShotCaptureInProgress = false
+                                        multiFrameHoldActive = false
+                                        multiFrameRenderStarted = false
+                                        isProcessing = false
+                                        processingProgress = 0
+                                        processingEtaSeconds = -1
+                                        processingLabel = ""
+                                    }
+                                    android.util.Log.w(
+                                        "FUJI_NIGHTSHOT",
+                                        "NightShot was not rendered because the complete target frame count was not reached; originalPreserved=$preserved"
+                                    )
+                                    return@launch
                                 }
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 30) }
                                 val orientationNormalized = if (captureIsUltraHdr) {

@@ -140,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         setContent {
             CamTheme {
                 var page by remember { mutableStateOf("camera") }
+                var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
                 var manualAnimationPerformanceMode by remember {
                     mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))
                 }
@@ -197,7 +198,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-                BackHandler(enabled = page != "camera") { page = "camera" }
+                BackHandler(enabled = page != "camera") { page = if (page == "toolbox" || page == "contents") settingsSubpageReturnTarget else "camera" }
                 Box(Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = page,
@@ -209,6 +210,8 @@ class MainActivity : AppCompatActivity() {
                             "album" -> AlbumScreen(onBack = { page = "camera" })
                             "settings" -> SettingsScreen(
                                 onBack = { page = "camera" },
+                                onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },
+                                onOpenContentsManagement = { settingsSubpageReturnTarget = "settings"; page = "contents" },
                                 ratioIdx = ratioIdx,
                                 onRatio = {
                                     ratioIdx = it.coerceIn(0, 3)
@@ -225,7 +228,7 @@ class MainActivity : AppCompatActivity() {
                                 onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
                             )
                             "toolbox" -> ToolboxScreen(
-                                onBack = { page = "camera" },
+                                onBack = { page = settingsSubpageReturnTarget },
                                 showGrid = showGrid,
                                 onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
                                 showHist = showHist,
@@ -238,11 +241,11 @@ class MainActivity : AppCompatActivity() {
                                     settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
                                 }
                             )
-                            "contents" -> ContentManagementScreen(onBack = { page = "camera" })
+                            "contents" -> ContentManagementScreen(onBack = { page = settingsSubpageReturnTarget })
                             else -> CameraScreen(
                                 onOpenSettings = { page = "settings" },
-                                onOpenToolbox = { page = "toolbox" },
-                                onOpenContentManagement = { page = "contents" },
+                                onOpenToolbox = { settingsSubpageReturnTarget = "camera"; page = "toolbox" },
+                                onOpenContentManagement = { settingsSubpageReturnTarget = "camera"; page = "contents" },
                                 onOpenAlbum = { latestPhoto ->
                                     if (!openDeviceGallery(latestPhoto)) page = "album"
                                 },

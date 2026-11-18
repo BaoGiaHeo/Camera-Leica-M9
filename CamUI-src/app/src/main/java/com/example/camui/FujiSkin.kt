@@ -350,7 +350,7 @@ fun FujiTopKey(
     val pressed by interaction.collectIsPressedAsState()
     val pressedOffset by animateDpAsState(if (pressed) 1.5.dp else 0.dp, tween(80), label = "fuji-key-press")
     Column(
-        modifier = modifier.widthIn(min = 48.dp)
+        modifier = modifier.widthIn(min = 48.dp).heightIn(min = 48.dp)
             .combinedClickable(
                 interactionSource = interaction,
                 indication = null,
@@ -365,13 +365,13 @@ fun FujiTopKey(
                 },
                 onLongClick = if (enabled) onLongClick else null
             )
-            .padding(horizontal = 1.dp, vertical = 1.dp),
+            .padding(horizontal = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
             Box(
-                Modifier.offset(y = 1.dp).size(46.dp).clip(CircleShape)
+                Modifier.offset(y = 1.dp).size(44.dp).clip(CircleShape)
                     .background(Color(0xFF8A9093).copy(alpha = 0.36f))
                     .border(1.dp, Color(0xFF777D80), CircleShape)
             )

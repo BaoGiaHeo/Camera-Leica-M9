@@ -4695,7 +4695,7 @@ fun CameraScreen(
                         evSliderPosition = evIndex.toFloat()
                         manualExposure = false
                         runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
-                    } else if (mode == "Pro" && activeDialSelection == "ISO" && manualSensorSupported && isoRange != null) {
+                    } else if (mode == "Pro" && activeDialSelection == "ISO" && active != null && manualSensorSupported && isoRange != null) {
                         val low = isoRange.lower
                         val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
                         manualIso = (manualIso + steps * 100).coerceIn(low, high)
@@ -4735,7 +4735,7 @@ fun CameraScreen(
                         evSliderPosition = evIndex.toFloat()
                         manualExposure = false
                         runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
-                    } else if (mode == "Pro" && activeDialSelection == "ISO" && manualSensorSupported && isoRange != null) {
+                    } else if (mode == "Pro" && activeDialSelection == "ISO" && active != null && manualSensorSupported && isoRange != null) {
                         val low = isoRange.lower
                         val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
                         manualIso = (manualIso + steps * 100).coerceIn(low, high)

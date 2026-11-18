@@ -486,8 +486,8 @@ var nightShotMode by remember {
                 if (nightShotMode == "night") {
                     Spacer(Modifier.padding(5.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(FujiSkin.lcd).border(1.dp, Color(0xFF344247), RoundedCornerShape(4.dp))
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp))
+                            .background(FujiSkin.lcd).border(1.dp, Color(0xFF344247), RoundedCornerShape(3.dp))
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

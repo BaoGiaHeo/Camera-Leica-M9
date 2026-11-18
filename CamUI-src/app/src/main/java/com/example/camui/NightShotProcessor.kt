@@ -272,6 +272,11 @@ object NightShotProcessor {
                 null
             )
             Log.i(TAG, "$modeLabel processed and verified one frame at ${verification.outWidth}x${verification.outHeight}")
+            LunaDreamDiagnostics.record(
+                context,
+                "SINGLE_FRAME_SUCCESS",
+                "mode=$modeLabel; output=${verification.outWidth}x${verification.outHeight}; sourceBytes=${sourceFile.length()}"
+            )
             true
         } catch (failure: Throwable) {
             if (replacing && backupFile.exists()) {

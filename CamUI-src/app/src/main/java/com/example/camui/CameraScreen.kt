@@ -423,40 +423,35 @@ fun CameraScreen(
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    // Initialize from current display, then follow physical rotation even if the window
-    // configuration lags behind the camera sensor orientation.
-    var isLandscape by remember { mutableStateOf(currentDisplayIsLandscape(context)) }
-    // The camera controls stay in portrait layout; only the live preview and camera use-cases
-    // follow the physical handset orientation reported by OrientationEventListener.
+    // The Activity itself rotates to landscape, but the camera controls remain in their
+    // portrait-style vertical stack. Use the real window configuration for preview geometry;
+    // the orientation sensor is used only for CameraX target rotation, not for layout sizing.
+    var isLandscape by remember {
+        mutableStateOf(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
+    }
     val uiIsLandscape = false
-    var orientationSensorAvailable by remember { mutableStateOf(false) }
     DisposableEffect(context) {
         val orientationListener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN) return
                 val nextRotation = surfaceRotationFromDeviceOrientation(orientation)
                 if (targetRotation != nextRotation) targetRotation = nextRotation
-                when (orientation) {
-                    in 55..125, in 235..305 -> isLandscape = true
-                    in 0..35, in 145..215, in 325..359 -> isLandscape = false
-                }
             }
         }
-        orientationSensorAvailable = orientationListener.canDetectOrientation()
-        if (orientationSensorAvailable) orientationListener.enable()
+        if (orientationListener.canDetectOrientation()) orientationListener.enable()
         onDispose { orientationListener.disable() }
     }
-    // Use display configuration only when the device has no usable orientation sensor.
-    LaunchedEffect(configuration.orientation, orientationSensorAvailable) {
-        if (!orientationSensorAvailable) {
-            isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
-                currentDisplayIsLandscape(context)
+    // Window configuration determines whether the visible preview frame is portrait or landscape.
+    LaunchedEffect(configuration.orientation) {
+        isLandscape = when (configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> true
+            Configuration.ORIENTATION_PORTRAIT -> false
+            else -> currentDisplayIsLandscape(context)
         }
     }
     // Track camera use-case geometry so the shutter waits until the landscape binding is current.
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
-    var boundCameraRatioIdx by remember { mutableIntStateOf(ratioIdx) }
     val focusPeakingEnabled = rememberUpdatedState(focusPeaking)
     var faceTrackingEnabled by remember {
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
@@ -923,7 +918,7 @@ fun CameraScreen(
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
-        hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
+        hasCam, front, ultraHdr, isLandscape, targetRotation, renderEngine,
         nativeImageProcessingEnabled, livePhotoEnabled, manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
@@ -1083,11 +1078,10 @@ fun CameraScreen(
             imageCapture = null
 
             val rotation = targetRotation
-            // Match CameraX's viewport to the selected preview frame in the current orientation.
-            // FIT below preserves the entire sensor field of view with letterboxing where needed.
-            val selectedHeightOverWidth = aspectRatioForOrientation(ratioIdx, isLandscape)
-            val selectedWidthOverHeight = 1f / selectedHeightOverWidth
-            val ratio = Rational((selectedWidthOverHeight * 10_000f).roundToInt(), 10_000)
+            // Keep the CameraX viewport at the camera's native sensor ratio. The selected
+            // preview-frame ratio is a Compose-only matte; FIT_CENTER + ViewPort.FIT show the
+            // complete sensor image without cropping, stretching, or adding digital zoom.
+            val ratio = if (isLandscape) Rational(4, 3) else Rational(3, 4)
             // Updated after CameraX binds so live capture results use the actual logical camera,
             // not the first camera ID returned by CameraManager.
             var activeCameraCharacteristics: CameraCharacteristics? = null
@@ -1658,7 +1652,6 @@ fun CameraScreen(
                 )
                 boundCameraRotation = rotation
                 boundCameraLandscape = isLandscape
-                boundCameraRatioIdx = ratioIdx
                 evIndex = appPrefs.getInt("pro_ev_index", 0)
                 evSliderPosition = evIndex.toFloat()
                 evUserAdjusting = false
@@ -1982,7 +1975,6 @@ fun CameraScreen(
         // The viewfinder layout stays portrait; this only marks the camera's latest sensor rotation as ready.
         boundCameraRotation = targetRotation
         boundCameraLandscape = isLandscape
-        boundCameraRatioIdx = ratioIdx
     }
 
     // Restore the latest app-owned photo after relaunch, then refresh its thumbnail.
@@ -2051,8 +2043,7 @@ fun CameraScreen(
         val captureRotation = targetRotation
         val captureIsLandscape = isLandscape
         if (boundCameraRotation != captureRotation ||
-            boundCameraLandscape != isLandscape ||
-            boundCameraRatioIdx != ratioIdx
+            boundCameraLandscape != isLandscape
         ) {
             targetRotation = captureRotation
             localizedToast(
@@ -2649,8 +2640,7 @@ fun CameraScreen(
             val expectedOrientationAspectRatio = if (captureIsLandscape) 4f / 3f else 3f / 4f
             if (captureRotation != targetRotation ||
                 boundCameraRotation != captureRotation ||
-                boundCameraLandscape != isLandscape ||
-                boundCameraRatioIdx != ratioIdx
+                boundCameraLandscape != isLandscape
             ) {
                 // Never save a frame with the old orientation/crop after the display rotated.
                 targetRotation = captureRotation
@@ -3634,9 +3624,16 @@ fun CameraScreen(
     val showMilkyWayAdvisor = false
 
 
-    // The shared ratio is height / width. Compose aspectRatio expects width / height,
-    // so invert it exactly once for container measurement. CameraX handles preview scaling.
-    val previewHeightOverWidth = aspectRatioForOrientation(ratioIdx, isLandscape)
+    // Each selected ratio is stored as portrait height / width in aspectRatios.
+    // Convert once to the actual frame width / height for the current display orientation.
+    val selectedPortraitHeightOverWidth = aspectRatios[
+        ratioIdx.coerceIn(0, aspectRatios.lastIndex)
+    ].second
+    val previewFrameWidthOverHeight = if (isLandscape) {
+        selectedPortraitHeightOverWidth
+    } else {
+        1f / selectedPortraitHeightOverWidth
+    }
     val orientationProgress by animateFloatAsState(
         targetValue = if (isLandscape) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
@@ -3712,12 +3709,13 @@ fun CameraScreen(
                         previewModifier.background(Color(0xFF262B33)),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Keep the selected aspect ratio, but fit the frame inside the actual
-                        // preview slot. This prevents tall ratios and small screens from overflowing.
-                        val safeHeightOverWidth = previewHeightOverWidth
-                            .takeIf { it.isFinite() && it > 0f } ?: (4f / 3f)
-                        val frameWidth = minOf(maxWidth, maxHeight / safeHeightOverWidth)
-                        val frameHeight = frameWidth * safeHeightOverWidth
+                        // Measure using width / height directly: landscape 16:9 is 1.777,
+                        // square is 1.0, and landscape 21:9 is 2.333. This is independent
+                        // of CameraX's native sensor viewport ratio.
+                        val safeWidthOverHeight = previewFrameWidthOverHeight
+                            .takeIf { it.isFinite() && it > 0f } ?: 1f
+                        val frameWidth = minOf(maxWidth, maxHeight * safeWidthOverHeight)
+                        val frameHeight = frameWidth / safeWidthOverHeight
                         Box(
                             Modifier
                                 .width(frameWidth)

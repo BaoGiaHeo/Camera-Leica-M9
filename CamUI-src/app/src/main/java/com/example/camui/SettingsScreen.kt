@@ -369,11 +369,9 @@ var nightShotMode by remember {
                 )
                 languages.forEach { (id, label, tag) ->
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(if (selectedLanguage == id) Color(0x553F3822) else CamColors.Card)
-                            .border(1.dp, if (selectedLanguage == id) FujiSkin.orange else CamColors.Stroke,
-                                RoundedCornerShape(13.dp))
+                        Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                            .background(if (selectedLanguage == id) Color(0xFF20292B) else FujiSkin.lcd)
+                            .border(1.dp, if (selectedLanguage == id) FujiSkin.orange else Color(0xFF344247))
                             .animaTClickable {
                                 selectedLanguage = id
                                 prefs.edit().putString("app_language", id).apply()
@@ -422,8 +420,7 @@ var nightShotMode by remember {
                         "Phơi sáng lâu · Star Trails" to "star_trails"
                     ).forEach { (label, value) ->
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                                .background(CamColors.Card).animaTClickable {
+                            Modifier.fillMaxWidth().background(FujiSkin.lcd).border(1.dp, Color(0xFF344247)).animaTClickable {
                                     nightShotMode = value
                                     prefs.edit().putString("nightshot_mode", value).apply()
                                 }.padding(horizontal = 14.dp, vertical = 13.dp),

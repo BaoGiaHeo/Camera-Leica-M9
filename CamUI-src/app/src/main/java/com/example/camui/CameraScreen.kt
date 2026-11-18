@@ -3711,64 +3711,26 @@ fun CameraScreen(
     )
 
     val toolbarContent: @Composable (Modifier) -> Unit = { toolbarModifier ->
-        FujiMetalTopPlate(toolbarModifier.heightIn(min = 54.dp)) {
+        FujiMetalTopPlate(toolbarModifier, height = 60.dp) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 2.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 1.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                FujiTopKey(
-                    label = "FLASH",
-                    icon = if (flash == ImageCapture.FLASH_MODE_ON) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                    selected = flash == ImageCapture.FLASH_MODE_ON,
-                    onClick = {
-                        flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON
-                        else ImageCapture.FLASH_MODE_OFF
-                    }
-                )
-                FujiTopKey(
-                    label = "DRIVE",
-                    icon = Icons.Default.Timer,
-                    selected = timerSec > 0 || burstMode,
-                    onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 } },
-                    onLongClick = {
-                        if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" &&
-                            rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
-                        ) burstMode = !burstMode
-                    }
-                )
-                if (mode != "Pro") {
-                    FujiTopKey(
-                        label = "FILM",
-                        icon = Icons.Default.PhotoLibrary,
-                        selected = filterDialogVisible || activeFilter != "None",
-                        onClick = { filterDialogVisible = true }
-                    )
-                }
-                FujiTopKey(
-                    label = "ADJ",
-                    icon = Icons.Default.Tune,
-                    selected = metering > 0,
-                    onClick = { metering = (metering + 1) % meteringModes.size }
-                )
-                FujiTopKey(
-                    label = "HISTO",
-                    icon = Icons.Default.BarChart,
-                    selected = showHist,
-                    onClick = { onShowHist(!showHist) }
-                )
-                FujiTopKey(
-                    label = "AF",
-                    icon = Icons.Default.FilterCenterFocus,
-                    selected = focusPeaking,
-                    onClick = { onFocusPeaking(!focusPeaking) }
-                )
-                FujiTopKey(
-                    label = "Q",
-                    icon = Icons.Default.Settings,
-                    selected = showQuick,
-                    onClick = { showQuick = !showQuick }
-                )
+                Text("LUNADREAM", color = Color(0xFF303638), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.3.sp, maxLines = 1)
+                FujiTopKey(label = "FLASH", icon = if (flash == ImageCapture.FLASH_MODE_ON) "flash_on" else "flash_off", selected = flash == ImageCapture.FLASH_MODE_ON, onClick = {
+                    flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
+                })
+                FujiTopKey(label = "DRIVE", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
+                    timerSec = when (timerSec) { 0 -> 3; 3 -> 10; else -> 0 }
+                }, onLongClick = {
+                    if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
+                })
+                FujiTopKey(label = "FILM", icon = "film", selected = filterDialogVisible || activeFilter != "None", onClick = { filterDialogVisible = true })
+                FujiTopKey(label = "ADJ", icon = "sliders", selected = metering > 0, onClick = { metering = (metering + 1) % meteringModes.size })
+                FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
+                FujiTopKey(label = "AF", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
+                FujiTopKey(label = "Q", icon = "q", selected = showQuick, onClick = { showQuick = !showQuick })
             }
         }
     }
@@ -3816,6 +3778,10 @@ fun CameraScreen(
                                 .pointerInput(camera, metering, mode) {
                                     detectTapGestures(
                                         onTap = { offset ->
+                                            if (!hudVisible) {
+                                                hudVisible = true
+                                                return@detectTapGestures
+                                            }
                                             val active = camera ?: return@detectTapGestures
                                             focusLocked = false
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
@@ -4610,7 +4576,7 @@ fun CameraScreen(
 
     val leftHardwareContent: @Composable (Modifier) -> Unit = { sideModifier ->
         Column(
-            sideModifier.width(88.dp).fillMaxHeight().padding(horizontal = 3.dp, vertical = 8.dp),
+            sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 3.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
@@ -4625,7 +4591,7 @@ fun CameraScreen(
                 if (image != null) {
                     Image(image, "Ảnh gần nhất", Modifier.fillMaxSize().padding(2.dp), contentScale = ContentScale.Crop)
                 } else {
-                    Icon(Icons.Default.PhotoLibrary, "Mở thư viện", tint = FujiSkin.lcdGreen, modifier = Modifier.size(24.dp))
+                    FujiIconGlyph("film", Modifier.size(24.dp), FujiSkin.lcdGreen)
                 }
             }
             FujiChip("PLAY", false, { onOpenAlbum(lastUri) }, Modifier.fillMaxWidth())
@@ -4714,7 +4680,7 @@ fun CameraScreen(
             }
         } else evText
         Column(
-            sideModifier.width(88.dp).fillMaxHeight().padding(horizontal = 3.dp, vertical = 7.dp),
+            sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 3.dp, vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
@@ -4746,12 +4712,7 @@ fun CameraScreen(
                 modifier = Modifier.size(74.dp)
             ) {
                 if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
-                    Icon(
-                        Icons.Default.Close,
-                        if (bracketCaptureActive) "Bracketing" else if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
-                        tint = Color.White,
-                        modifier = Modifier.size(25.dp)
-                    )
+                    FujiIconGlyph("close", Modifier.size(25.dp), Color.White)
                 } else if (shutterButtonBitmap != null) {
                     Image(
                         shutterButtonBitmap!!,
@@ -4798,12 +4759,8 @@ fun CameraScreen(
                     letterSpacing = 1.sp
                 )
             }
-            FujiChip(
-                "SWAP",
-                false,
-                { front = !front; manualFocus = 0f },
-                Modifier.fillMaxWidth()
-            )
+            FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
+            FujiKey("DISP/BACK", onClick = { hudVisible = !hudVisible }, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp))
         }
     }
 
@@ -5195,10 +5152,10 @@ fun CameraScreen(
                         }
                     }
                     Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
-                        CircleBtn(
-                            Icons.Default.Close, "Đóng ảnh",
+                        FujiKey(
+                            "ĐÓNG",
                             onClick = { photoViewerVisible = false; viewerBitmap = null; viewerOriginalBitmap = null; viewerShowsOriginal = false },
-                            size = 44.dp
+                            modifier = Modifier.width(60.dp)
                         )
                     }
                 }

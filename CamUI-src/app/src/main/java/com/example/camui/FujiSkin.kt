@@ -106,7 +106,7 @@ object FujiSkin {
     val bodyDeep = Color(0xFF101010)
     val silver = Color(0xFFD9DBDD)
     val ivory = Color(0xFFF2F2EE)
-    val lcd = Color(0xFF0B0D0D)
+    val lcd = Color(0xFF0B0B0B)
     val lcdGreen = Color(0xFF9EE6B0)
     val orange = Color(0xFFE8442B)
     val line = Color(0xFF657078)

@@ -126,9 +126,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterCenterFocus
@@ -139,7 +137,6 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
@@ -4195,7 +4192,7 @@ fun CameraScreen(
                             }
                             if (!hasCam) {
                                 Text(
-                                    "Cần cấp quyền Camera\n(chạm để cấp)",
+                                    "NO SIGNAL\nCần cấp quyền Camera (chạm để cấp)",
                                     color = Color.White, textAlign = TextAlign.Center,
                                     modifier = Modifier.align(Alignment.Center)
                                         .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
@@ -4925,8 +4922,7 @@ fun CameraScreen(
                         .background(Color(0xE61A1A1A))
                         .padding(horizontal = 26.dp, vertical = 24.dp)
                 ) {
-                    Icon(Icons.Default.Bedtime, contentDescription = null,
-                        tint = FujiSkin.orange, modifier = Modifier.size(38.dp))
+                    FujiIconGlyph("moon", Modifier.size(38.dp), FujiSkin.orange)
                     Text("ĐANG GHI STAR TRAILS", color = Color.White, fontSize = 16.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
                     Text(

@@ -14,6 +14,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.MediaActionSound
 import android.os.Build
 import android.os.BatteryManager
 import android.os.PowerManager
@@ -253,6 +254,15 @@ private val bundledShutterSoundAssets = mapOf(
     "vintage" to "shutter-sounds/mixkit-vintage-camera-shutter-1438.mp3"
 )
 
+private val systemShutterSound = MediaActionSound().apply {
+    load(MediaActionSound.SHUTTER_CLICK)
+}
+
+private fun playSystemShutterFallback() {
+    runCatching { systemShutterSound.play(MediaActionSound.SHUTTER_CLICK) }
+        .onFailure { android.util.Log.w("FUJI_SHUTTER", "System shutter fallback failed", it) }
+}
+
 private fun playConfiguredShutterSound(context: Context) {
     val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val customUri = prefs.getString("shutter_sound_uri", null)?.takeIf { it.isNotBlank() }
@@ -278,19 +288,22 @@ private fun playConfiguredShutterSound(context: Context) {
             runCatching { mediaPlayer.start() }.onFailure {
                 android.util.Log.w("FUJI_SHUTTER", "Could not start selected shutter audio", it)
                 mediaPlayer.release()
+                playSystemShutterFallback()
             }
         }
         player.setOnCompletionListener { it.release() }
         player.setOnErrorListener { mediaPlayer, what, extra ->
             android.util.Log.w("FUJI_SHUTTER", "Selected shutter audio failed: $what/$extra")
             mediaPlayer.release()
+            playSystemShutterFallback()
             true
         }
         player.prepareAsync()
     }.isSuccess
     if (!prepared) {
         runCatching { player.release() }
-        android.util.Log.w("FUJI_SHUTTER", "No shutter sound played; Android system sound is intentionally not used")
+        android.util.Log.w("FUJI_SHUTTER", "Custom shutter audio unavailable; using Android camera shutter sound")
+        playSystemShutterFallback()
     }
 }
 

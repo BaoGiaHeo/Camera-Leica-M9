@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -60,10 +62,14 @@ fun QuickPanel(
     modifier: Modifier = Modifier
 ) {
     val isLandscape = deviceLandscape
+    val configuration = LocalConfiguration.current
     val shape = RoundedCornerShape(22.dp)
     var showOther by remember { mutableStateOf(false) }
     Column(
-        modifier.fillMaxWidth().clip(shape).background(CamColors.Panel)
+        modifier.widthIn(max = if (isLandscape) 460.dp else 620.dp)
+            .fillMaxWidth()
+            .heightIn(max = (configuration.screenHeightDp * if (isLandscape) 0.94f else 0.84f).dp)
+            .clip(shape).background(CamColors.Panel)
             .border(0.5.dp, CamColors.Stroke, shape).padding(14.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp)

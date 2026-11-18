@@ -538,11 +538,8 @@ fun ToolboxScreen(
                     Text("$savedName · $timeLabel", color = CamColors.TextColor,
                         fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
-                TextButton(onClick = { saveCameraPreset(slot) }) { Text("Lưu") }
-                TextButton(
-                    onClick = { loadCameraPreset(slot) },
-                    enabled = presetStore.getBoolean("$slot.exists", false)
-                ) { Text("Nạp") }
+                FujiKey("LƯU", onClick = { saveCameraPreset(slot) }, modifier = Modifier.width(52.dp))
+                FujiKey("NẠP", onClick = { loadCameraPreset(slot) }, enabled = presetStore.getBoolean("$slot.exists", false), modifier = Modifier.width(52.dp))
             }
         }
         // Read the revision so the slot labels refresh immediately after saving.
@@ -600,7 +597,7 @@ fun ToolboxScreen(
                 filmSaturation = it
                 prefs.edit().putFloat("film_custom_saturation", it).apply()
             }, valueRange = 0.5f..1.5f)
-            TextButton(onClick = {
+            FujiKey("RESET RECIPE", onClick = {
                 filmHighlight = 0f
                 filmShadow = 0f
                 filmColorChrome = 0f
@@ -617,7 +614,7 @@ fun ToolboxScreen(
                     .putFloat("film_custom_tone", 0f)
                     .putFloat("film_custom_saturation", 1f)
                     .apply()
-            }) { Text("Reset Recipe") }
+            }, modifier = Modifier.fillMaxWidth())
             Text("Saved Film Recipes", color = CamColors.TextColor,
                 fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
@@ -633,11 +630,8 @@ fun ToolboxScreen(
                 ) {
                     Text("Recipe $slot · $savedLabel", color = CamColors.Sub,
                         fontSize = 11.sp, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { saveFilmRecipe(slot) }) { Text("Lưu") }
-                    TextButton(
-                        onClick = { loadFilmRecipe(slot) },
-                        enabled = filmRecipeStore.getBoolean("$slot.exists", false)
-                    ) { Text("Nạp") }
+                    FujiKey("LƯU", onClick = { saveFilmRecipe(slot) }, modifier = Modifier.width(52.dp))
+                    FujiKey("NẠP", onClick = { loadFilmRecipe(slot) }, enabled = filmRecipeStore.getBoolean("$slot.exists", false), modifier = Modifier.width(52.dp))
                 }
             }
         }
@@ -730,36 +724,14 @@ fun ToolboxScreen(
             modifier = Modifier.padding(top = 15.dp))
         Text("Auto sẽ lấy tên model của điện thoại: ${android.os.Build.MODEL}",
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
-        OutlinedTextField(
-            value = customModel,
-            onValueChange = { customModel = it },
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            label = { Text("Custom Model (để trống = Auto)") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-        )
-        Button(onClick = {
-            prefs.edit().putString("watermark_custom_model", customModel.trim()).apply()
-        }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            Text("Save Model")
-        }
+        FujiSearchField(value = customModel, onValueChange = { customModel = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = "Custom Model (để trống = Auto)")
+        FujiKey("SAVE MODEL", onClick = { prefs.edit().putString("watermark_custom_model", customModel.trim()).apply() }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
         Text("Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng.",
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp))
         Text("Địa điểm watermark (dùng cho mẫu Fuji Signature)", color = Color.White,
             fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
-        OutlinedTextField(
-            value = customLocation,
-            onValueChange = { customLocation = it },
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            label = { Text("Ví dụ: Winnipeg · để trống = ẩn") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-        )
-        Button(onClick = {
-            prefs.edit().putString("watermark_custom_location", customLocation.trim()).apply()
-        }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            Text("Save Location")
-        }
+        FujiSearchField(value = customLocation, onValueChange = { customLocation = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = "Ví dụ: Winnipeg · để trống = ẩn")
+        FujiKey("SAVE LOCATION", onClick = { prefs.edit().putString("watermark_custom_location", customLocation.trim()).apply() }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
         Text("Watermark được đóng trực tiếp lên ảnh sau khi chụp. Thông số mm, khẩu độ, shutter và ISO lấy từ camera đang hoạt động khi HAL có cung cấp.",
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
 

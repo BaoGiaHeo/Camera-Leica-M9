@@ -3382,9 +3382,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_contents", 0) }
     val scope = rememberCoroutineScope()
-    var frames by remember {
-        mutableStateOf(prefs.getStringSet("frames", emptySet()).orEmpty().toList())
-    }
+    var frames by remember { mutableStateOf(prefs.getStringSet("frames", emptySet()).orEmpty().toList()) }
     var luts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var lutSearch by remember { mutableStateOf("") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
@@ -3392,159 +3390,114 @@ fun ContentManagementScreen(onBack: () -> Unit) {
     var isImportingLut by remember { mutableStateOf(false) }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            scope.launch {
-                isImportingLut = true
-                try {
-                    val imported = withContext(Dispatchers.IO) { importCustomCameraLuts(context, uri) }
-                    luts = loadCustomCameraLuts(context)
-                    activeLutIds = activeCustomCameraLutIds(context)
-                    Toast.makeText(
-                        context,
-                        "Đã nhập " + imported.size + " LUT. Chọn Add để bật từng bộ lọc.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } catch (failure: Throwable) {
-                    Toast.makeText(
-                        context,
-                        "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
-                        Toast.LENGTH_LONG
-                    ).show()
-                } finally {
-                    isImportingLut = false
-                }
+        if (uri != null) scope.launch {
+            isImportingLut = true
+            try {
+                val imported = withContext(Dispatchers.IO) { importCustomCameraLuts(context, uri) }
+                luts = loadCustomCameraLuts(context)
+                activeLutIds = activeCustomCameraLutIds(context)
+                Toast.makeText(context, "Đã nhập " + imported.size + " LUT. Chọn Add để bật từng bộ lọc.", Toast.LENGTH_LONG).show()
+            } catch (failure: Throwable) {
+                Toast.makeText(context, "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"), Toast.LENGTH_LONG).show()
+            } finally {
+                isImportingLut = false
             }
         }
     }
     val framePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             val value = uri.toString()
             if (!frames.contains(value)) frames = frames + value
             prefs.edit().putStringSet("frames", frames.toSet()).apply()
         }
     }
 
-    Column(
-        Modifier.fillMaxSize().background(CamColors.Bg)
-            .verticalScroll(rememberScrollState()).padding(16.dp)
-    ) {
-        PageHeader("Contents Management", onBack)
-
-        Text("LUT Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        Text(
-            "Nhập LUT .cube, LUT Canon RGB 33x33x33 (.bin), hoặc ZIP chứa tối đa 700 LUT .cube/.bin. Hỗ trợ ZIP lồng. LUT Log được giữ riêng, không áp nhầm lên JPEG sRGB.",
-            color = CamColors.Sub,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
-        )
-        OutlinedTextField(
-            value = lutSearch,
-            onValueChange = { lutSearch = it },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            singleLine = true,
-            label = { Text("Tìm LUT theo tên hoặc nhóm") }
-        )
-        Button(
-            onClick = { lutPicker.launch(arrayOf("*/*")) },
-            enabled = !isImportingLut,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Text(if (isImportingLut) "Đang nhập LUT…" else "Import LUT")
-        }
-        if (luts.isEmpty()) {
-            EmptyNote("Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT.")
-        } else {
-            val matchingLuts = luts.filter {
-                lutSearch.isBlank() ||
-                    it.name.contains(lutSearch.trim(), ignoreCase = true) ||
-                    it.category.contains(lutSearch.trim(), ignoreCase = true)
-            }
-            Text(
-                "Hiển thị ${matchingLuts.size.coerceAtMost(100)} / ${matchingLuts.size} LUT khớp · Tổng ${luts.size}",
-                color = CamColors.Sub,
-                fontSize = 10.sp,
-                modifier = Modifier.padding(bottom = 5.dp)
-            )
-            matchingLuts.take(100).forEach { entry ->
-                val isActive = activeLutIds.contains(entry.id)
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        .clip(RoundedCornerShape(12.dp)).background(CamColors.Card)
-                        .padding(start = 12.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon("sliders", contentDescription = null, tint = CamColors.Yellow)
-                    Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                        Text(entry.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            (if (isActive) "Đã thêm · " else "Chưa thêm · ") + entry.category,
-                            color = CamColors.Sub,
-                            fontSize = 9.sp
-                        )
+    FujiPanel(title = "SETTINGS · MENU", breadcrumb = "CONTENTS MANAGEMENT", modifier = Modifier.fillMaxSize(), onBack = onBack) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(end = 4.dp)) {
+                Text("LUT Manage", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    "Nhập LUT .cube, LUT Canon RGB 33x33x33 (.bin), hoặc ZIP chứa tối đa 700 LUT .cube/.bin. Hỗ trợ ZIP lồng. LUT Log được giữ riêng, không áp nhầm lên JPEG sRGB.",
+                    color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                )
+                FujiSearchField(
+                    value = lutSearch, onValueChange = { lutSearch = it },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    placeholder = "Tìm LUT theo tên hoặc nhóm"
+                )
+                FujiKey(
+                    if (isImportingLut) "ĐANG NHẬP LUT…" else "+ IMPORT LUT",
+                    onClick = { lutPicker.launch(arrayOf("*/*")) },
+                    enabled = !isImportingLut, modifier = Modifier.fillMaxWidth()
+                )
+                if (luts.isEmpty()) {
+                    EmptyNote("Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT.")
+                } else {
+                    val matchingLuts = luts.filter {
+                        lutSearch.isBlank() || it.name.contains(lutSearch.trim(), ignoreCase = true) || it.category.contains(lutSearch.trim(), ignoreCase = true)
                     }
-                    TextButton(onClick = {
-                        setCustomCameraLutActive(context, entry.id, !isActive)
-                        activeLutIds = activeCustomCameraLutIds(context)
-                    }) {
-                        Text(if (isActive) "Bỏ" else "Add")
-                    }
-                    IconButton(onClick = { pendingDeleteLut = entry }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete LUT", tint = CamColors.Sub)
+                    Text(
+                        "Hiển thị ${matchingLuts.size.coerceAtMost(100)} / ${matchingLuts.size} LUT khớp · Tổng ${luts.size}",
+                        color = FujiSkin.muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 6.dp)
+                    )
+                    matchingLuts.take(100).forEach { entry ->
+                        val active = activeLutIds.contains(entry.id)
+                        Column(Modifier.fillMaxWidth().background(FujiSkin.lcd).padding(horizontal = 6.dp, vertical = 4.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(entry.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Text((if (active) "Đã thêm · " else "Chưa thêm · ") + entry.category, color = FujiSkin.muted, fontSize = 8.sp)
+                                }
+                                FujiSwitch(checked = active, onCheckedChange = {
+                                    setCustomCameraLutActive(context, entry.id, it)
+                                    activeLutIds = activeCustomCameraLutIds(context)
+                                })
+                                FujiKey("X", onClick = { pendingDeleteLut = entry }, modifier = Modifier.width(34.dp).padding(start = 4.dp))
+                            }
+                            Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(0.6.dp).background(Color(0xFF2A383B)))
+                        }
                     }
                 }
             }
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Text("Frame Manage", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        Text(
-            "Nhập khung phủ PNG/JPG để quản lý.",
-            color = CamColors.Sub,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
-        )
-        Button(
-            onClick = { framePicker.launch(arrayOf("image/png", "image/jpeg")) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Text("Import Frame")
-        }
-        if (frames.isEmpty()) {
-            EmptyNote("Chưa có frame nào được nhập.")
-        } else {
-            frames.forEach { value ->
-                val uri = Uri.parse(value)
-                val name = documentDisplayName(context, uri)
-                ManagedItem(name, onDelete = {
-                    frames = frames.filterNot { it == value }
-                    prefs.edit().putStringSet("frames", frames.toSet()).apply()
-                })
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 4.dp)) {
+                Text("Frame Manage", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Nhập khung phủ PNG/JPG để quản lý.", color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+                FujiKey("+ IMPORT FRAME", onClick = { framePicker.launch(arrayOf("image/png", "image/jpeg")) }, modifier = Modifier.fillMaxWidth())
+                if (frames.isEmpty()) {
+                    EmptyNote("Chưa có frame nào được nhập.")
+                } else {
+                    frames.forEach { value ->
+                        val name = documentDisplayName(context, Uri.parse(value))
+                        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                            FujiListRow(title = name, value = "FRAME", onClick = {}, modifier = Modifier.weight(1f), navigate = false)
+                            FujiKey("X", onClick = {
+                                frames = frames.filterNot { it == value }
+                                prefs.edit().putStringSet("frames", frames.toSet()).apply()
+                            }, modifier = Modifier.width(34.dp))
+                        }
+                    }
+                }
             }
         }
     }
 
     pendingDeleteLut?.let { entry ->
-        AlertDialog(
-            onDismissRequest = { pendingDeleteLut = null },
-            title = { Text("Xóa LUT?") },
-            text = { Text("Bạn có chắc chắn muốn xóa LUT \"" + entry.name + "\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    deleteCustomCameraLut(context, entry.id)
-                    luts = loadCustomCameraLuts(context)
-                    activeLutIds = activeCustomCameraLutIds(context)
-                    pendingDeleteLut = null
-                }) { Text("Xóa") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteLut = null }) { Text("Hủy") }
+        Dialog(onDismissRequest = { pendingDeleteLut = null }) {
+            FujiPanel(title = "DELETE LUT", modifier = Modifier.width(340.dp)) {
+                Text("Xóa LUT?", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Bạn có chắc chắn muốn xóa LUT \"" + entry.name + "\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc.", color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(vertical = 8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FujiKey("HỦY", onClick = { pendingDeleteLut = null }, modifier = Modifier.weight(1f))
+                    FujiKey("XÓA", onClick = {
+                        deleteCustomCameraLut(context, entry.id)
+                        luts = loadCustomCameraLuts(context)
+                        activeLutIds = activeCustomCameraLutIds(context)
+                        pendingDeleteLut = null
+                    }, modifier = Modifier.weight(1f))
+                }
             }
-        )
+        }
     }
 }
 

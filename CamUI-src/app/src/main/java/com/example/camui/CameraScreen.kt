@@ -3680,12 +3680,14 @@ fun CameraScreen(
                         ) burstMode = !burstMode
                     }
                 )
-                FujiTopKey(
-                    label = "FILM",
-                    icon = Icons.Default.PhotoLibrary,
-                    selected = filterDialogVisible || activeFilter != "None",
-                    onClick = { filterDialogVisible = true }
-                )
+                if (mode != "Pro") {
+                    FujiTopKey(
+                        label = "FILM",
+                        icon = Icons.Default.PhotoLibrary,
+                        selected = filterDialogVisible || activeFilter != "None",
+                        onClick = { filterDialogVisible = true }
+                    )
+                }
                 FujiTopKey(
                     label = "ADJ",
                     icon = Icons.Default.Tune,
@@ -4419,22 +4421,20 @@ fun CameraScreen(
                         }
             
                         if (mode == "Pro") {
-                            val proItems = buildList {
-                                if (proHudShowEv) add(Triple("EV", evText, "EV"))
-                                if (proHudShowShutter) add(Triple("Tv", shutterText, "Tv"))
-                                if (proHudShowIso) add(Triple("ISO", isoText, "ISO"))
-                                if (proHudShowFocus) {
-                                    add(Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else "AF", "AF"))
-                                }
-                                if (proHudShowWhiteBalance) add(Triple("Tone", toneText, "WB"))
-                                add(Triple("AUTO", "AUTO", "RESET"))
-                            }
+                            val proItems = listOf(
+                                Triple("EV", evText, "EV"),
+                                Triple("Tv", shutterText, "Tv"),
+                                Triple("ISO", isoText, "ISO"),
+                                Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else afText, "AF"),
+                                Triple("Tone", toneText, "WB"),
+                                Triple("AUTO", "AUTO", "RESET")
+                            )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 proItems.forEach { (key, value, label) ->
                                     val active = proSel == key
                                     Column(
-                                        Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(CamColors.Glass)
-                                            .border(0.5.dp, if (active) FujiSkin.orange else CamColors.Stroke, RoundedCornerShape(11.dp))
+                                        Modifier.weight(1f).clip(RoundedCornerShape(2.dp)).background(Color(0xFF080C0D))
+                                            .border(0.8.dp, if (active) FujiSkin.orange else Color(0xFF354247), RoundedCornerShape(2.dp))
                                             .animaTClickable {
                                                 if (key == "AUTO") {
                                                     manualExposure = false
@@ -4474,9 +4474,10 @@ fun CameraScreen(
                                             }.padding(vertical = 6.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        Text(value, color = if (active) FujiSkin.orange else Color.White,
+                                        Text(value, color = if (active) FujiSkin.orange else FujiSkin.lcdGreen,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                             fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
-                                        Text(label, color = CamColors.Sub, fontSize = 9.sp)
+                                        Text(label, color = FujiSkin.muted, fontSize = 8.sp, letterSpacing = 0.7.sp)
                                     }
                                 }
                             }
@@ -5068,19 +5069,20 @@ fun CameraScreen(
                 nightShotEnabled = nightShotMode == "night",
                 nightShotDurationSeconds = nightShotDurationSeconds,
                 onCycleNightShot = {
-                    if (nightShotMode != "night") {
-                        nightShotMode = "night"
-                        nightShotDurationSeconds = 5
-                    } else {
-                        when (nightShotDurationSeconds) {
-                            5 -> nightShotDurationSeconds = 10
-                            10 -> nightShotDurationSeconds = 3
-                            else -> {
-                                nightShotMode = "off"
-                                nightShotDurationSeconds = 5
-                            }
-                        }
+                    nightShotDurationSeconds = when (nightShotDurationSeconds) {
+                        5 -> 10
+                        10 -> 3
+                        else -> 5
                     }
+                    appPrefs.edit().putInt("nightshot_duration_seconds", nightShotDurationSeconds).apply()
+                },
+                onNightShotToggle = { enabled ->
+                    nightShotMode = if (enabled) "night" else "off"
+                    if (enabled && nightShotDurationSeconds !in listOf(5, 10, 3)) nightShotDurationSeconds = 5
+                    appPrefs.edit()
+                        .putString("nightshot_mode", nightShotMode)
+                        .putInt("nightshot_duration_seconds", nightShotDurationSeconds)
+                        .apply()
                 },
                 selectedMode = lunaDreamMode,
                 onSelectedModeChange = {
@@ -5284,6 +5286,7 @@ private fun FilterLookDialog(
     var selectedLookCategory by remember { mutableStateOf("Tất cả") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
+    var showingOriginal by remember { mutableStateOf(false) }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -5333,15 +5336,33 @@ private fun FilterLookDialog(
 
     val previewPane: @Composable (Modifier) -> Unit = { paneModifier ->
         Box(
-            paneModifier.fillMaxWidth().height(previewHeight)
+            paneModifier.fillMaxWidth()
+                .then(if (isLandscape) Modifier.fillMaxHeight() else Modifier.height(previewHeight))
                 .clip(RoundedCornerShape(3.dp)).background(FujiSkin.lcd)
                 .border(1.dp, Color(0xFF758084), RoundedCornerShape(3.dp))
+                .pointerInput(activeFilter) {
+                    detectTapGestures(
+                        onPress = {
+                            showingOriginal = true
+                            tryAwaitRelease()
+                            showingOriginal = false
+                        }
+                    )
+                }
         ) {
             FilterLookPreviewImage(
                 source = previewSource,
-                preset = activeFilter,
+                preset = if (showingOriginal) "None" else activeFilter,
                 modifier = Modifier.fillMaxSize(),
                 maxDimension = 720
+            )
+            Text(
+                if (showingOriginal) "ẢNH GỐC · THẢ ĐỂ XEM LỌC" else "GIỮ ĐỂ XEM ẢNH GỐC",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopStart)
+                    .background(Color(0xBB050708)).padding(horizontal = 7.dp, vertical = 5.dp)
             )
             if (activeFilter != "None") {
                 Text(
@@ -5392,29 +5413,53 @@ private fun FilterLookDialog(
                                 .animaTClickable { onSelectFilter(preset) }.padding(6.dp)
                         ) {
                             Box(Modifier.fillMaxWidth().height(76.dp).clip(RoundedCornerShape(2.dp))
-                                .border(1.dp, Color(0xFF687277), RoundedCornerShape(2.dp))) {
-                                FilterLookPreviewImage(
-                                    source = previewSource,
-                                    preset = preset,
-                                    modifier = Modifier.fillMaxSize(),
-                                    maxDimension = 192
-                                )
-                                if (selected) {
-                                    Text(
-                                        "✓",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.align(Alignment.BottomStart)
-                                            .background(Color(0xAA000000)).padding(4.dp)
-                                    )
+                                .background(Color(0xFF070909))
+                                .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
+                                Row(
+                                    Modifier.fillMaxSize().padding(horizontal = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(
+                                        Modifier.width(5.dp).fillMaxHeight(),
+                                        verticalArrangement = Arrangement.SpaceEvenly
+                                    ) { repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) } }
+                                    Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 3.dp)) {
+                                        FilterLookPreviewImage(
+                                            source = previewSource,
+                                            preset = preset,
+                                            modifier = Modifier.fillMaxSize(),
+                                            maxDimension = 192
+                                        )
+                                        if (selected) {
+                                            Text(
+                                                "●",
+                                                color = FujiSkin.orange,
+                                                fontSize = 10.sp,
+                                                modifier = Modifier.align(Alignment.TopEnd)
+                                                    .background(Color(0xAA000000)).padding(horizontal = 3.dp)
+                                            )
+                                        }
+                                    }
+                                    Column(
+                                        Modifier.width(5.dp).fillMaxHeight(),
+                                        verticalArrangement = Arrangement.SpaceEvenly
+                                    ) { repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) } }
                                 }
                             }
                             Text(
                                 itemName,
                                 color = Color.White,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(top = 7.dp)
+                                maxLines = 1,
+                                modifier = Modifier.padding(top = 5.dp)
+                            )
+                            Text(
+                                "FUJIFILM LOOK",
+                                color = FujiSkin.lcdGreen,
+                                fontSize = 6.sp,
+                                letterSpacing = 0.75.sp,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
                         }
                     }
@@ -5437,26 +5482,32 @@ private fun FilterLookDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Column(
-                        Modifier.weight(0.9f).fillMaxHeight(),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                        Modifier.weight(0.82f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
+                            if (showingOriginal || activeFilter == "None") "Preview · Ảnh gốc"
+                            else "Preview · $activeFilterName",
                             color = FujiSkin.lcdGreen,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         previewPane(Modifier.weight(1f).fillMaxWidth())
+                    }
+                    Column(
+                        Modifier.weight(1.18f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         searchPane(Modifier)
                         categoryPane(Modifier)
                         Text(
-                            "${visiblePresets.size} bộ lọc",
+                            "${visiblePresets.size} / ${allLookEntries.size} BỘ LỌC",
                             color = FujiSkin.lcdGreen,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             fontSize = 9.sp
                         )
+                        presetGrid(Modifier.weight(1f).fillMaxWidth())
                     }
-                    presetGrid(Modifier.weight(1.15f).fillMaxHeight())
                 }
             } else {
                 Text(

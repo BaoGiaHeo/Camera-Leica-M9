@@ -54,6 +54,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \
+            CamUI-src/app/src/main/java/com/example/camui/LunaDreamProcessingScope.kt \
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
             CamUI-src/app/build.gradle.kts

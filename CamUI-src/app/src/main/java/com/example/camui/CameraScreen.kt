@@ -4644,8 +4644,9 @@ fun CameraScreen(
         } else {
             "${zoomSel.toInt()}x"
         }
-        val commandValue = if (mode == "Pro" && proSel != null) {
-            when (proSel) {
+        val activeDialSelection = proSel
+        val commandValue = if (mode == "Pro" && activeDialSelection != null) {
+            when (activeDialSelection) {
                 "ISO" -> isoText
                 "Tv" -> shutterText
                 "AF" -> afText
@@ -4708,11 +4709,11 @@ fun CameraScreen(
                     onStep = { steps ->
                         val active = camera
                         val range = evRange
-                        if ((mode != "Pro" || proSel == null || proSel == "EV") && active != null && range != null) {
+                        if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
                             evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
                             manualExposure = false
                             runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
-                        } else if (mode == "Pro" && proSel == "ISO" && manualSensorSupported && isoRange != null) {
+                        } else if (mode == "Pro" && activeDialSelection == "ISO" && manualSensorSupported && isoRange != null) {
                             val low = isoRange.lower
                             val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
                             manualIso = (manualIso + steps * 100).coerceIn(low, high)
@@ -4722,7 +4723,7 @@ fun CameraScreen(
                                 applyManualExposure(active ?: return@runCatching, manualIso, manualShutterNs)
                             }
                             manualCaptureRevision++
-                        } else if (mode == "Pro" && proSel == "Tone") {
+                        } else if (mode == "Pro" && activeDialSelection == "Tone") {
                             manualColorTemp = (manualColorTemp + steps * 150).coerceIn(2500, 8000)
                             manualColorTempEnabled = true
                             active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }

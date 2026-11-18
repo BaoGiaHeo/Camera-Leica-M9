@@ -59,17 +59,17 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private data class SettingItem(val title: String, val subtitle: String)
+private data class SettingItem(val icon: String, val title: String, val subtitle: String)
 private val settingItems = listOf(
-    SettingItem("Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
-    SettingItem("Focus & Lens", "Camera ID · Lens · Sensor information"),
-    SettingItem("Capture & Quality", "Aspect ratio · Image quality · Save location"),
-    SettingItem("Photo Mode Setting", "HDR · Noise reduction"),
-    SettingItem("NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
-    SettingItem("Appearance", "Custom shutter button"),
-    SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
-    SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
-    SettingItem("About", "FujiFilm Mode · LunaDream Camera · Version 2.0.1Dream")
+    SettingItem("⊞", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
+    SettingItem("◎", "Focus & Lens", "Camera ID · Lens · Sensor information"),
+    SettingItem("▣", "Capture & Quality", "Aspect ratio · Image quality · Save location"),
+    SettingItem("◐", "Photo Mode Setting", "HDR · Noise reduction · RAW"),
+    SettingItem("☾", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
+    SettingItem("◩", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
+    SettingItem("♫", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
+    SettingItem("文", "Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
+    SettingItem("ⓘ", "About", "LunaDream 2.5.0dream")
 )
 
 @Composable
@@ -161,6 +161,146 @@ fun SettingsScreen(
 }
 
 @Composable
+fun SettingsScreen(
+    onBack: () -> Unit,
+    ratioIdx: Int,
+    onRatio: (Int) -> Unit,
+    showGrid: Boolean,
+    onShowGrid: (Boolean) -> Unit,
+    showHist: Boolean,
+    onShowHist: (Boolean) -> Unit,
+    focusPeaking: Boolean,
+    onFocusPeaking: (Boolean) -> Unit
+) {
+    var selectedPage by remember { mutableStateOf<String?>(null) }
+    var selectedCategory by remember { mutableStateOf("Assistive Tools") }
+    val selectedItem = settingItems.firstOrNull { it.title == selectedCategory } ?: settingItems.first()
+
+    AnimatedContent(
+        targetState = selectedPage,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = { AnimaT.enter() togetherWith AnimaT.exit() },
+        label = "LunaDream settings menu transition"
+    ) { page ->
+        if (page != null) {
+            SettingsDetailPage(
+                title = page,
+                onBack = { selectedPage = null },
+                ratioIdx = ratioIdx,
+                onRatio = onRatio,
+                showGrid = showGrid,
+                onShowGrid = onShowGrid,
+                showHist = showHist,
+                onShowHist = onShowHist,
+                focusPeaking = focusPeaking,
+                onFocusPeaking = onFocusPeaking
+            )
+        } else {
+            FujiPanel(
+                title = "SETTINGS · MENU",
+                modifier = Modifier.fillMaxSize(),
+                onBack = onBack
+            ) {
+                Row(
+                    Modifier.fillMaxSize().padding(horizontal = 9.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(
+                        Modifier.width(142.dp).fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "MENU TABS",
+                            color = FujiSkin.lcdGreen,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                        )
+                        settingItems.forEachIndexed { index, item ->
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(if (selectedCategory == item.title) Color(0xFF20292B) else Color(0xFF0A0D0E))
+                                    .border(
+                                        1.dp,
+                                        if (selectedCategory == item.title) FujiSkin.orange else Color(0xFF283538),
+                                        RoundedCornerShape(2.dp)
+                                    )
+                                    .animaTClickable { selectedCategory = item.title }
+                                    .padding(horizontal = 6.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    item.icon,
+                                    color = if (selectedCategory == item.title) FujiSkin.orange else FujiSkin.lcdGreen,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(23.dp)
+                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "%02d  %s".format(index + 1, item.title.uppercase()),
+                                        color = if (selectedCategory == item.title) Color.White else Color(0xFFC7D0D1),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                    Box(
+                                        Modifier.padding(top = 3.dp)
+                                            .width(if (selectedCategory == item.title) 24.dp else 8.dp)
+                                            .height(2.dp)
+                                            .background(if (selectedCategory == item.title) FujiSkin.orange else Color(0xFF526064))
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight()
+                            .background(Color(0xFF080B0C))
+                            .border(1.dp, Color(0xFF2C3A3D), RoundedCornerShape(2.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp)
+                    ) {
+                        Text(
+                            selectedItem.title.uppercase(),
+                            color = FujiSkin.lcdGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp
+                        )
+                        Text(
+                            selectedItem.subtitle,
+                            color = FujiSkin.muted,
+                            fontSize = 10.sp
+                        )
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF354247)))
+                        FujiListRow(
+                            title = selectedItem.title,
+                            value = "OPEN  >",
+                            onClick = { selectedPage = selectedItem.title },
+                            description = "MENU/OK · Mở nhóm cài đặt đang chọn"
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("LUNADREAM 2.5.0DREAM", color = FujiSkin.muted, fontSize = 8.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                            Text("DISP/BACK", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SettingsDetailPage(
     title: String,
     onBack: () -> Unit,
@@ -205,6 +345,10 @@ var nightShotMode by remember {
     var leftHandedLayout by remember { mutableStateOf(prefs.getBoolean("left_handed_layout_enabled", false)) }
     var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFD9DBDD") ?: "#FFD9DBDD") }
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
+    var shutterSoundEnabled by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
+    var hapticFeedbackEnabled by remember { mutableStateOf(prefs.getBoolean("haptic_feedback_enabled", true)) }
+    var dialClickEnabled by remember { mutableStateOf(prefs.getBoolean("dial_click_enabled", true)) }
+    var interfaceSoundEnabled by remember { mutableStateOf(prefs.getBoolean("ui_sound_enabled", true)) }
     val shutterImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
@@ -260,7 +404,7 @@ var nightShotMode by remember {
                 Text("Ảnh được lưu vào Pictures/FujifilmMode.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
             }
-            "Appearance" -> {
+            "Display / Appearance", "Appearance" -> {
                 SettingsSwitch(
                     "LCD texture",
                     "Scanline overlay chỉ hiển thị trên preview, không lưu vào ảnh.",
@@ -323,6 +467,53 @@ var nightShotMode by remember {
                             prefs.edit().remove("shutter_button_image_uri").apply()
                         }.padding(vertical = 7.dp))
                 }
+            }
+            "Sound & Haptic" -> {
+                Text(
+                    "MECHANICAL FEEDBACK",
+                    color = FujiSkin.lcdGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp
+                )
+                SettingsSwitch(
+                    "Shutter sound",
+                    "Âm thanh màn trập của ảnh chụp.",
+                    shutterSoundEnabled
+                ) {
+                    shutterSoundEnabled = it
+                    prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
+                }
+                SettingsSwitch(
+                    "Dial detent clicks",
+                    "Click nhẹ theo từng nấc của vòng zoom và command dial.",
+                    dialClickEnabled
+                ) {
+                    dialClickEnabled = it
+                    prefs.edit().putBoolean("dial_click_enabled", it).apply()
+                }
+                SettingsSwitch(
+                    "UI mechanical sounds",
+                    "Tick phím, clack công tắc và tiếng xác nhận panel.",
+                    interfaceSoundEnabled
+                ) {
+                    interfaceSoundEnabled = it
+                    prefs.edit().putBoolean("ui_sound_enabled", it).apply()
+                }
+                SettingsSwitch(
+                    "Haptic feedback",
+                    "Rung nhẹ khi xoay núm, gạt công tắc và nhấn nửa cò.",
+                    hapticFeedbackEnabled
+                ) {
+                    hapticFeedbackEnabled = it
+                    prefs.edit().putBoolean("haptic_feedback_enabled", it).apply()
+                }
+                Text(
+                    "Âm thanh tùy chỉnh sẽ chỉ xuất hiện khi asset tương ứng đã được đóng gói trong ứng dụng.",
+                    color = FujiSkin.muted,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
             "Language" -> {
                 var selectedLanguage by remember {
@@ -559,7 +750,7 @@ var nightShotMode by remember {
                 }
             }
             else -> {
-                Text("FujiFilm Mode · LunaDream Camera", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("LunaDream Camera", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text("Người làm App: Baoaka06", color = CamColors.TextColor, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 18.dp))
                 Text("TikTok: @baoaka06", color = FujiSkin.orange, fontSize = 14.sp,
@@ -568,7 +759,7 @@ var nightShotMode by remember {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@baoaka06")))
                         }
                     })
-                Text("Version 2.0.1Dream · Build 9", color = CamColors.Sub, fontSize = 12.sp,
+                Text("Version 2.5.0dream · Build 9", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 18.dp))
             }
         }

@@ -4944,8 +4944,8 @@ fun CameraScreen(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clip(RoundedCornerShape(18.dp))
-                        .background(CamColors.Panel).padding(horizontal = 18.dp, vertical = 14.dp)
+                    modifier = Modifier.background(Color(0xFF080B0C))
+                        .border(1.dp, Color(0xFF536C6E)).padding(horizontal = 18.dp, vertical = 14.dp)
                 ) {
                     Text(
                         if (milkyWayStackEnabled) "NightShotMode · MILKY WAY" else "NightShotMode · ĐANG CHỤP",
@@ -4976,8 +4976,8 @@ fun CameraScreen(
                         }
                     }
                     .padding(horizontal = 28.dp, vertical = 18.dp)
-                    .fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                    .background(CamColors.Panel).padding(14.dp)
+                    .fillMaxWidth().background(Color(0xFF080B0C))
+                    .border(1.dp, Color(0xFF536C6E)).padding(14.dp)
             ) {
                 val visibleProgress = if (processingLabel == "Nhiễu đang được xử lý") {
                     noiseReductionProgress
@@ -5208,9 +5208,8 @@ private fun LensTransitionOverlay(
         exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.90f, animationSpec = tween(190))
     ) {
         Column(
-            Modifier.clip(RoundedCornerShape(16.dp))
-                .background(Color(0xD9000000))
-                .border(1.dp, Color(0x88FFFFFF), RoundedCornerShape(16.dp))
+            Modifier.background(Color(0xFF080B0C))
+                .border(1.dp, Color(0xFF536C6E))
                 .padding(horizontal = 22.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -5254,7 +5253,7 @@ private fun FilterLookPreviewImage(
         }
         renderedState.first -> {
             Box(
-                modifier.clip(RoundedCornerShape(8.dp)).background(CamColors.Card),
+                modifier.background(FujiSkin.lcd).border(1.dp, Color(0xFF344247)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

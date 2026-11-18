@@ -1,12 +1,6 @@
-name: Build FujiFilm Mode CamUI Debug APK
+name: Manual FujiFilm Mode CamUI Debug APK (after emulator validation)
 
 on:
-  push:
-    branches:
-      - feature/fujifilm-mode-1.6
-    paths:
-      - "CamUI-src/**"
-      - ".github/workflows/build-camui-debug.yml"
   workflow_dispatch:
 
 permissions:

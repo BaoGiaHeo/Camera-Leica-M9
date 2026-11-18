@@ -538,15 +538,20 @@ fun FujiPanel(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     breadcrumb: String? = null,
+    embedded: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    FujiScreenScaffold(
-        title = title,
-        breadcrumb = breadcrumb,
-        modifier = modifier,
-        onBack = onBack,
-        content = content
-    )
+    if (embedded) {
+        Column(modifier.fillMaxSize(), content = content)
+    } else {
+        FujiScreenScaffold(
+            title = title,
+            breadcrumb = breadcrumb,
+            modifier = modifier,
+            onBack = onBack,
+            content = content
+        )
+    }
 }
 
 @Composable

@@ -2642,12 +2642,29 @@ fun CameraScreen(
             val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20 || captureUseRawDream20
             val captureUseLunaDream20Stack = captureUseLunaDream20 || captureUseRawDream20
             if (lunaDreamSelected && !captureUseLunaDream) {
+                LunaDreamDiagnostics.record(
+                    context,
+                    "CAPTURE_REJECTED",
+                    "selectedMode=$lunaDreamMode; rawMode=$rawCaptureMode; photoMode=$mode; " +
+                        "ultraHdr=$captureIsUltraHdr; burst=$burstMode; hdrBracket=$hdrBracketMode; focusBracket=$focusBracketMode"
+                )
                 localizedToast(
                     context,
                     "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing.",
                     Toast.LENGTH_LONG
                 ).show()
                 return@launch
+            }
+            if (captureUseLunaDream) {
+                LunaDreamDiagnostics.record(
+                    context,
+                    "CAPTURE_REQUESTED",
+                    "mode=" + when {
+                        captureUseRawDream20 -> "RawDream 2.0"
+                        captureUseLunaDream15 -> "LunaDream 1.5"
+                        else -> "LunaDream 2.0"
+                    } + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
+                )
             }
             val captureUseNightShot = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Photo" && nightShotMode == "night" && !captureUseLunaDream
@@ -2932,6 +2949,14 @@ fun CameraScreen(
                                                 val (frameNumber, nextFrame, captured) = pendingCaptures.removeFirst().await()
                                                 if (!captured) {
                                                     runCatching { nextFrame.delete() }
+                                                    if (captureUseLunaDream) {
+                                                        LunaDreamDiagnostics.record(
+                                                            context,
+                                                            "FRAME_CAPTURE_FAILED",
+                                                            "frameAttempt=$frameNumber; validFrames=${stackedFrames.size}; " +
+                                                                "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else "LunaDream 2.0"
+                                                        )
+                                                    }
                                                     consecutiveCaptureFailures++
                                                     android.util.Log.w(
                                                         "FUJI_NIGHTSHOT",
@@ -2982,10 +3007,25 @@ fun CameraScreen(
                                                 else -> 2
                                             }
                                             lunaDreamCapturedFrameCount = stackedFrames.size
+                                            if (captureUseLunaDream) {
+                                                LunaDreamDiagnostics.record(
+                                                    context,
+                                                    "FRAME_CAPTURE_SUMMARY",
+                                                    "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0" +
+                                                        "; validFrames=${stackedFrames.size}; targetFrames=$maxFrames; minimumRequired=$minimumFramesRequired; " +
+                                                        "captureElapsed=${burstElapsedMs}ms; stoppedForStorage=$stoppedForStorage"
+                                                )
+                                            }
                                             if (stackedFrames.size < minimumFramesRequired && captureUseLunaDream) {
                                                 lunaDreamFailureReason =
                                                     "Chỉ thu được ${stackedFrames.size}/$minimumFramesRequired khung hình hợp lệ"
                                                 android.util.Log.e("FUJI_LUNADREAM", lunaDreamFailureReason!!)
+                                                LunaDreamDiagnostics.record(
+                                                    context,
+                                                    "FRAME_COUNT_INSUFFICIENT",
+                                                    "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else "LunaDream 2.0" +
+                                                        "; validFrames=${stackedFrames.size}; required=$minimumFramesRequired; reason=${lunaDreamFailureReason}"
+                                                )
                                             }
                                             if (stackedFrames.size >= minimumFramesRequired) {
                                                 withContext(Dispatchers.Main) {
@@ -3017,6 +3057,15 @@ fun CameraScreen(
                                                     },
                                                     onFailure = { reason, failure ->
                                                         lunaDreamFailureReason = reason
+                                                        if (captureUseLunaDream) {
+                                                            LunaDreamDiagnostics.record(
+                                                                context,
+                                                                "MERGE_CALLBACK_FAILURE",
+                                                                "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0" +
+                                                                    "; reason=$reason; validFrames=${stackedFrames.size}",
+                                                                failure
+                                                            )
+                                                        }
                                                         android.util.Log.e(
                                                             "FUJI_LUNADREAM",
                                                             "Merge failed; preserving original JPEG as fallback: $reason",
@@ -3053,6 +3102,11 @@ fun CameraScreen(
                                                         ?: "LunaDream 2.0 merge returned false without a failure callback"
                                                     if (stackedFrames.size >= 3) {
                                                         var fallbackFailure: String? = null
+                                                        LunaDreamDiagnostics.record(
+                                                            context,
+                                                            "FALLBACK_20_TO_15_START",
+                                                            "originalMode=2.0; validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure"
+                                                        )
                                                         android.util.Log.w(
                                                             "FUJI_LUNADREAM",
                                                             "LunaDream 2.0 merge failed; retrying the same ${stackedFrames.size} frames with the 1.5 fallback. reason=$primaryFailure"
@@ -3078,6 +3132,11 @@ fun CameraScreen(
                                                             }
                                                         )
                                                         if (nightShotMerged) {
+                                                            LunaDreamDiagnostics.record(
+                                                                context,
+                                                                "FALLBACK_20_TO_15_SUCCESS",
+                                                                "validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure"
+                                                            )
                                                             lunaDream20FallbackApplied = true
                                                             lunaDreamFailureReason = primaryFailure
                                                             android.util.Log.w(
@@ -3087,10 +3146,20 @@ fun CameraScreen(
                                                         } else {
                                                             lunaDreamFailureReason =
                                                                 "LunaDream 2.0 failed: $primaryFailure; LunaDream 1.5 fallback failed: ${fallbackFailure ?: "merge returned false"}"
+                                                            LunaDreamDiagnostics.record(
+                                                                context,
+                                                                "FALLBACK_20_TO_15_FAILED",
+                                                                "validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure; fallbackFailure=${fallbackFailure ?: "merge returned false"}"
+                                                            )
                                                         }
                                                     } else {
                                                         lunaDreamFailureReason =
                                                             "LunaDream 2.0 failed: $primaryFailure; 1.5 fallback requires at least 3 valid frames, but only ${stackedFrames.size} were captured"
+                                                        LunaDreamDiagnostics.record(
+                                                            context,
+                                                            "FALLBACK_20_TO_15_SKIPPED",
+                                                            "validFrames=${stackedFrames.size}; requiredAtLeast=3; primaryFailure=$primaryFailure"
+                                                        )
                                                     }
                                                 }
                                             }
@@ -3183,6 +3252,15 @@ fun CameraScreen(
                                     captureUseRawDream20 -> rawDream20Processed
                                     captureUseLunaDream20 -> nightShotMerged
                                     else -> false
+                                }
+                                if (captureUseLunaDream) {
+                                    LunaDreamDiagnostics.record(
+                                        context,
+                                        if (lunaDreamApplied) "CAPTURE_PROCESSING_COMPLETE" else "CAPTURE_PROCESSING_INCOMPLETE",
+                                        "mode=" + if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0" +
+                                            "; validFrames=$lunaDreamCapturedFrameCount; fallbackApplied=$lunaDream20FallbackApplied; " +
+                                            "merged=$nightShotMerged; reason=${lunaDreamFailureReason ?: "none"}"
+                                    )
                                 }
                                 withContext(Dispatchers.Main) {
                                     if (captureUseLunaDream || captureUseNightShot) {

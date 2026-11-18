@@ -4273,16 +4273,14 @@ fun CameraScreen(
                                     } else {
                                         "${z.toInt()}×"
                                     }
-                                    Text(label,
-                                        color = if (selectedZoom) CamColors.Yellow else CamColors.TextColor,
-                                        fontWeight = if (selectedZoom) FontWeight.Bold else FontWeight.Medium,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .animaTClickable {
-                                                val next = z.coerceIn(zoomMinForUi, zoomMaxForUi)
-                                                animateZoomTo(next)
-                                            }.padding(horizontal = 5.dp, vertical = 3.dp)
+                                    FujiChip(
+                                        text = label,
+                                        selected = selectedZoom,
+                                        onClick = {
+                                            val next = z.coerceIn(zoomMinForUi, zoomMaxForUi)
+                                            animateZoomTo(next)
+                                        },
+                                        modifier = Modifier.padding(horizontal = 2.dp)
                                     )
                                 }
                             }
@@ -4576,65 +4574,74 @@ fun CameraScreen(
                                 if (image != null) Image(image, "Mở ảnh vừa chụp", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                 else Icon(Icons.Default.PhotoLibrary, "Mở album", tint = Color.White)
                             }
-                            Box(Modifier.size(72.dp).border(4.dp, Color.White.copy(alpha = if (isProcessing) 0.45f else 1f), CircleShape)
-                                .padding(7.dp).clip(CircleShape)
-                                .background(
-                                    when {
-                                        isProcessing -> Color(0xFF59616D)
-                                        starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || livePhotoCaptureInProgress -> Color(0xFFE53935)
-                                        else -> CamColors.Shutter
+                            FujiShutterButton(
+                                enabled = !isProcessing,
+                                onHalfPress = {
+                                    focusLocked = false
+                                    if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
+                                        camera?.let { active -> runCatching { applyAutoFocus(active) } }
                                     }
-                                )
-                                .graphicsLayer { alpha = if (isProcessing) 0.55f else 1f }
-                                .animaTClickable { if (!isProcessing) takePhoto() },
-                                contentAlignment = Alignment.Center) {
+                                },
+                                onCapture = { takePhoto() },
+                                modifier = Modifier.size(74.dp)
+                            ) {
                                 if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
                                     Icon(
                                         Icons.Default.Close,
                                         if (bracketCaptureActive) "Bracketing" else if (burstCaptureActive) "Dừng Burst" else "Dừng Star Trails",
                                         tint = Color.White,
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(25.dp)
                                     )
                                 } else if (shutterButtonBitmap != null) {
-                                    Image(shutterButtonBitmap!!, "Custom shutter button",
-                                        Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                                    Image(
+                                        shutterButtonBitmap!!,
+                                        "Custom shutter button",
+                                        Modifier.fillMaxSize().clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
                                 }
                             }
                             CircleBtn(Icons.Default.FlipCameraAndroid, "Đổi camera",
                                 onClick = { front = !front; manualFocus = 0f }, size = 52.dp)
                         }
             
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                            listOf("Pro", "Photo").forEach { item ->
-                                val active = mode == item
-                                Box(Modifier.padding(horizontal = 4.dp).width(92.dp).height(36.dp)
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .background(if (active) CamColors.Yellow else CamColors.Glass)
-                                    .animaTClickable {
-                                        mode = item
-                                        if (item == "Photo") {
-                                            proSel = null
-                                            manualExposure = false
-                                            manualIsoEnabled = false
-                                            manualShutterEnabled = false
-                                            manualColorTempEnabled = false
-                                            manualFocus = 0f
-                                            milkyWayInfinityFocusEnabled = false
-                                            focusLocked = false
-                                            manualCaptureRevision++
-                                            camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
-                                        }
-                                    },
-                                    contentAlignment = Alignment.Center) {
-                                    Text(item, color = if (active) Color.Black else Color.White,
-                                        fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                }
-                            }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            FujiChip(
+                                text = "PRO",
+                                selected = mode == "Pro",
+                                onClick = { mode = "Pro" },
+                                modifier = Modifier.padding(horizontal = 3.dp)
+                            )
+                            FujiChip(
+                                text = "PHOTO",
+                                selected = mode == "Photo",
+                                onClick = {
+                                    mode = "Photo"
+                                    proSel = null
+                                    manualExposure = false
+                                    manualIsoEnabled = false
+                                    manualShutterEnabled = false
+                                    manualColorTempEnabled = false
+                                    manualFocus = 0f
+                                    milkyWayInfinityFocusEnabled = false
+                                    focusLocked = false
+                                    manualCaptureRevision++
+                                    camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
+                                },
+                                modifier = Modifier.padding(horizontal = 3.dp)
+                            )
                         }
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 2.dp),
-                            horizontalArrangement = Arrangement.Center) {
-                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(CamColors.Glass)
-                                .animaTClickable {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 3.dp, bottom = 2.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            FujiChip(
+                                text = if (activeFilter != "None") "FILM · " + cameraLookDisplayName(context, activeFilter) else "FILM FILTERS",
+                                selected = activeFilter != "None",
+                                onClick = {
                                     if (activeFilter != "None") {
                                         activeFilter = "None"
                                         appPrefs.edit().putString("selected_filter", "None").apply()
@@ -4642,30 +4649,15 @@ fun CameraScreen(
                                         activeFilter = appPrefs.getString("selected_filter", "None") ?: "None"
                                         filterDialogVisible = true
                                     }
-                                }
-                                .padding(horizontal = 18.dp, vertical = 7.dp)) {
-                                Text(
-                                    if (activeFilter != "None") "Bộ lọc: " + cameraLookDisplayName(context, activeFilter) else "Bộ lọc",
-                                    color = if (activeFilter != "None") CamColors.Yellow else Color.White,
-                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Box(Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(
+                                },
+                                modifier = Modifier.padding(horizontal = 3.dp)
+                            )
+                            FujiChip(
+                                text = "LUNADREAM",
+                                selected = lunaDreamMode != "off" || nightShotMode == "night",
+                                onClick = {
                                     when {
-                                        livePhotoEnabled || nativeImageProcessingEnabled -> Color(0x553A3A3A)
-                                        lunaDreamMode != "off" || nightShotMode == "night" -> Color(0x66F5C842)
-                                        else -> CamColors.Glass
-                                    }
-                                )
-                                .animaTClickable {
-                                    when {
-                                        livePhotoEnabled -> localizedToast(
-                                            context,
-                                            "Vui lòng tắt Live Photo",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
                                         nativeImageProcessingEnabled -> localizedToast(
                                             context,
                                             "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.",
@@ -4673,15 +4665,11 @@ fun CameraScreen(
                                         ).show()
                                         else -> showLunaDream = true
                                     }
-                                }
-                                .padding(horizontal = 15.dp, vertical = 7.dp)) {
-                                Text("LunaDream",
-                                    color = if (livePhotoEnabled || nativeImageProcessingEnabled) Color(0xFF777777)
-                                        else if (lunaDreamMode != "off" || nightShotMode == "night") CamColors.Yellow
-                                        else CamColors.TextColor,
-                                    fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
+                                },
+                                modifier = Modifier.padding(horizontal = 3.dp)
+                            )
                         }
+
         }
     }
 

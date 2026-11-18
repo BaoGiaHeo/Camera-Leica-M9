@@ -618,28 +618,33 @@ fun FujiSlider(
                 .border(1.dp, if (enabled) FujiSkin.orange else Color(0xFF667075), CircleShape)
         )
         if (enabled) {
-            Modifier.pointerInput(valueRange, steps) {
-                detectTapGestures { position ->
-                    val raw = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                    val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
-                    onValueChange(valueRange.start + span * snapped)
-                    onValueChangeFinished?.invoke()
-                }
-            }.pointerInput(valueRange, steps) {
-                detectDragGestures(
-                    onDragStart = { position ->
-                        val raw = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                        val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
-                        onValueChange(valueRange.start + span * snapped)
-                    },
-                    onDragEnd = { onValueChangeFinished?.invoke() },
-                    onDragCancel = { onValueChangeFinished?.invoke() }
-                ) { change, _ ->
-                    val raw = (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                    val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
-                    onValueChange(valueRange.start + span * snapped)
-                    change.consume()
-                }
-            }.let { }
+            Box(
+                Modifier.fillMaxSize()
+                    .pointerInput(valueRange, steps) {
+                        detectTapGestures { position ->
+                            val raw = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                            val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
+                            onValueChange(valueRange.start + span * snapped)
+                            onValueChangeFinished?.invoke()
+                        }
+                    }
+                    .pointerInput(valueRange, steps) {
+                        detectDragGestures(
+                            onDragStart = { position ->
+                                val raw = (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
+                                onValueChange(valueRange.start + span * snapped)
+                            },
+                            onDragEnd = { onValueChangeFinished?.invoke() },
+                            onDragCancel = { onValueChangeFinished?.invoke() }
+                        ) { change, _ ->
+                            val raw = (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                            val snapped = if (steps > 0) (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1) else raw
+                            onValueChange(valueRange.start + span * snapped)
+                            change.consume()
+                        }
+                    }
+            )
+        }
     }
 }

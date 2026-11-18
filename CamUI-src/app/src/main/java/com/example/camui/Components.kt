@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text as MaterialText
 import androidx.compose.material3.LocalTextStyle
@@ -38,7 +36,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,24 +106,6 @@ fun CamTheme(content: @Composable () -> Unit) {
         Box(Modifier.fillMaxSize().background(CamColors.Bg).animaTContent()) {
             content()
         }
-    }
-}
-
-@Composable
-fun CircleBtn(
-    icon: ImageVector,
-    desc: String,
-    onClick: () -> Unit,
-    size: Dp = 46.dp,
-    tint: Color = Color.White
-) {
-    val context = LocalContext.current
-    Box(
-        Modifier.size(size).clip(CircleShape).background(CamColors.Glass)
-            .border(0.5.dp, CamColors.Stroke, CircleShape).animaTClickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = localizedUiText(context, desc), tint = tint)
     }
 }
 

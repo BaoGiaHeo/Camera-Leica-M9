@@ -84,6 +84,7 @@ fun SettingsScreen(
     onFocusPeaking: (Boolean) -> Unit
 ) {
     var selectedPage by remember { mutableStateOf<String?>(null) }
+    var selectedSettingsGroup by remember { mutableStateOf("CAPTURE") }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     AnimatedContent(
         targetState = selectedPage,
@@ -110,50 +111,46 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxSize(),
                 onBack = onBack
             ) {
-                if (isLandscape) {
-                    Row(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                val groupedItems = when (selectedSettingsGroup) {
+                    "CAPTURE" -> settingItems.take(3)
+                    "IMAGING" -> settingItems.drop(3).take(3)
+                    else -> settingItems.drop(6)
+                }
+                Row(
+                    Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column(
+                        Modifier.width(106.dp).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        LazyColumn(
-                            Modifier.weight(1f).fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            item { SectionTitle("Capture") }
-                            items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
-                        }
-                        LazyColumn(
-                            Modifier.weight(1f).fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            item { SectionTitle("Imaging") }
-                            items(settingItems.drop(3).filter { it.title != "Sao lưu & Khôi phục" }) { item ->
-                                SettingCard(item) { selectedPage = item.title }
-                            }
-                            item { SectionTitle("Dữ liệu") }
-                            item {
-                                SettingCard(settingItems.first { it.title == "Sao lưu & Khôi phục" }) {
-                                    selectedPage = "Sao lưu & Khôi phục"
-                                }
-                            }
-                        }
+                        FujiTile(
+                            "01 · CAPTURE", "TOOLS / LENS / QUALITY",
+                            selectedSettingsGroup == "CAPTURE",
+                            { selectedSettingsGroup = "CAPTURE" },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        FujiTile(
+                            "02 · IMAGING", "PHOTO / NIGHT / LOOK",
+                            selectedSettingsGroup == "IMAGING",
+                            { selectedSettingsGroup = "IMAGING" },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        FujiTile(
+                            "03 · SET-UP", "LANGUAGE / ABOUT / DATA",
+                            selectedSettingsGroup == "SET-UP",
+                            { selectedSettingsGroup = "SET-UP" },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
-                } else {
                     LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Modifier.weight(1f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        item { SectionTitle("Capture") }
-                        items(settingItems.take(3)) { item -> SettingCard(item) { selectedPage = item.title } }
-                        item { SectionTitle("Imaging") }
-                        items(settingItems.drop(3).filter { it.title != "Sao lưu & Khôi phục" }) { item ->
+                        item { SectionTitle(selectedSettingsGroup) }
+                        items(groupedItems) { item ->
                             SettingCard(item) { selectedPage = item.title }
-                        }
-                        item { SectionTitle("Dữ liệu") }
-                        item {
-                            SettingCard(settingItems.first { it.title == "Sao lưu & Khôi phục" }) {
-                                selectedPage = "Sao lưu & Khôi phục"
-                            }
                         }
                     }
                 }

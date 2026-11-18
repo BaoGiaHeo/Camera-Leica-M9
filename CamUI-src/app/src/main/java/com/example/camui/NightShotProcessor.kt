@@ -283,6 +283,13 @@ object NightShotProcessor {
                 }.onFailure { Log.e(TAG, "$modeLabel rollback failed", it) }
             }
             Log.e(TAG, "$modeLabel failed during $stage; original retained", failure)
+            LunaDreamDiagnostics.record(
+                context,
+                "SINGLE_FRAME_FAILED",
+                "mode=$modeLabel; stage=$stage; sourceBytes=${sourceFile.length()}; " +
+                    "heapUsed=${Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()}",
+                failure
+            )
             false
         } finally {
             bitmap?.let { if (!it.isRecycled) it.recycle() }
@@ -305,6 +312,13 @@ object NightShotProcessor {
                 else -> "Frame ${invalidFrameIndex + 1} is missing or empty"
             }
             Log.e(TAG, "Merge rejected for $mode: $reason")
+            if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
+                LunaDreamDiagnostics.record(
+                    context,
+                    "MERGE_REJECTED",
+                    "mode=$mode; suppliedFrames=${frames.size}; invalidFrameIndex=$invalidFrameIndex; reason=$reason"
+                )
+            }
             runCatching { onFailure?.invoke(reason, null) }
             return false
         }
@@ -318,6 +332,7 @@ object NightShotProcessor {
             else -> "night-"
         }
         val tempOutput = File(context.cacheDir, "fuji-" + prefix + System.nanoTime() + ".jpg")
+        val isLunaDreamMerge = mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
         val mergeStartedAt = SystemClock.elapsedRealtime()
         var decodeMs = 0L
         var alignmentMs = 0L
@@ -329,18 +344,30 @@ object NightShotProcessor {
         var alignmentReference: Bitmap? = null
         var alignmentReferenceState: AlignmentReferenceState? = null
         var publishing = false
+        var currentStage = "initializing merge"
+        if (isLunaDreamMerge) {
+            LunaDreamDiagnostics.record(
+                context,
+                "MERGE_START",
+                "mode=$mode; frameCount=${frames.size}; frameBytes=${frames.sumOf { it.length().coerceAtLeast(0L) }}; " +
+                    "heapUsed=${Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()}; " +
+                    "maxHeap=${Runtime.getRuntime().maxMemory()}"
+            )
+        }
         val lunaFusionExecutor: ExecutorService? = if (
             mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
         ) {
             Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
         } else null
         return try {
+            currentStage = "read first frame EXIF"
             val firstExif = readExif(frames.first())
             val stackPixelLimit = when (mode) {
                 MergeMode.HDR_BRACKET, MergeMode.FOCUS_STACK -> 16_000_000L
                 MergeMode.NIGHT_AVERAGE, MergeMode.MILKY_WAY_STACK -> 60_000_000L
                 else -> MAX_OUTPUT_PIXELS
             }
+            currentStage = "decode first frame"
             val firstDecodeStartedAt = SystemClock.elapsedRealtime()
             base = decodeUpright(frames.first(), null, null, stackPixelLimit)
                 ?: error("Could not decode first frame")
@@ -386,11 +413,13 @@ object NightShotProcessor {
 
             val totalMergedFrames = (frames.size - 1).coerceAtLeast(1)
             for (frameIndex in 1 until frames.size) {
+                currentStage = "decode frame ${frameIndex + 1}/${frames.size}"
                 val frameDecodeStartedAt = SystemClock.elapsedRealtime()
                 val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
                     ?: error("Could not decode frame " + (frameIndex + 1))
                 decodeMs += SystemClock.elapsedRealtime() - frameDecodeStartedAt
                 try {
+                    currentStage = "align frame ${frameIndex + 1}/${frames.size}"
                     val alignmentStartedAt = SystemClock.elapsedRealtime()
                     val shift = if (mode == MergeMode.STAR_TRAILS) {
                         // Star trails intentionally preserve each star's position over time.
@@ -407,6 +436,7 @@ object NightShotProcessor {
                         Log.d(TAG, "Aligned frame ${frameIndex + 1} for $mode: dx=$shiftX dy=$shiftY")
                     }
 
+                    currentStage = "fuse frame ${frameIndex + 1}/${frames.size}"
                     val fusionStartedAt = SystemClock.elapsedRealtime()
                     if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
                         fuseLunaDreamFrameParallel(
@@ -565,6 +595,7 @@ object NightShotProcessor {
                 }
             }
 
+            currentStage = "detail recovery and denoise"
             if (mode == MergeMode.NIGHT_AVERAGE) {
                 // Lift dark mid-tones after motion-aware averaging, preserving bright star cores.
                 brightenNightResult(base!!)
@@ -599,6 +630,7 @@ object NightShotProcessor {
             }
 
             runCatching { onProgress?.invoke(96) }
+            currentStage = "encode merged JPEG"
             val encodeStartedAt = SystemClock.elapsedRealtime()
             FileOutputStream(tempOutput).use { output ->
                 check(base!!.compress(Bitmap.CompressFormat.JPEG, 96, output)) {
@@ -609,12 +641,14 @@ object NightShotProcessor {
             }
             writeExif(tempOutput, firstExif)
             encodeMs = SystemClock.elapsedRealtime() - encodeStartedAt
+            currentStage = "publish merged JPEG to MediaStore"
             val publishStartedAt = SystemClock.elapsedRealtime()
             publishing = true
             context.contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
                 tempOutput.inputStream().use { input -> input.copyTo(output) }
                 output.flush()
             } ?: error("Could not write merged image to MediaStore")
+            currentStage = "verify published JPEG"
             val verification = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             val verificationReadable = context.contentResolver.openInputStream(destinationUri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, verification)
@@ -632,14 +666,23 @@ object NightShotProcessor {
             publishing = false
             publishMs = SystemClock.elapsedRealtime() - publishStartedAt
             runCatching { onProgress?.invoke(100) }
+            val totalMergeMs = SystemClock.elapsedRealtime() - mergeStartedAt
             Log.i(
                 TAG,
                 "Merged " + frames.size + " frames as " + mode + " at " + width + "x" + height +
                     "; decode=" + decodeMs + "ms align=" + alignmentMs +
                     "ms fusion=" + fusionMs + "ms detail=" + detailRecoveryMs + "ms encode=" + encodeMs +
-                    "ms publish=" + publishMs + "ms total=" +
-                    (SystemClock.elapsedRealtime() - mergeStartedAt) + "ms"
+                    "ms publish=" + publishMs + "ms total=" + totalMergeMs + "ms"
             )
+            if (isLunaDreamMerge) {
+                LunaDreamDiagnostics.record(
+                    context,
+                    "MERGE_SUCCESS",
+                    "mode=$mode; frames=${frames.size}; output=${width}x$height; " +
+                        "decode=${decodeMs}ms; align=${alignmentMs}ms; fusion=${fusionMs}ms; " +
+                        "detail=${detailRecoveryMs}ms; encode=${encodeMs}ms; publish=${publishMs}ms; total=${totalMergeMs}ms"
+                )
+            }
             true
         } catch (failure: Throwable) {
             if (publishing) {
@@ -655,7 +698,7 @@ object NightShotProcessor {
                 ?: failure.javaClass.simpleName
             Log.e(
                 TAG,
-                "Multi-frame merge failed for $mode after " +
+                "Multi-frame merge failed for $mode at stage=$currentStage after " +
                     elapsedMs +
                     "ms; decode=$decodeMs align=$alignmentMs fusion=$fusionMs " +
                     "detail=$detailRecoveryMs encode=$encodeMs publish=$publishMs; " +
@@ -663,6 +706,18 @@ object NightShotProcessor {
                     "; reason=$reason; original capture remains available",
                 failure
             )
+            if (isLunaDreamMerge) {
+                LunaDreamDiagnostics.record(
+                    context,
+                    "MERGE_FAILED",
+                    "mode=$mode; stage=$currentStage; frames=${frames.size}; elapsed=${elapsedMs}ms; " +
+                        "decode=${decodeMs}ms; align=${alignmentMs}ms; fusion=${fusionMs}ms; " +
+                        "detail=${detailRecoveryMs}ms; encode=${encodeMs}ms; publish=${publishMs}ms; " +
+                        "heapUsed=${Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()}; " +
+                        "maxHeap=${Runtime.getRuntime().maxMemory()}; reason=$reason",
+                    failure
+                )
+            }
             runCatching { onFailure?.invoke(reason, failure) }
             false
         } finally {

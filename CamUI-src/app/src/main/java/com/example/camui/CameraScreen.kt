@@ -244,15 +244,8 @@ private val wbModes = listOf(
     "Fluorescent" to CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
 )
 
-private val bundledShutterSoundAssets = mapOf(
-    "digital" to "shutter-sounds/mixkit-camera-digital-shutter-1432.mp3",
-    "lens" to "shutter-sounds/mixkit-camera-lens-shutter-1433.mp3",
-    "click" to "shutter-sounds/mixkit-camera-shutter-click-1133.mp3",
-    "mechanical" to "shutter-sounds/mixkit-camera-shutter-hard-click-1430.mp3",
-    "classic" to "shutter-sounds/mixkit-classic-camera-click-1440.mp3",
-    "nikon" to "shutter-sounds/mixkit-nikon-camera-shutter-1434.mp3",
-    "vintage" to "shutter-sounds/mixkit-vintage-camera-shutter-1438.mp3"
-)
+private const val DEFAULT_SHUTTER_SOUND_ASSET =
+    "shutter-sounds/mixkit-classic-camera-click-1440.mp3"
 
 private val systemShutterSound = MediaActionSound().apply {
     load(MediaActionSound.SHUTTER_CLICK)
@@ -264,8 +257,6 @@ private fun playSystemShutterFallback() {
 }
 
 private fun playConfiguredShutterSound(context: Context) {
-    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    val customUri = prefs.getString("shutter_sound_uri", null)?.takeIf { it.isNotBlank() }
     val player = MediaPlayer()
     val prepared = runCatching {
         player.setAudioAttributes(
@@ -274,26 +265,20 @@ private fun playConfiguredShutterSound(context: Context) {
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
         )
-        if (customUri != null) {
-            player.setDataSource(context, Uri.parse(customUri))
-        } else {
-            val selectedSound = prefs.getString("shutter_sound_asset", "classic") ?: "classic"
-            val assetPath = bundledShutterSoundAssets[selectedSound] ?: bundledShutterSoundAssets.getValue("classic")
-            val soundFile = requireNotNull(CameraAssetStore.file(context, assetPath)) {
-                "Bundled shutter sound is missing: $assetPath"
-            }
-            player.setDataSource(soundFile.absolutePath)
+        val soundFile = requireNotNull(CameraAssetStore.file(context, DEFAULT_SHUTTER_SOUND_ASSET)) {
+            "Bundled default shutter sound is missing: $DEFAULT_SHUTTER_SOUND_ASSET"
         }
+        player.setDataSource(soundFile.absolutePath)
         player.setOnPreparedListener { mediaPlayer ->
             runCatching { mediaPlayer.start() }.onFailure {
-                android.util.Log.w("FUJI_SHUTTER", "Could not start selected shutter audio", it)
+                android.util.Log.w("FUJI_SHUTTER", "Could not start default shutter audio", it)
                 mediaPlayer.release()
                 playSystemShutterFallback()
             }
         }
         player.setOnCompletionListener { it.release() }
         player.setOnErrorListener { mediaPlayer, what, extra ->
-            android.util.Log.w("FUJI_SHUTTER", "Selected shutter audio failed: $what/$extra")
+            android.util.Log.w("FUJI_SHUTTER", "Default shutter audio failed: $what/$extra")
             mediaPlayer.release()
             playSystemShutterFallback()
             true
@@ -302,7 +287,7 @@ private fun playConfiguredShutterSound(context: Context) {
     }.isSuccess
     if (!prepared) {
         runCatching { player.release() }
-        android.util.Log.w("FUJI_SHUTTER", "Custom shutter audio unavailable; using Android camera shutter sound")
+        android.util.Log.w("FUJI_SHUTTER", "Default shutter audio unavailable; using Android camera shutter sound")
         playSystemShutterFallback()
     }
 }

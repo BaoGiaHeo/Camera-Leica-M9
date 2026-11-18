@@ -1,4 +1,5 @@
 name: LunaDream UI compile and test
+# Rebuild current branch source after the requested camera fixes.
 
 on:
   workflow_dispatch:

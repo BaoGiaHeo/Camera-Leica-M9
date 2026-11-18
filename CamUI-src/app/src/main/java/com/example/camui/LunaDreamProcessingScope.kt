@@ -2,6 +2,7 @@ package com.example.camui
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.SupervisorJob
 import kotlin.coroutines.CoroutineContext
 
@@ -14,5 +15,12 @@ import kotlin.coroutines.CoroutineContext
  */
 internal object LunaDreamProcessingScope : CoroutineScope {
     private val job = SupervisorJob()
-    override val coroutineContext: CoroutineContext = job + Dispatchers.IO
+    private val diagnosticsHandler = CoroutineExceptionHandler { _, failure ->
+        LunaDreamDiagnostics.record(
+            "COROUTINE_UNHANDLED",
+            "An unhandled exception escaped the LunaDream processing coroutine.",
+            failure
+        )
+    }
+    override val coroutineContext: CoroutineContext = job + Dispatchers.IO + diagnosticsHandler
 }

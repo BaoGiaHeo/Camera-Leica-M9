@@ -57,6 +57,8 @@ jobs:
 
       - name: Cold-start smoke test on Android 17 emulator
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: "yes"
         with:
           # Use the Android 17 Preview Google APIs 16 KB system image.
           api-level: "37.0"

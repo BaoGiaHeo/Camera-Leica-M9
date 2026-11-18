@@ -107,7 +107,7 @@ fun SettingsScreen(
                             ) {
                                 FujiIconGlyph(item.icon, Modifier.size(22.dp), if (active) FujiSkin.orange else FujiSkin.lcdGreen)
                                 Column(Modifier.weight(1f).padding(start = 6.dp)) {
-                                    Text("%02d  %s".format(index + 1, item.title.uppercase()), color = if (active) Color.White else Color(0xFFC7D0D1), fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 2, lineHeight = 9.sp)
+                                    Text("%02d  %s".format(index + 1, item.title), color = if (active) Color.White else Color(0xFFC7D0D1), fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 2, lineHeight = 9.sp)
                                     Box(Modifier.padding(top = 3.dp).width(if (active) 24.dp else 8.dp).height(2.dp).background(if (active) FujiSkin.orange else Color(0xFF526064)))
                                 }
                             }

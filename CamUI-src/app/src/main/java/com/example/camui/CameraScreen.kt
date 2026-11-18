@@ -441,14 +441,8 @@ fun CameraScreen(
         if (orientationListener.canDetectOrientation()) orientationListener.enable()
         onDispose { orientationListener.disable() }
     }
-    // Window configuration determines whether the visible preview frame is portrait or landscape.
-    LaunchedEffect(configuration.orientation) {
-        isLandscape = when (configuration.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> true
-            Configuration.ORIENTATION_PORTRAIT -> false
-            else -> currentDisplayIsLandscape(context)
-        }
-    }
+    // Fade only the live viewfinder while its geometry changes; camera controls stay portrait.
+    val previewOrientationAlpha = remember { Animatable(1f) }
     // Track camera use-case geometry so the shutter waits until the landscape binding is current.
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
     var boundCameraLandscape by remember { mutableStateOf(isLandscape) }
@@ -792,6 +786,42 @@ fun CameraScreen(
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var captureSetupReady by remember { mutableStateOf(false) }
+
+    // Rotate the preview independently from the portrait control layout. Fade it away first,
+    // update the preview orientation, then wait for CameraX to finish the new binding before
+    // revealing the live image again.
+    LaunchedEffect(configuration.orientation) {
+        val nextLandscape = when (configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> true
+            Configuration.ORIENTATION_PORTRAIT -> false
+            else -> currentDisplayIsLandscape(context)
+        }
+        if (nextLandscape == isLandscape) return@LaunchedEffect
+
+        val previousBindGeneration = cameraBindGeneration
+        previewOrientationAlpha.animateTo(
+            0f,
+            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+        )
+        isLandscape = nextLandscape
+
+        val waitStartedAt = SystemClock.elapsedRealtime()
+        while (SystemClock.elapsedRealtime() - waitStartedAt < 2_800L) {
+            val newBindingStarted = cameraBindGeneration > previousBindGeneration
+            if (newBindingStarted && captureSetupReady && camera != null &&
+                boundCameraLandscape == nextLandscape
+            ) {
+                break
+            }
+            delay(24L)
+        }
+
+        previewOrientationAlpha.animateTo(
+            1f,
+            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+        )
+    }
+
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
@@ -897,12 +927,12 @@ fun CameraScreen(
         }
     }
 
-    // CameraX owns the preview transform. Portrait fills the selected frame; landscape
-    // fits the complete sensor image so physical rotation never crops or zooms the preview.
+    // Fill the selected viewfinder ratio without stretching or changing the camera zoom.
+    // PreviewView crops only the displayed preview bounds when the selected ratio differs
+    // from the sensor stream, so 16:9, 1:1 and 21:9 do not remain visibly 4:3.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            // Fit the entire sensor image into the selected frame; never crop or enlarge it.
-            scaleType = PreviewView.ScaleType.FIT_CENTER
+            scaleType = PreviewView.ScaleType.FILL_CENTER
             setBackgroundColor(android.graphics.Color.rgb(38, 43, 51))
             // COMPATIBLE uses a TextureView-backed preview so PreviewView.bitmap can
             // preserve the exact last displayed frame during computational capture.
@@ -3720,6 +3750,7 @@ fun CameraScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF262B33))
                                 .border(1.dp, Color.White.copy(alpha = 0.24f), RoundedCornerShape(12.dp))
+                                .graphicsLayer { alpha = previewOrientationAlpha.value }
                                 .pointerInput(camera, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled) {
                                     detectTransformGestures { _, _, zoomChange, _ ->
                                         zoomAnimationJob?.cancel()

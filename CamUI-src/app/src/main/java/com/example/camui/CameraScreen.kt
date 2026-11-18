@@ -438,7 +438,7 @@ fun CameraScreen(
         if (orientationListener.canDetectOrientation()) orientationListener.enable()
         onDispose { orientationListener.disable() }
     }
-    // Fade only the live viewfinder while its geometry changes; camera controls stay portrait.
+    // Fade only the live viewfinder while its geometry changes; the hardware UI stays landscape.
     val previewOrientationAlpha = remember { Animatable(1f) }
     // Track camera use-case geometry so the shutter waits until the landscape binding is current.
     var boundCameraRotation by remember { mutableIntStateOf(targetRotation) }
@@ -1990,12 +1990,12 @@ fun CameraScreen(
         // The shutter must never pulse the LED: illumination is controlled only by Torch Mode.
         imageCapture?.flashMode = ImageCapture.FLASH_MODE_OFF
     }
-    LaunchedEffect(targetRotation, imageCapture, previewUseCase, analysisUseCase, videoCaptureUseCase) {
+    LaunchedEffect(targetRotation, isLandscape, imageCapture, previewUseCase, analysisUseCase, videoCaptureUseCase) {
         imageCapture?.targetRotation = targetRotation
         previewUseCase?.targetRotation = targetRotation
         analysisUseCase?.targetRotation = targetRotation
         videoCaptureUseCase?.targetRotation = targetRotation
-        // The viewfinder layout stays portrait; this only marks the camera's latest sensor rotation as ready.
+        // Record the latest physical orientation after both sensor rotation and preview geometry update.
         boundCameraRotation = targetRotation
         boundCameraLandscape = isLandscape
     }

@@ -51,6 +51,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/MainActivity.kt \
             CamUI-src/app/src/main/java/com/example/camui/NightShotProcessor.kt \
+            CamUI-src/app/src/main/java/com/example/camui/PhotoOutputResolution.kt \
             CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \

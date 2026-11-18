@@ -2797,9 +2797,9 @@ fun CameraScreen(
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
                                             val maxFrames = when {
-                                                captureUseMilkyWayStack || captureUseLunaDream20Stack -> 8
-                                                captureUseLunaDream15 -> 5
                                                 captureUseNightShot -> captureNightTargetFrames
+                                                captureUseLunaDream20Stack -> 8
+                                                captureUseLunaDream15 -> 5
                                                 else -> 5
                                             }
                                             if (captureUseNightShot) {

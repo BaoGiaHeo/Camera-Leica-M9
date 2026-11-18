@@ -5185,6 +5185,16 @@ fun CameraScreen(
                 }
             }
         }
+        if (ratioTransitionInProgress) {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.02f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { }
+            )
+        }
     }
 }
 

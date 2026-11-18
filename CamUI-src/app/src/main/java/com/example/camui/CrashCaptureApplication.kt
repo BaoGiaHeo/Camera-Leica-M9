@@ -23,7 +23,6 @@ import java.util.UUID
 class CrashCaptureApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        if (!BuildConfig.DEVELOPER_LOG_ENABLED) return
         LunaDreamDiagnostics.initialize(this)
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
@@ -52,9 +51,11 @@ class CrashCaptureApplication : Application() {
                     appendLine()
                     appendLine("EXCEPTION")
                     appendLine(stack)
-                    appendLine()
-                    appendLine("LUNADREAM WORKING LOG")
-                    appendLine(LunaDreamDiagnostics.read(this@CrashCaptureApplication))
+                    if (BuildConfig.DEVELOPER_LOG_ENABLED) {
+                        appendLine()
+                        appendLine("LUNADREAM WORKING LOG")
+                        appendLine(LunaDreamDiagnostics.read(this@CrashCaptureApplication))
+                    }
                 }
                 reportFile.writeText(report, Charsets.UTF_8)
                 Log.e("FujiFilmCrash", "Uncaught exception captured. Report: ${reportFile.absolutePath}", error)

@@ -4708,9 +4708,11 @@ fun CameraScreen(
             ) {
                 controlsContent(
                     Modifier.fillMaxWidth()
-                        .then(if (uiIsLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
+                        // Keep the portrait control stack compact in landscape so the
+                        // selected-ratio preview still has enough room to render horizontally.
+                        .then(if (isLandscape) Modifier.heightIn(max = 148.dp) else Modifier)
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = if (uiIsLandscape) 4.dp else 0.dp)
+                        .padding(bottom = if (isLandscape) 4.dp else 0.dp)
                 )
             }
         }

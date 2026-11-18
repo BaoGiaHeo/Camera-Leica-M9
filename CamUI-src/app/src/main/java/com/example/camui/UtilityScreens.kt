@@ -336,6 +336,8 @@ fun ToolboxScreen(
     var filmHighlight by remember { mutableStateOf(prefs.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)) }
     var filmShadow by remember { mutableStateOf(prefs.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)) }
     var filmColorChrome by remember { mutableStateOf(prefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)) }
+    var filmSharpness by remember { mutableStateOf(prefs.getFloat("film_custom_sharpness", 0f).coerceIn(0f, 1f)) }
+    var filmNoiseReduction by remember { mutableStateOf(prefs.getFloat("film_custom_noise_reduction", 0f).coerceIn(0f, 1f)) }
     var filmGrain by remember { mutableStateOf(prefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)) }
     var filmTemperature by remember { mutableStateOf(prefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)) }
     var filmTone by remember { mutableStateOf(prefs.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)) }
@@ -344,6 +346,7 @@ fun ToolboxScreen(
     val filmRecipeKeys = remember {
         listOf(
             "film_custom_highlight", "film_custom_shadow", "film_custom_color_chrome",
+            "film_custom_sharpness", "film_custom_noise_reduction",
             "film_custom_grain", "film_custom_temperature", "film_custom_tone", "film_custom_saturation",
             "selected_filter"
         )
@@ -355,6 +358,8 @@ fun ToolboxScreen(
                 "film_custom_highlight" -> editor.putFloat("$slot.$key", filmHighlight)
                 "film_custom_shadow" -> editor.putFloat("$slot.$key", filmShadow)
                 "film_custom_color_chrome" -> editor.putFloat("$slot.$key", filmColorChrome)
+                "film_custom_sharpness" -> editor.putFloat("$slot.$key", filmSharpness)
+                "film_custom_noise_reduction" -> editor.putFloat("$slot.$key", filmNoiseReduction)
                 "film_custom_grain" -> editor.putFloat("$slot.$key", filmGrain)
                 "film_custom_temperature" -> editor.putFloat("$slot.$key", filmTemperature)
                 "film_custom_tone" -> editor.putFloat("$slot.$key", filmTone)
@@ -376,6 +381,8 @@ fun ToolboxScreen(
         filmHighlight = values.getFloat("$slot.film_custom_highlight", 0f).coerceIn(-1f, 1f)
         filmShadow = values.getFloat("$slot.film_custom_shadow", 0f).coerceIn(-1f, 1f)
         filmColorChrome = values.getFloat("$slot.film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+        filmSharpness = values.getFloat("$slot.film_custom_sharpness", 0f).coerceIn(0f, 1f)
+        filmNoiseReduction = values.getFloat("$slot.film_custom_noise_reduction", 0f).coerceIn(0f, 1f)
         filmGrain = values.getFloat("$slot.film_custom_grain", 0f).coerceIn(0f, 1f)
         filmTemperature = values.getFloat("$slot.film_custom_temperature", 0f).coerceIn(-1f, 1f)
         filmTone = values.getFloat("$slot.film_custom_tone", 0f).coerceIn(-1f, 1f)
@@ -385,6 +392,8 @@ fun ToolboxScreen(
             .putFloat("film_custom_highlight", filmHighlight)
             .putFloat("film_custom_shadow", filmShadow)
             .putFloat("film_custom_color_chrome", filmColorChrome)
+            .putFloat("film_custom_sharpness", filmSharpness)
+            .putFloat("film_custom_noise_reduction", filmNoiseReduction)
             .putFloat("film_custom_grain", filmGrain)
             .putFloat("film_custom_temperature", filmTemperature)
             .putFloat("film_custom_tone", filmTone)
@@ -558,12 +567,41 @@ fun ToolboxScreen(
                 filmColorChrome = it
                 prefs.edit().putFloat("film_custom_color_chrome", it).apply()
             }, valueRange = 0f..1f)
-            Text("Grain · ${String.format(Locale.US, "%.2f", filmGrain)}",
+            Text("${localizedUiText(context, "Sharpness")} · ${String.format(Locale.US, "%.2f", filmSharpness)}",
                 color = CamColors.Sub, fontSize = 12.sp)
-            FujiSliderCompat(filmGrain, {
-                filmGrain = it
-                prefs.edit().putFloat("film_custom_grain", it).apply()
+            FujiSliderCompat(filmSharpness, {
+                filmSharpness = it
+                prefs.edit().putFloat("film_custom_sharpness", it).apply()
             }, valueRange = 0f..1f)
+            Text("${localizedUiText(context, "Noise reduction")} · ${String.format(Locale.US, "%.2f", filmNoiseReduction)}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            FujiSliderCompat(filmNoiseReduction, {
+                filmNoiseReduction = it
+                prefs.edit().putFloat("film_custom_noise_reduction", it).apply()
+            }, valueRange = 0f..1f)
+            Text("${localizedUiText(context, "Grain")} · ${localizedUiText(context, when {
+                filmGrain < 0.15f -> "Off"
+                filmGrain < 0.6f -> "Weak"
+                else -> "Strong"
+            })}",
+                color = CamColors.Sub, fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(
+                    "Off" to 0f,
+                    "Weak" to 0.35f,
+                    "Strong" to 0.75f
+                ).forEach { (label, value) ->
+                    Chip(
+                        localizedUiText(context, label),
+                        kotlin.math.abs(filmGrain - value) < 0.08f,
+                        {
+                            filmGrain = value
+                            prefs.edit().putFloat("film_custom_grain", value).apply()
+                        },
+                        Modifier.weight(1f)
+                    )
+                }
+            }
             Text("Color Temperature · ${String.format(Locale.US, "%+.2f", filmTemperature)}",
                 color = CamColors.Sub, fontSize = 12.sp)
             FujiSliderCompat(filmTemperature, {
@@ -585,6 +623,8 @@ fun ToolboxScreen(
                 filmHighlight = 0f
                 filmShadow = 0f
                 filmColorChrome = 0f
+                filmSharpness = 0f
+                filmNoiseReduction = 0f
                 filmGrain = 0f
                 filmTemperature = 0f
                 filmTone = 0f
@@ -593,6 +633,8 @@ fun ToolboxScreen(
                     .putFloat("film_custom_highlight", 0f)
                     .putFloat("film_custom_shadow", 0f)
                     .putFloat("film_custom_color_chrome", 0f)
+                    .putFloat("film_custom_sharpness", 0f)
+                    .putFloat("film_custom_noise_reduction", 0f)
                     .putFloat("film_custom_grain", 0f)
                     .putFloat("film_custom_temperature", 0f)
                     .putFloat("film_custom_tone", 0f)

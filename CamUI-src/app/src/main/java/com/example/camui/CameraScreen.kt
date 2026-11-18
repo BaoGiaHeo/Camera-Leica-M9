@@ -644,6 +644,7 @@ fun CameraScreen(
     val filmWashProgress = remember { Animatable(0f) }
     var frozenPreviewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewFreezeEffect by remember { mutableStateOf("off") }
+    var previewFreezeVisible by remember { mutableStateOf(false) }
     val previewFreezeAlpha = remember { Animatable(0f) }
     val previewEffectPosition = remember { Animatable(-0.35f) }
     val previewFreezeBlockInteraction = remember { MutableInteractionSource() }
@@ -699,6 +700,7 @@ fun CameraScreen(
     LaunchedEffect(previewFreezeEffect, isProcessing) {
         val activeEffect = previewFreezeEffect
         if (activeEffect == "off") {
+            previewFreezeVisible = false
             previewFreezeAlpha.snapTo(0f)
             return@LaunchedEffect
         }
@@ -707,10 +709,12 @@ fun CameraScreen(
                 0f,
                 animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
             )
+            previewFreezeVisible = false
             frozenPreviewBitmap = null
             previewFreezeEffect = "off"
             return@LaunchedEffect
         }
+        previewFreezeVisible = true
         previewFreezeAlpha.snapTo(0f)
         previewFreezeAlpha.animateTo(
             1f,
@@ -4118,7 +4122,7 @@ fun CameraScreen(
                                         .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
                                 )
                             }
-                            if (previewFreezeEffect != "off" && isProcessing) {
+                            if (previewFreezeVisible && previewFreezeEffect != "off") {
                                 val effectMode = previewFreezeEffect
                                 val overlayAlpha = previewFreezeAlpha.value
                                 Box(Modifier.fillMaxSize()) {

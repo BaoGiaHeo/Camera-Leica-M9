@@ -4552,7 +4552,7 @@ fun CameraScreen(
 
     val leftHardwareContent: @Composable (Modifier) -> Unit = { sideModifier ->
         Column(
-            sideModifier.width(82.dp).fillMaxHeight().padding(horizontal = 3.dp, vertical = 8.dp),
+            sideModifier.width(88.dp).fillMaxHeight().padding(horizontal = 3.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
@@ -4748,6 +4748,13 @@ fun CameraScreen(
         }
     }
 
+    val leftHandedLayout = appPrefs.getBoolean("left_handed_layout_enabled", false)
+    val simpleUiMode = appPrefs.getBoolean("simple_ui_mode_enabled", false)
+    val leftPanelContent: @Composable (Modifier) -> Unit =
+        if (leftHandedLayout) rightHardwareContent else leftHardwareContent
+    val rightPanelContent: @Composable (Modifier) -> Unit =
+        if (leftHandedLayout) leftHardwareContent else rightHardwareContent
+
     FujiLeatherSurface(
         Modifier.fillMaxSize().animaTContent()
             .pointerInput(hudAutoHideEnabled) {
@@ -4763,6 +4770,8 @@ fun CameraScreen(
                     }
                 }
             }
+        ,
+        simpleMode = simpleUiMode
     ) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 5.dp)
@@ -4782,11 +4791,11 @@ fun CameraScreen(
             ) {
                 AnimatedVisibility(
                     visible = hudVisible,
-                    modifier = Modifier.width(82.dp).fillMaxHeight(),
+                    modifier = Modifier.width(88.dp).fillMaxHeight(),
                     enter = fadeIn(tween(180)) + slideInHorizontally { -it / 10 },
                     exit = fadeOut(tween(160)) + slideOutHorizontally { -it / 12 }
                 ) {
-                    leftHardwareContent(Modifier.fillMaxHeight())
+                    leftPanelContent(Modifier.fillMaxHeight())
                 }
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     previewContent(Modifier.weight(1f).fillMaxWidth())
@@ -4808,7 +4817,7 @@ fun CameraScreen(
                     enter = fadeIn(tween(180)) + slideInHorizontally { it / 10 },
                     exit = fadeOut(tween(160)) + slideOutHorizontally { it / 12 }
                 ) {
-                    rightHardwareContent(Modifier.fillMaxHeight())
+                    rightPanelContent(Modifier.fillMaxHeight())
                 }
             }
         }

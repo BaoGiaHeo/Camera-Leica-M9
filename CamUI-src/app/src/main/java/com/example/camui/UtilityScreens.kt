@@ -512,7 +512,7 @@ fun ToolboxScreen(
             } else "Chưa lưu"
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(11.dp)).background(FujiSkin.lcd)
+                    .clip(RoundedCornerShape(3.dp)).background(FujiSkin.lcd)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -531,8 +531,8 @@ fun ToolboxScreen(
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 4.dp)) {
         Spacer(Modifier.height(12.dp))
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(FujiSkin.lcd).padding(12.dp)
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp))
+                .background(FujiSkin.lcd).border(1.dp, Color(0xFF344247), RoundedCornerShape(3.dp)).padding(12.dp)
         ) {
             Text("Film Simulation Customizer", color = CamColors.TextColor,
                 fontSize = 16.sp, fontWeight = FontWeight.Bold)

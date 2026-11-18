@@ -82,9 +82,12 @@ fun SettingsScreen(
 ) {
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
+    val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
+        settingItems + SettingItem("tab_10", "LOG LunaDream Working", "LunaDream processing · Crash diagnostics")
+    } else settingItems
     val tabState = rememberLazyListState()
     LaunchedEffect(selectedCategory) {
-        val index = settingItems.indexOfFirst { it.title == selectedCategory }
+        val index = visibleSettingItems.indexOfFirst { it.title == selectedCategory }
         if (index >= 0) tabState.animateScrollToItem(index)
     }
     FujiScreenScaffold(
@@ -96,7 +99,7 @@ fun SettingsScreen(
                 Text("MENU TABS", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     LazyColumn(state = tabState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        itemsIndexed(settingItems) { index, item ->
+                        itemsIndexed(visibleSettingItems) { index, item ->
                             val active = selectedCategory == item.title
                             Row(
                                 Modifier.fillMaxWidth().background(if (active) Color(0xFF20292B) else Color(0xFF0A0D0E))
@@ -117,7 +120,7 @@ fun SettingsScreen(
                     val maxIndex = (settingItems.size - visible).coerceAtLeast(1)
                     FujiScrollbar(
                         fraction = (tabState.firstVisibleItemIndex.toFloat() / maxIndex).coerceIn(0f, 1f),
-                        visibleFraction = (visible.toFloat() / settingItems.size).coerceIn(0.08f, 1f),
+                        visibleFraction = (visible.toFloat() / visibleSettingItems.size).coerceIn(0.08f, 1f),
                         modifier = Modifier.fillMaxHeight().padding(start = 3.dp)
                     )
                 }
@@ -588,6 +591,9 @@ var nightShotMode by remember {
                         }, Modifier.width(75.dp))
                     }
                 }
+            }
+            "LOG LunaDream Working" -> {
+                LunaDreamDeveloperLogPanel()
             }
             else -> {
                 Text("LunaDream Camera", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)

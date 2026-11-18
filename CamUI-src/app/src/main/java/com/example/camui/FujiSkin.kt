@@ -561,7 +561,7 @@ fun FujiShutterButton(
 @Composable
 fun FujiSlider(
     value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     steps: Int = 0,

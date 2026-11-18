@@ -49,6 +49,16 @@ jobs:
         working-directory: CamUI-src
         run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
+      - name: Publish debug APK immediately after build
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-1.6-app-debug
+          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+
       - name: Update Android command-line tools for API 37 preview emulator
         run: |
           yes | sdkmanager --licenses --channel=3 >/dev/null
@@ -204,15 +214,6 @@ jobs:
               exit 25
             fi
             echo "crash_report_ok_closed_main_process=1" >> emulator-artifacts/command-status.txt
-
-      - name: Upload debug APK (also when Emulator validation fails)
-        if: always() && !cancelled()
-        uses: actions/upload-artifact@v4
-        with:
-          name: FujiFilm-Mode-1.6-app-debug
-          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
 
       - name: Upload emulator inspection
         if: always()

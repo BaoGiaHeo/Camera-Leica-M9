@@ -36,6 +36,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Rational
+import android.util.Log
 import android.util.Size
 import android.view.Surface
 import android.view.HapticFeedbackConstants
@@ -190,6 +191,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Job
@@ -265,6 +267,10 @@ private class SensorOrientationManager {
         return lastValidRotation
     }
 }
+
+private const val DEBUG_FUJI_LAYOUT = true
+
+private enum class RatioUiTransitionState { Idle, FadingOut, Swapping, FadingIn }
 
 private val meteringModes = listOf("Center", "Matrix", "Spot")
 private val wbModes = listOf(
@@ -465,17 +471,43 @@ fun CameraScreen(
     // Fade only the live viewfinder while its geometry changes; the hardware UI stays landscape.
     val previewOrientationAlpha = remember { Animatable(1f) }
     val ratioUiAlpha = remember { Animatable(1f) }
-    var ratioTransitionInProgress by remember { mutableStateOf(false) }
+    var ratioTransitionState by remember { mutableStateOf(RatioUiTransitionState.Idle) }
+    val ratioTransitionInProgress = ratioTransitionState != RatioUiTransitionState.Idle
+
     fun changeAspectRatio(nextIndex: Int) {
         val safeIndex = nextIndex.coerceIn(0, aspectRatios.lastIndex)
-        if (safeIndex == ratioIdx || ratioTransitionInProgress) return
+        if (safeIndex == ratioIdx || ratioTransitionState != RatioUiTransitionState.Idle) return
         scope.launch {
-            ratioTransitionInProgress = true
-            ratioUiAlpha.animateTo(0f, animationSpec = tween(200, easing = FastOutSlowInEasing))
-            onRatio(safeIndex)
-            delay(24L)
-            ratioUiAlpha.animateTo(1f, animationSpec = tween(250, easing = FastOutSlowInEasing))
-            ratioTransitionInProgress = false
+            try {
+                ratioTransitionState = RatioUiTransitionState.FadingOut
+                ratioUiAlpha.animateTo(0f, animationSpec = tween(200, easing = FastOutSlowInEasing))
+                ratioTransitionState = RatioUiTransitionState.Swapping
+                onRatio(safeIndex)
+                delay(24L)
+                ratioTransitionState = RatioUiTransitionState.FadingIn
+                ratioUiAlpha.animateTo(1f, animationSpec = tween(250, easing = FastOutSlowInEasing))
+            } finally {
+                withContext(NonCancellable) {
+                    ratioUiAlpha.snapTo(1f)
+                    ratioTransitionState = RatioUiTransitionState.Idle
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(100L)
+            if (ratioUiAlpha.value <= 0.001f && ratioTransitionState != RatioUiTransitionState.Swapping) {
+                delay(650L)
+                if (ratioUiAlpha.value <= 0.001f && ratioTransitionState != RatioUiTransitionState.Swapping) {
+                    withContext(NonCancellable) {
+                        ratioUiAlpha.snapTo(1f)
+                        ratioTransitionState = RatioUiTransitionState.Idle
+                    }
+                    Log.w("LUNA_LAYOUT", "Ratio UI watchdog restored chrome alpha to 1")
+                }
+            }
         }
     }
     // Track camera use-case geometry so the shutter waits until the landscape binding is current.
@@ -595,11 +627,8 @@ fun CameraScreen(
     var lensCorrectionEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("lens_correction_enabled", true))
     }
-    var hudAutoHideEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("hud_auto_hide_enabled", true))
-    }
+    // Chrome remains visible until the user explicitly presses DISP/BACK.
     var hudVisible by remember { mutableStateOf(true) }
-    var hudActivityToken by remember { mutableIntStateOf(0) }
     var proHudShowEv by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_ev", true)) }
     var proHudShowShutter by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_shutter", true)) }
     var proHudShowIso by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_iso", true)) }
@@ -776,16 +805,6 @@ fun CameraScreen(
             thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
             processingPanelOffset = Offset.Zero
         }
-    }
-    LaunchedEffect(hudAutoHideEnabled, hudActivityToken, isProcessing) {
-        if (!hudAutoHideEnabled) {
-            hudVisible = true
-            return@LaunchedEffect
-        }
-        hudVisible = true
-        if (isProcessing) return@LaunchedEffect
-        delay(5_000L)
-        hudVisible = false
     }
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
     // Keep the EV thumb independent from delayed per-frame Camera2 results while dragging.

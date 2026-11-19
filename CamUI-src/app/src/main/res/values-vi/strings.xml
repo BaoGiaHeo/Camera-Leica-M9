@@ -31,4 +31,8 @@
     <string name="tone_pad_snap">HÍT VÀO LƯỚI</string>
     <string name="tone_pad_on">BẬT</string>
     <string name="tone_pad_off">TẮT</string>
+    <string name="display_mode_standard">TIÊU CHUẨN</string>
+    <string name="display_mode_full_info">ĐẦY ĐỦ THÔNG TIN</string>
+    <string name="display_mode_clean">TỐI GIẢN</string>
+    <string name="display_mode_level_grid">CÂN BẰNG + LƯỚI</string>
 </resources>

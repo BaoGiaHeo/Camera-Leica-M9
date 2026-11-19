@@ -5110,7 +5110,7 @@ fun CameraScreen(
                         }
                         if (mode == "Pro") {
                             Box(Modifier.fillMaxWidth().height(44.dp).graphicsLayer { alpha = chromeAlpha }) {
-                                controlsContent(Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
+                                controlsContent(Modifier.fillMaxSize())
                             }
                         }
                     }
@@ -5501,28 +5501,39 @@ private fun FilterLookPreviewImage(
     preset: String,
     modifier: Modifier,
     maxDimension: Int,
-    tonePad: TonePadParameters? = null
+    tonePad: TonePadParameters? = null,
+    liveTonePad: Boolean = true
 ) {
     val context = LocalContext.current
+    val tonePadShader = remember {
+        if (Build.VERSION.SDK_INT >= 33) runCatching { TonePadLiveShader() }.getOrNull() else null
+    }
+    val tonePadForBitmap = if (liveTonePad && tonePadShader != null && tonePad != null) null else tonePad
+    androidx.compose.runtime.SideEffect {
+        tonePadShader?.update(tonePad ?: TonePadParameters())
+    }
     val renderedState by produceState(
         initialValue = Pair(false, null as ImageBitmap?),
         source,
         preset,
         maxDimension,
-        tonePad
+        tonePadForBitmap
     ) {
         val rendered = withContext(Dispatchers.Default) {
-            renderCameraLookPreview(context, source, preset, maxDimension, tonePad)
+            renderCameraLookPreview(context, source, preset, maxDimension, tonePadForBitmap)
         }
         value = true to rendered?.asImageBitmap()
     }
     val preview = renderedState.second
+    val tonePadEffectModifier = if (liveTonePad && tonePadShader != null && tonePad != null) {
+        Modifier.graphicsLayer { renderEffect = tonePadShader.composeEffect }
+    } else Modifier
     when {
         preview != null -> {
             Image(
                 bitmap = preview,
                 contentDescription = "$preset preview",
-                modifier = modifier,
+                modifier = modifier.then(tonePadEffectModifier),
                 contentScale = ContentScale.Crop
             )
         }
@@ -5591,6 +5602,8 @@ private fun FilterLookDialog(
             }
         )
     }
+    var tonePadCommitted by remember(activeFilter) { mutableStateOf(tonePadSettings) }
+    var tonePadOriginalActivated by remember(activeFilter) { mutableStateOf(false) }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -5659,7 +5672,8 @@ private fun FilterLookDialog(
                 preset = if (showingOriginal) "None" else activeFilter,
                 modifier = Modifier.fillMaxSize(),
                 maxDimension = 480,
-                tonePad = if (showingOriginal) TonePadParameters() else tonePadSettings
+                tonePad = if (showingOriginal) TonePadParameters() else
+                     tonePadSettings.takeIf { activeFilter != "None" || tonePadOriginalActivated }
             )
             Text(
                 if (showingOriginal) "ẢNH GỐC · THẢ ĐỂ XEM LỌC" else "GIỮ ĐỂ XEM ẢNH GỐC",
@@ -5686,7 +5700,7 @@ private fun FilterLookDialog(
             value = filterSearch,
             onValueChange = { filterSearch = it },
             modifier = paneModifier.fillMaxWidth(),
-            placeholder = "Tìm bộ lọc..."
+            placeholder = stringResource(R.string.filter_search_placeholder)
         )
     }
     val categoryPane: @Composable (Modifier) -> Unit = { paneModifier ->
@@ -5734,7 +5748,8 @@ private fun FilterLookDialog(
                                             preset = preset,
                                             modifier = Modifier.fillMaxSize(),
                                             maxDimension = 192,
-                                            tonePad = if (preset == activeFilter) tonePadSettings else null
+                                            tonePad = if (preset == activeFilter) tonePadCommitted else null,
+                                             liveTonePad = false
                                         )
                                         if (selected) {
                                             Text(
@@ -5777,7 +5792,7 @@ private fun FilterLookDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         FujiPanel(
-            title = "FILM FILTERS",
+            title = stringResource(R.string.film_filters_title),
             modifier = Modifier.fillMaxWidth(0.97f)
                 .then(if (isLandscape) Modifier.fillMaxHeight(0.94f) else Modifier.heightIn(max = dialogMaxHeight)),
             onBack = onDismiss
@@ -5788,42 +5803,57 @@ private fun FilterLookDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Column(
-                        Modifier.weight(0.82f).fillMaxHeight(),
+                        Modifier.weight(0.88f).fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            if (showingOriginal || activeFilter == "None") "Preview · Ảnh gốc"
-                            else "Preview · $activeFilterName",
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
+                        Column(
+                            Modifier.weight(0.58f).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                if (showingOriginal || activeFilter == "None") {
+                                    stringResource(R.string.filter_preview_original)
+                                } else {
+                                    stringResource(R.string.filter_preview_name, activeFilterName)
+                                },
+                                color = FujiSkin.lcdGreen,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                            previewPane(Modifier.weight(1f).fillMaxWidth())
+                        }
+                        TonePadBoard(
+                            filterName = activeFilter,
+                            compact = true,
+                            enabled = activeFilter != "None" || tonePadOriginalActivated,
+                            modifier = Modifier.weight(0.42f).fillMaxWidth(),
+                            onActivate = { tonePadOriginalActivated = true },
+                            onToneChanged = { tonePadSettings = it },
+                            onToneSettled = {
+                                tonePadSettings = it
+                                tonePadCommitted = it
+                            }
                         )
-                        previewPane(Modifier.weight(1f).fillMaxWidth())
                     }
                     Column(
-                        Modifier.weight(1.18f).fillMaxHeight(),
+                        Modifier.weight(1.12f).fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         searchPane(Modifier)
                         categoryPane(Modifier)
                         Text(
-                            "${visiblePresets.size} / ${allLookEntries.size} BỘ LỌC",
+                            stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
                             color = FujiSkin.lcdGreen,
                             fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
                             fontSize = 9.sp
                         )
-                        if (activeFilter != "None") {
-                            TonePadBoard(
-                                filterName = activeFilter,
-                                onToneChanged = { tonePadSettings = it }
-                            )
-                        }
                         presetGrid(Modifier.weight(1f).fillMaxWidth())
                     }
                 }
             } else {
                 Text(
-                    if (activeFilter == "None") "Preview · Ảnh gốc" else "Preview · " + activeFilterName,
+                    if (activeFilter == "None") stringResource(R.string.filter_preview_original) else stringResource(R.string.filter_preview_name, activeFilterName),
                     color = FujiSkin.lcdGreen,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,

@@ -1,5 +1,8 @@
 package com.example.camui
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.aspectRatio
 import android.graphics.Rect
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
@@ -68,6 +71,11 @@ private val tonePadBayer4 = arrayOf(
 fun TonePadBoard(
     filterName: String,
     onToneChanged: (TonePadParameters) -> Unit = {},
+    onToneSettled: (TonePadParameters) -> Unit = {},
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    enabled: Boolean = true,
+    onActivate: () -> Unit = {},
     advancedContent: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -110,23 +118,27 @@ fun TonePadBoard(
         darkBright = ny
         fingerX = nx
         fingerY = ny
-        preferences.edit()
-            .putFloat("$preferencePrefix.x", nx)
-            .putFloat("$preferencePrefix.y", ny)
-            .apply()
         onToneChanged(TonePadParameters(nx, ny, intensity))
     }
     val setDragging by rememberUpdatedState<(Boolean) -> Unit> { dragging ->
         puckDragging = dragging
     }
+    val commitTone by rememberUpdatedState<(TonePadParameters) -> Unit> { value ->
+        preferences.edit()
+            .putFloat("$preferencePrefix.x", value.paleRich)
+            .putFloat("$preferencePrefix.y", value.darkBright)
+            .putFloat("$preferencePrefix.intensity", value.intensity)
+            .apply()
+        onToneSettled(value)
+    }
     val resetPosition by rememberUpdatedState<() -> Unit> {
         updatePosition(0f, 0f)
+        commitTone(TonePadParameters(0f, 0f, intensity))
         view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
         view.playSoundEffect(SoundEffectConstants.CLICK)
     }
 
-    LaunchedEffect(intensity, filterName) {
-        preferences.edit().putFloat("$preferencePrefix.intensity", intensity).apply()
+    androidx.compose.runtime.SideEffect {
         onToneChanged(TonePadParameters(paleRich, darkBright, intensity))
     }
 
@@ -149,8 +161,8 @@ fun TonePadBoard(
     }
 
     Column(
-        Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier.fillMaxWidth().then(if (!enabled) Modifier.graphicsLayer { alpha = 0.42f } else Modifier),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp)
     ) {
         Row(
             Modifier.fillMaxWidth(),
@@ -199,9 +211,16 @@ fun TonePadBoard(
             }
         }
 
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 0.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         BoxWithConstraints(
-            Modifier.fillMaxWidth()
-                .height(190.dp)
+            Modifier.then(
+                if (compact) Modifier.weight(1f).height(104.dp).aspectRatio(4f / 3f)
+                else Modifier.fillMaxWidth().height(190.dp)
+            )
                 .clip(RoundedCornerShape(4.dp))
                 .background(Color(0xFF090E10))
                 .border(1.dp, Color(0xFF4A5A5F), RoundedCornerShape(4.dp))
@@ -222,7 +241,9 @@ fun TonePadBoard(
                             pass = PointerEventPass.Initial
                         )
                         down.consume()
+                        view.requestUnbufferedDispatch()
                         view.parent?.requestDisallowInterceptTouchEvent(true)
+                        if (!enabled) onActivate()
                         val startedAt = SystemClock.uptimeMillis()
                         val width = size.width.toFloat().coerceAtLeast(1f)
                         val height = size.height.toFloat().coerceAtLeast(1f)
@@ -314,13 +335,16 @@ fun TonePadBoard(
                             } else if (pointerMoved || longPressReset || !pointerReleased) {
                                 lastTapAt.longValue = 0L
                             }
+                            if (pointerReleased && !longPressReset) {
+                                commitTone(TonePadParameters(paleRich, darkBright, intensity))
+                            }
                             setDragging(false)
                             view.parent?.requestDisallowInterceptTouchEvent(false)
                         }
                     }
                 }
         ) {
-            Canvas(Modifier.fillMaxWidth().height(190.dp)) {
+            Canvas(Modifier.fillMaxSize()) {
                 val columns = 9
                 val rows = 7
                 val cellWidth = size.width / columns
@@ -451,6 +475,32 @@ fun TonePadBoard(
                 )
             }
         }
+        if (compact) {
+            Column(
+                Modifier.width(18.dp).height(104.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                repeat(20) { index ->
+                    Box(
+                        Modifier.weight(1f).fillMaxWidth()
+                            .background(if (intensity >= index / 19f) FujiSkin.orange else Color(0xFF1E2528))
+                            .clickable {
+                                intensity = index / 19f
+                                onToneChanged(TonePadParameters(paleRich, darkBright, intensity))
+                                commitTone(TonePadParameters(paleRich, darkBright, intensity))
+                            }
+                    )
+                }
+                Text(
+                    stringResource(R.string.tone_pad_palette_short, (intensity * 100f).roundToInt()),
+                    color = FujiSkin.lcdGreen,
+                    fontSize = 6.sp,
+                    maxLines = 1
+                )
+            }
+        }
+        }
 
         Row(
             Modifier.fillMaxWidth(),
@@ -466,17 +516,22 @@ fun TonePadBoard(
         )
         Slider(
             value = intensity,
-            onValueChange = { intensity = it.coerceIn(0f, 1f) },
+            onValueChange = {
+                intensity = it.coerceIn(0f, 1f)
+                onToneChanged(TonePadParameters(paleRich, darkBright, intensity))
+            },
+            onValueChangeFinished = { commitTone(TonePadParameters(paleRich, darkBright, intensity)) },
             valueRange = 0f..1f
         )
-        if (guideEnabled) {
+        }
+        if (guideEnabled && !compact) {
             Text(
                 stringResource(R.string.tone_pad_hint),
                 color = CamColors.Sub,
                 fontSize = 8.sp
             )
         }
-        Row(
+        if (!compact) Row(
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(3.dp))
                 .background(FujiSkin.lcd)
@@ -489,7 +544,7 @@ fun TonePadBoard(
             Text(stringResource(R.string.tone_pad_advanced), color = CamColors.TextColor, fontSize = 9.sp)
             Text(if (advancedExpanded) "−" else "+", color = FujiSkin.lcdGreen, fontSize = 12.sp)
         }
-        AnimatedVisibility(advancedExpanded) {
+        if (!compact) AnimatedVisibility(advancedExpanded) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(
                     Modifier.fillMaxWidth(),

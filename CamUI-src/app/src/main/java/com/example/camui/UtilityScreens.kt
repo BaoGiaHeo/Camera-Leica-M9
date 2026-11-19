@@ -2402,7 +2402,9 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
         kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
         kotlin.math.abs(prefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("${TonePadMath.preferencePrefix(preset)}.x", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("${TonePadMath.preferencePrefix(preset)}.y", 0f)) > 0.001f
     if (preset == "None" && !hasCustomAdjustments) return false
 
     return runCatching {

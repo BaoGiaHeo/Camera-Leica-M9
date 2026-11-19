@@ -139,6 +139,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -660,6 +661,7 @@ fun CameraScreen(
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
+    var zoomHoldDirection by remember { mutableIntStateOf(0) }
     var zoomAnimationJob by remember { mutableStateOf<Job?>(null) }
     var lensTransitionVisible by remember { mutableStateOf(false) }
     var lensTransitionLabel by remember { mutableStateOf("") }
@@ -795,6 +797,7 @@ fun CameraScreen(
     }
     // EV is a command value. Do not overwrite it with delayed per-frame Camera2 results.
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
+    var evHoldDirection by remember { mutableIntStateOf(0) }
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
     var focusDiopter by remember { mutableFloatStateOf(0f) }
@@ -950,6 +953,95 @@ fun CameraScreen(
         delay(250)
         appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
     }
+
+    LaunchedEffect(zoomHoldDirection, camera, activeCameraDetails, activePhysicalCameraDetails) {
+        val direction = zoomHoldDirection
+        val active = camera
+        if (direction == 0 || active == null) return@LaunchedEffect
+        delay(180L)
+        var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
+        var previousFrame = 0L
+        var heldSeconds = 0f
+        var lastDiagnosticAt = SystemClock.uptimeMillis()
+        var tickCount = 0
+        android.util.Log.d("FUJI_ZOOM", "PRESS_START direction=$direction zoom=$targetZoom")
+        while (true) {
+            val frame = withFrameNanos { it }
+            val dt = if (previousFrame == 0L) 0f else
+                ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, 0.05f)
+            previousFrame = frame
+            if (dt <= 0f) continue
+            heldSeconds += dt
+            val state = active.cameraInfo.zoomState.value ?: continue
+            val minimum = state.minZoomRatio
+            val maximum = Camera2Info.maxSelectableZoom(
+                activeCameraDetails,
+                activePhysicalCameraDetails,
+                state.maxZoomRatio
+            )
+            val speedRatioPerSecond = 0.65f + (heldSeconds * 1.05f).coerceAtMost(3.0f)
+            val next = (targetZoom + direction * speedRatioPerSecond * dt).coerceIn(minimum, maximum)
+            if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
+                targetZoom = next
+                zoomSel = next
+                active.cameraControl.setZoomRatio(next)
+                tickCount++
+            }
+            val now = SystemClock.uptimeMillis()
+            if (now - lastDiagnosticAt >= 1_000L) {
+                android.util.Log.d(
+                    "FUJI_ZOOM",
+                    "HOLD_TICK direction=$direction ticks=$tickCount zoom=$targetZoom cameraZoom=${state.zoomRatio}"
+                )
+                lastDiagnosticAt = now
+                tickCount = 0
+            }
+        }
+    }
+    LaunchedEffect(evHoldDirection, camera, mode, proSel) {
+        val direction = evHoldDirection
+        val active = camera
+        val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
+        if (direction == 0 || active == null || range == null) return@LaunchedEffect
+        delay(180L)
+        var targetIndex = evIndex.coerceIn(range.lower, range.upper)
+        var previousFrame = 0L
+        var heldSeconds = 0f
+        var accumulator = 0f
+        var lastDiagnosticAt = SystemClock.uptimeMillis()
+        var tickCount = 0
+        android.util.Log.d("FUJI_EV", "PRESS_START direction=$direction index=$targetIndex")
+        while (true) {
+            val frame = withFrameNanos { it }
+            val dt = if (previousFrame == 0L) 0f else
+                ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, 0.05f)
+            previousFrame = frame
+            if (dt <= 0f) continue
+            heldSeconds += dt
+            accumulator += dt
+            val interval = (0.24f - heldSeconds * 0.055f).coerceAtLeast(0.08f)
+            if (accumulator >= interval) {
+                accumulator -= interval
+                val next = (targetIndex + direction).coerceIn(range.lower, range.upper)
+                if (next == targetIndex) break
+                targetIndex = next
+                evIndex = next
+                manualExposure = false
+                active.cameraControl.setExposureCompensationIndex(next)
+                tickCount++
+            }
+            val now = SystemClock.uptimeMillis()
+            if (now - lastDiagnosticAt >= 1_000L) {
+                android.util.Log.d(
+                    "FUJI_EV",
+                    "HOLD_TICK direction=$direction ticks=$tickCount index=$targetIndex cameraIndex=${active.cameraInfo.exposureState.exposureCompensationIndex}"
+                )
+                lastDiagnosticAt = now
+                tickCount = 0
+            }
+        }
+    }
+
     val shutterButtonImageUri = appPrefs.getString("shutter_button_image_uri", null)
     LaunchedEffect(shutterButtonImageUri) {
         shutterButtonBitmap = if (shutterButtonImageUri.isNullOrBlank()) null else withContext(Dispatchers.IO) {

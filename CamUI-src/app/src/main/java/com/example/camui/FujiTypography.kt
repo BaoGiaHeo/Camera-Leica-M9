@@ -8,6 +8,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import java.io.File
+import java.util.zip.GZIPInputStream
 
 /**
  * The single typography entry point for the FujiFilm Mode UI.
@@ -18,7 +19,7 @@ import java.io.File
  * Android's monospace face is used and a warning is written to Logcat.
  */
 object FujiTypography {
-    const val FONT_ASSET_PATH = "fonts/vcr_osd_mono_kk7.ttf"
+    const val FONT_ASSET_PATH = "fonts/vcr_osd_mono_kk7.ttf.gz"
     const val FONT_CACHE_NAME = "vcr_osd_mono_kk7.ttf"
 
     private const val TAG = "FujiTypography"
@@ -95,8 +96,10 @@ object FujiTypography {
         if (!output.isFile || output.length() == 0L) {
             val temporary = File(context.cacheDir, "$FONT_CACHE_NAME.tmp")
             runCatching { temporary.delete() }
-            context.assets.open(FONT_ASSET_PATH).use { input ->
-                temporary.outputStream().use { destination -> input.copyTo(destination) }
+            context.assets.open(FONT_ASSET_PATH).use { compressed ->
+                GZIPInputStream(compressed).use { input ->
+                    temporary.outputStream().use { destination -> input.copyTo(destination) }
+                }
             }
             check(temporary.isFile && temporary.length() > 0L) {
                 "Decompressed KK7 font is empty."

@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -363,17 +364,17 @@ var nightShotMode by remember {
                 var selectedLanguage by remember {
                     mutableStateOf(AppLanguageManager.normalizePreference(prefs.getString("app_language", "system")))
                 }
-                Text("Language", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.language_screen_title), color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Choose the display language. Changes apply immediately.",
+                    stringResource(R.string.language_select_description),
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 10.dp)
                 )
                 val languages = listOf(
-                    "system" to "SYSTEM",
-                    "en" to "ENGLISH",
-                    "vi" to "TIẾNG VIỆT"
+                    "system" to stringResource(R.string.language_system),
+                    "en" to stringResource(R.string.language_english),
+                    "vi" to stringResource(R.string.language_vietnamese)
                 )
                 languages.forEach { (id, label) ->
                     Row(

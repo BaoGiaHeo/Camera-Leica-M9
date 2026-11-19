@@ -42,7 +42,7 @@ jobs:
         if: always() && !cancelled()
         run: |
           mkdir -p source-artifacts
-          zip -j -q source-artifacts/LunaDream-2.5.0dream-source-files.zip \
+          zip -q source-artifacts/LunaDream-2.5.0dream-source-files.zip \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/MainActivity.kt \
             CamUI-src/app/src/main/java/com/example/camui/NightShotProcessor.kt \

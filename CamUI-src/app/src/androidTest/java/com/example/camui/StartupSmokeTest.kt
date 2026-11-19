@@ -55,8 +55,8 @@ class StartupSmokeTest {
         try {
             scenario.onActivity { activity ->
                 assertEquals(
-                    "Activity must allow sensor-driven orientation",
-                    ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR,
+                    "Activity must lock the camera UI and capture to landscape",
+                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
                     activity.requestedOrientation
                 )
             }
@@ -70,7 +70,6 @@ class StartupSmokeTest {
                 assertTrue("Activity must remain alive after rotation", !activity.isFinishing && !activity.isDestroyed)
             }
         } finally {
-            restorePortrait(automation)
             scenario.close()
         }
     }

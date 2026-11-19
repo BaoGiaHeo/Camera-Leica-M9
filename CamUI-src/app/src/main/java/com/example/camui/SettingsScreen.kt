@@ -84,7 +84,9 @@ fun SettingsScreen(
     val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
         settingItems + listOf(
             SettingItem("tab_10", "LOG LunaDream Working", "LunaDream processing · Crash diagnostics"),
-            SettingItem("tab_11", "Font Specimen", "KK7 glyph coverage · Vietnamese marks · type sizes")
+            SettingItem("tab_11", "Font Specimen", "KK7 glyph coverage · Vietnamese marks · type sizes"),
+            SettingItem("tab_12", stringResource(R.string.pixel_osd_icon_sheet_tab), stringResource(R.string.pixel_osd_icon_sheet_description)),
+            SettingItem("tab_13", stringResource(R.string.pixel_osd_preview_tab), stringResource(R.string.pixel_osd_preview_description))
         )
     } else settingItems
     val tabState = rememberLazyListState()
@@ -218,6 +220,12 @@ var nightShotMode by remember {
         when (title) {
             "Font Specimen" -> {
                 FontSpecimenPanel()
+            }
+            stringResource(R.string.pixel_osd_icon_sheet_tab) -> {
+                PixelOsdIconSheet()
+            }
+            stringResource(R.string.pixel_osd_preview_tab) -> {
+                PixelOsdPreview()
             }
             "Assistive Tools" -> {
                 Text("Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm.",

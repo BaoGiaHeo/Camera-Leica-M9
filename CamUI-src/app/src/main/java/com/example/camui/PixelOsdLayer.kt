@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -97,6 +98,7 @@ class PixelOsdRenderer(context: Context) {
     private var pixelScale = 3
     private var lastFrame: PixelOsdFrame? = null
     private var loadedTypeface: Typeface? = null
+    private var lastRenderUptimeMillis = 0L
 
     private val fillPaint = Paint().apply {
         isAntiAlias = false
@@ -121,7 +123,7 @@ class PixelOsdRenderer(context: Context) {
         typeface = Typeface.create("monospace", Typeface.NORMAL)
     }
 
-    fun render(widthPx: Int, heightPx: Int, frame: PixelOsdFrame) {
+    fun render(widthPx: Int, heightPx: Int, frame: PixelOsdFrame, maxRefreshHz: Int = 120) {
         if (widthPx <= 0 || heightPx <= 0) return
         val geometry = PixelOsdGeometry.fromDisplayPixels(widthPx, heightPx)
         val newWidth = geometry.logicWidth
@@ -136,6 +138,12 @@ class PixelOsdRenderer(context: Context) {
             bitmap = Bitmap.createBitmap(logicWidth, logicHeight, Bitmap.Config.ARGB_8888)
             nativeCanvas = NativeCanvas(bitmap!!)
             lastFrame = null
+        }
+        val now = SystemClock.uptimeMillis()
+        if (!needsAllocation) {
+            val refreshLimit = maxRefreshHz.coerceIn(1, 120)
+            val minimumIntervalMs = 1000L / refreshLimit
+            if (now - lastRenderUptimeMillis < minimumIntervalMs) return
         }
         if (lastFrame == frame) return
 
@@ -160,6 +168,7 @@ class PixelOsdRenderer(context: Context) {
             }
         }
         lastFrame = frame
+        lastRenderUptimeMillis = SystemClock.uptimeMillis()
     }
 
     fun drawScaled(target: NativeCanvas, widthPx: Int, heightPx: Int) {
@@ -329,7 +338,8 @@ class PixelOsdRenderer(context: Context) {
 @Composable
 fun PixelOsdLayer(
     modifier: Modifier = Modifier,
-    frame: PixelOsdFrame
+    frame: PixelOsdFrame,
+    maxRefreshHz: Int = 120
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val renderer = remember(context.applicationContext) {
@@ -338,7 +348,7 @@ fun PixelOsdLayer(
     Canvas(modifier) {
         val widthPx = size.width.roundToInt()
         val heightPx = size.height.roundToInt()
-        renderer.render(widthPx, heightPx, frame)
+        renderer.render(widthPx, heightPx, frame, maxRefreshHz)
         drawContext.canvas.nativeCanvas.let { native ->
             renderer.drawScaled(native, widthPx, heightPx)
         }

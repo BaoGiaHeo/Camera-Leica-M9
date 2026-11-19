@@ -428,6 +428,11 @@ fun FujiTopKey(
 }
 
 @Composable
+internal const val FUJI_KEY_HOLD_THRESHOLD_MS = 180L
+
+internal fun isFujiKeyHold(durationMillis: Long): Boolean =
+    durationMillis >= FUJI_KEY_HOLD_THRESHOLD_MS
+
 fun FujiKey(
     label: String,
     onClick: () -> Unit,
@@ -489,7 +494,7 @@ fun FujiKey(
                     rawPressed = false
                     latestPressEnd?.invoke()
                     val durationMs = SystemClock.uptimeMillis() - startedAt
-                    val wasHold = durationMs >= 180L
+                    val wasHold = isFujiKeyHold(durationMs)
                     android.util.Log.d(
                         "FUJI_KEY",
                         "ACTION_UP label=$label durationMs=$durationMs held=$wasHold released=$releasedNormally"

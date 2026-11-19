@@ -2435,7 +2435,7 @@ private fun watermarkOpticalBaseline(paint: Paint, centerY: Float): Float {
     val capBounds = android.graphics.Rect()
     paint.getTextBounds("H", 0, 1, capBounds)
     val capHeight = (-capBounds.top).toFloat().coerceAtLeast(paint.textSize * 0.5f)
-    return centerY + capHeight * 0.5f
+    return watermarkBaselineFromCapHeight(centerY, capHeight)
 }
 
 fun applyCameraWatermark(
@@ -2635,8 +2635,10 @@ fun applyCameraWatermark(
         val dateOnlyLine = capturedDate?.let {
             java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.forLanguageTag(AppLanguageManager.languageFor(context))).format(it)
         }.orEmpty().takeIf { showTime }.orEmpty()
-        val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
-            .takeIf { prefs.getBoolean("watermark_show_location", true) }.orEmpty()
+        val locationLine = watermarkLocationForDisplay(
+            prefs.getBoolean("watermark_show_location", true),
+            prefs.getString("watermark_custom_location", "")
+        )
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
         val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
         // Every text-based watermark label uses the app-wide VCR OSD Mono typeface.

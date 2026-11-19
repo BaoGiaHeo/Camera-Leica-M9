@@ -253,7 +253,6 @@ private val fullEnglishUi = mapOf(
     "Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ." to "Transparent removes the frame border and backing panel; text and PNG artwork remain.",
     "Áp dụng frame" to "Apply frame",
     "Language" to "Language", "Phát hiện ngôn ngữ hệ thống" to "Detect system language",
-    "English" to "English", "Vietnamese" to "Vietnamese", "Japan" to "Japanese", "Korea" to "Korean", "China" to "Chinese",
     "Capture Quality" to "Capture Quality", "HDR · Multi-frame" to "HDR · Multi-frame",
     "Ưu tiên HDR nhiều mức phơi sáng từ CameraX/OEM. Nếu máy không có HDR Extension, ứng dụng thử Ultra HDR JPEG_R khi camera hỗ trợ. Quá trình hợp nhất dùng pipeline xử lý của thiết bị; Android không cho ứng dụng ép chọn riêng GPU hay CPU."
         to "Prioritizes multi-exposure HDR from CameraX/OEM. If the device has no HDR Extension, the app tries Ultra HDR JPEG_R when supported. Merging uses the device imaging pipeline; Android does not let apps force a GPU-only or CPU-only path.",

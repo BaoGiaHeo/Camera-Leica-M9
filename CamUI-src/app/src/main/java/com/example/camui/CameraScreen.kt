@@ -5339,17 +5339,19 @@ private fun FilterLookPreviewImage(
     source: Bitmap,
     preset: String,
     modifier: Modifier,
-    maxDimension: Int
+    maxDimension: Int,
+    tonePad: TonePadParameters? = null
 ) {
     val context = LocalContext.current
     val renderedState by produceState(
         initialValue = Pair(false, null as ImageBitmap?),
         source,
         preset,
-        maxDimension
+        maxDimension,
+        tonePad
     ) {
         val rendered = withContext(Dispatchers.Default) {
-            renderCameraLookPreview(context, source, preset, maxDimension)
+            renderCameraLookPreview(context, source, preset, maxDimension, tonePad)
         }
         value = true to rendered?.asImageBitmap()
     }
@@ -5415,6 +5417,19 @@ private fun FilterLookDialog(
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
+    var tonePadSettings by remember(activeFilter) {
+        mutableStateOf(
+            run {
+                val prefix = TonePadMath.preferencePrefix(activeFilter)
+                val settings = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                TonePadParameters(
+                    paleRich = settings.getFloat("$prefix.x", 0f).coerceIn(-1f, 1f),
+                    darkBright = settings.getFloat("$prefix.y", 0f).coerceIn(-1f, 1f),
+                    intensity = settings.getFloat("$prefix.intensity", 0.65f).coerceIn(0f, 1f)
+                )
+            }
+        )
+    }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -5482,7 +5497,8 @@ private fun FilterLookDialog(
                 source = previewSource,
                 preset = if (showingOriginal) "None" else activeFilter,
                 modifier = Modifier.fillMaxSize(),
-                maxDimension = 720
+                maxDimension = 480,
+                tonePad = if (showingOriginal) TonePadParameters() else tonePadSettings
             )
             Text(
                 if (showingOriginal) "ẢNH GỐC · THẢ ĐỂ XEM LỌC" else "GIỮ ĐỂ XEM ẢNH GỐC",
@@ -5556,7 +5572,8 @@ private fun FilterLookDialog(
                                             source = previewSource,
                                             preset = preset,
                                             modifier = Modifier.fillMaxSize(),
-                                            maxDimension = 192
+                                            maxDimension = 192,
+                                            tonePad = if (preset == activeFilter) tonePadSettings else null
                                         )
                                         if (selected) {
                                             Text(
@@ -5634,6 +5651,12 @@ private fun FilterLookDialog(
                             fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
                             fontSize = 9.sp
                         )
+                        if (activeFilter != "None") {
+                            TonePadBoard(
+                                filterName = activeFilter,
+                                onToneChanged = { tonePadSettings = it }
+                            )
+                        }
                         presetGrid(Modifier.weight(1f).fillMaxWidth())
                     }
                 }
@@ -5649,6 +5672,12 @@ private fun FilterLookDialog(
                 searchPane(Modifier)
                 categoryPane(Modifier)
                 Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
+                if (activeFilter != "None") {
+                    TonePadBoard(
+                        filterName = activeFilter,
+                        onToneChanged = { tonePadSettings = it }
+                    )
+                }
                 presetGrid(Modifier.weight(1f))
             }
         }

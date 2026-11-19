@@ -322,6 +322,7 @@ fun ToolboxScreen(
         onBack()
     }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
+    var retroLcdEnabled by remember { mutableStateOf(prefs.getBoolean("lcd_texture_overlay_enabled", false)) }
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
     var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
     var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", false)) }
@@ -429,6 +430,15 @@ fun ToolboxScreen(
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(end = 4.dp)) {
         Text("Viewfinder overlays", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+        ToolToggle(
+            stringResource(R.string.retro_lcd_texture_title),
+            stringResource(R.string.retro_lcd_texture_description),
+            "film",
+            retroLcdEnabled
+        ) {
+            retroLcdEnabled = it
+            prefs.edit().putBoolean("lcd_texture_overlay_enabled", it).apply()
+        }
         Text("Pro HUD elements", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, top = 15.dp, bottom = 8.dp))
         ToolToggle("EV display", "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD.",

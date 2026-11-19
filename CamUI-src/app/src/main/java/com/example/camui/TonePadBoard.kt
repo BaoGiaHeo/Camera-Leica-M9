@@ -380,21 +380,11 @@ fun TonePadBoard(
                         )
                     }
                 }
-                for (row in -3..3) {
-                    for (column in -3..3) {
-                        if ((abs(row) == 3 && abs(column) == 3) ||
-                            (abs(row) == 3 && abs(column) == 2) ||
-                            (abs(row) == 2 && abs(column) == 3)
-                        ) continue
-                        val px = (centerX + column * logicPixel).roundToInt().toFloat()
-                        val py = (centerY + row * logicPixel).roundToInt().toFloat()
-                        drawRect(
-                            Color.White,
-                            Offset(px, py),
-                            Size(logicPixel, logicPixel)
-                        )
-                    }
-                }
+                drawRect(
+                    Color.White,
+                    Offset(centerX.roundToInt().toFloat(), centerY.roundToInt().toFloat()),
+                    Size(logicPixel, logicPixel)
+                )
 
                 if (guideVisible) {
                     val handX = size.width * (0.38f + 0.30f * guideProgress.value)

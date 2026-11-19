@@ -8,7 +8,7 @@ import org.junit.Test
 class LandscapeRotationPolicyTest {
     @Test
     fun portraitQuadrantsNeverProducePortraitCaptureRotation() {
-        listOf(0f, 20f, 44f, 180f, 220f, 314f, 340f).forEach { degrees ->
+        listOf(0f, 20f, 44f, 135f, 180f, 220f, 224f, 315f, 340f).forEach { degrees ->
             assertNull(
                 "Portrait sensor angle $degrees must not select a portrait rotation",
                 LandscapeRotationPolicy.landscapeCandidate(degrees)

@@ -52,6 +52,13 @@ Keep product names, camera control abbreviations, filter names and file formats 
 | Hold steady | Giữ máy ổn định |
 | Move freely | Có thể di chuyển máy tự do |
 
+## Canonical localization whitelist
+
+The canonical preservation list is maintained in `CamUI-src/i18n_whitelist.txt`.
+Only proper names, product and film-look names, camera abbreviations, technical identifiers and file formats belong there. Ordinary interface labels and descriptive sentences must still be translated.
+
+Resource parity is enforced by `LocalizationResourceParityTest`: English and Vietnamese resource keys must match, and numbered format placeholders must remain identical.
+
 ## Preserve unchanged in both languages
 
 Camera codes and engraved controls: `EV`, `SS`, `Tv`, `F`, `ISO`, `AF`, `AF-S`, `AF-C`, `MF`, `AF-L`, `AE-L`, `WB`, `DR100/200/400`, `FLASH`, `DRIVE`, `FILM`, `ADJ`, `HISTO`, `Q`, `DISP/BACK`, `MENU/OK`, `PLAY`, `LIVE`, `W`, `T`, `K`, `MP`, `fps`.

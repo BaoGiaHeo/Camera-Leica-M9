@@ -4632,7 +4632,7 @@ fun CameraScreen(
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
                                         Text(value, color = if (active) FujiSkin.orange else FujiSkin.lcdGreen,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
                                             fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                                         Text(label, color = FujiSkin.muted, fontSize = 8.sp, letterSpacing = 0.7.sp)
                                     }
@@ -4682,7 +4682,7 @@ fun CameraScreen(
                                 Text(
                                     if (range != null) evText else localizedUiText(context, "EV N/A"),
                                     color = CamColors.TextColor,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
                                     modifier = Modifier.weight(1f),
@@ -4842,7 +4842,7 @@ fun CameraScreen(
                 Text(
                     zoomLabel,
                     color = FujiSkin.lcdGreen,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -4901,7 +4901,7 @@ fun CameraScreen(
                     Text(
                         commandValue,
                         color = FujiSkin.lcdGreen,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
@@ -5698,7 +5698,7 @@ private fun FilterLookDialog(
                         Text(
                             "${visiblePresets.size} / ${allLookEntries.size} BỘ LỌC",
                             color = FujiSkin.lcdGreen,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
                             fontSize = 9.sp
                         )
                         presetGrid(Modifier.weight(1f).fillMaxWidth())

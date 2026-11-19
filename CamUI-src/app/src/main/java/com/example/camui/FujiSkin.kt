@@ -5,6 +5,7 @@ import androidx.compose.ui.res.stringResource
 import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,6 +21,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -427,14 +431,41 @@ fun FujiKey(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    onPressStart: (() -> Unit)? = null,
+    onPressEnd: (() -> Unit)? = null
 ) {
     val view = LocalView.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    val latestPressStart by rememberUpdatedState(onPressStart)
+    val latestPressEnd by rememberUpdatedState(onPressEnd)
+    var suppressClickAfterHold by remember { mutableStateOf(false) }
     val y by animateDpAsState(if (pressed) 1.dp else 0.dp, tween(90), label = "fuji-wide-key")
     Box(
         modifier.heightIn(min = 36.dp)
+            .pointerInput(enabled, onPressStart != null || onPressEnd != null) {
+                if (onPressStart != null || onPressEnd != null) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        if (!enabled) return@awaitEachGesture
+                        val startedAt = SystemClock.uptimeMillis()
+                        suppressClickAfterHold = false
+                        latestPressStart?.invoke()
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                if (change == null || !change.pressed) break
+                            }
+                        } finally {
+                            latestPressEnd?.invoke()
+                            suppressClickAfterHold =
+                                SystemClock.uptimeMillis() - startedAt >= 180L
+                        }
+                    }
+                }
+            }
             .clip(RoundedCornerShape(3.dp))
             .background(Brush.verticalGradient(listOf(Color(0xFF4B5255), Color(0xFF15191A))))
             .border(1.dp, Color(0xFF7C8588), RoundedCornerShape(3.dp))
@@ -443,11 +474,15 @@ fun FujiKey(
                 interactionSource = interaction,
                 indication = null,
                 onClick = {
-                    if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE).getBoolean("haptic_feedback_enabled", true)) {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (suppressClickAfterHold) {
+                        suppressClickAfterHold = false
+                    } else {
+                        if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE).getBoolean("haptic_feedback_enabled", true)) {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        }
+                        FujiFeedback.keyTick(view.context)
+                        onClick()
                     }
-                    FujiFeedback.keyTick(view.context)
-                    onClick()
                 },
                 onLongClick = null
             )

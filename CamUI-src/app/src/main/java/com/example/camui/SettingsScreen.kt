@@ -67,7 +67,8 @@ private val settingItems = listOf(
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
     SettingItem("tab_08", "Language", "SYSTEM · ENGLISH · TIẾNG VIỆT"),
-    SettingItem("tab_09", "About", "LunaDream 2.5.0")
+    SettingItem("tab_09", "About", "LunaDream 2.5.0"),
+    SettingItem("tab_10", "Toolbox", "Filters · Tone Pad guide")
 )
 
 @Composable
@@ -83,10 +84,10 @@ fun SettingsScreen(
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
     val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
         settingItems + listOf(
-            SettingItem("tab_10", "LOG LunaDream Working", "LunaDream processing · Crash diagnostics"),
-            SettingItem("tab_11", "Font Specimen", "KK7 glyph coverage · Vietnamese marks · type sizes"),
-            SettingItem("tab_12", stringResource(R.string.pixel_osd_icon_sheet_tab), stringResource(R.string.pixel_osd_icon_sheet_description)),
-            SettingItem("tab_13", stringResource(R.string.pixel_osd_preview_tab), stringResource(R.string.pixel_osd_preview_description))
+            SettingItem("tab_11", "LOG LunaDream Working", "LunaDream processing · Crash diagnostics"),
+            SettingItem("tab_12", "Font Specimen", "KK7 glyph coverage · Vietnamese marks · type sizes"),
+            SettingItem("tab_13", stringResource(R.string.pixel_osd_icon_sheet_tab), stringResource(R.string.pixel_osd_icon_sheet_description)),
+            SettingItem("tab_14", stringResource(R.string.pixel_osd_preview_tab), stringResource(R.string.pixel_osd_preview_description))
         )
     } else settingItems
     val tabState = rememberLazyListState()
@@ -373,6 +374,19 @@ var nightShotMode by remember {
                     fontSize = 9.sp,
                     modifier = Modifier.padding(top = 8.dp)
                 )
+            }
+            "Toolbox" -> {
+                var tonePadGuideEnabled by remember {
+                    mutableStateOf(prefs.getBoolean("tone_pad_guide_enabled", true))
+                }
+                SettingsSwitch(
+                    "Show Tone Pad guide",
+                    "Show the first-use guide and direction hint in the filter Tone Pad.",
+                    tonePadGuideEnabled
+                ) {
+                    tonePadGuideEnabled = it
+                    prefs.edit().putBoolean("tone_pad_guide_enabled", it).apply()
+                }
             }
             "Language" -> {
                 var selectedLanguage by remember {

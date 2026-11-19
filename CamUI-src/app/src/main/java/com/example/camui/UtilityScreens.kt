@@ -2389,40 +2389,6 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
  * Draws a camera-spec frame directly onto the upright pixel matrix. No portrait/landscape
  * heuristic is applied here: the image pixels, metadata and watermark all share one orientation.
  */
-private val watermarkTypefaceCache = mutableMapOf<String, android.graphics.Typeface>()
-
-private fun resolveWatermarkTypeface(context: Context, brand: String): android.graphics.Typeface {
-    val key = brand.lowercase()
-    synchronized(watermarkTypefaceCache) {
-        watermarkTypefaceCache[key]?.let { return it }
-        val (assetName, variation, fallbackFamily, fallbackStyle) = when (key) {
-            "sony" -> arrayOf("Inter-Variable.ttf", "'wght' 300, 'opsz' 14", "sans-serif-light", "0")
-            "nikon" -> arrayOf("CreatoDisplay-Light.otf", "", "sans-serif-light", "0")
-            "canon" -> arrayOf("LiberationSans-Regular.ttf", "", "sans-serif", "0")
-            else -> arrayOf("Jost-Variable.ttf", "'wght' 300", "sans-serif-light", "0")
-        }
-        val typeface = runCatching {
-            val directory = File(context.cacheDir, "watermark-fonts").apply { mkdirs() }
-            val fontFile = File(directory, assetName)
-            if (!fontFile.isFile || fontFile.length() == 0L) {
-                context.assets.open("fonts/" + assetName).use { input ->
-                    fontFile.outputStream().use { output -> input.copyTo(output) }
-                }
-            }
-            android.graphics.Typeface.Builder(fontFile)
-                .apply { if (variation.isNotBlank()) setFontVariationSettings(variation) }
-                .build()
-        }.getOrElse {
-            android.graphics.Typeface.create(
-                fallbackFamily,
-                fallbackStyle.toIntOrNull() ?: android.graphics.Typeface.NORMAL
-            )
-        }
-        watermarkTypefaceCache[key] = typeface
-        return typeface
-    }
-}
-
 fun applyCameraWatermark(
     context: Context,
     uri: Uri,
@@ -2624,14 +2590,8 @@ fun applyCameraWatermark(
         val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
         val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
-        // Brand-matched typefaces are bundled with their OFL notices in assets/fonts.
-        val brandTypeface = resolveWatermarkTypeface(context, watermarkBrand)
-        val detailTypeface = when (watermarkBrand) {
-            "sony" -> brandTypeface
-            "nikon" -> brandTypeface
-            "canon" -> brandTypeface
-            else -> brandTypeface
-        }
+        // Every text-based watermark label uses the app-wide VCR OSD Mono typeface.
+        // Brand image assets remain unchanged where they are available.
         val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
         val appWatermarkTypeface = FujiTypography.androidTypeface(context)
         val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand, frameStyle == "Black")?.let {
@@ -3042,11 +3002,11 @@ fun applyCameraWatermark(
                 drawTemplateFooter(AndroidColor.rgb(236, 227, 207))
                 val ink = Paint(titlePaint).apply {
                     color = AndroidColor.rgb(75, 58, 41)
-                    typeface = android.graphics.Typeface.MONOSPACE
+                    typeface = appWatermarkTypeface
                 }
                 val faded = Paint(detailPaint).apply {
                     color = AndroidColor.rgb(134, 112, 79)
-                    typeface = android.graphics.Typeface.MONOSPACE
+                    typeface = appWatermarkTypeface
                 }
                 val lineOne = cameraTitle.uppercase()
                 val lineTwo = listOfNotNull(exifFocal, exifAperture, exifShutter, exifIso?.let { "ISO $it" })
@@ -3065,7 +3025,7 @@ fun applyCameraWatermark(
                 drawTemplateFooter(AndroidColor.rgb(250, 249, 245))
                 val captionPaint = Paint(titlePaint).apply {
                     color = AndroidColor.rgb(35, 35, 35)
-                    typeface = android.graphics.Typeface.create("serif", android.graphics.Typeface.NORMAL)
+                    typeface = appWatermarkTypeface
                 }
                 val small = Paint(detailPaint).apply { color = AndroidColor.rgb(115, 115, 115) }
                 drawTemplateText(cameraTitle, captionPaint, footerRect.left + pad,
@@ -3107,8 +3067,8 @@ fun applyCameraWatermark(
             }
             "film" -> {
                 drawTemplateFooter(AndroidColor.rgb(18, 17, 16))
-                val orange = Paint(titlePaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = android.graphics.Typeface.MONOSPACE }
-                val line = Paint(detailPaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = android.graphics.Typeface.MONOSPACE }
+                val orange = Paint(titlePaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = appWatermarkTypeface }
+                val line = Paint(detailPaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = appWatermarkTypeface }
                 val holeW = footerWidth * 0.024f
                 val holeH = footerHeight * 0.16f
                 val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.rgb(230, 224, 211) }
@@ -3133,7 +3093,7 @@ fun applyCameraWatermark(
                 val stamp = timeLine.ifBlank { dateLabel }
                 val ink = Paint(titlePaint).apply {
                     color = AndroidColor.rgb(255, 150, 55)
-                    typeface = android.graphics.Typeface.MONOSPACE
+                    typeface = appWatermarkTypeface
                     setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
                     textAlign = Paint.Align.RIGHT
                 }
@@ -3866,6 +3826,7 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
                     ?: return@runCatching false
             }
             val canvas = Canvas(output)
+        val frameTextTypeface = FujiTypography.androidTypeface(context)
         val frameStyle = (prefs.getString("frame_style", "White") ?: "White").takeIf { it == "Black" || it == "White" } ?: "White"
         val transparent = false
         val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
@@ -3885,17 +3846,13 @@ fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
         }
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (transparent) AndroidColor.WHITE else textColor
-            typeface = android.graphics.Typeface.create(
-                "sans-serif-medium", android.graphics.Typeface.NORMAL
-            )
+            typeface = frameTextTypeface
             textSize = (minSide * 0.022f).coerceIn(14f, 48f)
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (transparent) AndroidColor.WHITE else textColor
             alpha = 220
-            typeface = android.graphics.Typeface.create(
-                "sans-serif", android.graphics.Typeface.NORMAL
-            )
+            typeface = frameTextTypeface
             textSize = (minSide * 0.012f).coerceIn(10f, 26f)
         }
         fun border(rect: RectF, width: Float = stroke) {

@@ -2119,6 +2119,10 @@ private fun applyCameraLookPixels(
     val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
     val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
     val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
+    val tonePadPrefix = TonePadMath.preferencePrefix(preset)
+    val tonePadPaleRich = recipe.getFloat("$tonePadPrefix.x", 0f).coerceIn(-1f, 1f)
+    val tonePadDarkBright = recipe.getFloat("$tonePadPrefix.y", 0f).coerceIn(-1f, 1f)
+    val tonePadIntensity = recipe.getFloat("$tonePadPrefix.intensity", 0.65f).coerceIn(0f, 1f)
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -2159,6 +2163,18 @@ private fun applyCameraLookPixels(
             r += tone * 0.018f
             g -= tone * 0.035f
             b += tone * 0.018f
+
+            val tonePadRgb = TonePadMath.apply(
+                r,
+                g,
+                b,
+                tonePadPaleRich,
+                tonePadDarkBright,
+                tonePadIntensity
+            )
+            r = tonePadRgb.red
+            g = tonePadRgb.green
+            b = tonePadRgb.blue
 
             if (grain > 0.001f) {
                 // Deterministic per-pixel grain keeps a given image stable across preview/export passes.

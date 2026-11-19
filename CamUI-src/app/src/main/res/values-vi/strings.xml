@@ -18,4 +18,17 @@
     <string name="pixel_osd_icon_sheet_description">Sprite pixel · 1x / 2x / 4x</string>
     <string name="pixel_osd_preview_tab">XEM THỬ OSD</string>
     <string name="pixel_osd_preview_description">Kính ngắm Pro / Photo giả lập</string>
+    <string name="tone_pad_title">BẢNG CHỈNH MÀU</string>
+    <string name="tone_pad_filter_label">BỘ LỌC · %1$s</string>
+    <string name="tone_pad_reset">ĐẶT LẠI</string>
+    <string name="tone_pad_value_readout">T %1$+d  S %2$+d</string>
+    <string name="tone_pad_guide_title">KÉO CHẤM TRẮNG</string>
+    <string name="tone_pad_bright_dark">SÁNG / TỐI · LÊN / XUỐNG</string>
+    <string name="tone_pad_pale_rich">NHẠT / ĐẬM · TRÁI / PHẢI</string>
+    <string name="tone_pad_palette_label">PALETTE · %1$d%%</string>
+    <string name="tone_pad_hint">KÉO CHẤM TRẮNG · CHẠM KÉP ĐỂ VỀ GIỮA</string>
+    <string name="tone_pad_advanced">NÂNG CAO</string>
+    <string name="tone_pad_snap">HÍT VÀO LƯỚI</string>
+    <string name="tone_pad_on">BẬT</string>
+    <string name="tone_pad_off">TẮT</string>
 </resources>

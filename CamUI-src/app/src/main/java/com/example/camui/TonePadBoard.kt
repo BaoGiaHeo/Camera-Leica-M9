@@ -261,12 +261,6 @@ fun TonePadBoard(
                                 val event = withTimeoutOrNull(40L) {
                                     awaitPointerEvent(PointerEventPass.Initial)
                                 }
-                                if (event.changes.any { it.id != down.id && it.pressed }) {
-                                    resetThisGesture = true
-                                    gestureActive = false
-                                    continue
-                                }
-                                val activeChange = event.changes.firstOrNull { it.id == down.id }
                                 if (event == null) {
                                     if (!resetThisGesture && !pointerMoved && !longPressReset &&
                                         SystemClock.uptimeMillis() - startedAt >= 600L
@@ -277,6 +271,12 @@ fun TonePadBoard(
                                     }
                                     continue
                                 }
+                                if (event.changes.any { it.id != down.id && it.pressed }) {
+                                    resetThisGesture = true
+                                    gestureActive = false
+                                    continue
+                                }
+                                val activeChange = event.changes.firstOrNull { it.id == down.id }
                                 if (activeChange == null) {
                                     gestureActive = false
                                     continue

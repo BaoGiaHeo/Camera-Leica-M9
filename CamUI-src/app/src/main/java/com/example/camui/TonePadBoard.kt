@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -241,7 +242,7 @@ fun TonePadBoard(
                             pass = PointerEventPass.Initial
                         )
                         down.consume()
-                        view.requestUnbufferedDispatch()
+                        view.requestUnbufferedDispatch(down.nativeEvent)
                         view.parent?.requestDisallowInterceptTouchEvent(true)
                         if (!enabled) onActivate()
                         val startedAt = SystemClock.uptimeMillis()
@@ -502,6 +503,7 @@ fun TonePadBoard(
         }
         }
 
+        if (!compact) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween

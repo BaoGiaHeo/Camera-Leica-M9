@@ -5776,7 +5776,7 @@ private fun FilterLookDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Column(
-                            Modifier.weight(0.58f).fillMaxWidth(),
+                            Modifier.weight(1f).fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
@@ -5796,7 +5796,7 @@ private fun FilterLookDialog(
                             filterName = activeFilter,
                             compact = true,
                             enabled = activeFilter != "None" || tonePadOriginalActivated,
-                            modifier = Modifier.weight(0.42f).fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(132.dp),
                             onActivate = { tonePadOriginalActivated = true },
                             onToneChanged = { tonePadSettings = it },
                             onToneSettled = {

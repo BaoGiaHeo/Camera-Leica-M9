@@ -4805,6 +4805,21 @@ fun CameraScreen(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Text(
+                        stringResource(R.string.zoom_direction_in),
+                        color = FujiSkin.muted,
+                        fontSize = 7.sp
+                    )
+                    Text(
+                        stringResource(R.string.zoom_direction_out),
+                        color = FujiSkin.muted,
+                        fontSize = 7.sp
+                    )
+                }
                 Text("ZOOM", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
             FujiShutterButton(

@@ -215,7 +215,7 @@ private fun LiquidGlassWatermarkPreview(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    "MODEL · $exampleModel",
+                    exampleModel,
                     color = Color.White.copy(alpha = 0.96f),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -407,7 +407,6 @@ fun ToolboxScreen(
     var watermarkTemplate by remember { mutableStateOf((prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto") }
     var watermarkBrand by remember { mutableStateOf((prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
-    var watermarkShowModel by remember { mutableStateOf(prefs.getBoolean("watermark_show_model", true)) }
     var watermarkShowSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
     LaunchedEffect(watermarkStyle) { prefs.edit().putString("watermark_style", watermarkStyle).apply() }
     LaunchedEffect(watermarkBrand) { prefs.edit().putString("watermark_brand", watermarkBrand).apply() }
@@ -417,6 +416,7 @@ fun ToolboxScreen(
     // Sound selection was removed: use one fixed bundled default, with only the on/off switch.
     LaunchedEffect(Unit) {
         prefs.edit()
+            .remove("watermark_show_model")
             .remove("shutter_effect")
             .remove("shutter_sound_uri")
             .putString("shutter_sound_asset", "classic")
@@ -735,11 +735,6 @@ fun ToolboxScreen(
             "sliders", watermarkShowTime) {
             watermarkShowTime = it
             prefs.edit().putBoolean("watermark_show_time", it).apply()
-        }
-        ToolToggle("Hiện model máy", "Bật/tắt tên model điện thoại",
-            "sliders", watermarkShowModel) {
-            watermarkShowModel = it
-            prefs.edit().putBoolean("watermark_show_model", it).apply()
         }
         ToolToggle("Hiện thông số", "Bật/tắt tiêu cự, khẩu độ, tốc độ màn trập và ISO",
             "sliders", watermarkShowSpecs) {
@@ -1196,7 +1191,7 @@ private fun WatermarkTemplateCard(
                             Modifier.weight(0.62f).padding(start = 3.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Text("MODEL · $previewModel", color = textColor,
+                            Text(previewModel, color = textColor,
                                 fontSize = 5.9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             Text("FE 24–70mm", color = textColor.copy(alpha = 0.82f),
                                 fontSize = 5.4.sp, maxLines = 1)
@@ -2483,7 +2478,7 @@ fun applyCameraWatermark(
         outputBitmap = output
         val canvas = Canvas(output)
         val showTime = prefs.getBoolean("watermark_show_time", true)
-        val showModel = prefs.getBoolean("watermark_show_model", true)
+        val showModel = true
         val showSpecs = prefs.getBoolean("watermark_show_specs", true)
 
         // Frame, backing plate and type all follow the selected watermark style.
@@ -2553,8 +2548,7 @@ fun applyCameraWatermark(
         val cameraLabel = listOf(exifMake, exifModel).distinct().filterNotNull()
             .joinToString(" ").ifBlank { "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}" }
         val customModelLabel = prefs.getString("watermark_custom_model", "")?.trim().orEmpty()
-        // Keep the body model distinct from the selected brand wordmark. The watermark
-        // should read "SONY | MODEL ILCE-7M4", not repeat the manufacturer in the model line.
+        // Keep the device model value distinct from the selected brand wordmark.
         val rawModelLabel = exifModel ?: android.os.Build.MODEL
         val makePrefix = (exifMake ?: android.os.Build.MANUFACTURER).trim()
         val cleanModelLabel = if (makePrefix.isNotBlank() &&
@@ -2934,7 +2928,7 @@ fun applyCameraWatermark(
         val dateSize = (minSide * 0.013f).coerceAtLeast(12f)
         val cameraTitle = modelLine.ifBlank { brandTitle }
         val cameraLine = listOfNotNull(
-            modelLine.takeIf { it.isNotBlank() }?.let { "MODEL $it" },
+            modelLine.takeIf { it.isNotBlank() },
             lensModel?.takeIf { it.isNotBlank() }
         ).joinToString("  ·  ").ifBlank { cameraLabel }
         val exposureLine = specs.ifBlank { "ISO N/A" }
@@ -3122,7 +3116,7 @@ fun applyCameraWatermark(
             val logoColumnWidth = leftContentWidth * 0.34f
             val modelLeft = logoColumnLeft + logoColumnWidth + footerWidth * 0.025f
             val modelWidth = (dividerX - modelLeft - footerWidth * 0.035f).coerceAtLeast(1f)
-            val modelText = modelLine.takeIf { it.isNotBlank() }?.let { "MODEL  $it" }.orEmpty()
+            val modelText = modelLine
             val leftSecondary = when {
                 lensModel.isNullOrBlank() && locationLine.isBlank() -> ""
                 template == "fuji_signature" && locationLine.isNotBlank() -> locationLine

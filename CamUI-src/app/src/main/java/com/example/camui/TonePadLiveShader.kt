@@ -5,6 +5,9 @@ import android.graphics.RuntimeShader
 import androidx.annotation.RequiresApi
 import androidx.compose.ui.graphics.RenderEffect as ComposeRenderEffect
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 
 /**
  * Applies TonePadMath's OKLab adjustment to a rendered film-look preview through AGSL uniforms.
@@ -16,10 +19,18 @@ internal class TonePadLiveShader {
     val composeEffect: ComposeRenderEffect =
         RenderEffect.createRuntimeShaderEffect(shader, "source").asComposeRenderEffect()
 
+    /**
+     * Read this state from a graphicsLayer block. Uniform changes then invalidate
+     * only the preview layer, not the parent Compose screen.
+     */
+    var frameRevision by mutableIntStateOf(0)
+        private set
+
     fun update(parameters: TonePadParameters) {
         shader.setFloatUniform("paleRich", parameters.paleRich.coerceIn(-1f, 1f))
         shader.setFloatUniform("darkBright", parameters.darkBright.coerceIn(-1f, 1f))
         shader.setFloatUniform("intensity", parameters.intensity.coerceIn(0f, 1f))
+        frameRevision++
     }
 
     private companion object {

@@ -140,8 +140,25 @@ class PixelOsdRenderer(context: Context) {
         if (lastFrame == frame) return
 
         val canvas = nativeCanvas ?: return
-        canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        drawFrame(canvas, frame)
+        val previous = lastFrame
+        if (previous == null) {
+            canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            drawFrame(canvas, frame)
+        } else {
+            val dirtyRegions = pixelOsdDirtyRegions(logicWidth, logicHeight, previous, frame)
+            dirtyRegions.forEach { region ->
+                val saveCount = canvas.save()
+                canvas.clipRect(
+                    region.left,
+                    region.top,
+                    region.right,
+                    region.bottom
+                )
+                canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+                drawFrame(canvas, frame)
+                canvas.restoreToCount(saveCount)
+            }
+        }
         lastFrame = frame
     }
 

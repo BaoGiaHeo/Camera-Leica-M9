@@ -82,7 +82,10 @@ fun SettingsScreen(
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
     val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
-        settingItems + SettingItem("tab_10", "LOG LunaDream Working", "LunaDream processing · Crash diagnostics")
+        settingItems + listOf(
+            SettingItem("tab_10", "LOG LunaDream Working", "LunaDream processing · Crash diagnostics"),
+            SettingItem("tab_11", "Font Specimen", "KK7 glyph coverage · Vietnamese marks · type sizes")
+        )
     } else settingItems
     val tabState = rememberLazyListState()
     LaunchedEffect(selectedCategory) {
@@ -213,6 +216,9 @@ var nightShotMode by remember {
                 .padding(horizontal = if (isLandscape) 22.dp else 12.dp, vertical = 10.dp)
         ) {
         when (title) {
+            "Font Specimen" -> {
+                FontSpecimenPanel()
+            }
             "Assistive Tools" -> {
                 Text("Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))

@@ -408,6 +408,7 @@ fun ToolboxScreen(
     var watermarkBrand by remember { mutableStateOf((prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
     var watermarkShowSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
+    var watermarkShowLocation by remember { mutableStateOf(prefs.getBoolean("watermark_show_location", true)) }
     LaunchedEffect(watermarkStyle) { prefs.edit().putString("watermark_style", watermarkStyle).apply() }
     LaunchedEffect(watermarkBrand) { prefs.edit().putString("watermark_brand", watermarkBrand).apply() }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
@@ -748,6 +749,11 @@ fun ToolboxScreen(
             watermarkShowSpecs = it
             prefs.edit().putBoolean("watermark_show_specs", it).apply()
         }
+        ToolToggle("Hiện địa điểm", "Bật/tắt dòng địa điểm trên watermark Signature",
+            "map-pin", watermarkShowLocation) {
+            watermarkShowLocation = it
+            prefs.edit().putBoolean("watermark_show_location", it).apply()
+        }
         Text("Model tùy chỉnh", color = Color.White, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 15.dp))
         Text("Auto sẽ lấy tên model của điện thoại: ${android.os.Build.MODEL}",
@@ -756,10 +762,18 @@ fun ToolboxScreen(
         FujiKey("SAVE MODEL", onClick = { prefs.edit().putString("watermark_custom_model", customModel.trim()).apply() }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
         Text("Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng.",
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp))
-        Text("Địa điểm watermark (dùng cho mẫu Fuji Signature)", color = Color.White,
-            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
-        FujiSearchField(value = customLocation, onValueChange = { customLocation = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = "Ví dụ: Winnipeg · để trống = ẩn")
-        FujiKey("SAVE LOCATION", onClick = { prefs.edit().putString("watermark_custom_location", customLocation.trim()).apply() }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+        AnimatedVisibility(
+            visible = watermarkShowLocation,
+            enter = fadeIn(animationSpec = tween(250)) + scaleIn(animationSpec = tween(250)),
+            exit = fadeOut(animationSpec = tween(250)) + scaleOut(animationSpec = tween(250))
+        ) {
+            Column {
+                Text("Địa điểm watermark (dùng cho mẫu Fuji Signature)", color = Color.White,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
+                FujiSearchField(value = customLocation, onValueChange = { customLocation = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = "Ví dụ: Winnipeg · để trống = ẩn")
+                FujiKey("SAVE LOCATION", onClick = { prefs.edit().putString("watermark_custom_location", customLocation.trim()).apply() }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+            }
+        }
         Text("Watermark được đóng trực tiếp lên ảnh sau khi chụp. Thông số mm, khẩu độ, shutter và ISO lấy từ camera đang hoạt động khi HAL có cung cấp.",
             color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
 
@@ -2622,6 +2636,7 @@ fun applyCameraWatermark(
             java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.forLanguageTag(AppLanguageManager.languageFor(context))).format(it)
         }.orEmpty().takeIf { showTime }.orEmpty()
         val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
+            .takeIf { prefs.getBoolean("watermark_show_location", true) }.orEmpty()
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
         val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
         // Every text-based watermark label uses the app-wide VCR OSD Mono typeface.
@@ -3061,13 +3076,13 @@ fun applyCameraWatermark(
                     typeface = appWatermarkTypeface
                 }
                 val small = Paint(detailPaint).apply { color = AndroidColor.rgb(115, 115, 115) }
-                drawTemplateText(cameraTitle, captionPaint, footerRect.left + pad,
-                    footerRect.top + footerHeight * 0.56f, footerWidth * 0.62f,
-                    primarySize * 1.05f)
+                drawTemplateText(cameraTitle, captionPaint, centerX,
+                    footerRect.top + footerHeight * 0.48f, footerWidth * 0.90f,
+                    primarySize * 1.05f, centered = true)
                 drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
-                    .joinToString("  ·  "), small, footerRect.right - pad - footerWidth * 0.32f,
-                    footerRect.top + footerHeight * 0.56f, footerWidth * 0.32f,
-                    secondarySize)
+                    .joinToString("  ·  "), small, centerX,
+                    footerRect.top + footerHeight * 0.76f, footerWidth * 0.90f,
+                    secondarySize, centered = true)
             }
             "gallery" -> {
                 drawTemplateFooter(AndroidColor.rgb(243, 241, 236))
@@ -3130,9 +3145,12 @@ fun applyCameraWatermark(
                     setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
                     textAlign = Paint.Align.RIGHT
                 }
-                val metrics = ink.fontMetrics
-                canvas.drawText(stamp, footerRect.right - pad,
-                    footerRect.bottom - pad - metrics.descent, ink)
+                val capBounds = android.graphics.Rect()
+                ink.getTextBounds("H", 0, 1, capBounds)
+                val capHeight = (-capBounds.top).toFloat().coerceAtLeast(ink.textSize * 0.5f)
+                val stampCenterY = footerRect.bottom - pad - capHeight * 0.5f
+                val stampBaseline = watermarkOpticalBaseline(ink, stampCenterY)
+                canvas.drawText(stamp, footerRect.right - pad, stampBaseline, ink)
             }
             else -> {
                     // The existing Fuji/Sony/Nikon/Canon lockup is retained for Auto and Signature.

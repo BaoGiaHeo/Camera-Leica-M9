@@ -516,7 +516,7 @@ fun FujiScreenScaffold(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK",
+                stringResource(R.string.settings_footer_hint),
                 color = FujiSkin.lcdGreen,
                 fontSize = 7.sp,
                 fontWeight = FontWeight.Bold,

@@ -87,7 +87,9 @@ fun aspectRatioDisplayLabel(index: Int, isLandscape: Boolean): String {
 
 @Composable
 fun CamTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
+    val baseContext = LocalContext.current
+    val activeLanguage = AppLanguageManager.currentLanguage
+    val context = AppLanguageManager.localizedContext(baseContext, activeLanguage)
     val prefs = context.getSharedPreferences("fujifilm_settings", 0)
     val shutterHex = prefs.getString("shutter_button_color", "#FFFFFFFF")
     SideEffect {
@@ -125,7 +127,10 @@ fun CamTheme(content: @Composable () -> Unit) {
         ),
         typography = appTypography
     ) {
-        CompositionLocalProvider(LocalTextStyle provides appTypography.bodyMedium) {
+        CompositionLocalProvider(
+            LocalContext provides context,
+            LocalTextStyle provides appTypography.bodyMedium
+        ) {
             Box(Modifier.fillMaxSize().background(CamColors.Bg).animaTContent()) {
                 content()
             }

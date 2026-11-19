@@ -6,6 +6,7 @@ import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,6 +32,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +54,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.awaitPointerEvent
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -65,7 +69,7 @@ private val tonePadBayer4 = arrayOf(
 @Composable
 fun TonePadBoard(
     filterName: String,
-    onAdvancedToggle: @Composable () -> Unit = {}
+    advancedContent: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
     val preferences = remember(context) {
@@ -89,10 +93,14 @@ fun TonePadBoard(
     }
     val guideProgress = remember { Animatable(0f) }
     val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    var advancedExpanded by remember { mutableStateOf(false) }
+    var snapEnabled by remember { mutableStateOf(true) }
+    val lastTapAt = remember { mutableLongStateOf(0L) }
+    val snapEnabledState by rememberUpdatedState(snapEnabled)
 
     val currentX by rememberUpdatedState(paleRich)
     val currentY by rememberUpdatedState(darkBright)
-    val currentSnap = remember { mutableStateOf(true) }
     val currentGuideVisible by rememberUpdatedState(guideVisible)
     val updatePosition by rememberUpdatedState<(Float, Float) -> Unit> { x, y ->
         val nx = x.coerceIn(-1f, 1f)
@@ -165,8 +173,10 @@ fun TonePadBoard(
                         .background(FujiSkin.lcd)
                         .border(1.dp, FujiSkin.lcdGreen, RoundedCornerShape(4.dp))
                         .clickable {
-                            guideProgress.snapToSafeZero()
-                            guideVisible = true
+                            scope.launch {
+                                guideProgress.snapTo(0f)
+                                guideVisible = true
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -230,17 +240,15 @@ fun TonePadBoard(
                         var activeMoved = false
                         var longPressReset = false
                         var resetThisGesture = false
-                        var lastPaleRich = currentX
-                        var lastDarkBright = currentY
-                        val previousTap = tonePadLastTapAt
+                        val previousTap = lastTapAt.longValue
                         if (startedAt - previousTap <= 320L && previousTap > 0L) {
                             resetPosition()
-                            tonePadLastTapAt = 0L
+                            lastTapAt.longValue = 0L
                             resetThisGesture = true
                         } else if (!startedOnPuck) {
                             var snappedX = downX
                             var snappedY = downY
-                            if (currentSnap.value) {
+                            if (snapEnabledState) {
                                 snappedX = (snappedX * 8f).roundToInt() / 8f
                                 snappedY = (snappedY * 6f).roundToInt() / 6f
                             }
@@ -248,6 +256,7 @@ fun TonePadBoard(
                             activeMoved = true
                         }
 
+                        var pointerReleased = false
                         try {
                             var gestureActive = true
                             while (gestureActive) {
@@ -272,6 +281,7 @@ fun TonePadBoard(
                                 }
                                 activeChange.consume()
                                 if (!activeChange.pressed) {
+                                    pointerReleased = true
                                     gestureActive = false
                                     continue
                                 }
@@ -286,18 +296,16 @@ fun TonePadBoard(
                                     var nx = (activeChange.position.x / width).coerceIn(0f, 1f)
                                     var ny = (activeChange.position.y / height).coerceIn(0f, 1f)
                                     val heldForMs = SystemClock.uptimeMillis() - startedAt
-                                    if (currentSnap.value && heldForMs < 300L) {
+                                    if (snapEnabledState && heldForMs < 300L) {
                                         nx = (nx * 8f).roundToInt() / 8f
                                         ny = (ny * 6f).roundToInt() / 6f
                                     }
-                                    lastPaleRich = nx * 2f - 1f
-                                    lastDarkBright = 1f - ny * 2f
-                                    updatePosition(lastPaleRich, lastDarkBright)
+                                    updatePosition(nx * 2f - 1f, 1f - ny * 2f)
                                 }
                             }
                         } finally {
-                            if (!activeMoved && !resetThisGesture) {
-                                tonePadLastTapAt = SystemClock.uptimeMillis()
+                            if (pointerReleased && !activeMoved && !resetThisGesture) {
+                                lastTapAt.longValue = SystemClock.uptimeMillis()
                             }
                             setDragging(false)
                         }
@@ -461,11 +469,37 @@ fun TonePadBoard(
             color = CamColors.Sub,
             fontSize = 8.sp
         )
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(3.dp))
+                .background(FujiSkin.lcd)
+                .border(1.dp, Color(0xFF344247), RoundedCornerShape(3.dp))
+                .clickable { advancedExpanded = !advancedExpanded }
+                .padding(horizontal = 9.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(stringResource(R.string.tone_pad_advanced), color = CamColors.TextColor, fontSize = 9.sp)
+            Text(if (advancedExpanded) "−" else "+", color = FujiSkin.lcdGreen, fontSize = 12.sp)
+        }
+        AnimatedVisibility(advancedExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(stringResource(R.string.tone_pad_snap), color = CamColors.Sub, fontSize = 9.sp)
+                    Text(
+                        if (snapEnabled) stringResource(R.string.tone_pad_on) else stringResource(R.string.tone_pad_off),
+                        color = if (snapEnabled) FujiSkin.lcdGreen else CamColors.Sub,
+                        fontSize = 9.sp,
+                        modifier = Modifier.clickable { snapEnabled = !snapEnabled }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+                advancedContent()
+            }
+        }
     }
-}
-
-private var tonePadLastTapAt: Long = 0L
-
-private suspend fun Animatable<Float, *>.snapToSafeZero() {
-    snapTo(0f)
 }

@@ -2384,6 +2384,18 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
  * Draws a camera-spec frame directly onto the upright pixel matrix. No portrait/landscape
  * heuristic is applied here: the image pixels, metadata and watermark all share one orientation.
  */
+/**
+ * Centers a watermark text line by its actual embedded-font cap height.
+ * The optical anchor is the midpoint between the top of capital H and baseline;
+ * accents above capitals are intentionally excluded from this optical measurement.
+ */
+private fun watermarkOpticalBaseline(paint: Paint, centerY: Float): Float {
+    val capBounds = android.graphics.Rect()
+    paint.getTextBounds("H", 0, 1, capBounds)
+    val capHeight = (-capBounds.top).toFloat().coerceAtLeast(paint.textSize * 0.5f)
+    return centerY + capHeight * 0.5f
+}
+
 fun applyCameraWatermark(
     context: Context,
     uri: Uri,
@@ -2644,7 +2656,7 @@ fun applyCameraWatermark(
                 textSize = minOf(rect.height() * 0.76f, rect.width() * 0.34f)
                 if (watermarkBrand == "sony") textScaleX = 1.06f
             }
-            val baseline = rect.centerY() - (markPaint.ascent() + markPaint.descent()) * 0.5f
+            val baseline = watermarkOpticalBaseline(markPaint, rect.centerY())
             canvas.drawText(brandTitle, rect.centerX(), baseline, markPaint)
         }
 
@@ -2907,8 +2919,7 @@ fun applyCameraWatermark(
                 }
                 rendered = rendered.trimEnd() + "…"
             }
-            val metrics = paint.fontMetrics
-            val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
+            val baseline = watermarkOpticalBaseline(paint, centerY)
             canvas.drawText(rendered, x, baseline, paint)
         }
 
@@ -3197,8 +3208,7 @@ fun applyCameraWatermark(
                     }
                     fittedText = fittedText.substring(0, endIndex).trimEnd() + ellipsis
                 }
-                val metrics = paint.fontMetrics
-                val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
+                val baseline = watermarkOpticalBaseline(paint, centerY)
                 canvas.drawText(fittedText, x, baseline, paint)
             }
     

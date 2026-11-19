@@ -83,11 +83,10 @@ fun SettingsScreen(
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
     val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
-        settingItems + listOf(
-            SettingItem("tab_11", "LOG LunaDream Working", "Developer password required · LunaDream diagnostics"),
-            SettingItem("tab_12", "Font Specimen", "KK7 glyph coverage · Vietnamese marks · type sizes"),
-            SettingItem("tab_13", stringResource(R.string.pixel_osd_icon_sheet_tab), stringResource(R.string.pixel_osd_icon_sheet_description)),
-            SettingItem("tab_14", stringResource(R.string.pixel_osd_preview_tab), stringResource(R.string.pixel_osd_preview_description))
+        settingItems + SettingItem(
+            "tab_11",
+            stringResource(R.string.pixel_osd_preview_tab),
+            stringResource(R.string.pixel_osd_preview_description)
         )
     } else settingItems
     val tabState = rememberLazyListState()
@@ -219,12 +218,6 @@ var nightShotMode by remember {
                 .padding(horizontal = if (isLandscape) 22.dp else 12.dp, vertical = 10.dp)
         ) {
         when (title) {
-            "Font Specimen" -> {
-                FontSpecimenPanel()
-            }
-            stringResource(R.string.pixel_osd_icon_sheet_tab) -> {
-                PixelOsdIconSheet()
-            }
             stringResource(R.string.pixel_osd_preview_tab) -> {
                 PixelOsdPreview()
             }
@@ -614,9 +607,6 @@ var nightShotMode by remember {
                         }, Modifier.width(75.dp))
                     }
                 }
-            }
-            "LOG LunaDream Working" -> {
-                LunaDreamDeveloperLogGate()
             }
             else -> {
                 Text("FujiFilm Mode", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)

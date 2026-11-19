@@ -87,6 +87,15 @@ object AppLanguageManager {
         initialized = true
     }
 
+    fun localizedContext(context: Context, language: String = currentLanguage): Context {
+        val resolvedLanguage = if (language == "vi") "vi" else "en"
+        val configuration = android.content.res.Configuration(context.resources.configuration)
+        val locale = java.util.Locale.forLanguageTag(resolvedLanguage)
+        configuration.setLocales(android.os.LocaleList.forLanguageTags(resolvedLanguage))
+        configuration.setLayoutDirection(locale)
+        return context.createConfigurationContext(configuration)
+    }
+
     fun languageFor(context: Context): String {
         if (initialized) return currentLanguage
         val preference = normalizePreference(

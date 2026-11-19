@@ -56,7 +56,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 private val tonePadBayer4 = arrayOf(
     intArrayOf(0, 8, 2, 10),
@@ -103,8 +102,6 @@ fun TonePadBoard(
     val lastTapAt = remember { mutableLongStateOf(0L) }
     val snapEnabledState by rememberUpdatedState(snapEnabled)
 
-    val currentX by rememberUpdatedState(paleRich)
-    val currentY by rememberUpdatedState(darkBright)
     val currentGuideVisible by rememberUpdatedState(guideVisible)
     val updatePosition by rememberUpdatedState<(Float, Float) -> Unit> { x, y ->
         val nx = x.coerceIn(-1f, 1f)

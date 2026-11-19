@@ -5507,12 +5507,16 @@ private fun FilterLookPreviewImage(
     modifier: Modifier,
     maxDimension: Int,
     tonePad: TonePadParameters? = null,
-    liveTonePad: Boolean = true
+    liveTonePad: Boolean = true,
+    tonePadShaderOverride: TonePadLiveShader? = null
 ) {
     val context = LocalContext.current
-    val tonePadShader = remember {
-        if (Build.VERSION.SDK_INT >= 33) runCatching { TonePadLiveShader() }.getOrNull() else null
+    val localTonePadShader = remember(liveTonePad, tonePadShaderOverride) {
+        if (liveTonePad && tonePadShaderOverride == null && Build.VERSION.SDK_INT >= 33) {
+            runCatching { TonePadLiveShader() }.getOrNull()
+        } else null
     }
+    val tonePadShader = tonePadShaderOverride ?: localTonePadShader
     val tonePadForBitmap = if (liveTonePad && tonePadShader != null && tonePad != null) null else tonePad
     androidx.compose.runtime.SideEffect {
         tonePadShader?.update(tonePad ?: TonePadParameters())
@@ -5609,6 +5613,9 @@ private fun FilterLookDialog(
     }
     var tonePadCommitted by remember(activeFilter) { mutableStateOf(tonePadSettings) }
     var tonePadOriginalActivated by remember(activeFilter) { mutableStateOf(false) }
+    val liveTonePadShader = remember(activeFilter) {
+        if (Build.VERSION.SDK_INT >= 33) runCatching { TonePadLiveShader() }.getOrNull() else null
+    }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -5686,7 +5693,8 @@ private fun FilterLookDialog(
                 modifier = Modifier.fillMaxSize(),
                 maxDimension = 480,
                 tonePad = if (showingOriginal) TonePadParameters() else
-                     tonePadSettings.takeIf { activeFilter != "None" || tonePadOriginalActivated }
+                     tonePadSettings.takeIf { activeFilter != "None" || tonePadOriginalActivated },
+                tonePadShaderOverride = liveTonePadShader
             )
             Text(
                 if (showingOriginal) "ẢNH GỐC · THẢ ĐỂ XEM LỌC" else "GIỮ ĐỂ XEM ẢNH GỐC",
@@ -5844,6 +5852,8 @@ private fun FilterLookDialog(
                             enabled = activeFilter != "None" || tonePadOriginalActivated,
                             modifier = Modifier.fillMaxWidth().height(132.dp),
                             onActivate = { tonePadOriginalActivated = true },
+                            onToneInput = { liveTonePadShader?.update(it) },
+                            throttleParentUpdates = liveTonePadShader != null,
                             onToneChanged = { tonePadSettings = it },
                             onToneSettled = {
                                 tonePadSettings = it
@@ -5881,6 +5891,8 @@ private fun FilterLookDialog(
                 if (activeFilter != "None") {
                     TonePadBoard(
                         filterName = activeFilter,
+                        onToneInput = { liveTonePadShader?.update(it) },
+                        throttleParentUpdates = liveTonePadShader != null,
                         onToneChanged = { tonePadSettings = it }
                     )
                 }

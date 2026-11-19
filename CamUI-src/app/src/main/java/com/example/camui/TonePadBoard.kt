@@ -222,6 +222,7 @@ fun TonePadBoard(
                             pass = PointerEventPass.Initial
                         )
                         down.consume()
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
                         val startedAt = SystemClock.uptimeMillis()
                         val width = size.width.toFloat().coerceAtLeast(1f)
                         val height = size.height.toFloat().coerceAtLeast(1f)
@@ -260,7 +261,12 @@ fun TonePadBoard(
                                 val event = withTimeoutOrNull(40L) {
                                     awaitPointerEvent(PointerEventPass.Initial)
                                 }
-                                val activeChange = event?.changes?.firstOrNull { it.id == down.id }
+                                if (event.changes.any { it.id != down.id && it.pressed }) {
+                                    resetThisGesture = true
+                                    gestureActive = false
+                                    continue
+                                }
+                                val activeChange = event.changes.firstOrNull { it.id == down.id }
                                 if (event == null) {
                                     if (!resetThisGesture && !pointerMoved && !longPressReset &&
                                         SystemClock.uptimeMillis() - startedAt >= 600L
@@ -305,6 +311,7 @@ fun TonePadBoard(
                                 lastTapAt.longValue = SystemClock.uptimeMillis()
                             }
                             setDragging(false)
+                            view.parent?.requestDisallowInterceptTouchEvent(false)
                         }
                     }
                 }

@@ -5,18 +5,17 @@ import android.graphics.Typeface
 import android.util.Log
 import androidx.compose.ui.text.font.FontFamily
 import java.io.File
-import java.util.zip.GZIPInputStream
 
 /**
  * The single typography entry point for the FujiFilm Mode UI.
  *
- * The original KK7 TTF is stored losslessly as a gzip-compressed asset to keep
- * the repository and APK payload small. It is expanded byte-for-byte into the
- * app cache before Typeface loads it. If the asset is unavailable or damaged,
+ * The exact KK7 TTF supplied for this project is stored as a normal Android asset.
+ * It is copied byte-for-byte into the app cache before Typeface loads it. If
+ * the asset is unavailable or damaged,
  * Android's monospace face is used and a warning is written to Logcat.
  */
 object FujiTypography {
-    const val FONT_ASSET_PATH = "fonts/vcr_osd_mono_kk7.ttf.gz"
+    const val FONT_ASSET_PATH = "fonts/vcr_osd_mono_kk7.ttf"
     const val FONT_CACHE_NAME = "vcr_osd_mono_kk7.ttf"
 
     private const val TAG = "FujiTypography"
@@ -62,10 +61,8 @@ object FujiTypography {
         if (!output.isFile || output.length() == 0L) {
             val temporary = File(context.cacheDir, "$FONT_CACHE_NAME.tmp")
             runCatching { temporary.delete() }
-            context.assets.open(FONT_ASSET_PATH).use { compressed ->
-                GZIPInputStream(compressed).use { input ->
-                    temporary.outputStream().use { destination -> input.copyTo(destination) }
-                }
+            context.assets.open(FONT_ASSET_PATH).use { input ->
+                temporary.outputStream().use { destination -> input.copyTo(destination) }
             }
             check(temporary.isFile && temporary.length() > 0L) {
                 "Decompressed KK7 font is empty."

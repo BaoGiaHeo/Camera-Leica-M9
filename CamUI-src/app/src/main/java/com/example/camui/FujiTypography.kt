@@ -3,6 +3,9 @@ package com.example.camui
 import android.content.Context
 import android.graphics.Typeface
 import android.util.Log
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import java.io.File
 
@@ -27,6 +30,9 @@ object FujiTypography {
     private var cachedFontFamily: FontFamily? = null
 
     @Volatile
+    private var bundledFontLoaded = false
+
+    @Volatile
     private var fallbackWarningLogged = false
 
     private val lock = Any()
@@ -35,8 +41,11 @@ object FujiTypography {
         cachedTypeface?.let { return it }
         synchronized(lock) {
             cachedTypeface?.let { return it }
-            val loaded = runCatching { loadBundledTypeface(context.applicationContext) }
+            val loaded = runCatching {
+                loadBundledTypeface(context.applicationContext).also { bundledFontLoaded = true }
+            }
                 .onFailure { error ->
+                    bundledFontLoaded = false
                     if (!fallbackWarningLogged) {
                         Log.w(TAG, "KK7 VCR OSD Mono could not be loaded; using system monospace fallback.", error)
                         fallbackWarningLogged = true
@@ -45,6 +54,31 @@ object FujiTypography {
                 .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
             cachedTypeface = loaded
             return loaded
+        }
+    }
+
+    fun isBundledFontLoaded(context: Context): Boolean {
+        androidTypeface(context)
+        return bundledFontLoaded
+    }
+
+    /**
+     * KK7 is missing the middle dot and prime/double-prime punctuation glyphs.
+     * Only those individual code points use a monospace fallback. Geometric
+     * OSD symbols such as the focus dot are rendered by the pixel-sprite layer.
+     */
+    fun withMissingGlyphFallback(value: String): AnnotatedString {
+        return buildAnnotatedString {
+            append(value)
+            value.forEachIndexed { index, character ->
+                if (character == '·' || character == '′' || character == '″') {
+                    addStyle(
+                        SpanStyle(fontFamily = FontFamily.Monospace),
+                        index,
+                        index + 1
+                    )
+                }
+            }
         }
     }
 
@@ -80,6 +114,7 @@ object FujiTypography {
         synchronized(lock) {
             cachedTypeface = null
             cachedFontFamily = null
+            bundledFontLoaded = false
             fallbackWarningLogged = false
         }
     }

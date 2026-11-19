@@ -14,8 +14,8 @@ android {
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 35
-        versionCode = 15
-        versionName = "2.5.0dream"
+        versionCode = 16
+        versionName = "2.5.0Dream"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -28,7 +28,7 @@ android {
         create("developer") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".developer"
-            versionNameSuffix = "-developer"
+            versionNameSuffix = ""
             buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "true")
         }
         release {

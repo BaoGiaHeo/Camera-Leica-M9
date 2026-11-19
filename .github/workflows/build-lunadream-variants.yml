@@ -1,4 +1,4 @@
-name: Build LunaDream Debug and Developer APKs
+name: Build FujiFilm Mode Release APK
 
 on:
   workflow_dispatch:
@@ -43,29 +43,22 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Build Debug and Developer APKs
-        id: build_variants
+      - name: Build Release APK (Developer diagnostics enabled)
+        id: build_release
         working-directory: CamUI-src
-        run: gradle --no-daemon :app:assembleDebug :app:assembleDeveloper --stacktrace
+        run: |
+          gradle --no-daemon :app:assembleDeveloper --stacktrace
+          cp app/build/outputs/apk/developer/app-developer.apk app/build/outputs/apk/developer/Release.apk
 
       - name: Run supported unit tests
         working-directory: CamUI-src
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
 
-      - name: Upload Debug APK
-        if: always() && steps.build_variants.outcome == 'success'
+      - name: Upload Release APK
+        if: always() && steps.build_release.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: LunaDream-2.5.0dream-Debug
-          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload Developer APK
-        if: always() && steps.build_variants.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: LunaDream-2.5.0dream-Developer
-          path: CamUI-src/app/build/outputs/apk/developer/app-developer.apk
+          name: FujiFilm-Mode-Release-2.5.0Dream
+          path: CamUI-src/app/build/outputs/apk/developer/Release.apk
           if-no-files-found: error
           retention-days: 14

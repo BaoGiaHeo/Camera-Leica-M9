@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/lunadream-2.5.0dream
+      - fix/2.5.0dream-af-label
     paths:
       - "CamUI-src/**"
       - ".github/workflows/build-lunadream-variants.yml"

@@ -237,12 +237,7 @@ private class SensorOrientationManager {
 
         // Only landscape quadrants are accepted. Portrait quadrants return the last
         // landscape orientation, preventing portrait ImageCapture target rotation.
-        val candidate = when {
-            filtered >= 315f || filtered < 45f -> return lastValidRotation
-            filtered < 135f -> Surface.ROTATION_270
-            filtered < 225f -> return lastValidRotation
-            else -> Surface.ROTATION_90
-        }
+        val candidate = LandscapeRotationPolicy.landscapeCandidate(filtered) ?: return lastValidRotation
         val current = lastValidRotation
         if (current == null) {
             lastValidRotation = candidate

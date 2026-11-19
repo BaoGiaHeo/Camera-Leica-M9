@@ -5913,7 +5913,11 @@ private fun FilterLookDialog(
                         filterName = activeFilter,
                         onToneInput = { liveTonePadShader?.update(it) },
                         throttleParentUpdates = liveTonePadShader != null,
-                        onToneChanged = { tonePadSettings = it }
+                        onToneChanged = { tonePadSettings = it },
+                        onToneSettled = {
+                            tonePadSettings = it
+                            tonePadCommitted = it
+                        }
                     )
                 }
                 presetGrid(Modifier.weight(1f))

@@ -26,8 +26,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -173,6 +175,12 @@ class MainActivity : AppCompatActivity() {
         requestHighestSupportedRefreshRate()
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         setContent {
+            // Explicitly expose the hosting Activity's registry to every nested ComposeView.
+            // This prevents rememberLauncherForActivityResult from seeing a null owner when
+            // the camera screen is hosted through an embedded ComposeView composition.
+            CompositionLocalProvider(
+                LocalActivityResultRegistryOwner provides this@MainActivity
+            ) {
             CamTheme {
                 var page by remember { mutableStateOf("camera") }
                 var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
@@ -296,6 +304,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }

@@ -451,6 +451,10 @@ fun FujiKey(
                         if (!enabled) return@awaitEachGesture
                         val startedAt = SystemClock.uptimeMillis()
                         suppressClickAfterHold = false
+                        android.util.Log.d(
+                            "FUJI_KEY",
+                            "ACTION_DOWN label=$label x=${down.position.x} y=${down.position.y} enabled=$enabled"
+                        )
                         latestPressStart?.invoke()
                         try {
                             while (true) {
@@ -460,8 +464,12 @@ fun FujiKey(
                             }
                         } finally {
                             latestPressEnd?.invoke()
-                            suppressClickAfterHold =
-                                SystemClock.uptimeMillis() - startedAt >= 180L
+                            val durationMs = SystemClock.uptimeMillis() - startedAt
+                            suppressClickAfterHold = durationMs >= 180L
+                            android.util.Log.d(
+                                "FUJI_KEY",
+                                "ACTION_UP label=$label durationMs=$durationMs held=$suppressClickAfterHold"
+                            )
                         }
                     }
                 }

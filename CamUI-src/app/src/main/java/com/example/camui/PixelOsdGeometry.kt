@@ -28,4 +28,4 @@ data class PixelOsdGeometry(
     }
 }
 
-private fun Float.roundToLogicPixel(): Int = kotlin.math.roundToInt()
+private fun Float.roundToLogicPixel(): Int = kotlin.math.round(this).toInt()

@@ -161,8 +161,6 @@ private val englishUi = mapOf(
     "Hiện thông số" to "Show camera settings", "Save Model" to "Save Model",
     "Import ảnh cho nút chụp" to "Import shutter image", "Đổi ảnh nút chụp" to "Change shutter image",
     "Đã chọn ảnh cho nút chụp." to "Shutter image selected.", "Dùng nút màu" to "Use solid color",
-    "Phát hiện ngôn ngữ hệ thống" to "Detect system language", "English" to "English",
-    "Vietnamese" to "Vietnamese", "Japan" to "Japanese", "Korea" to "Korean", "China" to "Chinese",
     "Đang phơi sáng" to "Exposing", "Vui lòng để điện thoại cố định" to "Keep the phone steady",
     "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes",
     "Đang phơi sáng vui lòng để điện thoại cố định" to "Exposure in progress. Please keep the phone steady.",
@@ -254,7 +252,6 @@ private val fullEnglishUi = mapOf(
     "Frame color" to "Frame color", "Frame dựng sẵn" to "Built-in frame",
     "Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ." to "Transparent removes the frame border and backing panel; text and PNG artwork remain.",
     "Áp dụng frame" to "Apply frame",
-    "Japan = 日本語 · Korea = 한국어 · China = 简体中文" to "Japanese = 日本語 · Korean = 한국어 · Chinese = 简体中文",
     "Language" to "Language", "Phát hiện ngôn ngữ hệ thống" to "Detect system language",
     "English" to "English", "Vietnamese" to "Vietnamese", "Japan" to "Japanese", "Korea" to "Korean", "China" to "Chinese",
     "Capture Quality" to "Capture Quality", "HDR · Multi-frame" to "HDR · Multi-frame",
@@ -459,7 +456,7 @@ private fun translateFullUiText(value: String, language: String): String? {
     dynamic.firstOrNull { value.startsWith(it.first) }?.let {
         return it.second + value.removePrefix(it.first)
     }
-    Regex("""^(\\d+) ảnh$""").matchEntire(value)?.let { match ->
+    Regex("""^(\d+) ảnh$""").matchEntire(value)?.let { match ->
         return "${match.groupValues[1]} photos"
     }
     return null

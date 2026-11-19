@@ -2108,7 +2108,8 @@ private fun applyCameraLookPixels(
     context: Context,
     bitmap: Bitmap,
     preset: String,
-    cube: CubeLut?
+    cube: CubeLut?,
+    tonePadOverride: TonePadParameters? = null
 ): Boolean {
     if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) return false
     val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -2120,9 +2121,12 @@ private fun applyCameraLookPixels(
     val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
     val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
     val tonePadPrefix = TonePadMath.preferencePrefix(preset)
-    val tonePadPaleRich = recipe.getFloat("$tonePadPrefix.x", 0f).coerceIn(-1f, 1f)
-    val tonePadDarkBright = recipe.getFloat("$tonePadPrefix.y", 0f).coerceIn(-1f, 1f)
-    val tonePadIntensity = recipe.getFloat("$tonePadPrefix.intensity", 0.65f).coerceIn(0f, 1f)
+    val savedTonePad = TonePadParameters(
+        paleRich = recipe.getFloat("$tonePadPrefix.x", 0f).coerceIn(-1f, 1f),
+        darkBright = recipe.getFloat("$tonePadPrefix.y", 0f).coerceIn(-1f, 1f),
+        intensity = recipe.getFloat("$tonePadPrefix.intensity", 0.65f).coerceIn(0f, 1f)
+    )
+    val tonePad = tonePadOverride ?: savedTonePad
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -2168,9 +2172,9 @@ private fun applyCameraLookPixels(
                 r,
                 g,
                 b,
-                tonePadPaleRich,
-                tonePadDarkBright,
-                tonePadIntensity
+                tonePad.paleRich,
+                tonePad.darkBright,
+                tonePad.intensity
             )
             r = tonePadRgb.red
             g = tonePadRgb.green
@@ -2206,7 +2210,8 @@ fun renderCameraLookPreview(
     context: Context,
     source: Bitmap,
     preset: String,
-    maxDimension: Int = 180
+    maxDimension: Int = 180,
+    tonePad: TonePadParameters? = null
 ): Bitmap? {
     return runCatching {
         val maxSide = maxOf(source.width, source.height).coerceAtLeast(1)
@@ -2222,7 +2227,7 @@ fun renderCameraLookPreview(
         val output = scaled.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching null
         if (scaled !== source) scaled.recycle()
         val cube = readCameraLookLut(context, preset)
-        if (!applyCameraLookPixels(context, output, preset, cube)) {
+        if (!applyCameraLookPixels(context, output, preset, cube, tonePad)) {
             output.recycle()
             return@runCatching null
         }

@@ -4954,25 +4954,14 @@ fun CameraScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FujiKey("−", onClick = {
-                    val steps = -1
                     val active = camera
                     val range = evRange
-                    if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
-                        evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
+                    if (active != null && range != null) {
+                        val next = (evIndex - 1).coerceIn(range.lower, range.upper)
+                        evIndex = next
                         manualExposure = false
-                        runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
-                    } else if (mode == "Pro" && activeDialSelection == "ISO" && active != null && manualSensorSupported && isoRange != null) {
-                        val low = isoRange.lower
-                        val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
-                        manualIso = (manualIso + steps * 100).coerceIn(low, high)
-                        manualIsoEnabled = true
-                        manualExposure = true
-                        runCatching { applyManualExposure(active, manualIso, manualShutterNs) }
-                        manualCaptureRevision++
-                    } else if (mode == "Pro" && activeDialSelection == "Tone") {
-                        manualColorTemp = (manualColorTemp + steps * 150).coerceIn(2500, 8000)
-                        manualColorTempEnabled = true
-                        active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
+                        runCatching { active.cameraControl.setExposureCompensationIndex(next) }
+                        android.util.Log.d("FUJI_EV", "TAP direction=DOWN index=$next")
                     }
                 }, modifier = Modifier.weight(1f),
                     onPressStart = { evHoldDirection = -1 },
@@ -4999,25 +4988,14 @@ fun CameraScreen(
                     )
                 }
                 FujiKey("+", onClick = {
-                    val steps = 1
                     val active = camera
                     val range = evRange
-                    if ((mode != "Pro" || activeDialSelection == null || activeDialSelection == "EV") && active != null && range != null) {
-                        evIndex = (evIndex + steps).coerceIn(range.lower, range.upper)
+                    if (active != null && range != null) {
+                        val next = (evIndex + 1).coerceIn(range.lower, range.upper)
+                        evIndex = next
                         manualExposure = false
-                        runCatching { active.cameraControl.setExposureCompensationIndex(evIndex) }
-                    } else if (mode == "Pro" && activeDialSelection == "ISO" && active != null && manualSensorSupported && isoRange != null) {
-                        val low = isoRange.lower
-                        val high = minOf(isoRange.upper, 2400).coerceAtLeast(low)
-                        manualIso = (manualIso + steps * 100).coerceIn(low, high)
-                        manualIsoEnabled = true
-                        manualExposure = true
-                        runCatching { applyManualExposure(active, manualIso, manualShutterNs) }
-                        manualCaptureRevision++
-                    } else if (mode == "Pro" && activeDialSelection == "Tone") {
-                        manualColorTemp = (manualColorTemp + steps * 150).coerceIn(2500, 8000)
-                        manualColorTempEnabled = true
-                        active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
+                        runCatching { active.cameraControl.setExposureCompensationIndex(next) }
+                        android.util.Log.d("FUJI_EV", "TAP direction=UP index=$next")
                     }
                 }, modifier = Modifier.weight(1f),
                     onPressStart = { evHoldDirection = 1 },

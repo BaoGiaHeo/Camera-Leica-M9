@@ -1,0 +1,205 @@
+# Approved unchanged proper names, camera terminology, technical tokens, file formats and film-look names.
+# Add entries only when they are genuinely names or technical identifiers, not general UI wording.
+
+# Product, platform and organization names
+FujiFilm Mode
+Fujifilm
+Android
+Camera2
+CameraX
+OpenGL
+OpenAI
+Canon
+Nikon
+Sony
+Kodak
+Leica
+Hasselblad
+Zeiss
+ZEISS
+DJI
+GoPro
+Lumix
+Panasonic
+Instax
+CineStill
+Agfa
+Blackmagic
+Xiaomi
+Redmi
+HyperOS
+Google
+TikTok
+Baoaka06
+
+# App modes, engines and feature names
+LunaDream
+LunaDream 1.5
+LunaDream 2.0
+RawDream 2.0
+NightShot
+NightShotMode
+Milky Way
+Star Trails
+Tone Pad
+AnimaT
+HDMP
+HDRbyHDMP
+OSD
+HUD
+LUT
+
+# Camera controls, exposure, focus and display abbreviations
+AF
+AF-S
+AF-C
+AF-L
+AE-L
+MF
+EV
+SS
+Tv
+F
+ISO
+WB
+DR
+DR100
+DR200
+DR400
+FLASH
+DRIVE
+FILM
+ADJ
+HISTO
+Q
+DISP/BACK
+MENU/OK
+PLAY
+LIVE
+W
+T
+K
+MP
+fps
+FPS
+Hz
+UI
+GPU
+RAW
+HDR
+UHD
+FHD
+JPEG_R
+RAW_SENSOR
+HAL
+OEM
+ISP
+EIS
+OIS
+AF-C
+AE
+AWB
+OKLab
+OKLCH
+AGSL
+TTL
+LED
+USB
+CPU
+RAM
+GPU
+SDK
+API
+NDK
+JPEG
+DNG
+EXIF
+EXIF
+LDR
+sRGB
+RGB
+EV
+AE/AF
+AF/AE
+PDAF
+OIS
+EIS
+ISP
+MIPI
+YCbCr
+YUV
+
+# File formats and technical identifiers
+.cube
+.bin
+.zip
+ZIP
+JSON
+XML
+PNG
+JPG
+JPEG
+DNG
+TIFF
+HEIF
+HEIC
+MP4
+MOV
+WAV
+MP3
+RAW
+JPEG_R
+RAW_SENSOR
+ONNX
+NNAPI
+OpenCL
+Vulkan
+AGSL
+
+# Fujifilm-inspired and other named film simulations / filter presets
+Provia
+Velvia
+Astia
+Classic Chrome
+Classic Neg
+Eterna
+Pro Neg Std
+Pro Neg Hi
+Nostalgic Neg
+Reala Ace
+Bleach Bypass
+Acros
+Portra 160
+Portra 400
+Portra 800
+Gold 200
+Ektar 100
+Kodachrome 64
+ColorPlus 200
+CineStill 800T
+Vision3 250D
+Vision3 500T
+400H
+Ektachrome 100
+Kodak Portra 400
+Agfa
+Kodak Gold
+Fuji 400
+Tri-X 400
+T-Max 400
+Monochrome
+Leica Vivid
+Leica Natural
+Leica Mono
+Hasselblad HNCS
+Zeiss Cool
+Zeiss Warm
+Sony S-Cinetone
+Sony S-Log3
+Cine Tone
+Cinematic Log
+Soft Log
+Vivid
+Natural
+Cool
+Warm

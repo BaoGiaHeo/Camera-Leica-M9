@@ -35,6 +35,6 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Build CamUI debug APK
-        run: gradle -p CamUI-src testDebugUnitTest assembleDebug --no-daemon --stacktrace
+      - name: Build FujiFilm Mode Release APK
+        run: gradle -p CamUI-src testDebugUnitTest assembleDeveloper --no-daemon --stacktrace
 

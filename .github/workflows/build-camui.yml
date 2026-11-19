@@ -49,16 +49,6 @@ jobs:
         working-directory: CamUI-src
         run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
-      - name: Publish debug APK immediately after build
-        if: always() && !cancelled()
-        uses: actions/upload-artifact@v4
-        with:
-          name: LunaDream-2.5.0dream-app-debug
-          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-
       - name: Update Android command-line tools for API 37 preview emulator
         run: |
           yes | sdkmanager --licenses --channel=3 >/dev/null

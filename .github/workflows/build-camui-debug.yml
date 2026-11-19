@@ -1,4 +1,4 @@
-name: Manual FujiFilm Mode CamUI Debug APK (after emulator validation)
+name: Manual FujiFilm Mode Release APK (Developer diagnostics)
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  build-debug:
+  build-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,14 +34,16 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Build debug APK
+      - name: Build Release APK
         working-directory: CamUI-src
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          gradle --no-daemon :app:assembleDeveloper
+          cp app/build/outputs/apk/developer/app-developer.apk app/build/outputs/apk/developer/Release.apk
 
-      - name: Upload app-debug.apk
+      - name: Upload Release.apk
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
+          name: FujiFilm-Mode-Release-2.5.0Dream
+          path: CamUI-src/app/build/outputs/apk/developer/Release.apk
           if-no-files-found: error
           retention-days: 14

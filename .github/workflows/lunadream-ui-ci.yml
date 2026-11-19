@@ -35,14 +35,7 @@ jobs:
           gradle-version: '9.3.1'
 
       - name: Compile and run unit tests
-        run: gradle -p CamUI-src testDebugUnitTest assembleDebug --stacktrace
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: LunaDream-2.5.0dream-ui-debug
-          path: CamUI-src/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+        run: gradle -p CamUI-src testDebugUnitTest assembleDeveloper --stacktrace
 
       - name: Package complete modified Kotlin source files
         if: always() && !cancelled()

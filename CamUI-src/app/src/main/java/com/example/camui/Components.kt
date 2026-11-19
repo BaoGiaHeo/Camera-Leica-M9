@@ -425,6 +425,66 @@ private val fullEnglishUi = mapOf(
     "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to "LunaDream 2.0 did not finish; the LunaDream 1.5 fallback was used. Reason:"
 )
 
+private val vietnameseUi = buildMap {
+    englishUi.forEach { (source, translated) ->
+        if (source != translated) put(translated, source)
+    }
+    fullEnglishUi.forEach { (source, translated) ->
+        if (source != translated) put(translated, source)
+    }
+    putAll(
+        mapOf(
+            "Settings" to "Cài đặt",
+            "Toolbox" to "Hộp công cụ",
+            "Contents" to "Nội dung",
+            "Metering" to "Đo sáng",
+            "Render Engine" to "Bộ xử lý kết xuất",
+            "Aspect Ratio" to "Tỉ lệ khung hình",
+            "Live Photo" to "Ảnh động",
+            "Performance" to "Hiệu năng",
+            "Center" to "Trung tâm",
+            "Frames" to "Khung hình",
+            "Other" to "Khác",
+            "Device options" to "Tùy chọn thiết bị",
+            "Assistive Tools" to "Công cụ hỗ trợ",
+            "Focus & Lens" to "Lấy nét & Ống kính",
+            "Capture & Quality" to "Chụp & Chất lượng",
+            "Photo Mode Setting" to "Cài đặt chế độ ảnh",
+            "Appearance" to "Giao diện",
+            "Language" to "Ngôn ngữ",
+            "About" to "Giới thiệu",
+            "Noise Reduction" to "Giảm nhiễu",
+            "Noise reduction" to "Giảm nhiễu",
+            "Save Location" to "Vị trí lưu",
+            "Save location" to "Vị trí lưu",
+            "Image Quality" to "Chất lượng ảnh",
+            "Backup & Restore" to "Sao lưu & Khôi phục",
+            "Viewfinder overlays" to "Lớp phủ kính ngắm",
+            "Grid Lines" to "Đường lưới",
+            "Focus Peaking" to "Viền hỗ trợ lấy nét",
+            "Histogram" to "Biểu đồ histogram",
+            "Sensor information" to "Thông tin cảm biến",
+            "Camera ID" to "ID camera",
+            "Lens" to "Ống kính",
+            "Photo" to "Ảnh",
+            "Night capture" to "Chụp đêm",
+            "Long Exposure" to "Phơi sáng lâu",
+            "Star Trails" to "Vệt sao",
+            "Custom shutter button" to "Nút chụp tùy chỉnh",
+            "Pro HUD elements" to "Thành phần HUD Pro",
+            "EV/Shutter/ISO display" to "Hiển thị EV/Shutter/ISO",
+            "Choose a mode before capture" to "Chọn chế độ trước khi chụp",
+            "LunaDream is off" to "LunaDream đang tắt",
+            "LunaDream is on" to "LunaDream đang bật",
+            "Hold steady" to "Giữ máy ổn định",
+            "Move freely" to "Có thể di chuyển máy tự do",
+            "English" to "ENGLISH",
+            "SYSTEM" to "SYSTEM",
+            "TIẾNG VIỆT" to "TIẾNG VIỆT"
+        )
+    )
+}
+
 private fun translateFullUiText(value: String, language: String): String? {
     if (language != "en") return null
     fullEnglishUi[value]?.let { return it }
@@ -462,7 +522,26 @@ private fun translateFullUiText(value: String, language: String): String? {
 }
 
 private fun translateUiText(value: String, language: String): String {
-    if (language == "vi") return value
+    if (language == "vi") {
+        vietnameseUi[value]?.let { return it }
+        val dynamicVietnamese = listOf(
+            "LunaDream 1.5: capturing frame " to "LunaDream 1.5: thu khung ",
+            "LunaDream 2.0: capturing frame " to "LunaDream 2.0: thu khung ",
+            "RawDream 2.0: capturing frame " to "RawDream 2.0: thu khung ",
+            "NightShotMode: capturing frame " to "NightShotMode: thu khung ",
+            "NightShotMode Milky Way: capturing frame " to "NightShotMode Milky Way: thu khung ",
+            "NightShotMode: aligning and merging " to "NightShotMode: căn chỉnh và gộp ",
+            "Battery temperature: " to "Nhiệt pin: ",
+            "Android thermal status: " to "Trạng thái nhiệt Android: "
+        )
+        dynamicVietnamese.firstOrNull { value.startsWith(it.first) }?.let {
+            return it.second + value.removePrefix(it.first)
+        }
+        Regex("""^(\\d+) photos$""").matchEntire(value)?.let {
+            return "${it.groupValues[1]} ảnh"
+        }
+        return value
+    }
     translateFullUiText(value, "en")?.let { return it }
     englishUi[value]?.let { return it }
     var translated = value

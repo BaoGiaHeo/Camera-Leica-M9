@@ -904,6 +904,22 @@ fun CameraScreen(
         mutableStateOf(appPrefs.getBoolean("milky_way_stack_enabled", false))
     }
     var showLunaDream by remember { mutableStateOf(false) }
+    LaunchedEffect(mode, ratioIdx, showQuick, filterDialogVisible, showLunaDream) {
+        val activePanel = when {
+            showQuick -> "Q_MENU"
+            filterDialogVisible -> "FILM_FILTERS"
+            showLunaDream -> "LUNADREAM"
+            else -> "NONE"
+        }
+        CrashContextDiagnostics.updateCameraState(
+            mode = mode,
+            panel = activePanel,
+            aspectRatio = "ratio_index=$ratioIdx",
+            orientation = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) "LANDSCAPE" else "PORTRAIT",
+            language = AppLanguageManager.currentLanguage,
+            uiStyle = if (appPrefs.getBoolean("simple_ui_mode_enabled", false)) "SIMPLE" else "LCD"
+        )
+    }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
@@ -958,7 +974,7 @@ fun CameraScreen(
         val direction = zoomHoldDirection
         val active = camera
         if (direction == 0 || active == null) return@LaunchedEffect
-        delay(180L)
+        var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<Void>? = null
         var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
         var previousFrame = 0L
         var heldSeconds = 0f
@@ -984,14 +1000,22 @@ fun CameraScreen(
             if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
                 targetZoom = next
                 zoomSel = next
-                active.cameraControl.setZoomRatio(next)
+                lastZoomFuture = active.cameraControl.setZoomRatio(next)
                 tickCount++
             }
             val now = SystemClock.uptimeMillis()
             if (now - lastDiagnosticAt >= 1_000L) {
+                val commandState = when {
+                    lastZoomFuture == null -> "NO_COMMAND"
+                    !lastZoomFuture!!.isDone -> "PENDING"
+                    else -> runCatching {
+                        lastZoomFuture!!.get()
+                        "COMPLETED"
+                    }.getOrElse { "FAILED:${it.cause?.javaClass?.simpleName ?: it.javaClass.simpleName}" }
+                }
                 android.util.Log.d(
                     "FUJI_ZOOM",
-                    "HOLD_TICK direction=$direction ticks=$tickCount zoom=$targetZoom cameraZoom=${state.zoomRatio}"
+                    "HOLD_TICK direction=$direction ticks=$tickCount zoom=$targetZoom cameraZoom=${state.zoomRatio} command=$commandState"
                 )
                 lastDiagnosticAt = now
                 tickCount = 0
@@ -1003,7 +1027,7 @@ fun CameraScreen(
         val active = camera
         val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
         if (direction == 0 || active == null || range == null) return@LaunchedEffect
-        delay(180L)
+        var lastEvFuture: com.google.common.util.concurrent.ListenableFuture<Void>? = null
         var targetIndex = evIndex.coerceIn(range.lower, range.upper)
         var previousFrame = 0L
         var heldSeconds = 0f
@@ -1027,14 +1051,22 @@ fun CameraScreen(
                 targetIndex = next
                 evIndex = next
                 manualExposure = false
-                active.cameraControl.setExposureCompensationIndex(next)
+                lastEvFuture = active.cameraControl.setExposureCompensationIndex(next)
                 tickCount++
             }
             val now = SystemClock.uptimeMillis()
             if (now - lastDiagnosticAt >= 1_000L) {
+                val commandState = when {
+                    lastEvFuture == null -> "NO_COMMAND"
+                    !lastEvFuture!!.isDone -> "PENDING"
+                    else -> runCatching {
+                        lastEvFuture!!.get()
+                        "COMPLETED"
+                    }.getOrElse { "FAILED:${it.cause?.javaClass?.simpleName ?: it.javaClass.simpleName}" }
+                }
                 android.util.Log.d(
                     "FUJI_EV",
-                    "HOLD_TICK direction=$direction ticks=$tickCount index=$targetIndex cameraIndex=${active.cameraInfo.exposureState.exposureCompensationIndex}"
+                    "HOLD_TICK direction=$direction ticks=$tickCount index=$targetIndex cameraIndex=${active.cameraInfo.exposureState.exposureCompensationIndex} command=$commandState"
                 )
                 lastDiagnosticAt = now
                 tickCount = 0
@@ -4873,9 +4905,10 @@ fun CameraScreen(
                         onClick = { animateZoomTo((zoomSel + 0.1f).coerceAtMost(dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
                         enabled = zoomStateForDial != null && zoomSel < dialZoomMaximum - 0.001f,
-                        onPressStart = { zoomHoldDirection = 1 },
+                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START"); zoomHoldDirection = 1 },
                         onPressEnd = {
                             zoomHoldDirection = 0
+                            CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END direction=IN zoom=$zoomSel")
                         }
@@ -4885,9 +4918,10 @@ fun CameraScreen(
                         onClick = { animateZoomTo((zoomSel - 0.1f).coerceAtLeast(dialZoomMinimum)) },
                         modifier = Modifier.weight(1f),
                         enabled = zoomStateForDial != null && zoomSel > dialZoomMinimum + 0.001f,
-                        onPressStart = { zoomHoldDirection = -1 },
+                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START"); zoomHoldDirection = -1 },
                         onPressEnd = {
                             zoomHoldDirection = 0
+                            CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END direction=OUT zoom=$zoomSel")
                         }
@@ -4955,9 +4989,10 @@ fun CameraScreen(
                         android.util.Log.d("FUJI_EV", "TAP direction=DOWN index=$next")
                     }
                 }, modifier = Modifier.weight(1f),
-                    onPressStart = { evHoldDirection = -1 },
+                    onPressStart = { CrashContextDiagnostics.recordUiEvent("EV_MINUS_PRESS_START"); evHoldDirection = -1 },
                     onPressEnd = {
                         evHoldDirection = 0
+                        CrashContextDiagnostics.recordUiEvent("EV_MINUS_PRESS_END index=$evIndex")
                         appPrefs.edit().putInt("pro_ev_index", evIndex).apply()
                         android.util.Log.d("FUJI_EV", "PRESS_END direction=DOWN index=$evIndex")
                     })
@@ -4989,9 +5024,10 @@ fun CameraScreen(
                         android.util.Log.d("FUJI_EV", "TAP direction=UP index=$next")
                     }
                 }, modifier = Modifier.weight(1f),
-                    onPressStart = { evHoldDirection = 1 },
+                    onPressStart = { CrashContextDiagnostics.recordUiEvent("EV_PLUS_PRESS_START"); evHoldDirection = 1 },
                     onPressEnd = {
                         evHoldDirection = 0
+                        CrashContextDiagnostics.recordUiEvent("EV_PLUS_PRESS_END index=$evIndex")
                         appPrefs.edit().putInt("pro_ev_index", evIndex).apply()
                         android.util.Log.d("FUJI_EV", "PRESS_END direction=UP index=$evIndex")
                     })

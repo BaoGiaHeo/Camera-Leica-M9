@@ -183,6 +183,7 @@ class MainActivity : AppCompatActivity() {
             ) {
             CamTheme {
                 var page by remember { mutableStateOf("camera") }
+                LaunchedEffect(page) { CrashContextDiagnostics.updateRoute(page) }
                 var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
                 var manualAnimationPerformanceMode by remember {
                     mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))

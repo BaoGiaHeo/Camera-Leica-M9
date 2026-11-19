@@ -462,6 +462,9 @@ fun FujiKey(
                 down.consume()
                 view.requestUnbufferedDispatch(down.id.value.toInt())
                 val startedAt = SystemClock.uptimeMillis()
+                CrashContextDiagnostics.recordUiEvent(
+                    "KEY_DOWN label=${label.uppercase()} x=${down.position.x.roundToInt()} y=${down.position.y.roundToInt()}"
+                )
                 rawPressed = true
                 android.util.Log.d(
                     "FUJI_KEY",
@@ -490,6 +493,9 @@ fun FujiKey(
                     android.util.Log.d(
                         "FUJI_KEY",
                         "ACTION_UP label=$label durationMs=$durationMs held=$wasHold released=$releasedNormally"
+                    )
+                    CrashContextDiagnostics.recordUiEvent(
+                        "KEY_UP label=${label.uppercase()} duration_ms=$durationMs held=$wasHold released=$releasedNormally"
                     )
                     if (releasedNormally && !wasHold && enabled) {
                         if (view.context.getSharedPreferences(

@@ -49,6 +49,9 @@ class CrashCaptureApplication : Application() {
                     appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
                     appendLine("Thread: ${thread.name} (id=${thread.id})")
                     appendLine()
+                    appendLine("UI CONTEXT")
+                    appendLine(CrashContextDiagnostics.snapshot())
+                    appendLine()
                     appendLine("EXCEPTION")
                     appendLine(stack)
                     if (BuildConfig.DEVELOPER_LOG_ENABLED) {

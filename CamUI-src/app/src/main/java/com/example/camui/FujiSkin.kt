@@ -1,5 +1,7 @@
 package com.example.camui
 
+import androidx.compose.ui.res.stringResource
+
 import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -474,6 +476,7 @@ fun FujiScreenScaffold(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
+    val cleanVersionName = BuildConfig.VERSION_NAME.replace(Regex("(?i)dream$"), "").trim()
     Column(
         modifier.fillMaxSize()
             .clip(RoundedCornerShape(5.dp))
@@ -522,7 +525,7 @@ fun FujiScreenScaffold(
             )
             if (showVersion) {
                 Text(
-                    "LUNADREAM ${BuildConfig.VERSION_NAME.removeSuffix("dream")}".uppercase(),
+                    stringResource(R.string.fujifilm_mode_version, cleanVersionName).uppercase(),
                     color = FujiSkin.muted,
                     fontSize = 7.sp,
                     fontFamily = kk7Font,

@@ -216,9 +216,8 @@ private fun currentDisplayIsLandscape(context: Context): Boolean {
 }
 
 /**
- * Physical device orientation is independent of the locked landscape UI.
- * The circular low-pass filter and 12-degree hysteresis prevent the capture rotation
- * from oscillating around the 45/135/225/315-degree transition boundaries.
+ * Tracks only the two physical landscape quadrants while the app remains landscape-only.
+ * The circular low-pass filter and hysteresis prevent rotation oscillation near boundaries.
  */
 private class SensorOrientationManager {
     private var smoothedDegrees: Float? = null
@@ -236,10 +235,12 @@ private class SensorOrientationManager {
         }
         smoothedDegrees = filtered
 
+        // Only landscape quadrants are accepted. Portrait quadrants return the last
+        // landscape orientation, preventing portrait ImageCapture target rotation.
         val candidate = when {
-            filtered >= 315f || filtered < 45f -> Surface.ROTATION_0
+            filtered >= 315f || filtered < 45f -> return lastValidRotation
             filtered < 135f -> Surface.ROTATION_270
-            filtered < 225f -> Surface.ROTATION_180
+            filtered < 225f -> return lastValidRotation
             else -> Surface.ROTATION_90
         }
         val current = lastValidRotation
@@ -444,11 +445,15 @@ fun CameraScreen(
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
-    var targetRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
+    val initialLandscapeRotation = remember(localView) {
+        val displayRotation = localView.display?.rotation ?: Surface.ROTATION_90
+        if (displayRotation == Surface.ROTATION_270) Surface.ROTATION_270 else Surface.ROTATION_90
+    }
+    var targetRotation by remember { mutableIntStateOf(initialLandscapeRotation) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    // The Activity is locked to landscape for the entire UI. This state follows the physical
-    // handset orientation independently, so the preview and saved frame can be portrait or landscape.
-    var isLandscape by remember { mutableStateOf(false) }
+    // Activity orientation and CameraX capture geometry are both landscape-only.
+    // A portrait sensor reading keeps the most recent landscape rotation.
+    var isLandscape by remember { mutableStateOf(true) }
     val uiIsLandscape = true
     DisposableEffect(context) {
         val orientationManager = SensorOrientationManager()
@@ -824,8 +829,7 @@ fun CameraScreen(
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var captureSetupReady by remember { mutableStateOf(false) }
 
-    // The camera screen stays landscape, so use the physical sensor-derived CameraX rotation
-    // for preview geometry and the capture orientation. 0/180 = portrait; 90/270 = landscape.
+    // The camera screen and capture output remain landscape. Portrait sensor readings are ignored.
     LaunchedEffect(targetRotation) {
         val nextLandscape = targetRotation == Surface.ROTATION_90 ||
             targetRotation == Surface.ROTATION_270

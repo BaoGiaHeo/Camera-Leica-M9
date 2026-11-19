@@ -5535,7 +5535,12 @@ private fun FilterLookPreviewImage(
     }
     val preview = renderedState.second
     val tonePadEffectModifier = if (liveTonePad && tonePadShader != null && tonePad != null) {
-        Modifier.graphicsLayer { renderEffect = tonePadShader.composeEffect }
+        Modifier.graphicsLayer {
+            // State is observed by this layer block, so uniform changes invalidate
+            // the preview render layer without recomposing FilterLookDialog.
+            tonePadShader.frameRevision
+            renderEffect = tonePadShader.composeEffect
+        }
     } else Modifier
     when {
         preview != null -> {

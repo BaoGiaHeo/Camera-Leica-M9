@@ -427,12 +427,12 @@ fun FujiTopKey(
     }
 }
 
-@Composable
 internal const val FUJI_KEY_HOLD_THRESHOLD_MS = 180L
 
 internal fun isFujiKeyHold(durationMillis: Long): Boolean =
     durationMillis >= FUJI_KEY_HOLD_THRESHOLD_MS
 
+@Composable
 fun FujiKey(
     label: String,
     onClick: () -> Unit,

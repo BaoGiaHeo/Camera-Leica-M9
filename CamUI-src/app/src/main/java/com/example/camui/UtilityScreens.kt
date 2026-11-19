@@ -2633,6 +2633,7 @@ fun applyCameraWatermark(
             else -> brandTypeface
         }
         val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
+        val appWatermarkTypeface = FujiTypography.androidTypeface(context)
         val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand, frameStyle == "Black")?.let {
             ContextCompat.getDrawable(context, it)
         }
@@ -2695,7 +2696,6 @@ fun applyCameraWatermark(
 
         // All watermark metadata uses the app-wide KK7 typography. Brand marks remain
         // image assets where available; any text-drawn metadata uses this single typeface.
-        val appWatermarkTypeface = FujiTypography.androidTypeface(context)
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             typeface = appWatermarkTypeface

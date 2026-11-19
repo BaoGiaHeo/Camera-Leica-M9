@@ -53,7 +53,13 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/LunaDreamProcessingScope.kt \
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
+            CamUI-src/app/src/main/java/com/example/camui/TonePadBoard.kt \
+            CamUI-src/app/src/main/java/com/example/camui/TonePadLiveShader.kt \
+            CamUI-src/app/src/main/java/com/example/camui/TonePadPublishGate.kt \
+            CamUI-src/app/src/main/res/values/strings.xml \
+            CamUI-src/app/src/main/res/values-vi/strings.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/TonePadPublishGateTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PhotoOutputGeometryTest.kt \
             CamUI-src/app/build.gradle.kts
 

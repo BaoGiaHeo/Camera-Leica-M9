@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.roundToInt
 
 private object PixelOsdPalette {
     const val WHITE = 0xFFF2F2F2.toInt()

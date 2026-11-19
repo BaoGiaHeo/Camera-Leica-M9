@@ -26,7 +26,7 @@ private object PixelOsdPalette {
     const val SHADOW = 0xCC000000.toInt()
 }
 
-private object PixelOsdSprites {
+internal object PixelOsdSprites {
     private val sprites = mapOf(
         "memory-card" to arrayOf("WWWWWW", "W....W", "W.WW.W", "W.WW.W", "W....W", "WWWWWW"),
         "battery" to arrayOf("..WWWWWW.", "WW......W", "W........", "WW......W", "..WWWWWW."),

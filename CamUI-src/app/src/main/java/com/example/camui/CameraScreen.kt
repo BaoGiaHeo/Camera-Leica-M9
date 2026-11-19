@@ -4007,86 +4007,20 @@ fun CameraScreen(
                                     drawRect(Color.Black, Offset(0f, 0f), DrawSize(size.width, curtainHeight))
                                 }
                             }
-                            if (showGrid) {
-                                Canvas(Modifier.fillMaxSize()) {
-                                    val c = Color(0x66FFFFFF)
-                                    for (i in 1..2) {
-                                        val x = size.width * i / 3f
-                                        val y = size.height * i / 3f
-                                        drawLine(c, Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
-                                        drawLine(c, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
-                                    }
-                                }
-                            }
-                            if (faceTrackingEnabled && faceTrackCenter != null) {
-                                val center = faceTrackCenter!!
-                                Canvas(Modifier.fillMaxSize()) {
-                                    val point = Offset(center.x * size.width, center.y * size.height)
-                                    drawCircle(
-                                        color = Color(0xFF58D6FF),
-                                        radius = 14.dp.toPx(),
-                                        center = point,
-                                        style = Stroke(width = 2.dp.toPx())
-                                    )
-                                    drawLine(
-                                        color = Color(0xFF58D6FF),
-                                        start = Offset(point.x - 20.dp.toPx(), point.y),
-                                        end = Offset(point.x + 20.dp.toPx(), point.y),
-                                        strokeWidth = 1.dp.toPx()
-                                    )
-                                    drawLine(
-                                        color = Color(0xFF58D6FF),
-                                        start = Offset(point.x, point.y - 20.dp.toPx()),
-                                        end = Offset(point.x, point.y + 20.dp.toPx()),
-                                        strokeWidth = 1.dp.toPx()
-                                    )
-                                }
-                            }
-                            if (focusPeaking && peakPoints.isNotEmpty()) {
-                                Canvas(Modifier.fillMaxSize()) {
-                                    peakPoints.forEach { p ->
-                                        drawCircle(Color(0xFF00FFB0), 2.dp.toPx(),
-                                            Offset(p.x * size.width, p.y * size.height))
-                                    }
-                                }
-                            }
-                            if (levelEnabled) {
-                                val levelColor = if (kotlin.math.abs(horizonRollDegrees) < 1.2f) {
-                                    Color(0xFF00E676)
-                                } else {
-                                    Color(0xFFFFC857)
-                                }
-                                Box(
-                                    Modifier.align(Alignment.Center).width(104.dp).height(2.dp)
-                                        .graphicsLayer { rotationZ = -horizonRollDegrees }
-                                        .background(levelColor)
+                            PixelOsdLayer(
+                                modifier = Modifier.fillMaxSize(),
+                                frame = PixelOsdFrame(
+                                    showGrid = showGrid,
+                                    faceCenter = faceTrackCenter.takeIf { faceTrackingEnabled },
+                                    faceFocused = focusLocked,
+                                    focusLocked = focusLocked,
+                                    focusPoints = if (focusPeaking) peakPoints else emptyList(),
+                                    showLevel = levelEnabled,
+                                    horizonRollDegrees = horizonRollDegrees,
+                                    showZebra = zebraEnabled,
+                                    zebraPoints = zebraPoints
                                 )
-                                Text(
-                                    String.format(Locale.US, "%+.1f°", horizonRollDegrees),
-                                    color = levelColor,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.align(Alignment.Center).padding(top = 13.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0x88000000))
-                                        .padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                            if (zebraEnabled && zebraPoints.isNotEmpty()) {
-                                Canvas(Modifier.fillMaxSize()) {
-                                    val stroke = 1.5.dp.toPx()
-                                    val span = 3.dp.toPx()
-                                    zebraPoints.forEach { p ->
-                                        val center = Offset(p.x * size.width, p.y * size.height)
-                                        drawLine(
-                                            color = Color(0xFFFFD54F).copy(alpha = 0.88f),
-                                            start = Offset(center.x - span, center.y + span),
-                                            end = Offset(center.x + span, center.y - span),
-                                            strokeWidth = stroke
-                                        )
-                                    }
-                                }
-                            }
+                            )
                             if (bracketCaptureActive) {
                                 Text(
                                     "BRACKETING $bracketCompletedFrames",

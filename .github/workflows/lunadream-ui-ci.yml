@@ -59,6 +59,7 @@ jobs:
             CamUI-src/app/src/main/res/values/strings.xml \
             CamUI-src/app/src/main/res/values-vi/strings.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/TonePadPublishGateTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PhotoOutputGeometryTest.kt \
             CamUI-src/app/build.gradle.kts

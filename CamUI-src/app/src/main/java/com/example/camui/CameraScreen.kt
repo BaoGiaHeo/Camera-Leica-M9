@@ -1031,8 +1031,19 @@ fun CameraScreen(
         val active = camera
         val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
         if (direction == 0 || active == null || range == null) return@LaunchedEffect
+        delay(FUJI_KEY_HOLD_THRESHOLD_MS)
+        if (evHoldDirection != direction) return@LaunchedEffect
         var lastEvFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetIndex = evIndex.coerceIn(range.lower, range.upper)
+        // A hold crossing the key threshold gets one immediate EV step; a short tap
+        // is handled only by FujiKey.onClick and never enters this repeating loop.
+        val firstHeldIndex = (targetIndex + direction).coerceIn(range.lower, range.upper)
+        if (firstHeldIndex != targetIndex) {
+            targetIndex = firstHeldIndex
+            evIndex = targetIndex
+            manualExposure = false
+            lastEvFuture = active.cameraControl.setExposureCompensationIndex(targetIndex)
+        }
         var previousFrame = 0L
         var heldSeconds = 0f
         var accumulator = 0f

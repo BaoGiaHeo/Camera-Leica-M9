@@ -72,7 +72,9 @@ private val tonePadBayer4 = arrayOf(
 fun TonePadBoard(
     filterName: String,
     onToneChanged: (TonePadParameters) -> Unit = {},
+    onToneInput: (TonePadParameters) -> Unit = {},
     onToneSettled: (TonePadParameters) -> Unit = {},
+    throttleParentUpdates: Boolean = false,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     enabled: Boolean = true,
@@ -110,7 +112,16 @@ fun TonePadBoard(
     var snapEnabled by remember { mutableStateOf(true) }
     val lastTapAt = remember { mutableLongStateOf(0L) }
     val snapEnabledState by rememberUpdatedState(snapEnabled)
+    val tonePadPublishGate = remember(filterName) { TonePadPublishGate() }
 
+    val publishTone by rememberUpdatedState<(TonePadParameters) -> Unit> { value ->
+        onToneInput(value)
+        if (!throttleParentUpdates ||
+            tonePadPublishGate.shouldPublish(SystemClock.uptimeMillis())
+        ) {
+            onToneChanged(value)
+        }
+    }
     val currentGuideVisible by rememberUpdatedState(guideVisible)
     val updatePosition by rememberUpdatedState<(Float, Float) -> Unit> { x, y ->
         val nx = x.coerceIn(-1f, 1f)
@@ -119,12 +130,13 @@ fun TonePadBoard(
         darkBright = ny
         fingerX = nx
         fingerY = ny
-        onToneChanged(TonePadParameters(nx, ny, intensity))
+        publishTone(TonePadParameters(nx, ny, intensity))
     }
     val setDragging by rememberUpdatedState<(Boolean) -> Unit> { dragging ->
         puckDragging = dragging
     }
     val commitTone by rememberUpdatedState<(TonePadParameters) -> Unit> { value ->
+        onToneInput(value)
         preferences.edit()
             .putFloat("$preferencePrefix.x", value.paleRich)
             .putFloat("$preferencePrefix.y", value.darkBright)
@@ -137,10 +149,6 @@ fun TonePadBoard(
         commitTone(TonePadParameters(0f, 0f, intensity))
         view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
         view.playSoundEffect(SoundEffectConstants.CLICK)
-    }
-
-    androidx.compose.runtime.SideEffect {
-        onToneChanged(TonePadParameters(paleRich, darkBright, intensity))
     }
 
     LaunchedEffect(guideVisible, guideReplayToken) {
@@ -488,8 +496,9 @@ fun TonePadBoard(
                             .background(if (intensity >= index / 19f) FujiSkin.orange else Color(0xFF1E2528))
                             .clickable {
                                 intensity = index / 19f
-                                onToneChanged(TonePadParameters(paleRich, darkBright, intensity))
-                                commitTone(TonePadParameters(paleRich, darkBright, intensity))
+                                val value = TonePadParameters(paleRich, darkBright, intensity)
+                                publishTone(value)
+                                commitTone(value)
                             }
                     )
                 }
@@ -520,7 +529,7 @@ fun TonePadBoard(
             value = intensity,
             onValueChange = {
                 intensity = it.coerceIn(0f, 1f)
-                onToneChanged(TonePadParameters(paleRich, darkBright, intensity))
+                publishTone(TonePadParameters(paleRich, darkBright, intensity))
             },
             onValueChangeFinished = { commitTone(TonePadParameters(paleRich, darkBright, intensity)) },
             valueRange = 0f..1f

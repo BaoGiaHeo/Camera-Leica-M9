@@ -549,6 +549,15 @@ fun ToolboxScreen(
             Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
                 color = CamColors.Sub, fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            Text("Film Simulation Customizer", color = CamColors.TextColor,
+                fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
+                color = CamColors.Sub, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            TonePadBoard(
+                filterName = prefs.getString("selected_filter", "None") ?: "None",
+                advancedContent = {
+                    Column(Modifier.fillMaxWidth()) {
             Text("Highlight · ${String.format(Locale.US, "%+.2f", filmHighlight)}",
                 color = CamColors.Sub, fontSize = 12.sp)
             FujiSliderCompat(filmHighlight, {
@@ -641,6 +650,9 @@ fun ToolboxScreen(
                     .putFloat("film_custom_saturation", 1f)
                     .apply()
             }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            )
             Text("Saved Film Recipes", color = CamColors.TextColor,
                 fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))

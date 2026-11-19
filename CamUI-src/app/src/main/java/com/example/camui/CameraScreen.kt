@@ -4879,15 +4879,27 @@ fun CameraScreen(
                 ) {
                     FujiKey(
                         "W",
-                        onClick = { animateZoomTo((zoomSel - 0.1f).coerceAtLeast(dialZoomMinimum)) },
+                        onClick = { animateZoomTo((zoomSel + 0.1f).coerceAtMost(dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
-                        enabled = zoomStateForDial != null && zoomSel > dialZoomMinimum + 0.001f
+                        enabled = zoomStateForDial != null && zoomSel < dialZoomMaximum - 0.001f,
+                        onPressStart = { zoomHoldDirection = 1 },
+                        onPressEnd = {
+                            zoomHoldDirection = 0
+                            appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
+                            android.util.Log.d("FUJI_ZOOM", "PRESS_END direction=IN zoom=$zoomSel")
+                        }
                     )
                     FujiKey(
                         "T",
-                        onClick = { animateZoomTo((zoomSel + 0.1f).coerceAtMost(dialZoomMaximum)) },
+                        onClick = { animateZoomTo((zoomSel - 0.1f).coerceAtLeast(dialZoomMinimum)) },
                         modifier = Modifier.weight(1f),
-                        enabled = zoomStateForDial != null && zoomSel < dialZoomMaximum - 0.001f
+                        enabled = zoomStateForDial != null && zoomSel > dialZoomMinimum + 0.001f,
+                        onPressStart = { zoomHoldDirection = -1 },
+                        onPressEnd = {
+                            zoomHoldDirection = 0
+                            appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
+                            android.util.Log.d("FUJI_ZOOM", "PRESS_END direction=OUT zoom=$zoomSel")
+                        }
                     )
                 }
                 Text(
@@ -4962,7 +4974,13 @@ fun CameraScreen(
                         manualColorTempEnabled = true
                         active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
                     }
-                }, modifier = Modifier.weight(1f))
+                }, modifier = Modifier.weight(1f),
+                    onPressStart = { evHoldDirection = -1 },
+                    onPressEnd = {
+                        evHoldDirection = 0
+                        appPrefs.edit().putInt("pro_ev_index", evIndex).apply()
+                        android.util.Log.d("FUJI_EV", "PRESS_END direction=DOWN index=$evIndex")
+                    })
                 Column(Modifier.weight(1.3f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         commandValue,
@@ -5001,7 +5019,13 @@ fun CameraScreen(
                         manualColorTempEnabled = true
                         active?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
                     }
-                }, modifier = Modifier.weight(1f))
+                }, modifier = Modifier.weight(1f),
+                    onPressStart = { evHoldDirection = 1 },
+                    onPressEnd = {
+                        evHoldDirection = 0
+                        appPrefs.edit().putInt("pro_ev_index", evIndex).apply()
+                        android.util.Log.d("FUJI_EV", "PRESS_END direction=UP index=$evIndex")
+                    })
             }
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
             FujiKey(

@@ -1,5 +1,7 @@
 package com.example.camui
 
+import kotlin.math.roundToInt
+
 /**
  * Pixel-grid geometry shared by the camera LCD OSD renderer and its tests.
  */
@@ -18,7 +20,7 @@ data class PixelOsdGeometry(
         fun fromDisplayPixels(widthPx: Int, heightPx: Int): PixelOsdGeometry {
             require(widthPx > 0) { "LCD width must be greater than zero." }
             require(heightPx > 0) { "LCD height must be greater than zero." }
-            val scale = kotlin.math.round(heightPx / 240f).toInt().coerceAtLeast(3)
+            val scale = (heightPx / 240f).roundToInt().coerceAtLeast(3)
             return PixelOsdGeometry(
                 pixelScale = scale,
                 logicWidth = (widthPx / scale).coerceAtLeast(1),

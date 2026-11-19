@@ -549,11 +549,6 @@ fun ToolboxScreen(
             Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
                 color = CamColors.Sub, fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
-            Text("Film Simulation Customizer", color = CamColors.TextColor,
-                fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
-                color = CamColors.Sub, fontSize = 11.sp,
-                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
             TonePadBoard(
                 filterName = prefs.getString("selected_filter", "None") ?: "None",
                 advancedContent = {

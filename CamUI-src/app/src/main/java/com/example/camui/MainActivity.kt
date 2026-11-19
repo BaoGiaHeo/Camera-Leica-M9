@@ -56,6 +56,7 @@ import kotlinx.coroutines.delay
 class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        AppLanguageManager.refreshSystemLanguage(this)
         hideStatusBar()
     }
 
@@ -158,8 +159,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Keep the camera UI in landscape in both directions. Physical handset orientation is
-        // still read by CameraScreen's OrientationEventListener for portrait/landscape capture.
+        AppLanguageManager.initialize(this)
+        // The camera UI and capture orientation are landscape-only.
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         window.attributes = window.attributes.apply {
             rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS

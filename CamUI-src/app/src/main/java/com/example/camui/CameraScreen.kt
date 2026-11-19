@@ -4857,16 +4857,7 @@ fun CameraScreen(
             "${zoomSel.toInt()}x"
         }
         val activeDialSelection = proSel
-        val commandValue = if (mode == "Pro" && activeDialSelection != null) {
-            when (activeDialSelection) {
-                "ISO" -> isoText
-                "Tv" -> shutterText
-                "AF" -> afText
-                "Tone" -> toneText
-                "EV" -> evText
-                else -> evText
-            }
-        } else evText
+        val commandValue = evText
         Column(
             sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 3.dp, vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -4980,7 +4971,7 @@ fun CameraScreen(
                         maxLines = 1
                     )
                     Text(
-                        if (mode == "Pro" && activeDialSelection != null) activeDialSelection.uppercase() else "EV",
+                        "EV",
                         color = FujiSkin.ivory,
                         fontSize = 7.sp,
                         fontWeight = FontWeight.Bold,

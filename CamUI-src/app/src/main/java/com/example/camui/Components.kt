@@ -210,7 +210,7 @@ private val englishUi = mapOf(
     "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "Off requests no camera noise reduction; actual support depends on the Camera2 HAL.",
     "Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn."
         to "Best uses the highest JPEG quality. Actual resolution depends on the output sizes exposed by the active Camera2/CameraX camera.",
-    "Người làm App: Baoaka06" to "Developer: Baoaka06",
+    "Người làm App: Baoaka06" to "By Baoaka06",
     "Frame Manage" to "Frame Manager", "Nhập khung phủ PNG/JPG để quản lý." to "Import PNG/JPG overlay frames.",
     "Chưa có frame nào được nhập." to "No frames imported yet.",
     "Đang tải ảnh…" to "Loading photo…", "Đang tải ảnh..." to "Loading photo...",
@@ -220,7 +220,7 @@ private val englishUi = mapOf(
     "Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ." to "Transparent removes the frame border and backing panel; text and PNG artwork remain.",
     "Áp dụng frame" to "Apply frame",
     "Lens calibration · EIS+ · sensor diagnostics" to "Lens calibration · EIS+ · sensor diagnostics",
-    "Fujifilm Mode (app-debug)" to "Fujifilm Mode (app-debug)",
+    "Fujifilm Mode (app-debug)" to "FujiFilm Mode",
     "Version 1.1 experimental · Debug build" to "Version 1.1 experimental · Debug build",
     "Chưa có ảnh trong Pictures/FujifilmMode." to "No photos in Pictures/FujifilmMode yet.",
     "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes."
@@ -291,7 +291,7 @@ private val fullEnglishUi = mapOf(
     "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "Could not read Camera IDs. Grant camera permission to the app.",
     "Thông tin tên mã cảm biến không được Android Camera2 công bố thống nhất trên mọi thiết bị; ứng dụng hiển thị kích thước cảm biến và độ phân giải tối đa mà hệ thống cung cấp." to "Android Camera2 does not expose sensor codenames consistently across devices; the app shows sensor size and the maximum resolution reported by the system.",
     "Lens calibration · EIS+ · sensor diagnostics" to "Lens calibration · EIS+ · sensor diagnostics",
-    "Fujifilm Mode (app-debug)" to "Fujifilm Mode (app-debug)", "Người làm App: Baoaka06" to "Developer: Baoaka06",
+    "Fujifilm Mode (app-debug)" to "Fujifilm Mode (app-debug)", "Người làm App: Baoaka06" to "By Baoaka06",
     "Version 1.1 experimental · Debug build" to "Version 1.1 experimental · Debug build",
     "Camera này không hỗ trợ phơi sáng dài." to "This camera does not support long exposure.",
     "Camera không hỗ trợ phơi sáng thủ công để chụp đêm." to "The camera does not support manual exposure for night capture.",

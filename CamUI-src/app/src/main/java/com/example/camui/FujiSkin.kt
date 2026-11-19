@@ -473,6 +473,7 @@ fun FujiScreenScaffold(
     showVersion: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
     Column(
         modifier.fillMaxSize()
             .clip(RoundedCornerShape(5.dp))
@@ -524,7 +525,7 @@ fun FujiScreenScaffold(
                     "LUNADREAM ${BuildConfig.VERSION_NAME.removeSuffix("dream")}".uppercase(),
                     color = FujiSkin.muted,
                     fontSize = 7.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = kk7Font,
                     maxLines = 1
                 )
             }
@@ -645,6 +646,7 @@ fun FujiTile(
     icon: String? = null,
     modifier: Modifier = Modifier
 ) {
+    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
     Column(
         modifier.height(72.dp).clip(RoundedCornerShape(4.dp))
             .background(Color(0xFF101516))
@@ -655,7 +657,7 @@ fun FujiTile(
     ) {
         if (icon != null) FujiIconGlyph(icon, Modifier.size(16.dp), FujiSkin.lcdGreen)
         Text(title.uppercase(), color = Color(0xFFC7D0D1), fontSize = 8.sp, letterSpacing = 0.7.sp, maxLines = 1)
-        Text(value, color = FujiSkin.lcdGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+        Text(value, color = FujiSkin.lcdGreen, fontFamily = kk7Font, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
     }
 }
 
@@ -669,6 +671,7 @@ fun FujiListRow(
     adjustable: Boolean = false,
     navigate: Boolean = true
 ) {
+    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
     Column(
         modifier.fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = null)
@@ -683,7 +686,7 @@ fun FujiListRow(
                 },
                 color = FujiSkin.lcdGreen,
                 fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = kk7Font,
                 maxLines = 1
             )
             if (navigate && !adjustable) Text("  ›", color = FujiSkin.lcdGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -700,6 +703,7 @@ fun FujiSearchField(
     modifier: Modifier = Modifier,
     placeholder: String = "Tìm..."
 ) {
+    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
     val cursorTransition = rememberInfiniteTransition(label = "fuji-search-cursor")
     val cursorAlpha by cursorTransition.animateFloat(
         initialValue = 0.22f,
@@ -722,7 +726,7 @@ fun FujiSearchField(
                 onValueChange = onValueChange,
                 singleLine = true,
                 cursorBrush = SolidColor(FujiSkin.lcdGreen.copy(alpha = cursorAlpha)),
-                textStyle = TextStyle(color = FujiSkin.lcdGreen, fontSize = 10.sp, fontFamily = FontFamily.Monospace),
+                textStyle = TextStyle(color = FujiSkin.lcdGreen, fontSize = 10.sp, fontFamily = kk7Font),
                 decorationBox = { inner ->
                     Box {
                         if (value.isEmpty()) Text(placeholder, color = FujiSkin.muted, fontSize = 10.sp)
@@ -741,6 +745,7 @@ fun FujiDial(
     modifier: Modifier = Modifier,
     stepSize: Float = 22f
 ) {
+    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
     var rotation by remember { mutableFloatStateOf(0f) }
     val animatedRotation by animateFloatAsState(rotation, tween(90), label = "fuji-dial-rotation")
     val view = LocalView.current
@@ -791,7 +796,7 @@ fun FujiDial(
                 .border(1.dp, Color(0xFF697174), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(value, color = Color(0xFF1A2022), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black, fontSize = 11.sp, maxLines = 1)
+            Text(value, color = Color(0xFF1A2022), fontFamily = kk7Font, fontWeight = FontWeight.Black, fontSize = 11.sp, maxLines = 1)
         }
         Box(Modifier.align(Alignment.TopCenter).padding(top = 3.dp).size(3.dp).clip(CircleShape).background(FujiSkin.orange))
     }

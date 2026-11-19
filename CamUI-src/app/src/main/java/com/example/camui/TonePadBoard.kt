@@ -239,20 +239,16 @@ fun TonePadBoard(
                         var longPressReset = false
                         var resetThisGesture = false
                         val previousTap = lastTapAt.longValue
-                        if (startedAt - previousTap <= 320L && previousTap > 0L) {
-                            resetPosition()
-                            lastTapAt.longValue = 0L
-                            resetThisGesture = true
-                        } else {
-                            var snappedX = downX
-                            var snappedY = downY
-                            if (snapEnabledState) {
-                                snappedX = (snappedX * 8f).roundToInt() / 8f
-                                snappedY = (snappedY * 6f).roundToInt() / 6f
-                            }
-                            updatePosition(snappedX * 2f - 1f, 1f - snappedY * 2f)
-                            activeMoved = true
+                        val secondTapCandidate = previousTap > 0L &&
+                            startedAt - previousTap in 0L..320L
+                        var snappedX = downX
+                        var snappedY = downY
+                        if (snapEnabledState) {
+                            snappedX = (snappedX * 8f).roundToInt() / 8f
+                            snappedY = (snappedY * 6f).roundToInt() / 6f
                         }
+                        updatePosition(snappedX * 2f - 1f, 1f - snappedY * 2f)
+                        activeMoved = true
 
                         var pointerReleased = false
                         try {
@@ -307,8 +303,16 @@ fun TonePadBoard(
                                 }
                             }
                         } finally {
-                            if (pointerReleased && !pointerMoved && !resetThisGesture) {
-                                lastTapAt.longValue = SystemClock.uptimeMillis()
+                            if (pointerReleased && !pointerMoved && !longPressReset) {
+                                if (secondTapCandidate) {
+                                    resetPosition()
+                                    lastTapAt.longValue = 0L
+                                    resetThisGesture = true
+                                } else if (!resetThisGesture) {
+                                    lastTapAt.longValue = SystemClock.uptimeMillis()
+                                }
+                            } else if (pointerMoved || longPressReset || !pointerReleased) {
+                                lastTapAt.longValue = 0L
                             }
                             setDragging(false)
                             view.parent?.requestDisallowInterceptTouchEvent(false)

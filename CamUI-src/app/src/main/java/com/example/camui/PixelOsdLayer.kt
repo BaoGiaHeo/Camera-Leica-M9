@@ -43,10 +43,28 @@ private object PixelOsdSprites {
         "location" to arrayOf("...W...", "..WWW..", ".WWWWW.", "..WWW..", "...W...", "...W..."),
         "warning" to arrayOf("...A...", "..A.A..", ".A...A.", "A..A..A", "AAAAAAA", "...A..."),
         "bokeh" to arrayOf("..W.W..", ".W...W.", "W.....W", ".W...W.", "..W.W.."),
-        "shake" to arrayOf("W..W..W", ".W.W.W.", "..WWW..", "...W...", "..WWW..", ".W.W.W.", "W..W..W")
+        "shake" to arrayOf("W..W..W", ".W.W.W.", "..WWW..", "...W...", "..WWW..", ".W.W.W.", "W..W..W"),
+        "battery-charge" to arrayOf("..WWWWWW.", "WWBBBB..W", "W..BBB...", "WW..BB..W", "..WWWWWW."),
+        "battery-low" to arrayOf("..WWWWWW.", "WWRR...RW", "WRR.....", "WWRR...RW", "..WWWWWW."),
+        "flash-off" to arrayOf("W..WW...", ".W.WW...", "..WWWWWWW", "...WW...", "..W......", "W........"),
+        "drive" to arrayOf("..WWW..", ".W...W.", "W.....W", "W..W..W", "W.....W", ".W...W.", "..WWW.."),
+        "timer" to arrayOf("..WWW..", ".W...W.", "W..W..W", "W.....W", "W....W.", ".W..W..", "..WWW.."),
+        "burst" to arrayOf("W.W.W.W", ".W.W.W.", "W.W.W.W", ".W.W.W.", "W.W.W.W"),
+        "meter-matrix" to arrayOf("WW.WW.WW", "WW.WW.WW", "........", "WW.WW.WW", "WW.WW.WW"),
+        "meter-center" to arrayOf("........", "..WWWW..", "..W..W..", "..WWWW..", "........"),
+        "meter-spot" to arrayOf(".........", "....W....", "....W....", ".WWWWW...", "....W....", "....W....", "........."),
+        "af-area" to arrayOf("WW.....WW", "W.......W", ".........", ".........", "WW.....WW"),
+        "ae-lock" to arrayOf(".WWWWW.", "W.....W", "W.WWW.W", "W.W.W.W", "W.WWW.W", "WWWWWWW"),
+        "pin" to arrayOf("..WWW..", ".W...W.", "W.....W", "W.....W", ".W...W.", "..WWW..", "...W..."),
+        "temperature" to arrayOf("...W...", "...W...", "...W...", "..WWW..", "..WWW..", "...W...", "..WWW.."),
+        "steady" to arrayOf("W.....W", ".W...W.", "..W.W..", "...W...", "..W.W..", ".W...W.", "W.....W")
     )
 
     fun get(name: String): Array<String>? = sprites[name]
+
+    fun entries(): List<Pair<String, Array<String>>> = sprites.entries
+        .sortedBy { it.key }
+        .map { it.key to it.value }
 }
 
 /**

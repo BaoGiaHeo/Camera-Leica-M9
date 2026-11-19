@@ -38,19 +38,15 @@ class LanguageImmediateUpdateTest {
         try {
             scenario.onActivity { originalActivity.set(it) }
 
-            assertTrue(
-                "Quick Settings must be reachable before opening Language settings",
-                device.wait(Until.hasObject(By.desc("Quick settings")), 10_000L)
-            )
-            device.findObject(By.desc("Quick settings")).click()
+            val quickMenuEntry = device.wait(Until.findObject(By.text("Q")), 10_000L)
+            assertNotNull("Camera quick menu must be visible", quickMenuEntry)
+            quickMenuEntry!!.click()
 
-            val settingsEntry = waitForAny(
-                device,
-                5_000L,
-                By.text("Settings"),
-                By.text("Cài đặt")
+            val settingsEntry = device.wait(
+                Until.findObject(By.text("SETTINGS  ›")),
+                5_000L
             )
-            assertNotNull("Settings entry must be visible", settingsEntry)
+            assertNotNull("Settings shortcut must be visible in the quick menu", settingsEntry)
             settingsEntry!!.click()
 
             val languageEntry = findInSettingsTabs(device)

@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,16 +97,38 @@ fun CamTheme(content: @Composable () -> Unit) {
         CamColors.Sub = Color(0xFF9E9E9E)
         CamColors.Shutter = parseAppColor(shutterHex, Color.White)
     }
+    val appFontFamily = FujiTypography.composeFamily(context)
+    val baseTypography = Typography()
+    val appTypography = baseTypography.copy(
+        displayLarge = baseTypography.displayLarge.copy(fontFamily = appFontFamily),
+        displayMedium = baseTypography.displayMedium.copy(fontFamily = appFontFamily),
+        displaySmall = baseTypography.displaySmall.copy(fontFamily = appFontFamily),
+        headlineLarge = baseTypography.headlineLarge.copy(fontFamily = appFontFamily),
+        headlineMedium = baseTypography.headlineMedium.copy(fontFamily = appFontFamily),
+        headlineSmall = baseTypography.headlineSmall.copy(fontFamily = appFontFamily),
+        titleLarge = baseTypography.titleLarge.copy(fontFamily = appFontFamily),
+        titleMedium = baseTypography.titleMedium.copy(fontFamily = appFontFamily),
+        titleSmall = baseTypography.titleSmall.copy(fontFamily = appFontFamily),
+        bodyLarge = baseTypography.bodyLarge.copy(fontFamily = appFontFamily),
+        bodyMedium = baseTypography.bodyMedium.copy(fontFamily = appFontFamily),
+        bodySmall = baseTypography.bodySmall.copy(fontFamily = appFontFamily),
+        labelLarge = baseTypography.labelLarge.copy(fontFamily = appFontFamily),
+        labelMedium = baseTypography.labelMedium.copy(fontFamily = appFontFamily),
+        labelSmall = baseTypography.labelSmall.copy(fontFamily = appFontFamily)
+    )
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = FujiSkin.orange,
             onPrimary = Color.Black,
             background = CamColors.Bg,
             surface = CamColors.Card
-        )
+        ),
+        typography = appTypography
     ) {
-        Box(Modifier.fillMaxSize().background(CamColors.Bg).animaTContent()) {
-            content()
+        CompositionLocalProvider(LocalTextStyle provides appTypography.bodyMedium) {
+            Box(Modifier.fillMaxSize().background(CamColors.Bg).animaTContent()) {
+                content()
+            }
         }
     }
 }
@@ -1318,6 +1342,7 @@ fun Text(
 ) {
     val context = LocalContext.current
     val localized = localizedUiText(context, text)
+    val appFont = fontFamily ?: FujiTypography.composeFamily(context)
     MaterialText(
         text = localized,
         modifier = modifier,
@@ -1325,7 +1350,7 @@ fun Text(
         fontSize = fontSize,
         fontStyle = fontStyle,
         fontWeight = fontWeight,
-        fontFamily = fontFamily,
+        fontFamily = appFont,
         letterSpacing = letterSpacing,
         textDecoration = textDecoration,
         textAlign = textAlign,

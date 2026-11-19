@@ -974,6 +974,10 @@ fun CameraScreen(
         val direction = zoomHoldDirection
         val active = camera
         if (direction == 0 || active == null) return@LaunchedEffect
+        // A short press is handled once by FujiKey.onClick; don't start the
+        // continuous camera command loop until the shared hold threshold elapses.
+        delay(FUJI_KEY_HOLD_THRESHOLD_MS)
+        if (zoomHoldDirection != direction) return@LaunchedEffect
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
         var previousFrame = 0L

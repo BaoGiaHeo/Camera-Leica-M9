@@ -537,7 +537,7 @@ private fun translateUiText(value: String, language: String): String {
         dynamicVietnamese.firstOrNull { value.startsWith(it.first) }?.let {
             return it.second + value.removePrefix(it.first)
         }
-        Regex("""^(\\d+) photos$""").matchEntire(value)?.let {
+        Regex("""^(\d+) photos$""").matchEntire(value)?.let {
             return "${it.groupValues[1]} ảnh"
         }
         return value

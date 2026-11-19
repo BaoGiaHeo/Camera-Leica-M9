@@ -39,6 +39,7 @@ class CrashReportActivity : Activity() {
         window.statusBarColor = Color.rgb(18, 18, 18)
         window.navigationBarColor = Color.rgb(18, 18, 18)
         window.setBackgroundDrawableResource(android.R.color.background_dark)
+        val kk7Typeface = FujiTypography.androidTypeface(this)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -48,18 +49,20 @@ class CrashReportActivity : Activity() {
         val title = TextView(this).apply {
             text = "FujiFilm Mode đã gặp lỗi"
             textSize = 22f
+            typeface = kk7Typeface
             setTextColor(Color.WHITE)
         }
         val subtitle = TextView(this).apply {
             text = "Ứng dụng đang tạm dừng. Sao chép mã log bên dưới trước khi đóng ứng dụng."
             textSize = 14f
+            typeface = kk7Typeface
             setTextColor(Color.LTGRAY)
             setPadding(0, dp(8), 0, dp(14))
         }
         val logView = TextView(this).apply {
             text = reportText
             textSize = 12f
-            typeface = android.graphics.Typeface.MONOSPACE
+            typeface = kk7Typeface
             setTextColor(Color.rgb(225, 225, 225))
             setPadding(dp(12), dp(12), dp(12), dp(12))
             setTextIsSelectable(true)
@@ -98,6 +101,7 @@ class CrashReportActivity : Activity() {
     private fun mechanicalAction(label: String, action: () -> Unit): TextView = TextView(this).apply {
         text = label.uppercase()
         textSize = 10f
+        typeface = FujiTypography.androidTypeface(this@CrashReportActivity)
         gravity = Gravity.CENTER
         setTextColor(Color.rgb(238, 241, 239))
         setPadding(dp(12), dp(11), dp(12), dp(11))

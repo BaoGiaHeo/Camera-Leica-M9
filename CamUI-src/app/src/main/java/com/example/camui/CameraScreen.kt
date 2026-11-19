@@ -4043,7 +4043,8 @@ fun CameraScreen(
                                         else -> false
                                     },
                                     zebraPoints = zebraPoints
-                                )
+                                ),
+                                maxRefreshHz = if (appPrefs.getBoolean("simple_ui_mode_enabled", false)) 30 else 120
                             )
                             if (bracketCaptureActive) {
                                 Text(

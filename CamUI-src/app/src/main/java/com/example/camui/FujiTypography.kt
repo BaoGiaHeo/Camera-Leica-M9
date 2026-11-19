@@ -1,6 +1,7 @@
 package com.example.camui
 
 import android.content.Context
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.Log
 import androidx.compose.ui.text.AnnotatedString
@@ -64,21 +65,32 @@ object FujiTypography {
     }
 
     /**
-     * KK7 is missing the middle dot and prime/double-prime punctuation glyphs.
-     * Only those individual code points use a monospace fallback. Geometric
-     * OSD symbols such as the focus dot are rendered by the pixel-sprite layer.
+     * Middle dot and prime/double-prime punctuation intentionally use a
+     * monospace fallback. Every other unsupported code point is also checked
+     * individually, so a missing glyph cannot turn into a tofu square.
+     * Geometric OSD symbols are drawn by PixelOsdSprites, not text glyphs.
      */
     fun withMissingGlyphFallback(value: String): AnnotatedString {
+        val activeTypeface = cachedTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        val glyphPaint = Paint().apply { typeface = activeTypeface }
         return buildAnnotatedString {
             append(value)
-            value.forEachIndexed { index, character ->
-                if (character == '·' || character == '′' || character == '″') {
+            var index = 0
+            while (index < value.length) {
+                val codePoint = value.codePointAt(index)
+                val charCount = Character.charCount(codePoint)
+                val glyph = String(Character.toChars(codePoint))
+                val explicitlyFallback = codePoint == '·'.code ||
+                    codePoint == '′'.code ||
+                    codePoint == '″'.code
+                if (explicitlyFallback || !glyphPaint.hasGlyph(glyph)) {
                     addStyle(
                         SpanStyle(fontFamily = FontFamily.Monospace),
                         index,
-                        index + 1
+                        index + charCount
                     )
                 }
+                index += charCount
             }
         }
     }

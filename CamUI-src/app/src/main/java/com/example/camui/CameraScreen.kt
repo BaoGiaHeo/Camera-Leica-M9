@@ -161,6 +161,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -614,7 +615,8 @@ fun CameraScreen(
         mutableStateOf(appPrefs.getBoolean("lens_correction_enabled", true))
     }
     // Chrome remains visible until the user explicitly presses DISP/BACK.
-    var hudVisible by remember { mutableStateOf(true) }
+    var lcdDisplayMode by remember { mutableStateOf(CameraLcdDisplayMode.STANDARD) }
+    val hudVisible = lcdDisplayMode != CameraLcdDisplayMode.CLEAN
     var proHudShowEv by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_ev", true)) }
     var proHudShowShutter by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_shutter", true)) }
     var proHudShowIso by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_iso", true)) }
@@ -3936,8 +3938,8 @@ fun CameraScreen(
                                 .pointerInput(camera, metering, mode) {
                                     detectTapGestures(
                                         onTap = { offset ->
-                                            if (!hudVisible) {
-                                                hudVisible = true
+                                            if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) {
+                                                lcdDisplayMode = CameraLcdDisplayMode.STANDARD
                                                 return@detectTapGestures
                                             }
                                             val active = camera ?: return@detectTapGestures
@@ -4009,14 +4011,37 @@ fun CameraScreen(
                             PixelOsdLayer(
                                 modifier = Modifier.fillMaxSize(),
                                 frame = PixelOsdFrame(
-                                    showGrid = showGrid,
-                                    faceCenter = faceTrackCenter.takeIf { faceTrackingEnabled },
-                                    faceFocused = focusLocked,
-                                    focusLocked = focusLocked,
-                                    focusPoints = if (focusPeaking) peakPoints else emptyList(),
-                                    showLevel = levelEnabled,
+                                    showGrid = when (lcdDisplayMode) {
+                                        CameraLcdDisplayMode.FULL_INFO,
+                                        CameraLcdDisplayMode.LEVEL_GRID -> true
+                                        CameraLcdDisplayMode.CLEAN -> false
+                                        CameraLcdDisplayMode.STANDARD -> showGrid
+                                    },
+                                    faceCenter = faceTrackCenter.takeIf {
+                                        (lcdDisplayMode == CameraLcdDisplayMode.STANDARD && faceTrackingEnabled) ||
+                                            (lcdDisplayMode == CameraLcdDisplayMode.FULL_INFO && faceTrackCenter != null)
+                                    },
+                                    faceFocused = focusLocked && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
+                                        lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
+                                    focusLocked = focusLocked && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
+                                        lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
+                                    focusPoints = when (lcdDisplayMode) {
+                                        CameraLcdDisplayMode.FULL_INFO -> peakPoints
+                                        CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()
+                                        else -> emptyList()
+                                    },
+                                    showLevel = when (lcdDisplayMode) {
+                                        CameraLcdDisplayMode.FULL_INFO,
+                                        CameraLcdDisplayMode.LEVEL_GRID -> true
+                                        CameraLcdDisplayMode.STANDARD -> levelEnabled
+                                        CameraLcdDisplayMode.CLEAN -> false
+                                    },
                                     horizonRollDegrees = horizonRollDegrees,
-                                    showZebra = zebraEnabled,
+                                    showZebra = when (lcdDisplayMode) {
+                                        CameraLcdDisplayMode.FULL_INFO -> true
+                                        CameraLcdDisplayMode.STANDARD -> zebraEnabled
+                                        else -> false
+                                    },
                                     zebraPoints = zebraPoints
                                 )
                             )
@@ -4871,7 +4896,11 @@ fun CameraScreen(
                 }, modifier = Modifier.weight(1f))
             }
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
-            FujiKey("DISP/BACK", onClick = { hudVisible = !hudVisible }, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp))
+            FujiKey(
+                "DISP · ${stringResource(lcdDisplayMode.labelResource)}",
+                onClick = { lcdDisplayMode = lcdDisplayMode.next() },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
+            )
         }
     }
 

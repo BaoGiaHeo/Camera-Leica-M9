@@ -460,7 +460,7 @@ fun FujiKey(
                 if (!enabled) return@awaitEachGesture
 
                 down.consume()
-                view.requestUnbufferedDispatch()
+                view.requestUnbufferedDispatch(down.id.value.toInt())
                 val startedAt = SystemClock.uptimeMillis()
                 rawPressed = true
                 android.util.Log.d(

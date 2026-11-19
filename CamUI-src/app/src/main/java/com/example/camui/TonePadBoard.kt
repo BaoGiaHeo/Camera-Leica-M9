@@ -242,7 +242,7 @@ fun TonePadBoard(
                             pass = PointerEventPass.Initial
                         )
                         down.consume()
-                        view.requestUnbufferedDispatch(down.nativeEvent)
+                        view.requestUnbufferedDispatch(down.id.value.toInt())
                         view.parent?.requestDisallowInterceptTouchEvent(true)
                         if (!enabled) onActivate()
                         val startedAt = SystemClock.uptimeMillis()

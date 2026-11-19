@@ -3,6 +3,11 @@ package com.example.camui
 import android.Manifest
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.SideEffect
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -18,6 +23,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
@@ -25,6 +31,40 @@ class StartupSmokeTest {
     @get:Rule
     val cameraPermissionRule: GrantPermissionRule =
         GrantPermissionRule.grant(Manifest.permission.CAMERA)
+
+    @Test
+    fun localizedCamThemePreservesActivityResultRegistryOwner() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val registryOwnerAvailable = AtomicBoolean(false)
+
+        try {
+            scenario.onActivity { activity ->
+                activity.setContent {
+                    CamTheme {
+                        val registryOwner = LocalActivityResultRegistryOwner.current
+                        // Registering the launcher here exercises the exact API that crashed
+                        // when CamTheme replaced LocalContext with a configuration context.
+                        @Suppress("UNUSED_VARIABLE")
+                        val permissionLauncher = rememberLauncherForActivityResult(
+                            ActivityResultContracts.RequestPermission()
+                        ) { }
+                        SideEffect {
+                            registryOwnerAvailable.set(registryOwner != null)
+                        }
+                    }
+                }
+            }
+
+            instrumentation.waitForIdleSync()
+            assertTrue(
+                "Localized Compose content must retain the host ActivityResultRegistryOwner",
+                registryOwnerAvailable.get()
+            )
+        } finally {
+            scenario.close()
+        }
+    }
 
     @Test
     fun coldStartRemainsResumedAfterCameraInitialization() {

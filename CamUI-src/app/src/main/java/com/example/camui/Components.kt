@@ -320,7 +320,6 @@ private val fullEnglishUi = mapOf(
     "Watermark" to "Watermark",
     "Màu khung" to "Frame color",
     "Chọn bộ lọc để xem tông màu; bộ lọc được xử lý trên ảnh sau khi chụp." to "Choose a filter to preview its look; it is applied to the photo after capture.",
-    "TAP AF · HOLD LOCK" to "TAP AF · HOLD TO LOCK",
     "ĐANG DÙNG" to "ACTIVE",
     "CHỌN" to "SELECT",
     "Đang phơi sáng" to "Exposing",

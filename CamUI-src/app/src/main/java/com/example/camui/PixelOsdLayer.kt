@@ -15,7 +15,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private object PixelOsdPalette {
@@ -105,16 +104,16 @@ class PixelOsdRenderer(context: Context) {
 
     fun render(widthPx: Int, heightPx: Int, frame: PixelOsdFrame) {
         if (widthPx <= 0 || heightPx <= 0) return
-        val scale = (heightPx / 240f).roundToInt().coerceAtLeast(3)
-        val newWidth = (widthPx / scale).coerceAtLeast(1)
-        val newHeight = (heightPx / scale).coerceAtLeast(1)
+        val geometry = PixelOsdGeometry.fromDisplayPixels(widthPx, heightPx)
+        val newWidth = geometry.logicWidth
+        val newHeight = geometry.logicHeight
         val needsAllocation = bitmap == null || newWidth != logicWidth || newHeight != logicHeight
 
         if (needsAllocation) {
             bitmap?.recycle()
             logicWidth = newWidth
             logicHeight = newHeight
-            pixelScale = scale
+            pixelScale = geometry.pixelScale
             bitmap = Bitmap.createBitmap(logicWidth, logicHeight, Bitmap.Config.ARGB_8888)
             nativeCanvas = NativeCanvas(bitmap!!)
             lastFrame = null

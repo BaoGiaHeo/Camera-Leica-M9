@@ -35,4 +35,6 @@
     <string name="display_mode_full_info">FULL INFO</string>
     <string name="display_mode_clean">CLEAN</string>
     <string name="display_mode_level_grid">LEVEL + GRID</string>
+    <string name="retro_lcd_texture_title">Retro LCD texture</string>
+    <string name="retro_lcd_texture_description">Optional viewfinder scanlines. This display effect never changes saved photos.</string>
 </resources>

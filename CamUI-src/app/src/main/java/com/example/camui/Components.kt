@@ -485,7 +485,12 @@ private val vietnameseUi = buildMap {
             "Move freely" to "Có thể di chuyển máy tự do",
             "English" to "ENGLISH",
             "SYSTEM" to "SYSTEM",
-            "TIẾNG VIỆT" to "TIẾNG VIỆT"
+            "TIẾNG VIỆT" to "TIẾNG VIỆT",
+            "Filters · Tone Pad guide" to "Bộ lọc · Hướng dẫn Tone Pad",
+            "Show Tone Pad guide" to "Hiện hướng dẫn Tone Pad",
+            "Show the first-use guide and direction hint in the filter Tone Pad." to "Hiện hướng dẫn lần đầu và gợi ý thao tác trong Tone Pad.",
+            "LOG LunaDream Working" to "Nhật ký LunaDream",
+            "Font Specimen" to "Bảng kiểm tra font"
         )
     )
 }

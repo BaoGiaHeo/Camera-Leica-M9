@@ -5590,7 +5590,7 @@ private fun FilterLookDialog(
     val scope = rememberCoroutineScope()
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var filterSearch by remember { mutableStateOf("") }
-    var selectedLookCategory by remember { mutableStateOf("Tất cả") }
+    var selectedLookCategory by remember { mutableStateOf("all") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
@@ -5643,12 +5643,20 @@ private fun FilterLookDialog(
     val activeCustomLuts = importedLuts.filter {
         activeLutIds.contains(it.id) && !it.category.startsWith("RAW/Log")
     }
-    val allLookEntries = cameraLookGroups.flatMap { (category, presets) ->
-        presets.map { category to it }
-    } + activeCustomLuts.map { it.category to customCameraLutPreset(it.id) }
-    val lookCategories = listOf("Tất cả") + allLookEntries.map { it.first }.distinct()
+    val allLookEntries = cameraLookGroups.flatMap { group ->
+        group.presets.map { group.id to it }
+    } + activeCustomLuts.map { customCameraLookCategoryId(it.category) to customCameraLutPreset(it.id) }
+    val lookCategories = buildList {
+        add(CameraLookCategory("all", R.string.filter_category_all))
+        cameraLookGroups.forEach { group ->
+            add(CameraLookCategory(group.id, group.labelResource))
+        }
+        activeCustomLuts.forEach { lut ->
+            add(CameraLookCategory(customCameraLookCategoryId(lut.category), customLabel = lut.category))
+        }
+    }.distinctBy { it.id }
     val visiblePresets = allLookEntries
-        .filter { selectedLookCategory == "Tất cả" || it.first == selectedLookCategory }
+        .filter { selectedLookCategory == "all" || it.first == selectedLookCategory }
         .map { it.second }
         .filter {
             filterSearch.isBlank() ||
@@ -5714,10 +5722,12 @@ private fun FilterLookDialog(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             lookCategories.forEach { category ->
+                val label = category.labelResource?.let { stringResource(it) }
+                    ?: category.customLabel.orEmpty()
                 FujiChip(
-                    text = category,
-                    selected = selectedLookCategory == category,
-                    onClick = { selectedLookCategory = category }
+                    text = label,
+                    selected = selectedLookCategory == category.id,
+                    onClick = { selectedLookCategory = category.id }
                 )
             }
         }
@@ -5882,24 +5892,52 @@ private fun FilterLookDialog(
 
 // Filter groups include the original brand/film looks which were previously hidden
 // when the picker was flattened into a single "Bộ lọc" category.
+private data class CameraLookGroup(
+    val id: String,
+    val labelResource: Int,
+    val presets: List<String>
+)
+
+private data class CameraLookCategory(
+    val id: String,
+    val labelResource: Int? = null,
+    val customLabel: String? = null
+)
+
+private fun customCameraLookCategoryId(label: String): String {
+    val slug = label.lowercase(Locale.ROOT)
+        .replace(Regex("[^a-z0-9]+"), "_")
+        .trim('_')
+        .ifBlank { "uncategorized" }
+    return "custom_$slug"
+}
+
 private val cameraLookGroups = listOf(
-    "Fujifilm" to listOf(
+    CameraLookGroup("fujifilm", R.string.filter_category_fujifilm, listOf(
         "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
         "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass", "Acros"
-    ),
-    "Phim màu" to listOf(
+    )),
+    CameraLookGroup("color_film", R.string.filter_category_color_film, listOf(
         "Portra 160", "Portra 400", "Portra 800", "Gold 200", "Ektar 100",
         "Kodachrome 64", "ColorPlus 200", "CineStill 800T", "Vision3 250D",
         "Vision3 500T", "400H", "Ektachrome 100"
-    ),
-    "Cổ điển" to listOf("Kodak Portra 400", "Agfa", "Kodak Gold", "Fuji 400"),
-    "Đen trắng" to listOf("Tri-X 400", "T-Max 400", "Monochrome"),
-    "Leica" to listOf("Leica Vivid", "Leica Natural", "Leica Mono"),
-    "Hasselblad" to listOf("Hasselblad HNCS"),
-    "Zeiss" to listOf("Zeiss Cool", "Zeiss Warm"),
-    "Sony" to listOf("Sony S-Cinetone", "Sony S-Log3"),
-    "Điện ảnh / Log" to listOf("Cine Tone", "Cinematic Log", "Soft Log"),
-    "Cơ bản" to listOf("Vivid", "Natural", "Cool", "Warm")
+    )),
+    CameraLookGroup("classic", R.string.filter_category_classic,
+        listOf("Kodak Portra 400", "Agfa", "Kodak Gold", "Fuji 400")),
+    CameraLookGroup("bw", R.string.filter_category_black_white,
+        listOf("Tri-X 400", "T-Max 400", "Monochrome")),
+    CameraLookGroup("leica", R.string.filter_category_leica,
+        listOf("Leica Vivid", "Leica Natural", "Leica Mono")),
+    CameraLookGroup("hasselblad", R.string.filter_category_hasselblad,
+        listOf("Hasselblad HNCS")),
+    CameraLookGroup("zeiss", R.string.filter_category_zeiss,
+        listOf("Zeiss Cool", "Zeiss Warm")),
+    CameraLookGroup("sony", R.string.filter_category_sony,
+        listOf("Sony S-Cinetone", "Sony S-Log3")),
+    CameraLookGroup("cinema_log", R.string.filter_category_cinema_log,
+        listOf("Cine Tone", "Cinematic Log", "Soft Log")),
+    CameraLookGroup("basic", R.string.filter_category_basic,
+        listOf("Vivid", "Natural", "Cool", "Warm"))
 )
 
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {

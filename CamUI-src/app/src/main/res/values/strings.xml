@@ -39,4 +39,15 @@
     <string name="filter_hold_original">HOLD FOR ORIGINAL</string>
     <string name="filter_original_release_hint">ORIGINAL PHOTO · RELEASE TO VIEW FILTER</string>
     <string name="tone_pad_palette_short">P%1$d</string>
+    <string name="filter_category_all">All</string>
+    <string name="filter_category_fujifilm">Fujifilm</string>
+    <string name="filter_category_color_film">Color film</string>
+    <string name="filter_category_classic">Classic</string>
+    <string name="filter_category_black_white">Black &amp; white</string>
+    <string name="filter_category_leica">Leica</string>
+    <string name="filter_category_hasselblad">Hasselblad</string>
+    <string name="filter_category_zeiss">Zeiss</string>
+    <string name="filter_category_sony">Sony</string>
+    <string name="filter_category_cinema_log">Cinema / Log</string>
+    <string name="filter_category_basic">Basic</string>
 </resources>

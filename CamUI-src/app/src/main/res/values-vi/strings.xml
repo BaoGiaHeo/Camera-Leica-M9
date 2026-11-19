@@ -15,7 +15,7 @@
     <string name="tone_pad_guide_title">KÉO CHẤM TRẮNG</string>
     <string name="tone_pad_bright_dark">SÁNG / TỐI · LÊN / XUỐNG</string>
     <string name="tone_pad_pale_rich">NHẠT / ĐẬM · TRÁI / PHẢI</string>
-    <string name="tone_pad_palette_label">PALETTE · %1$d%%</string>
+    <string name="tone_pad_palette_label">BẢNG MÀU · %1$d%%</string>
     <string name="tone_pad_hint">KÉO CHẤM TRẮNG · CHẠM KÉP ĐỂ VỀ GIỮA</string>
     <string name="tone_pad_advanced">NÂNG CAO</string>
     <string name="tone_pad_snap">HÍT VÀO LƯỚI</string>
@@ -39,4 +39,15 @@
     <string name="filter_hold_original">GIỮ ĐỂ XEM ẢNH GỐC</string>
     <string name="filter_original_release_hint">ẢNH GỐC · THẢ ĐỂ XEM BỘ LỌC</string>
     <string name="tone_pad_palette_short">M%1$d</string>
+    <string name="filter_category_all">Tất cả</string>
+    <string name="filter_category_fujifilm">Fujifilm</string>
+    <string name="filter_category_color_film">Phim màu</string>
+    <string name="filter_category_classic">Cổ điển</string>
+    <string name="filter_category_black_white">Đen trắng</string>
+    <string name="filter_category_leica">Leica</string>
+    <string name="filter_category_hasselblad">Hasselblad</string>
+    <string name="filter_category_zeiss">Zeiss</string>
+    <string name="filter_category_sony">Sony</string>
+    <string name="filter_category_cinema_log">Điện ảnh / Log</string>
+    <string name="filter_category_basic">Cơ bản</string>
 </resources>

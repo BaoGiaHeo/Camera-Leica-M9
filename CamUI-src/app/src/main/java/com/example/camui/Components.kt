@@ -1,6 +1,7 @@
 package com.example.camui
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.widget.Toast
 
 import androidx.compose.foundation.background
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text as MaterialText
 import androidx.compose.material3.LocalTextStyle
@@ -42,6 +45,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.fillMaxSize
+
+private tailrec fun Context.findActivityResultRegistryOwner(): ActivityResultRegistryOwner? {
+    return (this as? ActivityResultRegistryOwner)
+        ?: (this as? ContextWrapper)?.baseContext?.findActivityResultRegistryOwner()
+}
 
 object CamColors {
     var Bg by mutableStateOf(Color(0xFF121212))
@@ -88,6 +96,11 @@ fun aspectRatioDisplayLabel(index: Int, isLandscape: Boolean): String {
 @Composable
 fun CamTheme(content: @Composable () -> Unit) {
     val baseContext = LocalContext.current
+    // Keep ActivityResultRegistryOwner from the original Activity before
+    // LocalContext is replaced by the locale-specific configuration context.
+    val activityResultRegistryOwner = LocalActivityResultRegistryOwner.current
+        ?: baseContext.findActivityResultRegistryOwner()
+        ?: error("CamTheme must be hosted by an ActivityResultRegistryOwner.")
     val activeLanguage = AppLanguageManager.currentLanguage
     val context = AppLanguageManager.localizedContext(baseContext, activeLanguage)
     val prefs = context.getSharedPreferences("fujifilm_settings", 0)
@@ -130,6 +143,7 @@ fun CamTheme(content: @Composable () -> Unit) {
         CompositionLocalProvider(
             LocalContext provides context,
             LocalConfiguration provides context.resources.configuration,
+            LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
             LocalTextStyle provides appTypography.bodyMedium
         ) {
             Box(Modifier.fillMaxSize().background(CamColors.Bg).animaTContent()) {

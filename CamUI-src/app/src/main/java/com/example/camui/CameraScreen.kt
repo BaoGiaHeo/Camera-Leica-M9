@@ -5870,7 +5870,7 @@ private fun FilterLookDialog(
                             filterName = activeFilter,
                             compact = true,
                             enabled = activeFilter != "None" || tonePadOriginalActivated,
-                            modifier = Modifier.fillMaxWidth().height(132.dp),
+                            modifier = Modifier.fillMaxWidth().height(140.dp),
                             onActivate = { tonePadOriginalActivated = true },
                             onToneInput = { liveTonePadShader?.update(it) },
                             throttleParentUpdates = liveTonePadShader != null,

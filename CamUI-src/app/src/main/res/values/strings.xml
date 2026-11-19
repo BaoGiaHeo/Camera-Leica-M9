@@ -31,4 +31,8 @@
     <string name="tone_pad_snap">SNAP TO GRID</string>
     <string name="tone_pad_on">ON</string>
     <string name="tone_pad_off">OFF</string>
+    <string name="display_mode_standard">STANDARD</string>
+    <string name="display_mode_full_info">FULL INFO</string>
+    <string name="display_mode_clean">CLEAN</string>
+    <string name="display_mode_level_grid">LEVEL + GRID</string>
 </resources>

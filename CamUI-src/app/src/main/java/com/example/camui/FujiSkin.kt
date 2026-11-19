@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
@@ -437,63 +438,99 @@ fun FujiKey(
 ) {
     val view = LocalView.current
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
+    val clickPressed by interaction.collectIsPressedAsState()
+    val hasPressCallbacks = onPressStart != null || onPressEnd != null
     val latestPressStart by rememberUpdatedState(onPressStart)
     val latestPressEnd by rememberUpdatedState(onPressEnd)
-    var suppressClickAfterHold by remember { mutableStateOf(false) }
-    val y by animateDpAsState(if (pressed) 1.dp else 0.dp, tween(90), label = "fuji-wide-key")
-    Box(
-        modifier.heightIn(min = 36.dp)
-            .pointerInput(enabled, onPressStart != null || onPressEnd != null) {
-                if (onPressStart != null || onPressEnd != null) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        if (!enabled) return@awaitEachGesture
-                        val startedAt = SystemClock.uptimeMillis()
-                        suppressClickAfterHold = false
-                        android.util.Log.d(
-                            "FUJI_KEY",
-                            "ACTION_DOWN label=$label x=${down.position.x} y=${down.position.y} enabled=$enabled"
-                        )
-                        latestPressStart?.invoke()
-                        try {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id }
-                                if (change == null || !change.pressed) break
-                            }
-                        } finally {
-                            latestPressEnd?.invoke()
-                            val durationMs = SystemClock.uptimeMillis() - startedAt
-                            suppressClickAfterHold = durationMs >= 180L
-                            android.util.Log.d(
-                                "FUJI_KEY",
-                                "ACTION_UP label=$label durationMs=$durationMs held=$suppressClickAfterHold"
-                            )
+    val latestClick by rememberUpdatedState(onClick)
+    var rawPressed by remember { mutableStateOf(false) }
+    val y by animateDpAsState(
+        if (if (hasPressCallbacks) rawPressed else clickPressed) 1.dp else 0.dp,
+        tween(90),
+        label = "fuji-wide-key"
+    )
+
+    val inputModifier = if (hasPressCallbacks) {
+        Modifier.pointerInput(enabled, hasPressCallbacks) {
+            awaitEachGesture {
+                val down = awaitFirstDown(
+                    requireUnconsumed = false,
+                    pass = PointerEventPass.Initial
+                )
+                if (!enabled) return@awaitEachGesture
+
+                down.consume()
+                view.requestUnbufferedDispatch()
+                val startedAt = SystemClock.uptimeMillis()
+                rawPressed = true
+                android.util.Log.d(
+                    "FUJI_KEY",
+                    "ACTION_DOWN label=$label x=${down.position.x} y=${down.position.y} enabled=$enabled"
+                )
+                latestPressStart?.invoke()
+
+                var releasedNormally = false
+                try {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null) break
+                        if (!change.pressed) {
+                            change.consume()
+                            releasedNormally = true
+                            break
                         }
+                        change.consume()
                     }
-                }
-            }
-            .clip(RoundedCornerShape(3.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF4B5255), Color(0xFF15191A))))
-            .border(1.dp, Color(0xFF7C8588), RoundedCornerShape(3.dp))
-            .combinedClickable(
-                enabled = enabled,
-                interactionSource = interaction,
-                indication = null,
-                onClick = {
-                    if (suppressClickAfterHold) {
-                        suppressClickAfterHold = false
-                    } else {
-                        if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE).getBoolean("haptic_feedback_enabled", true)) {
+                } finally {
+                    rawPressed = false
+                    latestPressEnd?.invoke()
+                    val durationMs = SystemClock.uptimeMillis() - startedAt
+                    val wasHold = durationMs >= 180L
+                    android.util.Log.d(
+                        "FUJI_KEY",
+                        "ACTION_UP label=$label durationMs=$durationMs held=$wasHold released=$releasedNormally"
+                    )
+                    if (releasedNormally && !wasHold && enabled) {
+                        if (view.context.getSharedPreferences(
+                                "fujifilm_settings",
+                                Context.MODE_PRIVATE
+                            ).getBoolean("haptic_feedback_enabled", true)
+                        ) {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         }
                         FujiFeedback.keyTick(view.context)
-                        onClick()
+                        latestClick()
                     }
-                },
-                onLongClick = null
-            )
+                }
+            }
+        }
+    } else {
+        Modifier.combinedClickable(
+            enabled = enabled,
+            interactionSource = interaction,
+            indication = null,
+            onClick = {
+                if (view.context.getSharedPreferences(
+                        "fujifilm_settings",
+                        Context.MODE_PRIVATE
+                    ).getBoolean("haptic_feedback_enabled", true)
+                ) {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                }
+                FujiFeedback.keyTick(view.context)
+                latestClick()
+            },
+            onLongClick = null
+        )
+    }
+
+    Box(
+        modifier.heightIn(min = 36.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF4B5255), Color(0xFF15191A))))
+            .border(1.dp, Color(0xFF7C8588), RoundedCornerShape(3.dp))
+            .then(inputModifier)
             .padding(horizontal = 3.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
     ) {

@@ -96,7 +96,6 @@ OEM
 ISP
 EIS
 OIS
-AF-C
 AE
 AWB
 OKLab
@@ -107,24 +106,18 @@ LED
 USB
 CPU
 RAM
-GPU
 SDK
 API
 NDK
 JPEG
 DNG
 EXIF
-EXIF
 LDR
 sRGB
 RGB
-EV
 AE/AF
 AF/AE
 PDAF
-OIS
-EIS
-ISP
 MIPI
 YCbCr
 YUV
@@ -138,8 +131,6 @@ JSON
 XML
 PNG
 JPG
-JPEG
-DNG
 TIFF
 HEIF
 HEIC
@@ -147,14 +138,10 @@ MP4
 MOV
 WAV
 MP3
-RAW
-JPEG_R
-RAW_SENSOR
 ONNX
 NNAPI
 OpenCL
 Vulkan
-AGSL
 
 # Fujifilm-inspired and other named film simulations / filter presets
 Provia
@@ -182,7 +169,6 @@ Vision3 500T
 400H
 Ektachrome 100
 Kodak Portra 400
-Agfa
 Kodak Gold
 Fuji 400
 Tri-X 400

@@ -33,7 +33,7 @@ jobs:
       - name: Install Android API 37 and build tools
         run: |
           yes | sdkmanager --licenses --channel=3 >/dev/null
-          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" --channel=3
+          sdkmanager --install "platforms;android-37" "build-tools;37.0.0" --channel=3
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4

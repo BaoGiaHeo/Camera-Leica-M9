@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FujiFilm Mode</string>
+    <string name="language_screen_title">Language</string>
+    <string name="language_select_description">Choose the display language. Changes apply immediately.</string>
+    <string name="language_system">SYSTEM</string>
+    <string name="language_english">ENGLISH</string>
+    <string name="language_vietnamese">TIẾNG VIỆT</string>
 </resources>

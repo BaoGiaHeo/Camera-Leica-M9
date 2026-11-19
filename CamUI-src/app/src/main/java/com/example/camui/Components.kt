@@ -603,8 +603,9 @@ fun Text(
     val activeLanguage = AppLanguageManager.currentLanguage
     val localized = localizedUiText(context, text, activeLanguage)
     val appFont = fontFamily ?: FujiTypography.composeFamily(context)
+    val annotated = FujiTypography.withMissingGlyphFallback(localized)
     MaterialText(
-        text = localized,
+        text = annotated,
         modifier = modifier,
         color = color,
         fontSize = fontSize,

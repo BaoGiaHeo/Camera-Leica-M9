@@ -38,6 +38,15 @@ jobs:
       - name: Compile and run unit tests
         run: gradle -p CamUI-src testDebugUnitTest assembleDeveloper --stacktrace
 
+      - name: Upload Developer test APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-2.5.0Dream-Developer
+          path: CamUI-src/app/build/outputs/apk/developer/app-developer.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Package complete modified Kotlin source files
         if: always() && !cancelled()
         run: |

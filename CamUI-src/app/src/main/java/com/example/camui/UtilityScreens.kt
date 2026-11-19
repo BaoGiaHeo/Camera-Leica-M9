@@ -2208,7 +2208,7 @@ fun renderCameraLookPreview(
 }
 
 /** A built-in color-rich reference scene is shown until the first unfiltered capture is available. */
-fun createFilmLookPreviewSample(): Bitmap {
+fun createFilmLookPreviewSample(context: Context): Bitmap {
     val width = 480
     val height = 300
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -2270,7 +2270,7 @@ fun createFilmLookPreviewSample(): Bitmap {
     canvas.drawRect(12f, 18f, 104f, 42f, paint)
     paint.color = AndroidColor.rgb(40, 47, 50)
     paint.textSize = 14f
-    paint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+    paint.typeface = FujiTypography.androidTypeface(context)
     canvas.drawText("FUJI FILM LOOK", 19f, 35f, paint)
     return bitmap
 }
@@ -2582,10 +2582,10 @@ fun applyCameraWatermark(
             }.getOrNull()
         }
         val timeLine = capturedDate?.let {
-            java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US).format(it)
+            java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.forLanguageTag(AppLanguageManager.languageFor(context))).format(it)
         }.orEmpty().takeIf { showTime }.orEmpty()
         val dateOnlyLine = capturedDate?.let {
-            java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(it)
+            java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.forLanguageTag(AppLanguageManager.languageFor(context))).format(it)
         }.orEmpty().takeIf { showTime }.orEmpty()
         val locationLine = prefs.getString("watermark_custom_location", "")?.trim().orEmpty()
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"

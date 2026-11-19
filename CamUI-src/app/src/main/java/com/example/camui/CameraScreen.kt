@@ -4337,7 +4337,7 @@ fun CameraScreen(
                                 }
                             }
                             Text(
-                                if (focusLocked) "AF LOCK" else "TAP AF · HOLD LOCK",
+                                stringResource(if (focusLocked) R.string.camera_af_locked else R.string.camera_af_normal),
                                 color = if (focusLocked) FujiSkin.orange else Color.White.copy(alpha = 0.72f),
                                 fontSize = 8.sp,
                                 modifier = Modifier.align(Alignment.TopEnd).padding(7.dp)

@@ -85,5 +85,5 @@ internal fun pixelOsdDirtyRegions(
         add(centerX - radius, centerY - radius, centerX + radius + 1, centerY + radius + 1)
     }
 
-    return dirty
+    return dirty.distinct()
 }

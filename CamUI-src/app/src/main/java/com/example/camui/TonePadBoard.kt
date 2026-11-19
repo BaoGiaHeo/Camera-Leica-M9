@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -201,7 +202,7 @@ fun TonePadBoard(
             }
         }
 
-        Box(
+        BoxWithConstraints(
             Modifier.fillMaxWidth()
                 .height(190.dp)
                 .clip(RoundedCornerShape(4.dp))
@@ -229,14 +230,6 @@ fun TonePadBoard(
                         val height = size.height.toFloat().coerceAtLeast(1f)
                         val downX = (down.position.x / width).coerceIn(0f, 1f)
                         val downY = (down.position.y / height).coerceIn(0f, 1f)
-                        val startDeltaX = downX - ((currentX + 1f) * 0.5f)
-                        val startDeltaY = downY - ((1f - currentY) * 0.5f)
-                        val puckRadiusX = 56.dp.toPx() / width
-                        val puckRadiusY = 56.dp.toPx() / height
-                        val startedOnPuck = sqrt(
-                            startDeltaX * startDeltaX / (puckRadiusX * puckRadiusX).coerceAtLeast(0.0001f) +
-                                startDeltaY * startDeltaY / (puckRadiusY * puckRadiusY).coerceAtLeast(0.0001f)
-                        ) <= 1f
 
                         if (currentGuideVisible) {
                             guideVisible = false
@@ -244,6 +237,7 @@ fun TonePadBoard(
                         }
                         setDragging(true)
                         var activeMoved = false
+                        var pointerMoved = false
                         var longPressReset = false
                         var resetThisGesture = false
                         val previousTap = lastTapAt.longValue
@@ -251,7 +245,7 @@ fun TonePadBoard(
                             resetPosition()
                             lastTapAt.longValue = 0L
                             resetThisGesture = true
-                        } else if (!startedOnPuck) {
+                        } else {
                             var snappedX = downX
                             var snappedY = downY
                             if (snapEnabledState) {
@@ -271,8 +265,7 @@ fun TonePadBoard(
                                 }
                                 val activeChange = event?.changes?.firstOrNull { it.id == down.id }
                                 if (event == null) {
-                                    if (!resetThisGesture && startedOnPuck && !activeMoved &&
-                                        !longPressReset &&
+                                    if (!resetThisGesture && !pointerMoved && !longPressReset &&
                                         SystemClock.uptimeMillis() - startedAt >= 600L
                                     ) {
                                         resetPosition()
@@ -293,9 +286,10 @@ fun TonePadBoard(
                                 }
                                 val dx = activeChange.position.x - down.position.x
                                 val dy = activeChange.position.y - down.position.y
-                                if (!activeMoved && (abs(dx) > view.resources.displayMetrics.density * 2f ||
+                                if (!pointerMoved && (abs(dx) > view.resources.displayMetrics.density * 2f ||
                                             abs(dy) > view.resources.displayMetrics.density * 2f)
                                 ) {
+                                    pointerMoved = true
                                     activeMoved = true
                                 }
                                 if (!resetThisGesture && activeMoved) {
@@ -310,7 +304,7 @@ fun TonePadBoard(
                                 }
                             }
                         } finally {
-                            if (pointerReleased && !activeMoved && !resetThisGesture) {
+                            if (pointerReleased && !pointerMoved && !resetThisGesture) {
                                 lastTapAt.longValue = SystemClock.uptimeMillis()
                             }
                             setDragging(false)
@@ -429,11 +423,18 @@ fun TonePadBoard(
                     (darkBright * 100f).roundToInt(),
                     (paleRich * 100f).roundToInt()
                 )
+                val readoutX = (
+                    maxWidth * ((fingerX + 1f) * 0.5f) - 42.dp
+                ).coerceIn(0.dp, (maxWidth - 84.dp).coerceAtLeast(0.dp))
+                val readoutY = (
+                    maxHeight * ((1f - fingerY) * 0.5f) - 27.dp
+                ).coerceIn(0.dp, (maxHeight - 27.dp).coerceAtLeast(0.dp))
                 Text(
                     readout,
                     color = Color.White,
                     fontSize = 9.sp,
-                    modifier = Modifier.align(Alignment.TopCenter)
+                    modifier = Modifier.align(Alignment.TopStart)
+                        .offset(x = readoutX, y = readoutY)
                         .clip(RoundedCornerShape(3.dp))
                         .background(Color(0xCC000000))
                         .padding(horizontal = 5.dp, vertical = 2.dp)

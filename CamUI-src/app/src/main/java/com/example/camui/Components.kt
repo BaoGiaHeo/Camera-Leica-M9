@@ -129,6 +129,7 @@ fun CamTheme(content: @Composable () -> Unit) {
     ) {
         CompositionLocalProvider(
             LocalContext provides context,
+            LocalConfiguration provides context.resources.configuration,
             LocalTextStyle provides appTypography.bodyMedium
         ) {
             Box(Modifier.fillMaxSize().background(CamColors.Bg).animaTContent()) {

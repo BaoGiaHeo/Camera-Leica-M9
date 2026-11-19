@@ -67,6 +67,7 @@ private val tonePadBayer4 = arrayOf(
 @Composable
 fun TonePadBoard(
     filterName: String,
+    onToneChanged: (TonePadParameters) -> Unit = {},
     advancedContent: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -115,6 +116,7 @@ fun TonePadBoard(
             .putFloat("$preferencePrefix.x", nx)
             .putFloat("$preferencePrefix.y", ny)
             .apply()
+        onToneChanged(TonePadParameters(nx, ny, intensity))
     }
     val setDragging by rememberUpdatedState<(Boolean) -> Unit> { dragging ->
         puckDragging = dragging
@@ -127,6 +129,7 @@ fun TonePadBoard(
 
     LaunchedEffect(intensity, filterName) {
         preferences.edit().putFloat("$preferencePrefix.intensity", intensity).apply()
+        onToneChanged(TonePadParameters(paleRich, darkBright, intensity))
     }
 
     LaunchedEffect(guideVisible, guideReplayToken) {

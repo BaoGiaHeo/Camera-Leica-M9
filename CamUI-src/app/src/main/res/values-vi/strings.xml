@@ -6,4 +6,12 @@
     <string name="language_system">SYSTEM</string>
     <string name="language_english">ENGLISH</string>
     <string name="language_vietnamese">TIẾNG VIỆT</string>
+    <string name="font_specimen_title">BẢNG KIỂM TRA FONT</string>
+    <string name="font_specimen_loaded">VCR OSD MONO KK7 · ĐÃ TẢI FONT</string>
+    <string name="font_specimen_missing">KHÔNG TÌM THẤY FONT KK7 · ĐANG DÙNG MONOSPACE HỆ THỐNG</string>
+    <string name="font_specimen_metadata">VCR OSD Mono KK7 · UPM 2048 · cap-height 1500 · hhea ascent 1800 / descent 0. Kiểm tra dấu xếp chồng và lỗi cắt dòng trên thiết bị.</string>
+    <string name="font_specimen_fallback_note">Glyph KK7 còn thiếu: dấu chấm giữa, prime và double-prime dùng fallback monospace theo từng ký tự; chấm lấy nét sẽ do lớp sprite pixel vẽ.</string>
+    <string name="font_specimen_size_title">KIỂM TRA CỠ CHỮ · 8 / 10 / 12 / 14 / 16 / 20 / 24 SP</string>
+    <string name="font_specimen_vietnamese_sample">Ắ ằ Ẳ ẵ Ặ · Ấ ầ Ẩ ẫ Ậ · Ế ề Ể ễ Ệ · Ố ồ Ổ ỗ Ộ · Ớ ờ Ở ỡ Ợ · Ứ ừ Ử ữ Ự · Ỳ ỷ Ỹ ỵ Đ đ Ơ ơ Ư ư. Đường nét phải rõ, dấu không bị cắt.</string>
+    <string name="font_specimen_english_sample">FUJIFILM MODE · EXPOSURE / FOCUS / LENS · ISO 800 · SS 1/125 · EV +0.7 · WHITE BALANCE · CAMERA READY.</string>
 </resources>

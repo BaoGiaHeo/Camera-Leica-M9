@@ -7,6 +7,12 @@ data class TonePadRgb(val red: Float, val green: Float, val blue: Float)
 
 data class TonePadLab(val lightness: Float, val a: Float, val b: Float)
 
+data class TonePadParameters(
+    val paleRich: Float = 0f,
+    val darkBright: Float = 0f,
+    val intensity: Float = 0.65f
+)
+
 /**
  * Two-axis color treatment in OKLab:
  * - X: pale (-1) to rich (+1), scaling a/b chroma

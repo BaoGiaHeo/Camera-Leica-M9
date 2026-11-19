@@ -29,4 +29,6 @@
     <string name="retro_lcd_texture_description">Tùy chọn đường quét trên kính ngắm. Hiệu ứng chỉ hiển thị, không thay đổi ảnh đã lưu.</string>
     <string name="fujifilm_mode_version">FUJIFILM MODE %1$s</string>
     <string name="settings_footer_hint">▲▼ CHỌN    MENU/OK MỞ    DISP/BACK QUAY LẠI</string>
+    <string name="zoom_direction_in">VÀO</string>
+    <string name="zoom_direction_out">RA</string>
 </resources>

@@ -22,7 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,7 +88,7 @@ internal fun LunaDreamDeveloperLogPanel() {
                 color = Color(0xFFD5DEDF),
                 fontSize = 9.sp,
                 lineHeight = 12.sp,
-                fontFamily = FontFamily.Monospace
+                fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
             )
         }
         Text(

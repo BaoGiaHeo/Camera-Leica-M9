@@ -679,7 +679,7 @@ fun CameraScreen(
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
     var filterPreviewSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    val fallbackFilterPreviewBitmap = remember { createFilmLookPreviewSample() }
+    val fallbackFilterPreviewBitmap = remember(context) { createFilmLookPreviewSample(context) }
     val shutterEffectProgress = remember { Animatable(0f) }
     var frozenPreviewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewFreezeEffect by remember { mutableStateOf("off") }

@@ -193,7 +193,14 @@ private fun decodePreferences(json: JSONObject, editor: SharedPreferences.Editor
             "int" -> editor.putInt(key, item.optInt("value"))
             "long" -> editor.putLong(key, item.optLong("value"))
             "float" -> editor.putFloat(key, item.optDouble("value").toFloat())
-            "string" -> if (!item.isNull("value")) editor.putString(key, item.optString("value"))
+            "string" -> if (!item.isNull("value")) {
+                val stringValue = item.optString("value")
+                if (key == "app_language") {
+                    editor.putString(key, AppLanguageManager.normalizePreference(stringValue))
+                } else {
+                    editor.putString(key, stringValue)
+                }
+            }
             "string_set" -> {
                 val array = item.optJSONArray("value") ?: JSONArray()
                 val values = linkedSetOf<String>()

@@ -25,6 +25,24 @@ class CameraAfLabelContractTest {
     }
 
     @Test
+    fun removedTapAfInstructionIsAbsentFromAllKotlinUiSources() {
+        val sourceRoot = File("src/main/java")
+        assertTrue("Kotlin source root is missing", sourceRoot.isDirectory)
+        val forbidden = listOf("TAP AF · HOLD LOCK", "TAP AF · HOLD TO LOCK")
+        val matches = sourceRoot.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbidden.any(line::contains)) {
+                        "${file.relativeTo(sourceRoot).path}:${index + 1}: $line"
+                    } else null
+                }.asSequence()
+            }
+            .toList()
+        assertTrue(matches.joinToString("\n"), matches.isEmpty())
+    }
+
+    @Test
     fun afLabelsAreDefinedConsistentlyForEnglishAndVietnamese() {
         val english = readStrings(File("src/main/res/values/strings.xml"))
         val vietnamese = readStrings(File("src/main/res/values-vi/strings.xml"))

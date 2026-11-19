@@ -208,148 +208,6 @@ private val englishUi = mapOf(
     "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes."
 )
 
-private val japaneseUi = mapOf(
-    "SETTINGS · MENU" to "設定 · メニュー", "TOOLBOX" to "ツールボックス", "CONTENTS MANAGEMENT" to "コンテンツ管理",
-    "PHOTO FRAMES" to "フォトフレーム", "FILM FILTERS" to "フィルムフィルター", "LUNADREAM" to "LUNADREAM",
-    "OTHER · DEVICE OPTIONS" to "その他 · デバイス設定", "MENU TABS" to "メニュータブ", "OPEN" to "開く",
-    "STARTING..." to "起動中...", "NO SIGNAL" to "信号なし", "Refresh rate" to "リフレッシュレート", "EV N/A" to "EV 非対応",
-    "DISPLAY / APPEARANCE" to "表示 / 外観", "SOUND & HAPTIC" to "サウンドと振動", "NIGHTSHOTMODE" to "NightShotMode",
-    "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK" to "▲▼ 選択    MENU/OK 開く    DISP/BACK 戻る",
-    "Settings" to "設定", "Toolbox" to "ツールボックス", "Viewfinder overlays" to "ファインダー表示",
-    "Grid Lines" to "グリッド線", "Thirds composition guide" to "三分割構図ガイド",
-    "Histogram" to "ヒストグラム", "Live luminance histogram" to "リアルタイム輝度ヒストグラム",
-    "Focus Peaking" to "フォーカスピーキング", "Watermark" to "ウォーターマーク",
-    "Enable Watermark" to "ウォーターマークを有効化", "Shutter button" to "シャッターボタン",
-    "Assistive Tools" to "補助ツール", "Focus & Lens" to "フォーカスとレンズ",
-    "Capture & Quality" to "撮影と画質", "Photo Mode Setting" to "写真モード設定",
-    "Appearance" to "外観", "Language" to "言語", "About" to "アプリ情報",
-    "Photo" to "写真", "Pro" to "プロ", "Bộ lọc" to "フィルター", 
-    "AI Bố cục" to "AI構図", "AI Bố cục ✓" to "AI構図 ✓",
-    "Màu frame" to "フレームの色", "Màu khung" to "枠線の色",
-    "Hiện thời gian" to "日時を表示", "Hiện model máy" to "端末モデルを表示",
-    "Hiện thông số" to "撮影情報を表示", "Save Model" to "モデルを保存",
-    "Import ảnh cho nút chụp" to "シャッター画像を読み込む",
-    "Đổi ảnh nút chụp" to "シャッター画像を変更", "Dùng nút màu" to "単色ボタンを使用",
-    "Phát hiện ngôn ngữ hệ thống" to "システム言語を検出",
-    "English" to "英語", "Vietnamese" to "ベトナム語", "Japan" to "日本語", "Korea" to "韓国語", "China" to "中国語",
-    "Đang phơi sáng" to "露光中", "Vui lòng để điện thoại cố định" to "スマートフォンを動かさないでください",
-    "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまで動かさないでください",
-    "Đang phơi sáng vui lòng để điện thoại cố định" to "露光中です。スマートフォンを固定してください。",
-    "Photo Frame" to "フォトフレーム", "Tắt frame" to "フレームなし",
-    "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "これらのツールでファインダーの表示を操作します。",
-    "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "カメラ情報はCamera2を通じて端末から直接取得します。",
-    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "カメラIDを取得できません。カメラ権限を許可してください。",
-    "Aspect Ratio" to "アスペクト比", "Image Quality" to "画質",
-    "Ảnh được lưu vào Pictures/FujifilmMode." to "写真はPictures/FujifilmModeに保存されます。",
-    "Capture Quality" to "撮影画質", "Noise Reduction" to "ノイズ低減",
-    "Shutter" to "シャッター", "Hiệu ứng khi bấm chụp" to "シャッター効果",
-    "Mẫu watermark · chọn riêng từng kiểu" to "ウォーターマークのテンプレート",
-    "Model tùy chỉnh" to "カスタムモデル",
-    "Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng。"
-        to "カスタムモデル名はアプリデータを消去するかアプリをアンインストールするまで保存されます。",
-    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "シャッターボタンの色を変更するか、PNG/JPG画像を使用します。",
-    "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "表示言語を選択します。変更後、アプリの画面を再読み込みします。",
-    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "オフにするとカメラのノイズ低減を要求しません。対応状況はCamera2 HALによって異なります。",
-    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút。" to "シャッターボタンの色を変更するか、PNG/JPG画像を使用します。",
-    "Frame Manage" to "フレーム管理", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPGのオーバーレイフレームを読み込みます。",
-    "Đóng" to "閉じる", "Áp dụng frame" to "フレームを適用",
-    "Không rung máy cho đến khi hoàn tất" to "撮影が完了するまでスマートフォンを動かさないでください。",
-    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng。" to "カメラIDを取得できません。カメラ権限を許可してください。"
-)
-
-private val koreanUi = mapOf(
-    "SETTINGS · MENU" to "설정 · 메뉴", "TOOLBOX" to "도구 상자", "CONTENTS MANAGEMENT" to "콘텐츠 관리",
-    "PHOTO FRAMES" to "사진 프레임", "FILM FILTERS" to "필름 필터", "LUNADREAM" to "LUNADREAM",
-    "OTHER · DEVICE OPTIONS" to "기타 · 기기 옵션", "MENU TABS" to "메뉴 탭", "OPEN" to "열기",
-    "STARTING..." to "시작 중...", "NO SIGNAL" to "신호 없음", "Refresh rate" to "화면 주사율", "EV N/A" to "EV 지원 안 됨",
-    "DISPLAY / APPEARANCE" to "디스플레이 / 모양", "SOUND & HAPTIC" to "사운드 및 햅틱", "NIGHTSHOTMODE" to "NightShotMode",
-    "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK" to "▲▼ 선택    MENU/OK 열기    DISP/BACK 뒤로",
-    "Settings" to "설정", "Toolbox" to "도구 상자", "Viewfinder overlays" to "뷰파인더 오버레이",
-    "Grid Lines" to "격자선", "Thirds composition guide" to "삼분할 구도 가이드",
-    "Histogram" to "히스토그램", "Live luminance histogram" to "실시간 밝기 히스토그램",
-    "Focus Peaking" to "포커스 피킹", "Watermark" to "워터마크",
-    "Enable Watermark" to "워터마크 사용", "Shutter button" to "셔터 버튼",
-    "Assistive Tools" to "보조 도구", "Focus & Lens" to "초점 및 렌즈",
-    "Capture & Quality" to "촬영 및 화질", "Photo Mode Setting" to "사진 모드 설정",
-    "Appearance" to "화면 설정", "Language" to "언어", "About" to "정보",
-    "Photo" to "사진", "Pro" to "프로", "Bộ lọc" to "필터", 
-    "AI Bố cục" to "AI 구도", "AI Bố cục ✓" to "AI 구도 ✓",
-    "Màu frame" to "프레임 색상", "Màu khung" to "테두리 색상",
-    "Hiện thời gian" to "날짜 및 시간 표시", "Hiện model máy" to "기기 모델 표시",
-    "Hiện thông số" to "촬영 정보 표시", "Save Model" to "모델 저장",
-    "Import ảnh cho nút chụp" to "셔터 이미지 가져오기", "Đổi ảnh nút chụp" to "셔터 이미지 변경",
-    "Dùng nút màu" to "단색 버튼 사용", "Phát hiện ngôn ngữ hệ thống" to "시스템 언어 감지",
-    "English" to "영어", "Vietnamese" to "베트남어", "Japan" to "일본어", "Korea" to "한국어", "China" to "중국어",
-    "Đang phơi sáng" to "노출 중", "Vui lòng để điện thoại cố định" to "휴대전화를 고정해 주세요",
-    "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 움직이지 마세요",
-    "Đang phơi sáng vui lòng để điện thoại cố định" to "노출 중입니다. 휴대전화를 움직이지 마세요.",
-    "Photo Frame" to "사진 프레임", "Tắt frame" to "프레임 끄기",
-    "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "이 도구에서 뷰파인더 오버레이를 제어합니다.",
-    "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "카메라 정보는 Camera2를 통해 기기에서 직접 가져옵니다.",
-    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "카메라 ID를 읽을 수 없습니다. 카메라 권한을 허용하세요.",
-    "Aspect Ratio" to "화면 비율", "Image Quality" to "이미지 품질",
-    "Ảnh được lưu vào Pictures/FujifilmMode." to "사진은 Pictures/FujifilmMode에 저장됩니다.",
-    "Capture Quality" to "촬영 품질", "Noise Reduction" to "노이즈 감소",
-    "Shutter" to "셔터", "Hiệu ứng khi bấm chụp" to "셔터 효과",
-    "Mẫu watermark · chọn riêng từng kiểu" to "워터마크 템플릿",
-    "Model tùy chỉnh" to "사용자 지정 모델",
-    "Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng."
-        to "사용자 지정 모델 이름은 앱 데이터를 삭제하거나 앱을 제거할 때까지 저장됩니다.",
-    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "셔터 버튼 색상을 변경하거나 PNG/JPG 이미지를 사용하세요.",
-    "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "표시 언어를 선택하세요. 변경 후 앱 화면이 다시 로드됩니다.",
-    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "끄면 카메라에 노이즈 감소를 끄도록 요청합니다. 지원 여부는 Camera2 HAL에 따라 다릅니다.",
-    "Frame Manage" to "프레임 관리", "Nhập khung phủ PNG/JPG để quản lý." to "PNG/JPG 오버레이 프레임을 가져옵니다.",
-    "Đóng" to "닫기", "Áp dụng frame" to "프레임 적용",
-    "Không rung máy cho đến khi hoàn tất" to "촬영이 끝날 때까지 휴대전화를 움직이지 마세요."
-)
-
-private val chineseUi = mapOf(
-    "SETTINGS · MENU" to "设置 · 菜单", "TOOLBOX" to "工具箱", "CONTENTS MANAGEMENT" to "内容管理",
-    "PHOTO FRAMES" to "照片边框", "FILM FILTERS" to "胶片滤镜", "LUNADREAM" to "LUNADREAM",
-    "OTHER · DEVICE OPTIONS" to "其他 · 设备选项", "MENU TABS" to "菜单标签", "OPEN" to "打开",
-    "STARTING..." to "正在启动...", "NO SIGNAL" to "无信号", "Refresh rate" to "刷新率", "EV N/A" to "EV 不支持",
-    "DISPLAY / APPEARANCE" to "显示 / 外观", "SOUND & HAPTIC" to "声音与触觉反馈", "NIGHTSHOTMODE" to "NightShotMode",
-    "▲▼ SELECT    MENU/OK OPEN    DISP/BACK BACK" to "▲▼ 选择    MENU/OK 打开    DISP/BACK 返回",
-    "Settings" to "设置", "Toolbox" to "工具箱", "Viewfinder overlays" to "取景器辅助线",
-    "Grid Lines" to "网格线", "Thirds composition guide" to "三分构图辅助",
-    "Histogram" to "直方图", "Live luminance histogram" to "实时亮度直方图",
-    "Focus Peaking" to "峰值对焦", "Watermark" to "水印",
-    "Enable Watermark" to "启用水印", "Shutter button" to "快门按钮",
-    "Assistive Tools" to "辅助工具", "Focus & Lens" to "对焦与镜头",
-    "Capture & Quality" to "拍摄与画质", "Photo Mode Setting" to "照片模式设置",
-    "Appearance" to "外观", "Language" to "语言", "About" to "关于",
-    "Photo" to "照片", "Pro" to "专业", "Bộ lọc" to "滤镜", 
-    "AI Bố cục" to "AI 构图", "AI Bố cục ✓" to "AI 构图 ✓",
-    "Màu frame" to "相框颜色", "Màu khung" to "边框颜色",
-    "Hiện thời gian" to "显示日期和时间", "Hiện model máy" to "显示设备型号",
-    "Hiện thông số" to "显示拍摄参数", "Save Model" to "保存型号",
-    "Import ảnh cho nút chụp" to "导入快门图片", "Đổi ảnh nút chụp" to "更换快门图片",
-    "Dùng nút màu" to "使用纯色按钮", "Phát hiện ngôn ngữ hệ thống" to "跟随系统语言",
-    "English" to "英语", "Vietnamese" to "越南语", "Japan" to "日语", "Korea" to "韩语", "China" to "中文",
-    "Đang phơi sáng" to "正在曝光", "Vui lòng để điện thoại cố định" to "请保持手机稳定",
-    "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机",
-    "Đang phơi sáng vui lòng để điện thoại cố định" to "正在曝光，请保持手机稳定。",
-    "Photo Frame" to "照片边框", "Tắt frame" to "关闭边框",
-    "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to "这些工具用于控制取景器辅助显示。",
-    "Thông tin camera do Camera2 đọc trực tiếp từ thiết bị." to "相机信息通过 Camera2 从设备直接读取。",
-    "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "无法读取相机 ID，请授予应用相机权限。",
-    "Aspect Ratio" to "画面比例", "Image Quality" to "图像质量",
-    "Ảnh được lưu vào Pictures/FujifilmMode." to "照片保存到 Pictures/FujifilmMode。",
-    "Capture Quality" to "拍摄质量", "Noise Reduction" to "降噪",
-    "Shutter" to "快门", "Hiệu ứng khi bấm chụp" to "快门效果",
-    "Mẫu watermark · chọn riêng từng kiểu" to "水印模板",
-    "Model tùy chỉnh" to "自定义型号",
-    "Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng."
-        to "自定义型号会保存在应用数据中，直到清除数据或卸载应用。",
-    "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "更改快门按钮颜色，或使用 PNG/JPG 图片。",
-    "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "选择界面语言。更改后应用将重新加载界面。",
-    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "关闭会请求相机停用降噪，实际支持情况取决于 Camera2 HAL。",
-    "Frame Manage" to "边框管理", "Nhập khung phủ PNG/JPG để quản lý." to "导入 PNG/JPG 覆盖边框。",
-    "Đóng" to "关闭", "Áp dụng frame" to "应用边框",
-    "Không rung máy cho đến khi hoàn tất" to "拍摄完成前请勿移动手机。"
-)
-
-
 private val fullEnglishUi = mapOf(
     "Cần cấp quyền Camera\n(chạm để cấp)" to "Camera permission required\n(tap to grant)",
     "AF LOCK" to "AF LOCK", "EV không được hỗ trợ" to "EV unavailable",
@@ -1341,7 +1199,8 @@ fun Text(
     style: TextStyle = LocalTextStyle.current
 ) {
     val context = LocalContext.current
-    val localized = localizedUiText(context, text)
+    val activeLanguage = AppLanguageManager.currentLanguage
+    val localized = localizedUiText(context, text, activeLanguage)
     val appFont = fontFamily ?: FujiTypography.composeFamily(context)
     MaterialText(
         text = localized,
@@ -1363,3 +1222,65 @@ fun Text(
         style = style
     )
 }
+private fun translateFullUiText(value: String, language: String): String? {
+    if (language != "en") return null
+    fullEnglishUi[value]?.let { return it }
+    val dynamic = listOf(
+        "Camera ID " to "Camera ID ",
+        "ISO " to "ISO ",
+        "Shutter " to "Shutter ",
+        "Tông màu " to "Color temperature ",
+        "Auto sẽ lấy tên model của điện thoại: " to "Auto uses phone model: ",
+        "Không thể khởi tạo HDR hoặc camera: " to "Could not initialize HDR or camera: ",
+        "Bộ lọc: " to "Filter: ",
+        "AI BỐ CỤC · " to "AI COMPOSITION · ",
+        "Lỗi chụp ảnh:" to "Capture error:",
+        "Không mở được camera:" to "Could not open camera:",
+        "Không thể bật Ultra HDR hoặc khởi tạo camera:" to "Could not enable Ultra HDR or initialize camera:",
+        "BRACKETING " to "BRACKETING ",
+        "BURST " to "BURST ",
+        "Danh sách bộ lọc · " to "Filter list · ",
+        "Nhiệt pin: " to "Battery temperature: ",
+        "Trạng thái nhiệt Android: " to "Android thermal status: ",
+        "LunaDream 1.5: thu khung " to "LunaDream 1.5: capturing frame ",
+        "LunaDream 2.0: thu khung " to "LunaDream 2.0: capturing frame ",
+        "RawDream 2.0: thu khung " to "RawDream 2.0: capturing frame ",
+        "NightShotMode: thu khung " to "NightShotMode: capturing frame ",
+        "NightShotMode Milky Way: thu khung " to "NightShotMode Milky Way: capturing frame ",
+        "NightShotMode: căn chỉnh và gộp " to "NightShotMode: aligning and merging "
+    )
+    dynamic.firstOrNull { value.startsWith(it.first) }?.let {
+        return it.second + value.removePrefix(it.first)
+    }
+    Regex("""^(\\d+) ảnh$""").matchEntire(value)?.let { match ->
+        return "${match.groupValues[1]} photos"
+    }
+    return null
+}
+
+private fun translateUiText(value: String, language: String): String {
+    if (language == "vi") return value
+    translateFullUiText(value, "en")?.let { return it }
+    englishUi[value]?.let { return it }
+    var translated = value
+    val fragments = listOf(
+        "Camera ID " to "Camera ID ",
+        "Bộ lọc" to "Filter",
+        "Chưa có ảnh" to "No photos yet",
+        "Đang tải" to "Loading",
+        "Đã xử lý: " to "Processed: ",
+        "Nhiệt pin: " to "Battery temperature: ",
+        "Trạng thái nhiệt Android: " to "Android thermal status: ",
+        "Nhẹ" to "Light",
+        "Trung bình" to "Moderate",
+        "Cao" to "Severe"
+    )
+    fragments.forEach { (from, to) -> translated = translated.replace(from, to) }
+    return translated
+}
+
+fun localizedUiText(context: Context, value: String, languageOverride: String? = null): String {
+    val language = languageOverride ?: AppLanguageManager.languageFor(context)
+    return translateUiText(value, language)
+}
+

@@ -14,4 +14,8 @@
     <string name="font_specimen_size_title">SIZE CHECK · 8 / 10 / 12 / 14 / 16 / 20 / 24 SP</string>
     <string name="font_specimen_vietnamese_sample">Ắ ằ Ẳ ẵ Ặ · Ấ ầ Ẩ ẫ Ậ · Ế ề Ể ễ Ệ · Ố ồ Ổ ỗ Ộ · Ớ ờ Ở ỡ Ợ · Ứ ừ Ử ữ Ự · Ỳ ỷ Ỹ ỵ Đ đ Ơ ơ Ư ư. Đường nét phải rõ, dấu không bị cắt.</string>
     <string name="font_specimen_english_sample">FUJIFILM MODE · EXPOSURE / FOCUS / LENS · ISO 800 · SS 1/125 · EV +0.7 · WHITE BALANCE · CAMERA READY.</string>
+    <string name="pixel_osd_icon_sheet_tab">ICON SHEET</string>
+    <string name="pixel_osd_icon_sheet_description">Pixel sprites · 1x / 2x / 4x</string>
+    <string name="pixel_osd_preview_tab">OSD PREVIEW</string>
+    <string name="pixel_osd_preview_description">Pro / Photo dummy viewfinder</string>
 </resources>

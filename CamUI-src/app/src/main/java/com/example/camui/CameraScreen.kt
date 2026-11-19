@@ -974,7 +974,7 @@ fun CameraScreen(
         val direction = zoomHoldDirection
         val active = camera
         if (direction == 0 || active == null) return@LaunchedEffect
-        var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<Void>? = null
+        var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
         var previousFrame = 0L
         var heldSeconds = 0f
@@ -1027,7 +1027,7 @@ fun CameraScreen(
         val active = camera
         val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
         if (direction == 0 || active == null || range == null) return@LaunchedEffect
-        var lastEvFuture: com.google.common.util.concurrent.ListenableFuture<Void>? = null
+        var lastEvFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetIndex = evIndex.coerceIn(range.lower, range.upper)
         var previousFrame = 0L
         var heldSeconds = 0f

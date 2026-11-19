@@ -2684,7 +2684,7 @@ fun applyCameraWatermark(
             }
             val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = brandInk
-                typeface = brandTypeface
+                typeface = appWatermarkTypeface
                 textAlign = Paint.Align.CENTER
                 textSize = minOf(rect.height() * 0.76f, rect.width() * 0.34f)
                 if (watermarkBrand == "sony") textScaleX = 1.06f
@@ -2693,18 +2693,21 @@ fun applyCameraWatermark(
             canvas.drawText(brandTitle, rect.centerX(), baseline, markPaint)
         }
 
+        // All watermark metadata uses the app-wide KK7 typography. Brand marks remain
+        // image assets where available; any text-drawn metadata uses this single typeface.
+        val appWatermarkTypeface = FujiTypography.androidTypeface(context)
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            typeface = brandTypeface
+            typeface = appWatermarkTypeface
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             alpha = 235
-            typeface = detailTypeface
+            typeface = appWatermarkTypeface
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            typeface = brandTypeface
+            typeface = appWatermarkTypeface
         }
         if (frameStyle == "Transparent") {
             titlePaint.setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)

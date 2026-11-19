@@ -88,9 +88,13 @@ fun TonePadBoard(
     var puckDragging by remember { mutableStateOf(false) }
     var fingerX by remember { mutableFloatStateOf(paleRich) }
     var fingerY by remember { mutableFloatStateOf(darkBright) }
-    var guideVisible by remember {
-        mutableStateOf(!preferences.getBoolean("tone_pad_guide_seen", false))
+    val guideEnabled = remember {
+        preferences.getBoolean("tone_pad_guide_enabled", true)
     }
+    var guideVisible by remember {
+        mutableStateOf(guideEnabled && !preferences.getBoolean("tone_pad_guide_seen", false))
+    }
+    var guideReplayToken by remember { mutableStateOf(0) }
     val guideProgress = remember { Animatable(0f) }
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -127,7 +131,7 @@ fun TonePadBoard(
         preferences.edit().putFloat("$preferencePrefix.intensity", intensity).apply()
     }
 
-    LaunchedEffect(guideVisible) {
+    LaunchedEffect(guideVisible, guideReplayToken) {
         if (guideVisible) {
             repeat(3) {
                 guideProgress.animateTo(1f, animationSpec = tween(620))
@@ -175,6 +179,7 @@ fun TonePadBoard(
                         .clickable {
                             scope.launch {
                                 guideProgress.snapTo(0f)
+                                guideReplayToken++
                                 guideVisible = true
                             }
                         },
@@ -420,8 +425,8 @@ fun TonePadBoard(
             if (puckDragging) {
                 val readout = stringResource(
                     R.string.tone_pad_value_readout,
-                    ((paleRich * 100f).roundToInt()),
-                    (darkBright * 100f).roundToInt()
+                    (darkBright * 100f).roundToInt(),
+                    (paleRich * 100f).roundToInt()
                 )
                 Text(
                     readout,
@@ -464,11 +469,13 @@ fun TonePadBoard(
             onValueChange = { intensity = it.coerceIn(0f, 1f) },
             valueRange = 0f..1f
         )
-        Text(
-            stringResource(R.string.tone_pad_hint),
-            color = CamColors.Sub,
-            fontSize = 8.sp
-        )
+        if (guideEnabled) {
+            Text(
+                stringResource(R.string.tone_pad_hint),
+                color = CamColors.Sub,
+                fontSize = 8.sp
+            )
+        }
         Row(
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(3.dp))

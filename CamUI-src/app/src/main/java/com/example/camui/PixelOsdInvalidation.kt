@@ -45,7 +45,9 @@ internal fun pixelOsdDirtyRegions(
         add(x - radius, y - radius, x + radius + 1, y + radius + 1)
     }
 
-    fun addPoints(points: List<Offset>) = points.forEach(::addPoint)
+    fun addPoints(points: List<Offset>) {
+        points.forEach { point -> addPoint(point) }
+    }
 
     if (previous.focusPoints != current.focusPoints) {
         addPoints(previous.focusPoints)

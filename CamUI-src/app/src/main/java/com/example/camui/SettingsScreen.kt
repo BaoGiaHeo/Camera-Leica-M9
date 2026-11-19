@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.content.res.Configuration
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -67,7 +65,7 @@ private val settingItems = listOf(
     SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
-    SettingItem("tab_08", "Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
+    SettingItem("tab_08", "Language", "SYSTEM · ENGLISH · TIẾNG VIỆT"),
     SettingItem("tab_09", "About", "LunaDream 2.5.0")
 )
 
@@ -363,28 +361,28 @@ var nightShotMode by remember {
             }
             "Language" -> {
                 var selectedLanguage by remember {
-                    mutableStateOf(prefs.getString("app_language", "system") ?: "system")
+                    mutableStateOf(AppLanguageManager.normalizePreference(prefs.getString("app_language", "system")))
                 }
                 Text("Language", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                Text("Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi.",
-                    color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
-                val languages = listOf(
-                    Triple("system", "Phát hiện ngôn ngữ hệ thống", ""),
-                    Triple("en", "English", "en"),
-                    Triple("vi", "Vietnamese", "vi"),
-                    Triple("ja", "Japan", "ja"),
-                    Triple("ko", "Korea", "ko"),
-                    Triple("zh-CN", "China", "zh-CN")
+                Text(
+                    "Choose the display language. Changes apply immediately.",
+                    color = CamColors.Sub,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp, bottom = 10.dp)
                 )
-                languages.forEach { (id, label, tag) ->
+                val languages = listOf(
+                    "system" to "SYSTEM",
+                    "en" to "ENGLISH",
+                    "vi" to "TIẾNG VIỆT"
+                )
+                languages.forEach { (id, label) ->
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 3.dp)
                             .background(if (selectedLanguage == id) Color(0xFF20292B) else FujiSkin.lcd)
                             .border(1.dp, if (selectedLanguage == id) FujiSkin.orange else Color(0xFF344247))
                             .animaTClickable {
                                 selectedLanguage = id
-                                prefs.edit().putString("app_language", id).apply()
-                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
+                                AppLanguageManager.setLanguage(context, id)
                             }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -396,8 +394,6 @@ var nightShotMode by remember {
                         }
                     }
                 }
-                Text("Japan = 日本語 · Korea = 한국어 · China = 简体中文",
-                    color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
             "Sao lưu & Khôi phục" -> {
                 BackupRestorePanel(onRestoreComplete = {
@@ -405,9 +401,7 @@ var nightShotMode by remember {
                     onShowGrid(prefs.getBoolean("viewfinder_grid_enabled", true))
                     onShowHist(prefs.getBoolean("viewfinder_histogram_enabled", true))
                     onFocusPeaking(prefs.getBoolean("viewfinder_focus_peaking_enabled", false))
-                    val restoredLanguage = prefs.getString("app_language", "system") ?: "system"
-                    val languageTag = if (restoredLanguage == "system") "" else restoredLanguage
-                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
+                    AppLanguageManager.initialize(context)
                 })
             }
             "NightShotMode" -> {

@@ -320,7 +320,8 @@ class MainActivity : AppCompatActivity() {
                                 showHist = showHist,
                                 onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                                 focusPeaking = focusPeaking,
-                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() }
+                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                                onOpenWatermarkStudio = { settingsSubpageReturnTarget = "settings"; page = "watermark_studio" }
                             )
                             "toolbox" -> ToolboxScreen(
                                 onBack = { page = settingsSubpageReturnTarget },

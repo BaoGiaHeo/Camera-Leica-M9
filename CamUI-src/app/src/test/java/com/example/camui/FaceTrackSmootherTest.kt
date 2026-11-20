@@ -42,6 +42,58 @@ class FaceTrackSmootherTest {
     }
 
     @Test
+    fun faceSelectionUsesTapTargetThenTrackingContinuityAndLargestFallback() {
+        data class Face(val name: String)
+        val large = FaceTrackCandidate(
+            value = Face("large"),
+            center = Offset(0.82f, 0.5f),
+            size = Offset(0.28f, 0.36f),
+            area = 0.1008f
+        )
+        val small = FaceTrackCandidate(
+            value = Face("small"),
+            center = Offset(0.24f, 0.5f),
+            size = Offset(0.12f, 0.16f),
+            area = 0.0192f,
+            trackingId = 7
+        )
+        assertEquals(
+            "small",
+            chooseFaceTrackCandidate(listOf(large, small), null, Offset(0.25f, 0.5f))?.value?.name
+        )
+        assertEquals(
+            "small",
+            chooseFaceTrackCandidate(
+                listOf(large, small.copy(center = Offset(0.4f, 0.5f))),
+                FaceTrackSnapshot(Offset(0.4f, 0.5f), small.size, null, trackingId = 7),
+                null
+            )?.value?.name
+        )
+        assertEquals(
+            "large",
+            chooseFaceTrackCandidate(listOf(large, small), null, null)?.value?.name
+        )
+    }
+
+    @Test
+    fun faceIouPrefersTheSameBoundingBoxAcrossSmallMovement() {
+        val overlap = faceIntersectionOverUnion(
+            Offset(0.5f, 0.5f),
+            Offset(0.2f, 0.3f),
+            Offset(0.52f, 0.51f),
+            Offset(0.2f, 0.3f)
+        )
+        val separate = faceIntersectionOverUnion(
+            Offset(0.5f, 0.5f),
+            Offset(0.2f, 0.3f),
+            Offset(0.9f, 0.9f),
+            Offset(0.2f, 0.3f)
+        )
+        assertTrue(overlap > 0.5f)
+        assertEquals(0f, separate, 0.0001f)
+    }
+
+    @Test
     fun mapsImageProxyCropIntoMlKitRotatedCoordinates() {
         val zero = orientImageCrop(640, 480, 40, 20, 600, 460, 0)
         assertEquals(40, zero?.left)

@@ -5,8 +5,98 @@ import androidx.compose.ui.geometry.Offset
 internal data class FaceTrackSnapshot(
     val center: Offset,
     val size: Offset,
-    val eyeCenter: Offset?
+    val eyeCenter: Offset?,
+    val trackingId: Int? = null
 )
+
+internal data class FaceTrackCandidate<T>(
+    val value: T,
+    val center: Offset,
+    val size: Offset,
+    val area: Float,
+    val trackingId: Int? = null
+)
+
+/**
+ * Chooses the tapped face first, then preserves a hardware/ML tracking identity,
+ * then uses rectangle IoU and nearest-centre continuity before falling back to
+ * the largest visible face.
+ */
+internal fun <T> chooseFaceTrackCandidate(
+    candidates: List<FaceTrackCandidate<T>>,
+    previous: FaceTrackSnapshot?,
+    preferredCenter: Offset?,
+    preferredMaximumDistance: Float = 0.35f,
+    continuityMaximumDistance: Float = 0.5f,
+    minimumIou: Float = 0.02f
+): FaceTrackCandidate<T>? {
+    if (candidates.isEmpty()) return null
+
+    fun distanceSquared(first: Offset, second: Offset): Float {
+        val dx = first.x - second.x
+        val dy = first.y - second.y
+        return dx * dx + dy * dy
+    }
+
+    if (preferredCenter != null) {
+        val nearestToTap = candidates.minByOrNull {
+            distanceSquared(it.center, preferredCenter)
+        }
+        if (nearestToTap != null &&
+            distanceSquared(nearestToTap.center, preferredCenter) <=
+                preferredMaximumDistance * preferredMaximumDistance
+        ) {
+            return nearestToTap
+        }
+    }
+
+    previous?.trackingId?.let { previousId ->
+        candidates.firstOrNull { it.trackingId == previousId }?.let { return it }
+    }
+
+    if (previous != null) {
+        val nearest = candidates.minByOrNull {
+            distanceSquared(it.center, previous.center)
+        }
+        val bestIou = candidates.maxByOrNull {
+            faceIntersectionOverUnion(previous.center, previous.size, it.center, it.size)
+        }
+        if (bestIou != null &&
+            faceIntersectionOverUnion(previous.center, previous.size, bestIou.center, bestIou.size) >= minimumIou
+        ) {
+            return bestIou
+        }
+        if (nearest != null &&
+            distanceSquared(nearest.center, previous.center) <=
+                continuityMaximumDistance * continuityMaximumDistance
+        ) {
+            return nearest
+        }
+    }
+
+    return candidates.maxByOrNull { it.area }
+}
+
+internal fun faceIntersectionOverUnion(
+    firstCenter: Offset,
+    firstSize: Offset,
+    secondCenter: Offset,
+    secondSize: Offset
+): Float {
+    val firstLeft = firstCenter.x - firstSize.x * 0.5f
+    val firstTop = firstCenter.y - firstSize.y * 0.5f
+    val firstRight = firstCenter.x + firstSize.x * 0.5f
+    val firstBottom = firstCenter.y + firstSize.y * 0.5f
+    val secondLeft = secondCenter.x - secondSize.x * 0.5f
+    val secondTop = secondCenter.y - secondSize.y * 0.5f
+    val secondRight = secondCenter.x + secondSize.x * 0.5f
+    val secondBottom = secondCenter.y + secondSize.y * 0.5f
+    val intersectionWidth = (minOf(firstRight, secondRight) - maxOf(firstLeft, secondLeft)).coerceAtLeast(0f)
+    val intersectionHeight = (minOf(firstBottom, secondBottom) - maxOf(firstTop, secondTop)).coerceAtLeast(0f)
+    val intersection = intersectionWidth * intersectionHeight
+    val union = (firstSize.x * firstSize.y) + (secondSize.x * secondSize.y) - intersection
+    return if (union > 0f) (intersection / union).coerceIn(0f, 1f) else 0f
+}
 
 /**
  * Small synchronized tracker used by both Camera2 face metadata and ML Kit fallback.
@@ -23,7 +113,12 @@ internal class FaceTrackSmoother(
     private var snapshot: FaceTrackSnapshot? = null
 
     @Synchronized
-    fun onFaceDetected(center: Offset, size: Offset, eyeCenter: Offset?): FaceTrackSnapshot? {
+    fun onFaceDetected(
+        center: Offset,
+        size: Offset,
+        eyeCenter: Offset?,
+        trackingId: Int? = null
+    ): FaceTrackSnapshot? {
         visibleFrames++
         missingFrames = 0
         if (visibleFrames < showAfterFrames) return null
@@ -32,7 +127,7 @@ internal class FaceTrackSmoother(
         val nextCenter = previous?.center?.let { smooth(it, center) } ?: center
         val nextSize = previous?.size?.let { smooth(it, size) } ?: size
         val nextEye = eyeCenter?.let { eye -> previous?.eyeCenter?.let { smooth(it, eye) } ?: eye }
-        return FaceTrackSnapshot(nextCenter, nextSize, nextEye).also { snapshot = it }
+        return FaceTrackSnapshot(nextCenter, nextSize, nextEye, trackingId).also { snapshot = it }
     }
 
     /**

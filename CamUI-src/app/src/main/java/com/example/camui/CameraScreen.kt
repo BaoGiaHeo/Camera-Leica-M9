@@ -555,6 +555,8 @@ fun CameraScreen(
     var faceTrackCenter by remember { mutableStateOf<Offset?>(null) }
     var faceTrackSize by remember { mutableStateOf<Offset?>(null) }
     var faceEyeCenter by remember { mutableStateOf<Offset?>(null) }
+    var preferredFaceCenter by remember { mutableStateOf<Offset?>(null) }
+    val preferredFaceCenterState = rememberUpdatedState(preferredFaceCenter)
     var manualAfOverrideUntilMs by remember { mutableLongStateOf(0L) }
     val manualAfOverrideUntilMsState = rememberUpdatedState(manualAfOverrideUntilMs)
     var centerAfPoint by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
@@ -569,6 +571,7 @@ fun CameraScreen(
             faceTrackCenter = null
             faceTrackSize = null
             faceEyeCenter = null
+            preferredFaceCenter = null
             centerAfStatus = 0
         }
     }
@@ -1479,8 +1482,14 @@ fun CameraScreen(
                 var lastFaceAfAtMs = 0L
                 var lastFaceAfTarget: Offset? = null
 
-                fun publishDetectedFace(center: Offset, size: Offset, eyeCenter: Offset?, now: Long) {
-                    val smoothed = faceTrackSmoother.onFaceDetected(center, size, eyeCenter) ?: return
+                fun publishDetectedFace(
+                    center: Offset,
+                    size: Offset,
+                    eyeCenter: Offset?,
+                    now: Long,
+                    trackingId: Int? = null
+                ) {
+                    val smoothed = faceTrackSmoother.onFaceDetected(center, size, eyeCenter, trackingId) ?: return
                     val uiCenterMoved = now - lastFaceTrackAtMs >= 40L
                     if (uiCenterMoved) {
                         lastFaceTrackAtMs = now
@@ -1629,24 +1638,39 @@ fun CameraScreen(
                                 else hardwareFaceDetectionAvailableState.value
                             if (shouldUseCamera2Faces) {
                                 val detectedFaces = result.get(CaptureResult.STATISTICS_FACES)
-                                val bestFace = detectedFaces
-                                    ?.filter { it.score >= 50 }
-                                    ?.maxByOrNull { it.bounds.width().toLong() * it.bounds.height().toLong() }
                                 val crop = result.get(CaptureResult.SCALER_CROP_REGION)
                                     ?: activeCameraCharacteristics?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                                val candidates = if (crop != null && crop.width() > 0 && crop.height() > 0) {
+                                    detectedFaces.orEmpty().filter { it.score >= 50 }.map { face ->
+                                        val bounds = face.bounds
+                                        val center = rotateFacePoint(
+                                            (bounds.centerX() - crop.left).toFloat() / crop.width(),
+                                            (bounds.centerY() - crop.top).toFloat() / crop.height(),
+                                            faceSensorToDisplayRotation,
+                                            front
+                                        )
+                                        val size = rotateFaceSize(
+                                            bounds.width().toFloat() / crop.width(),
+                                            bounds.height().toFloat() / crop.height(),
+                                            faceSensorToDisplayRotation
+                                        )
+                                        FaceTrackCandidate(
+                                            value = face,
+                                            center = center,
+                                            size = size,
+                                            area = bounds.width().toFloat() * bounds.height()
+                                        )
+                                    }
+                                } else emptyList()
+                                val bestCandidate = chooseFaceTrackCandidate(
+                                    candidates,
+                                    faceTrackSmoother.current(),
+                                    preferredFaceCenterState.value
+                                )
+                                val bestFace = bestCandidate?.value
                                 if (bestFace != null && crop != null && crop.width() > 0 && crop.height() > 0) {
-                                    val bounds = bestFace.bounds
-                                    val center = rotateFacePoint(
-                                        (bounds.centerX() - crop.left).toFloat() / crop.width(),
-                                        (bounds.centerY() - crop.top).toFloat() / crop.height(),
-                                        faceSensorToDisplayRotation,
-                                        front
-                                    )
-                                    val size = rotateFaceSize(
-                                        bounds.width().toFloat() / crop.width(),
-                                        bounds.height().toFloat() / crop.height(),
-                                        faceSensorToDisplayRotation
-                                    )
+                                    val center = bestCandidate.center
+                                    val size = bestCandidate.size
                                     val leftEye = bestFace.leftEyePosition
                                     val rightEye = bestFace.rightEyePosition
                                     val eyeX = when {
@@ -1669,7 +1693,13 @@ fun CameraScreen(
                                             front
                                         )
                                     } else null
-                                    publishDetectedFace(center, size, eye, SystemClock.elapsedRealtime())
+                                    publishDetectedFace(
+                                        center,
+                                        size,
+                                        eye,
+                                        SystemClock.elapsedRealtime(),
+                                        bestCandidate.trackingId
+                                    )
                                 } else {
                                     publishMissingFace()
                                 }
@@ -1951,24 +1981,41 @@ fun CameraScreen(
                                         val frameTop = orientedCrop?.top ?: 0
                                         val frameWidth = orientedCrop?.width ?: 0
                                         val frameHeight = orientedCrop?.height ?: 0
-                                        val best = faces.maxByOrNull {
-                                            it.boundingBox.width().toLong() * it.boundingBox.height().toLong()
-                                        }
-                                        if (best != null && frameWidth > 0 && frameHeight > 0 &&
-                                            uprightWidth > 0 && uprightHeight > 0
+                                        val candidates = if (frameWidth > 0 && frameHeight > 0) {
+                                            faces.mapNotNull { face ->
+                                                val bounds = face.boundingBox
+                                                if (bounds.width() <= 0 || bounds.height() <= 0) return@mapNotNull null
+                                                val center = rotateFacePoint(
+                                                    (bounds.centerX() - frameLeft) / frameWidth.toFloat(),
+                                                    (bounds.centerY() - frameTop) / frameHeight.toFloat(),
+                                                    0,
+                                                    front
+                                                )
+                                                val size = rotateFaceSize(
+                                                    bounds.width().toFloat() / frameWidth,
+                                                    bounds.height().toFloat() / frameHeight,
+                                                    0
+                                                )
+                                                FaceTrackCandidate(
+                                                    value = face,
+                                                    center = center,
+                                                    size = size,
+                                                    area = bounds.width().toFloat() * bounds.height(),
+                                                    trackingId = face.trackingId
+                                                )
+                                            }
+                                        } else emptyList()
+                                        val bestCandidate = chooseFaceTrackCandidate(
+                                            candidates,
+                                            faceTrackSmoother.current(),
+                                            preferredFaceCenterState.value
+                                        )
+                                        val best = bestCandidate?.value
+                                        if (best != null && bestCandidate != null &&
+                                            frameWidth > 0 && frameHeight > 0
                                         ) {
-                                            val bounds = best.boundingBox
-                                            val center = rotateFacePoint(
-                                                (bounds.centerX() - frameLeft) / frameWidth.toFloat(),
-                                                (bounds.centerY() - frameTop) / frameHeight.toFloat(),
-                                                0,
-                                                front
-                                            )
-                                            val size = rotateFaceSize(
-                                                bounds.width().toFloat() / frameWidth,
-                                                bounds.height().toFloat() / frameHeight,
-                                                0
-                                            )
+                                            val center = bestCandidate.center
+                                            val size = bestCandidate.size
                                             val leftEye = best.getLandmark(FaceLandmark.LEFT_EYE)?.position
                                             val rightEye = best.getLandmark(FaceLandmark.RIGHT_EYE)?.position
                                             val eyeX = when {
@@ -1991,7 +2038,13 @@ fun CameraScreen(
                                                     front
                                                 )
                                             } else null
-                                            publishDetectedFace(center, size, eye, SystemClock.elapsedRealtime())
+                                            publishDetectedFace(
+                                                center,
+                                                size,
+                                                eye,
+                                                SystemClock.elapsedRealtime(),
+                                                bestCandidate.trackingId
+                                            )
                                         } else {
                                             publishMissingFace()
                                         }
@@ -4435,6 +4488,7 @@ fun CameraScreen(
                                                 (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                                 (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
                                             )
+                                            preferredFaceCenter = centerAfPoint
                                             centerAfStatus = 0
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 manualFocus = 0f
@@ -4469,6 +4523,7 @@ fun CameraScreen(
                                                     (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                                     (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
                                                 )
+                                                preferredFaceCenter = centerAfPoint
                                                 centerAfStatus = 1
                                                 val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, 0.22f)
                                                 val action = FocusMeteringAction.Builder(

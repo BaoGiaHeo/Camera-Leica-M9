@@ -161,7 +161,7 @@ object FujiTypography {
             val report = computeGlyphCoverage(primary, fallback)
             Log.i(
                 TAG,
-                "OSD typeface=${primary.familyName}; source=$FONT_RESOURCE_PATH; " +
+                "OSD typeface=${primary.toString()}; source=$FONT_RESOURCE_PATH; " +
                     "bundledKK7=$bundledFontLoaded; glyphs=${report.testedGlyphs}; " +
                     "KK7Missing=${report.missingFromKk7.joinToString("")}; " +
                     "unresolved=${report.missingAfterFallback.joinToString("")}"

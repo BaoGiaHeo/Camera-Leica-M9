@@ -341,13 +341,14 @@ class PixelOsdRenderer(context: Context) {
     ) {
         val primary = loadedTypeface ?: Typeface.DEFAULT
         val fallback = fallbackTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        val primaryGlyphPaint = Paint().apply { typeface = primary }
         var cursorX = x.toFloat()
         var index = 0
         while (index < text.length) {
             val codePoint = text.codePointAt(index)
             val count = Character.charCount(codePoint)
             val glyph = text.substring(index, index + count)
-            textPaint.typeface = if (primary.hasGlyph(glyph)) primary else fallback
+            textPaint.typeface = if (primaryGlyphPaint.hasGlyph(glyph)) primary else fallback
             textPaint.textSize = 8f
             textPaint.style = style
             textPaint.strokeWidth = if (style == Paint.Style.STROKE) 2f else 0f

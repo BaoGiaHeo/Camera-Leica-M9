@@ -88,11 +88,13 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/MainActivity.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdInvalidation.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
+            CamUI-src/app/src/main/java/com/example/camui/QuickSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
             CamUI-src/app/src/main/res/font/share_tech_mono.ttf \
             CamUI-src/app/src/main/res/values/strings.xml \
             CamUI-src/app/src/main/res/values-vi/strings.xml \
+            CamUI-src/app/src/main/res/values/themes.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfAreaSizeTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraLcdDisplayModeTest.kt \

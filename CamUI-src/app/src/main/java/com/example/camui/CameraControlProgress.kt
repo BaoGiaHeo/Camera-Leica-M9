@@ -83,22 +83,6 @@ internal fun resolveCaptureZoomRatio(
 
 
 /**
- * Temporary preview-only scale compensation for a commanded camera zoom.
- * CameraX remains responsible for the actual sensor crop. The inverse scale
- * is clamped to ±15% and animates back to 1.0 within the OSD transition window.
- */
-internal fun resolvePreviewZoomCompensation(
-    startZoomRatio: Float,
-    targetZoomRatio: Float
-): Float {
-    if (!startZoomRatio.isFinite() || !targetZoomRatio.isFinite() ||
-        startZoomRatio <= 0f || targetZoomRatio <= 0f
-    ) return 1f
-    return (startZoomRatio / targetZoomRatio).coerceIn(0.85f, 1.15f)
-}
-
-
-/**
  * Text shown in the Pro OSD for the currently requested capture pipeline.
  * DR100 is the base still-photo profile; HDR is displayed only when the
  * HDRbyHDMP software pipeline can actually be selected for this capture.

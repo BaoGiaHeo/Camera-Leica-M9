@@ -31,6 +31,8 @@ data class CamDetails(
     val exposureRange: String?,
     val evRange: String?,
     val maxDigitalZoom: Float?,
+    val controlZoomRatioMin: Float?,
+    val controlZoomRatioMax: Float?,
     val minFocusDiopter: Float?,
     val hasFlash: Boolean,
     val supportsRaw: Boolean,
@@ -117,7 +119,7 @@ object Camera2Info {
             appendLine("   aperture=${camera.apertures}")
             appendLine("   sensor(mm)=${camera.sensorSizeMm} | pixels=${camera.pixelArray}")
             appendLine("   ISO=${camera.isoRange} | exposure(s)=${camera.exposureRange} | EV=${camera.evRange}")
-            appendLine("   maxZoom=${camera.maxDigitalZoom} | minFocus(D)=${camera.minFocusDiopter}")
+            appendLine("   maxZoom=${camera.maxDigitalZoom} | controlZoomRatio=${camera.controlZoomRatioMin}..${camera.controlZoomRatioMax} | minFocus(D)=${camera.minFocusDiopter}")
             appendLine("   flash=${camera.hasFlash} | RAW=${camera.supportsRaw} | OIS=${camera.hasOis} | orientation=${camera.sensorOrientation}")
         }
     }
@@ -179,12 +181,18 @@ object Camera2Info {
      * at 50x and additionally constrained by the active CameraX zoom range.
      * Digital zoom beyond this value requires a separate crop pipeline.
      */
+    fun cameraReportedZoomMax(logical: CamDetails?, cameraXMaxZoom: Float): Float {
+        val cameraXMaximum = cameraXMaxZoom.takeIf { it.isFinite() && it >= 1f } ?: 1f
+        val camera2Maximum = logical?.controlZoomRatioMax?.takeIf { it.isFinite() && it >= 1f }
+        return if (camera2Maximum != null) minOf(cameraXMaximum, camera2Maximum) else cameraXMaximum
+    }
+
     fun maxSelectableZoom(
         logical: CamDetails?,
         physical: List<CamDetails>,
         cameraXMaxZoom: Float
     ): Float = selectableCameraZoomMax(
-        cameraReportedMax = cameraXMaxZoom,
+        cameraReportedMax = cameraReportedZoomMax(logical, cameraXMaxZoom),
         assessment = opticalZoomAssessment(logical, physical)
     )
 
@@ -246,6 +254,9 @@ object Camera2Info {
             ?.toList()
             ?: emptyList()
         val sensorSize = characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+        val controlZoomRatioRange = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            runCatching { characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) }.getOrNull()
+        } else null
         val equivalent35 = if (
             focalLengths.isNotEmpty() &&
             sensorSize != null &&
@@ -305,6 +316,8 @@ object Camera2Info {
                 "${it.lower}..${it.upper} (step ${evStep?.toFloat()?.let { step -> String.format(Locale.US, "%.2f", step) } ?: "?"} EV)"
             },
             maxDigitalZoom = characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM),
+            controlZoomRatioMin = controlZoomRatioRange?.lower,
+            controlZoomRatioMax = controlZoomRatioRange?.upper,
             minFocusDiopter = characteristics.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE),
             hasFlash = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true,
             supportsRaw = capabilities.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW),

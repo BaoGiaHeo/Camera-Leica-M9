@@ -81,6 +81,7 @@ internal object DigitalZoomProcessor {
         var output: Bitmap? = null
         var gl: LanczosGlContext? = null
         val outputFile = File(context.cacheDir, "fuji-digital-${System.nanoTime()}.jpg")
+        val backupFile = File(context.cacheDir, "fuji-digital-backup-${System.nanoTime()}.jpg")
 
         return try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -141,10 +142,31 @@ internal object DigitalZoomProcessor {
                 stream.fd.sync()
             }
 
-            context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
-                outputFile.inputStream().use { source -> source.copyTo(destination, 1024 * 1024) }
-                destination.flush()
-            } ?: error("Cannot replace the captured JPEG")
+            // Keep the original on disk until the replacement has been written completely.
+            context.contentResolver.openInputStream(uri)?.use { source ->
+                FileOutputStream(backupFile).use { backup ->
+                    source.copyTo(backup, 1024 * 1024)
+                    backup.flush()
+                    backup.fd.sync()
+                }
+            } ?: error("Cannot back up the captured JPEG before replacement")
+
+            try {
+                context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
+                    outputFile.inputStream().use { source -> source.copyTo(destination, 1024 * 1024) }
+                    destination.flush()
+                } ?: error("Cannot replace the captured JPEG")
+            } catch (writeFailure: Throwable) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
+                        backupFile.inputStream().use { source -> source.copyTo(destination, 1024 * 1024) }
+                        destination.flush()
+                    }
+                }.onFailure { restoreFailure ->
+                    Log.e(TAG, "Could not restore original JPEG after a failed digital-crop write", restoreFailure)
+                }
+                throw writeFailure
+            }
 
             val exifPreserved = restoreExifAttributes(context, uri, sourceExif, width, height)
             runCatching {
@@ -182,6 +204,7 @@ internal object DigitalZoomProcessor {
             runCatching { output?.recycle() }
             runCatching { gl?.close() }
             runCatching { outputFile.delete() }
+            runCatching { backupFile.delete() }
         }
     }
 
@@ -385,7 +408,7 @@ private class LanczosGlContext private constructor(
                         float sx = clamp(base.x + float(ix), 0.0, uSourceSize.x - 1.0);
                         float wx = lanczos3(srcX - (base.x + float(ix)));
                         float weight = wx * wy;
-                        vec2 uv = vec2((sx + 0.5) / uSourceSize.x, 1.0 - (sy + 0.5) / uSourceSize.y);
+                        vec2 uv = vec2((sx + 0.5) / uSourceSize.x, (sy + 0.5) / uSourceSize.y);
                         accum += texture2D(uSource, uv) * weight;
                         totalWeight += weight;
                     }

@@ -103,4 +103,12 @@ class PixelOsdInvalidationTest {
         assertEquals(listOf(PixelOsdDirtyRect(0, 0, 160, 240)), dirty)
     }
 
+    @Test
+    fun switchingManualFocusReticleInvalidatesTheCentreAfBox() {
+        val previous = PixelOsdFrame(centerAfPoint = Offset(0.5f, 0.5f), manualFocusMode = false)
+        val current = previous.copy(manualFocusMode = true)
+        val dirty = pixelOsdDirtyRegions(160, 240, previous, current)
+        assertTrue(dirty.any { it.left <= 80 && it.right >= 80 && it.top <= 120 && it.bottom >= 120 })
+    }
+
 }

@@ -103,6 +103,7 @@ data class PixelOsdFrame(
     val centerAfPoint: Offset? = Offset(0.5f, 0.5f),
     val centerAfStatus: Int = 0,
     val centerAfScale: Int = 1,
+    val manualFocusMode: Boolean = false,
     val showStatus: Boolean = true,
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
@@ -311,8 +312,27 @@ class PixelOsdRenderer(context: Context) {
                 -1 -> PixelOsdPalette.RED
                 else -> PixelOsdPalette.WHITE
             }
-            drawCornerFrame(canvas, cx - half, cy - half, cx + half, cy + half, color, 4)
-            if (frame.centerAfStatus == 1) drawSprite(canvas, "focus-dot", cx - 2, cy - 2)
+            if (frame.manualFocusMode) {
+                val magnifiedHalf = when (frame.centerAfScale) {
+                    0 -> 16
+                    2 -> 25
+                    else -> 20
+                }
+                drawCornerFrame(
+                    canvas,
+                    cx - magnifiedHalf,
+                    cy - magnifiedHalf,
+                    cx + magnifiedHalf,
+                    cy + magnifiedHalf,
+                    PixelOsdPalette.BLUE,
+                    7
+                )
+                drawHLine(canvas, cx - 4, cx + 4, cy, PixelOsdPalette.WHITE, 150)
+                drawVLine(canvas, cx, cy - 4, cy + 4, PixelOsdPalette.WHITE, 150)
+            } else {
+                drawCornerFrame(canvas, cx - half, cy - half, cx + half, cy + half, color, 4)
+                if (frame.centerAfStatus == 1) drawSprite(canvas, "focus-dot", cx - 2, cy - 2)
+            }
         }
 
         if (frame.focusLocked) {

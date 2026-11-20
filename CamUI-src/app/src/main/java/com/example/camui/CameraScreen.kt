@@ -4640,12 +4640,20 @@ fun CameraScreen(
                                         CameraLcdDisplayMode.STANDARD -> showGrid
                                     },
                                     faceCenter = faceTrackCenter.takeIf {
-                                        faceTrackingEnabled && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
+                                        faceTrackingEnabled &&
+                                            manualFocus <= 0f &&
+                                            !milkyWayInfinityFocusEnabled &&
+                                            lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                             lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID
                                     },
-                                    faceSize = faceTrackSize,
-                                    eyeCenter = faceEyeCenter,
-                                    faceFocused = centerAfStatus == 1,
+                                    faceSize = faceTrackSize.takeIf {
+                                        manualFocus <= 0f && !milkyWayInfinityFocusEnabled
+                                    },
+                                    eyeCenter = faceEyeCenter.takeIf {
+                                        manualFocus <= 0f && !milkyWayInfinityFocusEnabled
+                                    },
+                                    faceFocused = centerAfStatus == 1 &&
+                                        manualFocus <= 0f && !milkyWayInfinityFocusEnabled,
                                     focusLocked = focusLocked && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                         lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
                                     centerAfPoint = centerAfPoint.takeIf {
@@ -4655,6 +4663,7 @@ fun CameraScreen(
                                     centerAfScale = CameraAfAreaSize.fromPreference(
                                         appPrefs.getString("af_area_size", "m")
                                     ).pixelScale,
+                                    manualFocusMode = manualFocus > 0f || milkyWayInfinityFocusEnabled,
                                     focusPoints = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO -> peakPoints
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()

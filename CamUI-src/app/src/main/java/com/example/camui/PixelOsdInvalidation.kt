@@ -101,7 +101,8 @@ internal fun pixelOsdDirtyRegions(
 
     if (previous.centerAfPoint != current.centerAfPoint ||
         previous.centerAfStatus != current.centerAfStatus ||
-        previous.centerAfScale != current.centerAfScale
+        previous.centerAfScale != current.centerAfScale ||
+        previous.manualFocusMode != current.manualFocusMode
     ) {
         listOfNotNull(previous.centerAfPoint, current.centerAfPoint).forEach { point ->
             val radius = 19

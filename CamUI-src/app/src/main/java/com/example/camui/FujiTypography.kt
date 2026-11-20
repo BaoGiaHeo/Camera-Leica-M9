@@ -32,6 +32,7 @@ object FujiTypography {
 
     @Volatile private var cachedTypeface: Typeface? = null
     @Volatile private var cachedShareTechTypeface: Typeface? = null
+    @Volatile private var cachedSystemMonoTypeface: Typeface? = null
     @Volatile private var cachedFontFamily: FontFamily? = null
     @Volatile private var cachedShareTechFontFamily: FontFamily? = null
     @Volatile private var bundledFontLoaded = false
@@ -43,7 +44,8 @@ object FujiTypography {
     data class GlyphCoverageReport(
         val testedGlyphs: Int,
         val missingFromKk7: List<String>,
-        val missingAfterFallback: List<String>
+        val missingAfterFallback: List<String>,
+        val missingAfterSystemFallback: List<String>
     )
 
     fun androidTypeface(context: Context): Typeface {
@@ -81,6 +83,14 @@ object FujiTypography {
         }
     }
 
+    fun systemMonoTypeface(): Typeface {
+        cachedSystemMonoTypeface?.let { return it }
+        return synchronized(lock) {
+            cachedSystemMonoTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+                .also { cachedSystemMonoTypeface = it }
+        }
+    }
+
     fun isBundledFontLoaded(context: Context): Boolean {
         androidTypeface(context)
         return bundledFontLoaded
@@ -100,6 +110,7 @@ object FujiTypography {
         val fallbackPaint = Paint().apply {
             typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
         }
+        val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
         val fallbackFamily = shareTechComposeFamily()
         return buildAnnotatedString {
             append(value)
@@ -108,8 +119,13 @@ object FujiTypography {
                 val codePoint = value.codePointAt(index)
                 val charCount = Character.charCount(codePoint)
                 val glyph = String(Character.toChars(codePoint))
-                if (!primaryPaint.hasGlyph(glyph) && fallbackPaint.hasGlyph(glyph)) {
-                    addStyle(SpanStyle(fontFamily = fallbackFamily), index, index + charCount)
+                if (!primaryPaint.hasGlyph(glyph)) {
+                    val family = when {
+                        fallbackPaint.hasGlyph(glyph) -> fallbackFamily
+                        systemPaint.hasGlyph(glyph) -> FontFamily.Monospace
+                        else -> FontFamily.Monospace
+                    }
+                    addStyle(SpanStyle(fontFamily = family), index, index + charCount)
                 }
                 index += charCount
             }
@@ -144,9 +160,11 @@ object FujiTypography {
             }
             index += Character.charCount(codePoint)
         }
+        val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
         val missingPrimary = glyphs.filterNot(primaryPaint::hasGlyph)
         val missingAfterFallback = missingPrimary.filterNot(fallbackPaint::hasGlyph)
-        return GlyphCoverageReport(glyphs.size, missingPrimary, missingAfterFallback)
+        val missingAfterSystem = missingAfterFallback.filterNot(systemPaint::hasGlyph)
+        return GlyphCoverageReport(glyphs.size, missingPrimary, missingAfterFallback, missingAfterSystem)
     }
 
     private fun logStartupDiagnostics(context: Context, primary: Typeface) {
@@ -164,7 +182,8 @@ object FujiTypography {
                 "OSD typeface=${primary.toString()}; source=$FONT_RESOURCE_PATH; " +
                     "bundledKK7=$bundledFontLoaded; glyphs=${report.testedGlyphs}; " +
                     "KK7Missing=${report.missingFromKk7.joinToString("")}; " +
-                    "unresolved=${report.missingAfterFallback.joinToString("")}"
+                    "ShareTechMissing=${report.missingAfterFallback.joinToString("")}; " +
+                    "systemMonoUnresolved=${report.missingAfterSystemFallback.joinToString("")}"
             )
             startupReportLogged = true
         }
@@ -174,6 +193,7 @@ object FujiTypography {
         synchronized(lock) {
             cachedTypeface = null
             cachedShareTechTypeface = null
+            cachedSystemMonoTypeface = null
             cachedFontFamily = null
             cachedShareTechFontFamily = null
             bundledFontLoaded = false

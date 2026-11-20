@@ -148,6 +148,7 @@ class PixelOsdRenderer(context: Context) {
     private var lastFrame: PixelOsdFrame? = null
     private var loadedTypeface: Typeface? = null
     private var fallbackTypeface: Typeface? = null
+    private val systemFallbackTypeface = FujiTypography.systemMonoTypeface()
     private var lastRenderUptimeMillis = 0L
 
     private val fillPaint = Paint().apply {
@@ -173,6 +174,10 @@ class PixelOsdRenderer(context: Context) {
         typeface = Typeface.create("monospace", Typeface.NORMAL)
     }
     private val glyphCheckPaint = Paint().apply {
+        isAntiAlias = false
+        isFilterBitmap = false
+    }
+    private val fallbackGlyphCheckPaint = Paint().apply {
         isAntiAlias = false
         isFilterBitmap = false
     }
@@ -712,13 +717,18 @@ class PixelOsdRenderer(context: Context) {
         val primary = loadedTypeface ?: Typeface.DEFAULT
         val fallback = fallbackTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
         glyphCheckPaint.typeface = primary
+        fallbackGlyphCheckPaint.typeface = fallback
         var cursorX = x.toFloat()
         var index = 0
         while (index < text.length) {
             val codePoint = text.codePointAt(index)
             val count = Character.charCount(codePoint)
             val glyph = text.substring(index, index + count)
-            textPaint.typeface = if (glyphCheckPaint.hasGlyph(glyph)) primary else fallback
+            textPaint.typeface = when {
+                glyphCheckPaint.hasGlyph(glyph) -> primary
+                fallbackGlyphCheckPaint.hasGlyph(glyph) -> fallback
+                else -> systemFallbackTypeface
+            }
             textPaint.textSize = 8f
             textPaint.style = style
             textPaint.strokeWidth = if (style == Paint.Style.STROKE) 2f else 0f

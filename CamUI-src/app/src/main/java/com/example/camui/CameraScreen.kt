@@ -1216,12 +1216,15 @@ fun CameraScreen(
                 activePhysicalCameraDetails,
                 state.maxZoomRatio
             )
-            val logTravel = if (direction > 0) ln(maximum.coerceAtLeast(1.0001f))
-                else ln((1f / minimum.coerceAtLeast(0.0001f)).coerceAtLeast(1.0001f))
             val traversalSeconds = if (maximum <= 2.001f) 1.2f else 6.5f
-            val logStep = exp((logTravel / traversalSeconds).coerceAtMost(4f) * dt)
-            val next = (if (direction > 0) targetZoom * logStep else targetZoom / logStep)
-                .coerceIn(minimum, maximum)
+            val next = advanceLogarithmicZoomRatio(
+                currentZoom = targetZoom,
+                direction = direction,
+                minimumRatio = minimum,
+                maximumRatio = maximum,
+                deltaSeconds = dt,
+                traversalSeconds = traversalSeconds
+            )
             if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
                 if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
                     zoomHapticMilestonesCrossed(targetZoom, next).forEach { milestone ->

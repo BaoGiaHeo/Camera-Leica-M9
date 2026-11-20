@@ -114,6 +114,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \
             CamUI-src/app/src/main/java/com/example/camui/FaceTrackSmoother.kt \
             CamUI-src/app/src/main/java/com/example/camui/PrimaryEyeSelector.kt \
+            CamUI-src/app/src/main/java/com/example/camui/EyeSwitchRateTracker.kt \
             CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
             CamUI-src/app/src/main/java/com/example/camui/FujiTypography.kt \
             CamUI-src/app/src/main/java/com/example/camui/LegacyColorAdjustmentCleanup.kt \
@@ -140,6 +141,7 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/ZoomCapabilityPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PrimaryEyeSelectorTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/EyeSwitchRateTrackerTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiTypographyAssetTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/LegacyColorAdjustmentCleanupTest.kt \

@@ -31,6 +31,9 @@ private object PixelOsdPalette {
     const val SHADOW = 0xCC000000.toInt()
 }
 
+internal fun pixelBatteryCellCount(percent: Int): Int =
+    if (percent !in 0..100) 0 else ((percent + 24) / 25).coerceIn(0, 4)
+
 internal object PixelOsdSprites {
     private val sprites = mapOf(
         "memory-card" to arrayOf("WWWWWW", "W....W", "W.WW.W", "W.WW.W", "W....W", "WWWWWW"),
@@ -367,6 +370,16 @@ class PixelOsdRenderer(context: Context) {
 
     private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
         val width = logicWidth
+        drawSprite(
+            canvas,
+            when (frame.meteringText.uppercase()) {
+                "M" -> "meter-center"
+                "S" -> "meter-spot"
+                else -> "meter-matrix"
+            },
+            7,
+            5
+        )
         if (frame.focusLocked) {
             drawPixelText(canvas, "AF-L", width - 95, 9, PixelOsdPalette.GREEN)
             drawPixelText(canvas, "AE-L", width - 95, 18, PixelOsdPalette.GREEN)
@@ -387,13 +400,17 @@ class PixelOsdRenderer(context: Context) {
             drawVLine(canvas, left, top, top + 6, color, 255)
             drawVLine(canvas, left + 10, top + 1, top + 5, color, 255)
             drawVLine(canvas, left + 12, top + 2, top + 4, color, 255)
-            val fillWidth = (frame.batteryPercent.coerceIn(0, 100) / 100f * 7f).roundToInt()
-            if (fillWidth > 0 && color != PixelOsdPalette.RED) {
-                for (x in 1..fillWidth) {
-                    for (y in 1..5) drawPixel(canvas, left + x, top + y, color)
+            val cells = pixelBatteryCellCount(frame.batteryPercent)
+            if (color != PixelOsdPalette.RED) {
+                for (cell in 0 until cells) {
+                    val cellX = left + 1 + cell * 2
+                    for (y in 1..5) drawPixel(canvas, cellX, top + y, color)
                 }
-            } else if (color == PixelOsdPalette.RED && frame.batteryLowBlinkOn) {
-                for (x in 1..7) for (y in 1..5) drawPixel(canvas, left + x, top + y, color)
+            } else if (frame.batteryLowBlinkOn) {
+                for (cell in 0 until 4) {
+                    val cellX = left + 1 + cell * 2
+                    for (y in 1..5) drawPixel(canvas, cellX, top + y, color)
+                }
             }
             if (frame.batteryCharging) drawSprite(canvas, "flash", left + 3, top + 1)
             drawPixelText(canvas, "${frame.batteryPercent}%", width - 34, 11, color)

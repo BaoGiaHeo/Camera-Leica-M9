@@ -1527,8 +1527,9 @@ fun CameraScreen(
                                         val success = runCatching { future.get().isFocusSuccessful }.getOrDefault(false)
                                         centerAfStatus = if (success) 1 else -1
                                         if (!success) {
-                                            scope.launch {
-                                                delay(80L)
+                                            scope.launch(Dispatchers.Main) {
+                                                withFrameNanos { }
+                                                withFrameNanos { }
                                                 if (centerAfStatus == -1) centerAfStatus = 0
                                             }
                                         }
@@ -4449,6 +4450,13 @@ fun CameraScreen(
                                             focusFuture.addListener({
                                                 val success = runCatching { focusFuture.get().isFocusSuccessful }.getOrDefault(false)
                                                 centerAfStatus = if (success) 1 else -1
+                                                if (!success) {
+                                                    scope.launch(Dispatchers.Main) {
+                                                        withFrameNanos { }
+                                                        withFrameNanos { }
+                                                        if (centerAfStatus == -1) centerAfStatus = 0
+                                                    }
+                                                }
                                             }, mainExecutor)
                                         },
                                         onLongPress = { offset ->
@@ -4564,7 +4572,7 @@ fun CameraScreen(
                                     isPro = mode == "Pro" && lcdDisplayMode == CameraLcdDisplayMode.FULL_INFO,
                                     afModeText = when {
                                         manualFocus > 0f || milkyWayInfinityFocusEnabled -> "MF"
-                                        faceTrackingMode == "face_eye" -> "AF-C"
+                                        faceTrackingMode == "face_eye" || faceTrackingMode == "face" -> "AF-C"
                                         else -> "AF-S"
                                     },
                                     meteringText = when (metering) { 1 -> "M"; 2 -> "S"; else -> "C" },

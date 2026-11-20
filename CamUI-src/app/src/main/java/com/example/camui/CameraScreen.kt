@@ -1843,6 +1843,7 @@ fun CameraScreen(
                     Camera2Interop.Extender(previewBuilder)
                         .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                 }
+                var lastAfTraceAtMs = 0L
                 if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
@@ -1851,6 +1852,35 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            val afRegions = request.get(CaptureRequest.CONTROL_AF_REGIONS).orEmpty()
+                            val afState = result.get(CaptureResult.CONTROL_AF_STATE)
+                            val afNowMs = SystemClock.elapsedRealtime()
+                            if (afNowMs - lastAfTraceAtMs >= 250L &&
+                                (afRegions.isNotEmpty() || afState != null)
+                            ) {
+                                lastAfTraceAtMs = afNowMs
+                                val activeArray = activeCameraCharacteristics
+                                    ?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                                val regionText = afRegions.joinToString(";") { region ->
+                                    "${region.rect.toShortString()}@w${region.meteringWeight}"
+                                }.ifBlank { "none" }
+                                val stateText = when (afState) {
+                                    CaptureResult.CONTROL_AF_STATE_INACTIVE -> "INACTIVE"
+                                    CaptureResult.CONTROL_AF_STATE_PASSIVE_SCAN -> "PASSIVE_SCAN"
+                                    CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED -> "PASSIVE_FOCUSED"
+                                    CaptureResult.CONTROL_AF_STATE_ACTIVE_SCAN -> "ACTIVE_SCAN"
+                                    CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED -> "FOCUSED_LOCKED"
+                                    CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED -> "NOT_FOCUSED_LOCKED"
+                                    CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED -> "PASSIVE_UNFOCUSED"
+                                    else -> "UNKNOWN"
+                                }
+                                android.util.Log.d(
+                                    "FUJI_AF_TRACE",
+                                    "cameraId=${activeCameraDetails?.id ?: "unknown"} " +
+                                        "activeArray=${activeArray?.toShortString() ?: "unknown"} " +
+                                        "regions=$regionText afState=$stateText"
+                                )
+                            }
                             val resultControlZoomRatio = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                                 result.get(CaptureResult.CONTROL_ZOOM_RATIO)
                             } else {
@@ -4918,7 +4948,10 @@ fun CameraScreen(
                                             )
                                             android.util.Log.d(
                                                 "FUJI_AF_OSD",
-                                                "manualTapOverride=true faceBoxPresent=${faceTrackCenter != null} point=${tapPoint.x},${tapPoint.y}"
+                                                "manualTapOverride=true faceBoxPresent=${faceTrackCenter != null} " +
+                                                    "point=${tapPoint.x},${tapPoint.y} " +
+                                                    "preview=${previewView.width}x${previewView.height} " +
+                                                    "cameraId=${activeCameraDetails?.id ?: "unknown"}"
                                             )
                                             val leftEye = faceLeftEyeCenter
                                             val rightEye = faceRightEyeCenter
@@ -4958,6 +4991,12 @@ fun CameraScreen(
                                                 offset.x,
                                                 offset.y,
                                                 afPointSize
+                                            )
+                                            android.util.Log.d(
+                                                "FUJI_AF_TRACE",
+                                                "tapScreenPx=${offset.x},${offset.y} " +
+                                                    "normalized=${tapPoint.x},${tapPoint.y} " +
+                                                    "meteringPoint=${point.x},${point.y} size=$afPointSize"
                                             )
                                             val action = FocusMeteringAction.Builder(
                                                 point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE

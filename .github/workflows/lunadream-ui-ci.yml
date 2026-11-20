@@ -92,6 +92,8 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/CameraFrameMetricsDiagnostics.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraControlProgress.kt \
             CamUI-src/app/src/main/java/com/example/camui/Camera2Info.kt \
+            CamUI-src/app/src/main/java/com/example/camui/DigitalZoomProcessor.kt \
+            CamUI-src/app/src/main/java/com/example/camui/DigitalZoomXmpWriter.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLcdDisplayMode.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLookCatalog.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdGeometry.kt \
@@ -117,6 +119,8 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/CameraLookCatalogTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraFrameMetricsDiagnosticsTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraControlProgressTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/DigitalZoomProcessorTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/DigitalZoomXmpWriterTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/ZoomCapabilityPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \

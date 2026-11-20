@@ -1,5 +1,6 @@
 package com.example.camui
 
+import androidx.compose.ui.geometry.Offset
 import java.util.Locale
 
 /**
@@ -24,3 +25,18 @@ enum class CameraAfAreaSize(
             }
     }
 }
+
+
+/** Rejects AF/AE lock callbacks from stale touches, a different camera, or an unlocked state. */
+internal fun shouldAcceptFocusLockResult(
+    requestGeneration: Int,
+    currentGeneration: Int,
+    requestedCenter: Offset,
+    currentCenter: Offset,
+    sameCamera: Boolean,
+    manualLockStillActive: Boolean
+): Boolean =
+    requestGeneration == currentGeneration &&
+        requestedCenter == currentCenter &&
+        sameCamera &&
+        manualLockStillActive

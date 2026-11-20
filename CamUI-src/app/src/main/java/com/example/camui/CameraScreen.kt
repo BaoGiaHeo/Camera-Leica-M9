@@ -4676,12 +4676,26 @@ fun CameraScreen(
                                                         Toast.LENGTH_LONG
                                                     ).show()
                                                     android.util.Log.w("FUJI_AF", "AF/AE lock request failed to start.", failure)
+                                                    scope.launch(Dispatchers.Main) {
+                                                        withFrameNanos { }
+                                                        withFrameNanos { }
+                                                        if (focusLockRequestGeneration == lockRequestId &&
+                                                            centerAfStatus == -1 && !focusLocked
+                                                        ) {
+                                                            centerAfStatus = 0
+                                                        }
+                                                    }
                                                     return@detectTapGestures
                                                 }
                                                 lockFuture.addListener({
-                                                    if (focusLockRequestGeneration != lockRequestId ||
-                                                        centerAfPoint != lockPoint ||
-                                                        manualAfOverrideUntilMs != Long.MAX_VALUE
+                                                    if (!shouldAcceptFocusLockResult(
+                                                            requestGeneration = lockRequestId,
+                                                            currentGeneration = focusLockRequestGeneration,
+                                                            requestedCenter = lockPoint,
+                                                            currentCenter = centerAfPoint,
+                                                            sameCamera = camera === active,
+                                                            manualLockStillActive = manualAfOverrideUntilMs == Long.MAX_VALUE
+                                                        )
                                                     ) {
                                                         return@addListener
                                                     }
@@ -4706,7 +4720,11 @@ fun CameraScreen(
                                                         scope.launch(Dispatchers.Main) {
                                                             withFrameNanos { }
                                                             withFrameNanos { }
-                                                            if (centerAfStatus == -1 && !focusLocked) centerAfStatus = 0
+                                                            if (focusLockRequestGeneration == lockRequestId &&
+                                                                centerAfStatus == -1 && !focusLocked
+                                                            ) {
+                                                                centerAfStatus = 0
+                                                            }
                                                         }
                                                     }
                                                 }, mainExecutor)

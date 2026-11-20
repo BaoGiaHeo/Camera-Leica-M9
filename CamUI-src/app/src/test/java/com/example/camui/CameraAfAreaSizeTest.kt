@@ -5,6 +5,31 @@ import org.junit.Test
 
 class CameraAfAreaSizeTest {
     @Test
+    fun rejectsStaleOrObsoleteFocusLockResults() {
+        val point = Offset(0.42f, 0.61f)
+        assertEquals(
+            true,
+            shouldAcceptFocusLockResult(7, 7, point, point, sameCamera = true, manualLockStillActive = true)
+        )
+        assertEquals(
+            false,
+            shouldAcceptFocusLockResult(6, 7, point, point, sameCamera = true, manualLockStillActive = true)
+        )
+        assertEquals(
+            false,
+            shouldAcceptFocusLockResult(7, 7, point, Offset(0.5f, 0.5f), sameCamera = true, manualLockStillActive = true)
+        )
+        assertEquals(
+            false,
+            shouldAcceptFocusLockResult(7, 7, point, point, sameCamera = false, manualLockStillActive = true)
+        )
+        assertEquals(
+            false,
+            shouldAcceptFocusLockResult(7, 7, point, point, sameCamera = true, manualLockStillActive = false)
+        )
+    }
+
+    @Test
     fun mapsStoredPreferenceToPixelReticleScale() {
         assertEquals(CameraAfAreaSize.SMALL, CameraAfAreaSize.fromPreference("s"))
         assertEquals(CameraAfAreaSize.MEDIUM, CameraAfAreaSize.fromPreference("m"))

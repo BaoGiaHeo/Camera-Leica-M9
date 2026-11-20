@@ -144,9 +144,12 @@ internal fun advanceLogarithmicZoomRatio(
     val current = currentZoom.takeIf { it.isFinite() && it > 0f }?.coerceIn(minimum, maximum) ?: minimum
     if (direction == 0 || deltaSeconds <= 0f || !deltaSeconds.isFinite() || maximum <= minimum) return current
     val availableLogTravel = if (direction > 0) {
+        // Preserve the requested 1x -> maximum traversal time (for example, 1.2s to 2x).
         ln(maximum.coerceAtLeast(1f) / 1f)
     } else {
-        ln(1f / minimum.coerceAtMost(1f))
+        // Zooming out from a telephoto position must traverse the full logarithmic
+        // range; using only 1x -> minimum made 100x -> 0.6x take far too long.
+        ln(maximum.coerceAtLeast(minimum) / minimum)
     }
     if (availableLogTravel <= 0f) return current
     val duration = traversalSeconds.takeIf { it.isFinite() && it > 0f } ?: 1f

@@ -1413,17 +1413,30 @@ fun CameraScreen(
         )
     }
     var previewGapStartedAtMs by remember(previewView) { mutableLongStateOf(0L) }
-    var frozenPreviewBitmap by remember(previewView) { mutableStateOf<ImageBitmap?>(null) }
     val frozenPreviewAlpha by animateFloatAsState(
-        targetValue = if (frozenPreviewBitmap != null && previewStreamState != PreviewView.StreamState.STREAMING) 1f else 0f,
+        targetValue = if (
+            previewFreezeEffect == "off" &&
+            !isProcessing &&
+            frozenPreviewBitmap != null &&
+            previewStreamState != PreviewView.StreamState.STREAMING
+        ) 1f else 0f,
         animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
         label = "frozen preview crossfade"
     )
     val previewBindGenerationState = rememberUpdatedState(cameraBindGeneration)
-    LaunchedEffect(previewStreamState, frozenPreviewBitmap) {
-        if (previewStreamState == PreviewView.StreamState.STREAMING && frozenPreviewBitmap != null) {
+    LaunchedEffect(previewStreamState, frozenPreviewBitmap, previewFreezeEffect, isProcessing) {
+        if (
+            previewFreezeEffect == "off" &&
+            !isProcessing &&
+            previewStreamState == PreviewView.StreamState.STREAMING &&
+            frozenPreviewBitmap != null
+        ) {
             delay(150L)
-            if (previewStreamState == PreviewView.StreamState.STREAMING) {
+            if (
+                previewFreezeEffect == "off" &&
+                !isProcessing &&
+                previewStreamState == PreviewView.StreamState.STREAMING
+            ) {
                 frozenPreviewBitmap = null
             }
         }
@@ -1492,7 +1505,8 @@ fun CameraScreen(
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
         if (!hasCam) return@LaunchedEffect
-        if (previewStreamState == PreviewView.StreamState.STREAMING &&
+        if (!isProcessing && previewFreezeEffect == "off" &&
+            previewStreamState == PreviewView.StreamState.STREAMING &&
             previewView.width > 0 && previewView.height > 0
         ) {
             runCatching { previewView.bitmap?.asImageBitmap() }

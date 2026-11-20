@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Base64
 import java.util.zip.GZIPInputStream
 
 plugins {
@@ -69,9 +70,22 @@ val kk7FontSource = layout.projectDirectory.file("src/main/assets/fonts/vcr_osd_
 val kk7FontResourceDirectory = layout.projectDirectory.dir("src/main/res/font")
 val kk7FontResource = kk7FontResourceDirectory.file("vcr_osd_mono_kk7.ttf")
 
+val watermarkFontAssets = linkedMapOf(
+    "watermark_jost_variable.ttf.b64" to "jost_watermark.ttf",
+    "watermark_inter_variable.ttf.b64" to "inter_watermark.ttf",
+    "watermark_ibm_plex_mono_regular.ttf.b64" to "ibm_plex_mono_watermark.ttf"
+).map { (sourceName, resourceName) ->
+    layout.projectDirectory.file("src/main/assets/fonts/$sourceName") to
+        kk7FontResourceDirectory.file(resourceName)
+}
+
 val generateKk7FontResource = tasks.register("generateKk7FontResource") {
+    val watermarkSources = watermarkFontAssets.map { it.first }
+    val watermarkOutputs = watermarkFontAssets.map { it.second }
     inputs.file(kk7FontSource)
+    inputs.files(watermarkSources)
     outputs.file(kk7FontResource)
+    outputs.files(watermarkOutputs)
     doLast {
         val destination = kk7FontResource.asFile
         destination.parentFile.mkdirs()
@@ -84,6 +98,16 @@ val generateKk7FontResource = tasks.register("generateKk7FontResource") {
         }
         check(destination.length() > 4_000L) {
             "KK7 font resource is unexpectedly small."
+        }
+
+        watermarkFontAssets.forEach { (source, resource) ->
+            val encoded = source.asFile.readText(Charsets.US_ASCII)
+            val bytes = Base64.getMimeDecoder().decode(encoded)
+            check(bytes.size > 4_000 && bytes.copyOfRange(0, 4).contentEquals(byteArrayOf(0, 1, 0, 0))) {
+                "Watermark font ${source.asFile.name} is not a valid TrueType font."
+            }
+            resource.asFile.parentFile.mkdirs()
+            resource.asFile.writeBytes(bytes)
         }
     }
 }

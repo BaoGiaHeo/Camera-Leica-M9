@@ -172,6 +172,10 @@ class PixelOsdRenderer(context: Context) {
         textSize = 8f
         typeface = Typeface.create("monospace", Typeface.NORMAL)
     }
+    private val glyphCheckPaint = Paint().apply {
+        isAntiAlias = false
+        isFilterBitmap = false
+    }
 
     fun render(widthPx: Int, heightPx: Int, frame: PixelOsdFrame, maxRefreshHz: Int = 120) {
         if (widthPx <= 0 || heightPx <= 0) return
@@ -707,14 +711,14 @@ class PixelOsdRenderer(context: Context) {
     ) {
         val primary = loadedTypeface ?: Typeface.DEFAULT
         val fallback = fallbackTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
-        val primaryGlyphPaint = Paint().apply { typeface = primary }
+        glyphCheckPaint.typeface = primary
         var cursorX = x.toFloat()
         var index = 0
         while (index < text.length) {
             val codePoint = text.codePointAt(index)
             val count = Character.charCount(codePoint)
             val glyph = text.substring(index, index + count)
-            textPaint.typeface = if (primaryGlyphPaint.hasGlyph(glyph)) primary else fallback
+            textPaint.typeface = if (glyphCheckPaint.hasGlyph(glyph)) primary else fallback
             textPaint.textSize = 8f
             textPaint.style = style
             textPaint.strokeWidth = if (style == Paint.Style.STROKE) 2f else 0f

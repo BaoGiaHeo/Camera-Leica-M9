@@ -732,7 +732,8 @@ class PixelOsdRenderer(context: Context) {
 fun PixelOsdLayer(
     modifier: Modifier = Modifier,
     frame: PixelOsdFrame,
-    maxRefreshHz: Int = 120
+    maxRefreshHz: Int = 120,
+    performanceMode: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val renderer = remember(context.applicationContext) {
@@ -741,13 +742,13 @@ fun PixelOsdLayer(
     val faceTarget = frame.faceCenter ?: Offset(0.5f, 0.5f)
     val animatedFaceCenter by animateOffsetAsState(
         targetValue = faceTarget,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "face box display interpolation"
     )
     val afTarget = frame.centerAfPoint ?: Offset(0.5f, 0.5f)
     val animatedAfPoint by animateOffsetAsState(
         targetValue = afTarget,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "center AF display interpolation"
     )
     val animatedFrame = frame.copy(

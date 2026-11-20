@@ -217,6 +217,12 @@ var nightShotMode by remember {
     var lcdTextureEnabled by remember { mutableStateOf(prefs.getBoolean("lcd_texture_overlay_enabled", false)) }
     var simpleUiMode by remember { mutableStateOf(prefs.getBoolean("simple_ui_mode_enabled", false)) }
     var leftHandedLayout by remember { mutableStateOf(prefs.getBoolean("left_handed_layout_enabled", false)) }
+    var zoomButtonsMode by remember {
+        mutableStateOf(prefs.getString("zoom_buttons_mode", "standard")?.takeIf { it == "standard" || it == "swapped" } ?: "standard")
+    }
+    var zoomBarPosition by remember {
+        mutableStateOf(prefs.getString("zoom_bar_position", "top_center")?.takeIf { it == "top_center" || it == "top_left" } ?: "top_center")
+    }
     var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFD9DBDD") ?: "#FFD9DBDD") }
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
     var shutterSoundEnabled by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
@@ -355,6 +361,45 @@ var nightShotMode by remember {
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
             }
             "Display / Appearance", "Appearance" -> {
+                Text(
+                    stringResource(R.string.zoom_controls_section),
+                    color = FujiSkin.lcdGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp
+                )
+                Text(stringResource(R.string.zoom_buttons_label), color = CamColors.TextColor, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 7.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    FujiChip(stringResource(R.string.zoom_buttons_standard), zoomButtonsMode == "standard", {
+                        zoomButtonsMode = "standard"
+                        prefs.edit().putString("zoom_buttons_mode", "standard").apply()
+                    })
+                    FujiChip(stringResource(R.string.zoom_buttons_swapped), zoomButtonsMode == "swapped", {
+                        zoomButtonsMode = "swapped"
+                        prefs.edit().putString("zoom_buttons_mode", "swapped").apply()
+                    })
+                }
+                Text(stringResource(R.string.zoom_bar_position_label), color = CamColors.TextColor, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 10.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    FujiChip(stringResource(R.string.zoom_bar_position_top_center), zoomBarPosition == "top_center", {
+                        zoomBarPosition = "top_center"
+                        prefs.edit().putString("zoom_bar_position", "top_center").apply()
+                    })
+                    FujiChip(stringResource(R.string.zoom_bar_position_top_left), zoomBarPosition == "top_left", {
+                        zoomBarPosition = "top_left"
+                        prefs.edit().putString("zoom_bar_position", "top_left").apply()
+                    })
+                }
+                Text(stringResource(R.string.zoom_bar_description), color = CamColors.Sub, fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
                 SettingsSwitch(
                     "LCD texture",
                     "Scanline overlay chỉ hiển thị trên preview, không lưu vào ảnh.",

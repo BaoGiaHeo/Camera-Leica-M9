@@ -1489,7 +1489,7 @@ fun CameraScreen(
                     now: Long,
                     trackingId: Int? = null
                 ) {
-                    val smoothed = faceTrackSmoother.onFaceDetected(center, size, eyeCenter, trackingId) ?: return
+                    val smoothed = faceTrackSmoother.onFaceDetected(center, size, eyeCenter, trackingId, now) ?: return
                     val uiCenterMoved = now - lastFaceTrackAtMs >= 40L
                     if (uiCenterMoved) {
                         lastFaceTrackAtMs = now

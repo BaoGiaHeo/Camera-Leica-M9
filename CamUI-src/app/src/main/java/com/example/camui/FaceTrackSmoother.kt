@@ -103,36 +103,113 @@ internal fun faceIntersectionOverUnion(
  * A face must be present for three consecutive frames; eight misses are required
  * before removing the OSD box. Movement is damped to suppress frame-to-frame jitter.
  */
+/**
+ * One-Euro low-pass filter for a normalized two-dimensional measurement.
+ * The cutoff rises with motion speed, suppressing stationary jitter without
+ * making a moving subject feel like it is dragging behind the preview.
+ */
+private class OneEuroOffsetFilter(
+    private val minCutoffHz: Float = 1.5f,
+    private val beta: Float = 0.08f,
+    private val derivativeCutoffHz: Float = 1f
+) {
+    private var initialized = false
+    private var previousRaw = Offset.Zero
+    private var filtered = Offset.Zero
+    private var filteredDerivative = Offset.Zero
+    private var previousTimestampMs = 0L
+
+    fun filter(value: Offset, timestampMs: Long): Offset {
+        if (!initialized) {
+            initialized = true
+            previousRaw = value
+            filtered = value
+            filteredDerivative = Offset.Zero
+            previousTimestampMs = timestampMs
+            return value
+        }
+
+        val elapsedMs = (timestampMs - previousTimestampMs).coerceAtLeast(1L)
+        val dt = (elapsedMs / 1_000f).coerceIn(1f / 120f, 0.2f)
+        val derivative = Offset(
+            (value.x - previousRaw.x) / dt,
+            (value.y - previousRaw.y) / dt
+        )
+        val derivativeAlpha = smoothingAlpha(derivativeCutoffHz, dt)
+        filteredDerivative = Offset(
+            lowPass(derivative.x, filteredDerivative.x, derivativeAlpha),
+            lowPass(derivative.y, filteredDerivative.y, derivativeAlpha)
+        )
+        val cutoffX = minCutoffHz + beta * kotlin.math.abs(filteredDerivative.x)
+        val cutoffY = minCutoffHz + beta * kotlin.math.abs(filteredDerivative.y)
+        val filteredX = lowPass(value.x, filtered.x, smoothingAlpha(cutoffX, dt))
+        val filteredY = lowPass(value.y, filtered.y, smoothingAlpha(cutoffY, dt))
+
+        previousRaw = value
+        filtered = Offset(filteredX, filteredY)
+        previousTimestampMs = timestampMs
+        return filtered
+    }
+
+    fun reset() {
+        initialized = false
+        previousRaw = Offset.Zero
+        filtered = Offset.Zero
+        filteredDerivative = Offset.Zero
+        previousTimestampMs = 0L
+    }
+
+    private fun smoothingAlpha(cutoffHz: Float, dt: Float): Float {
+        val safeCutoff = cutoffHz.coerceAtLeast(0.01f)
+        val tau = 1f / (2f * Math.PI.toFloat() * safeCutoff)
+        return 1f / (1f + tau / dt)
+    }
+
+    private fun lowPass(input: Float, previous: Float, alpha: Float): Float =
+        alpha * input + (1f - alpha) * previous
+}
+
+/**
+ * Synchronized face tracker. A detection must persist for three frames and
+ * eight misses are required to hide it. One-Euro filters are applied to the
+ * face rectangle and eye target independently.
+ */
 internal class FaceTrackSmoother(
     private val showAfterFrames: Int = 3,
     private val hideAfterFrames: Int = 8,
-    private val smoothing: Float = 0.38f
+    @Suppress("UNUSED_PARAMETER") smoothing: Float = 0.38f
 ) {
     private var visibleFrames = 0
     private var missingFrames = 0
     private var snapshot: FaceTrackSnapshot? = null
+    private val centerFilter = OneEuroOffsetFilter()
+    private val sizeFilter = OneEuroOffsetFilter(minCutoffHz = 1.1f, beta = 0.05f)
+    private var eyeFilter: OneEuroOffsetFilter? = null
 
     @Synchronized
     fun onFaceDetected(
         center: Offset,
         size: Offset,
         eyeCenter: Offset?,
-        trackingId: Int? = null
+        trackingId: Int? = null,
+        timestampMs: Long = System.nanoTime() / 1_000_000L
     ): FaceTrackSnapshot? {
         visibleFrames++
         missingFrames = 0
         if (visibleFrames < showAfterFrames) return null
 
-        val previous = snapshot
-        val nextCenter = previous?.center?.let { smooth(it, center) } ?: center
-        val nextSize = previous?.size?.let { smooth(it, size) } ?: size
-        val nextEye = eyeCenter?.let { eye -> previous?.eyeCenter?.let { smooth(it, eye) } ?: eye }
-        return FaceTrackSnapshot(nextCenter, nextSize, nextEye, trackingId).also { snapshot = it }
+        val filteredCenter = centerFilter.filter(center, timestampMs)
+        val filteredSize = sizeFilter.filter(size, timestampMs)
+        val filteredEye = eyeCenter?.let { eye ->
+            val filter = eyeFilter ?: OneEuroOffsetFilter().also { eyeFilter = it }
+            filter.filter(eye, timestampMs)
+        }
+        if (eyeCenter == null) eyeFilter?.reset()
+        return FaceTrackSnapshot(filteredCenter, filteredSize, filteredEye, trackingId)
+            .also { snapshot = it }
     }
 
-    /**
-     * Returns true only on the frame that crosses the hide threshold.
-     */
+    /** Returns true only on the frame that crosses the hide threshold. */
     @Synchronized
     fun onNoFace(): Boolean {
         visibleFrames = 0
@@ -140,6 +217,10 @@ internal class FaceTrackSmoother(
         if (missingFrames < hideAfterFrames || snapshot == null) return false
         snapshot = null
         missingFrames = 0
+        centerFilter.reset()
+        sizeFilter.reset()
+        eyeFilter?.reset()
+        eyeFilter = null
         return true
     }
 
@@ -151,14 +232,10 @@ internal class FaceTrackSmoother(
         visibleFrames = 0
         missingFrames = 0
         snapshot = null
-    }
-
-    private fun smooth(previous: Offset, current: Offset): Offset {
-        val alpha = smoothing.coerceIn(0f, 1f)
-        return Offset(
-            previous.x + (current.x - previous.x) * alpha,
-            previous.y + (current.y - previous.y) * alpha
-        )
+        centerFilter.reset()
+        sizeFilter.reset()
+        eyeFilter?.reset()
+        eyeFilter = null
     }
 }
 

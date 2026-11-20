@@ -1936,13 +1936,20 @@ fun CameraScreen(
                                     imageReleasedByFaceDetector = true
                                     faceTask.addOnSuccessListener(analysisExecutor) { faces ->
                                         val rotation = image.imageInfo.rotationDegrees
-                                        val uprightWidth = if (rotation == 90 || rotation == 270) image.height else image.width
-                                        val uprightHeight = if (rotation == 90 || rotation == 270) image.width else image.height
                                         val cropRect = image.cropRect
-                                        val frameLeft = if (rotation == 90 || rotation == 270) cropRect.top else cropRect.left
-                                        val frameTop = if (rotation == 90 || rotation == 270) cropRect.left else cropRect.top
-                                        val frameWidth = if (rotation == 90 || rotation == 270) cropRect.height() else cropRect.width()
-                                        val frameHeight = if (rotation == 90 || rotation == 270) cropRect.width() else cropRect.height()
+                                        val orientedCrop = orientImageCrop(
+                                            image.width,
+                                            image.height,
+                                            cropRect.left,
+                                            cropRect.top,
+                                            cropRect.right,
+                                            cropRect.bottom,
+                                            rotation
+                                        )
+                                        val frameLeft = orientedCrop?.left ?: 0
+                                        val frameTop = orientedCrop?.top ?: 0
+                                        val frameWidth = orientedCrop?.width ?: 0
+                                        val frameHeight = orientedCrop?.height ?: 0
                                         val best = faces.maxByOrNull {
                                             it.boundingBox.width().toLong() * it.boundingBox.height().toLong()
                                         }

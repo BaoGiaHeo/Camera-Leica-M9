@@ -94,3 +94,58 @@ internal fun rotateFaceSize(width: Float, height: Float, rotationDegrees: Int): 
         Offset(safeWidth, safeHeight)
     }
 }
+
+/** Crop rectangle expressed in the rotated ImageInput coordinate system. */
+internal data class OrientedImageCrop(
+    val left: Int,
+    val top: Int,
+    val width: Int,
+    val height: Int
+)
+
+/**
+ * Maps ImageProxy.cropRect from the sensor-buffer coordinate system into the
+ * coordinate space used by ML Kit after InputImage applies rotationDegrees.
+ */
+internal fun orientImageCrop(
+    imageWidth: Int,
+    imageHeight: Int,
+    cropLeft: Int,
+    cropTop: Int,
+    cropRight: Int,
+    cropBottom: Int,
+    rotationDegrees: Int
+): OrientedImageCrop? {
+    if (imageWidth <= 0 || imageHeight <= 0) return null
+    val left = cropLeft.coerceIn(0, imageWidth)
+    val top = cropTop.coerceIn(0, imageHeight)
+    val right = cropRight.coerceIn(left, imageWidth)
+    val bottom = cropBottom.coerceIn(top, imageHeight)
+    if (right <= left || bottom <= top) return null
+    return when (((rotationDegrees % 360) + 360) % 360) {
+        90 -> OrientedImageCrop(
+            left = imageHeight - bottom,
+            top = left,
+            width = bottom - top,
+            height = right - left
+        )
+        180 -> OrientedImageCrop(
+            left = imageWidth - right,
+            top = imageHeight - bottom,
+            width = right - left,
+            height = bottom - top
+        )
+        270 -> OrientedImageCrop(
+            left = top,
+            top = imageWidth - right,
+            width = bottom - top,
+            height = right - left
+        )
+        else -> OrientedImageCrop(
+            left = left,
+            top = top,
+            width = right - left,
+            height = bottom - top
+        )
+    }
+}

@@ -42,6 +42,34 @@ class FaceTrackSmootherTest {
     }
 
     @Test
+    fun mapsImageProxyCropIntoMlKitRotatedCoordinates() {
+        val zero = orientImageCrop(640, 480, 40, 20, 600, 460, 0)
+        assertEquals(40, zero?.left)
+        assertEquals(20, zero?.top)
+        assertEquals(560, zero?.width)
+        assertEquals(440, zero?.height)
+
+        val ninety = orientImageCrop(640, 480, 40, 20, 600, 460, 90)
+        assertEquals(20, ninety?.left)
+        assertEquals(40, ninety?.top)
+        assertEquals(440, ninety?.width)
+        assertEquals(560, ninety?.height)
+
+        val oneEighty = orientImageCrop(640, 480, 40, 20, 600, 460, 180)
+        assertEquals(40, oneEighty?.left)
+        assertEquals(20, oneEighty?.top)
+        assertEquals(560, oneEighty?.width)
+        assertEquals(440, oneEighty?.height)
+
+        val twoSeventy = orientImageCrop(640, 480, 40, 20, 600, 460, 270)
+        assertEquals(20, twoSeventy?.left)
+        assertEquals(40, twoSeventy?.top)
+        assertEquals(440, twoSeventy?.width)
+        assertEquals(560, twoSeventy?.height)
+        assertEquals(null, orientImageCrop(640, 480, 20, 30, 20, 40, 90))
+    }
+
+    @Test
     fun rotatesAndMirrorsCoordinatesForAllSensorOrientations() {
         val rotated90 = rotateFacePoint(0.2f, 0.8f, 90, false)
         assertEquals(0.2f, rotated90.x, 0.0001f)

@@ -427,8 +427,9 @@ fun ToolboxScreen(
     }
 
     FujiPanel(title = "SETTINGS · MENU", breadcrumb = "TOOLBOX", modifier = Modifier.fillMaxSize(), onBack = onBack) {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(end = 4.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f).padding(end = 4.dp)) {
         Text("Viewfinder overlays", color = CamColors.Sub, fontSize = 13.sp,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
         ToolToggle(
@@ -478,7 +479,10 @@ fun ToolboxScreen(
         ToolToggle("Smart Focus Tracking", "Ưu tiên khuôn mặt khi Camera2/HAL công bố face detection; tự đưa AF về vùng mặt.",
             "sliders", faceTrackingEnabled) {
             faceTrackingEnabled = it
-            prefs.edit().putBoolean("face_tracking_enabled", it).apply()
+            prefs.edit()
+                .putBoolean("face_tracking_enabled", it)
+                .putString("face_tracking_mode", if (it) "face_eye" else "off")
+                .apply()
         }
         ToolToggle(
             "Animation Performance Mode",
@@ -550,7 +554,7 @@ fun ToolboxScreen(
         // Read the revision so the slot labels refresh immediately after saving.
         if (presetUiRevision < 0) Text(" ", fontSize = 1.sp)
             }
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 4.dp)) {
+                Column(Modifier.weight(1f).padding(start = 4.dp)) {
         Spacer(Modifier.height(12.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp))
@@ -792,6 +796,7 @@ fun ToolboxScreen(
         }
 
             }
+        }
         }
     }
 }

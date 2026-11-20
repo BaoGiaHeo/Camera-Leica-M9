@@ -4706,7 +4706,7 @@ fun CameraScreen(
                                                     return@detectTapGestures
                                                 }
                                                 lockFuture.addListener({
-                                                    if (!shouldAcceptFocusLockResult(
+                                                    if (!shouldAcceptFocusRequestResult(
                                                             requestGeneration = lockRequestId,
                                                             currentGeneration = focusLockRequestGeneration,
                                                             requestedCenter = lockPoint,

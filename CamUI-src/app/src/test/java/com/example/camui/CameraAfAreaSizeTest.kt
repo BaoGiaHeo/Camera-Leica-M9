@@ -1,5 +1,6 @@
 package com.example.camui
 
+import androidx.compose.ui.geometry.Offset
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

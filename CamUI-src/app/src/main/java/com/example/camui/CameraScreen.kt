@@ -2444,6 +2444,7 @@ fun CameraScreen(
                     activePhysicalCameraDetails,
                     cameraXZoomMaximum
                 )
+                val maxTotalZoom = maxTotalSelectableZoom(cameraReportedZoomMaximum, zoomAssessment)
                 val lensEquivalentSummary = buildList {
                     activeCameraDetails?.eq35Mm?.let { add("logical=" + String.format(Locale.US, "%.1f", it)) }
                     activePhysicalCameraDetails.forEach { lens ->
@@ -2457,16 +2458,22 @@ fun CameraScreen(
                         " opticalTele=" + zoomAssessment.hasOpticalTelephoto + " opticalRatio=" + zoomAssessment.opticalRatio +
                         " CONTROL_ZOOM_RATIO_RANGE=" + activeCameraDetails?.controlZoomRatioMin + ".." + activeCameraDetails?.controlZoomRatioMax +
                         " cameraXMax=" + cameraXZoomMaximum + " reportedMax=" + cameraReportedZoomMaximum +
-                        " selectableMax=" + maxSelectableZoom + " min=" + (zoomStateOnBind?.minZoomRatio ?: 1f)
+                        " cameraControlMax=" + maxSelectableZoom + " totalMax=" + maxTotalZoom +
+                        " digitalZoomAvailable=" + (maxTotalZoom > maxSelectableZoom) +
+                        " min=" + (zoomStateOnBind?.minZoomRatio ?: 1f)
                 )
-                val restoredZoom = savedZoom.coerceIn(
-                    zoomStateOnBind?.minZoomRatio ?: 1f,
-                    maxSelectableZoom
+                val restoredPlan = resolveZoomExecutionPlan(
+                    requestedZoomRatio = savedZoom,
+                    minimumCameraRatio = zoomStateOnBind?.minZoomRatio ?: 1f,
+                    cameraReportedMaximum = cameraReportedZoomMaximum,
+                    assessment = zoomAssessment
                 )
+                val restoredZoom = restoredPlan.effectiveZoomRatio
                 zoomSel = restoredZoom
                 actualZoomRatio = restoredZoom
+                digitalZoomCropScale = restoredPlan.digitalCropRatio
                 zoomFromCaptureResult = Float.NaN
-                runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
+                runCatching { bound.cameraControl.setZoomRatio(restoredPlan.cameraControlZoomRatio) }
                 val capabilities = runCatching {
                     Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(
                         CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES
@@ -4503,11 +4510,11 @@ fun CameraScreen(
     fun animateZoomTo(targetRatio: Float) {
         val activeCamera = camera ?: return
         val state = activeCamera.cameraInfo.zoomState.value ?: return
-        val selectableMax = Camera2Info.maxSelectableZoom(
-            activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio
-        )
+        val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+        val cameraReportedMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
+        val selectableMax = maxTotalSelectableZoom(cameraReportedMaximum, zoomAssessment)
         val safeTarget = targetRatio.coerceIn(state.minZoomRatio, selectableMax)
-        val start = state.zoomRatio
+        val start = zoomSel
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
             (start >= 0.98f && safeTarget < 0.98f)
         zoomAnimationJob?.cancel()
@@ -4533,9 +4540,19 @@ fun CameraScreen(
                 targetValue = safeTarget,
                 animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing)
             ) {
-                activeCamera.cameraControl.setZoomRatio(value)
-                zoomSel = value
-                actualZoomRatio = value
+                val plan = resolveZoomExecutionPlan(
+                    requestedZoomRatio = value,
+                    minimumCameraRatio = state.minZoomRatio,
+                    cameraReportedMaximum = cameraReportedMaximum,
+                    assessment = zoomAssessment
+                )
+                val currentCameraRatio = activeCamera.cameraInfo.zoomState.value?.zoomRatio ?: state.zoomRatio
+                if (abs(currentCameraRatio - plan.cameraControlZoomRatio) > 0.002f) {
+                    activeCamera.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
+                }
+                zoomSel = plan.effectiveZoomRatio
+                actualZoomRatio = plan.effectiveZoomRatio
+                digitalZoomCropScale = plan.digitalCropRatio
             }
             appPrefs.edit().putFloat("camera_zoom_ratio", safeTarget).apply()
         }

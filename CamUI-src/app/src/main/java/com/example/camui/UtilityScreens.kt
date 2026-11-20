@@ -1012,7 +1012,7 @@ private fun CameraFrameTemplateCard(
 
 
 
-private val watermarkStudioLayouts = listOf(
+internal val watermarkStudioLayouts = listOf(
     "classic_bar" to "CLASSIC BAR",
     "center_stack" to "CENTER STACK",
     "data_card" to "DATA CARD",
@@ -2773,11 +2773,7 @@ fun applyCameraWatermark(
             "data_card" -> 3
             else -> 2
         }
-        val footerFraction = when (footerRows) {
-            1 -> 0.075f
-            2 -> 0.095f
-            else -> 0.11f
-        }
+        val footerFraction = watermarkFooterFractionForRows(footerRows)
         val footerHeightPx = (sourceMinSide * footerFraction).roundToInt().coerceAtLeast(72)
         val compactFooterHeightPx = (sourceMinSide * footerFraction).roundToInt().coerceAtLeast(72)
         val expandedWidth = sourceBitmap.width + footerMarginPx * 2
@@ -2841,7 +2837,7 @@ fun applyCameraWatermark(
         val glassGooey = prefs.getFloat("watermark_glass_gooey", 0.34f).coerceIn(0f, 1f)
         val glassTintMode = prefs.getString("watermark_glass_tint", "Auto") ?: "Auto"
         val sourceLuminance = sampleBitmapLuminance(output)
-        val autoUsesLightPlate = sourceLuminance > 0.5f
+        val autoUsesLightPlate = watermarkAutoUsesLightPlate(sourceLuminance)
         val frameColor = when {
             frameStyle == "Black" -> AndroidColor.BLACK
             frameStyle == "Auto" && !autoUsesLightPlate -> AndroidColor.BLACK
@@ -2864,11 +2860,9 @@ fun applyCameraWatermark(
         val minSide = minOf(output.width, output.height).toFloat()
         // Keep logo and metadata in one restrained visual scale across output resolutions.
         val watermarkTextSize = (minSide * 0.0125f).coerceAtLeast(12f)
-        val watermarkLogoHeight = minSide * when (prefs.getString("watermark_logo_size", "M")) {
-            "S" -> 0.020f
-            "L" -> 0.034f
-            else -> 0.026f
-        }
+        val watermarkLogoHeight = minSide * watermarkLogoHeightFraction(
+            prefs.getString("watermark_logo_size", "M")
+        )
         val logoScale = watermarkLogoHeight / (minSide * 0.026f)
         val margin = (minSide * 0.032f).coerceAtLeast(18f)
         fun exifNumber(tag: String): Double? = sourceExif[tag]?.let { raw ->

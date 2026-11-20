@@ -258,7 +258,12 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-                BackHandler(enabled = page != "camera") { page = if (page == "toolbox" || page == "contents") settingsSubpageReturnTarget else "camera" }
+                BackHandler(enabled = page != "camera") {
+                    page = when (page) {
+                        "toolbox", "contents", "watermark_studio" -> settingsSubpageReturnTarget
+                        else -> "camera"
+                    }
+                }
                 Box(Modifier.fillMaxSize()) {
                     // Keep the camera composition and its CaptureSession alive beneath
                     // Settings, Toolbox and Contents. Closing these panels therefore does

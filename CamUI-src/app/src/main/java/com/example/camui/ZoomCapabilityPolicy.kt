@@ -2,6 +2,33 @@ package com.example.camui
 
 import kotlin.math.abs
 import kotlin.math.ln
+import kotlin.math.hypot
+
+internal data class EquivalentFocalRange35Mm(
+    val shortest: Float?,
+    val longest: Float?
+)
+
+/** Converts every valid advertised focal length into a 35mm-equivalent range. */
+internal fun calculateEquivalentFocalRange35Mm(
+    focalLengthsMm: List<Float>,
+    sensorWidthMm: Float?,
+    sensorHeightMm: Float?
+): EquivalentFocalRange35Mm {
+    val width = sensorWidthMm?.takeIf { it.isFinite() && it > 0f }
+    val height = sensorHeightMm?.takeIf { it.isFinite() && it > 0f }
+    if (width == null || height == null) return EquivalentFocalRange35Mm(null, null)
+    val diagonal = hypot(width, height)
+    if (!diagonal.isFinite() || diagonal <= 0f) return EquivalentFocalRange35Mm(null, null)
+    val equivalent = focalLengthsMm
+        .filter { it.isFinite() && it > 0f }
+        .map { it * 43.27f / diagonal }
+        .filter { it.isFinite() && it > 0f }
+    return EquivalentFocalRange35Mm(
+        shortest = equivalent.minOrNull(),
+        longest = equivalent.maxOrNull()
+    )
+}
 
 data class OpticalZoomAssessment(
     val mainEquivalent35Mm: Float?,

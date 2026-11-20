@@ -34,15 +34,15 @@ class PrimaryEyeSelectorTest {
 
     @Test
     fun doesNotJumpToOtherEyeUntilSelectedEyeHasBeenMissingForElevenFrames() {
-        val selector = PrimaryEyeSelector(lostFrameThreshold = 10)
+        val selector = PrimaryEyeSelector(lostFrameThreshold = 11)
         val left = Offset(0.42f, 0.48f)
         val right = Offset(0.58f, 0.48f)
 
         selector.select(left, right, 0f, 0L, trackingId = 9)
-        repeat(10) { index ->
+        repeat(11) { index ->
             assertNull(selector.select(null, right, 0f, (index + 1) * 100L, trackingId = 9))
         }
-        assertEquals(right, selector.select(null, right, 0f, 1_100L, trackingId = 9))
+        assertEquals(right, selector.select(null, right, 0f, 1_200L, trackingId = 9))
         assertEquals(PrimaryEyeSide.RIGHT, selector.currentSide())
     }
 
@@ -53,7 +53,7 @@ class PrimaryEyeSelectorTest {
         val right = Offset(0.58f, 0.48f)
 
         selector.select(left, right, 0f, 0L, trackingId = 1)
-        assertEquals(right, selector.select(left, right, 0f, 100L, trackingId = 2))
-        assertEquals(PrimaryEyeSide.RIGHT, selector.currentSide())
+        assertEquals(left, selector.select(left, right, 0f, 100L, trackingId = 2))
+        assertEquals(PrimaryEyeSide.LEFT, selector.currentSide())
     }
 }

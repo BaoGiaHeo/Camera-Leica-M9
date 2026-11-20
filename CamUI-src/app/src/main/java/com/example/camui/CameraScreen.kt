@@ -5680,7 +5680,19 @@ fun CameraScreen(
                     }
                 }
             }
-        if (showQuick) {
+        AnimatedVisibility(
+            visible = showQuick,
+            enter = AnimaT.enter(
+                performanceMode = performanceMode,
+                reducedMotion = dispReducedMotion
+            ),
+            exit = AnimaT.exit(
+                performanceMode = performanceMode,
+                reducedMotion = dispReducedMotion
+            ),
+            modifier = Modifier.align(if (uiIsLandscape) Alignment.TopEnd else Alignment.TopCenter)
+                .padding(start = 10.dp, end = 10.dp, top = if (uiIsLandscape) 8.dp else 64.dp)
+        ) {
             QuickPanel(
                 ratioIdx = ratioIdx,
                 onRatio = { changeAspectRatio(it) },
@@ -5742,8 +5754,7 @@ fun CameraScreen(
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },
                 onDismiss = { showQuick = false },
-                modifier = Modifier.align(if (uiIsLandscape) Alignment.TopEnd else Alignment.TopCenter)
-                    .padding(start = 10.dp, end = 10.dp, top = if (uiIsLandscape) 8.dp else 64.dp)
+                modifier = Modifier.fillMaxWidth()
             )
         }
 

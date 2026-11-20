@@ -118,16 +118,6 @@ class FaceTrackSmootherTest {
     }
 
     @Test
-    fun faceEyeFallsBackWhenCamera2FullDoesNotProvideEyeLandmarks() {
-        assertTrue(needsMlKitEyeLandmarkFallback("face_eye", false, false))
-        assertFalse(needsMlKitEyeLandmarkFallback("face_eye", true, false))
-        assertFalse(needsMlKitEyeLandmarkFallback("face_eye", false, true))
-        assertFalse(needsMlKitEyeLandmarkFallback("face_eye", true, true))
-        assertFalse(needsMlKitEyeLandmarkFallback("face", false, false))
-        assertFalse(needsMlKitEyeLandmarkFallback("off", false, false))
-    }
-
-    @Test
     fun mapsImageProxyCropIntoMlKitRotatedCoordinates() {
         val zero = orientImageCrop(640, 480, 40, 20, 600, 460, 0)
         assertEquals(40, zero?.left)

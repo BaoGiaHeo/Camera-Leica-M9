@@ -9,13 +9,6 @@ internal data class FaceTrackSnapshot(
     val trackingId: Int? = null
 )
 
-/** Camera2 FULL can be advertised without returning eye coordinates on every device. */
-internal fun needsMlKitEyeLandmarkFallback(
-    trackingMode: String,
-    leftEyeAvailable: Boolean,
-    rightEyeAvailable: Boolean
-): Boolean = trackingMode == "face_eye" && !leftEyeAvailable && !rightEyeAvailable
-
 internal data class FaceTrackCandidate<T>(
     val value: T,
     val center: Offset,

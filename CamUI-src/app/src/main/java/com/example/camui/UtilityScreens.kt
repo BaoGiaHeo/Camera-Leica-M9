@@ -718,21 +718,8 @@ fun ToolboxScreen(
             modifier = Modifier.padding(bottom = 8.dp, top = 9.dp))
         val watermarkBrandLabel = cameraWatermarkBrands.firstOrNull { it.first == watermarkBrand }?.second
             ?: cameraWatermarkBrandTitle(watermarkBrand)
-        val watermarkTemplates = watermarkStudioLayouts.map { (id, title) ->
-            Triple(id, title, when (id) {
-                "classic_bar" -> "Logo + model trái · EXIF phải"
-                "center_stack" -> "Logo và thông tin căn giữa"
-                "data_card" -> "FOCAL · APERTURE · SHUTTER · ISO"
-                "film_strip" -> "Viền phim 35mm · lỗ kéo film"
-                "polaroid" -> "Viền ảnh trắng · caption"
-                "minimal_overlay" -> "Một dòng thông tin nhỏ"
-                "corner_stamp" -> "Ngày chụp ở góc ảnh"
-                "glass_card" -> "Thẻ kính mờ"
-                "blur_frame" -> "Nền ảnh blur và thẻ nổi"
-                "lcd_osd" -> "Thanh đen kiểu LCD"
-                "viewfinder" -> "Khung ngắm 4 góc"
-                else -> "Ba vòng số F / SS / ISO"
-            })
+        val watermarkTemplates = watermarkStudioLayoutResources.map { item ->
+            Triple(item.id, stringResource(item.title), stringResource(item.description))
         }
         watermarkTemplates.chunked(2).forEach { rowItems ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -1027,6 +1014,23 @@ internal val watermarkStudioLayouts = listOf(
     "exposure_dial" to "EXPOSURE DIAL"
 )
 
+private data class WatermarkLayoutResource(val id: String, val title: Int, val description: Int)
+
+private val watermarkStudioLayoutResources = listOf(
+    WatermarkLayoutResource("classic_bar", R.string.watermark_layout_classic_bar, R.string.watermark_layout_classic_bar_description),
+    WatermarkLayoutResource("center_stack", R.string.watermark_layout_center_stack, R.string.watermark_layout_center_stack_description),
+    WatermarkLayoutResource("data_card", R.string.watermark_layout_data_card, R.string.watermark_layout_data_card_description),
+    WatermarkLayoutResource("film_strip", R.string.watermark_layout_film_strip, R.string.watermark_layout_film_strip_description),
+    WatermarkLayoutResource("polaroid", R.string.watermark_layout_polaroid, R.string.watermark_layout_polaroid_description),
+    WatermarkLayoutResource("minimal_overlay", R.string.watermark_layout_minimal_overlay, R.string.watermark_layout_minimal_overlay_description),
+    WatermarkLayoutResource("corner_stamp", R.string.watermark_layout_corner_stamp, R.string.watermark_layout_corner_stamp_description),
+    WatermarkLayoutResource("glass_card", R.string.watermark_layout_glass_card, R.string.watermark_layout_glass_card_description),
+    WatermarkLayoutResource("blur_frame", R.string.watermark_layout_blur_frame, R.string.watermark_layout_blur_frame_description),
+    WatermarkLayoutResource("lcd_osd", R.string.watermark_layout_lcd_osd, R.string.watermark_layout_lcd_osd_description),
+    WatermarkLayoutResource("viewfinder", R.string.watermark_layout_viewfinder, R.string.watermark_layout_viewfinder_description),
+    WatermarkLayoutResource("exposure_dial", R.string.watermark_layout_exposure_dial, R.string.watermark_layout_exposure_dial_description)
+)
+
 /**
  * The studio preview uses the production applyCameraWatermark() renderer on a
  * temporary MediaStore copy of the latest app photo. The source photo is never
@@ -1169,7 +1173,7 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
             ) {
                 val image = preview
                 if (image != null) {
-                    Image(image, "Watermark Studio production renderer preview",
+                    Image(image, stringResource(R.string.watermark_studio_preview_content_description),
                         Modifier.fillMaxWidth().heightIn(min = 170.dp, max = 300.dp),
                         contentScale = ContentScale.Fit)
                 } else {
@@ -1215,8 +1219,12 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                watermarkStudioLayouts.forEach { (id, label) ->
-                    FujiChip(label, layout == id, { layout = id })
+                watermarkStudioLayoutResources.forEach { item ->
+                    FujiChip(
+                        stringResource(item.title),
+                        layout == item.id,
+                        { layout = item.id }
+                    )
                 }
             }
             Text(stringResource(R.string.watermark_studio_appearance), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)

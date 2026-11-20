@@ -2441,7 +2441,7 @@ fun CameraScreen(
                 val zoomStateOnBind = bound.cameraInfo.zoomState.value
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
                 val cameraXZoomMaximum = zoomStateOnBind?.maxZoomRatio ?: 1f
-                val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+                val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
                 val cameraReportedZoomMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, cameraXZoomMaximum)
                 val maxSelectableZoom = Camera2Info.maxSelectableZoom(
                     activeCameraDetails,
@@ -4605,7 +4605,7 @@ fun CameraScreen(
     fun animateZoomTo(targetRatio: Float) {
         val activeCamera = camera ?: return
         val state = activeCamera.cameraInfo.zoomState.value ?: return
-        val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+        val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
         val cameraReportedMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
         val selectableMax = maxTotalSelectableZoom(cameraReportedMaximum, zoomAssessment)
         val safeTarget = targetRatio.coerceIn(state.minZoomRatio, selectableMax)
@@ -5139,7 +5139,7 @@ fun CameraScreen(
                                         val reportedMax = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
                                         maxTotalSelectableZoom(
                                             reportedMax,
-                                            Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+                                            Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
                                         )
                                     } ?: 2f,
                                     zoomDigitalBoundaryRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
@@ -5810,7 +5810,7 @@ fun CameraScreen(
         )
         val dialZoomMaximum = maxTotalSelectableZoom(
             dialCameraReportedMaximum,
-            Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+            Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
         )
 
         val wZoomDirection = if (zoomButtonsSwapped) 1 else -1

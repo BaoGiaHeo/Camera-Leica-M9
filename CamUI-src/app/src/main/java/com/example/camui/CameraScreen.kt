@@ -4785,7 +4785,8 @@ fun CameraScreen(
                                         hdrEnabled = hdrEnabled,
                                         isPhotoMode = mode == "Photo",
                                         nightShotEnabled = nightShotMode != "off",
-                                        rawCaptureActive = rawCaptureActive,
+                                        rawCaptureActive = imageCapture?.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW ||
+                                            imageCapture?.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG,
                                         manualExposure = manualExposure,
                                         manualIsoEnabled = manualIsoEnabled,
                                         manualShutterEnabled = manualShutterEnabled,

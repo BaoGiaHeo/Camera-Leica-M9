@@ -94,6 +94,18 @@ internal class PrimaryEyeSelector(
         return null
     }
 
+    /** User taps bypass yaw hysteresis and switch to the requested eye immediately. */
+    @Synchronized
+    fun forceSelect(side: PrimaryEyeSide, nowMs: Long, trackingId: Int? = null) {
+        if (trackingId != null && activeTrackingId != null && trackingId != activeTrackingId) return
+        if (trackingId != null) activeTrackingId = trackingId
+        selectedSide = side
+        missingSelectedFrames = 0
+        pendingSide = null
+        pendingSinceMs = 0L
+        lastSwitchAtMs = nowMs
+    }
+
     @Synchronized
     fun currentSide(): PrimaryEyeSide? = selectedSide
 

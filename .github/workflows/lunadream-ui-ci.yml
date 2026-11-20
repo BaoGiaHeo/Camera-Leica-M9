@@ -7,6 +7,7 @@ on:
     branches:
       - feature/lunadream-2.5.0dream
       - fix/2.5.0dream-af-label
+      - fix/2.5.0-zoom-optics-diagnostics
 
 permissions:
   contents: read

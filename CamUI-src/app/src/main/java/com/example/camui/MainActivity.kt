@@ -43,6 +43,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -259,6 +260,26 @@ class MainActivity : AppCompatActivity() {
 
                 BackHandler(enabled = page != "camera") { page = if (page == "toolbox" || page == "contents") settingsSubpageReturnTarget else "camera" }
                 Box(Modifier.fillMaxSize()) {
+                    // Keep the camera composition and its CaptureSession alive beneath
+                    // Settings, Toolbox and Contents. Closing these panels therefore does
+                    // not dispose/rebind PreviewView or create a black preview interval.
+                    CameraScreen(
+                        onOpenSettings = { page = "settings" },
+                        onOpenToolbox = { settingsSubpageReturnTarget = "camera"; page = "toolbox" },
+                        onOpenContentManagement = { settingsSubpageReturnTarget = "camera"; page = "contents" },
+                        onOpenAlbum = { latestPhoto ->
+                            if (!openDeviceGallery(latestPhoto)) page = "album"
+                        },
+                        showGrid = showGrid,
+                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
+                        showHist = showHist,
+                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
+                        focusPeaking = focusPeaking,
+                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                        ratioIdx = ratioIdx,
+                        onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
+                        performanceMode = animationPerformanceMode
+                    )
                     AnimatedContent(
                         targetState = page,
                         modifier = Modifier.fillMaxSize().animaTPageRotation(
@@ -274,6 +295,7 @@ class MainActivity : AppCompatActivity() {
                         label = "FujiFilm Mode page transition"
                     ) { targetPage ->
                         when (targetPage) {
+                            "camera" -> Spacer(Modifier.fillMaxSize())
                             "album" -> AlbumScreen(onBack = { page = "camera" })
                             "settings" -> SettingsScreen(
                                 onBack = { page = "camera" },
@@ -309,23 +331,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                             )
                             "contents" -> ContentManagementScreen(onBack = { page = settingsSubpageReturnTarget })
-                            else -> CameraScreen(
-                                onOpenSettings = { page = "settings" },
-                                onOpenToolbox = { settingsSubpageReturnTarget = "camera"; page = "toolbox" },
-                                onOpenContentManagement = { settingsSubpageReturnTarget = "camera"; page = "contents" },
-                                onOpenAlbum = { latestPhoto ->
-                                    if (!openDeviceGallery(latestPhoto)) page = "album"
-                                },
-                                showGrid = showGrid,
-                                onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
-                                showHist = showHist,
-                                onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
-                                focusPeaking = focusPeaking,
-                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                                ratioIdx = ratioIdx,
-                                onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
-                                performanceMode = animationPerformanceMode
-                            )
+                            else -> Spacer(Modifier.fillMaxSize())
                         }
                     }
                 }

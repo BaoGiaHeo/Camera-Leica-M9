@@ -68,9 +68,9 @@ class PixelOsdInvalidationTest {
         val dirty = pixelOsdDirtyRegions(320, 180, oldFrame, newFrame)
 
         assertEquals(2, dirty.size)
-        assertTrue(dirty.any { it.left < 100 && it.right <= 120 })
-        assertTrue(dirty.any { it.right > 250 && it.left >= 200 })
-        assertTrue(dirty.maxOf { it.right - it.left } >= 80)
+        assertTrue(dirty.any { it.left < 100 })
+        assertTrue(dirty.any { it.right > 250 })
+        assertTrue(dirty.maxOf { it.right - it.left } >= 160)
     }
 
     @Test

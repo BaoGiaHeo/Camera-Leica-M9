@@ -67,9 +67,10 @@ internal fun calculateDigitalZoomCropBounds(
  * supported range. The GPU renders bounded tiles instead of allocating a
  * full-resolution framebuffer. The JPEG is replaced only after render+encode.
  */
+private const val DIGITAL_ZOOM_DIGITAL_ZOOM_TILE_SIZE = 768
+
 internal object DigitalZoomProcessor {
     private const val TAG = "FUJI_DIGITAL_ZOOM"
-    private const val TILE_SIZE = 768
     private const val JPEG_QUALITY = 98
 
     private val exifTags = listOf(
@@ -80,7 +81,7 @@ internal object DigitalZoomProcessor {
         ExifInterface.TAG_MODEL,
         ExifInterface.TAG_FOCAL_LENGTH,
         ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM,
-        ExifInterface.TAG_ISO_SPEED,
+        "ISOSpeedRatings",
         ExifInterface.TAG_EXPOSURE_TIME,
         ExifInterface.TAG_F_NUMBER,
         ExifInterface.TAG_APERTURE_VALUE,

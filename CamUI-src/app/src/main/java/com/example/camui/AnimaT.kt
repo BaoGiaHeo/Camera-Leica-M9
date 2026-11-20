@@ -9,16 +9,16 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.rotateIn
-import androidx.compose.animation.rotateOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -68,10 +68,6 @@ object AnimaT {
             scaleIn(
                 initialScale = 0.99f,
                 animationSpec = tween(durationMillis = 240, easing = motionEasing)
-            ) +
-            rotateIn(
-                initialRotation = 1.6f,
-                animationSpec = tween(durationMillis = 240, easing = motionEasing)
             )
     }
 
@@ -89,10 +85,6 @@ object AnimaT {
             fadeOut(animationSpec = tween(durationMillis = 180, easing = motionEasing)) +
             scaleOut(
                 targetScale = 0.995f,
-                animationSpec = tween(durationMillis = 190, easing = motionEasing)
-            ) +
-            rotateOut(
-                targetRotation = -1.0f,
                 animationSpec = tween(durationMillis = 190, easing = motionEasing)
             )
     }
@@ -133,5 +125,34 @@ fun Modifier.animaTClickable(enabled: Boolean = true, onClick: () -> Unit): Modi
             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
         }
         onClick()
+    }
+}
+
+
+/**
+ * A tiny page-level tilt using the supported graphicsLayer API. It runs on
+ * entry only, reverses direction when returning to the camera, and is skipped
+ * entirely for reduced-motion or thermal/performance mode.
+ */
+fun Modifier.animaTPageRotation(
+    pageKey: String,
+    returningToCamera: Boolean,
+    performanceMode: Boolean,
+    reducedMotion: Boolean
+): Modifier = composed {
+    val rotation = remember { Animatable(0f) }
+    LaunchedEffect(pageKey, returningToCamera, performanceMode, reducedMotion) {
+        if (performanceMode || reducedMotion) {
+            rotation.snapTo(0f)
+        } else {
+            rotation.snapTo(if (returningToCamera) -1.0f else 1.6f)
+            rotation.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+    this.graphicsLayer {
+        rotationZ = rotation.value
     }
 }

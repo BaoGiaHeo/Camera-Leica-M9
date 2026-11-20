@@ -261,7 +261,12 @@ class MainActivity : AppCompatActivity() {
                 Box(Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = page,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().animaTPageRotation(
+                            pageKey = page,
+                            returningToCamera = page == "camera",
+                            performanceMode = animationPerformanceMode,
+                            reducedMotion = reducedMotion
+                        ),
                         transitionSpec = {
                             AnimaT.enter(animationPerformanceMode, reducedMotion) togetherWith
                                 AnimaT.exit(animationPerformanceMode, reducedMotion)

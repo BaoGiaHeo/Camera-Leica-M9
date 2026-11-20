@@ -72,7 +72,7 @@ internal fun pixelOsdDirtyRegions(
     }
 
     if (previous.focusLocked != current.focusLocked) {
-        add(0, 0, 42, 20)
+        add(0, 0, 50, 18)
     }
 
     if (previous.showLevel != current.showLevel ||
@@ -105,14 +105,18 @@ internal fun pixelOsdDirtyRegions(
         }
     }
 
-    if (previous.showStatus != current.showStatus ||
-        previous.focusLocked != current.focusLocked ||
-        previous.batteryPercent != current.batteryPercent ||
-        previous.batteryCharging != current.batteryCharging ||
-        previous.batteryLowBlinkOn != current.batteryLowBlinkOn ||
-        previous.meteringText != current.meteringText
-    ) {
+    if (previous.showStatus != current.showStatus) {
         add(0, 0, width, 16)
+    } else {
+        if (previous.focusLocked != current.focusLocked || previous.meteringText != current.meteringText) {
+            add(0, 0, 50, 18)
+        }
+        if (previous.batteryPercent != current.batteryPercent ||
+            previous.batteryCharging != current.batteryCharging ||
+            previous.batteryLowBlinkOn != current.batteryLowBlinkOn
+        ) {
+            add(width - 58, 0, width, 16)
+        }
     }
 
     if (previous.showEvScale != current.showEvScale ||

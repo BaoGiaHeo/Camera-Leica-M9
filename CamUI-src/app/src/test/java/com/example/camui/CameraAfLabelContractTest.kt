@@ -18,9 +18,12 @@ class CameraAfLabelContractTest {
             "The instructional TAP AF hint must not appear in the camera HUD.",
             text.contains("TAP AF · HOLD LOCK")
         )
+        val pixelRenderer = File("src/main/java/com/example/camui/PixelOsdLayer.kt")
+        assertTrue("Pixel OSD renderer is missing", pixelRenderer.isFile)
+        val pixelText = pixelRenderer.readText()
         assertTrue(
-            "The camera HUD must use the AF-L resource for a locked state.",
-            text.contains("R.string.camera_af_locked")
+            "The pixel LCD must draw AF/AF-L instead of an instructional prompt.",
+            pixelText.contains("if (frame.focusLocked) \"AF-L\" else \"AF\"")
         )
     }
 

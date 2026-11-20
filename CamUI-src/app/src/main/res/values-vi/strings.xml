@@ -49,4 +49,12 @@
     <string name="face_tracking_off">TẮT</string>
     <string name="face_tracking_face">KHUÔN MẶT</string>
     <string name="face_tracking_face_eye">MẶT + MẮT</string>
+    <string name="zoom_controls_section">ĐIỀU KHIỂN ZOOM</string>
+    <string name="zoom_buttons_label">Chiều nút zoom</string>
+    <string name="zoom_buttons_standard">TIÊU CHUẨN · W RA / T VÀO</string>
+    <string name="zoom_buttons_swapped">ĐẢO CHIỀU · W VÀO / T RA</string>
+    <string name="zoom_bar_position_label">Vị trí thanh zoom</string>
+    <string name="zoom_bar_position_top_center">TRÊN · GIỮA</string>
+    <string name="zoom_bar_position_top_left">TRÊN · TRÁI</string>
+    <string name="zoom_bar_description">Thanh luôn hiện ở Standard, Full Info và Level + Grid. Ở Clean, thanh mờ sau 1,5 giây kể từ lần zoom.</string>
 </resources>

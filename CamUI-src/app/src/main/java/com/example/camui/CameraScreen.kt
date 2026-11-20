@@ -768,6 +768,7 @@ fun CameraScreen(
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
+    var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
     val zoomDisplayValue by animateFloatAsState(
         targetValue = actualZoomRatio,
         animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
@@ -1201,6 +1202,8 @@ fun CameraScreen(
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
         var previousFrame = 0L
+        val holdStartedAtMs = SystemClock.elapsedRealtime()
+        var zoomFrameIndex = 0L
         var lastDiagnosticAt = SystemClock.uptimeMillis()
         var tickCount = 0
         android.util.Log.d("FUJI_ZOOM", "PRESS_START direction=$direction zoom=$targetZoom")
@@ -1210,6 +1213,7 @@ fun CameraScreen(
                 ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, 0.05f)
             previousFrame = frame
             if (dt <= 0f) continue
+            zoomFrameIndex++
             val state = active.cameraInfo.zoomState.value ?: continue
             val minimum = state.minZoomRatio
             val maximum = Camera2Info.maxSelectableZoom(
@@ -1241,6 +1245,13 @@ fun CameraScreen(
                 lastZoomFuture = active.cameraControl.setZoomRatio(next)
                 tickCount++
             }
+            if (SystemClock.elapsedRealtime() - holdStartedAtMs <= 3_000L) {
+                val capturedZoom = zoomFromCaptureResult.takeIf { it.isFinite() }?.toString() ?: "NO_CAPTURE_RESULT"
+                android.util.Log.d(
+                    "FUJI_ZOOM_FRAME",
+                    "frame=$zoomFrameIndex direction=${if (direction > 0) "IN" else "OUT"} dt=$dt zoomTarget=$targetZoom zoomFromCaptureResult=$capturedZoom previewScale=1.0 previewRect=${previewBoundsTextState.value}"
+                )
+            }
             val now = SystemClock.uptimeMillis()
             if (now - lastDiagnosticAt >= 1_000L) {
                 val commandState = when {
@@ -1254,10 +1265,6 @@ fun CameraScreen(
                 android.util.Log.d(
                     "FUJI_ZOOM",
                     "HOLD_TICK direction=${if (direction > 0) "IN" else "OUT"} ticks=$tickCount zoomTarget=$targetZoom cameraZoom=${state.zoomRatio} command=$commandState"
-                )
-                android.util.Log.d(
-                    "FUJI_ZOOM_FRAME",
-                    "direction=${if (direction > 0) "IN" else "OUT"} zoomTarget=$targetZoom zoomFromCaptureResult=$actualZoomRatio previewScale=1.0 previewRect=${previewBoundsTextState.value}"
                 )
                 lastDiagnosticAt = now
                 tickCount = 0
@@ -1723,9 +1730,12 @@ fun CameraScreen(
                                 cropRegionWidth = resultCropRegion?.width(),
                                 fallbackZoomRatio = cameraXZoomFallback
                             )
-                            if (reportedZoomRatio != null && abs(reportedZoomRatio - actualZoomRatio) > 0.004f) {
+                            if (reportedZoomRatio != null) {
                                 scope.launch(Dispatchers.Main.immediate) {
-                                    actualZoomRatio = reportedZoomRatio
+                                    zoomFromCaptureResult = reportedZoomRatio
+                                    if (abs(reportedZoomRatio - actualZoomRatio) > 0.004f) {
+                                        actualZoomRatio = reportedZoomRatio
+                                    }
                                 }
                             }
                             val shouldUseCamera2Faces = faceTrackingEnabledState.value &&
@@ -2417,6 +2427,7 @@ fun CameraScreen(
                 )
                 zoomSel = restoredZoom
                 actualZoomRatio = restoredZoom
+                zoomFromCaptureResult = Float.NaN
                 runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
                 val capabilities = runCatching {
                     Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(

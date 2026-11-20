@@ -4667,7 +4667,7 @@ fun CameraScreen(
                                     evDisplayIndex = evDisplayIndex,
                                     showHistogram = showHist && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     histogram = hist.toList(),
-                                    isPro = mode == "Pro" && lcdDisplayMode == CameraLcdDisplayMode.FULL_INFO,
+                                    isPro = lcdDisplayMode.showsProHud(mode == "Pro"),
                                     afModeText = when {
                                         manualFocus > 0f || milkyWayInfinityFocusEnabled -> "MF"
                                         faceTrackingMode == "face_eye" || faceTrackingMode == "face" -> "AF-C"

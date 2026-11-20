@@ -164,6 +164,14 @@ private fun SettingsDetailPage(
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    var faceTrackingMode by remember {
+        mutableStateOf(
+            prefs.getString(
+                "face_tracking_mode",
+                if (prefs.contains("face_tracking_enabled") && !prefs.getBoolean("face_tracking_enabled", true)) "off" else "face_eye"
+            )?.takeIf { it in setOf("off", "face", "face_eye") } ?: "face_eye"
+        )
+    }
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
     var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
     var rawCaptureMode by remember {
@@ -228,7 +236,48 @@ var nightShotMode by remember {
                 SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusPeaking, onFocusPeaking)
             }
             "Focus & Lens" -> {
-                CameraHardwareScannerPanel()
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(
+                        stringResource(R.string.face_tracking_section_title),
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        stringResource(R.string.face_tracking_section_description),
+                        color = CamColors.Sub,
+                        fontSize = 10.sp
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            "off" to R.string.face_tracking_off,
+                            "face" to R.string.face_tracking_face,
+                            "face_eye" to R.string.face_tracking_face_eye
+                        ).forEach { (value, labelRes) ->
+                            FujiChip(
+                                stringResource(labelRes),
+                                faceTrackingMode == value,
+                                {
+                                    faceTrackingMode = value
+                                    prefs.edit()
+                                        .putString("face_tracking_mode", value)
+                                        .putBoolean("face_tracking_enabled", value != "off")
+                                        .apply()
+                                },
+                                Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.face_tracking_hardware_note),
+                        color = CamColors.Sub,
+                        fontSize = 9.sp
+                    )
+                    CameraHardwareScannerPanel()
+                }
             }
             "Capture & Quality" -> {
                 Text("Aspect Ratio", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)

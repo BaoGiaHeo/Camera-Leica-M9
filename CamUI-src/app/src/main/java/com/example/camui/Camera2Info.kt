@@ -185,19 +185,26 @@ object Camera2Info {
      */
     fun opticalZoomAssessment(
         logical: CamDetails?,
-        physical: List<CamDetails>
+        physical: List<CamDetails>,
+        inventory: List<CamDetails> = emptyList()
     ): OpticalZoomAssessment {
-        val equivalents = buildList {
-            logical?.eq35Mm?.let(::add)
-            logical?.eq35MmMaximum?.let(::add)
-            physical.forEach { lens ->
-                lens.eq35Mm?.let(::add)
-                lens.eq35MmMaximum?.let(::add)
-            }
-        }
+        // Include independent rear logical IDs as well as physical members of logical
+        // multi-cameras. An independent tele/periscope must not be missed merely because
+        // CameraX is currently bound to the main wide camera.
+        val rearEntries = (inventory + listOfNotNull(logical) + physical)
+            .filter { it.facing == "BACK" }
+            .distinctBy { it.id to it.parentId }
+        val equivalents = rearEntries.flatMap { lens ->
+            listOfNotNull(lens.eq35Mm, lens.eq35MmMaximum)
+        }.filter { it.isFinite() && it > 0f }.distinct()
+        val mainCandidates = rearEntries
+            .filter { it.parentId == null }
+            .mapNotNull { it.eq35Mm?.takeIf { value -> value.isFinite() && value > 0f } }
+        val mainEquivalent = mainCandidates.minByOrNull { abs(it - 26f) }
+            ?: logical?.eq35Mm?.takeIf { it.isFinite() && it > 0f }
         return assessOpticalZoom(
             equivalentFocalLengths35Mm = equivalents,
-            mainEquivalent35Mm = logical?.eq35Mm
+            mainEquivalent35Mm = mainEquivalent
         )
     }
 
@@ -216,10 +223,11 @@ object Camera2Info {
     fun maxSelectableZoom(
         logical: CamDetails?,
         physical: List<CamDetails>,
-        cameraXMaxZoom: Float
+        cameraXMaxZoom: Float,
+        inventory: List<CamDetails> = emptyList()
     ): Float = selectableCameraZoomMax(
         cameraReportedMax = cameraReportedZoomMax(logical, cameraXMaxZoom),
-        assessment = opticalZoomAssessment(logical, physical)
+        assessment = opticalZoomAssessment(logical, physical, inventory)
     )
 
     /**

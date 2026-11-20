@@ -68,6 +68,15 @@ class CameraControlProgressTest {
     }
 
     @Test
+    fun previewZoomCompensationIsClampedAndRejectsInvalidRatios() {
+        assertEquals(0.85f, resolvePreviewZoomCompensation(1f, 2f), 0.0001f)
+        assertEquals(1.15f, resolvePreviewZoomCompensation(1f, 0.6f), 0.0001f)
+        assertEquals(0.5f, resolvePreviewZoomCompensation(1f, 2f), 0.35f)
+        assertEquals(1f, resolvePreviewZoomCompensation(0f, 2f), 0.0001f)
+        assertEquals(1f, resolvePreviewZoomCompensation(Float.NaN, 1f), 0.0001f)
+    }
+
+    @Test
     fun invalidOrUnavailableControlsUseTheMidpoint() {
         assertEquals(0.5f, progress("TV", shutter = 0L), 0.0001f)
         assertEquals(0.5f, progress("EV", ev = 0f, min = 2, max = 2), 0.0001f)

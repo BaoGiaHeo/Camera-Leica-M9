@@ -769,6 +769,22 @@ fun CameraScreen(
         animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
         label = "zoom OSD interpolation"
     )
+    val previewZoomCompensation = remember { Animatable(1f) }
+
+    fun compensatePreviewZoom(from: Float, to: Float) {
+        val scale = resolvePreviewZoomCompensation(from, to)
+        if (scale == 1f) return
+        scope.launch {
+            previewZoomCompensation.snapTo(scale)
+            previewZoomCompensation.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = if (performanceMode) 80 else 120,
+                    easing = FastOutSlowInEasing
+                )
+            )
+        }
+    }
     var zoomOverlayVisible by remember { mutableStateOf(false) }
     val zoomOverlayAlpha by animateFloatAsState(
         targetValue = if (zoomOverlayVisible) 1f else 0f,
@@ -784,7 +800,6 @@ fun CameraScreen(
     var zoomAnimationJob by remember { mutableStateOf<Job?>(null) }
     var lensTransitionVisible by remember { mutableStateOf(false) }
     var lensTransitionLabel by remember { mutableStateOf("") }
-    val lensTransitionPulse = remember { Animatable(0f) }
     var metering by remember { mutableIntStateOf(appPrefs.getInt("camera_metering_index", 0).coerceIn(0, 3)) }
     // Ultra HDR is hidden from the UI. Keep the legacy camera path but start disabled.
     var ultraHdr by remember { mutableStateOf(false) }
@@ -1174,6 +1189,18 @@ fun CameraScreen(
         if (zoomHoldDirection != direction) return@LaunchedEffect
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
+        val initialZoomState = active.cameraInfo.zoomState.value
+        if (initialZoomState != null) {
+            val previewTarget = (targetZoom + direction * 0.15f).coerceIn(
+                initialZoomState.minZoomRatio,
+                Camera2Info.maxSelectableZoom(
+                    activeCameraDetails,
+                    activePhysicalCameraDetails,
+                    initialZoomState.maxZoomRatio
+                )
+            )
+            compensatePreviewZoom(targetZoom, previewTarget)
+        }
         var previousFrame = 0L
         var heldSeconds = 0f
         var lastDiagnosticAt = SystemClock.uptimeMillis()
@@ -4408,6 +4435,7 @@ fun CameraScreen(
         val start = state.zoomRatio
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
             (start >= 0.98f && safeTarget < 0.98f)
+        compensatePreviewZoom(start, safeTarget)
         zoomAnimationJob?.cancel()
         if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
             zoomHapticMilestonesCrossed(start, safeTarget).forEach { milestone ->
@@ -4421,14 +4449,7 @@ fun CameraScreen(
             lensTransitionLabel = if (safeTarget < 0.98f) "SIÊU RỘNG" else "CAM THƯỜNG"
             lensTransitionVisible = true
             scope.launch {
-                lensTransitionPulse.snapTo(0f)
-                lensTransitionPulse.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing)
-                )
-            }
-            scope.launch {
-                delay(820)
+                delay(if (dispReducedMotion) 40L else 180L)
                 lensTransitionVisible = false
             }
         }
@@ -4647,7 +4668,10 @@ fun CameraScreen(
                             key(renderEngine) {
                                 AndroidView(
                                     factory = { previewView },
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                                        scaleX = previewZoomCompensation.value
+                                        scaleY = previewZoomCompensation.value
+                                    }
                                 )
                             }
                             // LCD scanline texture is an optional display-only overlay. It is
@@ -4970,6 +4994,8 @@ fun CameraScreen(
                             LensTransitionOverlay(
                                 visible = lensTransitionVisible,
                                 lensLabel = lensTransitionLabel,
+                                performanceMode = performanceMode,
+                                reducedMotion = dispReducedMotion,
                                 modifier = Modifier.align(Alignment.Center)
                             )
                             // Histogram, battery, and AF state are rendered in the low-resolution pixel LCD layer.
@@ -6064,16 +6090,26 @@ fun CameraScreen(
 private fun LensTransitionOverlay(
     visible: Boolean,
     lensLabel: String,
+    performanceMode: Boolean,
+    reducedMotion: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val transitionMillis = when {
+        reducedMotion -> 0
+        performanceMode -> 80
+        else -> 120
+    }
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
-        enter = fadeIn(tween(110)) + scaleIn(
-            initialScale = 0.78f,
-            animationSpec = tween(250, easing = FastOutSlowInEasing)
+        enter = fadeIn(tween(transitionMillis)) + scaleIn(
+            initialScale = if (reducedMotion) 1f else 0.94f,
+            animationSpec = tween(transitionMillis, easing = FastOutSlowInEasing)
         ),
-        exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.90f, animationSpec = tween(190))
+        exit = fadeOut(tween(transitionMillis)) + scaleOut(
+            targetScale = if (reducedMotion) 1f else 0.98f,
+            animationSpec = tween(transitionMillis, easing = FastOutSlowInEasing)
+        )
     ) {
         Column(
             Modifier.background(Color(0xFF080B0C))

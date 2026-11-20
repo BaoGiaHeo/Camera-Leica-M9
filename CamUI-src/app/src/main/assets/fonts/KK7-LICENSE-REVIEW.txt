@@ -1,0 +1,10 @@
+KK7 VCR OSD font — licence review required
+
+The repository contains fonts/vcr_osd_mono_kk7.ttf.gz and has no accompanying
+author attribution, original download URL, licence text, or written permission
+for redistribution in a commercial application. The technical build step below
+does not establish usage rights.
+
+Do not publish or sell an APK containing this font until the original licence or
+written commercial redistribution permission has been verified and archived.
+Share Tech Mono is the separately licensed OFL-1.1 fallback face.

@@ -98,6 +98,7 @@ class PixelOsdRenderer(context: Context) {
     private var pixelScale = 3
     private var lastFrame: PixelOsdFrame? = null
     private var loadedTypeface: Typeface? = null
+    private var fallbackTypeface: Typeface? = null
     private var lastRenderUptimeMillis = 0L
 
     private val fillPaint = Paint().apply {
@@ -322,16 +323,39 @@ class PixelOsdRenderer(context: Context) {
             loadedTypeface = runCatching { FujiTypography.androidTypeface(appContext) }
                 .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
         }
-        textPaint.typeface = loadedTypeface
-        textPaint.textSize = 8f
-        textPaint.style = Paint.Style.STROKE
-        textPaint.strokeWidth = 2f
-        textPaint.color = PixelOsdPalette.SHADOW
-        canvas.drawText(text, x.toFloat(), baseline.toFloat(), textPaint)
-        textPaint.style = Paint.Style.FILL
-        textPaint.strokeWidth = 0f
-        textPaint.color = color
-        canvas.drawText(text, x.toFloat(), baseline.toFloat(), textPaint)
+        if (fallbackTypeface == null) {
+            fallbackTypeface = runCatching { FujiTypography.shareTechTypeface(appContext) }
+                .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
+        }
+        drawPixelTextPass(canvas, text, x, baseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE)
+        drawPixelTextPass(canvas, text, x, baseline, color, Paint.Style.FILL)
+    }
+
+    private fun drawPixelTextPass(
+        canvas: NativeCanvas,
+        text: String,
+        x: Int,
+        baseline: Int,
+        color: Int,
+        style: Paint.Style
+    ) {
+        val primary = loadedTypeface ?: Typeface.DEFAULT
+        val fallback = fallbackTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        var cursorX = x.toFloat()
+        var index = 0
+        while (index < text.length) {
+            val codePoint = text.codePointAt(index)
+            val count = Character.charCount(codePoint)
+            val glyph = text.substring(index, index + count)
+            textPaint.typeface = if (primary.hasGlyph(glyph)) primary else fallback
+            textPaint.textSize = 8f
+            textPaint.style = style
+            textPaint.strokeWidth = if (style == Paint.Style.STROKE) 2f else 0f
+            textPaint.color = color
+            canvas.drawText(text, index, index + count, cursorX, baseline.toFloat(), textPaint)
+            cursorX += textPaint.measureText(text, index, index + count)
+            index += count
+        }
     }
 }
 

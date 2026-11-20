@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.zip.GZIPInputStream
 
 plugins {
     id("com.android.application")
@@ -58,6 +59,37 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+
+val kk7FontSource = layout.projectDirectory.file("src/main/assets/fonts/vcr_osd_mono_kk7.ttf.gz")
+val generatedKk7FontResources = layout.buildDirectory.dir("generated/res/kk7-font")
+
+val generateKk7FontResource = tasks.register("generateKk7FontResource") {
+    val generatedFont = generatedKk7FontResources.map {
+        it.file("font/vcr_osd_mono_kk7.ttf")
+    }
+    inputs.file(kk7FontSource)
+    outputs.file(generatedFont)
+    doLast {
+        val destination = generatedFont.get().asFile
+        destination.parentFile.mkdirs()
+        GZIPInputStream(kk7FontSource.asFile.inputStream()).use { input ->
+            destination.outputStream().use { output -> input.copyTo(output) }
+        }
+        val signature = destination.inputStream().use { it.readNBytes(4) }
+        check(signature.contentEquals(byteArrayOf(0, 1, 0, 0))) {
+            "KK7 font did not decompress to a valid TrueType resource."
+        }
+        check(destination.length() > 4_000L) {
+            "KK7 font resource is unexpectedly small."
+        }
+    }
+}
+
+android.sourceSets.getByName("main").res.srcDir(generatedKk7FontResources)
+tasks.named("preBuild").configure {
+    dependsOn(generateKk7FontResource)
 }
 
 kotlin {

@@ -1,0 +1,7 @@
+Share Tech Mono
+Copyright (c) 2012, Carrois Type Design, Ralph du Carrois
+Source: https://github.com/google/fonts/tree/main/ofl/sharetechmono
+
+This font is licensed under the SIL Open Font License, Version 1.1 (OFL-1.1).
+The original OFL.txt is included in this directory. The font is bundled only as
+a fallback face and is not sold by itself.

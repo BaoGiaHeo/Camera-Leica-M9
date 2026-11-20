@@ -24,5 +24,13 @@ class FujiTypographyAssetTest {
             }
         }
         assertArrayEquals(byteArrayOf(0, 1, 0, 0), signature)
+        val fallbackFont = File("src/main/res/font/share_tech_mono.ttf")
+        assertTrue("Missing Share Tech Mono fallback font", fallbackFont.isFile)
+        assertTrue("Share Tech Mono fallback font is unexpectedly small", fallbackFont.length() > 10_000L)
+        val license = File("src/main/assets/fonts/ShareTechMono-OFL.txt")
+        assertTrue("Missing Share Tech Mono OFL notice", license.isFile)
+        assertTrue("Share Tech Mono OFL notice is incomplete", license.readText().contains("SIL OPEN FONT LICENSE Version 1.1"))
+        assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ĂÂĐÊÔƠƯ"))
+        assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ăâđêôơư"))
     }
 }

@@ -7,55 +7,77 @@ import android.util.Log
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import java.io.File
-import java.util.zip.GZIPInputStream
+import androidx.core.content.res.ResourcesCompat
 
 /**
- * The single typography entry point for the FujiFilm Mode UI.
+ * The one typography source for Compose text and the native pixel OSD renderer.
  *
- * The exact KK7 TTF supplied for this project is stored as a normal Android asset.
- * It is copied byte-for-byte into the app cache before Typeface loads it. If
- * the asset is unavailable or damaged,
- * Android's monospace face is used and a warning is written to Logcat.
+ * KK7 remains the primary face. The Gradle resource task inflates the checked-in
+ * compressed source into the Android resource res/font/vcr_osd_mono_kk7.ttf.
+ * Share Tech Mono is the per-glyph fallback for characters not present in KK7.
  */
 object FujiTypography {
     const val FONT_ASSET_PATH = "fonts/vcr_osd_mono_kk7.ttf.gz"
-    const val FONT_CACHE_NAME = "vcr_osd_mono_kk7.ttf"
+    const val FONT_RESOURCE_PATH = "res/font/vcr_osd_mono_kk7.ttf"
+
+    const val GLYPH_TEST_CHARACTERS =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
+            "+-/:.,%°·●K" +
+            "ĂÂĐÊÔƠƯÁÀẢÃẠẮẰẲẴẶẤẦẨẪẬẾỀỂỄỆỐỒỔỖỘỚỜỞỠỢỨỪỬỮỰÝỲỶỸỴ" +
+            "ăâđêôơưáàảãạắằẳẵặấầẩẫậếềểễệốồổỗộớờởỡợứừửữựýỳỷỹỵ"
 
     private const val TAG = "FujiTypography"
 
-    @Volatile
-    private var cachedTypeface: Typeface? = null
-
-    @Volatile
-    private var cachedFontFamily: FontFamily? = null
-
-    @Volatile
-    private var bundledFontLoaded = false
-
-    @Volatile
-    private var fallbackWarningLogged = false
+    @Volatile private var cachedTypeface: Typeface? = null
+    @Volatile private var cachedShareTechTypeface: Typeface? = null
+    @Volatile private var cachedFontFamily: FontFamily? = null
+    @Volatile private var cachedShareTechFontFamily: FontFamily? = null
+    @Volatile private var bundledFontLoaded = false
+    @Volatile private var fallbackWarningLogged = false
+    @Volatile private var startupReportLogged = false
 
     private val lock = Any()
 
+    data class GlyphCoverageReport(
+        val testedGlyphs: Int,
+        val missingFromKk7: List<String>,
+        val missingAfterFallback: List<String>
+    )
+
     fun androidTypeface(context: Context): Typeface {
         cachedTypeface?.let { return it }
-        synchronized(lock) {
-            cachedTypeface?.let { return it }
-            val loaded = runCatching {
-                loadBundledTypeface(context.applicationContext).also { bundledFontLoaded = true }
-            }
-                .onFailure { error ->
-                    bundledFontLoaded = false
-                    if (!fallbackWarningLogged) {
-                        Log.w(TAG, "KK7 VCR OSD Mono could not be loaded; using system monospace fallback.", error)
-                        fallbackWarningLogged = true
-                    }
+        val loaded = synchronized(lock) {
+            cachedTypeface ?: runCatching {
+                ResourcesCompat.getFont(context.applicationContext, R.font.vcr_osd_mono_kk7)
+                    ?: error("Android returned a null KK7 font resource.")
+            }.onSuccess {
+                bundledFontLoaded = true
+            }.onFailure { error ->
+                bundledFontLoaded = false
+                if (!fallbackWarningLogged) {
+                    Log.w(TAG, "KK7 font resource could not be loaded; using system monospace fallback.", error)
+                    fallbackWarningLogged = true
                 }
-                .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
-            cachedTypeface = loaded
-            return loaded
+            }.getOrElse {
+                Typeface.create("monospace", Typeface.NORMAL)
+            }.also { cachedTypeface = it }
+        }
+        logStartupDiagnostics(context.applicationContext, loaded)
+        return loaded
+    }
+
+    fun shareTechTypeface(context: Context): Typeface {
+        cachedShareTechTypeface?.let { return it }
+        return synchronized(lock) {
+            cachedShareTechTypeface ?: runCatching {
+                ResourcesCompat.getFont(context.applicationContext, R.font.share_tech_mono)
+                    ?: error("Android returned a null Share Tech Mono font resource.")
+            }.getOrElse { error ->
+                Log.w(TAG, "Share Tech Mono fallback resource could not be loaded.", error)
+                Typeface.create("monospace", Typeface.NORMAL)
+            }.also { cachedShareTechTypeface = it }
         }
     }
 
@@ -64,15 +86,21 @@ object FujiTypography {
         return bundledFontLoaded
     }
 
+    fun glyphCoverage(context: Context): GlyphCoverageReport =
+        computeGlyphCoverage(androidTypeface(context), shareTechTypeface(context))
+
     /**
-     * Middle dot and prime/double-prime punctuation intentionally use a
-     * monospace fallback. Every other unsupported code point is also checked
-     * individually, so a missing glyph cannot turn into a tofu square.
-     * Geometric OSD symbols are drawn by PixelOsdSprites, not text glyphs.
+     * Selects Share Tech Mono for each code point missing from KK7. Combining
+     * marks are kept as separate spans, so decomposed Vietnamese text is not
+     * silently dropped even when the primary bitmap face lacks those marks.
      */
     fun withMissingGlyphFallback(value: String): AnnotatedString {
-        val activeTypeface = cachedTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
-        val glyphPaint = Paint().apply { typeface = activeTypeface }
+        val primary = cachedTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        val primaryPaint = Paint().apply { typeface = primary }
+        val fallbackPaint = Paint().apply {
+            typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        }
+        val fallbackFamily = shareTechComposeFamily()
         return buildAnnotatedString {
             append(value)
             var index = 0
@@ -80,15 +108,8 @@ object FujiTypography {
                 val codePoint = value.codePointAt(index)
                 val charCount = Character.charCount(codePoint)
                 val glyph = String(Character.toChars(codePoint))
-                val explicitlyFallback = codePoint == '·'.code ||
-                    codePoint == '′'.code ||
-                    codePoint == '″'.code
-                if (explicitlyFallback || !glyphPaint.hasGlyph(glyph)) {
-                    addStyle(
-                        SpanStyle(fontFamily = FontFamily.Monospace),
-                        index,
-                        index + charCount
-                    )
+                if (!primaryPaint.hasGlyph(glyph) && fallbackPaint.hasGlyph(glyph)) {
+                    addStyle(SpanStyle(fontFamily = fallbackFamily), index, index + charCount)
                 }
                 index += charCount
             }
@@ -97,40 +118,67 @@ object FujiTypography {
 
     fun composeFamily(context: Context): FontFamily {
         cachedFontFamily?.let { return it }
+        val typeface = androidTypeface(context)
+        return synchronized(lock) {
+            cachedFontFamily ?: FontFamily(typeface).also { cachedFontFamily = it }
+        }
+    }
+
+    private fun shareTechComposeFamily(): FontFamily {
+        cachedShareTechFontFamily?.let { return it }
+        return synchronized(lock) {
+            cachedShareTechFontFamily ?: FontFamily(Font(R.font.share_tech_mono))
+                .also { cachedShareTechFontFamily = it }
+        }
+    }
+
+    private fun computeGlyphCoverage(primary: Typeface, fallback: Typeface): GlyphCoverageReport {
+        val primaryPaint = Paint().apply { typeface = primary }
+        val fallbackPaint = Paint().apply { typeface = fallback }
+        val glyphs = linkedSetOf<String>()
+        var index = 0
+        while (index < GLYPH_TEST_CHARACTERS.length) {
+            val codePoint = GLYPH_TEST_CHARACTERS.codePointAt(index)
+            if (!Character.isWhitespace(codePoint)) {
+                glyphs += String(Character.toChars(codePoint))
+            }
+            index += Character.charCount(codePoint)
+        }
+        val missingPrimary = glyphs.filterNot(primaryPaint::hasGlyph)
+        val missingAfterFallback = missingPrimary.filterNot(fallbackPaint::hasGlyph)
+        return GlyphCoverageReport(glyphs.size, missingPrimary, missingAfterFallback)
+    }
+
+    private fun logStartupDiagnostics(context: Context, primary: Typeface) {
+        if (startupReportLogged) return
         synchronized(lock) {
-            cachedFontFamily?.let { return it }
-            return FontFamily(androidTypeface(context)).also { cachedFontFamily = it }
+            if (startupReportLogged) return
+            val fallback = runCatching {
+                ResourcesCompat.getFont(context, R.font.share_tech_mono)
+                    ?: Typeface.create("monospace", Typeface.NORMAL)
+            }.getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
+            cachedShareTechTypeface = fallback
+            val report = computeGlyphCoverage(primary, fallback)
+            Log.i(
+                TAG,
+                "OSD typeface=${primary.familyName}; source=$FONT_RESOURCE_PATH; " +
+                    "bundledKK7=$bundledFontLoaded; glyphs=${report.testedGlyphs}; " +
+                    "KK7Missing=${report.missingFromKk7.joinToString("")}; " +
+                    "unresolved=${report.missingAfterFallback.joinToString("")}"
+            )
+            startupReportLogged = true
         }
     }
 
-    private fun loadBundledTypeface(context: Context): Typeface {
-        val output = File(context.cacheDir, FONT_CACHE_NAME)
-        if (!output.isFile || output.length() == 0L) {
-            val temporary = File(context.cacheDir, "$FONT_CACHE_NAME.tmp")
-            runCatching { temporary.delete() }
-            context.assets.open(FONT_ASSET_PATH).use { compressed ->
-                GZIPInputStream(compressed).use { input ->
-                    temporary.outputStream().use { destination -> input.copyTo(destination) }
-                }
-            }
-            check(temporary.isFile && temporary.length() > 0L) {
-                "Decompressed KK7 font is empty."
-            }
-            if (!temporary.renameTo(output)) {
-                temporary.copyTo(output, overwrite = true)
-                temporary.delete()
-            }
-        }
-        return Typeface.createFromFile(output)
-    }
-
-    /** Allows instrumentation tests to force a reload after changing the test asset. */
     internal fun clearCacheForTests() {
         synchronized(lock) {
             cachedTypeface = null
+            cachedShareTechTypeface = null
             cachedFontFamily = null
+            cachedShareTechFontFamily = null
             bundledFontLoaded = false
             fallbackWarningLogged = false
+            startupReportLogged = false
         }
     }
 }

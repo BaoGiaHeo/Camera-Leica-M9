@@ -60,6 +60,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FujiFilm-Mode-Release-2.5.0Dream
-          path: CamUI-src/app/build/outputs/apk/developer/Release.apk
+          path: CamUI-src/app/build/outputs/apk/release/FujiFilm-Mode-2.5.0Dream.apk
           if-no-files-found: error
           retention-days: 14

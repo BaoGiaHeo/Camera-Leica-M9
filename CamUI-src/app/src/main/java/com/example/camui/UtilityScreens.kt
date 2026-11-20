@@ -3035,7 +3035,7 @@ fun applyCameraWatermark(
         val specs = buildList {
             if (showFocal) {
                 exifFocal?.let(::add)
-                equivalent35mm?.let { add("$it mm eq.") }
+                equivalent35mm?.let(::add)
             }
             if (showAperture) exifAperture?.let(::add)
             if (showShutter) exifShutter?.replace(" s", "s")?.let(::add)
@@ -3422,7 +3422,7 @@ fun applyCameraWatermark(
         val secondarySize = (minSide * 0.014f).coerceAtLeast(12f)
         val infoSize = (minSide * 0.019f).coerceAtLeast(17f)
         val dateSize = (minSide * 0.013f).coerceAtLeast(12f)
-        val cameraTitle = modelLine.ifBlank { brandTitle }
+        val cameraTitle = if (showModel) modelLine.ifBlank { brandTitle } else ""
         val cameraLine = listOfNotNull(
             modelLine.takeIf { it.isNotBlank() },
             lensModel?.takeIf { it.isNotBlank() }
@@ -3932,7 +3932,7 @@ fun applyCameraWatermark(
                 template == "fuji_signature" && locationLine.isNotBlank() -> locationLine
                 else -> lensModel.orEmpty()
             }
-            val leftHasTitle = modelText.isNotBlank() || brandTitle.isNotBlank()
+            val leftHasTitle = leftTitle.isNotBlank()
             val leftHasSecondary = leftSecondary.isNotBlank()
             val rowTopY = footerRect.top + footerHeight * 0.34f
             val rowBottomY = footerRect.top + footerHeight * 0.68f
@@ -4016,7 +4016,7 @@ fun applyCameraWatermark(
             val secondarySize = (minSide * 0.017f).coerceAtLeast(14f)
             val specsSize = (minSide * 0.017f).coerceAtLeast(14f)
             val dateSize = (minSide * 0.0135f).coerceAtLeast(14f)
-            val leftTitle = modelText.ifBlank { brandTitle }
+            val leftTitle = if (showModel) modelText.ifBlank { brandTitle } else ""
             val rightDate = dateOnlyLine.ifBlank { timeLine }
             drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelLeft, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))
             drawMeasuredLine(leftSecondary, detailPaint, leftSecondaryCenterY, modelLeft, modelWidth, secondarySize, (secondarySize * 0.72f).coerceAtLeast(12f))

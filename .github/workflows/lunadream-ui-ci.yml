@@ -82,10 +82,17 @@ jobs:
             CamUI-src/app/build.gradle.kts \
             CamUI-src/app/src/androidTest/java/com/example/camui/FujiTypographyGlyphCoverageTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/DigitalZoomPreviewEffectTest.kt \
+            CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkTypographyAssetTest.kt \
             CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-NOTICE.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-OFL.txt \
             CamUI-src/app/src/main/assets/fonts/vcr_osd_mono_kk7.ttf.gz \
+            CamUI-src/app/src/main/assets/fonts/watermark_jost_variable.ttf.b64 \
+            CamUI-src/app/src/main/assets/fonts/watermark_inter_variable.ttf.b64 \
+            CamUI-src/app/src/main/assets/fonts/watermark_ibm_plex_mono_regular.ttf.b64 \
+            CamUI-src/app/src/main/assets/fonts/JOST-OFL.txt \
+            CamUI-src/app/src/main/assets/fonts/INTER-OFL.txt \
+            CamUI-src/app/src/main/assets/fonts/IBM-PLEX-MONO-OFL.txt \
             CamUI-src/app/src/main/java/com/example/camui/AnimaT.kt \
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraAfAreaSize.kt \

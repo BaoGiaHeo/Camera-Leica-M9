@@ -37,6 +37,52 @@ data class OpticalZoomAssessment(
     val hasOpticalTelephoto: Boolean
 )
 
+internal data class ZoomExecutionPlan(
+    val effectiveZoomRatio: Float,
+    val cameraControlZoomRatio: Float,
+    val digitalCropRatio: Float,
+    val cameraControlMaximum: Float,
+    val totalSelectableMaximum: Float
+)
+
+internal fun maxTotalSelectableZoom(
+    cameraReportedMaximum: Float,
+    assessment: OpticalZoomAssessment
+): Float {
+    val reported = cameraReportedMaximum.takeIf { it.isFinite() && it >= 1f } ?: 1f
+    return if (assessment.hasOpticalTelephoto) 100f else minOf(2f, reported.coerceAtLeast(2f))
+}
+
+/**
+ * Splits the requested total ratio into CameraX-controlled zoom and an additional
+ * preview/photo crop. The digital crop is deliberately never sent to CameraX.
+ */
+internal fun resolveZoomExecutionPlan(
+    requestedZoomRatio: Float,
+    minimumCameraRatio: Float,
+    cameraReportedMaximum: Float,
+    assessment: OpticalZoomAssessment
+): ZoomExecutionPlan {
+    val minimum = minimumCameraRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
+    val cameraMaximum = selectableCameraZoomMax(cameraReportedMaximum, assessment)
+        .coerceAtLeast(minimum)
+    val totalMaximum = maxTotalSelectableZoom(cameraReportedMaximum, assessment)
+        .coerceAtLeast(minimum)
+    val requested = requestedZoomRatio
+        .takeIf { it.isFinite() && it > 0f }
+        ?.coerceIn(minimum, totalMaximum)
+        ?: minimum
+    val cameraRatio = requested.coerceAtMost(cameraMaximum).coerceAtLeast(minimum)
+    val digitalCrop = (requested / cameraRatio).coerceAtLeast(1f)
+    return ZoomExecutionPlan(
+        effectiveZoomRatio = requested,
+        cameraControlZoomRatio = cameraRatio,
+        digitalCropRatio = digitalCrop,
+        cameraControlMaximum = cameraMaximum,
+        totalSelectableMaximum = totalMaximum
+    )
+}
+
 internal fun assessOpticalZoom(
     equivalentFocalLengths35Mm: List<Float>,
     mainEquivalent35Mm: Float? = null,

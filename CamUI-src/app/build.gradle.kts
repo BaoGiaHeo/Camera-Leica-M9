@@ -63,16 +63,14 @@ android {
 
 
 val kk7FontSource = layout.projectDirectory.file("src/main/assets/fonts/vcr_osd_mono_kk7.ttf.gz")
-val generatedKk7FontResources = layout.buildDirectory.dir("generated/res/kk7-font")
+val kk7FontResourceDirectory = layout.projectDirectory.dir("src/main/res/font")
+val kk7FontResource = kk7FontResourceDirectory.file("vcr_osd_mono_kk7.ttf")
 
 val generateKk7FontResource = tasks.register("generateKk7FontResource") {
-    val generatedFont = generatedKk7FontResources.map {
-        it.file("font/vcr_osd_mono_kk7.ttf")
-    }
     inputs.file(kk7FontSource)
-    outputs.file(generatedFont)
+    outputs.file(kk7FontResource)
     doLast {
-        val destination = generatedFont.get().asFile
+        val destination = kk7FontResource.asFile
         destination.parentFile.mkdirs()
         GZIPInputStream(kk7FontSource.asFile.inputStream()).use { input ->
             destination.outputStream().use { output -> input.copyTo(output) }
@@ -87,7 +85,9 @@ val generateKk7FontResource = tasks.register("generateKk7FontResource") {
     }
 }
 
-android.sourceSets.getByName("main").res.srcDir(generatedKk7FontResources)
+// The Android source set receives an ordinary directory, not a Provider. The
+// preBuild dependency creates the font file before Android resource merging.
+android.sourceSets.getByName("main").res.srcDir(kk7FontResourceDirectory.asFile)
 tasks.named("preBuild").configure {
     dependsOn(generateKk7FontResource)
 }

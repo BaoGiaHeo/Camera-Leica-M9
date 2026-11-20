@@ -183,3 +183,16 @@ internal class PrimaryEyeSelector(
     private fun opposite(side: PrimaryEyeSide): PrimaryEyeSide =
         if (side == PrimaryEyeSide.LEFT) PrimaryEyeSide.RIGHT else PrimaryEyeSide.LEFT
 }
+
+/** Returns the bounding-box area of an ML Kit eye contour in input-image pixels. */
+internal fun eyeContourArea(points: List<Offset>?): Float? {
+    if (points == null || points.size < 3) return null
+    val finitePoints = points.filter { it.x.isFinite() && it.y.isFinite() }
+    if (finitePoints.size < 3) return null
+    val minX = finitePoints.minOf { it.x }
+    val maxX = finitePoints.maxOf { it.x }
+    val minY = finitePoints.minOf { it.y }
+    val maxY = finitePoints.maxOf { it.y }
+    val area = (maxX - minX) * (maxY - minY)
+    return area.takeIf { it.isFinite() && it > 0f }
+}

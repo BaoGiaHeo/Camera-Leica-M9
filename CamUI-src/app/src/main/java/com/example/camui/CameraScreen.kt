@@ -5335,22 +5335,6 @@ fun CameraScreen(
                 Modifier.fillMaxWidth()
             )
             FujiChip(
-                when (faceTrackingMode) {
-                    "off" -> stringResource(R.string.face_tracking_off)
-                    "face" -> stringResource(R.string.face_tracking_face)
-                    else -> stringResource(R.string.face_tracking_face_eye)
-                },
-                faceTrackingMode != "off",
-                {
-                    faceTrackingMode = when (faceTrackingMode) {
-                        "off" -> "face"
-                        "face" -> "face_eye"
-                        else -> "off"
-                    }
-                },
-                Modifier.fillMaxWidth()
-            )
-            FujiChip(
                 "LUNA",
                 lunaDreamMode != "off" || nightShotMode == "night",
                 {

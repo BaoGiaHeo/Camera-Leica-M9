@@ -81,13 +81,28 @@ fun SettingsScreen(
 ) {
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
+    val displayVersionName = BuildConfig.VERSION_NAME
+        .replace(Regex("(?i)dream.*$"), "")
+        .trim()
+    val localizedSettingItems = settingItems.map { item ->
+        if (item.icon == "tab_09") {
+            item.copy(
+                subtitle = stringResource(
+                    R.string.fujifilm_mode_version,
+                    displayVersionName
+                )
+            )
+        } else {
+            item
+        }
+    }
     val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
-        settingItems + SettingItem(
+        localizedSettingItems + SettingItem(
             "tab_11",
             stringResource(R.string.pixel_osd_preview_tab),
             stringResource(R.string.pixel_osd_preview_description)
         )
-    } else settingItems
+    } else localizedSettingItems
     val tabState = rememberLazyListState()
     LaunchedEffect(selectedCategory) {
         val index = visibleSettingItems.indexOfFirst { it.title == selectedCategory }

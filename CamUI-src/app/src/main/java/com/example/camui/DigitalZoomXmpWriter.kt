@@ -123,7 +123,7 @@ internal object DigitalZoomXmpWriter {
         """.trimIndent()
     }
 
-    private fun injectXmp(input: InputStream, output: OutputStream, xmlPacket: String) {
+    internal fun injectXmp(input: InputStream, output: OutputStream, xmlPacket: String) {
         val data = DataInputStream(input)
         val soiHigh = data.readUnsignedByte()
         val soiLow = data.readUnsignedByte()
@@ -134,11 +134,14 @@ internal object DigitalZoomXmpWriter {
         val xmpPayload = XMP_HEADER + xmlPacket.toByteArray(StandardCharsets.UTF_8)
         val segmentLength = xmpPayload.size + 2
         require(segmentLength <= 0xFFFF) { "XMP APP1 packet exceeds JPEG segment length" }
-        output.write(0xFF)
-        output.write(0xE1)
-        output.write((segmentLength shr 8) and 0xFF)
-        output.write(segmentLength and 0xFF)
-        output.write(xmpPayload)
+
+        fun writeXmpSegment() {
+            output.write(0xFF)
+            output.write(0xE1)
+            output.write((segmentLength shr 8) and 0xFF)
+            output.write(segmentLength and 0xFF)
+            output.write(xmpPayload)
+        }
 
         while (true) {
             val prefix = data.read()
@@ -150,6 +153,9 @@ internal object DigitalZoomXmpWriter {
             require(marker >= 0) { "Truncated JPEG marker" }
 
             if (marker == 0xDA) {
+                // Keep JFIF APP0 and EXIF APP1 in their original leading positions.
+                // XMP is inserted directly before the scan header.
+                writeXmpSegment()
                 val high = data.readUnsignedByte()
                 val low = data.readUnsignedByte()
                 val length = (high shl 8) or low
@@ -164,6 +170,7 @@ internal object DigitalZoomXmpWriter {
             }
 
             if (marker == 0xD9) {
+                writeXmpSegment()
                 output.write(0xFF)
                 output.write(marker)
                 data.copyTo(output, 1024 * 1024)

@@ -194,9 +194,14 @@ class PixelOsdRenderer(context: Context) {
     private val appContext = context.applicationContext
     private var bitmap: Bitmap? = null
     private var nativeCanvas: NativeCanvas? = null
+    private var textBitmap: Bitmap? = null
+    private var textNativeCanvas: NativeCanvas? = null
+    private var textWidthPx = 0
+    private var textHeightPx = 0
     private var logicWidth = 0
     private var logicHeight = 0
-    private var pixelScale = 3
+    private var pixelScale = 2
+    private val displayDensity = appContext.resources.displayMetrics.density
     private var lastFrame: PixelOsdFrame? = null
     private var loadedTypeface: Typeface? = null
     private var fallbackTypeface: Typeface? = null
@@ -239,15 +244,22 @@ class PixelOsdRenderer(context: Context) {
         val geometry = PixelOsdGeometry.fromDisplayPixels(widthPx, heightPx, frame.pixelScaleMode)
         val newWidth = geometry.logicWidth
         val newHeight = geometry.logicHeight
-        val needsAllocation = bitmap == null || newWidth != logicWidth || newHeight != logicHeight
+        val needsAllocation = bitmap == null || textBitmap == null ||
+            newWidth != logicWidth || newHeight != logicHeight ||
+            widthPx != textWidthPx || heightPx != textHeightPx
 
         if (needsAllocation) {
             bitmap?.recycle()
+            textBitmap?.recycle()
             logicWidth = newWidth
             logicHeight = newHeight
             pixelScale = geometry.pixelScale
+            textWidthPx = widthPx
+            textHeightPx = heightPx
             bitmap = Bitmap.createBitmap(logicWidth, logicHeight, Bitmap.Config.ARGB_8888)
             nativeCanvas = NativeCanvas(bitmap!!)
+            textBitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+            textNativeCanvas = NativeCanvas(textBitmap!!)
             lastFrame = null
         }
         val now = SystemClock.uptimeMillis()
@@ -259,25 +271,12 @@ class PixelOsdRenderer(context: Context) {
         if (lastFrame == frame) return
 
         val canvas = nativeCanvas ?: return
-        val previous = lastFrame
-        if (previous == null) {
-            canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-            drawFrame(canvas, frame)
-        } else {
-            val dirtyRegions = pixelOsdDirtyRegions(logicWidth, logicHeight, previous, frame)
-            dirtyRegions.forEach { region ->
-                val saveCount = canvas.save()
-                canvas.clipRect(
-                    region.left,
-                    region.top,
-                    region.right,
-                    region.bottom
-                )
-                canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-                drawFrame(canvas, frame)
-                canvas.restoreToCount(saveCount)
-            }
-        }
+        val highResolutionTextCanvas = textNativeCanvas ?: return
+        canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+        highResolutionTextCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+        // Icons and reticles remain crisp nearest-neighbour sprites on the selected pixel grid.
+        // Glyphs are routed to a full LCD-resolution overlay by drawPixelText().
+        drawFrame(canvas, frame)
         lastFrame = frame
         lastRenderUptimeMillis = SystemClock.uptimeMillis()
     }
@@ -285,12 +284,10 @@ class PixelOsdRenderer(context: Context) {
     fun drawScaled(target: NativeCanvas, widthPx: Int, heightPx: Int) {
         val current = bitmap ?: return
         if (widthPx <= 0 || heightPx <= 0) return
-        target.drawBitmap(
-            current,
-            null,
-            Rect(0, 0, widthPx, heightPx),
-            bitmapPaint
-        )
+        val destination = Rect(0, 0, widthPx, heightPx)
+        target.drawBitmap(current, null, destination, bitmapPaint)
+        // The type layer already matches the LCD's physical pixel dimensions; never upscale it.
+        textBitmap?.let { target.drawBitmap(it, null, destination, null) }
     }
 
     fun logicSize(): IntSize = IntSize(logicWidth, logicHeight)
@@ -862,8 +859,21 @@ class PixelOsdRenderer(context: Context) {
             fallbackTypeface = runCatching { FujiTypography.shareTechTypeface(appContext) }
                 .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
         }
-        drawPixelTextPass(canvas, text, x, baseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE, alpha)
-        drawPixelTextPass(canvas, text, x, baseline, color, Paint.Style.FILL, alpha)
+        val textTarget = textNativeCanvas
+        if (textTarget == null) {
+            drawPixelTextPass(canvas, text, x, baseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE, alpha)
+            drawPixelTextPass(canvas, text, x, baseline, color, Paint.Style.FILL, alpha)
+            return
+        }
+        val physicalX = x * pixelScale
+        var physicalBaseline = baseline * pixelScale
+        val minimumGlyphPixels = 14f * displayDensity
+        // Top HUD labels are given enough room for the 14dp cap-height target.
+        if (physicalBaseline < minimumGlyphPixels) {
+            physicalBaseline = (minimumGlyphPixels + physicalBaseline * 0.35f).roundToInt()
+        }
+        drawPixelTextPass(textTarget, text, physicalX, physicalBaseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE, alpha)
+        drawPixelTextPass(textTarget, text, physicalX, physicalBaseline, color, Paint.Style.FILL, alpha)
     }
 
     private fun drawPixelTextPass(
@@ -890,9 +900,9 @@ class PixelOsdRenderer(context: Context) {
                 fallbackGlyphCheckPaint.hasGlyph(glyph) -> fallback
                 else -> systemFallbackTypeface
             }
-            textPaint.textSize = 8f
+            textPaint.textSize = maxOf(8f * pixelScale, 14f * displayDensity)
             textPaint.style = style
-            textPaint.strokeWidth = if (style == Paint.Style.STROKE) 2f else 0f
+            textPaint.strokeWidth = if (style == Paint.Style.STROKE) 1f else 0f
             textPaint.color = color
             textPaint.alpha = ((color ushr 24) * alpha.coerceIn(0f, 1f)).roundToInt()
             canvas.drawText(text, index, index + count, cursorX, baseline.toFloat(), textPaint)

@@ -51,11 +51,14 @@ jobs:
 
       - name: Run KK7 glyph and Android font rendering tests
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: "yes"
         with:
           api-level: 35
-          target: google_apis
+          target: default
+          profile: pixel_2
           arch: x86_64
-          disable-linux-hw-accel: false
+          disable-linux-hw-accel: true
           disable-animations: true
           emulator-boot-timeout: 600
           script: gradle -p CamUI-src connectedDeveloperAndroidTest --stacktrace

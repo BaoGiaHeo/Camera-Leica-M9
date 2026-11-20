@@ -153,8 +153,16 @@ internal fun pixelOsdDirtyRegions(
         add(0, 12, width, 28)
     }
 
-    if (previous.showZoom != current.showZoom || previous.zoomText != current.zoomText) {
+    if (previous.showZoom != current.showZoom ||
+        previous.zoomText != current.zoomText ||
+        previous.zoomAlpha != current.zoomAlpha
+    ) {
         add(width / 2 - 60, 0, width / 2 + 60, 18)
+    }
+    if (previous.showEvOverlay != current.showEvOverlay ||
+        previous.evOverlayAlpha != current.evOverlayAlpha
+    ) {
+        add(width / 2 - 60, 12, width / 2 + 60, 32)
     }
 
     return dirty.distinct()

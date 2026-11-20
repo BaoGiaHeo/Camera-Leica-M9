@@ -8,6 +8,8 @@ import android.graphics.PorterDuff
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.SystemClock
+import androidx.compose.animation.core.animateOffsetAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -116,7 +118,9 @@ data class PixelOsdFrame(
     val manualIso: Boolean = false,
     val manualShutter: Boolean = false,
     val showZoom: Boolean = false,
-    val zoomText: String = ""
+    val zoomText: String = "",
+    val zoomAlpha: Float = 1f,
+    val evOverlayAlpha: Float = 1f
 )
 
 /**
@@ -300,10 +304,24 @@ class PixelOsdRenderer(context: Context) {
             drawProHud(canvas, frame)
         }
         if (frame.showZoom && frame.zoomText.isNotBlank()) {
-            drawPixelText(canvas, frame.zoomText, (width / 2f - frame.zoomText.length * 2.5f).roundToInt(), 11, PixelOsdPalette.BLUE)
+            drawPixelText(
+                canvas,
+                frame.zoomText,
+                (width / 2f - frame.zoomText.length * 2.5f).roundToInt(),
+                11,
+                PixelOsdPalette.BLUE,
+                frame.zoomAlpha
+            )
         }
         if (frame.showEvOverlay) {
-            drawPixelText(canvas, "EV ${frame.evValueText}", (width / 2f - 18).roundToInt().coerceAtLeast(24), 23, PixelOsdPalette.AMBER)
+            drawPixelText(
+                canvas,
+                "EV ${frame.evValueText}",
+                (width / 2f - 18).roundToInt().coerceAtLeast(24),
+                23,
+                PixelOsdPalette.AMBER,
+                frame.evOverlayAlpha
+            )
         }
 
         if (frame.showLevel) {
@@ -542,7 +560,14 @@ class PixelOsdRenderer(context: Context) {
         canvas.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), strokePaint)
     }
 
-    private fun drawPixelText(canvas: NativeCanvas, text: String, x: Int, baseline: Int, color: Int) {
+    private fun drawPixelText(
+        canvas: NativeCanvas,
+        text: String,
+        x: Int,
+        baseline: Int,
+        color: Int,
+        alpha: Float = 1f
+    ) {
         if (loadedTypeface == null) {
             loadedTypeface = runCatching { FujiTypography.androidTypeface(appContext) }
                 .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
@@ -551,8 +576,8 @@ class PixelOsdRenderer(context: Context) {
             fallbackTypeface = runCatching { FujiTypography.shareTechTypeface(appContext) }
                 .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
         }
-        drawPixelTextPass(canvas, text, x, baseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE)
-        drawPixelTextPass(canvas, text, x, baseline, color, Paint.Style.FILL)
+        drawPixelTextPass(canvas, text, x, baseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE, alpha)
+        drawPixelTextPass(canvas, text, x, baseline, color, Paint.Style.FILL, alpha)
     }
 
     private fun drawPixelTextPass(
@@ -561,7 +586,8 @@ class PixelOsdRenderer(context: Context) {
         x: Int,
         baseline: Int,
         color: Int,
-        style: Paint.Style
+        style: Paint.Style,
+        alpha: Float
     ) {
         val primary = loadedTypeface ?: Typeface.DEFAULT
         val fallback = fallbackTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
@@ -577,8 +603,10 @@ class PixelOsdRenderer(context: Context) {
             textPaint.style = style
             textPaint.strokeWidth = if (style == Paint.Style.STROKE) 2f else 0f
             textPaint.color = color
+            textPaint.alpha = ((color ushr 24) * alpha.coerceIn(0f, 1f)).roundToInt()
             canvas.drawText(text, index, index + count, cursorX, baseline.toFloat(), textPaint)
             cursorX += textPaint.measureText(text, index, index + count)
+            textPaint.alpha = 255
             index += count
         }
     }
@@ -594,10 +622,26 @@ fun PixelOsdLayer(
     val renderer = remember(context.applicationContext) {
         PixelOsdRenderer(context.applicationContext)
     }
+    val faceTarget = frame.faceCenter ?: Offset(0.5f, 0.5f)
+    val animatedFaceCenter by animateOffsetAsState(
+        targetValue = faceTarget,
+        animationSpec = tween(durationMillis = 120),
+        label = "face box display interpolation"
+    )
+    val afTarget = frame.centerAfPoint ?: Offset(0.5f, 0.5f)
+    val animatedAfPoint by animateOffsetAsState(
+        targetValue = afTarget,
+        animationSpec = tween(durationMillis = 120),
+        label = "center AF display interpolation"
+    )
+    val animatedFrame = frame.copy(
+        faceCenter = frame.faceCenter?.let { animatedFaceCenter },
+        centerAfPoint = frame.centerAfPoint?.let { animatedAfPoint }
+    )
     Canvas(modifier) {
         val widthPx = size.width.roundToInt()
         val heightPx = size.height.roundToInt()
-        renderer.render(widthPx, heightPx, frame, maxRefreshHz)
+        renderer.render(widthPx, heightPx, animatedFrame, maxRefreshHz)
         drawContext.canvas.nativeCanvas.let { native ->
             renderer.drawScaled(native, widthPx, heightPx)
         }

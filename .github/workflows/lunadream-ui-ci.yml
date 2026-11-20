@@ -47,7 +47,7 @@ jobs:
             exit 1
           fi
       - name: Compile and run unit tests
-        run: gradle -p CamUI-src testDebugUnitTest assembleDeveloper --stacktrace
+        run: gradle -p CamUI-src :app:testDeveloperUnitTest :app:assembleDeveloper --stacktrace
 
       - name: Run KK7 glyph and Android font rendering tests
         uses: reactivecircus/android-emulator-runner@v2

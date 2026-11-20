@@ -3508,7 +3508,7 @@ fun applyCameraWatermark(
                 drawTemplateFooter(frameColor)
                 if (frameStyle == "LiquidGlass") drawLiquidGlassPanel(footerRect, sharedFooterRadius)
                 val logoH = minOf(watermarkLogoHeight, footerHeight * 0.34f)
-                val logoW = minOf(footerWidth * 0.30f, logoH * sharedLogoRatio)
+                val logoW = minOf(footerWidth * 0.22f, logoH * sharedLogoRatio)
                 drawBrandLogo(RectF(centerX - logoW / 2f, footerRect.top + footerHeight * 0.08f,
                     centerX + logoW / 2f, footerRect.top + footerHeight * 0.08f + logoH))
                 drawTemplateText(cameraTitle, titlePaint, centerX, footerRect.top + footerHeight * 0.58f,
@@ -3560,7 +3560,7 @@ fun applyCameraWatermark(
                 canvas.drawLine(footerRect.left + footerWidth * 0.61f, footerRect.top + footerHeight * 0.2f,
                     footerRect.left + footerWidth * 0.61f, footerRect.bottom - footerHeight * 0.2f, rule)
                 val logoH = minOf(watermarkLogoHeight, footerHeight * 0.35f)
-                val logoW = minOf(footerWidth * 0.26f, logoH * sharedLogoRatio)
+                val logoW = minOf(footerWidth * 0.22f, logoH * sharedLogoRatio)
                 drawBrandLogo(RectF(footerRect.right - pad - logoW, centerY - logoH / 2f,
                     footerRect.right - pad, centerY + logoH / 2f))
                 // 35mm film sprocket holes on both long edges.
@@ -3676,7 +3676,7 @@ fun applyCameraWatermark(
                 if (frameStyle == "White" || frameStyle == "Black") drawTemplateFooter(frameColor)
                 else if (frameStyle == "LiquidGlass") drawLiquidGlassPanel(footerRect, sharedFooterRadius)
                 val logoH = footerHeight * 0.38f
-                val logoW = minOf(footerWidth * 0.48f, logoH * sharedLogoRatio)
+                val logoW = minOf(footerWidth * 0.22f, logoH * sharedLogoRatio)
                 drawBrandLogo(RectF(centerX - logoW / 2f, footerRect.top + footerHeight * 0.08f,
                     centerX + logoW / 2f, footerRect.top + footerHeight * 0.08f + logoH))
                 drawTemplateText(cameraTitle, titlePaint, centerX, footerRect.top + footerHeight * 0.70f,
@@ -3753,7 +3753,7 @@ fun applyCameraWatermark(
                 val ink = Paint(titlePaint).apply { color = if (sampleBitmapLuminance(output) > 0.52f) AndroidColor.BLACK else AndroidColor.WHITE }
                 val quiet = Paint(detailPaint).apply { color = ink.color; alpha = 210 }
                 val logoH = footerHeight * 0.38f
-                val logoW = minOf(footerWidth * 0.30f, logoH * sharedLogoRatio)
+                val logoW = minOf(footerWidth * 0.22f, logoH * sharedLogoRatio)
                 drawBrandLogo(RectF(footerRect.left + pad, centerY - logoH / 2f,
                     footerRect.left + pad + logoW, centerY + logoH / 2f))
                 drawTemplateText(cameraLine, ink, footerRect.left + pad + logoW + pad * 0.45f,

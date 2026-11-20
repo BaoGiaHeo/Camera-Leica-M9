@@ -372,16 +372,18 @@ class PixelOsdRenderer(context: Context) {
 
     private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
         val width = logicWidth
-        drawSprite(
-            canvas,
-            when (frame.meteringText.uppercase()) {
-                "M" -> "meter-center"
-                "S" -> "meter-spot"
-                else -> "meter-matrix"
-            },
-            7,
-            5
-        )
+        if (frame.isPro && frame.meteringText.isNotBlank()) {
+            drawSprite(
+                canvas,
+                when (frame.meteringText.uppercase()) {
+                    "M" -> "meter-center"
+                    "S" -> "meter-spot"
+                    else -> "meter-matrix"
+                },
+                7,
+                5
+            )
+        }
         val afLabel = if (frame.focusLocked) "AF-L" else "AF"
         drawPixelText(
             canvas,

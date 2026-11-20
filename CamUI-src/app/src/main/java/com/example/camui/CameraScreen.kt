@@ -763,8 +763,9 @@ fun CameraScreen(
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
+    var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     val zoomDisplayValue by animateFloatAsState(
-        targetValue = zoomSel,
+        targetValue = actualZoomRatio,
         animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
         label = "zoom OSD interpolation"
     )
@@ -1670,6 +1671,27 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            val resultControlZoomRatio = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                result.get(CaptureResult.CONTROL_ZOOM_RATIO)
+                            } else {
+                                null
+                            }
+                            val resultCropRegion = result.get(CaptureResult.SCALER_CROP_REGION)
+                            val activeArrayWidth = activeCameraCharacteristics
+                                ?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                                ?.width()
+                            val cameraXZoomFallback = camera?.cameraInfo?.zoomState?.value?.zoomRatio
+                            val reportedZoomRatio = resolveCaptureZoomRatio(
+                                controlZoomRatio = resultControlZoomRatio,
+                                activeArrayWidth = activeArrayWidth,
+                                cropRegionWidth = resultCropRegion?.width(),
+                                fallbackZoomRatio = cameraXZoomFallback
+                            )
+                            if (reportedZoomRatio != null && abs(reportedZoomRatio - actualZoomRatio) > 0.004f) {
+                                scope.launch(Dispatchers.Main.immediate) {
+                                    actualZoomRatio = reportedZoomRatio
+                                }
+                            }
                             val shouldUseCamera2Faces = faceTrackingEnabledState.value &&
                                 if (faceTrackingModeState.value == "face_eye") hardwareEyeLandmarksAvailableState.value
                                 else hardwareFaceDetectionAvailableState.value
@@ -2340,6 +2362,7 @@ fun CameraScreen(
                     maxSelectableZoom
                 )
                 zoomSel = restoredZoom
+                actualZoomRatio = restoredZoom
                 runCatching { bound.cameraControl.setZoomRatio(restoredZoom) }
                 val capabilities = runCatching {
                     Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(

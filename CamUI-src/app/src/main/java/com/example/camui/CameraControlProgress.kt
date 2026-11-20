@@ -47,3 +47,36 @@ internal fun cameraControlProgress(
         else -> 0.5f
     }
 }
+
+/**
+ * Resolves the displayed zoom from Camera2 result metadata first. The crop
+ * ratio is the fallback on older Android versions; CameraX's observable zoom
+ * preserves sub-1x ultra-wide values when the HAL does not publish zoom ratio.
+ */
+internal fun resolveCaptureZoomRatio(
+    controlZoomRatio: Float?,
+    activeArrayWidth: Int?,
+    cropRegionWidth: Int?,
+    fallbackZoomRatio: Float?
+): Float? {
+    val reportedRatio = controlZoomRatio?.takeIf {
+        it.isFinite() && it in 0.1f..100f
+    }
+    if (reportedRatio != null) return reportedRatio
+
+    val cropRatio = if (
+        activeArrayWidth != null && activeArrayWidth > 0 &&
+        cropRegionWidth != null && cropRegionWidth > 0
+    ) {
+        (activeArrayWidth.toFloat() / cropRegionWidth.toFloat())
+            .takeIf { it.isFinite() && it >= 1f && it <= 100f }
+    } else {
+        null
+    }
+    if (cropRatio != null && cropRatio > 1.005f) return cropRatio
+
+    val cameraXRatio = fallbackZoomRatio?.takeIf {
+        it.isFinite() && it in 0.1f..100f
+    }
+    return cameraXRatio ?: cropRatio
+}

@@ -42,6 +42,34 @@ class CameraControlProgressTest {
     }
 
     @Test
+    fun captureResultZoomPrefersCamera2RatioThenCropAndCameraXFallback() {
+        assertEquals(
+            0.6f,
+            resolveCaptureZoomRatio(0.6f, 6000, 6000, 1f)!!,
+            0.0001f
+        )
+        assertEquals(
+            2f,
+            resolveCaptureZoomRatio(null, 6000, 3000, 1f)!!,
+            0.0001f
+        )
+        assertEquals(
+            0.6f,
+            resolveCaptureZoomRatio(null, 6000, 6000, 0.6f)!!,
+            0.0001f
+        )
+        assertEquals(
+            1f,
+            resolveCaptureZoomRatio(null, 6000, 0, 1f)!!,
+            0.0001f
+        )
+        assertEquals(
+            null,
+            resolveCaptureZoomRatio(Float.NaN, 0, 0, Float.NaN)
+        )
+    }
+
+    @Test
     fun invalidOrUnavailableControlsUseTheMidpoint() {
         assertEquals(0.5f, progress("TV", shutter = 0L), 0.0001f)
         assertEquals(0.5f, progress("EV", ev = 0f, min = 2, max = 2), 0.0001f)

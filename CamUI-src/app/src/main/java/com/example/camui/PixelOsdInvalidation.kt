@@ -49,6 +49,20 @@ internal fun pixelOsdDirtyRegions(
         points.forEach { point -> addPoint(point) }
     }
 
+    fun addFaceBounds(center: Offset?, faceSize: Offset?) {
+        if (center == null) return
+        val halfWidth = faceSize?.x
+            ?.let { (it.coerceAtLeast(0f) * width * 0.5f).roundToInt() }
+            ?.coerceIn(12, (width / 3).coerceAtLeast(12)) ?: 14
+        val halfHeight = faceSize?.y
+            ?.let { (it.coerceAtLeast(0f) * height * 0.5f).roundToInt() }
+            ?.coerceIn(14, (height / 3).coerceAtLeast(14)) ?: 17
+        val x = (center.x.coerceIn(0f, 1f) * width).roundToInt()
+        val y = (center.y.coerceIn(0f, 1f) * height).roundToInt()
+        // Include eye marker and corner strokes, plus one pixel of clearing margin.
+        add(x - halfWidth - 1, y - halfHeight - 1, x + halfWidth + 2, y + halfHeight + 2)
+    }
+
     if (previous.focusPoints != current.focusPoints) {
         addPoints(previous.focusPoints)
         addPoints(current.focusPoints)
@@ -64,11 +78,8 @@ internal fun pixelOsdDirtyRegions(
     if (previous.faceCenter != current.faceCenter ||
         (current.faceCenter != null && previous.faceFocused != current.faceFocused)
     ) {
-        listOfNotNull(previous.faceCenter, current.faceCenter).forEach { center ->
-            val x = (center.x.coerceIn(0f, 1f) * width).roundToInt()
-            val y = (center.y.coerceIn(0f, 1f) * height).roundToInt()
-            add(x - 19, y - 22, x + 20, y + 23)
-        }
+        addFaceBounds(previous.faceCenter, previous.faceSize)
+        addFaceBounds(current.faceCenter, current.faceSize)
     }
 
     if (previous.focusLocked != current.focusLocked) {
@@ -97,12 +108,13 @@ internal fun pixelOsdDirtyRegions(
         }
     }
 
-    if (previous.faceSize != current.faceSize || previous.eyeCenter != current.eyeCenter) {
-        listOfNotNull(previous.faceCenter, current.faceCenter).forEach { point ->
-            val x = (point.x.coerceIn(0f, 1f) * width).roundToInt()
-            val y = (point.y.coerceIn(0f, 1f) * height).roundToInt()
-            add(x - 64, y - 64, x + 65, y + 65)
-        }
+    if (previous.faceSize != current.faceSize) {
+        addFaceBounds(previous.faceCenter, previous.faceSize)
+        addFaceBounds(current.faceCenter, current.faceSize)
+    }
+    if (previous.eyeCenter != current.eyeCenter) {
+        addPoint(previous.eyeCenter ?: Offset(-1f, -1f), radius = 4)
+        current.eyeCenter?.let { addPoint(it, radius = 4) }
     }
 
     if (previous.showStatus != current.showStatus) {

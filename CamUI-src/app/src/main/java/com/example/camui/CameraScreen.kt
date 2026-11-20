@@ -63,6 +63,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.view.PreviewView
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.face.FaceLandmark
 import androidx.camera.video.FallbackStrategy
 import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.video.Quality
@@ -442,6 +446,21 @@ fun CameraScreen(
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val faceDetector = remember {
+        FaceDetection.getClient(
+            FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+                .setMinFaceSize(0.08f)
+                .enableTracking()
+                .build()
+        )
+    }
+    val faceDetectionBusy = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    DisposableEffect(faceDetector) {
+        onDispose { runCatching { faceDetector.close() } }
+    }
     val initialLandscapeRotation = remember(localView) {
         val displayRotation = localView.display?.rotation ?: Surface.ROTATION_90
         if (displayRotation == Surface.ROTATION_270) Surface.ROTATION_270 else Surface.ROTATION_90
@@ -523,6 +542,16 @@ fun CameraScreen(
     val faceTrackingEnabled = faceTrackingMode != "off"
     val faceTrackingEnabledState = rememberUpdatedState(faceTrackingEnabled)
     val faceTrackingModeState = rememberUpdatedState(faceTrackingMode)
+    var hardwareFaceDetectionAvailable by remember { mutableStateOf(false) }
+    var hardwareEyeLandmarksAvailable by remember { mutableStateOf(false) }
+    val hardwareFaceDetectionAvailableState = rememberUpdatedState(hardwareFaceDetectionAvailable)
+    val hardwareEyeLandmarksAvailableState = rememberUpdatedState(hardwareEyeLandmarksAvailable)
+    val useMlFaceDetectionState = rememberUpdatedState(
+        faceTrackingEnabled &&
+            if (faceTrackingMode == "face_eye") !hardwareEyeLandmarksAvailable
+            else !hardwareFaceDetectionAvailable
+    )
+    val faceTrackSmoother = remember { FaceTrackSmoother() }
     var faceTrackCenter by remember { mutableStateOf<Offset?>(null) }
     var faceTrackSize by remember { mutableStateOf<Offset?>(null) }
     var faceEyeCenter by remember { mutableStateOf<Offset?>(null) }
@@ -535,6 +564,7 @@ fun CameraScreen(
             .putString("face_tracking_mode", faceTrackingMode)
             .putBoolean("face_tracking_enabled", faceTrackingMode != "off")
             .apply()
+        faceTrackSmoother.reset()
         if (faceTrackingMode == "off") {
             faceTrackCenter = null
             faceTrackSize = null
@@ -1362,11 +1392,79 @@ fun CameraScreen(
             ) {
                 var lastFaceTrackAtMs = 0L
                 var lastFaceAfAtMs = 0L
-                var lastFaceTrackCenter: Offset? = null
-                var lastFaceTrackSize: Offset? = null
-                var lastFaceEyeCenter: Offset? = null
-                var detectedFaceFrames = 0
-                var missingFaceFrames = 0
+                var lastFaceAfTarget: Offset? = null
+
+                fun publishDetectedFace(center: Offset, size: Offset, eyeCenter: Offset?, now: Long) {
+                    val smoothed = faceTrackSmoother.onFaceDetected(center, size, eyeCenter) ?: return
+                    val uiCenterMoved = now - lastFaceTrackAtMs >= 40L
+                    if (uiCenterMoved) {
+                        lastFaceTrackAtMs = now
+                        scope.launch(Dispatchers.Main) {
+                            faceTrackCenter = smoothed.center
+                            faceTrackSize = smoothed.size
+                            faceEyeCenter = if (faceTrackingModeState.value == "face_eye") smoothed.eyeCenter else null
+                        }
+                    }
+                    val focusTarget = if (faceTrackingModeState.value == "face_eye") {
+                        smoothed.eyeCenter ?: smoothed.center
+                    } else smoothed.center
+                    if (now < manualAfOverrideUntilMsState.value) {
+                        lastFaceAfTarget = null
+                        return
+                    }
+                    val previousTarget = lastFaceAfTarget
+                    val movedEnough = previousTarget == null ||
+                        kotlin.math.abs(previousTarget.x - focusTarget.x) +
+                        kotlin.math.abs(previousTarget.y - focusTarget.y) > 0.025f
+                    if (movedEnough && now - lastFaceAfAtMs >= 200L &&
+                        !focusLockedState.value && manualFocusState.value <= 0f
+                    ) {
+                        lastFaceAfAtMs = now
+                        lastFaceAfTarget = focusTarget
+                        scope.launch(Dispatchers.Main) {
+                            val previewWidth = previewView.width
+                            val previewHeight = previewView.height
+                            if (previewWidth > 0 && previewHeight > 0) {
+                                centerAfPoint = focusTarget
+                                centerAfStatus = 0
+                                runCatching {
+                                    val point = previewView.meteringPointFactory.createPoint(
+                                        focusTarget.x * previewWidth,
+                                        focusTarget.y * previewHeight,
+                                        0.18f
+                                    )
+                                    val action = FocusMeteringAction.Builder(
+                                        point,
+                                        FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                                    ).disableAutoCancel().build()
+                                    val future = camera?.cameraControl?.startFocusAndMetering(action)
+                                    future?.addListener({
+                                        val success = runCatching { future.get().isFocusSuccessful }.getOrDefault(false)
+                                        centerAfStatus = if (success) 1 else -1
+                                        if (!success) {
+                                            scope.launch {
+                                                delay(80L)
+                                                if (centerAfStatus == -1) centerAfStatus = 0
+                                            }
+                                        }
+                                    }, mainExecutor)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                fun publishMissingFace() {
+                    if (faceTrackSmoother.onNoFace()) {
+                        lastFaceAfTarget = null
+                        scope.launch(Dispatchers.Main) {
+                            faceTrackCenter = null
+                            faceTrackSize = null
+                            faceEyeCenter = null
+                            centerAfStatus = 0
+                        }
+                    }
+                }
                 val distortionModes = activeFacingId?.let { id ->
                     runCatching {
                         cameraManager.getCameraCharacteristics(id)
@@ -1440,143 +1538,57 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
-                            if (faceTrackingEnabledState.value) {
+                            val shouldUseCamera2Faces = faceTrackingEnabledState.value &&
+                                if (faceTrackingModeState.value == "face_eye") hardwareEyeLandmarksAvailableState.value
+                                else hardwareFaceDetectionAvailableState.value
+                            if (shouldUseCamera2Faces) {
                                 val detectedFaces = result.get(CaptureResult.STATISTICS_FACES)
                                 val bestFace = detectedFaces
                                     ?.filter { it.score >= 50 }
                                     ?.maxByOrNull { it.bounds.width().toLong() * it.bounds.height().toLong() }
                                 val crop = result.get(CaptureResult.SCALER_CROP_REGION)
                                     ?: activeCameraCharacteristics?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
-                                val now = SystemClock.elapsedRealtime()
                                 if (bestFace != null && crop != null && crop.width() > 0 && crop.height() > 0) {
-                                    detectedFaceFrames++
-                                    missingFaceFrames = 0
-                                    if (detectedFaceFrames >= 3) {
-                                        val faceBounds = bestFace.bounds
-                                        val normalizedX = ((faceBounds.centerX() - crop.left).toFloat() /
-                                            crop.width()).coerceIn(0f, 1f)
-                                        val normalizedY = ((faceBounds.centerY() - crop.top).toFloat() /
-                                            crop.height()).coerceIn(0f, 1f)
-                                        fun orientPoint(x: Float, y: Float): Offset {
-                                            val rotated = when (faceSensorToDisplayRotation) {
-                                                90 -> Offset(1f - y, x)
-                                                180 -> Offset(1f - x, 1f - y)
-                                                270 -> Offset(y, 1f - x)
-                                                else -> Offset(x, y)
-                                            }
-                                            return if (front) Offset(1f - rotated.x, rotated.y) else rotated
-                                        }
-                                        val rawCenter = orientPoint(normalizedX, normalizedY)
-                                        val normalizedFaceWidth = (faceBounds.width().toFloat() / crop.width()).coerceIn(0.04f, 0.85f)
-                                        val normalizedFaceHeight = (faceBounds.height().toFloat() / crop.height()).coerceIn(0.04f, 0.85f)
-                                        val orientedSize = if (faceSensorToDisplayRotation == 90 || faceSensorToDisplayRotation == 270) {
-                                            Offset(normalizedFaceHeight, normalizedFaceWidth)
-                                        } else Offset(normalizedFaceWidth, normalizedFaceHeight)
-                                        val leftEye = bestFace.leftEyePosition
-                                        val rightEye = bestFace.rightEyePosition
-                                        val eyeSensorX = when {
-                                            leftEye != null && rightEye != null -> (leftEye.x + rightEye.x) / 2f
-                                            leftEye != null -> leftEye.x.toFloat()
-                                            rightEye != null -> rightEye.x.toFloat()
-                                            else -> Float.NaN
-                                        }
-                                        val eyeSensorY = when {
-                                            leftEye != null && rightEye != null -> (leftEye.y + rightEye.y) / 2f
-                                            leftEye != null -> leftEye.y.toFloat()
-                                            rightEye != null -> rightEye.y.toFloat()
-                                            else -> Float.NaN
-                                        }
-                                        val orientedEye = if (eyeSensorX.isFinite() && eyeSensorY.isFinite()) {
-                                            orientPoint(
-                                                ((eyeSensorX - crop.left) / crop.width()).coerceIn(0f, 1f),
-                                                ((eyeSensorY - crop.top) / crop.height()).coerceIn(0f, 1f)
-                                            )
-                                        } else null
-                                        val previous = lastFaceTrackCenter
-                                        val smoothedCenter = if (previous == null) rawCenter else Offset(
-                                            previous.x + (rawCenter.x - previous.x) * 0.38f,
-                                            previous.y + (rawCenter.y - previous.y) * 0.38f
+                                    val bounds = bestFace.bounds
+                                    val center = rotateFacePoint(
+                                        (bounds.centerX() - crop.left).toFloat() / crop.width(),
+                                        (bounds.centerY() - crop.top).toFloat() / crop.height(),
+                                        faceSensorToDisplayRotation,
+                                        front
+                                    )
+                                    val size = rotateFaceSize(
+                                        bounds.width().toFloat() / crop.width(),
+                                        bounds.height().toFloat() / crop.height(),
+                                        faceSensorToDisplayRotation
+                                    )
+                                    val leftEye = bestFace.leftEyePosition
+                                    val rightEye = bestFace.rightEyePosition
+                                    val eyeX = when {
+                                        leftEye != null && rightEye != null -> (leftEye.x + rightEye.x) / 2f
+                                        leftEye != null -> leftEye.x.toFloat()
+                                        rightEye != null -> rightEye.x.toFloat()
+                                        else -> Float.NaN
+                                    }
+                                    val eyeY = when {
+                                        leftEye != null && rightEye != null -> (leftEye.y + rightEye.y) / 2f
+                                        leftEye != null -> leftEye.y.toFloat()
+                                        rightEye != null -> rightEye.y.toFloat()
+                                        else -> Float.NaN
+                                    }
+                                    val eye = if (eyeX.isFinite() && eyeY.isFinite()) {
+                                        rotateFacePoint(
+                                            (eyeX - crop.left) / crop.width(),
+                                            (eyeY - crop.top) / crop.height(),
+                                            faceSensorToDisplayRotation,
+                                            front
                                         )
-                                        val previousEye = lastFaceEyeCenter
-                                        val smoothedEye = orientedEye?.let { eye ->
-                                            if (previousEye == null) eye else Offset(
-                                                previousEye.x + (eye.x - previousEye.x) * 0.38f,
-                                                previousEye.y + (eye.y - previousEye.y) * 0.38f
-                                            )
-                                        }
-                                        val movedEnough = previous == null ||
-                                            kotlin.math.abs(previous.x - smoothedCenter.x) +
-                                            kotlin.math.abs(previous.y - smoothedCenter.y) > 0.012f
-                                        if (movedEnough || now - lastFaceTrackAtMs >= 40L) {
-                                            lastFaceTrackAtMs = now
-                                            lastFaceTrackCenter = smoothedCenter
-                                            lastFaceTrackSize = orientedSize
-                                            lastFaceEyeCenter = smoothedEye
-                                            scope.launch(Dispatchers.Main) {
-                                                faceTrackCenter = smoothedCenter
-                                                faceTrackSize = orientedSize
-                                                faceEyeCenter = smoothedEye
-                                            }
-                                        }
-
-                                        val afTarget = if (faceTrackingModeState.value == "face_eye") {
-                                            smoothedEye ?: smoothedCenter
-                                        } else smoothedCenter
-                                        val afMovedEnough = previous == null ||
-                                            kotlin.math.abs(previous.x - afTarget.x) +
-                                            kotlin.math.abs(previous.y - afTarget.y) > 0.025f
-                                        if (afMovedEnough && now - lastFaceAfAtMs >= 200L &&
-                                            now >= manualAfOverrideUntilMsState.value &&
-                                            !focusLockedState.value && manualFocusState.value <= 0f
-                                        ) {
-                                            lastFaceAfAtMs = now
-                                            scope.launch(Dispatchers.Main) {
-                                                val previewWidth = previewView.width
-                                                val previewHeight = previewView.height
-                                                if (previewWidth > 0 && previewHeight > 0) {
-                                                    runCatching {
-                                                        centerAfPoint = afTarget
-                                                        centerAfStatus = 0
-                                                        val point = previewView.meteringPointFactory.createPoint(
-                                                            afTarget.x * previewWidth,
-                                                            afTarget.y * previewHeight,
-                                                            0.18f
-                                                        )
-                                                        val action = FocusMeteringAction.Builder(
-                                                            point,
-                                                            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
-                                                        ).disableAutoCancel().build()
-                                                        camera?.cameraControl?.startFocusAndMetering(action)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    } else null
+                                    publishDetectedFace(center, size, eye, SystemClock.elapsedRealtime())
                                 } else {
-                                    detectedFaceFrames = 0
-                                    missingFaceFrames++
-                                    if (missingFaceFrames >= 8) {
-                                        lastFaceTrackCenter = null
-                                        lastFaceTrackSize = null
-                                        lastFaceEyeCenter = null
-                                        scope.launch(Dispatchers.Main) {
-                                            faceTrackCenter = null
-                                            faceTrackSize = null
-                                            faceEyeCenter = null
-                                        }
-                                    }
+                                    publishMissingFace()
                                 }
-                            } else {
-                                detectedFaceFrames = 0
-                                missingFaceFrames = 0
-                                lastFaceTrackCenter = null
-                                lastFaceTrackSize = null
-                                lastFaceEyeCenter = null
-                                scope.launch(Dispatchers.Main) {
-                                    faceTrackCenter = null
-                                    faceTrackSize = null
-                                    faceEyeCenter = null
-                                }
+                            } else if (!faceTrackingEnabledState.value) {
+                                faceTrackSmoother.reset()
                             }
                             live.activePhysicalCameraId?.let { id ->
                                 if (activePhysicalCameraId != id) activePhysicalCameraId = id
@@ -1802,6 +1814,16 @@ fun CameraScreen(
 
                 val analysis = ImageAnalysis.Builder()
                     .setTargetRotation(rotation)
+                    .setResolutionSelector(
+                        ResolutionSelector.Builder()
+                            .setResolutionStrategy(
+                                ResolutionStrategy(
+                                    Size(640, 480),
+                                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                                )
+                            )
+                            .build()
+                    )
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 previewUseCase = preview
@@ -1813,7 +1835,89 @@ fun CameraScreen(
                 var consecutiveLensWarnings = 0
                 var lastLensWarningAt = 0L
                 analysis.setAnalyzer(analysisExecutor) { image ->
+                    var imageReleasedByFaceDetector = false
                     try {
+                        if (useMlFaceDetectionState.value &&
+                            faceDetectionBusy.compareAndSet(false, true)
+                        ) {
+                            val mediaImage = image.image
+                            if (mediaImage != null) {
+                                val faceTask = runCatching {
+                                    faceDetector.process(
+                                        InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+                                    )
+                                }.getOrNull()
+                                if (faceTask != null) {
+                                    imageReleasedByFaceDetector = true
+                                    faceTask.addOnSuccessListener(analysisExecutor) { faces ->
+                                        val rotation = image.imageInfo.rotationDegrees
+                                        val uprightWidth = if (rotation == 90 || rotation == 270) image.height else image.width
+                                        val uprightHeight = if (rotation == 90 || rotation == 270) image.width else image.height
+                                        val cropRect = image.cropRect
+                                        val frameLeft = if (rotation == 90 || rotation == 270) cropRect.top else cropRect.left
+                                        val frameTop = if (rotation == 90 || rotation == 270) cropRect.left else cropRect.top
+                                        val frameWidth = if (rotation == 90 || rotation == 270) cropRect.height() else cropRect.width()
+                                        val frameHeight = if (rotation == 90 || rotation == 270) cropRect.width() else cropRect.height()
+                                        val best = faces.maxByOrNull {
+                                            it.boundingBox.width().toLong() * it.boundingBox.height().toLong()
+                                        }
+                                        if (best != null && frameWidth > 0 && frameHeight > 0 &&
+                                            uprightWidth > 0 && uprightHeight > 0
+                                        ) {
+                                            val bounds = best.boundingBox
+                                            val center = rotateFacePoint(
+                                                (bounds.centerX() - frameLeft) / frameWidth.toFloat(),
+                                                (bounds.centerY() - frameTop) / frameHeight.toFloat(),
+                                                0,
+                                                front
+                                            )
+                                            val size = rotateFaceSize(
+                                                bounds.width().toFloat() / frameWidth,
+                                                bounds.height().toFloat() / frameHeight,
+                                                0
+                                            )
+                                            val leftEye = best.getLandmark(FaceLandmark.LEFT_EYE)?.position
+                                            val rightEye = best.getLandmark(FaceLandmark.RIGHT_EYE)?.position
+                                            val eyeX = when {
+                                                leftEye != null && rightEye != null -> (leftEye.x + rightEye.x) / 2f
+                                                leftEye != null -> leftEye.x
+                                                rightEye != null -> rightEye.x
+                                                else -> Float.NaN
+                                            }
+                                            val eyeY = when {
+                                                leftEye != null && rightEye != null -> (leftEye.y + rightEye.y) / 2f
+                                                leftEye != null -> leftEye.y
+                                                rightEye != null -> rightEye.y
+                                                else -> Float.NaN
+                                            }
+                                            val eye = if (eyeX.isFinite() && eyeY.isFinite()) {
+                                                rotateFacePoint(
+                                                    (eyeX - frameLeft) / frameWidth.toFloat(),
+                                                    (eyeY - frameTop) / frameHeight.toFloat(),
+                                                    0,
+                                                    front
+                                                )
+                                            } else null
+                                            publishDetectedFace(center, size, eye, SystemClock.elapsedRealtime())
+                                        } else {
+                                            publishMissingFace()
+                                        }
+                                    }
+                                    faceTask.addOnFailureListener(analysisExecutor) {
+                                        android.util.Log.w("FUJI_FACE_TRACK", "ML Kit face detector failed.", it)
+                                        publishMissingFace()
+                                    }
+                                    faceTask.addOnCompleteListener(analysisExecutor) {
+                                        faceDetectionBusy.set(false)
+                                        image.close()
+                                    }
+                                } else {
+                                    faceDetectionBusy.set(false)
+                                }
+                            } else {
+                                faceDetectionBusy.set(false)
+                            }
+                        }
                         val now = System.currentTimeMillis()
                         if (now - lastAnalysis > 140) {
                             lastAnalysis = now
@@ -1931,7 +2035,7 @@ fun CameraScreen(
                             analysisError
                         )
                     } finally {
-                        image.close()
+                        if (!imageReleasedByFaceDetector) image.close()
                     }
                 }
 
@@ -1975,6 +2079,9 @@ fun CameraScreen(
                         CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
                     else -> null
                 }
+                hardwareFaceDetectionAvailable = faceDetectMode != null
+                hardwareEyeLandmarksAvailable =
+                    faceDetectMode == CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
                 if (faceTrackingEnabled && faceDetectMode != null) {
                     runCatching {
                         val faceOptions = CaptureRequestOptions.Builder()
@@ -1987,13 +2094,16 @@ fun CameraScreen(
                         )
                     }.onFailure {
                         android.util.Log.w("FUJI_FACE_TRACK", "Could not enable Camera2 face detection", it)
+                        hardwareFaceDetectionAvailable = false
+                        hardwareEyeLandmarksAvailable = false
                     }
                 } else {
                     faceTrackCenter = null
                     faceTrackSize = null
                     faceEyeCenter = null
+                    faceTrackSmoother.reset()
                     if (faceTrackingEnabled) {
-                        android.util.Log.w("FUJI_FACE_TRACK", "Hardware face detection unavailable; no ML fallback is configured.")
+                        android.util.Log.i("FUJI_FACE_TRACK", "Using ML Kit fallback for face/eye tracking.")
                     }
                 }
                 activeCameraDetails = discoveredCamera2.firstOrNull {

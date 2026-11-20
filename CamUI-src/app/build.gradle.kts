@@ -9,6 +9,9 @@ plugins {
 android {
     namespace = "com.example.camui"
     compileSdk = 37
+    // Instrumentation tests target the Developer variant used by CI so the
+    // KK7 Android-runtime glyph checks run against the same diagnostic build.
+    testBuildType = "developer"
 
     defaultConfig {
         applicationId = "com.fujifilm.mode"

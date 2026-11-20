@@ -780,6 +780,7 @@ fun CameraScreen(
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
+    val digitalZoomCropScaleState = rememberUpdatedState(digitalZoomCropScale)
     val zoomDisplayValue by animateFloatAsState(
         targetValue = actualZoomRatio,
         animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
@@ -1699,7 +1700,15 @@ fun CameraScreen(
                     now: Long,
                     trackingId: Int? = null
                 ) {
-                    val smoothed = faceTrackSmoother.onFaceDetected(center, size, eyeCenter, trackingId, now) ?: return
+                    val digitalCropScale = digitalZoomCropScaleState.value
+                    val displayedCenter = cameraPointToDigitalPreview(center, digitalCropScale)
+                    val displayedSize = cameraBoxSizeToDigitalPreview(size, digitalCropScale)
+                    val displayedEye = eyeCenter?.let { cameraPointToDigitalPreview(it, digitalCropScale) }
+                    val displayedLeftEye = leftEyeCenter?.let { cameraPointToDigitalPreview(it, digitalCropScale) }
+                    val displayedRightEye = rightEyeCenter?.let { cameraPointToDigitalPreview(it, digitalCropScale) }
+                    val smoothed = faceTrackSmoother.onFaceDetected(
+                        displayedCenter, displayedSize, displayedEye, trackingId, now
+                    ) ?: return
                     val uiCenterMoved = now - lastFaceTrackAtMs >= 40L
                     if (uiCenterMoved) {
                         lastFaceTrackAtMs = now
@@ -1707,8 +1716,8 @@ fun CameraScreen(
                             faceTrackCenter = smoothed.center
                             faceTrackSize = smoothed.size
                             faceEyeCenter = if (faceTrackingModeState.value == "face_eye") smoothed.eyeCenter else null
-                            faceLeftEyeCenter = if (faceTrackingModeState.value == "face_eye") leftEyeCenter else null
-                            faceRightEyeCenter = if (faceTrackingModeState.value == "face_eye") rightEyeCenter else null
+                            faceLeftEyeCenter = if (faceTrackingModeState.value == "face_eye") displayedLeftEye else null
+                            faceRightEyeCenter = if (faceTrackingModeState.value == "face_eye") displayedRightEye else null
                         }
                     }
                     val focusTarget = if (faceTrackingModeState.value == "face_eye") {
@@ -1737,10 +1746,20 @@ fun CameraScreen(
                                     val afPointSize = CameraAfAreaSize.fromPreference(
                                         appPrefs.getString("af_area_size", "m")
                                     ).focusPointSize
+                                    val cameraFocusTarget = digitalPreviewPointToCamera(
+                                        focusTarget,
+                                        digitalZoomCropScaleState.value
+                                    )
                                     val point = previewView.meteringPointFactory.createPoint(
-                                        focusTarget.x * previewWidth,
-                                        focusTarget.y * previewHeight,
+                                        cameraFocusTarget.x * previewWidth,
+                                        cameraFocusTarget.y * previewHeight,
                                         afPointSize
+                                    )
+                                    android.util.Log.d(
+                                        "FUJI_AF_TRACE",
+                                        "faceTargetDisplay=${focusTarget.x},${focusTarget.y} " +
+                                            "cameraTarget=${cameraFocusTarget.x},${cameraFocusTarget.y} " +
+                                            "digitalCrop=${digitalZoomCropScaleState.value}"
                                     )
                                     val action = FocusMeteringAction.Builder(
                                         point,
@@ -4987,15 +5006,18 @@ fun CameraScreen(
                                             val afPointSize = CameraAfAreaSize.fromPreference(
                                                 appPrefs.getString("af_area_size", "m")
                                             ).focusPointSize
+                                            val cameraTapPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
                                             val point = previewView.meteringPointFactory.createPoint(
-                                                offset.x,
-                                                offset.y,
+                                                cameraTapPoint.x * previewView.width,
+                                                cameraTapPoint.y * previewView.height,
                                                 afPointSize
                                             )
                                             android.util.Log.d(
                                                 "FUJI_AF_TRACE",
                                                 "tapScreenPx=${offset.x},${offset.y} " +
                                                     "normalized=${tapPoint.x},${tapPoint.y} " +
+                                                    "cameraNormalized=${cameraTapPoint.x},${cameraTapPoint.y} " +
+                                                    "digitalCrop=$digitalZoomCropScale " +
                                                     "meteringPoint=${point.x},${point.y} size=$afPointSize"
                                             )
                                             val action = FocusMeteringAction.Builder(
@@ -5067,12 +5089,19 @@ fun CameraScreen(
                                                 val afPointSize = CameraAfAreaSize.fromPreference(
                                                     appPrefs.getString("af_area_size", "m")
                                                 ).focusPointSize
-                                                val point = previewView.meteringPointFactory.createPoint(
-                                                    offset.x,
-                                                    offset.y,
-                                                    afPointSize
-                                                )
-                                                val action = FocusMeteringAction.Builder(
+                                                val cameraLockPoint = digitalPreviewPointToCamera(lockPoint, digitalZoomCropScale)
+                                                 val point = previewView.meteringPointFactory.createPoint(
+                                                     cameraLockPoint.x * previewView.width,
+                                                     cameraLockPoint.y * previewView.height,
+                                                     afPointSize
+                                                 )
+                                                 android.util.Log.d(
+                                                     "FUJI_AF_TRACE",
+                                                     "lockDisplay=${lockPoint.x},${lockPoint.y} " +
+                                                         "cameraNormalized=${cameraLockPoint.x},${cameraLockPoint.y} " +
+                                                         "digitalCrop=$digitalZoomCropScale"
+                                                 )
+                                                 val action = FocusMeteringAction.Builder(
                                                     point,
                                                     FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
                                                 ).disableAutoCancel().build()

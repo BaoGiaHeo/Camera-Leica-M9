@@ -6466,7 +6466,7 @@ private val cameraLookGroups = builtInCameraLookGroupDefinitions.map { group ->
         else -> R.string.filter_category_basic
     }
     CameraLookGroup(group.id, labelResource, group.presets)
-)
+}
 
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {
     val options = CaptureRequestOptions.Builder()

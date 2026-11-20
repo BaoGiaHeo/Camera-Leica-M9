@@ -1170,6 +1170,14 @@ fun CameraScreen(
             val speedRatioPerSecond = 0.65f + (heldSeconds * 1.05f).coerceAtMost(3.0f)
             val next = (targetZoom + direction * speedRatioPerSecond * dt).coerceIn(minimum, maximum)
             if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
+                if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
+                    zoomHapticMilestonesCrossed(targetZoom, next).forEach { milestone ->
+                        localView.performHapticFeedback(
+                            if (milestone == 1f) HapticFeedbackConstants.CONTEXT_CLICK
+                            else HapticFeedbackConstants.CLOCK_TICK
+                        )
+                    }
+                }
                 targetZoom = next
                 zoomSel = next
                 lastZoomFuture = active.cameraControl.setZoomRatio(next)
@@ -4327,8 +4335,15 @@ fun CameraScreen(
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
             (start >= 0.98f && safeTarget < 0.98f)
         zoomAnimationJob?.cancel()
+        if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
+            zoomHapticMilestonesCrossed(start, safeTarget).forEach { milestone ->
+                localView.performHapticFeedback(
+                    if (milestone == 1f) HapticFeedbackConstants.CONTEXT_CLICK
+                    else HapticFeedbackConstants.CLOCK_TICK
+                )
+            }
+        }
         if (crossesLensBoundary) {
-            localView.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
             lensTransitionLabel = if (safeTarget < 0.98f) "SIÊU RỘNG" else "CAM THƯỜNG"
             lensTransitionVisible = true
             scope.launch {

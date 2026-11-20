@@ -55,6 +55,25 @@ class PixelOsdInvalidationTest {
     }
 
     @Test
+    fun resizingFaceBoxInvalidatesItsFullOldAndNewBounds() {
+        val oldFrame = PixelOsdFrame(
+            faceCenter = Offset(0.3f, 0.5f),
+            faceSize = Offset(0.2f, 0.3f)
+        )
+        val newFrame = oldFrame.copy(
+            faceCenter = Offset(0.7f, 0.5f),
+            faceSize = Offset(0.5f, 0.6f)
+        )
+
+        val dirty = pixelOsdDirtyRegions(320, 180, oldFrame, newFrame)
+
+        assertEquals(2, dirty.size)
+        assertTrue(dirty.any { it.left < 100 && it.right <= 120 })
+        assertTrue(dirty.any { it.right > 250 && it.left >= 200 })
+        assertTrue(dirty.maxOf { it.right - it.left } >= 80)
+    }
+
+    @Test
     fun levelRotationInvalidatesCenterRegion() {
         val oldFrame = PixelOsdFrame(showLevel = true, horizonRollDegrees = 0f)
         val newFrame = PixelOsdFrame(showLevel = true, horizonRollDegrees = 5f)

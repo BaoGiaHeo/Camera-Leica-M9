@@ -34,6 +34,31 @@ internal data class DigitalZoomProcessingResult(
     val exifPreserved: Boolean
 )
 
+internal data class DigitalZoomCropBounds(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int
+) {
+    val width: Int get() = right - left
+    val height: Int get() = bottom - top
+}
+
+internal fun calculateDigitalZoomCropBounds(
+    sourceWidth: Int,
+    sourceHeight: Int,
+    digitalCropRatio: Float
+): DigitalZoomCropBounds? {
+    if (sourceWidth < 32 || sourceHeight < 32 ||
+        !digitalCropRatio.isFinite() || digitalCropRatio <= 1f
+    ) return null
+    val cropWidth = (sourceWidth / digitalCropRatio).roundToInt().coerceIn(16, sourceWidth)
+    val cropHeight = (sourceHeight / digitalCropRatio).roundToInt().coerceIn(16, sourceHeight)
+    val left = (sourceWidth - cropWidth) / 2
+    val top = (sourceHeight - cropHeight) / 2
+    return DigitalZoomCropBounds(left, top, left + cropWidth, top + cropHeight)
+}
+
 /**
  * Center crop + Lanczos-3 enlargement for digital zoom beyond CameraX's
  * supported range. The GPU renders bounded tiles instead of allocating a
@@ -93,11 +118,11 @@ internal object DigitalZoomProcessor {
             val height = bounds.outHeight
             require(width >= 128 && height >= 128) { "Invalid JPEG dimensions: ${width}x${height}" }
 
-            val cropWidth = (width / ratio).roundToInt().coerceIn(64, width)
-            val cropHeight = (height / ratio).roundToInt().coerceIn(64, height)
-            val cropLeft = (width - cropWidth) / 2
-            val cropTop = (height - cropHeight) / 2
-            val cropRect = Rect(cropLeft, cropTop, cropLeft + cropWidth, cropTop + cropHeight)
+            val cropBounds = calculateDigitalZoomCropBounds(width, height, ratio)
+                ?: error("Cannot compute a safe center crop for the requested digital zoom")
+            val cropWidth = cropBounds.width
+            val cropHeight = cropBounds.height
+            val cropRect = Rect(cropBounds.left, cropBounds.top, cropBounds.right, cropBounds.bottom)
             val sourceExif = readExifAttributes(context, uri)
 
             val runtime = Runtime.getRuntime()

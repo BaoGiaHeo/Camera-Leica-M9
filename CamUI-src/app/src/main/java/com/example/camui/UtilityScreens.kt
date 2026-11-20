@@ -3610,7 +3610,7 @@ fun applyCameraWatermark(
                     footerRect.top + footerHeight * 0.44f, footerWidth * 0.34f,
                     dateSize, centered = false)
             }
-            "datestamp", "corner_stamp" -> {
+            "datestamp" -> {
                 val stamp = timeLine.ifBlank { dateLabel }
                 val ink = Paint(titlePaint).apply {
                     color = AndroidColor.rgb(255, 150, 55)
@@ -3624,6 +3624,51 @@ fun applyCameraWatermark(
                 val stampCenterY = footerRect.bottom - pad - capHeight * 0.5f
                 val stampBaseline = watermarkOpticalBaseline(ink, stampCenterY)
                 canvas.drawText(stamp, footerRect.right - pad, stampBaseline, ink)
+            }
+            "corner_stamp" -> {
+                val stamp = timeLine.ifBlank { dateLabel }
+                if (stamp.isNotBlank()) {
+                    val cornerWidth = minOf(output.width * 0.34f, minSide * 1.85f)
+                    val cornerHeight = minSide * 0.075f
+                    val left = output.width - margin - cornerWidth
+                    val top = output.height - margin - cornerHeight
+                    val cornerRect = RectF(left, top, output.width - margin, output.height - margin)
+                    val backing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = AndroidColor.argb(155, 0, 0, 0)
+                    }
+                    canvas.drawRoundRect(
+                        cornerRect,
+                        (cornerHeight * 0.12f).coerceAtLeast(3f),
+                        (cornerHeight * 0.12f).coerceAtLeast(3f),
+                        backing
+                    )
+                    val accent = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = AndroidColor.rgb(232, 68, 43)
+                        strokeWidth = (minSide * 0.002f).coerceAtLeast(2f)
+                    }
+                    canvas.drawLine(
+                        left + cornerHeight * 0.18f,
+                        top + cornerHeight * 0.2f,
+                        left + cornerHeight * 0.18f,
+                        cornerRect.bottom - cornerHeight * 0.2f,
+                        accent
+                    )
+                    val ink = Paint(detailPaint).apply {
+                        color = AndroidColor.WHITE
+                        typeface = watermarkMonoTypeface
+                        textAlign = Paint.Align.RIGHT
+                        textSize = dateSize
+                    }
+                    drawTemplateText(
+                        stamp,
+                        ink,
+                        cornerRect.right - cornerHeight * 0.15f,
+                        cornerRect.centerY(),
+                        cornerWidth * 0.82f,
+                        dateSize,
+                        centered = false
+                    )
+                }
             }
             "blur_frame" -> {
                 // Blur-frame layout samples and softens the photo under a floating caption card.

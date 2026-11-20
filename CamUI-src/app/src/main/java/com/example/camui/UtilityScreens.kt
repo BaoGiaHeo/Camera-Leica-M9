@@ -15,6 +15,7 @@ import android.graphics.LinearGradient
 import android.graphics.Color as AndroidColor
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.graphics.RectF
 import android.media.ExifInterface
 import android.media.MediaPlayer
@@ -23,6 +24,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.Uri
 import android.provider.MediaStore
+import android.provider.Settings
 import android.content.ContentUris
 import android.util.Size
 import java.util.Locale
@@ -2421,6 +2423,12 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
  * The optical anchor is the midpoint between the top of capital H and baseline;
  * accents above capitals are intentionally excluded from this optical measurement.
  */
+private fun readWatermarkMarketName(): String? = runCatching {
+    val properties = Class.forName("android.os.SystemProperties")
+    val get = properties.getMethod("get", String::class.java)
+    (get.invoke(null, "ro.product.marketname") as? String)?.trim()?.takeIf { it.isNotBlank() }
+}.getOrNull()
+
 private fun watermarkOpticalBaseline(paint: Paint, centerY: Float): Float {
     val capBounds = android.graphics.Rect()
     paint.getTextBounds("H", 0, 1, capBounds)
@@ -2472,11 +2480,21 @@ fun applyCameraWatermark(
         val sourceWidthPx = sourceBitmap.width
         val sourceHeightPx = sourceBitmap.height
         val sourceMinSide = minOf(sourceWidthPx, sourceHeightPx).toFloat()
-        val footerMarginPx = (sourceMinSide * 0.025f).roundToInt().coerceAtLeast(14)
-        // Watermark geometry scales with the actual output resolution. Do not cap it at
-        // small JPEG dimensions: LunaDream 50/108MP must retain the same relative size.
-        val footerHeightPx = (sourceMinSide * 0.14f).roundToInt().coerceAtLeast(88)
-        val compactFooterHeightPx = (sourceMinSide * 0.12f).roundToInt().coerceAtLeast(72)
+        val footerMarginPx = (sourceMinSide * 0.032f).roundToInt().coerceAtLeast(14)
+        // One-, two- and three-line footer heights follow the specification's common
+        // short-side units (7.5%, 9.5% and 11%).
+        val footerRows = when (template) {
+            "minimal", "micro", "datestamp" -> 1
+            "vintage", "film", "frosted", "polaroid" -> 2
+            else -> 2
+        }
+        val footerFraction = when (footerRows) {
+            1 -> 0.075f
+            2 -> 0.095f
+            else -> 0.11f
+        }
+        val footerHeightPx = (sourceMinSide * footerFraction).roundToInt().coerceAtLeast(72)
+        val compactFooterHeightPx = (sourceMinSide * footerFraction).roundToInt().coerceAtLeast(72)
         val expandedWidth = sourceBitmap.width + footerMarginPx * 2
         val expandedHeight = sourceBitmap.height + footerMarginPx * 2 + footerHeightPx
         val expandedPixelCount = expandedWidth.toLong() * expandedHeight.toLong()
@@ -2552,8 +2570,8 @@ fun applyCameraWatermark(
         val minSide = minOf(output.width, output.height).toFloat()
         // Keep logo and metadata in one restrained visual scale across output resolutions.
         val watermarkTextSize = (minSide * 0.0125f).coerceAtLeast(12f)
-        val watermarkLogoHeight = minSide * 0.032f
-        val margin = (minSide * 0.035f).coerceAtLeast(18f)
+        val watermarkLogoHeight = minSide * 0.026f
+        val margin = (minSide * 0.032f).coerceAtLeast(18f)
         fun exifNumber(tag: String): Double? = sourceExif[tag]?.let { raw ->
             val value = raw.trim()
             runCatching {
@@ -2592,13 +2610,17 @@ fun applyCameraWatermark(
         val cameraLabel = listOf(exifMake, exifModel).distinct().filterNotNull()
             .joinToString(" ").ifBlank { "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}" }
         val customModelLabel = prefs.getString("watermark_custom_model", "")?.trim().orEmpty()
-        // Keep the device model value distinct from the selected brand wordmark.
-        val rawModelLabel = exifModel ?: android.os.Build.MODEL
-        val makePrefix = (exifMake ?: android.os.Build.MANUFACTURER).trim()
-        val cleanModelLabel = if (makePrefix.isNotBlank() &&
-            rawModelLabel.startsWith(makePrefix, ignoreCase = true)
-        ) rawModelLabel.drop(makePrefix.length).trim() else rawModelLabel.trim()
-        val model = customModelLabel.ifBlank { cleanModelLabel }
+        val marketName = readWatermarkMarketName()
+        val globalDeviceName = runCatching {
+            Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
+        }.getOrNull()
+        val model = resolveWatermarkDeviceName(
+            customName = customModelLabel,
+            marketName = marketName,
+            globalDeviceName = globalDeviceName,
+            manufacturer = exifMake ?: android.os.Build.MANUFACTURER,
+            model = exifModel ?: android.os.Build.MODEL
+        )
         // Prioritize the three exposure values the user needs to read at a glance.
         // Focal length and exposure compensation follow only when space permits.
         val specs = listOf(
@@ -2631,10 +2653,14 @@ fun applyCameraWatermark(
         )
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
         val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
-        // Every text-based watermark label uses the app-wide VCR OSD Mono typeface.
-        // Brand image assets remain unchanged where they are available.
+        // Watermark typography is intentionally independent from the LCD OSD typeface.
+        // These Android sans/mono families are fallbacks until the bundled OFL font assets
+        // are installed in the module; never route watermark text through FujiTypography.
         val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
-        val appWatermarkTypeface = FujiTypography.androidTypeface(context)
+        val watermarkSansTypeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        val watermarkMediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        val watermarkMonoTypeface = Typeface.create("monospace", Typeface.NORMAL)
+        val appWatermarkTypeface = watermarkSansTypeface
         val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand, frameStyle == "Black")?.let {
             ContextCompat.getDrawable(context, it)
         }
@@ -2699,16 +2725,20 @@ fun applyCameraWatermark(
         // image assets where available; any text-drawn metadata uses this single typeface.
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            typeface = appWatermarkTypeface
+            typeface = watermarkMediumTypeface
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             alpha = 235
-            typeface = appWatermarkTypeface
+            typeface = watermarkSansTypeface
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            typeface = appWatermarkTypeface
+            typeface = watermarkSansTypeface
+        }
+        val watermarkDatePaint = Paint(detailPaint).apply {
+            typeface = watermarkMonoTypeface
+            isSubpixelText = true
         }
         if (frameStyle == "Transparent") {
             titlePaint.setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
@@ -3133,7 +3163,7 @@ fun applyCameraWatermark(
                 val stamp = timeLine.ifBlank { dateLabel }
                 val ink = Paint(titlePaint).apply {
                     color = AndroidColor.rgb(255, 150, 55)
-                    typeface = appWatermarkTypeface
+                    typeface = watermarkMonoTypeface
                     setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
                     textAlign = Paint.Align.RIGHT
                 }
@@ -3251,16 +3281,16 @@ fun applyCameraWatermark(
             }
     
             // Explicit text anchors keep the left model/lens and right exposure/date columns balanced.
-            val titleSize = (minSide * 0.023f).coerceAtLeast(20f)
-            val secondarySize = (minSide * 0.014f).coerceAtLeast(13f)
-            val specsSize = (minSide * 0.020f).coerceAtLeast(18f)
-            val dateSize = (minSide * 0.014f).coerceAtLeast(13f)
+            val titleSize = (minSide * 0.020f).coerceAtLeast(14f)
+            val secondarySize = (minSide * 0.017f).coerceAtLeast(14f)
+            val specsSize = (minSide * 0.017f).coerceAtLeast(14f)
+            val dateSize = (minSide * 0.0135f).coerceAtLeast(14f)
             val leftTitle = modelText.ifBlank { brandTitle }
             val rightDate = dateOnlyLine.ifBlank { timeLine }
             drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelLeft, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))
             drawMeasuredLine(leftSecondary, detailPaint, leftSecondaryCenterY, modelLeft, modelWidth, secondarySize, (secondarySize * 0.72f).coerceAtLeast(12f))
             drawMeasuredLine(specs, accentPaint, footerRect.top + footerHeight * 0.39f, rightLeft, rightContentWidth, specsSize, (specsSize * 0.72f).coerceAtLeast(15f))
-            drawMeasuredLine(rightDate, detailPaint, footerRect.top + footerHeight * 0.70f, rightLeft, rightContentWidth, dateSize, (dateSize * 0.72f).coerceAtLeast(12f))
+            drawMeasuredLine(rightDate, watermarkDatePaint, footerRect.top + footerHeight * 0.70f, rightLeft, rightContentWidth, dateSize, (dateSize * 0.72f).coerceAtLeast(12f))
             }
         }
 

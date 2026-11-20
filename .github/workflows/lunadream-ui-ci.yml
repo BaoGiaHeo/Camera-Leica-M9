@@ -1,4 +1,8 @@
 name: LunaDream UI compile and test
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Rebuild current branch source after the requested camera fixes.
 
 on:

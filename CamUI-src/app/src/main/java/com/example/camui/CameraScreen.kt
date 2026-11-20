@@ -4733,7 +4733,7 @@ fun CameraScreen(
                                         evMaximumIndex = evRange?.upper ?: 9,
                                         shutterTimeNanos = shutterNs,
                                         isoValue = iso,
-                                        manualFocusPosition = manualFocus,
+                                        manualFocusPosition = if (maxFocus > 0f) (manualFocus / maxFocus).coerceIn(0f, 1f) else 0.5f,
                                         whiteBalanceKelvin = manualColorTemp,
                                         manualFocusEnabled = manualFocus > 0f,
                                         manualWhiteBalanceEnabled = manualColorTempEnabled

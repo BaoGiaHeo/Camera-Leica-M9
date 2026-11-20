@@ -301,7 +301,7 @@ class PixelOsdRenderer(context: Context) {
             drawPixelText(canvas, frame.zoomText, (width / 2f - frame.zoomText.length * 2.5f).roundToInt(), 11, PixelOsdPalette.BLUE)
         }
         if (frame.showEvOverlay) {
-            drawPixelText(canvas, "EV ${frame.evValueText}", (width / 2f - 18).coerceAtLeast(24), 23, PixelOsdPalette.AMBER)
+            drawPixelText(canvas, "EV ${frame.evValueText}", (width / 2f - 18).roundToInt().coerceAtLeast(24), 23, PixelOsdPalette.AMBER)
         }
 
         if (frame.showLevel) {

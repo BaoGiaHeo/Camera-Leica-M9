@@ -1125,13 +1125,30 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
     var showDate by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
     var showSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
     var showLocation by remember { mutableStateOf(prefs.getBoolean("watermark_show_location", true)) }
+    var showCameraName by remember { mutableStateOf(prefs.getBoolean("watermark_show_camera_name", true)) }
+    var showLens by remember { mutableStateOf(prefs.getBoolean("watermark_show_lens", true)) }
+    var showFocal by remember { mutableStateOf(prefs.getBoolean("watermark_show_focal", true)) }
+    var showAperture by remember { mutableStateOf(prefs.getBoolean("watermark_show_aperture", true)) }
+    var showShutter by remember { mutableStateOf(prefs.getBoolean("watermark_show_shutter", true)) }
+    var showIso by remember { mutableStateOf(prefs.getBoolean("watermark_show_iso", true)) }
+    var showEv by remember { mutableStateOf(prefs.getBoolean("watermark_show_ev", true)) }
+    var showFilter by remember { mutableStateOf(prefs.getBoolean("watermark_show_filter", false)) }
+    var showNightLabel by remember { mutableStateOf(prefs.getBoolean("watermark_show_night", true)) }
+    var showCopyright by remember { mutableStateOf(prefs.getBoolean("watermark_show_copyright", false)) }
+    var showMegapixels by remember { mutableStateOf(prefs.getBoolean("watermark_show_megapixels", true)) }
     var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
+    var customCopyright by remember { mutableStateOf(prefs.getString("watermark_custom_copyright", "") ?: "") }
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewLoading by remember { mutableStateOf(false) }
     var previewRevision by remember { mutableStateOf(0) }
-    LaunchedEffect(layout, appearance, logoSize, showDate, showSpecs, showLocation, watermarkEnabled, customModel, customLocation, previewRevision) {
+    LaunchedEffect(
+        layout, appearance, logoSize, showDate, showSpecs, showLocation, showCameraName,
+        showLens, showFocal, showAperture, showShutter, showIso, showEv, showFilter,
+        showNightLabel, showCopyright, showMegapixels, watermarkEnabled, customModel,
+        customLocation, customCopyright, previewRevision
+    ) {
         prefs.edit()
             .putString("watermark_template", layout)
             .putString("watermark_style", appearance)
@@ -1139,9 +1156,21 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
             .putBoolean("watermark_show_time", showDate)
             .putBoolean("watermark_show_specs", showSpecs)
             .putBoolean("watermark_show_location", showLocation)
+            .putBoolean("watermark_show_camera_name", showCameraName)
+            .putBoolean("watermark_show_lens", showLens)
+            .putBoolean("watermark_show_focal", showFocal)
+            .putBoolean("watermark_show_aperture", showAperture)
+            .putBoolean("watermark_show_shutter", showShutter)
+            .putBoolean("watermark_show_iso", showIso)
+            .putBoolean("watermark_show_ev", showEv)
+            .putBoolean("watermark_show_filter", showFilter)
+            .putBoolean("watermark_show_night", showNightLabel)
+            .putBoolean("watermark_show_copyright", showCopyright)
+            .putBoolean("watermark_show_megapixels", showMegapixels)
             .putBoolean("watermark_enabled", watermarkEnabled)
             .putString("watermark_custom_model", customModel.trim())
             .putString("watermark_custom_location", customLocation.trim())
+            .putString("watermark_custom_copyright", customCopyright.trim())
             .apply()
         previewLoading = true
         try {
@@ -1207,9 +1236,21 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                         .putBoolean("watermark_show_time", showDate)
                         .putBoolean("watermark_show_specs", showSpecs)
                         .putBoolean("watermark_show_location", showLocation)
+                        .putBoolean("watermark_show_camera_name", showCameraName)
+                        .putBoolean("watermark_show_lens", showLens)
+                        .putBoolean("watermark_show_focal", showFocal)
+                        .putBoolean("watermark_show_aperture", showAperture)
+                        .putBoolean("watermark_show_shutter", showShutter)
+                        .putBoolean("watermark_show_iso", showIso)
+                        .putBoolean("watermark_show_ev", showEv)
+                        .putBoolean("watermark_show_filter", showFilter)
+                        .putBoolean("watermark_show_night", showNightLabel)
+                        .putBoolean("watermark_show_copyright", showCopyright)
+                        .putBoolean("watermark_show_megapixels", showMegapixels)
                         .putBoolean("watermark_enabled", true)
                         .putString("watermark_custom_model", customModel.trim())
                         .putString("watermark_custom_location", customLocation.trim())
+                        .putString("watermark_custom_copyright", customCopyright.trim())
                         .apply()
                     onBack()
                 }, modifier = Modifier.weight(1f))
@@ -1246,21 +1287,60 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                 }
             }
             Text(stringResource(R.string.watermark_studio_fields), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FujiChip(stringResource(if (showDate) R.string.watermark_studio_date_on else R.string.watermark_studio_date_off), showDate,
-                    { showDate = !showDate })
-                FujiChip(stringResource(if (showSpecs) R.string.watermark_studio_exif_on else R.string.watermark_studio_exif_off), showSpecs,
-                    { showSpecs = !showSpecs })
-                FujiChip(stringResource(if (showLocation) R.string.watermark_studio_location_on else R.string.watermark_studio_location_off), showLocation,
-                    { showLocation = !showLocation })
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FujiChip(stringResource(R.string.watermark_field_camera_name), showCameraName, { showCameraName = !showCameraName })
+                FujiChip(stringResource(R.string.watermark_field_lens), showLens, { showLens = !showLens })
+                FujiChip(stringResource(R.string.watermark_field_focal), showFocal, { showFocal = !showFocal })
+                FujiChip(stringResource(R.string.watermark_field_aperture), showAperture, { showAperture = !showAperture })
+                FujiChip(stringResource(R.string.watermark_field_shutter), showShutter, { showShutter = !showShutter })
+                FujiChip(stringResource(R.string.watermark_field_iso), showIso, { showIso = !showIso })
+                FujiChip(stringResource(R.string.watermark_field_ev), showEv, { showEv = !showEv })
             }
-            Text(stringResource(R.string.watermark_studio_device_name), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            FujiSearchField(
-                value = customModel,
-                onValueChange = { customModel = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = stringResource(R.string.watermark_studio_model_placeholder)
-            )
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FujiChip(stringResource(if (showDate) R.string.watermark_studio_date_on else R.string.watermark_studio_date_off), showDate, { showDate = !showDate })
+                FujiChip(stringResource(if (showLocation) R.string.watermark_studio_location_on else R.string.watermark_studio_location_off), showLocation, { showLocation = !showLocation })
+                FujiChip(stringResource(R.string.watermark_field_filter), showFilter, { showFilter = !showFilter })
+                FujiChip(stringResource(R.string.watermark_field_night), showNightLabel, { showNightLabel = !showNightLabel })
+                FujiChip(stringResource(R.string.watermark_field_copyright), showCopyright, { showCopyright = !showCopyright })
+                FujiChip(stringResource(R.string.watermark_field_megapixels), showMegapixels, { showMegapixels = !showMegapixels })
+                FujiChip(stringResource(if (showSpecs) R.string.watermark_studio_exif_on else R.string.watermark_studio_exif_off), showSpecs, { showSpecs = !showSpecs })
+            }
+            AnimatedVisibility(
+                visible = showCameraName,
+                enter = fadeIn(animationSpec = tween(250)),
+                exit = fadeOut(animationSpec = tween(250))
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.watermark_studio_device_name), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    FujiSearchField(
+                        value = customModel,
+                        onValueChange = { customModel = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = stringResource(R.string.watermark_studio_model_placeholder)
+                    )
+                }
+            }
+            AnimatedVisibility(
+                visible = showCopyright,
+                enter = fadeIn(animationSpec = tween(250)),
+                exit = fadeOut(animationSpec = tween(250))
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.watermark_field_copyright), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    FujiSearchField(
+                        value = customCopyright,
+                        onValueChange = { customCopyright = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = stringResource(R.string.watermark_studio_copyright_placeholder)
+                    )
+                }
+            }
             Text(stringResource(R.string.watermark_studio_location), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             AnimatedVisibility(
                 visible = showLocation,

@@ -44,7 +44,8 @@ jobs:
           legacy_puck="$(printf '\160\165\143\153')"
           pattern="${legacy_compact}|${legacy_snake}|${legacy_spaced}|${legacy_dashed}|${legacy_puck}"
           if git grep -niE "$pattern" -- . \
-            ':!CamUI-src/app/src/main/java/com/example/camui/LegacyColorAdjustmentCleanup.kt'; then
+            ':!CamUI-src/app/src/main/java/com/example/camui/LegacyColorAdjustmentCleanup.kt' \\
+            ':!.github/workflows/lunadream-ui-ci.yml'; then
             echo "Obsolete colour-panel references remain in the repository."
             exit 1
           fi

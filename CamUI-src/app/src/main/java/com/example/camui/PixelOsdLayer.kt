@@ -89,6 +89,8 @@ data class PixelOsdFrame(
     val centerAfStatus: Int = 0,
     val centerAfScale: Int = 1,
     val showStatus: Boolean = true,
+    val aeLocked: Boolean = false,
+    val evDisplayIndex: Float = evIndex.toFloat(),
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
     val batteryLowBlinkOn: Boolean = true,
@@ -223,6 +225,7 @@ class PixelOsdRenderer(context: Context) {
     private fun drawFrame(canvas: NativeCanvas, frame: PixelOsdFrame) {
         val width = logicWidth
         val height = logicHeight
+        drawPixelTexture(canvas)
         if (frame.showGrid) {
             for (index in 1..2) {
                 val x = (width * index / 3f).roundToInt()
@@ -323,11 +326,35 @@ class PixelOsdRenderer(context: Context) {
         }
     }
 
+    private fun drawPixelTexture(canvas: NativeCanvas) {
+        // Neutral monochrome sub-pixel grid: 2% pixel alpha, no colour tint.
+        fillPaint.color = PixelOsdPalette.WHITE
+        fillPaint.alpha = 5
+        var x = 0
+        while (x < logicWidth) {
+            canvas.drawRect(x.toFloat(), 0f, x + 1f, logicHeight.toFloat(), fillPaint)
+            x += 4
+        }
+        var y = 0
+        while (y < logicHeight) {
+            canvas.drawRect(0f, y.toFloat(), logicWidth.toFloat(), y + 1f, fillPaint)
+            y += 4
+        }
+        fillPaint.alpha = 255
+        // A narrow neutral reflection along the upper bezel, kept below 3% opacity.
+        fillPaint.alpha = 4
+        canvas.drawRect(0f, 0f, logicWidth.toFloat(), 2f, fillPaint)
+        fillPaint.alpha = 255
+    }
+
     private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
         val width = logicWidth
-        drawPixelText(canvas, if (frame.focusLocked) "AF-L" else "AF", 7, 11,
-            if (frame.focusLocked) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE)
-        drawPixelText(canvas, frame.meteringText.take(1), 23, 11, PixelOsdPalette.WHITE)
+        if (frame.focusLocked) {
+            drawPixelText(canvas, "AF-L", width - 95, 9, PixelOsdPalette.GREEN)
+            drawPixelText(canvas, "AE-L", width - 95, 18, PixelOsdPalette.GREEN)
+        } else {
+            drawPixelText(canvas, "AF", width - 65, 12, PixelOsdPalette.WHITE)
+        }
 
         if (frame.batteryPercent in 0..100) {
             val left = width - 49
@@ -381,7 +408,8 @@ class PixelOsdRenderer(context: Context) {
             }
             tick++
         }
-        val currentStops = (frame.evIndex * step).coerceIn(minStops, maxStops)
+        val displayIndex = frame.evDisplayIndex.takeIf { it.isFinite() } ?: frame.evIndex.toFloat()
+        val currentStops = (displayIndex * step).coerceIn(minStops, maxStops)
         val pointerY = (bottom - ((currentStops - minStops) / span) * (bottom - top)).roundToInt()
         drawPixel(canvas, 7, pointerY, PixelOsdPalette.AMBER)
         drawPixel(canvas, 8, pointerY - 1, PixelOsdPalette.AMBER)

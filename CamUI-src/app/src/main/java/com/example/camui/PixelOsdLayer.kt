@@ -496,10 +496,14 @@ class PixelOsdRenderer(context: Context) {
         val selected = frame.selectedControl.uppercase()
         var x = 7
 
-        fun put(value: String, color: Int = PixelOsdPalette.WHITE) {
+        fun put(value: String, key: String, color: Int = PixelOsdPalette.WHITE) {
             if (value.isBlank() || x > logicWidth - 25) return
+            val textWidth = value.length * 5
+            if (selected == key) {
+                drawPixelSelectionArc(canvas, x - 2, bottom - 10, x + textWidth + 1, bottom + 2, PixelOsdPalette.BLUE)
+            }
             drawPixelText(canvas, value, x, bottom, color)
-            x += value.length * 5 + 5
+            x += textWidth + 5
         }
 
         val exposureColor = when {
@@ -524,19 +528,19 @@ class PixelOsdRenderer(context: Context) {
             else -> PixelOsdPalette.WHITE
         }
 
-        put("M", exposureColor)
+        put("M", "EV", exposureColor)
         if (x <= logicWidth - 36) {
             drawSprite(canvas, "af-area", x, bottom - 5)
             x += 13
         }
-        put(frame.afModeText.take(4), afColor)
+        put(frame.afModeText.take(4), "AF", afColor)
         if (x <= logicWidth - 34) {
             drawSprite(canvas, "shutter", x, bottom - 7)
             x += 11
         }
-        put(frame.shutterText.take(7), shutterColor)
-        put(frame.apertureText.take(5), apertureColor)
-        put(frame.isoText.take(6), isoColor)
+        put(frame.shutterText.take(7), "TV", shutterColor)
+        put(frame.apertureText.take(5), "", apertureColor)
+        put(frame.isoText.take(6), "ISO", isoColor)
 
         val dynamicRangeColor = if (selected == "DR") PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
         val whiteBalanceColor = when {
@@ -550,16 +554,40 @@ class PixelOsdRenderer(context: Context) {
             PixelOsdPalette.WHITE
         }
         val rightSegments = listOf(
-            frame.dynamicRangeText.take(5) to dynamicRangeColor,
-            frame.whiteBalanceText.take(6) to whiteBalanceColor,
-            frame.filmSimulationText.take(3) to filmColor
+            Triple(frame.dynamicRangeText.take(5), dynamicRangeColor, "DR"),
+            Triple(frame.whiteBalanceText.take(6), whiteBalanceColor, "WB"),
+            Triple(frame.filmSimulationText.take(3), filmColor, "FILM")
         ).filter { it.first.isNotBlank() }
         val rightTextWidth = rightSegments.sumOf { it.first.length * 5 + 3 }
         var rightX = (logicWidth - rightTextWidth - 7).coerceAtLeast(x)
-        rightSegments.forEach { (value, color) ->
-            drawPixelText(canvas, value, rightX, 21, color)
-            rightX += value.length * 5 + 3
+        rightSegments.forEach { (value, color, key) ->
+            val textWidth = value.length * 5
+            if (selected == key || (key == "FILM" && selected == "FS")) {
+                drawPixelSelectionArc(canvas, rightX - 2, 18, rightX + textWidth + 1, 30, PixelOsdPalette.BLUE)
+            }
+            drawPixelText(canvas, value, rightX, 28, color)
+            rightX += textWidth + 3
         }
+    }
+
+    /** Rounded pixel brackets mark the currently selected Pro setting value. */
+    private fun drawPixelSelectionArc(
+        canvas: NativeCanvas,
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int,
+        color: Int
+    ) {
+        if (right <= left || bottom <= top) return
+        drawHLine(canvas, left + 2, right - 2, top, color, 235)
+        drawHLine(canvas, left + 2, right - 2, bottom, color, 235)
+        drawVLine(canvas, left, top + 3, bottom - 3, color, 235)
+        drawVLine(canvas, right, top + 3, bottom - 3, color, 235)
+        drawPixel(canvas, left + 1, top + 1, color)
+        drawPixel(canvas, right - 1, top + 1, color)
+        drawPixel(canvas, left + 1, bottom - 1, color)
+        drawPixel(canvas, right - 1, bottom - 1, color)
     }
 
     private fun drawCornerFrame(

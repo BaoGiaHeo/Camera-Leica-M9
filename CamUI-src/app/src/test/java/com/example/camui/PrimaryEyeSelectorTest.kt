@@ -114,6 +114,25 @@ class PrimaryEyeSelectorTest {
     }
 
     @Test
+    fun eyeContourAreaRejectsMissingDegenerateAndNonFinitePoints() {
+        assertEquals(null, eyeContourArea(null))
+        assertEquals(null, eyeContourArea(emptyList()))
+        assertEquals(null, eyeContourArea(listOf(Offset(1f, 1f), Offset(2f, 2f))))
+        assertEquals(null, eyeContourArea(listOf(Offset(Float.NaN, 1f), Offset(2f, 2f), Offset(3f, 3f))))
+    }
+
+    @Test
+    fun eyeContourAreaUsesTheBoundingRectangleForHysteresis() {
+        assertEquals(
+            24f,
+            eyeContourArea(listOf(
+                Offset(2f, 3f), Offset(8f, 3f), Offset(8f, 7f), Offset(2f, 7f)
+            ))!!,
+            0.0001f
+        )
+    }
+
+    @Test
     fun trackingIdChangeResetsEyeIdentityForTheNewFace() {
         val selector = PrimaryEyeSelector()
         val left = Offset(0.42f, 0.48f)

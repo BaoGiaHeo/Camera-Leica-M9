@@ -15,7 +15,9 @@ internal fun cameraControlProgress(
     shutterTimeNanos: Long,
     isoValue: Int,
     manualFocusPosition: Float,
-    whiteBalanceKelvin: Int
+    whiteBalanceKelvin: Int,
+    manualFocusEnabled: Boolean = false,
+    manualWhiteBalanceEnabled: Boolean = false
 ): Float {
     return when (selectedControl.uppercase(Locale.US)) {
         "EV" -> {
@@ -31,11 +33,17 @@ internal fun cameraControlProgress(
             }
         }
         "ISO" -> {
-            val safeIso = isoValue.coerceIn(50, 51_200).toFloat()
-            (ln(safeIso / 50f) / ln(51_200f / 50f)).coerceIn(0f, 1f)
+            if (isoValue <= 0) 0.5f else {
+                val safeIso = isoValue.coerceIn(50, 51_200).toFloat()
+                (ln(safeIso / 50f) / ln(51_200f / 50f)).coerceIn(0f, 1f)
+            }
         }
-        "AF", "MF" -> manualFocusPosition.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0.5f
-        "WB", "TONE" -> ((whiteBalanceKelvin - 2_000f) / 8_000f).coerceIn(0f, 1f)
+        "AF", "MF" -> if (manualFocusEnabled) {
+            manualFocusPosition.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0.5f
+        } else 0.5f
+        "WB", "TONE" -> if (manualWhiteBalanceEnabled) {
+            ((whiteBalanceKelvin - 2_000f) / 8_000f).coerceIn(0f, 1f)
+        } else 0.5f
         else -> 0.5f
     }
 }

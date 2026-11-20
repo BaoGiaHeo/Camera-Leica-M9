@@ -4734,7 +4734,9 @@ fun CameraScreen(
                                         shutterTimeNanos = shutterNs,
                                         isoValue = iso,
                                         manualFocusPosition = manualFocus,
-                                        whiteBalanceKelvin = manualColorTemp
+                                        whiteBalanceKelvin = manualColorTemp,
+                                        manualFocusEnabled = manualFocus > 0f,
+                                        manualWhiteBalanceEnabled = manualColorTempEnabled
                                     ),
                                     showProEv = proHudShowEv,
                                     showProShutter = proHudShowShutter,

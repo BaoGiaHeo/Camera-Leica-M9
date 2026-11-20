@@ -6455,6 +6455,10 @@ private val cameraLookGroups = listOf(
         listOf("Vivid", "Natural", "Cool", "Warm"))
 )
 
+/** Stable catalog surface for regression tests; custom imported LUTs are excluded. */
+internal fun builtInCameraLookCatalog(): List<Pair<String, String>> =
+    cameraLookGroups.flatMap { group -> group.presets.map { group.id to it } }
+
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {
     val options = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)

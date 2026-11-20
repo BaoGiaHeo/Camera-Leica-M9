@@ -97,6 +97,7 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfAreaSizeTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraLcdDisplayModeTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/CameraLookCatalogTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraFrameMetricsDiagnosticsTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraControlProgressTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \

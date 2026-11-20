@@ -4627,7 +4627,27 @@ fun CameraScreen(
                                             val action = FocusMeteringAction.Builder(
                                                 point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
                                             ).disableAutoCancel().build()
-                                            val focusFuture = active.cameraControl.startFocusAndMetering(action)
+                                            val focusFuture = runCatching {
+                                                active.cameraControl.startFocusAndMetering(action)
+                                            }.getOrElse { failure ->
+                                                centerAfStatus = -1
+                                                android.util.Log.w("FUJI_AF", "Tap-to-focus request failed to start.", failure)
+                                                localizedToast(
+                                                    context,
+                                                    "Camera không thể bắt đầu lấy nét.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                scope.launch(Dispatchers.Main) {
+                                                    withFrameNanos { }
+                                                    withFrameNanos { }
+                                                    if (focusLockRequestGeneration == focusRequestId &&
+                                                        centerAfStatus == -1
+                                                    ) {
+                                                        centerAfStatus = 0
+                                                    }
+                                                }
+                                                return@detectTapGestures
+                                            }
                                             focusFuture.addListener({
                                                 if (!shouldAcceptFocusRequestResult(
                                                         requestGeneration = focusRequestId,

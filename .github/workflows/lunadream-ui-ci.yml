@@ -107,6 +107,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/Camera2Info.kt \
             CamUI-src/app/src/main/java/com/example/camui/DigitalZoomProcessor.kt \
             CamUI-src/app/src/main/java/com/example/camui/DigitalZoomPreviewEffect.kt \
+            CamUI-src/app/src/main/java/com/example/camui/DigitalZoomPreviewCoordinates.kt \
             CamUI-src/app/src/main/java/com/example/camui/DigitalZoomXmpWriter.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLcdDisplayMode.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLookCatalog.kt \
@@ -137,6 +138,7 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/CameraControlProgressTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraExposureRequestPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/DigitalZoomProcessorTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/DigitalZoomPreviewCoordinatesTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/DigitalZoomXmpWriterTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/ZoomCapabilityPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \

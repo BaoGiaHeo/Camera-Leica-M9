@@ -1372,17 +1372,21 @@ fun CameraScreen(
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
-    LaunchedEffect(previewView, digitalZoomCropScale) {
+    val digitalZoomPreviewEffect = remember(previewView) { DigitalZoomPreviewEffect() }
+    DisposableEffect(previewView, digitalZoomPreviewEffect) {
+        onDispose { digitalZoomPreviewEffect.clear(previewView) }
+    }
+    LaunchedEffect(previewView, digitalZoomCropScale, digitalZoomPreviewEffect) {
         val safeDigitalScale = digitalZoomCropScale.takeIf { it.isFinite() && it >= 1f } ?: 1f
-        previewView.scaleX = safeDigitalScale
-        previewView.scaleY = safeDigitalScale
         previewView.clipToOutline = true
         previewView.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        val renderMethod = digitalZoomPreviewEffect.apply(previewView, safeDigitalScale)
         val matrixValues = FloatArray(9)
         previewView.matrix.getValues(matrixValues)
         previewTransformText = String.format(
             Locale.US,
-            "view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f] digitalCrop=%.4f",
+            "render=%s view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f] digitalCrop=%.4f",
+            renderMethod,
             previewView.width,
             previewView.height,
             previewView.scaleX,
@@ -4954,11 +4958,16 @@ fun CameraScreen(
                                     modifier = Modifier.fillMaxSize().onGloballyPositioned { coordinates ->
                                         val origin = coordinates.positionInRoot()
                                         previewBoundsText = "${origin.x.roundToInt()},${origin.y.roundToInt()},${(origin.x + coordinates.size.width).roundToInt()},${(origin.y + coordinates.size.height).roundToInt()}"
+                                        val renderMethod = digitalZoomPreviewEffect.apply(
+                                            previewView,
+                                            digitalZoomCropScale.takeIf { it.isFinite() && it >= 1f } ?: 1f
+                                        )
                                         val matrixValues = FloatArray(9)
                                         previewView.matrix.getValues(matrixValues)
                                         previewTransformText = String.format(
                                             Locale.US,
-                                            "view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f]",
+                                            "render=%s view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f]",
+                                            renderMethod,
                                             previewView.width,
                                             previewView.height,
                                             previewView.scaleX,

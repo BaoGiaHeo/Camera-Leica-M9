@@ -812,13 +812,14 @@ class PixelOsdRenderer(context: Context) {
         val width = logicWidth
         if (width < 100) return
 
-        val trackOuterWidth = (width * 0.22f).roundToInt().coerceIn(54, 88)
+        val trackOuterWidth = (width * 0.22f).roundToInt().coerceAtLeast(54).coerceAtMost(width - 24)
         val left = if (frame.zoomBarPosition.equals("top_left", ignoreCase = true)) {
             8
         } else {
             ((width - trackOuterWidth) / 2f).roundToInt()
         }
-        val top = 6
+        // Keep the optional top-left bar below the histogram so the two overlays never collide.
+        val top = if (frame.zoomBarPosition.equals("top_left", ignoreCase = true)) 44 else 6
         val trackLeft = left + 8
         val trackRight = left + trackOuterWidth - 8
         val trackTop = top + 1
@@ -841,6 +842,8 @@ class PixelOsdRenderer(context: Context) {
             for (y in (trackTop + 1) until trackBottom) {
                 drawHLine(canvas, digitalStart, trackRight - 1, y, PixelOsdPalette.AMBER, (alpha * 72 / 255))
             }
+            // Distinct optical/hybrid-to-digital boundary marker.
+            drawVLine(canvas, digitalStart, trackTop - 1, trackBottom + 1, PixelOsdPalette.AMBER, alpha)
         }
 
         drawHLine(canvas, trackLeft, trackRight, trackTop, PixelOsdPalette.WHITE, alpha)

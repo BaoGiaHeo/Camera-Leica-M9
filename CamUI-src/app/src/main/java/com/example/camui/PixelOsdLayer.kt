@@ -599,7 +599,7 @@ class PixelOsdRenderer(context: Context) {
                 )
             }
             drawPixelText(canvas, value, x, bottom, color)
-            x += textWidth + 5
+            x += textWidth + 3
         }
 
         val exposureColor = when {
@@ -635,12 +635,18 @@ class PixelOsdRenderer(context: Context) {
         if (frame.showProShutter) {
             if (x <= logicWidth - 34) {
                 drawSprite(canvas, "shutter", x, bottom - 7)
-                x += 11
+                x += 10
             }
-            put(frame.shutterText.take(7), "TV", shutterColor)
-            put(frame.apertureText.take(5), "", apertureColor)
+            put("SS", "", PixelOsdPalette.WHITE)
+            put(frame.shutterText.take(5), "TV", shutterColor)
+            put(frame.apertureText.take(5), "F", apertureColor)
         }
-        if (frame.showProIso) put(frame.isoText.take(6), "ISO", isoColor)
+        if (frame.showProIso) {
+            put("ISO${frame.isoText.take(4)}", "ISO", isoColor)
+        }
+        if (frame.batteryPercent in 0..100 && x <= logicWidth - 15) {
+            drawSprite(canvas, "battery", logicWidth - 13, bottom - 6)
+        }
 
         val dynamicRangeColor = if (selected == "DR") PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
         val whiteBalanceColor = when {

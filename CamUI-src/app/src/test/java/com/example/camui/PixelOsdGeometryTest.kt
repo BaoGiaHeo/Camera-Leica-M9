@@ -27,6 +27,30 @@ class PixelOsdGeometryTest {
     }
 
     @Test
+    fun manualTouchOverrideKeepsAfReticleVisibleOverFaceBox() {
+        assertTrue(shouldDrawCenterAfReticle(
+            centerAfPointAvailable = true,
+            faceBoxVisible = true,
+            manualOverrideActive = true
+        ))
+        assertFalse(shouldDrawCenterAfReticle(
+            centerAfPointAvailable = true,
+            faceBoxVisible = true,
+            manualOverrideActive = false
+        ))
+        assertTrue(shouldDrawCenterAfReticle(
+            centerAfPointAvailable = true,
+            faceBoxVisible = false,
+            manualOverrideActive = false
+        ))
+        assertFalse(shouldDrawCenterAfReticle(
+            centerAfPointAvailable = false,
+            faceBoxVisible = false,
+            manualOverrideActive = true
+        ))
+    }
+
+    @Test
     fun normalizedCoordinatesAreRoundedToIntegerLogicPixels() {
         val geometry = PixelOsdGeometry.fromDisplayPixels(1920, 1080, "fine")
         assertEquals(0, geometry.x(0f))

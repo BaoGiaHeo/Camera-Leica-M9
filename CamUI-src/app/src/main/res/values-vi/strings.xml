@@ -132,4 +132,5 @@
     <string name="watermark_field_copyright">Bản quyền</string>
     <string name="watermark_field_megapixels">MP</string>
     <string name="watermark_studio_copyright_placeholder">Tên hiển thị sau ©</string>
+    <string name="watermark_studio_location_auto_note">Vị trí dùng nhãn tùy chỉnh hoặc GPS trong EXIF của ảnh nguồn; trường sẽ ẩn nếu không có cả hai.</string>
 </resources>

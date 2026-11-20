@@ -120,4 +120,16 @@
     <string name="watermark_layout_viewfinder_description">Four viewfinder corners with metadata</string>
     <string name="watermark_layout_exposure_dial_description">Three exposure dials for aperture, shutter and ISO</string>
     <string name="watermark_studio_preview_content_description">Watermark Studio preview rendered with the production photo pipeline</string>
+    <string name="watermark_field_camera_name">Camera name</string>
+    <string name="watermark_field_lens">Lens</string>
+    <string name="watermark_field_focal">Focal length</string>
+    <string name="watermark_field_aperture">Aperture</string>
+    <string name="watermark_field_shutter">Shutter</string>
+    <string name="watermark_field_iso">ISO</string>
+    <string name="watermark_field_ev">EV</string>
+    <string name="watermark_field_filter">Film simulation</string>
+    <string name="watermark_field_night">LD / NIGHT</string>
+    <string name="watermark_field_copyright">Copyright</string>
+    <string name="watermark_field_megapixels">MP</string>
+    <string name="watermark_studio_copyright_placeholder">Name after ©</string>
 </resources>

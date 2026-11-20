@@ -3355,6 +3355,29 @@ fun CameraScreen(
             // or switch lenses while the countdown is running.
             val capture = imageCapture ?: return@launch
             val activeCamera = camera ?: return@launch
+            val captureZoomState = activeCamera.cameraInfo.zoomState.value
+            val captureZoomAssessment = Camera2Info.opticalZoomAssessment(
+                activeCameraDetails,
+                activePhysicalCameraDetails
+            )
+            val captureCameraReportedMaximum = Camera2Info.cameraReportedZoomMax(
+                activeCameraDetails,
+                captureZoomState?.maxZoomRatio ?: 1f
+            )
+            val captureZoomPlan = resolveZoomExecutionPlan(
+                requestedZoomRatio = zoomSel,
+                minimumCameraRatio = captureZoomState?.minZoomRatio ?: 1f,
+                cameraReportedMaximum = captureCameraReportedMaximum,
+                assessment = captureZoomAssessment
+            )
+            val captureRequestedZoomRatio = captureZoomPlan.effectiveZoomRatio
+            val captureDigitalCropRatio = captureZoomPlan.digitalCropRatio
+            android.util.Log.i(
+                "FUJI_ZOOM_CAPTURE_PLAN",
+                "requestedTotal=$captureRequestedZoomRatio cameraControl=${captureZoomPlan.cameraControlZoomRatio} " +
+                    "digitalCrop=$captureDigitalCropRatio cameraMax=${captureZoomPlan.cameraControlMaximum} " +
+                    "totalMax=${captureZoomPlan.totalSelectableMaximum}"
+            )
             val captureIsUltraHdr = preserveUltraHdrOutput
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
             val captureUseDeviceProcessing = nativeImageProcessingEnabled &&
@@ -4167,8 +4190,34 @@ fun CameraScreen(
                                     return@launch
                                 }
 
-                                // Render the optional frame after final MP sizing too, so its
-                                // borders and labels are crisp at the actual output resolution.
+                                val digitalZoomResult = if (
+                                    !captureIsUltraHdr &&
+                                    !captureRawOnly &&
+                                    captureDigitalCropRatio > 1.001f
+                                ) {
+                                    withContext(Dispatchers.Main) {
+                                        processingProgress = maxOf(processingProgress, 87)
+                                        processingLabel = "Đang crop zoom số bằng GPU Lanczos"
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        DigitalZoomProcessor.applyLanczosCropToUri(
+                                            context = context,
+                                            uri = saved,
+                                            digitalCropRatio = captureDigitalCropRatio
+                                        )
+                                    }
+                                } else null
+                                val digitalZoomApplied = digitalZoomResult != null
+                                if (captureDigitalCropRatio > 1.001f && !digitalZoomApplied) {
+                                    android.util.Log.e(
+                                        "FUJI_DIGITAL_ZOOM",
+                                        "Requested total zoom=$captureRequestedZoomRatio but photo crop failed; " +
+                                            "camera-only JPEG is retained and must not be labeled DIGITAL"
+                                    )
+                                }
+
+                                // Render the optional frame after MP sizing and digital crop,
+                                // so its borders and watermark remain crisp at the final output size.
                                 val frameApplied = if (captureIsUltraHdr) false else
                                     runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
 
@@ -4217,6 +4266,15 @@ fun CameraScreen(
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
                                     else finalizeCapturedImageMetadata(context, saved)
                                 }.getOrDefault(false)
+                                val digitalXmpPublished = if (digitalZoomApplied) {
+                                    DigitalZoomXmpWriter.writeDigitalZoom(
+                                        context = context,
+                                        uri = saved,
+                                        requestedZoomRatio = captureRequestedZoomRatio,
+                                        cameraControlZoomRatio = captureZoomPlan.cameraControlZoomRatio,
+                                        digitalCropRatio = captureDigitalCropRatio
+                                    )
+                                } else false
                                 // Normalization runs before image looks and watermark drawing.
                                 // No later rotation is allowed to move the frame away from the
                                 // final upright pixel coordinate system.
@@ -4244,6 +4302,18 @@ fun CameraScreen(
                                     .putString("photo_camera_id:$saved", activeCameraDetails?.id ?: "Không công bố")
                                     .putString("photo_physical_camera_id:$saved", activePhysicalCameraId ?: "HAL không công bố")
                                     .putString("photo_output_size:$saved", inspectorOutputSize)
+                                    .putString(
+                                        "photo_digital_zoom:$saved",
+                                        when {
+                                            digitalZoomApplied && digitalXmpPublished ->
+                                                "DIGITAL total=$captureRequestedZoomRatio camera=${captureZoomPlan.cameraControlZoomRatio} crop=$captureDigitalCropRatio"
+                                            digitalZoomApplied ->
+                                                "DIGITAL pixels applied; XMP write failed"
+                                            captureDigitalCropRatio > 1.001f ->
+                                                "Digital crop failed; original camera JPEG retained"
+                                            else -> "Camera-controlled zoom=$captureRequestedZoomRatio"
+                                        }
+                                    )
                                     .apply()
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 98
@@ -4297,8 +4367,18 @@ fun CameraScreen(
                                         orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album."
                                         else -> "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh."
                                     }
-                                    val finalMessage = if (captureIsUltraHdr) message
-                                        else if (frameApplied) "$message Frame đã được áp dụng." else message
+                                    val digitalZoomSuffix = when {
+                                        digitalZoomApplied && digitalXmpPublished ->
+                                            " " + localizedUiText(context, "DIGITAL zoom: ảnh đã crop Lanczos và ghi XMP.")
+                                        digitalZoomApplied ->
+                                            " " + localizedUiText(context, "DIGITAL zoom đã crop nhưng chưa ghi được XMP.")
+                                        captureDigitalCropRatio > 1.001f ->
+                                            " " + localizedUiText(context, "Cảnh báo: crop zoom số thất bại; ảnh gốc CameraX được giữ.")
+                                        else -> ""
+                                    }
+                                    val finalMessage = (if (captureIsUltraHdr) message
+                                        else if (frameApplied) "$message Frame đã được áp dụng." else message) +
+                                        digitalZoomSuffix
                                     val deviceProcessingSuffix = when {
                                         !captureUseDeviceProcessing -> ""
                                         deviceProcessingApplied -> " Xử lý ảnh gốc thiết bị đã hoàn tất: tối ưu dải sáng và độ sắc nét."

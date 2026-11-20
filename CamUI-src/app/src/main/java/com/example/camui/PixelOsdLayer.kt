@@ -671,7 +671,15 @@ class PixelOsdRenderer(context: Context) {
         rightSegments.forEach { (value, color, key) ->
             val textWidth = value.length * 5
             if (selected == key || (key == "FILM" && selected == "FS")) {
-                drawPixelSelectionArc(canvas, rightX - 2, 18, rightX + textWidth + 1, 30, PixelOsdPalette.BLUE)
+                drawPixelSelectionArc(
+                    canvas,
+                    rightX - 2,
+                    18,
+                    rightX + textWidth + 1,
+                    30,
+                    PixelOsdPalette.BLUE,
+                    frame.selectedControlProgress
+                )
             }
             drawPixelText(canvas, value, rightX, 28, color)
             rightX += textWidth + 3
@@ -740,10 +748,18 @@ class PixelOsdRenderer(context: Context) {
         }
     }
 
-    private fun drawPixel(canvas: NativeCanvas, x: Int, y: Int, color: Int) {
+    private fun drawPixel(
+        canvas: NativeCanvas,
+        x: Int,
+        y: Int,
+        color: Int,
+        alpha: Int = 255
+    ) {
         if (x !in 0 until logicWidth || y !in 0 until logicHeight) return
         fillPaint.color = color
+        fillPaint.alpha = alpha.coerceIn(0, 255)
         canvas.drawRect(x.toFloat(), y.toFloat(), x + 1f, y + 1f, fillPaint)
+        fillPaint.alpha = 255
     }
 
     private fun drawHLine(canvas: NativeCanvas, x1: Int, x2: Int, y: Int, color: Int, alpha: Int = 110) {

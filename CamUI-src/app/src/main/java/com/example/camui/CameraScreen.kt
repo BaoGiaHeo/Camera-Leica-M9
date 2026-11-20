@@ -561,6 +561,7 @@ fun CameraScreen(
     )
     val faceTrackSmoother = remember { FaceTrackSmoother() }
     val primaryEyeSelector = remember { PrimaryEyeSelector() }
+    val eyeSwitchRateTracker = remember { EyeSwitchRateTracker() }
     var faceTrackCenter by remember { mutableStateOf<Offset?>(null) }
     var faceTrackSize by remember { mutableStateOf<Offset?>(null) }
     var faceEyeCenter by remember { mutableStateOf<Offset?>(null) }
@@ -1936,6 +1937,7 @@ fun CameraScreen(
                                         consecutiveHardwareFacesWithoutEyes = 0
                                     }
                                     val faceTimestamp = SystemClock.elapsedRealtime()
+                                    val previousPrimaryEye = primaryEyeSelector.currentSide()
                                     val primaryEye = primaryEyeSelector.select(
                                         leftEye = leftEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
                                         rightEye = rightEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
@@ -1951,6 +1953,16 @@ fun CameraScreen(
                                             (it.y - crop.top) / crop.height(),
                                             faceSensorToDisplayRotation,
                                             front
+                                        )
+                                    }
+                                    val selectedPrimaryEye = primaryEyeSelector.currentSide()
+                                    if (previousPrimaryEye != null && selectedPrimaryEye != null &&
+                                        previousPrimaryEye != selectedPrimaryEye
+                                    ) {
+                                        val switchRate = eyeSwitchRateTracker.recordSwitch(faceTimestamp)
+                                        android.util.Log.i(
+                                            "FUJI_FACE_TRACK",
+                                            "PRIMARY_EYE_SWITCH source=CAMERA2 from=$previousPrimaryEye to=$selectedPrimaryEye switchesLast60s=$switchRate"
                                         )
                                     }
                                     val eye = mapCamera2Eye(primaryEye)
@@ -2282,6 +2294,7 @@ fun CameraScreen(
                                             val rightEyeArea = eyeContourArea(
                                                 best.getContour(FaceContour.RIGHT_EYE)?.points?.map { Offset(it.x, it.y) }
                                             )
+                                            val previousPrimaryEye = primaryEyeSelector.currentSide()
                                             val primaryEye = primaryEyeSelector.select(
                                                 leftEye = leftEye?.let { Offset(it.x, it.y) },
                                                 rightEye = rightEye?.let { Offset(it.x, it.y) },
@@ -2299,6 +2312,16 @@ fun CameraScreen(
                                                     (it.y - frameTop) / frameHeight.toFloat(),
                                                     0,
                                                     front
+                                                )
+                                            }
+                                            val selectedPrimaryEye = primaryEyeSelector.currentSide()
+                                            if (previousPrimaryEye != null && selectedPrimaryEye != null &&
+                                                previousPrimaryEye != selectedPrimaryEye
+                                            ) {
+                                                val switchRate = eyeSwitchRateTracker.recordSwitch(faceTimestamp)
+                                                android.util.Log.i(
+                                                    "FUJI_FACE_TRACK",
+                                                    "PRIMARY_EYE_SWITCH source=MLKIT from=$previousPrimaryEye to=$selectedPrimaryEye switchesLast60s=$switchRate"
                                                 )
                                             }
                                             val eye = mapMlKitEye(primaryEye)

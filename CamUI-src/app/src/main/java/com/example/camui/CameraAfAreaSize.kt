@@ -28,15 +28,15 @@ enum class CameraAfAreaSize(
 
 
 /** Rejects AF/AE lock callbacks from stale touches, a different camera, or an unlocked state. */
-internal fun shouldAcceptFocusLockResult(
+internal fun shouldAcceptFocusRequestResult(
     requestGeneration: Int,
     currentGeneration: Int,
     requestedCenter: Offset,
     currentCenter: Offset,
     sameCamera: Boolean,
-    manualLockStillActive: Boolean
+    requestStillActive: Boolean
 ): Boolean =
     requestGeneration == currentGeneration &&
         requestedCenter == currentCenter &&
         sameCamera &&
-        manualLockStillActive
+        requestStillActive

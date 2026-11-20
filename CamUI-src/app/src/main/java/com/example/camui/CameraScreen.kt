@@ -4603,12 +4603,14 @@ fun CameraScreen(
                                             val active = camera ?: return@detectTapGestures
                                             invalidatePendingFocusLock()
                                             manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
-                                            centerAfPoint = Offset(
+                                            val tapPoint = Offset(
                                                 (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                                 (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
                                             )
-                                            preferredFaceCenter = centerAfPoint
+                                            centerAfPoint = tapPoint
+                                            preferredFaceCenter = tapPoint
                                             centerAfStatus = 0
+                                            val focusRequestId = focusLockRequestGeneration
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 manualFocus = 0f
                                                 milkyWayInfinityFocusEnabled = false
@@ -4627,13 +4629,28 @@ fun CameraScreen(
                                             ).disableAutoCancel().build()
                                             val focusFuture = active.cameraControl.startFocusAndMetering(action)
                                             focusFuture.addListener({
+                                                if (!shouldAcceptFocusRequestResult(
+                                                        requestGeneration = focusRequestId,
+                                                        currentGeneration = focusLockRequestGeneration,
+                                                        requestedCenter = tapPoint,
+                                                        currentCenter = centerAfPoint,
+                                                        sameCamera = camera === active,
+                                                        requestStillActive = manualAfOverrideUntilMs > SystemClock.elapsedRealtime()
+                                                    )
+                                                ) {
+                                                    return@addListener
+                                                }
                                                 val success = runCatching { focusFuture.get().isFocusSuccessful }.getOrDefault(false)
                                                 centerAfStatus = if (success) 1 else -1
                                                 if (!success) {
                                                     scope.launch(Dispatchers.Main) {
                                                         withFrameNanos { }
                                                         withFrameNanos { }
-                                                        if (centerAfStatus == -1) centerAfStatus = 0
+                                                        if (focusLockRequestGeneration == focusRequestId &&
+                                                            centerAfStatus == -1
+                                                        ) {
+                                                            centerAfStatus = 0
+                                                        }
                                                     }
                                                 }
                                             }, mainExecutor)
@@ -4695,7 +4712,7 @@ fun CameraScreen(
                                                             requestedCenter = lockPoint,
                                                             currentCenter = centerAfPoint,
                                                             sameCamera = camera === active,
-                                                            manualLockStillActive = manualAfOverrideUntilMs == Long.MAX_VALUE
+                                                            requestStillActive = manualAfOverrideUntilMs == Long.MAX_VALUE
                                                         )
                                                     ) {
                                                         return@addListener

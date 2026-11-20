@@ -5,27 +5,27 @@ import org.junit.Test
 
 class CameraAfAreaSizeTest {
     @Test
-    fun rejectsStaleOrObsoleteFocusLockResults() {
+    fun rejectsStaleOrObsoleteFocusRequestResults() {
         val point = Offset(0.42f, 0.61f)
         assertEquals(
             true,
-            shouldAcceptFocusLockResult(7, 7, point, point, sameCamera = true, manualLockStillActive = true)
+            shouldAcceptFocusRequestResult(7, 7, point, point, sameCamera = true, requestStillActive = true)
         )
         assertEquals(
             false,
-            shouldAcceptFocusLockResult(6, 7, point, point, sameCamera = true, manualLockStillActive = true)
+            shouldAcceptFocusRequestResult(6, 7, point, point, sameCamera = true, requestStillActive = true)
         )
         assertEquals(
             false,
-            shouldAcceptFocusLockResult(7, 7, point, Offset(0.5f, 0.5f), sameCamera = true, manualLockStillActive = true)
+            shouldAcceptFocusRequestResult(7, 7, point, Offset(0.5f, 0.5f), sameCamera = true, requestStillActive = true)
         )
         assertEquals(
             false,
-            shouldAcceptFocusLockResult(7, 7, point, point, sameCamera = false, manualLockStillActive = true)
+            shouldAcceptFocusRequestResult(7, 7, point, point, sameCamera = false, requestStillActive = true)
         )
         assertEquals(
             false,
-            shouldAcceptFocusLockResult(7, 7, point, point, sameCamera = true, manualLockStillActive = false)
+            shouldAcceptFocusRequestResult(7, 7, point, point, sameCamera = true, requestStillActive = false)
         )
     }
 

@@ -1038,8 +1038,12 @@ private suspend fun renderWatermarkStudioPreview(context: Context): ImageBitmap?
         resolver.query(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             arrayOf(MediaStore.Images.Media._ID),
-            "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.MIME_TYPE} = ?",
-            arrayOf("Pictures/FujifilmMode/%", "image/jpeg"),
+            "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.MIME_TYPE} = ? AND ${MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE ?",
+            arrayOf(
+                "Pictures/FujifilmMode/%",
+                "image/jpeg",
+                "Pictures/FujifilmMode/.WatermarkStudio/%"
+            ),
             "${MediaStore.Images.Media.DATE_ADDED} DESC"
         )?.use { cursor ->
             if (cursor.moveToFirst()) {

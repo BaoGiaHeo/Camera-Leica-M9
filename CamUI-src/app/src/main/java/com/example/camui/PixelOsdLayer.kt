@@ -327,6 +327,7 @@ class PixelOsdRenderer(context: Context) {
                 ?: 17
             val color = if (frame.faceFocused) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
             drawCornerFrame(canvas, cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight, color, 5)
+            // Only display the eye marker when Camera2 or ML Kit supplied a real landmark.
             frame.eyeCenter?.let { eye ->
                 drawSprite(
                     canvas,
@@ -334,7 +335,7 @@ class PixelOsdRenderer(context: Context) {
                     (eye.x * width).roundToInt() - 3,
                     (eye.y * height).roundToInt() - 2
                 )
-            } ?: drawSprite(canvas, "eye", cx - 3, cy - 5)
+            }
         }
 
         if (frame.centerAfPoint != null && frame.faceCenter == null) {

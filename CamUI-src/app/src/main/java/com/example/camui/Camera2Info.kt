@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureResult
+import android.util.Log
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -37,7 +38,8 @@ data class CamDetails(
     val hasFlash: Boolean,
     val supportsRaw: Boolean,
     val hasOis: Boolean,
-    val sensorOrientation: Int?
+    val sensorOrientation: Int?,
+    val eq35MmMaximum: Float? = null
 )
 
 data class LiveReading(
@@ -102,7 +104,24 @@ object Camera2Info {
                 result += details(physicalId, id, physicalCharacteristics, emptySet())
             }
         }
-        return result.distinctBy { it.id to it.parentId }
+        val cameras = result.distinctBy { it.id to it.parentId }
+        val rearLenses = cameras.filter { it.facing == "BACK" }
+        val rearEquivalents = rearLenses.flatMap { lens ->
+            listOfNotNull(lens.eq35Mm, lens.eq35MmMaximum)
+        }.distinct()
+        val deviceOpticalAssessment = assessOpticalZoom(rearEquivalents)
+        Log.i(
+            "FUJI_ZOOM_LENS_INVENTORY",
+            "cameraEntries=${cameras.size} rearEntries=${rearLenses.size} " +
+                "lenses35mm=${rearLenses.joinToString { lens ->
+                    "${lens.id}(parent=${lens.parentId ?: "none"},eq=${lens.eq35Mm ?: "?"}..${lens.eq35MmMaximum ?: lens.eq35Mm ?: "?"})"
+                }} " +
+                "main35mm=${deviceOpticalAssessment.mainEquivalent35Mm} " +
+                "longest35mm=${deviceOpticalAssessment.longestEquivalent35Mm} " +
+                "opticalTele=${deviceOpticalAssessment.hasOpticalTelephoto} " +
+                "opticalRatio=${deviceOpticalAssessment.opticalRatio}"
+        )
+        return cameras
     }
 
     /** Human-readable Camera2 inventory, suitable for Logcat. */
@@ -115,7 +134,10 @@ object Camera2Info {
             }
             appendLine("== Camera id=${camera.id} | ${camera.facing} | $role")
             appendLine("   hardware=${camera.hardwareLevel}")
-            appendLine("   focal(mm)=${camera.focalLengthsMm} | eq35=${camera.eq35Mm?.let { String.format(Locale.US, "%.1fmm", it) } ?: "?"}")
+            appendLine(
+                "   focal(mm)=${camera.focalLengthsMm} | eq35=${camera.eq35Mm?.let { String.format(Locale.US, "%.1fmm", it) } ?: "?"}" +
+                    "..${camera.eq35MmMaximum?.let { String.format(Locale.US, "%.1fmm", it) } ?: "?"}"
+            )
             appendLine("   aperture=${camera.apertures}")
             appendLine("   sensor(mm)=${camera.sensorSizeMm} | pixels=${camera.pixelArray}")
             appendLine("   ISO=${camera.isoRange} | exposure(s)=${camera.exposureRange} | EV=${camera.evRange}")
@@ -167,7 +189,11 @@ object Camera2Info {
     ): OpticalZoomAssessment {
         val equivalents = buildList {
             logical?.eq35Mm?.let(::add)
-            physical.mapNotNullTo(this) { it.eq35Mm }
+            logical?.eq35MmMaximum?.let(::add)
+            physical.forEach { lens ->
+                lens.eq35Mm?.let(::add)
+                lens.eq35MmMaximum?.let(::add)
+            }
         }
         return assessOpticalZoom(
             equivalentFocalLengths35Mm = equivalents,
@@ -224,7 +250,7 @@ object Camera2Info {
 
         if (baseEquivalent != null && baseEquivalent > 0f) {
             physical.forEach { lens ->
-                val equivalent = lens.eq35Mm
+                val equivalent = lens.eq35MmMaximum ?: lens.eq35Mm
                 if (equivalent != null && equivalent > 0f) {
                     val ratio = equivalent / baseEquivalent
                     if (abs(ratio - 1f) >= 0.06f) candidates += ratio
@@ -257,14 +283,11 @@ object Camera2Info {
         val controlZoomRatioRange = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             runCatching { characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) }.getOrNull()
         } else null
-        val equivalent35 = if (
-            focalLengths.isNotEmpty() &&
-            sensorSize != null &&
-            sensorSize.width > 0f &&
-            sensorSize.height > 0f
-        ) {
-            focalLengths.first() * 43.27f / hypot(sensorSize.width, sensorSize.height)
-        } else null
+        val equivalentRange = calculateEquivalentFocalRange35Mm(
+            focalLengthsMm = focalLengths,
+            sensorWidthMm = sensorSize?.width,
+            sensorHeightMm = sensorSize?.height
+        )
 
         val pixels = characteristics.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
         val iso = characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
@@ -303,7 +326,8 @@ object Camera2Info {
                 .get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
                 ?.toList()
                 ?: emptyList(),
-            eq35Mm = equivalent35,
+            eq35Mm = equivalentRange.shortest,
+            eq35MmMaximum = equivalentRange.longest,
             sensorSizeMm = sensorSize?.let {
                 String.format(Locale.US, "%.2f x %.2f", it.width, it.height)
             },

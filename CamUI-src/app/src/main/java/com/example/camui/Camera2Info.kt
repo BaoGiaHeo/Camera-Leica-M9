@@ -155,28 +155,38 @@ object Camera2Info {
     }
 
     /**
-     * Uses only lenses exposed by the active logical multi-camera. Devices with a disclosed
-     * telephoto lens may use its real focal-length ratio; otherwise the UI is capped at 2x.
-     * CameraX's own max zoom remains the final authority.
+     * Assesses optical telephoto availability from the active logical camera and
+     * its exposed physical lenses. A telephoto requires at least 1.8x the main
+     * lens's 35mm-equivalent focal length.
+     */
+    fun opticalZoomAssessment(
+        logical: CamDetails?,
+        physical: List<CamDetails>
+    ): OpticalZoomAssessment {
+        val equivalents = buildList {
+            logical?.eq35Mm?.let(::add)
+            physical.mapNotNullTo(this) { it.eq35Mm }
+        }
+        return assessOpticalZoom(
+            equivalentFocalLengths35Mm = equivalents,
+            mainEquivalent35Mm = logical?.eq35Mm
+        )
+    }
+
+    /**
+     * Returns the maximum zoom CameraX can actually accept. Devices without a
+     * disclosed telephoto are hard-capped at 2x; telephoto devices are capped
+     * at 50x and additionally constrained by the active CameraX zoom range.
+     * Digital zoom beyond this value requires a separate crop pipeline.
      */
     fun maxSelectableZoom(
         logical: CamDetails?,
         physical: List<CamDetails>,
         cameraXMaxZoom: Float
-    ): Float {
-        val cameraMax = cameraXMaxZoom.takeIf { it.isFinite() && it >= 1f } ?: 1f
-        val equivalents = physical.mapNotNull { it.eq35Mm?.takeIf { value -> value > 0f } }
-        val base = equivalents.minByOrNull { abs(it - 26f) }
-            ?: logical?.eq35Mm?.takeIf { it > 0f }
-        val teleRatio = if (base != null && base > 0f) {
-            equivalents.filter { it > base * 1.12f }
-                .maxOrNull()
-                ?.div(base)
-        } else null
-        val hasExposedTelephoto = teleRatio != null && teleRatio >= 1.25f
-        val policyMax = if (hasExposedTelephoto) maxOf(2f, teleRatio!!) else 2f
-        return minOf(cameraMax, policyMax).coerceAtLeast(1f)
-    }
+    ): Float = selectableCameraZoomMax(
+        cameraReportedMax = cameraXMaxZoom,
+        assessment = opticalZoomAssessment(logical, physical)
+    )
 
     /**
      * Generates quick zoom stops from the active logical camera's exposed physical lenses.

@@ -91,4 +91,8 @@
     <string name="watermark_studio_enabled">WATERMARK BẬT</string>
     <string name="watermark_studio_disabled">WATERMARK TẮT</string>
     <string name="watermark_studio_output_note">Ảnh xem trước Studio dùng bản giải mã giảm độ phân giải. Ảnh chụp cuối cùng vẫn được xử lý ở độ phân giải lưu đầy đủ.</string>
+    <string name="watermark_studio_light">SÁNG</string>
+    <string name="watermark_studio_dark">TỐI</string>
+    <string name="watermark_studio_auto">TỰ ĐỘNG</string>
+    <string name="watermark_studio_glass">KÍNH</string>
 </resources>

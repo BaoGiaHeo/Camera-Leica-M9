@@ -77,6 +77,32 @@ class CameraControlProgressTest {
     }
 
     @Test
+    fun proDynamicRangeLabelMatchesTheCapturePipelineSelection() {
+        fun label(
+            hdr: Boolean = true,
+            photo: Boolean = true,
+            night: Boolean = false,
+            raw: Boolean = false,
+            manual: Boolean = false,
+            iso: Boolean = false,
+            shutter: Boolean = false,
+            oem: Boolean = false,
+            live: Boolean = false
+        ) = proDynamicRangeLabel(hdr, photo, night, raw, manual, iso, shutter, oem, live)
+
+        assertEquals("HDR", label())
+        assertEquals("DR100", label(hdr = false))
+        assertEquals("DR100", label(photo = false))
+        assertEquals("DR100", label(night = true))
+        assertEquals("DR100", label(raw = true))
+        assertEquals("DR100", label(manual = true, iso = true))
+        assertEquals("DR100", label(manual = true, shutter = true))
+        assertEquals("HDR", label(manual = true))
+        assertEquals("DR100", label(oem = true))
+        assertEquals("DR100", label(live = true))
+    }
+
+    @Test
     fun invalidOrUnavailableControlsUseTheMidpoint() {
         assertEquals(0.5f, progress("TV", shutter = 0L), 0.0001f)
         assertEquals(0.5f, progress("EV", ev = 0f, min = 2, max = 2), 0.0001f)

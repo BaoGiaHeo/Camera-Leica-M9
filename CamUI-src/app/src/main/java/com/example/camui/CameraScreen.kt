@@ -4781,7 +4781,17 @@ fun CameraScreen(
                                         ?: activeCameraDetails?.apertures?.minOrNull())
                                         ?.let { "F%.1f".format(Locale.US, it) } ?: "F--",
                                     isoText = isoText,
-                                    dynamicRangeText = "DR100",
+                                    dynamicRangeText = proDynamicRangeLabel(
+                                        hdrEnabled = hdrEnabled,
+                                        isPhotoMode = mode == "Photo",
+                                        nightShotEnabled = nightShotMode != "off",
+                                        rawCaptureActive = rawCaptureActive,
+                                        manualExposure = manualExposure,
+                                        manualIsoEnabled = manualIsoEnabled,
+                                        manualShutterEnabled = manualShutterEnabled,
+                                        nativeImageProcessingEnabled = nativeImageProcessingEnabled,
+                                        livePhotoEnabled = livePhotoEnabled
+                                    ),
                                     whiteBalanceText = toneText,
                                     filmSimulationText = activeFilter.takeIf { it != "None" }?.take(2)?.uppercase(Locale.US) ?: "",
                                     manualExposure = manualExposure,

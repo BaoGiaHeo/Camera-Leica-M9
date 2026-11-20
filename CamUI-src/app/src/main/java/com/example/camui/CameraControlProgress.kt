@@ -96,3 +96,31 @@ internal fun resolvePreviewZoomCompensation(
     ) return 1f
     return (startZoomRatio / targetZoomRatio).coerceIn(0.85f, 1.15f)
 }
+
+
+/**
+ * Text shown in the Pro OSD for the currently requested capture pipeline.
+ * DR100 is the base still-photo profile; HDR is displayed only when the
+ * HDRbyHDMP software pipeline can actually be selected for this capture.
+ * This intentionally does not claim that a generic DR200/DR400 control exists.
+ */
+internal fun proDynamicRangeLabel(
+    hdrEnabled: Boolean,
+    isPhotoMode: Boolean,
+    nightShotEnabled: Boolean,
+    rawCaptureActive: Boolean,
+    manualExposure: Boolean,
+    manualIsoEnabled: Boolean,
+    manualShutterEnabled: Boolean,
+    nativeImageProcessingEnabled: Boolean,
+    livePhotoEnabled: Boolean
+): String {
+    val hdrCaptureRequested = !nativeImageProcessingEnabled &&
+        !livePhotoEnabled &&
+        hdrEnabled &&
+        isPhotoMode &&
+        !nightShotEnabled &&
+        !rawCaptureActive &&
+        !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
+    return if (hdrCaptureRequested) "HDR" else "DR100"
+}

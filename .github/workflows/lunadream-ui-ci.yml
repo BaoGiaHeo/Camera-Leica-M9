@@ -67,7 +67,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-2.5.0Dream-Developer
+          name: FujiFilm-Mode-2.5.0-Developer
           path: CamUI-src/app/build/outputs/apk/developer/app-developer.apk
           if-no-files-found: error
           retention-days: 14

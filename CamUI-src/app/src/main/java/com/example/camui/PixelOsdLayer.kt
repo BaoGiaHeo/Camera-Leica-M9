@@ -494,9 +494,6 @@ class PixelOsdRenderer(context: Context) {
             15,
             if (frame.focusLocked) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
         )
-        if (frame.focusLocked) {
-            drawPixelText(canvas, "AE-L", (afRight - afWidth - measurePixelTextWidthLogic("AE-L") - 3).coerceAtLeast(4), 28, PixelOsdPalette.GREEN)
-        }
     }
 
     private fun drawEvScale(canvas: NativeCanvas, frame: PixelOsdFrame) {

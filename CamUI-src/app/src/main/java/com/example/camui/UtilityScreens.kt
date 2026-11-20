@@ -3766,7 +3766,7 @@ fun applyCameraWatermark(
                 val stamp = timeLine.ifBlank { dateLabel }
                 val ink = Paint(titlePaint).apply {
                     color = AndroidColor.rgb(255, 150, 55)
-                    typeface = watermarkMonoTypeface
+                    typeface = FujiTypography.androidTypeface(context)
                     setShadowLayer((minSide * 0.0022f).coerceAtLeast(2f), 0f, 1f, AndroidColor.BLACK)
                     textAlign = Paint.Align.RIGHT
                 }

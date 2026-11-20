@@ -123,6 +123,11 @@ data class PixelOsdFrame(
     val manualIso: Boolean = false,
     val manualShutter: Boolean = false,
     val selectedControl: String = "",
+    val showProEv: Boolean = true,
+    val showProShutter: Boolean = true,
+    val showProIso: Boolean = true,
+    val showProFocus: Boolean = true,
+    val showProWhiteBalance: Boolean = true,
     val showZoom: Boolean = false,
     val zoomText: String = "",
     val zoomAlpha: Float = 1f,
@@ -528,19 +533,23 @@ class PixelOsdRenderer(context: Context) {
             else -> PixelOsdPalette.WHITE
         }
 
-        put("M", "EV", exposureColor)
-        if (x <= logicWidth - 36) {
-            drawSprite(canvas, "af-area", x, bottom - 5)
-            x += 13
+        if (frame.showProEv) put("M", "EV", exposureColor)
+        if (frame.showProFocus) {
+            if (x <= logicWidth - 36) {
+                drawSprite(canvas, "af-area", x, bottom - 5)
+                x += 13
+            }
+            put(frame.afModeText.take(4), "AF", afColor)
         }
-        put(frame.afModeText.take(4), "AF", afColor)
-        if (x <= logicWidth - 34) {
-            drawSprite(canvas, "shutter", x, bottom - 7)
-            x += 11
+        if (frame.showProShutter) {
+            if (x <= logicWidth - 34) {
+                drawSprite(canvas, "shutter", x, bottom - 7)
+                x += 11
+            }
+            put(frame.shutterText.take(7), "TV", shutterColor)
+            put(frame.apertureText.take(5), "", apertureColor)
         }
-        put(frame.shutterText.take(7), "TV", shutterColor)
-        put(frame.apertureText.take(5), "", apertureColor)
-        put(frame.isoText.take(6), "ISO", isoColor)
+        if (frame.showProIso) put(frame.isoText.take(6), "ISO", isoColor)
 
         val dynamicRangeColor = if (selected == "DR") PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
         val whiteBalanceColor = when {
@@ -553,11 +562,13 @@ class PixelOsdRenderer(context: Context) {
         } else {
             PixelOsdPalette.WHITE
         }
-        val rightSegments = listOf(
-            Triple(frame.dynamicRangeText.take(5), dynamicRangeColor, "DR"),
-            Triple(frame.whiteBalanceText.take(6), whiteBalanceColor, "WB"),
-            Triple(frame.filmSimulationText.take(3), filmColor, "FILM")
-        ).filter { it.first.isNotBlank() }
+        val rightSegments = buildList {
+            add(Triple(frame.dynamicRangeText.take(5), dynamicRangeColor, "DR"))
+            if (frame.showProWhiteBalance) {
+                add(Triple(frame.whiteBalanceText.take(6), whiteBalanceColor, "WB"))
+            }
+            add(Triple(frame.filmSimulationText.take(3), filmColor, "FILM"))
+        }.filter { it.first.isNotBlank() }
         val rightTextWidth = rightSegments.sumOf { it.first.length * 5 + 3 }
         var rightX = (logicWidth - rightTextWidth - 7).coerceAtLeast(x)
         rightSegments.forEach { (value, color, key) ->

@@ -10,7 +10,8 @@ class EyeSwitchRateTrackerTest {
         assertEquals(1, tracker.recordSwitch(1_000L))
         assertEquals(2, tracker.recordSwitch(2_000L))
         assertEquals(2, tracker.switchesInWindow(60_000L))
-        assertEquals(1, tracker.switchesInWindow(62_001L))
+        assertEquals(1, tracker.switchesInWindow(61_500L))
+        assertEquals(0, tracker.switchesInWindow(62_001L))
     }
 
     @Test

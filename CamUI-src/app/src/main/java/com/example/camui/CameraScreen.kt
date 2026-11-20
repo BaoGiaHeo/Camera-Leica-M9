@@ -1206,6 +1206,7 @@ fun CameraScreen(
                 }
                 targetZoom = next
                 zoomSel = next
+                actualZoomRatio = next
                 lastZoomFuture = active.cameraControl.setZoomRatio(next)
                 tickCount++
             }
@@ -4439,6 +4440,7 @@ fun CameraScreen(
             ) {
                 activeCamera.cameraControl.setZoomRatio(value)
                 zoomSel = value
+                actualZoomRatio = value
             }
             appPrefs.edit().putFloat("camera_zoom_ratio", safeTarget).apply()
         }

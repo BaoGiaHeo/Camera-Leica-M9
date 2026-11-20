@@ -278,7 +278,8 @@ class MainActivity : AppCompatActivity() {
                         onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
                         ratioIdx = ratioIdx,
                         onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
-                        performanceMode = animationPerformanceMode
+                        performanceMode = animationPerformanceMode,
+                        onOpenWatermarkStudio = { settingsSubpageReturnTarget = "camera"; page = "watermark_studio" }
                     )
                     AnimatedContent(
                         targetState = page,
@@ -328,8 +329,10 @@ class MainActivity : AppCompatActivity() {
                                 onAnimationPerformanceModeChanged = {
                                     manualAnimationPerformanceMode = it
                                     settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
-                                }
+                                },
+                                onOpenWatermarkStudio = { settingsSubpageReturnTarget = "toolbox"; page = "watermark_studio" }
                             )
+                            "watermark_studio" -> WatermarkStudioScreen(onBack = { page = settingsSubpageReturnTarget })
                             "contents" -> ContentManagementScreen(onBack = { page = settingsSubpageReturnTarget })
                             else -> Spacer(Modifier.fillMaxSize())
                         }

@@ -162,7 +162,12 @@ internal fun pixelOsdDirtyRegions(
         previous.manualWhiteBalance != current.manualWhiteBalance ||
         previous.manualIso != current.manualIso ||
         previous.manualShutter != current.manualShutter ||
-        previous.selectedControl != current.selectedControl
+        previous.selectedControl != current.selectedControl ||
+        previous.showProEv != current.showProEv ||
+        previous.showProShutter != current.showProShutter ||
+        previous.showProIso != current.showProIso ||
+        previous.showProFocus != current.showProFocus ||
+        previous.showProWhiteBalance != current.showProWhiteBalance
     ) {
         add(0, height - 16, width, height)
         add(0, 8, width, 36)

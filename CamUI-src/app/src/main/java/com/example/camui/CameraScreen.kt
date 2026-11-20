@@ -6452,37 +6452,21 @@ private fun customCameraLookCategoryId(label: String): String {
     return "custom_$slug"
 }
 
-private val cameraLookGroups = listOf(
-    CameraLookGroup("fujifilm", R.string.filter_category_fujifilm, listOf(
-        "Provia", "Velvia", "Astia", "Classic Chrome", "Classic Neg", "Eterna",
-        "Pro Neg Std", "Pro Neg Hi", "Nostalgic Neg", "Reala Ace", "Bleach Bypass", "Acros"
-    )),
-    CameraLookGroup("color_film", R.string.filter_category_color_film, listOf(
-        "Portra 160", "Portra 400", "Portra 800", "Gold 200", "Ektar 100",
-        "Kodachrome 64", "ColorPlus 200", "CineStill 800T", "Vision3 250D",
-        "Vision3 500T", "400H", "Ektachrome 100"
-    )),
-    CameraLookGroup("classic", R.string.filter_category_classic,
-        listOf("Kodak Portra 400", "Agfa", "Kodak Gold", "Fuji 400")),
-    CameraLookGroup("bw", R.string.filter_category_black_white,
-        listOf("Tri-X 400", "T-Max 400", "Monochrome")),
-    CameraLookGroup("leica", R.string.filter_category_leica,
-        listOf("Leica Vivid", "Leica Natural", "Leica Mono")),
-    CameraLookGroup("hasselblad", R.string.filter_category_hasselblad,
-        listOf("Hasselblad HNCS")),
-    CameraLookGroup("zeiss", R.string.filter_category_zeiss,
-        listOf("Zeiss Cool", "Zeiss Warm")),
-    CameraLookGroup("sony", R.string.filter_category_sony,
-        listOf("Sony S-Cinetone", "Sony S-Log3")),
-    CameraLookGroup("cinema_log", R.string.filter_category_cinema_log,
-        listOf("Cine Tone", "Cinematic Log", "Soft Log")),
-    CameraLookGroup("basic", R.string.filter_category_basic,
-        listOf("Vivid", "Natural", "Cool", "Warm"))
+private val cameraLookGroups = builtInCameraLookGroupDefinitions.map { group ->
+    val labelResource = when (group.id) {
+        "fujifilm" -> R.string.filter_category_fujifilm
+        "color_film" -> R.string.filter_category_color_film
+        "classic" -> R.string.filter_category_classic
+        "bw" -> R.string.filter_category_black_white
+        "leica" -> R.string.filter_category_leica
+        "hasselblad" -> R.string.filter_category_hasselblad
+        "zeiss" -> R.string.filter_category_zeiss
+        "sony" -> R.string.filter_category_sony
+        "cinema_log" -> R.string.filter_category_cinema_log
+        else -> R.string.filter_category_basic
+    }
+    CameraLookGroup(group.id, labelResource, group.presets)
 )
-
-/** Stable catalog surface for regression tests; custom imported LUTs are excluded. */
-internal fun builtInCameraLookCatalog(): List<Pair<String, String>> =
-    cameraLookGroups.flatMap { group -> group.presets.map { group.id to it } }
 
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {
     val options = CaptureRequestOptions.Builder()

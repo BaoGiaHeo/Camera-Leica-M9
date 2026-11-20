@@ -87,6 +87,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/CameraFrameMetricsDiagnostics.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraControlProgress.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLcdDisplayMode.kt \
+            CamUI-src/app/src/main/java/com/example/camui/CameraLookCatalog.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdGeometry.kt \
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \
             CamUI-src/app/src/main/java/com/example/camui/FaceTrackSmoother.kt \

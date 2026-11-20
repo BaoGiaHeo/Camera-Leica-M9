@@ -3371,12 +3371,21 @@ fun CameraScreen(
                 assessment = captureZoomAssessment
             )
             val captureRequestedZoomRatio = captureZoomPlan.effectiveZoomRatio
-            val captureDigitalCropRatio = captureZoomPlan.digitalCropRatio
+            val captureActualCameraZoomRatio = zoomFromCaptureResult
+                .takeIf { it.isFinite() && it > 0f }
+                ?: captureZoomState?.zoomRatio
+                ?: captureZoomPlan.cameraControlZoomRatio
+            val captureDigitalCropRatio = if (captureZoomPlan.digitalCropRatio > 1.001f) {
+                (captureRequestedZoomRatio / captureActualCameraZoomRatio.coerceAtLeast(0.01f))
+                    .coerceAtLeast(1f)
+            } else {
+                1f
+            }
             android.util.Log.i(
                 "FUJI_ZOOM_CAPTURE_PLAN",
-                "requestedTotal=$captureRequestedZoomRatio cameraControl=${captureZoomPlan.cameraControlZoomRatio} " +
-                    "digitalCrop=$captureDigitalCropRatio cameraMax=${captureZoomPlan.cameraControlMaximum} " +
-                    "totalMax=${captureZoomPlan.totalSelectableMaximum}"
+                "requestedTotal=$captureRequestedZoomRatio plannedCamera=${captureZoomPlan.cameraControlZoomRatio} " +
+                    "captureResultCamera=$captureActualCameraZoomRatio digitalCrop=$captureDigitalCropRatio " +
+                    "cameraMax=${captureZoomPlan.cameraControlMaximum} totalMax=${captureZoomPlan.totalSelectableMaximum}"
             )
             val captureIsUltraHdr = preserveUltraHdrOutput
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
@@ -4271,7 +4280,7 @@ fun CameraScreen(
                                         context = context,
                                         uri = saved,
                                         requestedZoomRatio = captureRequestedZoomRatio,
-                                        cameraControlZoomRatio = captureZoomPlan.cameraControlZoomRatio,
+                                        cameraControlZoomRatio = captureActualCameraZoomRatio,
                                         digitalCropRatio = captureDigitalCropRatio
                                     )
                                 } else false

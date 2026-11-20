@@ -66,27 +66,41 @@ jobs:
         run: |
           mkdir -p source-artifacts
           zip -q source-artifacts/LunaDream-2.5.0dream-source-files.zip \
+            .github/workflows/build-lunadream-variants.yml \
+            .github/workflows/lunadream-ui-ci.yml \
+            CamUI-src/app/build.gradle.kts \
+            CamUI-src/app/src/androidTest/java/com/example/camui/FujiTypographyGlyphCoverageTest.kt \
+            CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
+            CamUI-src/app/src/main/assets/fonts/ShareTechMono-NOTICE.txt \
+            CamUI-src/app/src/main/assets/fonts/ShareTechMono-OFL.txt \
+            CamUI-src/app/src/main/assets/fonts/vcr_osd_mono_kk7.ttf.gz \
+            CamUI-src/app/src/main/java/com/example/camui/AnimaT.kt \
+            CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
+            CamUI-src/app/src/main/java/com/example/camui/Components.kt \
+            CamUI-src/app/src/main/java/com/example/camui/FaceTrackSmoother.kt \
+            CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
+            CamUI-src/app/src/main/java/com/example/camui/FujiTypography.kt \
+            CamUI-src/app/src/main/java/com/example/camui/LegacyColorAdjustmentCleanup.kt \
             CamUI-src/app/src/main/java/com/example/camui/MainActivity.kt \
-            CamUI-src/app/src/main/java/com/example/camui/NightShotProcessor.kt \
-            CamUI-src/app/src/main/java/com/example/camui/PhotoOutputResolution.kt \
+            CamUI-src/app/src/main/java/com/example/camui/PixelOsdInvalidation.kt \
+            CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
             CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
-            CamUI-src/app/src/main/java/com/example/camui/Components.kt \
-            CamUI-src/app/src/main/java/com/example/camui/LunaDreamProcessingScope.kt \
-            CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
-            CamUI-src/app/src/main/java/com/example/camui/LegacyColorAdjustmentCleanup.kt \
-            CamUI-src/app/src/test/java/com/example/camui/LegacyColorAdjustmentCleanupTest.kt \
-            CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
+            CamUI-src/app/src/main/res/font/share_tech_mono.ttf \
             CamUI-src/app/src/main/res/values/strings.xml \
             CamUI-src/app/src/main/res/values-vi/strings.xml \
-            CamUI-src/i18n_whitelist.txt \
-            GLOSSARY.md \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
-            CamUI-src/app/src/test/java/com/example/camui/LocalizationResourceParityTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \
-            CamUI-src/app/src/test/java/com/example/camui/PhotoOutputGeometryTest.kt \
-            CamUI-src/app/build.gradle.kts
+            CamUI-src/app/src/test/java/com/example/camui/FujiTypographyAssetTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/LegacyColorAdjustmentCleanupTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/LocalizationResourceParityTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/PixelOsdInvalidationTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/PixelOsdStatusTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/ZoomHapticMilestonesTest.kt \
+            CamUI-src/i18n_whitelist.txt \
+            GLOSSARY.md
 
       - name: Upload complete source files
         if: always() && !cancelled()

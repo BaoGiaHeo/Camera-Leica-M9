@@ -95,4 +95,12 @@ class PixelOsdInvalidationTest {
         assertTrue(dirty.single().left > 0)
         assertTrue(dirty.single().right < 320)
     }
+    @Test
+    fun pixelTextureToggleInvalidatesTheWholeLcdBuffer() {
+        val previous = PixelOsdFrame(showPixelTexture = true)
+        val current = previous.copy(showPixelTexture = false)
+        val dirty = pixelOsdDirtyRegions(160, 240, previous, current)
+        assertEquals(listOf(PixelOsdDirtyRect(0, 0, 160, 240)), dirty)
+    }
+
 }

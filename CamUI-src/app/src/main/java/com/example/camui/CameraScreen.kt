@@ -4589,7 +4589,8 @@ fun CameraScreen(
                             }
                             // LCD scanline texture is an optional display-only overlay. It is
                             // drawn above PreviewView and never enters ImageCapture or saved pixels.
-                            if (appPrefs.getBoolean("lcd_texture_overlay_enabled", false) &&
+                            if (lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
+                                appPrefs.getBoolean("lcd_texture_overlay_enabled", false) &&
                                 !appPrefs.getBoolean("simple_ui_mode_enabled", false)
                             ) {
                                 Canvas(Modifier.fillMaxSize()) {
@@ -4615,6 +4616,7 @@ fun CameraScreen(
                             PixelOsdLayer(
                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
+                                    showPixelTexture = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     showGrid = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
                                         CameraLcdDisplayMode.LEVEL_GRID -> true
@@ -4663,7 +4665,7 @@ fun CameraScreen(
                                     evMaximumIndex = evRange?.upper ?: 9,
                                     evStepStops = evStep.takeIf { it > 0f } ?: (1f / 3f),
                                     evValueText = evText,
-                                    showEvOverlay = evOverlayAlpha > 0.001f,
+                                    showEvOverlay = evOverlayAlpha > 0.001f && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     evDisplayIndex = evDisplayIndex,
                                     showHistogram = showHist && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     histogram = hist.toList(),

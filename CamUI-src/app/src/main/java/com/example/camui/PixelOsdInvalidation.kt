@@ -21,7 +21,9 @@ internal fun pixelOsdDirtyRegions(
     current: PixelOsdFrame
 ): List<PixelOsdDirtyRect> {
     require(width > 0 && height > 0)
-    if (previous.showGrid != current.showGrid) {
+    if (previous.showGrid != current.showGrid ||
+        previous.showPixelTexture != current.showPixelTexture
+    ) {
         return listOf(PixelOsdDirtyRect(0, 0, width, height))
     }
 

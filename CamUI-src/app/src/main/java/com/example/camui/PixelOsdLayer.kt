@@ -89,6 +89,7 @@ internal object PixelOsdSprites {
  */
 data class PixelOsdFrame(
     val showGrid: Boolean = false,
+    val showPixelTexture: Boolean = true,
     val faceCenter: Offset? = null,
     val faceSize: Offset? = null,
     val eyeCenter: Offset? = null,
@@ -255,7 +256,7 @@ class PixelOsdRenderer(context: Context) {
     private fun drawFrame(canvas: NativeCanvas, frame: PixelOsdFrame) {
         val width = logicWidth
         val height = logicHeight
-        drawPixelTexture(canvas)
+        if (frame.showPixelTexture) drawPixelTexture(canvas)
         if (frame.showGrid) {
             for (index in 1..2) {
                 val x = (width * index / 3f).roundToInt()

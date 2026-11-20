@@ -26,6 +26,14 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 
+/** Milestones that deserve a small tactile tick while the displayed lens ratio crosses them. */
+internal fun zoomHapticMilestonesCrossed(from: Float, to: Float): List<Float> {
+    if (!from.isFinite() || !to.isFinite() || from == to) return emptyList()
+    return listOf(1f, 2f, 5f).filter { milestone ->
+        (from < milestone && to >= milestone) || (from > milestone && to <= milestone)
+    }
+}
+
 /** App-owned Compose motion system for page transitions, content reflow and touch feedback. */
 object AnimaT {
     private val motionEasing = FastOutSlowInEasing

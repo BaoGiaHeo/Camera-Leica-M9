@@ -769,6 +769,7 @@ fun CameraScreen(
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
+    var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
     val zoomDisplayValue by animateFloatAsState(
         targetValue = actualZoomRatio,
         animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
@@ -1202,7 +1203,7 @@ fun CameraScreen(
         delay(FUJI_KEY_HOLD_THRESHOLD_MS)
         if (zoomHoldDirection != direction) return@LaunchedEffect
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
-        var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
+        var targetZoom = zoomSel
         var previousFrame = 0L
         val holdStartedAtMs = SystemClock.elapsedRealtime()
         var zoomFrameIndex = 0L
@@ -1218,11 +1219,12 @@ fun CameraScreen(
             zoomFrameIndex++
             val state = active.cameraInfo.zoomState.value ?: continue
             val minimum = state.minZoomRatio
-            val maximum = Camera2Info.maxSelectableZoom(
+            val cameraReportedMaximum = Camera2Info.cameraReportedZoomMax(
                 activeCameraDetails,
-                activePhysicalCameraDetails,
                 state.maxZoomRatio
             )
+            val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+            val maximum = maxTotalSelectableZoom(cameraReportedMaximum, zoomAssessment)
             val traversalSeconds = if (maximum <= 2.001f) 1.2f else 6.5f
             val next = advanceLogarithmicZoomRatio(
                 currentZoom = targetZoom,
@@ -1242,9 +1244,18 @@ fun CameraScreen(
                     }
                 }
                 targetZoom = next
-                zoomSel = next
-                actualZoomRatio = next
-                lastZoomFuture = active.cameraControl.setZoomRatio(next)
+                val plan = resolveZoomExecutionPlan(
+                    requestedZoomRatio = next,
+                    minimumCameraRatio = minimum,
+                    cameraReportedMaximum = cameraReportedMaximum,
+                    assessment = zoomAssessment
+                )
+                zoomSel = plan.effectiveZoomRatio
+                actualZoomRatio = plan.effectiveZoomRatio
+                digitalZoomCropScale = plan.digitalCropRatio
+                if (abs(state.zoomRatio - plan.cameraControlZoomRatio) > 0.002f) {
+                    lastZoomFuture = active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
+                }
                 tickCount++
             }
             if (SystemClock.elapsedRealtime() - holdStartedAtMs <= 3_000L) {
@@ -1739,9 +1750,6 @@ fun CameraScreen(
                             if (reportedZoomRatio != null) {
                                 scope.launch(Dispatchers.Main.immediate) {
                                     zoomFromCaptureResult = reportedZoomRatio
-                                    if (abs(reportedZoomRatio - actualZoomRatio) > 0.004f) {
-                                        actualZoomRatio = reportedZoomRatio
-                                    }
                                 }
                             }
                             val shouldUseCamera2Faces = faceTrackingEnabledState.value &&

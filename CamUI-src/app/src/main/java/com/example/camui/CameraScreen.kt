@@ -162,6 +162,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
@@ -186,6 +188,8 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CompletableDeferred
@@ -769,21 +773,22 @@ fun CameraScreen(
         animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
         label = "zoom OSD interpolation"
     )
-    val previewZoomCompensation = remember { Animatable(1f) }
-
-    fun compensatePreviewZoom(from: Float, to: Float) {
-        val scale = resolvePreviewZoomCompensation(from, to)
-        if (scale == 1f) return
-        scope.launch {
-            previewZoomCompensation.snapTo(scale)
-            previewZoomCompensation.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(
-                    durationMillis = if (performanceMode) 80 else 120,
-                    easing = FastOutSlowInEasing
-                )
-            )
+    var zoomButtonsSwapped by remember {
+        mutableStateOf(appPrefs.getString("zoom_buttons_mode", "standard") == "swapped")
+    }
+    var zoomBarPosition by remember {
+        mutableStateOf(appPrefs.getString("zoom_bar_position", "top_center") ?: "top_center")
+    }
+    var previewBoundsText by remember { mutableStateOf("unmeasured") }
+    DisposableEffect(appPrefs) {
+        val preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
+            when (key) {
+                "zoom_buttons_mode" -> zoomButtonsSwapped = preferences?.getString(key, "standard") == "swapped"
+                "zoom_bar_position" -> zoomBarPosition = preferences?.getString(key, "top_center") ?: "top_center"
+            }
         }
+        appPrefs.registerOnSharedPreferenceChangeListener(preferenceListener)
+        onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(preferenceListener) }
     }
     var zoomOverlayVisible by remember { mutableStateOf(false) }
     val zoomOverlayAlpha by animateFloatAsState(
@@ -793,7 +798,7 @@ fun CameraScreen(
     )
     LaunchedEffect(zoomSel) {
         zoomOverlayVisible = true
-        delay(1_320L)
+        delay(1_500L)
         zoomOverlayVisible = false
     }
     var zoomHoldDirection by remember { mutableIntStateOf(0) }
@@ -1194,20 +1199,7 @@ fun CameraScreen(
         if (zoomHoldDirection != direction) return@LaunchedEffect
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = active.cameraInfo.zoomState.value?.zoomRatio ?: zoomSel
-        val initialZoomState = active.cameraInfo.zoomState.value
-        if (initialZoomState != null) {
-            val previewTarget = (targetZoom + direction * 0.15f).coerceIn(
-                initialZoomState.minZoomRatio,
-                Camera2Info.maxSelectableZoom(
-                    activeCameraDetails,
-                    activePhysicalCameraDetails,
-                    initialZoomState.maxZoomRatio
-                )
-            )
-            compensatePreviewZoom(targetZoom, previewTarget)
-        }
         var previousFrame = 0L
-        var heldSeconds = 0f
         var lastDiagnosticAt = SystemClock.uptimeMillis()
         var tickCount = 0
         android.util.Log.d("FUJI_ZOOM", "PRESS_START direction=$direction zoom=$targetZoom")
@@ -1217,7 +1209,6 @@ fun CameraScreen(
                 ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, 0.05f)
             previousFrame = frame
             if (dt <= 0f) continue
-            heldSeconds += dt
             val state = active.cameraInfo.zoomState.value ?: continue
             val minimum = state.minZoomRatio
             val maximum = Camera2Info.maxSelectableZoom(
@@ -1225,8 +1216,12 @@ fun CameraScreen(
                 activePhysicalCameraDetails,
                 state.maxZoomRatio
             )
-            val speedRatioPerSecond = 0.65f + (heldSeconds * 1.05f).coerceAtMost(3.0f)
-            val next = (targetZoom + direction * speedRatioPerSecond * dt).coerceIn(minimum, maximum)
+            val logTravel = if (direction > 0) ln(maximum.coerceAtLeast(1.0001f))
+                else ln((1f / minimum.coerceAtLeast(0.0001f)).coerceAtLeast(1.0001f))
+            val traversalSeconds = if (maximum <= 2.001f) 1.2f else 6.5f
+            val logStep = exp((logTravel / traversalSeconds).coerceAtMost(4f) * dt)
+            val next = (if (direction > 0) targetZoom * logStep else targetZoom / logStep)
+                .coerceIn(minimum, maximum)
             if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
                 if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
                     zoomHapticMilestonesCrossed(targetZoom, next).forEach { milestone ->
@@ -1254,7 +1249,11 @@ fun CameraScreen(
                 }
                 android.util.Log.d(
                     "FUJI_ZOOM",
-                    "HOLD_TICK direction=$direction ticks=$tickCount zoom=$targetZoom cameraZoom=${state.zoomRatio} command=$commandState"
+                    "HOLD_TICK direction=${if (direction > 0) "IN" else "OUT"} ticks=$tickCount zoomTarget=$targetZoom cameraZoom=${state.zoomRatio} command=$commandState"
+                )
+                android.util.Log.d(
+                    "FUJI_ZOOM_FRAME",
+                    "direction=${if (direction > 0) "IN" else "OUT"} zoomTarget=$targetZoom zoomFromCaptureResult=$actualZoomRatio previewScale=1.0 previewRect=$previewBoundsText"
                 )
                 lastDiagnosticAt = now
                 tickCount = 0
@@ -1338,7 +1337,7 @@ fun CameraScreen(
     // from the sensor stream, so 16:9, 1:1 and 21:9 do not remain visibly 4:3.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            scaleType = PreviewView.ScaleType.FIT_CENTER
             setBackgroundColor(android.graphics.Color.BLACK)
             // COMPATIBLE uses a TextureView-backed preview so PreviewView.bitmap can
             // preserve the exact last displayed frame during computational capture.
@@ -4440,7 +4439,6 @@ fun CameraScreen(
         val start = state.zoomRatio
         val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
             (start >= 0.98f && safeTarget < 0.98f)
-        compensatePreviewZoom(start, safeTarget)
         zoomAnimationJob?.cancel()
         if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
             zoomHapticMilestonesCrossed(start, safeTarget).forEach { milestone ->
@@ -4774,9 +4772,9 @@ fun CameraScreen(
                             key(renderEngine) {
                                 AndroidView(
                                     factory = { previewView },
-                                    modifier = Modifier.fillMaxSize().graphicsLayer {
-                                        scaleX = previewZoomCompensation.value
-                                        scaleY = previewZoomCompensation.value
+                                    modifier = Modifier.fillMaxSize().onGloballyPositioned { coordinates ->
+                                        val origin = coordinates.positionInRoot()
+                                        previewBoundsText = "${origin.x.roundToInt()},${origin.y.roundToInt()},${(origin.x + coordinates.size.width).roundToInt()},${(origin.y + coordinates.size.height).roundToInt()}"
                                     }
                                 )
                             }
@@ -4931,10 +4929,15 @@ fun CameraScreen(
                                     showProIso = proHudShowIso,
                                     showProFocus = proHudShowFocus,
                                     showProWhiteBalance = proHudShowWhiteBalance,
-                                    showZoom = zoomOverlayAlpha > 0.001f && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
-                                    zoomText = if (zoomDisplayValue < 1f || abs(zoomDisplayValue - zoomDisplayValue.toInt()) > 0.01f)
-                                        String.format(Locale.US, "%.1fx", zoomDisplayValue) else "${zoomDisplayValue.toInt()}x",
-                                    zoomAlpha = zoomOverlayAlpha,
+                                    showZoomBar = lcdDisplayMode != CameraLcdDisplayMode.CLEAN || zoomOverlayAlpha > 0.001f,
+                                    zoomRatio = zoomDisplayValue,
+                                    zoomMinimumRatio = camera?.cameraInfo?.zoomState?.value?.minZoomRatio ?: 1f,
+                                    zoomMaximumRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
+                                        Camera2Info.maxSelectableZoom(activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio)
+                                    } ?: 2f,
+                                    zoomDigitalBoundaryRatio = camera?.cameraInfo?.zoomState?.value?.maxZoomRatio ?: 2f,
+                                    zoomBarPosition = zoomBarPosition,
+                                    zoomBarAlpha = if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) zoomOverlayAlpha else 1f,
                                     evOverlayAlpha = evOverlayAlpha
                                 ),
                                 maxRefreshHz = when {
@@ -5597,11 +5600,7 @@ fun CameraScreen(
             activePhysicalCameraDetails,
             zoomStateForDial?.maxZoomRatio ?: 1f
         )
-        val zoomLabel = if (zoomSel < 1f || abs(zoomSel - zoomSel.toInt()) > 0.01f) {
-            String.format(Locale.US, "%.1fx", zoomSel)
-        } else {
-            "${zoomSel.toInt()}x"
-        }
+
         val activeDialSelection = proSel
         val commandValue = evText
         Column(
@@ -5614,54 +5613,41 @@ fun CameraScreen(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    val wZoomDirection = if (zoomButtonsSwapped) 1 else -1
+                    val tZoomDirection = -wZoomDirection
                     FujiKey(
                         "W",
-                        onClick = { animateZoomTo((zoomSel + 0.1f).coerceAtMost(dialZoomMaximum)) },
+                        onClick = { animateZoomTo((zoomSel + wZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
-                        enabled = zoomStateForDial != null && zoomSel < dialZoomMaximum - 0.001f,
-                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START"); zoomHoldDirection = 1 },
+                        enabled = zoomStateForDial != null && if (wZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
+                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START"); zoomHoldDirection = wZoomDirection },
                         onPressEnd = {
                             zoomHoldDirection = 0
                             CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
-                            android.util.Log.d("FUJI_ZOOM", "PRESS_END direction=IN zoom=$zoomSel")
+                            android.util.Log.d("FUJI_ZOOM", "PRESS_END key=W direction=${if (wZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
                         }
                     )
                     FujiKey(
                         "T",
-                        onClick = { animateZoomTo((zoomSel - 0.1f).coerceAtLeast(dialZoomMinimum)) },
+                        onClick = { animateZoomTo((zoomSel + tZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
-                        enabled = zoomStateForDial != null && zoomSel > dialZoomMinimum + 0.001f,
-                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START"); zoomHoldDirection = -1 },
+                        enabled = zoomStateForDial != null && if (tZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
+                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START"); zoomHoldDirection = tZoomDirection },
                         onPressEnd = {
                             zoomHoldDirection = 0
                             CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
-                            android.util.Log.d("FUJI_ZOOM", "PRESS_END direction=OUT zoom=$zoomSel")
+                            android.util.Log.d("FUJI_ZOOM", "PRESS_END key=T direction=${if (tZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
                         }
                     )
                 }
-                Text(
-                    zoomLabel,
-                    color = FujiSkin.lcdGreen,
-                    fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Text(
-                        stringResource(R.string.zoom_direction_in),
-                        color = FujiSkin.muted,
-                        fontSize = 7.sp
-                    )
-                    Text(
-                        stringResource(R.string.zoom_direction_out),
-                        color = FujiSkin.muted,
-                        fontSize = 7.sp
-                    )
+                    Text(stringResource(if (wZoomDirection > 0) R.string.zoom_direction_in else R.string.zoom_direction_out), color = FujiSkin.muted, fontSize = 7.sp)
+                    Text(stringResource(if (tZoomDirection > 0) R.string.zoom_direction_in else R.string.zoom_direction_out), color = FujiSkin.muted, fontSize = 7.sp)
                 }
                 Text("ZOOM", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }

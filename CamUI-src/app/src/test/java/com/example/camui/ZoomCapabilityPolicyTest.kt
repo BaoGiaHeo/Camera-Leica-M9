@@ -48,4 +48,34 @@ class ZoomCapabilityPolicyTest {
     }
 
     private fun sqrtProduct(a: Float, b: Float) = kotlin.math.sqrt(a * b)
+    @Test
+    fun nonTeleCameraMovesFromOneToTwoTimesInAboutOnePointTwoSeconds() {
+        val zoom = advanceLogarithmicZoomRatio(1f, 1, 0.6f, 2f, 0.05f, 1.2f)
+        var current = 1f
+        repeat(24) {
+            current = advanceLogarithmicZoomRatio(current, 1, 0.6f, 2f, 0.05f, 1.2f)
+        }
+        assertTrue(zoom > 1f)
+        assertEquals(2f, current, 0.0001f)
+    }
+
+    @Test
+    fun zoomHoldIsMonotonicAndStopsAtItsRequestedLimits() {
+        var zoomIn = 1f
+        repeat(200) {
+            val next = advanceLogarithmicZoomRatio(zoomIn, 1, 0.6f, 50f, 0.05f, 6.5f)
+            assertTrue(next >= zoomIn)
+            zoomIn = next
+        }
+        assertEquals(50f, zoomIn, 0.0001f)
+
+        var zoomOut = 1f
+        repeat(200) {
+            val next = advanceLogarithmicZoomRatio(zoomOut, -1, 0.6f, 50f, 0.05f, 6.5f)
+            assertTrue(next <= zoomOut)
+            zoomOut = next
+        }
+        assertEquals(0.6f, zoomOut, 0.0001f)
+    }
+
 }

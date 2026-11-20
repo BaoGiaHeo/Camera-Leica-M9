@@ -85,5 +85,72 @@ internal fun pixelOsdDirtyRegions(
         add(centerX - radius, centerY - radius, centerX + radius + 1, centerY + radius + 1)
     }
 
+    if (previous.centerAfPoint != current.centerAfPoint ||
+        previous.centerAfStatus != current.centerAfStatus ||
+        previous.centerAfScale != current.centerAfScale
+    ) {
+        listOfNotNull(previous.centerAfPoint, current.centerAfPoint).forEach { point ->
+            val radius = 19
+            val x = (point.x.coerceIn(0f, 1f) * width).roundToInt()
+            val y = (point.y.coerceIn(0f, 1f) * height).roundToInt()
+            add(x - radius, y - radius, x + radius + 1, y + radius + 1)
+        }
+    }
+
+    if (previous.faceSize != current.faceSize || previous.eyeCenter != current.eyeCenter) {
+        listOfNotNull(previous.faceCenter, current.faceCenter).forEach { point ->
+            val x = (point.x.coerceIn(0f, 1f) * width).roundToInt()
+            val y = (point.y.coerceIn(0f, 1f) * height).roundToInt()
+            add(x - 64, y - 64, x + 65, y + 65)
+        }
+    }
+
+    if (previous.showStatus != current.showStatus ||
+        previous.focusLocked != current.focusLocked ||
+        previous.batteryPercent != current.batteryPercent ||
+        previous.batteryCharging != current.batteryCharging ||
+        previous.batteryLowBlinkOn != current.batteryLowBlinkOn ||
+        previous.meteringText != current.meteringText
+    ) {
+        add(0, 0, width, 16)
+    }
+
+    if (previous.showEvScale != current.showEvScale ||
+        previous.evIndex != current.evIndex ||
+        previous.evMinimumIndex != current.evMinimumIndex ||
+        previous.evMaximumIndex != current.evMaximumIndex ||
+        previous.evStepStops != current.evStepStops ||
+        previous.evValueText != current.evValueText ||
+        previous.showEvOverlay != current.showEvOverlay
+    ) {
+        add(0, 18, 38, height - 16)
+        add(width / 2 - 48, 0, width / 2 + 48, 30)
+    }
+
+    if (previous.showHistogram != current.showHistogram || previous.histogram != current.histogram) {
+        add(0, 12, (width / 4).coerceIn(48, 80) + 12, 44)
+    }
+
+    if (previous.isPro != current.isPro ||
+        previous.afModeText != current.afModeText ||
+        previous.shutterText != current.shutterText ||
+        previous.apertureText != current.apertureText ||
+        previous.isoText != current.isoText ||
+        previous.dynamicRangeText != current.dynamicRangeText ||
+        previous.whiteBalanceText != current.whiteBalanceText ||
+        previous.filmSimulationText != current.filmSimulationText ||
+        previous.manualExposure != current.manualExposure ||
+        previous.manualWhiteBalance != current.manualWhiteBalance ||
+        previous.manualIso != current.manualIso ||
+        previous.manualShutter != current.manualShutter
+    ) {
+        add(0, height - 16, width, height)
+        add(0, 12, width, 28)
+    }
+
+    if (previous.showZoom != current.showZoom || previous.zoomText != current.zoomText) {
+        add(width / 2 - 60, 0, width / 2 + 60, 18)
+    }
+
     return dirty.distinct()
 }

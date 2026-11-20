@@ -17,10 +17,15 @@ data class PixelOsdGeometry(
         (normalized.coerceIn(0f, 1f) * logicHeight).roundToLogicPixel().coerceIn(0, logicHeight - 1)
 
     companion object {
-        fun fromDisplayPixels(widthPx: Int, heightPx: Int): PixelOsdGeometry {
+        fun fromDisplayPixels(widthPx: Int, heightPx: Int, pixelMode: String = "fine"): PixelOsdGeometry {
             require(widthPx > 0) { "LCD width must be greater than zero." }
             require(heightPx > 0) { "LCD height must be greater than zero." }
-            val scale = (heightPx / 240f).roundToInt().coerceAtLeast(3)
+            val scale = when (pixelMode.lowercase()) {
+                "fine" -> 2
+                "medium" -> 3
+                "chunky" -> 4
+                else -> 2
+            }
             return PixelOsdGeometry(
                 pixelScale = scale,
                 logicWidth = (widthPx / scale).coerceAtLeast(1),

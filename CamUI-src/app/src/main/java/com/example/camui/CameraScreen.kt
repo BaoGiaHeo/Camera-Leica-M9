@@ -530,7 +530,6 @@ fun CameraScreen(
     val manualAfOverrideUntilMsState = rememberUpdatedState(manualAfOverrideUntilMs)
     var centerAfPoint by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
     var centerAfStatus by remember { mutableIntStateOf(0) }
-    val centerAfScale = when (metering) { 1 -> 2; 2 -> 0; else -> 1 }
     LaunchedEffect(faceTrackingMode) {
         facePreferences.edit()
             .putString("face_tracking_mode", faceTrackingMode)
@@ -4327,7 +4326,7 @@ fun CameraScreen(
                                         lcdDisplayMode != CameraLcdDisplayMode.CLEAN && faceTrackCenter == null
                                     },
                                     centerAfStatus = if (focusLocked) 1 else centerAfStatus,
-                                    centerAfScale = centerAfScale,
+                                    centerAfScale = when (metering) { 1 -> 2; 2 -> 0; else -> 1 },
                                     focusPoints = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO -> peakPoints
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()

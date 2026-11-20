@@ -36,3 +36,14 @@ data class PixelOsdGeometry(
 }
 
 private fun Float.roundToLogicPixel(): Int = kotlin.math.round(this).toInt()
+
+/**
+ * A manual touch/lock reticle must remain visible even while a face box is still
+ * displayed. Automatic eye-follow keeps using the face/eye reticle without
+ * drawing a duplicate centre AF frame.
+ */
+internal fun shouldDrawCenterAfReticle(
+    centerAfPointAvailable: Boolean,
+    faceBoxVisible: Boolean,
+    manualOverrideActive: Boolean
+): Boolean = centerAfPointAvailable && (!faceBoxVisible || manualOverrideActive)

@@ -119,4 +119,5 @@
     <string name="watermark_layout_lcd_osd_description">Thanh đen phong cách OSD</string>
     <string name="watermark_layout_viewfinder_description">Bốn góc khung ngắm và thông số</string>
     <string name="watermark_layout_exposure_dial_description">Ba mặt số F, SS và ISO</string>
+    <string name="watermark_studio_preview_content_description">Ảnh xem trước Watermark Studio được kết xuất bằng pipeline xử lý ảnh thật</string>
 </resources>

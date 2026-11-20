@@ -17,7 +17,7 @@ internal enum class PrimaryEyeSide { LEFT, RIGHT }
 internal class PrimaryEyeSelector(
     private val switchConfirmMs: Long = 500L,
     private val minSwitchIntervalMs: Long = 800L,
-    private val lostFrameThreshold: Int = 10,
+    private val lostFrameThreshold: Int = 11,
     private val yawDeadZoneDegrees: Float = 10f
 ) {
     private var selectedSide: PrimaryEyeSide? = null

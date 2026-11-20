@@ -442,7 +442,8 @@ fun CameraScreen(
     onFocusPeaking: (Boolean) -> Unit,
     ratioIdx: Int,
     onRatio: (Int) -> Unit,
-    performanceMode: Boolean = false
+    performanceMode: Boolean = false,
+    onOpenWatermarkStudio: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -6188,6 +6189,7 @@ fun CameraScreen(
                     }
                 },
                 onToolbox = { showQuick = false; onOpenToolbox() },
+                onWatermarkStudio = { showQuick = false; onOpenWatermarkStudio() },
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },
                 onDismiss = { showQuick = false },

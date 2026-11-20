@@ -1010,7 +1010,7 @@ fun CameraScreen(
             hardwareEyeLandmarksAvailable = false
             camera?.let { active ->
                 runCatching {
-                    Camera2CameraControl.from(active.cameraControl).setCaptureRequestOptions(
+                    Camera2CameraControl.from(active.cameraControl).addCaptureRequestOptions(
                         CaptureRequestOptions.Builder()
                             .setCaptureRequestOption(
                                 CaptureRequest.STATISTICS_FACE_DETECT_MODE,
@@ -1047,7 +1047,7 @@ fun CameraScreen(
             return@LaunchedEffect
         }
         runCatching {
-            Camera2CameraControl.from(active.cameraControl).setCaptureRequestOptions(
+            Camera2CameraControl.from(active.cameraControl).addCaptureRequestOptions(
                 CaptureRequestOptions.Builder()
                     .setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, selectedMode)
                     .build()
@@ -2035,20 +2035,8 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                         .setCaptureRequestOption(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0)
                 }
-                if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive && nightShotMode == "off" &&
-                    manualExposure && (manualIsoEnabled || manualShutterEnabled)
-                ) {
-                    val captureIso = if (manualIsoEnabled) manualIso else iso.takeIf { it > 0 } ?: 400
-                    val captureExposure = if (manualShutterEnabled) manualShutterNs
-                        else shutterNs.takeIf { it > 0L } ?: 10_000_000L
-                    // Keep manual exposure on the still-capture use case, not the preview repeating request.
-                    Camera2Interop.Extender(captureBuilder)
-                        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
-                        .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, captureIso)
-                        .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, captureExposure)
-                        .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(captureExposure, 10_000_000L))
-                }
+                // Pro exposure is sent through dynamic CameraControl options. CameraX copies
+                // repeating options into one-shot still captures; avoid stale builder values.
                 val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                     appPrefs.getString("lunadream_mode", "off") != "off"
                 val isComputationalHighResolution = !livePhotoEnabled &&
@@ -2518,7 +2506,7 @@ fun CameraScreen(
                         val faceOptions = CaptureRequestOptions.Builder()
                             .setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, faceDetectMode)
                             .build()
-                        Camera2CameraControl.from(bound.cameraControl).setCaptureRequestOptions(faceOptions)
+                        Camera2CameraControl.from(bound.cameraControl).addCaptureRequestOptions(faceOptions)
                         android.util.Log.i(
                             "FUJI_FACE_TRACK",
                             "mode=${faceTrackingMode}; camera2FaceMode=${if (faceDetectMode == CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) "FULL" else "SIMPLE"}; eyeLandmarks=${faceDetectMode == CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL}"
@@ -5619,7 +5607,7 @@ fun CameraScreen(
                                                                 } else {
                                                                     shutterNs.takeIf { it > 0L } ?: 16_666_667L
                                                                 }
-                                                                runCatching { applyManualExposure(active, manualIso, previewExposure) }
+                                                                runCatching { applyCameraExposureState(active, true, manualShutterEnabled, manualIso, manualShutterNs, iso, shutterNs) }
                                                             }
                                                         },
                                                         onValueChangeFinished = {  },
@@ -5653,7 +5641,7 @@ fun CameraScreen(
                                                             manualExposure = true
                                                             camera?.let { active ->
                                                                 val previewIso = if (manualIsoEnabled) manualIso else iso.takeIf { it > 0 } ?: 400
-                                                                runCatching { applyManualExposure(active, previewIso, manualShutterNs) }
+                                                                runCatching { applyCameraExposureState(active, manualIsoEnabled, true, manualIso, manualShutterNs, iso, shutterNs) }
                                                             }
                                                         },
                                                         onValueChangeFinished = {  },
@@ -6962,6 +6950,50 @@ private val cameraLookGroups = builtInCameraLookGroupDefinitions.map { group ->
     CameraLookGroup(group.id, labelResource, group.presets)
 }
 
+private fun applyCameraExposureState(
+    camera: Camera,
+    manualIsoEnabled: Boolean,
+    manualShutterEnabled: Boolean,
+    manualIso: Int,
+    manualShutterNs: Long,
+    liveIso: Int,
+    liveShutterNs: Long
+) {
+    val state = resolveCameraExposureRequestState(
+        manualIsoEnabled, manualShutterEnabled, manualIso, manualShutterNs, liveIso, liveShutterNs
+    )
+    val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        .setCaptureRequestOption(
+            CaptureRequest.CONTROL_AE_MODE,
+            if (state.automatic) CaptureRequest.CONTROL_AE_MODE_ON
+            else CaptureRequest.CONTROL_AE_MODE_OFF
+        )
+    state.sensorSensitivityIso?.let {
+        options.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, it)
+    }
+    state.sensorExposureTimeNs?.let {
+        options.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, it)
+    }
+    state.sensorFrameDurationNs?.let {
+        options.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, it)
+    }
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options.build())
+    android.util.Log.d(
+        "FUJI_EXPOSURE",
+        "mode=${if (state.automatic) "AUTO" else "MANUAL"} " +
+            "iso=${state.sensorSensitivityIso ?: "AE"} shutterNs=${state.sensorExposureTimeNs ?: "AE"}"
+    )
+}
+
+private fun applyAutoExposure(camera: Camera) {
+    val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+        .build()
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+}
+
 private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {
     val options = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
@@ -6970,7 +7002,7 @@ private fun applyManualExposure(camera: Camera, iso: Int, exposureNs: Long) {
         .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureNs)
         .setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, maxOf(exposureNs, 10_000_000L))
         .build()
-    Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
 private fun applyManualFocus(camera: Camera, diopters: Float) {
@@ -6979,7 +7011,7 @@ private fun applyManualFocus(camera: Camera, diopters: Float) {
         .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
         .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, diopters)
         .build()
-    Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
 private fun applyAutoFocus(camera: Camera) {
@@ -6987,7 +7019,7 @@ private fun applyAutoFocus(camera: Camera) {
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         .build()
-    Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
 private fun applyAutoWhiteBalance(camera: Camera) {
@@ -6995,7 +7027,7 @@ private fun applyAutoWhiteBalance(camera: Camera) {
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
         .build()
-    Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
 private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
@@ -7010,7 +7042,7 @@ private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
         .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_FAST)
         .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, gains)
         .build()
-    Camera2CameraControl.from(camera.cameraControl).setCaptureRequestOptions(options)
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
 private fun shutterFraction(value: Long, minValue: Long, maxValue: Long): Float {

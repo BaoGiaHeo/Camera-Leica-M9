@@ -19,7 +19,7 @@ android {
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 35
         versionCode = 16
-        versionName = "2.5.0Dream"
+        versionName = "2.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

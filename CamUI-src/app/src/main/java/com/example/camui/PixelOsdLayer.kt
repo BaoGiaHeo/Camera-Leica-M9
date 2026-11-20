@@ -531,19 +531,27 @@ class PixelOsdRenderer(context: Context) {
         put(frame.apertureText.take(5), apertureColor)
         put(frame.isoText.take(6), isoColor)
 
-        val rightText = listOf(
-            frame.dynamicRangeText.take(5),
-            frame.whiteBalanceText.take(6),
-            frame.filmSimulationText.take(3)
-        ).filter { it.isNotBlank() }.joinToString(" ")
-        if (rightText.isNotBlank()) {
-            val rightX = (logicWidth - rightText.length * 5 - 7).coerceAtLeast(x)
-            val whiteBalanceColor = when {
-                frame.manualWhiteBalance -> PixelOsdPalette.AMBER
-                selected == "WB" -> PixelOsdPalette.BLUE
-                else -> PixelOsdPalette.WHITE
-            }
-            drawPixelText(canvas, rightText, rightX, 21, whiteBalanceColor)
+        val dynamicRangeColor = if (selected == "DR") PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
+        val whiteBalanceColor = when {
+            frame.manualWhiteBalance -> PixelOsdPalette.AMBER
+            selected == "WB" -> PixelOsdPalette.BLUE
+            else -> PixelOsdPalette.WHITE
+        }
+        val filmColor = if (selected == "FILM" || selected == "FS") {
+            PixelOsdPalette.BLUE
+        } else {
+            PixelOsdPalette.WHITE
+        }
+        val rightSegments = listOf(
+            frame.dynamicRangeText.take(5) to dynamicRangeColor,
+            frame.whiteBalanceText.take(6) to whiteBalanceColor,
+            frame.filmSimulationText.take(3) to filmColor
+        ).filter { it.first.isNotBlank() }
+        val rightTextWidth = rightSegments.sumOf { it.first.length * 5 + 3 }
+        var rightX = (logicWidth - rightTextWidth - 7).coerceAtLeast(x)
+        rightSegments.forEach { (value, color) ->
+            drawPixelText(canvas, value, rightX, 21, color)
+            rightX += value.length * 5 + 3
         }
     }
 

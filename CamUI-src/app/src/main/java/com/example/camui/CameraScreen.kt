@@ -695,6 +695,30 @@ fun CameraScreen(
     // Chrome remains visible until the user explicitly presses DISP/BACK.
     var lcdDisplayMode by remember { mutableStateOf(CameraLcdDisplayMode.STANDARD) }
     val hudVisible = lcdDisplayMode != CameraLcdDisplayMode.CLEAN
+    val dispReducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
+    val dispOsdAlpha = remember { Animatable(1f) }
+    var dispTransitionInProgress by remember { mutableStateOf(false) }
+
+    fun cycleDispDisplayMode() {
+        if (dispTransitionInProgress) return
+        if (dispReducedMotion) {
+            lcdDisplayMode = lcdDisplayMode.next()
+            return
+        }
+        scope.launch {
+            dispTransitionInProgress = true
+            try {
+                dispOsdAlpha.animateTo(0f, tween(75, easing = FastOutSlowInEasing))
+                lcdDisplayMode = lcdDisplayMode.next()
+                dispOsdAlpha.animateTo(1f, tween(135, easing = FastOutSlowInEasing))
+            } finally {
+                withContext(NonCancellable) {
+                    dispOsdAlpha.snapTo(1f)
+                    dispTransitionInProgress = false
+                }
+            }
+        }
+    }
     var proHudShowEv by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_ev", true)) }
     var proHudShowShutter by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_shutter", true)) }
     var proHudShowIso by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_iso", true)) }
@@ -4588,7 +4612,7 @@ fun CameraScreen(
                                 }
                             }
                             PixelOsdLayer(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
                                     showGrid = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
@@ -5494,7 +5518,7 @@ fun CameraScreen(
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
             FujiKey(
                 "DISP · ${stringResource(lcdDisplayMode.labelResource)}",
-                onClick = { lcdDisplayMode = lcdDisplayMode.next() },
+                onClick = { cycleDispDisplayMode() },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
             )
         }

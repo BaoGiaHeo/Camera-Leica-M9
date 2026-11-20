@@ -61,7 +61,7 @@ jobs:
           disable-linux-hw-accel: true
           disable-animations: true
           emulator-boot-timeout: 600
-          script: gradle -p CamUI-src/app connectedDeveloperAndroidTest --stacktrace
+          script: gradle -p CamUI-src :app:connectedDeveloperAndroidTest --stacktrace
 
       - name: Upload Developer test APK
         if: success()

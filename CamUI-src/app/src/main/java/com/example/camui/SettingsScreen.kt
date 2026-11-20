@@ -103,60 +103,51 @@ fun SettingsScreen(
             stringResource(R.string.pixel_osd_preview_description)
         )
     } else localizedSettingItems
-    val tabState = rememberLazyListState()
-    LaunchedEffect(selectedCategory) {
-        val index = visibleSettingItems.indexOfFirst { it.title == selectedCategory }
-        if (index >= 0) tabState.animateScrollToItem(index)
-    }
     FujiScreenScaffold(
         title = "SETTINGS · MENU", modifier = Modifier.fillMaxSize(),
         onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
     ) {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.width(164.dp).fillMaxHeight()) {
-                Text("MENU TABS", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                Row(Modifier.weight(1f).fillMaxWidth()) {
-                    LazyColumn(state = tabState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        itemsIndexed(visibleSettingItems) { index, item ->
-                            val active = selectedCategory == item.title
-                            Row(
-                                Modifier.fillMaxWidth().background(if (active) Color(0xFF20292B) else Color(0xFF0A0D0E))
-                                    .border(1.dp, if (active) FujiSkin.orange else Color(0xFF283538))
-                                    .animaTClickable { selectedCategory = item.title }
-                                    .padding(horizontal = 6.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                FujiIconGlyph(item.icon, Modifier.size(22.dp), if (active) FujiSkin.orange else FujiSkin.lcdGreen)
-                                Column(Modifier.weight(1f).padding(start = 6.dp)) {
-                                    Text("%02d  %s".format(index + 1, item.title), color = if (active) Color.White else Color(0xFFC7D0D1), fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 2, lineHeight = 9.sp)
-                                    Box(Modifier.padding(top = 3.dp).width(if (active) 24.dp else 8.dp).height(2.dp).background(if (active) FujiSkin.orange else Color(0xFF526064)))
-                                }
-                            }
-                        }
-                    }
-                    val visible = tabState.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
-                    val maxIndex = (visibleSettingItems.size - visible).coerceAtLeast(1)
-                    FujiScrollbar(
-                        fraction = (tabState.firstVisibleItemIndex.toFloat() / maxIndex).coerceIn(0f, 1f),
-                        visibleFraction = (visible.toFloat() / visibleSettingItems.size).coerceIn(0.08f, 1f),
-                        modifier = Modifier.fillMaxHeight().padding(start = 3.dp)
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "MENU TABS",
+                color = FujiSkin.lcdGreen,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                visibleSettingItems.forEachIndexed { index, item ->
+                    FujiChip(
+                        "%02d · %s".format(index + 1, item.title),
+                        selectedCategory == item.title,
+                        { selectedCategory = item.title }
                     )
                 }
             }
-            Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF080B0C)).border(1.dp, Color(0xFF2C3A3D)).padding(9.dp)) {
-                if (selectedCategory == "Capture & Quality") {
-                    SettingsDetailPage("Capture & Quality", {}, ratioIdx, onRatio, showGrid, onShowGrid, showHist, onShowHist, focusPeaking, onFocusPeaking, embedded = true, modifier = Modifier.weight(1f))
-                    FujiListRow("Sao lưu & Khôi phục", "BACKUP",
-                        onClick = { categoryBeforeBackup = selectedCategory; selectedCategory = "Sao lưu & Khôi phục" },
-                        description = "Lưu hoặc nạp lại các thiết lập camera")
-                } else if (selectedCategory == "Assistive Tools") {
-                    SettingsDetailPage(selectedCategory, {}, ratioIdx, onRatio, showGrid, onShowGrid, showHist, onShowHist, focusPeaking, onFocusPeaking, embedded = true, modifier = Modifier.weight(1f))
-                    FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "EV display · Shutter display · ISO display · HUD")
-                    FujiListRow("Contents Management", "OPEN", onClick = onOpenContentsManagement, description = "LUT Manager · Frame Manager")
-                } else {
-                    SettingsDetailPage(selectedCategory, {}, ratioIdx, onRatio, showGrid, onShowGrid, showHist, onShowHist, focusPeaking, onFocusPeaking, embedded = true, modifier = Modifier.fillMaxSize())
-                }
-            }
+            SettingsDetailPage(
+                title = selectedCategory,
+                onBack = {},
+                ratioIdx = ratioIdx,
+                onRatio = onRatio,
+                showGrid = showGrid,
+                onShowGrid = onShowGrid,
+                showHist = showHist,
+                onShowHist = onShowHist,
+                focusPeaking = focusPeaking,
+                onFocusPeaking = onFocusPeaking,
+                embedded = true,
+                modifier = Modifier.weight(1f),
+                onOpenBackup = {
+                    categoryBeforeBackup = selectedCategory
+                    selectedCategory = "Sao lưu & Khôi phục"
+                },
+                onOpenToolbox = onOpenToolbox,
+                onOpenContentsManagement = onOpenContentsManagement
+            )
         }
     }
 }
@@ -174,7 +165,10 @@ private fun SettingsDetailPage(
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit,
     embedded: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenBackup: () -> Unit = {},
+    onOpenToolbox: () -> Unit = {},
+    onOpenContentsManagement: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -261,6 +255,8 @@ var nightShotMode by remember {
                 SettingsSwitch("Grid Lines", "Thirds composition guide", showGrid, onShowGrid)
                 SettingsSwitch("Histogram", "Live luminance histogram", showHist, onShowHist)
                 SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusPeaking, onFocusPeaking)
+                FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "EV display · Shutter display · ISO display · HUD")
+                FujiListRow("Contents Management", "OPEN", onClick = onOpenContentsManagement, description = "LUT Manager · Frame Manager")
             }
             "Focus & Lens" -> {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -362,6 +358,8 @@ var nightShotMode by remember {
                 }
                 Text("Ảnh được lưu vào Pictures/FujifilmMode.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
+                FujiListRow("Sao lưu & Khôi phục", "BACKUP", onClick = onOpenBackup,
+                    description = "Lưu hoặc nạp lại các thiết lập camera")
             }
             "Display / Appearance", "Appearance" -> {
                 Text(

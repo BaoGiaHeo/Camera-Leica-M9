@@ -83,7 +83,8 @@ internal fun pixelOsdDirtyRegions(
     }
 
     if (previous.focusLocked != current.focusLocked) {
-        add(0, 0, 50, 18)
+        add(0, 0, 50, 20)
+        add(width - 110, 7, width, 32)
     }
 
     if (previous.showLevel != current.showLevel ||
@@ -118,16 +119,17 @@ internal fun pixelOsdDirtyRegions(
     }
 
     if (previous.showStatus != current.showStatus) {
-        add(0, 0, width, 16)
+        add(0, 0, width, 34)
     } else {
         if (previous.focusLocked != current.focusLocked || previous.meteringText != current.meteringText) {
-            add(0, 0, 50, 18)
+            add(0, 0, 50, 20)
+            add(width - 110, 7, width, 32)
         }
         if (previous.batteryPercent != current.batteryPercent ||
             previous.batteryCharging != current.batteryCharging ||
             previous.batteryLowBlinkOn != current.batteryLowBlinkOn
         ) {
-            add(width - 58, 0, width, 16)
+            add(width - 58, 0, width, 24)
         }
     }
 
@@ -163,14 +165,14 @@ internal fun pixelOsdDirtyRegions(
         previous.selectedControl != current.selectedControl
     ) {
         add(0, height - 16, width, height)
-        add(0, 12, width, 28)
+        add(0, 8, width, 36)
     }
 
     if (previous.showZoom != current.showZoom ||
         previous.zoomText != current.zoomText ||
         previous.zoomAlpha != current.zoomAlpha
     ) {
-        add(width / 2 - 60, 0, width / 2 + 60, 18)
+        add(width / 2 - 60, 0, width / 2 + 60, 25)
     }
     if (previous.showEvOverlay != current.showEvOverlay ||
         previous.evOverlayAlpha != current.evOverlayAlpha

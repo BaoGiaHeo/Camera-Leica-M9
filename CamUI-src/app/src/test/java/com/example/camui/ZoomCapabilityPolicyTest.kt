@@ -8,6 +8,42 @@ import org.junit.Test
 
 class ZoomCapabilityPolicyTest {
     @Test
+    fun telephotoCameraSplitsCameraZoomAtFiftyAndDigitalZoomToOneHundred() {
+        val assessment = assessOpticalZoom(listOf(26f, 260f), mainEquivalent35Mm = 26f)
+        val atCameraLimit = resolveZoomExecutionPlan(50f, 0.6f, 60f, assessment)
+        assertEquals(50f, atCameraLimit.cameraControlZoomRatio, 0.0001f)
+        assertEquals(1f, atCameraLimit.digitalCropRatio, 0.0001f)
+        assertEquals(100f, atCameraLimit.totalSelectableMaximum, 0.0001f)
+
+        val atTotalLimit = resolveZoomExecutionPlan(100f, 0.6f, 60f, assessment)
+        assertEquals(50f, atTotalLimit.cameraControlZoomRatio, 0.0001f)
+        assertEquals(2f, atTotalLimit.digitalCropRatio, 0.0001f)
+        assertEquals(100f, atTotalLimit.effectiveZoomRatio, 0.0001f)
+    }
+
+    @Test
+    fun telephotoCameraWithLowerHalMaximumUsesDigitalCropAboveHalLimit() {
+        val assessment = assessOpticalZoom(listOf(26f, 78f), mainEquivalent35Mm = 26f)
+        val plan = resolveZoomExecutionPlan(40f, 1f, 12f, assessment)
+        assertEquals(12f, plan.cameraControlZoomRatio, 0.0001f)
+        assertEquals(40f / 12f, plan.digitalCropRatio, 0.0001f)
+        assertEquals(100f, plan.totalSelectableMaximum, 0.0001f)
+    }
+
+    @Test
+    fun nonTeleCameraNeverExceedsTwoTimesAndUsesCropWhenHalStopsEarlier() {
+        val assessment = assessOpticalZoom(listOf(26f), mainEquivalent35Mm = 26f)
+        val plan = resolveZoomExecutionPlan(2f, 1f, 1f, assessment)
+        assertEquals(1f, plan.cameraControlZoomRatio, 0.0001f)
+        assertEquals(2f, plan.digitalCropRatio, 0.0001f)
+        assertEquals(2f, plan.totalSelectableMaximum, 0.0001f)
+
+        val capped = resolveZoomExecutionPlan(2.5f, 1f, 10f, assessment)
+        assertEquals(2f, capped.effectiveZoomRatio, 0.0001f)
+        assertEquals(2f, capped.cameraControlZoomRatio, 0.0001f)
+    }
+
+    @Test
     fun oneCameraIdWithMultipleFocalLengthsUsesTheFullEquivalentRange() {
         val range = calculateEquivalentFocalRange35Mm(
             focalLengthsMm = listOf(4.5f, 13.5f),

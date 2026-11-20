@@ -44,12 +44,12 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Build Release APK (Developer diagnostics enabled)
+      - name: Build production Release APK
         id: build_release
         working-directory: CamUI-src
         run: |
-          gradle --no-daemon :app:assembleDeveloper --stacktrace
-          cp app/build/outputs/apk/developer/app-developer.apk app/build/outputs/apk/developer/Release.apk
+          gradle --no-daemon :app:assembleRelease --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/FujiFilm-Mode-2.5.0Dream.apk
 
       - name: Run supported unit tests
         working-directory: CamUI-src

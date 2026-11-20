@@ -56,6 +56,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 
 class MainActivity : AppCompatActivity() {
+    private var frameMetricsDiagnostics: CameraFrameMetricsDiagnostics? = null
+
+    override fun onDestroy() {
+        frameMetricsDiagnostics?.close()
+        frameMetricsDiagnostics = null
+        super.onDestroy()
+    }
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         AppLanguageManager.refreshSystemLanguage(this)
@@ -161,6 +169,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEVELOPER_LOG_ENABLED) {
+            frameMetricsDiagnostics = CameraFrameMetricsDiagnostics.attach(window)
+        }
         LegacyColorAdjustmentCleanup.migrateOnce(this)
         AppLanguageManager.initialize(this)
         // The camera UI and capture orientation are landscape-only.

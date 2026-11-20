@@ -77,6 +77,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/AnimaT.kt \
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
+            CamUI-src/app/src/main/java/com/example/camui/CameraFrameMetricsDiagnostics.kt \
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \
             CamUI-src/app/src/main/java/com/example/camui/FaceTrackSmoother.kt \
             CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
@@ -91,6 +92,7 @@ jobs:
             CamUI-src/app/src/main/res/values/strings.xml \
             CamUI-src/app/src/main/res/values-vi/strings.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/CameraFrameMetricsDiagnosticsTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiTypographyAssetTest.kt \

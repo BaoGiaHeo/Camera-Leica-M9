@@ -5128,8 +5128,8 @@ fun CameraScreen(
                                     pixelScaleMode = appPrefs.getString("osd_pixel_mode", "fine") ?: "fine"
                                 ),
                                 maxRefreshHz = when {
-                                    performanceMode -> 60
                                     appPrefs.getBoolean("simple_ui_mode_enabled", false) -> 30
+                                    performanceMode -> 60
                                     else -> 120
                                 },
                                 performanceMode = performanceMode,

@@ -5625,6 +5625,9 @@ fun CameraScreen(
             zoomStateForDial?.maxZoomRatio ?: 1f
         )
 
+        val wZoomDirection = if (zoomButtonsSwapped) 1 else -1
+        val tZoomDirection = -wZoomDirection
+
         val activeDialSelection = proSel
         val commandValue = evText
         Column(
@@ -5637,8 +5640,6 @@ fun CameraScreen(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val wZoomDirection = if (zoomButtonsSwapped) 1 else -1
-                    val tZoomDirection = -wZoomDirection
                     FujiKey(
                         "W",
                         onClick = { animateZoomTo((zoomSel + wZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },

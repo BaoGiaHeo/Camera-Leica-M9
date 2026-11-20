@@ -91,4 +91,8 @@
     <string name="watermark_studio_enabled">WATERMARK ON</string>
     <string name="watermark_studio_disabled">WATERMARK OFF</string>
     <string name="watermark_studio_output_note">Studio preview uses a reduced-resolution decode. Final captured photos are processed at their full saved resolution.</string>
+    <string name="watermark_studio_light">LIGHT</string>
+    <string name="watermark_studio_dark">DARK</string>
+    <string name="watermark_studio_auto">AUTO</string>
+    <string name="watermark_studio_glass">GLASS</string>
 </resources>

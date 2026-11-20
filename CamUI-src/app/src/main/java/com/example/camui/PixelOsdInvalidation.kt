@@ -177,11 +177,15 @@ internal fun pixelOsdDirtyRegions(
         add(0, 8, width, 36)
     }
 
-    if (previous.showZoom != current.showZoom ||
-        previous.zoomText != current.zoomText ||
-        previous.zoomAlpha != current.zoomAlpha
+    if (previous.showZoomBar != current.showZoomBar ||
+        previous.zoomRatio != current.zoomRatio ||
+        previous.zoomMinimumRatio != current.zoomMinimumRatio ||
+        previous.zoomMaximumRatio != current.zoomMaximumRatio ||
+        previous.zoomDigitalBoundaryRatio != current.zoomDigitalBoundaryRatio ||
+        previous.zoomBarPosition != current.zoomBarPosition ||
+        previous.zoomBarAlpha != current.zoomBarAlpha
     ) {
-        add(width / 2 - 60, 0, width / 2 + 60, 25)
+        add(0, 0, width, 24)
     }
     if (previous.showEvOverlay != current.showEvOverlay ||
         previous.evOverlayAlpha != current.evOverlayAlpha

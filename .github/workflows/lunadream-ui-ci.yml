@@ -93,6 +93,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/CameraControlProgress.kt \
             CamUI-src/app/src/main/java/com/example/camui/Camera2Info.kt \
             CamUI-src/app/src/main/java/com/example/camui/DigitalZoomProcessor.kt \
+            CamUI-src/app/src/main/java/com/example/camui/DigitalZoomPreviewEffect.kt \
             CamUI-src/app/src/main/java/com/example/camui/DigitalZoomXmpWriter.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLcdDisplayMode.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLookCatalog.kt \

@@ -1411,14 +1411,56 @@ fun CameraScreen(
             previewView.previewStreamState.value ?: PreviewView.StreamState.IDLE
         )
     }
+    var previewGapStartedAtMs by remember(previewView) { mutableLongStateOf(0L) }
+    val previewBindGenerationState = rememberUpdatedState(cameraBindGeneration)
     DisposableEffect(previewView, lifecycleOwner) {
         val observer = Observer<PreviewView.StreamState> { state ->
-            previewStreamState = state ?: PreviewView.StreamState.IDLE
+            val nextState = state ?: PreviewView.StreamState.IDLE
+            val previousState = previewStreamState
+            val nowMs = SystemClock.elapsedRealtime()
+            if (previousState == PreviewView.StreamState.STREAMING &&
+                nextState != PreviewView.StreamState.STREAMING
+            ) {
+                previewGapStartedAtMs = nowMs
+                android.util.Log.w(
+                    "FUJI_PREVIEW_GAP",
+                    "START from=$previousState to=$nextState bindGeneration=${previewBindGenerationState.value} cameraId=${activeCameraDetails?.id ?: "unknown"}"
+                )
+            } else if (previousState != PreviewView.StreamState.STREAMING &&
+                nextState == PreviewView.StreamState.STREAMING
+            ) {
+                val gapMs = if (previewGapStartedAtMs > 0L) nowMs - previewGapStartedAtMs else -1L
+                android.util.Log.i(
+                    "FUJI_PREVIEW_GAP",
+                    "END durationMs=$gapMs previous=$previousState bindGeneration=${previewBindGenerationState.value} cameraId=${activeCameraDetails?.id ?: "unknown"}"
+                )
+                previewGapStartedAtMs = 0L
+            }
+            previewStreamState = nextState
         }
         previewView.previewStreamState.observe(lifecycleOwner, observer)
         onDispose {
+            val nowMs = SystemClock.elapsedRealtime()
+            if (previewGapStartedAtMs > 0L) {
+                android.util.Log.w(
+                    "FUJI_PREVIEW_GAP",
+                    "DISPOSE while preview unavailable durationMs=${nowMs - previewGapStartedAtMs} bindGeneration=${previewBindGenerationState.value}"
+                )
+                previewGapStartedAtMs = 0L
+            }
             previewView.previewStreamState.removeObserver(observer)
             previewStreamState = PreviewView.StreamState.IDLE
+        }
+    }
+    LaunchedEffect(previewView, previewStreamState, hasCam, cameraBindGeneration) {
+        if (hasCam && previewStreamState != PreviewView.StreamState.STREAMING) {
+            delay(1_500L)
+            if (previewView.previewStreamState.value != PreviewView.StreamState.STREAMING) {
+                android.util.Log.w(
+                    "FUJI_PREVIEW_GAP",
+                    "WATCHDOG no STREAMING frame after 1500ms state=${previewView.previewStreamState.value} bindGeneration=$cameraBindGeneration cameraId=${activeCameraDetails?.id ?: "unknown"}"
+                )
+            }
         }
     }
     // Keep FIT_CENTER in both orientations so the preview never auto-crops or zooms.
@@ -2819,8 +2861,8 @@ fun CameraScreen(
                     context.contentResolver.query(
                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                         arrayOf(MediaStore.Images.Media._ID),
-                        "${MediaStore.Images.Media.RELATIVE_PATH} = ?",
-                        arrayOf("Pictures/FujifilmMode/"),
+                        "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.MIME_TYPE} = ?",
+                        arrayOf("Pictures/FujifilmMode/%", "image/jpeg"),
                         "${MediaStore.Images.Media.DATE_ADDED} DESC"
                     )?.use { cursor ->
                         if (cursor.moveToFirst()) {

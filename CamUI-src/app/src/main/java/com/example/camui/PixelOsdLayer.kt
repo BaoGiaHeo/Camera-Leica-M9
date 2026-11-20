@@ -89,7 +89,6 @@ data class PixelOsdFrame(
     val centerAfStatus: Int = 0,
     val centerAfScale: Int = 1,
     val showStatus: Boolean = true,
-    val aeLocked: Boolean = false,
     val evDisplayIndex: Float = evIndex.toFloat(),
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,

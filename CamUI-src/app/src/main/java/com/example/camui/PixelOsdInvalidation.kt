@@ -121,6 +121,7 @@ internal fun pixelOsdDirtyRegions(
 
     if (previous.showEvScale != current.showEvScale ||
         previous.evIndex != current.evIndex ||
+        previous.evDisplayIndex != current.evDisplayIndex ||
         previous.evMinimumIndex != current.evMinimumIndex ||
         previous.evMaximumIndex != current.evMaximumIndex ||
         previous.evStepStops != current.evStepStops ||

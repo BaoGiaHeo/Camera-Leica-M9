@@ -735,6 +735,11 @@ fun CameraScreen(
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
+    val zoomDisplayValue by animateFloatAsState(
+        targetValue = zoomSel,
+        animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
+        label = "zoom OSD interpolation"
+    )
     var zoomOverlayVisible by remember { mutableStateOf(false) }
     LaunchedEffect(zoomSel) {
         zoomOverlayVisible = true
@@ -877,6 +882,17 @@ fun CameraScreen(
     }
     // EV is a command value. Do not overwrite it with delayed per-frame Camera2 results.
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
+    val evDisplayIndex by animateFloatAsState(
+        targetValue = evIndex.toFloat(),
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 520f),
+        label = "EV OSD pointer interpolation"
+    )
+    var evOverlayVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(evIndex) {
+        evOverlayVisible = true
+        delay(1_200L)
+        evOverlayVisible = false
+    }
     var evHoldDirection by remember { mutableIntStateOf(0) }
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
@@ -4524,7 +4540,8 @@ fun CameraScreen(
                                     evMaximumIndex = evRange?.upper ?: 9,
                                     evStepStops = evStep.takeIf { it > 0f } ?: (1f / 3f),
                                     evValueText = evText,
-                                    showEvOverlay = evHoldDirection != 0,
+                                    showEvOverlay = evOverlayVisible,
+                                    evDisplayIndex = evDisplayIndex,
                                     showHistogram = showHist && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     histogram = hist.toList(),
                                     isPro = mode == "Pro" && lcdDisplayMode == CameraLcdDisplayMode.FULL_INFO,
@@ -4547,8 +4564,8 @@ fun CameraScreen(
                                     manualIso = manualIsoEnabled,
                                     manualShutter = manualShutterEnabled,
                                     showZoom = zoomOverlayVisible && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
-                                    zoomText = if (zoomSel < 1f || abs(zoomSel - zoomSel.toInt()) > 0.01f)
-                                        String.format(Locale.US, "%.1fx", zoomSel) else "${zoomSel.toInt()}x"
+                                    zoomText = if (zoomDisplayValue < 1f || abs(zoomDisplayValue - zoomDisplayValue.toInt()) > 0.01f)
+                                        String.format(Locale.US, "%.1fx", zoomDisplayValue) else "${zoomDisplayValue.toInt()}x"
                                 ),
                                 maxRefreshHz = if (appPrefs.getBoolean("simple_ui_mode_enabled", false)) 30 else 120
                             )

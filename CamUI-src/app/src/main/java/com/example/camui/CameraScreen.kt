@@ -4657,7 +4657,9 @@ fun CameraScreen(
                                     focusLocked = focusLocked && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                         lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
                                     centerAfPoint = centerAfPoint.takeIf {
-                                        lcdDisplayMode != CameraLcdDisplayMode.CLEAN && faceTrackCenter == null
+                                        lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
+                                            (manualFocus > 0f || milkyWayInfinityFocusEnabled ||
+                                                !faceTrackingEnabled || faceTrackCenter == null)
                                     },
                                     centerAfStatus = if (focusLocked) 1 else centerAfStatus,
                                     centerAfScale = CameraAfAreaSize.fromPreference(

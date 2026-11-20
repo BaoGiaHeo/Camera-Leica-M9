@@ -52,8 +52,11 @@ internal fun calculateDigitalZoomCropBounds(
     if (sourceWidth < 32 || sourceHeight < 32 ||
         !digitalCropRatio.isFinite() || digitalCropRatio <= 1f
     ) return null
-    val cropWidth = (sourceWidth / digitalCropRatio).roundToInt().coerceIn(16, sourceWidth)
-    val cropHeight = (sourceHeight / digitalCropRatio).roundToInt().coerceIn(16, sourceHeight)
+    // Derive height from the rounded width so the source crop keeps the original
+    // aspect ratio instead of accumulating independent X/Y rounding distortion.
+    val cropWidth = (sourceWidth / digitalCropRatio).toInt().coerceIn(16, sourceWidth)
+    val cropHeight = (cropWidth.toDouble() * sourceHeight.toDouble() / sourceWidth.toDouble())
+        .roundToInt().coerceIn(16, sourceHeight)
     val left = (sourceWidth - cropWidth) / 2
     val top = (sourceHeight - cropHeight) / 2
     return DigitalZoomCropBounds(left, top, left + cropWidth, top + cropHeight)

@@ -382,11 +382,16 @@ class PixelOsdRenderer(context: Context) {
             7,
             5
         )
+        val afLabel = if (frame.focusLocked) "AF-L" else "AF"
+        drawPixelText(
+            canvas,
+            afLabel,
+            width - if (frame.focusLocked) 95 else 65,
+            if (frame.focusLocked) 9 else 12,
+            if (frame.focusLocked) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+        )
         if (frame.focusLocked) {
-            drawPixelText(canvas, "AF-L", width - 95, 9, PixelOsdPalette.GREEN)
             drawPixelText(canvas, "AE-L", width - 95, 18, PixelOsdPalette.GREEN)
-        } else {
-            drawPixelText(canvas, "AF", width - 65, 12, PixelOsdPalette.WHITE)
         }
 
         if (frame.batteryPercent in 0..100) {

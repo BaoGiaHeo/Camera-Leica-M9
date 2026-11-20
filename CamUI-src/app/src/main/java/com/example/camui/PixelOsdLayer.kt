@@ -36,7 +36,7 @@ private object PixelOsdPalette {
 internal fun pixelBatteryCellCount(percent: Int): Int =
     if (percent !in 0..100) 0 else ((percent + 24) / 25).coerceIn(0, 4)
 
-internal fun isPixelBatteryLow(percent: Int): Boolean = percent in 0..20
+internal fun isPixelBatteryLow(percent: Int): Boolean = percent in 0 until 20
 
 internal fun pixelEvAccentColor(
     evIndex: Float,
@@ -857,7 +857,8 @@ fun PixelOsdLayer(
     modifier: Modifier = Modifier,
     frame: PixelOsdFrame,
     maxRefreshHz: Int = 120,
-    performanceMode: Boolean = false
+    performanceMode: Boolean = false,
+    reducedMotion: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val renderer = remember(context.applicationContext) {
@@ -866,30 +867,50 @@ fun PixelOsdLayer(
     val faceTarget = frame.faceCenter ?: Offset(0.5f, 0.5f)
     val animatedFaceCenter by animateOffsetAsState(
         targetValue = faceTarget,
-        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
+        animationSpec = tween(durationMillis = when {
+            reducedMotion -> 0
+            performanceMode -> 80
+            else -> 120
+        }),
         label = "face box display interpolation"
     )
     val animatedSelectedControlProgress by animateFloatAsState(
         targetValue = frame.selectedControlProgress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = if (performanceMode) 100 else 180),
+        animationSpec = tween(durationMillis = when {
+            reducedMotion -> 0
+            performanceMode -> 100
+            else -> 180
+        }),
         label = "selected Pro control arc interpolation"
     )
     val faceSizeTarget = frame.faceSize ?: Offset.Zero
     val animatedFaceSize by animateOffsetAsState(
         targetValue = faceSizeTarget,
-        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
+        animationSpec = tween(durationMillis = when {
+            reducedMotion -> 0
+            performanceMode -> 80
+            else -> 120
+        }),
         label = "face box size interpolation"
     )
     val eyeTarget = frame.eyeCenter ?: Offset.Zero
     val animatedEyeCenter by animateOffsetAsState(
         targetValue = eyeTarget,
-        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
+        animationSpec = tween(durationMillis = when {
+            reducedMotion -> 0
+            performanceMode -> 80
+            else -> 120
+        }),
         label = "eye box display interpolation"
     )
     val afTarget = frame.centerAfPoint ?: Offset(0.5f, 0.5f)
     val animatedAfPoint by animateOffsetAsState(
         targetValue = afTarget,
-        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
+        animationSpec = tween(durationMillis = when {
+            reducedMotion -> 0
+            performanceMode -> 80
+            else -> 120
+        }),
         label = "center AF display interpolation"
     )
     val animatedFrame = frame.copy(

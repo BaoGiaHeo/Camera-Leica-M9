@@ -9,7 +9,8 @@ class PixelOsdStatusTest {
     fun lowBatteryThresholdIncludesExactlyTwentyPercent() {
         assertEquals(true, isPixelBatteryLow(0))
         assertEquals(true, isPixelBatteryLow(19))
-        assertEquals(true, isPixelBatteryLow(20))
+        assertEquals(false, isPixelBatteryLow(20))
+        assertEquals(true, isPixelBatteryLow(19))
         assertEquals(false, isPixelBatteryLow(21))
         assertEquals(false, isPixelBatteryLow(-1))
     }

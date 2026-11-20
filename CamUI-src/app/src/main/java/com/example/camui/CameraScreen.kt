@@ -4754,7 +4754,8 @@ fun CameraScreen(
                                     appPrefs.getBoolean("simple_ui_mode_enabled", false) -> 30
                                     else -> 120
                                 },
-                                performanceMode = performanceMode
+                                performanceMode = performanceMode,
+                                reducedMotion = dispReducedMotion
                             )
                             if (bracketCaptureActive) {
                                 Text(

@@ -8,6 +8,7 @@ import android.graphics.PorterDuff
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.SystemClock
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -153,6 +154,7 @@ data class PixelOsdFrame(
     val manualIso: Boolean = false,
     val manualShutter: Boolean = false,
     val selectedControl: String = "",
+    val selectedControlProgress: Float = 0.5f,
     val showProEv: Boolean = true,
     val showProShutter: Boolean = true,
     val showProIso: Boolean = true,
@@ -586,7 +588,15 @@ class PixelOsdRenderer(context: Context) {
             if (value.isBlank() || x > logicWidth - 25) return
             val textWidth = value.length * 5
             if (selected == key) {
-                drawPixelSelectionArc(canvas, x - 2, bottom - 10, x + textWidth + 1, bottom + 2, PixelOsdPalette.BLUE)
+                drawPixelSelectionArc(
+                    canvas,
+                    x - 2,
+                    bottom - 10,
+                    x + textWidth + 1,
+                    bottom + 2,
+                    PixelOsdPalette.BLUE,
+                    frame.selectedControlProgress
+                )
             }
             drawPixelText(canvas, value, x, bottom, color)
             x += textWidth + 5
@@ -669,17 +679,23 @@ class PixelOsdRenderer(context: Context) {
         top: Int,
         right: Int,
         bottom: Int,
-        color: Int
+        color: Int,
+        progress: Float
     ) {
         if (right <= left || bottom <= top) return
-        drawHLine(canvas, left + 2, right - 2, top, color, 235)
-        drawHLine(canvas, left + 2, right - 2, bottom, color, 235)
-        drawVLine(canvas, left, top + 3, bottom - 3, color, 235)
-        drawVLine(canvas, right, top + 3, bottom - 3, color, 235)
-        drawPixel(canvas, left + 1, top + 1, color)
-        drawPixel(canvas, right - 1, top + 1, color)
-        drawPixel(canvas, left + 1, bottom - 1, color)
-        drawPixel(canvas, right - 1, bottom - 1, color)
+        val fraction = progress.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0.5f
+        val steps = (64 * fraction).roundToInt().coerceIn(0, 64)
+        if (steps == 0) return
+        val centerX = (left + right) * 0.5f
+        val centerY = (top + bottom) * 0.5f
+        val radiusX = (right - left) * 0.5f + 2f
+        val radiusY = (bottom - top) * 0.5f + 2f
+        for (index in 0 until steps) {
+            val angle = (-90.0 + index * 360.0 / 64.0) * Math.PI / 180.0
+            val x = (centerX + cos(angle).toFloat() * radiusX).roundToInt()
+            val y = (centerY + sin(angle).toFloat() * radiusY).roundToInt()
+            drawPixel(canvas, x, y, color, 220)
+        }
     }
 
     private fun drawCornerFrame(
@@ -831,6 +847,11 @@ fun PixelOsdLayer(
         animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "face box display interpolation"
     )
+    val animatedSelectedControlProgress by animateFloatAsState(
+        targetValue = frame.selectedControlProgress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = if (performanceMode) 100 else 180),
+        label = "selected Pro control arc interpolation"
+    )
     val faceSizeTarget = frame.faceSize ?: Offset.Zero
     val animatedFaceSize by animateOffsetAsState(
         targetValue = faceSizeTarget,
@@ -853,7 +874,8 @@ fun PixelOsdLayer(
         faceCenter = frame.faceCenter?.let { animatedFaceCenter },
         faceSize = frame.faceSize?.let { animatedFaceSize },
         eyeCenter = frame.eyeCenter?.let { animatedEyeCenter },
-        centerAfPoint = frame.centerAfPoint?.let { animatedAfPoint }
+        centerAfPoint = frame.centerAfPoint?.let { animatedAfPoint },
+        selectedControlProgress = animatedSelectedControlProgress
     )
     Canvas(modifier) {
         val widthPx = size.width.roundToInt()

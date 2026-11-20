@@ -79,6 +79,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/CameraAfAreaSize.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraFrameMetricsDiagnostics.kt \
+            CamUI-src/app/src/main/java/com/example/camui/CameraControlProgress.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLcdDisplayMode.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdGeometry.kt \
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \
@@ -98,6 +99,7 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/CameraAfAreaSizeTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraLcdDisplayModeTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraFrameMetricsDiagnosticsTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/CameraControlProgressTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiTypographyAssetTest.kt \

@@ -4722,6 +4722,20 @@ fun CameraScreen(
                                         "TONE" -> "WB"
                                         else -> proSel?.uppercase(Locale.US).orEmpty()
                                     },
+                                    selectedControlProgress = cameraControlProgress(
+                                        selectedControl = when (proSel?.uppercase(Locale.US)) {
+                                            "TV" -> "TV"
+                                            "TONE" -> "WB"
+                                            else -> proSel?.uppercase(Locale.US).orEmpty()
+                                        },
+                                        evIndex = evDisplayIndex,
+                                        evMinimumIndex = evRange?.lower ?: -9,
+                                        evMaximumIndex = evRange?.upper ?: 9,
+                                        shutterTimeNanos = shutterNs,
+                                        isoValue = iso,
+                                        manualFocusPosition = manualFocus,
+                                        whiteBalanceKelvin = manualColorTemp
+                                    ),
                                     showProEv = proHudShowEv,
                                     showProShutter = proHudShowShutter,
                                     showProIso = proHudShowIso,

@@ -166,6 +166,7 @@ internal fun pixelOsdDirtyRegions(
         previous.manualIso != current.manualIso ||
         previous.manualShutter != current.manualShutter ||
         previous.selectedControl != current.selectedControl ||
+        previous.selectedControlProgress != current.selectedControlProgress ||
         previous.showProEv != current.showProEv ||
         previous.showProShutter != current.showProShutter ||
         previous.showProIso != current.showProIso ||

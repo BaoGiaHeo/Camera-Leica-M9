@@ -834,7 +834,6 @@ fun CameraScreen(
     var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
     var manualColorTempEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_wb_enabled", false)) }
     var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2000, 10000)) }
-    var manualCaptureRevision by remember { mutableIntStateOf(0) }
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
@@ -1501,7 +1500,7 @@ fun CameraScreen(
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
-        nativeImageProcessingEnabled, livePhotoEnabled, manualCaptureRevision, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
+        nativeImageProcessingEnabled, livePhotoEnabled, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
         if (!hasCam) return@LaunchedEffect
@@ -1531,6 +1530,12 @@ fun CameraScreen(
             )
         }
         val bindGeneration = ++cameraBindGeneration
+        android.util.Log.i(
+            "FUJI_CAMERA_REBIND",
+            "START generation=$bindGeneration facing=${if (front) "FRONT" else "BACK"} " +
+                "mode=$mode ratioIndex=$ratioIdx rotation=$targetRotation renderEngine=$renderEngine " +
+                "livePhoto=$livePhotoEnabled nightShot=$nightShotMode burst=$burstMode"
+        )
         // Disable shutter immediately while the old UseCaseGroup is being replaced.
         camera = null
         imageCapture = null
@@ -2477,6 +2482,10 @@ fun CameraScreen(
                 }
                 val group = groupBuilder.build()
                 val bound = provider.bindToLifecycle(lifecycleOwner, selector, group)
+                android.util.Log.i(
+                    "FUJI_CAMERA_REBIND",
+                    "BOUND generation=$bindGeneration cameraId=${runCatching { Camera2CameraInfo.from(bound.cameraInfo).cameraId }.getOrNull() ?: "unknown"}"
+                )
                 camera = bound
                 imageCapture = capture
                 videoCaptureUseCase = livePhotoVideoCapture
@@ -5375,7 +5384,7 @@ fun CameraScreen(
                                                             applyAutoWhiteBalance(it)
                                                         }
                                                     }
-                                                    manualCaptureRevision++
+
                                                     localizedToast(context, "Đã tắt Milky Way Stack và trả phơi sáng về Auto.", Toast.LENGTH_SHORT).show()
                                                 } else if (active == null) {
                                                     localizedToast(context, "Camera chưa sẵn sàng.", Toast.LENGTH_SHORT).show()
@@ -5399,7 +5408,7 @@ fun CameraScreen(
                                                         manualColorTemp = 3800
                                                         manualColorTempEnabled = true
                                                         milkyWayStackEnabled = true
-                                                        manualCaptureRevision++
+
                                                         localizedToast(
                                                             context,
                                                             "Đã áp dụng ISO $isoValue · ${(exposureNs / 1_000_000_000.0).let { String.format(Locale.US, "%.1fs", it) }} · WB 3800K. Chụp 8 ảnh để căn chỉnh và giảm nhiễu.",
@@ -5613,7 +5622,7 @@ fun CameraScreen(
                                                                 runCatching { applyManualExposure(active, manualIso, previewExposure) }
                                                             }
                                                         },
-                                                        onValueChangeFinished = { manualCaptureRevision++ },
+                                                        onValueChangeFinished = {  },
 
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
@@ -5621,7 +5630,7 @@ fun CameraScreen(
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualIsoEnabled = false
                                                         manualExposure = manualShutterEnabled
-                                                        manualCaptureRevision++
+
                                                     })
                                             }
                                             Text(if (manualIsoEnabled) "ISO $manualIso" else "ISO Auto",
@@ -5647,7 +5656,7 @@ fun CameraScreen(
                                                                 runCatching { applyManualExposure(active, previewIso, manualShutterNs) }
                                                             }
                                                         },
-                                                        onValueChangeFinished = { manualCaptureRevision++ },
+                                                        onValueChangeFinished = {  },
 
                                                     )
                                                 } else Spacer(Modifier.weight(1f))
@@ -5655,7 +5664,7 @@ fun CameraScreen(
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualShutterEnabled = false
                                                         manualExposure = manualIsoEnabled
-                                                        manualCaptureRevision++
+
                                                     })
                                             }
                                             Text(if (manualShutterEnabled) shutterText else "Shutter Auto",
@@ -5743,7 +5752,7 @@ fun CameraScreen(
                                                     milkyWayInfinityFocusEnabled = false
                                                     invalidatePendingFocusLock()
                                                     evIndex = 0
-                                                    manualCaptureRevision++
+
                                                     camera?.let { c ->
                                                         runCatching {
                                                             Camera2CameraControl.from(c.cameraControl).clearCaptureRequestOptions()
@@ -5758,7 +5767,7 @@ fun CameraScreen(
                                                         manualIsoEnabled = false
                                                         manualShutterEnabled = false
                                                         manualExposure = false
-                                                        manualCaptureRevision++
+
                                                         camera?.let { runCatching { it.cameraControl.setExposureCompensationIndex(evIndex) } }
                                                     }
                                                     if (key == "AF" && manualFocus > 0f) {
@@ -5900,7 +5909,7 @@ fun CameraScreen(
                     manualFocus = 0f
                     milkyWayInfinityFocusEnabled = false
                     invalidatePendingFocusLock()
-                    manualCaptureRevision++
+
                     camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
                 },
                 Modifier.fillMaxWidth()

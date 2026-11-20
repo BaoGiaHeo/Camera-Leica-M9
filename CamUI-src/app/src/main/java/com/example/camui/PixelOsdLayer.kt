@@ -60,12 +60,6 @@ internal fun pixelEvAccentColor(
     return (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
 }
 
-internal fun formatPixelEvReadout(evIndex: Float, evStepStops: Float): String {
-    val index = evIndex.takeIf { it.isFinite() } ?: 0f
-    val step = evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
-    return String.format(Locale.US, "EV %+.1f", index * step)
-}
-
 internal object PixelOsdSprites {
     private val sprites = mapOf(
         "memory-card" to arrayOf("WWWWWW", "W....W", "W.WW.W", "W.WW.W", "W....W", "WWWWWW"),
@@ -152,8 +146,6 @@ data class PixelOsdFrame(
     val evMinimumIndex: Int = -9,
     val evMaximumIndex: Int = 9,
     val evStepStops: Float = 1f / 3f,
-    val evValueText: String = "0.0",
-    val showEvOverlay: Boolean = false,
     val showHistogram: Boolean = false,
     val histogram: List<Int> = emptyList(),
     val isPro: Boolean = false,
@@ -183,7 +175,6 @@ data class PixelOsdFrame(
     val zoomDigitalBoundaryRatio: Float = 2f,
     val zoomBarPosition: String = "top_center",
     val zoomBarAlpha: Float = 1f,
-    val evOverlayAlpha: Float = 1f,
     val pixelScaleMode: String = "fine"
 )
 

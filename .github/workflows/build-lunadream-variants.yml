@@ -49,7 +49,7 @@ jobs:
         working-directory: CamUI-src
         run: |
           gradle --no-daemon :app:assembleRelease --stacktrace
-          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/FujiFilm-Mode-2.5.0Dream.apk
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/FujiFilm-Mode-2.5.0.apk
 
       - name: Run supported unit tests
         working-directory: CamUI-src
@@ -59,7 +59,7 @@ jobs:
         if: always() && steps.build_release.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-Release-2.5.0Dream
-          path: CamUI-src/app/build/outputs/apk/release/FujiFilm-Mode-2.5.0Dream.apk
+          name: FujiFilm-Mode-Release-2.5.0
+          path: CamUI-src/app/build/outputs/apk/release/FujiFilm-Mode-2.5.0.apk
           if-no-files-found: error
           retention-days: 14

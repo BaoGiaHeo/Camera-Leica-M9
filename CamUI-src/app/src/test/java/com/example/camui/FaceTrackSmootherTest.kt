@@ -43,11 +43,23 @@ class FaceTrackSmootherTest {
 
     @Test
     fun rotatesAndMirrorsCoordinatesForAllSensorOrientations() {
-        assertEquals(Offset(0.2f, 0.2f), rotateFacePoint(0.2f, 0.8f, 90, false))
-        assertEquals(Offset(0.8f, 0.2f), rotateFacePoint(0.2f, 0.8f, 180, false))
-        assertEquals(Offset(0.8f, 0.8f), rotateFacePoint(0.2f, 0.8f, 270, false))
-        assertEquals(Offset(0.8f, 0.2f), rotateFacePoint(0.2f, 0.8f, 90, true))
-        assertEquals(Offset(0.3f, 0.2f), rotateFaceSize(0.2f, 0.3f, 90))
-        assertEquals(Offset(0.2f, 0.3f), rotateFaceSize(0.2f, 0.3f, 0))
+        val rotated90 = rotateFacePoint(0.2f, 0.8f, 90, false)
+        assertEquals(0.2f, rotated90.x, 0.0001f)
+        assertEquals(0.2f, rotated90.y, 0.0001f)
+        val rotated180 = rotateFacePoint(0.2f, 0.8f, 180, false)
+        assertEquals(0.8f, rotated180.x, 0.0001f)
+        assertEquals(0.2f, rotated180.y, 0.0001f)
+        val rotated270 = rotateFacePoint(0.2f, 0.8f, 270, false)
+        assertEquals(0.8f, rotated270.x, 0.0001f)
+        assertEquals(0.8f, rotated270.y, 0.0001f)
+        val mirrored90 = rotateFacePoint(0.2f, 0.8f, 90, true)
+        assertEquals(0.8f, mirrored90.x, 0.0001f)
+        assertEquals(0.2f, mirrored90.y, 0.0001f)
+        val rotatedSize = rotateFaceSize(0.2f, 0.3f, 90)
+        assertEquals(0.3f, rotatedSize.x, 0.0001f)
+        assertEquals(0.2f, rotatedSize.y, 0.0001f)
+        val unchangedSize = rotateFaceSize(0.2f, 0.3f, 0)
+        assertEquals(0.2f, unchangedSize.x, 0.0001f)
+        assertEquals(0.3f, unchangedSize.y, 0.0001f)
     }
 }

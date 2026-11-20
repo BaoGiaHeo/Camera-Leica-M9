@@ -74,6 +74,17 @@ class PixelOsdInvalidationTest {
     }
 
     @Test
+    fun proHudVisibilityChangeInvalidatesTheProRows() {
+        val oldFrame = PixelOsdFrame(isPro = true)
+        val newFrame = oldFrame.copy(showProWhiteBalance = false)
+
+        val dirty = pixelOsdDirtyRegions(320, 180, oldFrame, newFrame)
+
+        assertTrue(dirty.any { it.top <= 8 && it.bottom >= 30 })
+        assertTrue(dirty.any { it.top <= 164 && it.bottom == 180 })
+    }
+
+    @Test
     fun levelRotationInvalidatesCenterRegion() {
         val oldFrame = PixelOsdFrame(showLevel = true, horizonRollDegrees = 0f)
         val newFrame = PixelOsdFrame(showLevel = true, horizonRollDegrees = 5f)

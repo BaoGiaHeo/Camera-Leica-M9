@@ -81,6 +81,7 @@ jobs:
             .github/workflows/lunadream-ui-ci.yml \
             CamUI-src/app/build.gradle.kts \
             CamUI-src/app/src/androidTest/java/com/example/camui/FujiTypographyGlyphCoverageTest.kt \
+            CamUI-src/app/src/androidTest/java/com/example/camui/DigitalZoomPreviewEffectTest.kt \
             CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-NOTICE.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-OFL.txt \

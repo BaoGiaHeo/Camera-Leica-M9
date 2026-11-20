@@ -1003,6 +1003,251 @@ private fun CameraFrameTemplateCard(
 
 
 
+private val watermarkStudioLayouts = listOf(
+    "classic_bar" to "CLASSIC BAR",
+    "center_stack" to "CENTER STACK",
+    "data_card" to "DATA CARD",
+    "film_strip" to "FILM STRIP",
+    "polaroid" to "POLAROID",
+    "minimal_overlay" to "MINIMAL OVERLAY",
+    "corner_stamp" to "CORNER STAMP",
+    "glass_card" to "GLASS CARD",
+    "blur_frame" to "BLUR FRAME",
+    "lcd_osd" to "LCD OSD",
+    "viewfinder" to "VIEWFINDER",
+    "exposure_dial" to "EXPOSURE DIAL"
+)
+
+/**
+ * The studio preview uses the production applyCameraWatermark() renderer on a
+ * temporary MediaStore copy of the latest app photo. The source photo is never
+ * modified; the temporary row is deleted after the preview bitmap has been decoded.
+ */
+private suspend fun renderWatermarkStudioPreview(context: Context): ImageBitmap? = withContext(Dispatchers.IO) {
+    val resolver = context.contentResolver
+    val sourceUri = runCatching {
+        resolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Images.Media._ID),
+            "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.MIME_TYPE} = ?",
+            arrayOf("Pictures/FujifilmMode/%", "image/jpeg"),
+            "${MediaStore.Images.Media.DATE_ADDED} DESC"
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                ContentUris.withAppendedId(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    cursor.getLong(0)
+                )
+            } else null
+        }
+    }.getOrNull() ?: return@withContext null
+
+    val previewUri = runCatching {
+        resolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, ".wmstudio_preview_${UUID.randomUUID()}.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/.WatermarkStudio/")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        )
+    }.getOrNull() ?: return@withContext null
+
+    try {
+        val copied = runCatching {
+            resolver.openInputStream(sourceUri)?.use { input ->
+                resolver.openOutputStream(previewUri, "wt")?.use { output ->
+                    input.copyTo(output)
+                    true
+                } ?: false
+            } ?: false
+        }.getOrDefault(false)
+        if (!copied) return@withContext null
+
+        val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("watermark_enabled", true)) {
+            applyCameraWatermark(context, previewUri, "", "", "", "", preservePhotoAspectRatio = true)
+        }
+        resolver.update(
+            previewUri,
+            ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+            null,
+            null
+        )
+        decodeUprightBitmap(context, previewUri, maxDimension = 1600)?.asImageBitmap()
+    } catch (failure: Throwable) {
+        android.util.Log.w("FUJI_WATERMARK_STUDIO", "Could not render temporary watermark preview", failure)
+        null
+    } finally {
+        runCatching { resolver.delete(previewUri, null, null) }
+    }
+}
+
+@Composable
+fun WatermarkStudioScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    var layout by remember {
+        mutableStateOf(
+            prefs.getString("watermark_template", "classic_bar")
+                ?.takeIf { value -> watermarkStudioLayouts.any { it.first == value } }
+                ?: "classic_bar"
+        )
+    }
+    var appearance by remember {
+        mutableStateOf(
+            prefs.getString("watermark_style", "White")
+                ?.takeIf { it in setOf("White", "Black", "Auto", "LiquidGlass") }
+                ?: "White"
+        )
+    }
+    var logoSize by remember {
+        mutableStateOf(prefs.getString("watermark_logo_size", "M")?.takeIf { it in setOf("S", "M", "L") } ?: "M")
+    }
+    var showDate by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
+    var showSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
+    var showLocation by remember { mutableStateOf(prefs.getBoolean("watermark_show_location", true)) }
+    var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
+    var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
+    var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
+    var preview by remember { mutableStateOf<ImageBitmap?>(null) }
+    var previewLoading by remember { mutableStateOf(false) }
+    var previewRevision by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(layout, appearance, logoSize, showDate, showSpecs, showLocation, watermarkEnabled, previewRevision) {
+        prefs.edit()
+            .putString("watermark_template", layout)
+            .putString("watermark_style", appearance)
+            .putString("watermark_logo_size", logoSize)
+            .putBoolean("watermark_show_time", showDate)
+            .putBoolean("watermark_show_specs", showSpecs)
+            .putBoolean("watermark_show_location", showLocation)
+            .putBoolean("watermark_enabled", watermarkEnabled)
+            .putString("watermark_custom_model", customModel.trim())
+            .putString("watermark_custom_location", customLocation.trim())
+            .apply()
+        previewLoading = true
+        preview = renderWatermarkStudioPreview(context)
+        previewLoading = false
+    }
+
+    FujiPanel(title = "WATERMARK STUDIO", modifier = Modifier.fillMaxSize(), onBack = onBack) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Text(
+                "LIVE OUTPUT PREVIEW",
+                color = FujiSkin.lcdGreen,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+            Box(
+                Modifier.fillMaxWidth().heightIn(min = 170.dp, max = 300.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF101719))
+                    .border(1.dp, Color(0xFF596568), RoundedCornerShape(4.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                val image = preview
+                if (image != null) {
+                    Image(image, "Watermark Studio production renderer preview",
+                        Modifier.fillMaxWidth().heightIn(min = 170.dp, max = 300.dp),
+                        contentScale = ContentScale.Fit)
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FujiIconGlyph("image", Modifier.size(34.dp), FujiSkin.lcdGreen)
+                        Text("Chụp và lưu một ảnh để xem bản xem trước thật.",
+                            color = Color.White, fontSize = 10.sp)
+                    }
+                }
+                if (previewLoading) {
+                    Text("RENDERING…", color = FujiSkin.orange, fontSize = 9.sp,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
+                }
+            }
+            Text(
+                "Preview được render trên bản sao tạm bằng cùng hàm đóng watermark dùng khi lưu ảnh. Ảnh gốc không bị thay đổi.",
+                color = CamColors.Sub, fontSize = 10.sp
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                FujiKey("REFRESH", onClick = { previewRevision++ }, modifier = Modifier.weight(1f))
+                FujiKey("SHUFFLE", onClick = {
+                    val alternatives = watermarkStudioLayouts.map { it.first }.filter { it != layout }
+                    layout = alternatives.random()
+                }, modifier = Modifier.weight(1f))
+                FujiKey("APPLY", onClick = {
+                    watermarkEnabled = true
+                    prefs.edit().putBoolean("watermark_enabled", true).apply()
+                    onBack()
+                }, modifier = Modifier.weight(1f))
+            }
+            Text("LAYOUT · 12 STYLES", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                watermarkStudioLayouts.forEach { (id, label) ->
+                    FujiChip(label, layout == id, { layout = id })
+                }
+            }
+            Text("APPEARANCE", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("White" to "LIGHT", "Black" to "DARK", "Auto" to "AUTO", "LiquidGlass" to "GLASS").forEach { (value, label) ->
+                    FujiChip(label, appearance == value, { appearance = value })
+                }
+            }
+            Text("LOGO SIZE", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("S", "M", "L").forEach { value ->
+                    FujiChip(value, logoSize == value, { logoSize = value })
+                }
+            }
+            Text("FIELDS", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FujiChip(if (showDate) "DATE ON" else "DATE OFF", showDate,
+                    { showDate = !showDate })
+                FujiChip(if (showSpecs) "EXIF ON" else "EXIF OFF", showSpecs,
+                    { showSpecs = !showSpecs })
+                FujiChip(if (showLocation) "LOCATION ON" else "LOCATION OFF", showLocation,
+                    { showLocation = !showLocation })
+            }
+            Text("DEVICE NAME", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            FujiSearchField(
+                value = customModel,
+                onValueChange = { customModel = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = "Auto · commercial device name"
+            )
+            Text("LOCATION", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            AnimatedVisibility(
+                visible = showLocation,
+                enter = fadeIn(animationSpec = tween(250)),
+                exit = fadeOut(animationSpec = tween(250))
+            ) {
+                FujiSearchField(
+                    value = customLocation,
+                    onValueChange = { customLocation = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "Location text · blank hides the line"
+                )
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FujiChip("WATERMARK ON", watermarkEnabled, { watermarkEnabled = true })
+                FujiChip("WATERMARK OFF", !watermarkEnabled, { watermarkEnabled = false })
+            }
+            Text(
+                "Studio preview recreates the selected output at a reduced decode size; final captured photos are processed at their full saved resolution.",
+                color = CamColors.Sub, fontSize = 9.sp
+            )
+        }
+    }
+}
+
 private val cameraWatermarkBrands = listOf(
     "fujifilm" to "Fujifilm",
     "sony" to "Sony",

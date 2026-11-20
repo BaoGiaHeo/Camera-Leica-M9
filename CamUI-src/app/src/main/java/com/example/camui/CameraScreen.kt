@@ -4197,7 +4197,7 @@ fun CameraScreen(
                                 ) {
                                     withContext(Dispatchers.Main) {
                                         processingProgress = maxOf(processingProgress, 87)
-                                        processingLabel = "Đang crop zoom số bằng GPU Lanczos"
+                                        processingLabel = context.getString(R.string.digital_zoom_processing)
                                     }
                                     withContext(Dispatchers.IO) {
                                         DigitalZoomProcessor.applyLanczosCropToUri(
@@ -4369,11 +4369,11 @@ fun CameraScreen(
                                     }
                                     val digitalZoomSuffix = when {
                                         digitalZoomApplied && digitalXmpPublished ->
-                                            " " + localizedUiText(context, "DIGITAL zoom: ảnh đã crop Lanczos và ghi XMP.")
+                                            " " + context.getString(R.string.digital_zoom_success)
                                         digitalZoomApplied ->
-                                            " " + localizedUiText(context, "DIGITAL zoom đã crop nhưng chưa ghi được XMP.")
+                                            " " + context.getString(R.string.digital_zoom_xmp_failed)
                                         captureDigitalCropRatio > 1.001f ->
-                                            " " + localizedUiText(context, "Cảnh báo: crop zoom số thất bại; ảnh gốc CameraX được giữ.")
+                                            " " + context.getString(R.string.digital_zoom_crop_failed)
                                         else -> ""
                                     }
                                     val finalMessage = (if (captureIsUltraHdr) message

@@ -47,6 +47,19 @@ class PrimaryEyeSelectorTest {
     }
 
     @Test
+    fun tappingTheOtherEyeSwitchesImmediatelyWithoutYawDelay() {
+        val selector = PrimaryEyeSelector()
+        val left = Offset(0.42f, 0.48f)
+        val right = Offset(0.58f, 0.48f)
+
+        selector.select(left, right, 0f, 0L, trackingId = 7)
+        assertEquals(PrimaryEyeSide.LEFT, selector.currentSide())
+        selector.forceSelect(PrimaryEyeSide.RIGHT, 100L, trackingId = 7)
+        assertEquals(PrimaryEyeSide.RIGHT, selector.currentSide())
+        assertEquals(right, selector.select(left, right, 0f, 110L, trackingId = 7))
+    }
+
+    @Test
     fun trackingIdChangeResetsEyeIdentityForTheNewFace() {
         val selector = PrimaryEyeSelector()
         val left = Offset(0.42f, 0.48f)

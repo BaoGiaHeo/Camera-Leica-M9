@@ -61,4 +61,9 @@
     <string name="digital_zoom_success">Zoom DIGITAL: đã crop Lanczos và ghi XMP. Chi tiết ảnh giảm so với zoom quang học.</string>
     <string name="digital_zoom_xmp_failed">Đã crop zoom DIGITAL nhưng chưa ghi được metadata XMP.</string>
     <string name="digital_zoom_crop_failed">Cảnh báo: crop zoom số thất bại; đã giữ ảnh JPEG gốc từ CameraX.</string>
+    <string name="osd_pixel_scale_title">LƯỚI ĐIỂM ẢNH</string>
+    <string name="osd_pixel_fine">MỊN · 2 px</string>
+    <string name="osd_pixel_medium">VỪA · 3 px</string>
+    <string name="osd_pixel_chunky">THÔ · 4 px</string>
+    <string name="osd_pixel_scale_description">Chọn kích thước lưới pixel LCD. Mặc định là Mịn.</string>
 </resources>

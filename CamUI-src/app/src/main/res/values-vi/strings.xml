@@ -38,4 +38,7 @@
     <string name="filter_category_basic">Cơ bản</string>
     <string name="camera_af_normal">AF</string>
     <string name="camera_af_locked">AF-L</string>
+    <string name="face_tracking_off">TẮT FACE</string>
+    <string name="face_tracking_face">FACE</string>
+    <string name="face_tracking_face_eye">FACE + EYE</string>
 </resources>

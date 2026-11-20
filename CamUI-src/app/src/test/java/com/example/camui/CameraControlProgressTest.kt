@@ -1,6 +1,7 @@
 package com.example.camui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CameraControlProgressTest {
@@ -63,10 +64,7 @@ class CameraControlProgressTest {
             resolveCaptureZoomRatio(null, 6000, 0, 1f)!!,
             0.0001f
         )
-        assertEquals(
-            null,
-            resolveCaptureZoomRatio(Float.NaN, 0, 0, Float.NaN)
-        )
+        assertTrue(resolveCaptureZoomRatio(Float.NaN, 0, 0, Float.NaN) == null)
     }
 
     @Test

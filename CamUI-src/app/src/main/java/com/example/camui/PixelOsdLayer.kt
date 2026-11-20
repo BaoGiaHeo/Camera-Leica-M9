@@ -294,7 +294,7 @@ class PixelOsdRenderer(context: Context) {
         }
 
         if (frame.focusLocked) {
-            drawSprite(canvas, "lock", 5, 5)
+            drawSprite(canvas, "lock", 7, 7)
         }
 
         if (frame.showStatus) {
@@ -314,7 +314,7 @@ class PixelOsdRenderer(context: Context) {
                 canvas,
                 frame.zoomText,
                 (width / 2f - frame.zoomText.length * 2.5f).roundToInt(),
-                11,
+                18,
                 PixelOsdPalette.BLUE,
                 frame.zoomAlpha
             )
@@ -381,7 +381,7 @@ class PixelOsdRenderer(context: Context) {
                     else -> "meter-matrix"
                 },
                 7,
-                5
+                7
             )
         }
         val afLabel = if (frame.focusLocked) "AF-L" else "AF"
@@ -389,16 +389,16 @@ class PixelOsdRenderer(context: Context) {
             canvas,
             afLabel,
             width - if (frame.focusLocked) 95 else 65,
-            if (frame.focusLocked) 9 else 12,
+            15,
             if (frame.focusLocked) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
         )
         if (frame.focusLocked) {
-            drawPixelText(canvas, "AE-L", width - 95, 18, PixelOsdPalette.GREEN)
+            drawPixelText(canvas, "AE-L", width - 95, 24, PixelOsdPalette.GREEN)
         }
 
         if (frame.batteryPercent in 0..100) {
             val left = width - 49
-            val top = 4
+            val top = 7
             val color = if (frame.batteryPercent < 20 && !frame.batteryCharging && !frame.batteryLowBlinkOn) {
                 PixelOsdPalette.RED
             } else {
@@ -422,7 +422,7 @@ class PixelOsdRenderer(context: Context) {
                 }
             }
             if (frame.batteryCharging) drawSprite(canvas, "flash", left + 3, top + 1)
-            drawPixelText(canvas, "${frame.batteryPercent}%", width - 34, 11, color)
+            drawPixelText(canvas, "${frame.batteryPercent}%", width - 34, 15, color)
         }
     }
 

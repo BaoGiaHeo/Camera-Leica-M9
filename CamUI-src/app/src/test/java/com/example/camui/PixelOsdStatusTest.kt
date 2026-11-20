@@ -6,6 +6,16 @@ import org.junit.Test
 
 class PixelOsdStatusTest {
     @Test
+    fun pixelTextureAndReflectionCombinedOpacityNeverExceedsThreePercent() {
+        val grid = PIXEL_OSD_GRID_ALPHA / 255f
+        val reflection = PIXEL_OSD_REFLECTION_ALPHA / 255f
+        val combined = 1f - (1f - grid) * (1f - reflection)
+        assertTrue(PIXEL_OSD_GRID_ALPHA in 0..255)
+        assertTrue(PIXEL_OSD_REFLECTION_ALPHA in 0..255)
+        assertTrue("Combined LCD texture alpha was $combined", combined <= 0.03f)
+    }
+
+    @Test
     fun lowBatteryThresholdStartsBelowTwentyPercent() {
         assertEquals(true, isPixelBatteryLow(0))
         assertEquals(true, isPixelBatteryLow(19))

@@ -24,6 +24,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.roundToInt
 
+internal const val PIXEL_OSD_GRID_ALPHA = 4
+internal const val PIXEL_OSD_REFLECTION_ALPHA = 3
+
 private object PixelOsdPalette {
     const val WHITE = 0xFFF2F2F2.toInt()
     const val GREEN = 0xFF5CFF7A.toInt()
@@ -432,9 +435,9 @@ class PixelOsdRenderer(context: Context) {
     }
 
     private fun drawPixelTexture(canvas: NativeCanvas) {
-        // Neutral monochrome sub-pixel grid: 2% pixel alpha, no colour tint.
+        // Neutral monochrome sub-pixel grid: 4/255 alpha, no colour tint.
         fillPaint.color = PixelOsdPalette.WHITE
-        fillPaint.alpha = 5
+        fillPaint.alpha = PIXEL_OSD_GRID_ALPHA
         var x = 0
         while (x < logicWidth) {
             canvas.drawRect(x.toFloat(), 0f, x + 1f, logicHeight.toFloat(), fillPaint)
@@ -446,8 +449,8 @@ class PixelOsdRenderer(context: Context) {
             y += 4
         }
         fillPaint.alpha = 255
-        // A narrow neutral reflection along the upper bezel, kept below 3% opacity.
-        fillPaint.alpha = 4
+        // A narrow neutral reflection; combined grid/reflection alpha remains below 3%.
+        fillPaint.alpha = PIXEL_OSD_REFLECTION_ALPHA
         canvas.drawRect(0f, 0f, logicWidth.toFloat(), 2f, fillPaint)
         fillPaint.alpha = 255
     }

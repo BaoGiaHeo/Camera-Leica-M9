@@ -61,4 +61,9 @@
     <string name="digital_zoom_success">DIGITAL zoom: Lanczos crop applied and XMP written. Detail quality is lower than optical zoom.</string>
     <string name="digital_zoom_xmp_failed">DIGITAL zoom crop applied, but XMP metadata could not be written.</string>
     <string name="digital_zoom_crop_failed">Warning: digital crop failed; the original CameraX JPEG was retained.</string>
+    <string name="osd_pixel_scale_title">PIXEL GRID</string>
+    <string name="osd_pixel_fine">FINE · 2 px</string>
+    <string name="osd_pixel_medium">MEDIUM · 3 px</string>
+    <string name="osd_pixel_chunky">CHUNKY · 4 px</string>
+    <string name="osd_pixel_scale_description">Choose the LCD pixel-grid size. Fine is the default.</string>
 </resources>

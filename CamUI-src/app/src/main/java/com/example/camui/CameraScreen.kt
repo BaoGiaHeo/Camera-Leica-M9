@@ -782,6 +782,8 @@ fun CameraScreen(
     }
     var previewBoundsText by remember { mutableStateOf("unmeasured") }
     val previewBoundsTextState = rememberUpdatedState(previewBoundsText)
+    var previewTransformText by remember { mutableStateOf("unmeasured") }
+    val previewTransformTextState = rememberUpdatedState(previewTransformText)
     DisposableEffect(appPrefs) {
         val preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
             when (key) {
@@ -1249,7 +1251,11 @@ fun CameraScreen(
                 val capturedZoom = zoomFromCaptureResult.takeIf { it.isFinite() }?.toString() ?: "NO_CAPTURE_RESULT"
                 android.util.Log.d(
                     "FUJI_ZOOM_FRAME",
-                    "frame=$zoomFrameIndex direction=${if (direction > 0) "IN" else "OUT"} dt=$dt zoomTarget=$targetZoom zoomFromCaptureResult=$capturedZoom previewScale=1.0 previewRect=${previewBoundsTextState.value}"
+                    "frame=$zoomFrameIndex direction=${if (direction > 0) "IN" else "OUT"} dt=$dt " +
+                        "zoomTarget=$targetZoom zoomFromCaptureResult=$capturedZoom " +
+                        "activePhysicalCameraId=$activePhysicalCameraId " +
+                        "previewTransform=${previewTransformTextState.value} " +
+                        "previewRect=${previewBoundsTextState.value}"
                 )
             }
             val now = SystemClock.uptimeMillis()
@@ -4808,6 +4814,21 @@ fun CameraScreen(
                                     modifier = Modifier.fillMaxSize().onGloballyPositioned { coordinates ->
                                         val origin = coordinates.positionInRoot()
                                         previewBoundsText = "${origin.x.roundToInt()},${origin.y.roundToInt()},${(origin.x + coordinates.size.width).roundToInt()},${(origin.y + coordinates.size.height).roundToInt()}"
+                                        val matrixValues = FloatArray(9)
+                                        previewView.matrix.getValues(matrixValues)
+                                        previewTransformText = String.format(
+                                            Locale.US,
+                                            "view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f]",
+                                            previewView.width,
+                                            previewView.height,
+                                            previewView.scaleX,
+                                            previewView.scaleY,
+                                            previewView.translationX,
+                                            previewView.translationY,
+                                            matrixValues[0], matrixValues[1], matrixValues[2],
+                                            matrixValues[3], matrixValues[4], matrixValues[5],
+                                            matrixValues[6], matrixValues[7], matrixValues[8]
+                                        )
                                     }
                                 )
                             }

@@ -113,7 +113,7 @@ internal fun pixelOsdDirtyRegions(
         addFaceBounds(current.faceCenter, current.faceSize)
     }
     if (previous.eyeCenter != current.eyeCenter) {
-        addPoint(previous.eyeCenter ?: Offset(-1f, -1f), radius = 4)
+        previous.eyeCenter?.let { addPoint(it, radius = 4) }
         current.eyeCenter?.let { addPoint(it, radius = 4) }
     }
 

@@ -4690,6 +4690,11 @@ fun CameraScreen(
                                         "TONE" -> "WB"
                                         else -> proSel?.uppercase(Locale.US).orEmpty()
                                     },
+                                    showProEv = proHudShowEv,
+                                    showProShutter = proHudShowShutter,
+                                    showProIso = proHudShowIso,
+                                    showProFocus = proHudShowFocus,
+                                    showProWhiteBalance = proHudShowWhiteBalance,
                                     showZoom = zoomOverlayAlpha > 0.001f && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     zoomText = if (zoomDisplayValue < 1f || abs(zoomDisplayValue - zoomDisplayValue.toInt()) > 0.01f)
                                         String.format(Locale.US, "%.1fx", zoomDisplayValue) else "${zoomDisplayValue.toInt()}x",

@@ -561,6 +561,8 @@ fun CameraScreen(
     var faceTrackCenter by remember { mutableStateOf<Offset?>(null) }
     var faceTrackSize by remember { mutableStateOf<Offset?>(null) }
     var faceEyeCenter by remember { mutableStateOf<Offset?>(null) }
+    var faceLeftEyeCenter by remember { mutableStateOf<Offset?>(null) }
+    var faceRightEyeCenter by remember { mutableStateOf<Offset?>(null) }
     var preferredFaceCenter by remember { mutableStateOf<Offset?>(null) }
     val preferredFaceCenterState = rememberUpdatedState(preferredFaceCenter)
     var manualAfOverrideUntilMs by remember { mutableLongStateOf(0L) }
@@ -578,6 +580,8 @@ fun CameraScreen(
             faceTrackCenter = null
             faceTrackSize = null
             faceEyeCenter = null
+            faceLeftEyeCenter = null
+            faceRightEyeCenter = null
             preferredFaceCenter = null
             centerAfStatus = 0
         }
@@ -1611,6 +1615,8 @@ fun CameraScreen(
                     center: Offset,
                     size: Offset,
                     eyeCenter: Offset?,
+                    leftEyeCenter: Offset?,
+                    rightEyeCenter: Offset?,
                     now: Long,
                     trackingId: Int? = null
                 ) {
@@ -1622,6 +1628,8 @@ fun CameraScreen(
                             faceTrackCenter = smoothed.center
                             faceTrackSize = smoothed.size
                             faceEyeCenter = if (faceTrackingModeState.value == "face_eye") smoothed.eyeCenter else null
+                            faceLeftEyeCenter = if (faceTrackingModeState.value == "face_eye") leftEyeCenter else null
+                            faceRightEyeCenter = if (faceTrackingModeState.value == "face_eye") rightEyeCenter else null
                         }
                     }
                     val focusTarget = if (faceTrackingModeState.value == "face_eye") {
@@ -1685,6 +1693,8 @@ fun CameraScreen(
                             faceTrackCenter = null
                             faceTrackSize = null
                             faceEyeCenter = null
+                            faceLeftEyeCenter = null
+                            faceRightEyeCenter = null
                             centerAfStatus = 0
                         }
                     }
@@ -1855,7 +1865,7 @@ fun CameraScreen(
                                         nowMs = faceTimestamp,
                                         trackingId = bestCandidate.trackingId
                                     )
-                                    val eye = primaryEye?.let {
+                                    fun mapCamera2Eye(point: Offset?): Offset? = point?.let {
                                         rotateFacePoint(
                                             (it.x - crop.left) / crop.width(),
                                             (it.y - crop.top) / crop.height(),
@@ -1863,10 +1873,19 @@ fun CameraScreen(
                                             front
                                         )
                                     }
+                                    val eye = mapCamera2Eye(primaryEye)
+                                    val leftEyeDisplay = mapCamera2Eye(
+                                        leftEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) }
+                                    )
+                                    val rightEyeDisplay = mapCamera2Eye(
+                                        rightEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) }
+                                    )
                                     publishDetectedFace(
                                         center,
                                         size,
                                         eye,
+                                        leftEyeDisplay,
+                                        rightEyeDisplay,
                                         faceTimestamp,
                                         bestCandidate.trackingId
                                     )
@@ -2196,7 +2215,7 @@ fun CameraScreen(
                                                 nowMs = faceTimestamp,
                                                 trackingId = bestCandidate.trackingId
                                             )
-                                            val eye = primaryEye?.let {
+                                            fun mapMlKitEye(point: Offset?): Offset? = point?.let {
                                                 rotateFacePoint(
                                                     (it.x - frameLeft) / frameWidth.toFloat(),
                                                     (it.y - frameTop) / frameHeight.toFloat(),
@@ -2204,10 +2223,19 @@ fun CameraScreen(
                                                     front
                                                 )
                                             }
+                                            val eye = mapMlKitEye(primaryEye)
+                                            val leftEyeDisplay = mapMlKitEye(
+                                                leftEye?.let { Offset(it.x, it.y) }
+                                            )
+                                            val rightEyeDisplay = mapMlKitEye(
+                                                rightEye?.let { Offset(it.x, it.y) }
+                                            )
                                             publishDetectedFace(
                                                 center,
                                                 size,
                                                 eye,
+                                                leftEyeDisplay,
+                                                rightEyeDisplay,
                                                 faceTimestamp,
                                                 bestCandidate.trackingId
                                             )
@@ -4778,11 +4806,33 @@ fun CameraScreen(
                                             }
                                             val active = camera ?: return@detectTapGestures
                                             invalidatePendingFocusLock()
-                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
+                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 3_000L
                                             val tapPoint = Offset(
                                                 (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                                 (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
                                             )
+                                            val leftEye = faceLeftEyeCenter
+                                            val rightEye = faceRightEyeCenter
+                                            val leftEyeDistance = leftEye?.let {
+                                                kotlin.math.abs(it.x - tapPoint.x) + kotlin.math.abs(it.y - tapPoint.y)
+                                            } ?: Float.POSITIVE_INFINITY
+                                            val rightEyeDistance = rightEye?.let {
+                                                kotlin.math.abs(it.x - tapPoint.x) + kotlin.math.abs(it.y - tapPoint.y)
+                                            } ?: Float.POSITIVE_INFINITY
+                                            if (faceTrackingMode == "face_eye") {
+                                                when {
+                                                    leftEyeDistance <= 0.12f && leftEyeDistance <= rightEyeDistance -> {
+                                                        primaryEyeSelector.forceSelect(PrimaryEyeSide.LEFT, SystemClock.elapsedRealtime())
+                                                        faceEyeCenter = leftEye
+                                                        android.util.Log.d("FUJI_FACE_TRACK", "User selected left eye by tap")
+                                                    }
+                                                    rightEyeDistance <= 0.12f -> {
+                                                        primaryEyeSelector.forceSelect(PrimaryEyeSide.RIGHT, SystemClock.elapsedRealtime())
+                                                        faceEyeCenter = rightEye
+                                                        android.util.Log.d("FUJI_FACE_TRACK", "User selected right eye by tap")
+                                                    }
+                                                }
+                                            }
                                             centerAfPoint = tapPoint
                                             preferredFaceCenter = tapPoint
                                             centerAfStatus = 0

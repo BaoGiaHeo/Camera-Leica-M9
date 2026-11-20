@@ -437,7 +437,8 @@ fun CameraScreen(
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit,
     ratioIdx: Int,
-    onRatio: (Int) -> Unit
+    onRatio: (Int) -> Unit,
+    performanceMode: Boolean = false
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -701,7 +702,7 @@ fun CameraScreen(
 
     fun cycleDispDisplayMode() {
         if (dispTransitionInProgress) return
-        if (dispReducedMotion) {
+        if (dispReducedMotion || performanceMode) {
             lcdDisplayMode = lcdDisplayMode.next()
             return
         }
@@ -764,13 +765,13 @@ fun CameraScreen(
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     val zoomDisplayValue by animateFloatAsState(
         targetValue = zoomSel,
-        animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
         label = "zoom OSD interpolation"
     )
     var zoomOverlayVisible by remember { mutableStateOf(false) }
     val zoomOverlayAlpha by animateFloatAsState(
         targetValue = if (zoomOverlayVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
+        animationSpec = tween(durationMillis = if (performanceMode) 120 else 180),
         label = "zoom OSD fade"
     )
     LaunchedEffect(zoomSel) {
@@ -916,13 +917,13 @@ fun CameraScreen(
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
     val evDisplayIndex by animateFloatAsState(
         targetValue = evIndex.toFloat(),
-        animationSpec = spring(dampingRatio = 0.82f, stiffness = 520f),
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = if (performanceMode) 720f else 520f),
         label = "EV OSD pointer interpolation"
     )
     var evOverlayVisible by remember { mutableStateOf(false) }
     val evOverlayAlpha by animateFloatAsState(
         targetValue = if (evOverlayVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
+        animationSpec = tween(durationMillis = if (performanceMode) 120 else 180),
         label = "EV OSD fade"
     )
     LaunchedEffect(evIndex) {
@@ -4701,7 +4702,12 @@ fun CameraScreen(
                                     zoomAlpha = zoomOverlayAlpha,
                                     evOverlayAlpha = evOverlayAlpha
                                 ),
-                                maxRefreshHz = if (appPrefs.getBoolean("simple_ui_mode_enabled", false)) 30 else 120
+                                maxRefreshHz = when {
+                                    performanceMode -> 60
+                                    appPrefs.getBoolean("simple_ui_mode_enabled", false) -> 30
+                                    else -> 120
+                                },
+                                performanceMode = performanceMode
                             )
                             if (bracketCaptureActive) {
                                 Text(
@@ -5537,7 +5543,7 @@ fun CameraScreen(
         if (leftHandedLayout) leftHardwareContent else rightHardwareContent
 
     FujiLeatherSurface(
-        Modifier.fillMaxSize().animaTContent(),
+        if (performanceMode) Modifier.fillMaxSize() else Modifier.fillMaxSize().animaTContent(),
         simpleMode = simpleUiMode
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {

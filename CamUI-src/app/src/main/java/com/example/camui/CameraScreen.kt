@@ -5574,11 +5574,16 @@ fun CameraScreen(
                                             FujiSlider(
                                                 value = evIndex.toFloat().coerceIn(range.lower.toFloat(), range.upper.toFloat()),
                                                 onValueChange = {
+                                                    manualIsoEnabled = false
+                                                    manualShutterEnabled = false
                                                     manualExposure = false
                                                     val value = it.roundToInt()
                                                     evIndex = value
                                                     camera?.let { c ->
-                                                        runCatching { c.cameraControl.setExposureCompensationIndex(value) }
+                                                        runCatching {
+                                                            applyAutoExposure(c)
+                                                            c.cameraControl.setExposureCompensationIndex(value)
+                                                        }
                                                     }
                                                 },
                                                 valueRange = range.lower.toFloat()..range.upper.toFloat(),
@@ -5602,11 +5607,6 @@ fun CameraScreen(
                                                             manualIsoEnabled = true
                                                             manualExposure = true
                                                             camera?.let { active ->
-                                                                val previewExposure = if (manualShutterEnabled) {
-                                                                    manualShutterNs
-                                                                } else {
-                                                                    shutterNs.takeIf { it > 0L } ?: 16_666_667L
-                                                                }
                                                                 runCatching { applyCameraExposureState(active, true, manualShutterEnabled, manualIso, manualShutterNs, iso, shutterNs) }
                                                             }
                                                         },
@@ -5616,8 +5616,14 @@ fun CameraScreen(
                                                 } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else FujiSkin.orange,
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
+                                                        val keepManualShutter = manualShutterEnabled
                                                         manualIsoEnabled = false
-                                                        manualExposure = manualShutterEnabled
+                                                        manualExposure = keepManualShutter
+                                                        camera?.let { active ->
+                                                            runCatching {
+                                                                applyCameraExposureState(active, false, keepManualShutter, manualIso, manualShutterNs, iso, shutterNs)
+                                                            }
+                                                        }
 
                                                     })
                                             }
@@ -5640,7 +5646,6 @@ fun CameraScreen(
                                                             manualShutterEnabled = true
                                                             manualExposure = true
                                                             camera?.let { active ->
-                                                                val previewIso = if (manualIsoEnabled) manualIso else iso.takeIf { it > 0 } ?: 400
                                                                 runCatching { applyCameraExposureState(active, manualIsoEnabled, true, manualIso, manualShutterNs, iso, shutterNs) }
                                                             }
                                                         },
@@ -5650,8 +5655,14 @@ fun CameraScreen(
                                                 } else Spacer(Modifier.weight(1f))
                                                 Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else FujiSkin.orange,
                                                     fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
+                                                        val keepManualIso = manualIsoEnabled
                                                         manualShutterEnabled = false
-                                                        manualExposure = manualIsoEnabled
+                                                        manualExposure = keepManualIso
+                                                        camera?.let { active ->
+                                                            runCatching {
+                                                                applyCameraExposureState(active, keepManualIso, false, manualIso, manualShutterNs, iso, shutterNs)
+                                                            }
+                                                        }
 
                                                     })
                                             }
@@ -5744,6 +5755,7 @@ fun CameraScreen(
                                                     camera?.let { c ->
                                                         runCatching {
                                                             Camera2CameraControl.from(c.cameraControl).clearCaptureRequestOptions()
+                                                            applyAutoExposure(c)
                                                             c.cameraControl.setExposureCompensationIndex(0)
                                                             applyAutoFocus(c)
                                                             applyAutoWhiteBalance(c)
@@ -5756,7 +5768,12 @@ fun CameraScreen(
                                                         manualShutterEnabled = false
                                                         manualExposure = false
 
-                                                        camera?.let { runCatching { it.cameraControl.setExposureCompensationIndex(evIndex) } }
+                                                        camera?.let { active ->
+                                                            runCatching {
+                                                                applyAutoExposure(active)
+                                                                active.cameraControl.setExposureCompensationIndex(evIndex)
+                                                            }
+                                                        }
                                                     }
                                                     if (key == "AF" && manualFocus > 0f) {
                                                         manualFocus = 0f

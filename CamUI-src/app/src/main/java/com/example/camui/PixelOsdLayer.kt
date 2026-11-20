@@ -76,13 +76,46 @@ internal object PixelOsdSprites {
 data class PixelOsdFrame(
     val showGrid: Boolean = false,
     val faceCenter: Offset? = null,
+    val faceSize: Offset? = null,
+    val eyeCenter: Offset? = null,
     val faceFocused: Boolean = false,
     val focusLocked: Boolean = false,
     val focusPoints: List<Offset> = emptyList(),
     val showLevel: Boolean = false,
     val horizonRollDegrees: Float = 0f,
     val showZebra: Boolean = false,
-    val zebraPoints: List<Offset> = emptyList()
+    val zebraPoints: List<Offset> = emptyList(),
+    val centerAfPoint: Offset? = Offset(0.5f, 0.5f),
+    val centerAfStatus: Int = 0,
+    val centerAfScale: Int = 1,
+    val showStatus: Boolean = true,
+    val batteryPercent: Int = -1,
+    val batteryCharging: Boolean = false,
+    val batteryLowBlinkOn: Boolean = true,
+    val showEvScale: Boolean = true,
+    val evIndex: Int = 0,
+    val evMinimumIndex: Int = -9,
+    val evMaximumIndex: Int = 9,
+    val evStepStops: Float = 1f / 3f,
+    val evValueText: String = "0.0",
+    val showEvOverlay: Boolean = false,
+    val showHistogram: Boolean = false,
+    val histogram: List<Int> = emptyList(),
+    val isPro: Boolean = false,
+    val afModeText: String = "AF",
+    val meteringText: String = "C",
+    val shutterText: String = "AUTO",
+    val apertureText: String = "F--",
+    val isoText: String = "AUTO",
+    val dynamicRangeText: String = "DR100",
+    val whiteBalanceText: String = "AUTO",
+    val filmSimulationText: String = "",
+    val manualExposure: Boolean = false,
+    val manualWhiteBalance: Boolean = false,
+    val manualIso: Boolean = false,
+    val manualShutter: Boolean = false,
+    val showZoom: Boolean = false,
+    val zoomText: String = ""
 )
 
 /**
@@ -214,14 +247,61 @@ class PixelOsdRenderer(context: Context) {
         frame.faceCenter?.let { center ->
             val cx = (center.x * width).roundToInt()
             val cy = (center.y * height).roundToInt()
+            val normalizedSize = frame.faceSize
+            val halfWidth = normalizedSize?.x?.let { (it * width * 0.5f).roundToInt() }?.coerceIn(12, width / 3)
+                ?: 14
+            val halfHeight = normalizedSize?.y?.let { (it * height * 0.5f).roundToInt() }?.coerceIn(14, height / 3)
+                ?: 17
             val color = if (frame.faceFocused) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
-            drawCornerFrame(canvas, cx - 14, cy - 17, cx + 14, cy + 17, color, 5)
-            drawSprite(canvas, "eye", cx - 3, cy - 5)
+            drawCornerFrame(canvas, cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight, color, 5)
+            frame.eyeCenter?.let { eye ->
+                drawSprite(
+                    canvas,
+                    "eye",
+                    (eye.x * width).roundToInt() - 3,
+                    (eye.y * height).roundToInt() - 2
+                )
+            } ?: drawSprite(canvas, "eye", cx - 3, cy - 5)
+        }
+
+        if (frame.centerAfPoint != null && frame.faceCenter == null) {
+            val cx = (frame.centerAfPoint.x * width).roundToInt()
+            val cy = (frame.centerAfPoint.y * height).roundToInt()
+            val half = when (frame.centerAfScale) {
+                0 -> 7
+                2 -> 15
+                else -> 10
+            }
+            val color = when (frame.centerAfStatus) {
+                1 -> PixelOsdPalette.GREEN
+                -1 -> PixelOsdPalette.RED
+                else -> PixelOsdPalette.WHITE
+            }
+            drawCornerFrame(canvas, cx - half, cy - half, cx + half, cy + half, color, 4)
+            if (frame.centerAfStatus == 1) drawSprite(canvas, "focus-dot", cx - 2, cy - 2)
         }
 
         if (frame.focusLocked) {
             drawSprite(canvas, "lock", 5, 5)
-            drawPixelText(canvas, "AF-L", 14, 12, PixelOsdPalette.GREEN)
+        }
+
+        if (frame.showStatus) {
+            drawStatusHud(canvas, frame)
+        }
+        if (frame.showEvScale) {
+            drawEvScale(canvas, frame)
+        }
+        if (frame.showHistogram) {
+            drawHistogram(canvas, frame.histogram)
+        }
+        if (frame.isPro) {
+            drawProHud(canvas, frame)
+        }
+        if (frame.showZoom && frame.zoomText.isNotBlank()) {
+            drawPixelText(canvas, frame.zoomText, (width / 2f - frame.zoomText.length * 2.5f).roundToInt(), 11, PixelOsdPalette.BLUE)
+        }
+        if (frame.showEvOverlay) {
+            drawPixelText(canvas, "EV ${frame.evValueText}", (width / 2f - 18).coerceAtLeast(24), 23, PixelOsdPalette.AMBER)
         }
 
         if (frame.showLevel) {
@@ -240,6 +320,123 @@ class PixelOsdRenderer(context: Context) {
                 if (kotlin.math.abs(frame.horizonRollDegrees) < 1.2f) PixelOsdPalette.GREEN else PixelOsdPalette.AMBER
             )
             drawSprite(canvas, "level", cx - 4, cy - 3)
+        }
+    }
+
+    private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
+        val width = logicWidth
+        drawPixelText(canvas, if (frame.focusLocked) "AF-L" else "AF", 7, 11,
+            if (frame.focusLocked) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE)
+        drawPixelText(canvas, frame.meteringText.take(1), 23, 11, PixelOsdPalette.WHITE)
+
+        if (frame.batteryPercent in 0..100) {
+            val left = width - 49
+            val top = 4
+            val color = if (frame.batteryPercent < 20 && !frame.batteryCharging && !frame.batteryLowBlinkOn) {
+                PixelOsdPalette.RED
+            } else {
+                PixelOsdPalette.WHITE
+            }
+            drawHLine(canvas, left, left + 10, top, color, 255)
+            drawHLine(canvas, left, left + 10, top + 6, color, 255)
+            drawVLine(canvas, left, top, top + 6, color, 255)
+            drawVLine(canvas, left + 10, top + 1, top + 5, color, 255)
+            drawVLine(canvas, left + 12, top + 2, top + 4, color, 255)
+            val fillWidth = (frame.batteryPercent.coerceIn(0, 100) / 100f * 7f).roundToInt()
+            if (fillWidth > 0 && color != PixelOsdPalette.RED) {
+                for (x in 1..fillWidth) {
+                    for (y in 1..5) drawPixel(canvas, left + x, top + y, color)
+                }
+            } else if (color == PixelOsdPalette.RED && frame.batteryLowBlinkOn) {
+                for (x in 1..7) for (y in 1..5) drawPixel(canvas, left + x, top + y, color)
+            }
+            if (frame.batteryCharging) drawSprite(canvas, "flash", left + 3, top + 1)
+            drawPixelText(canvas, "${frame.batteryPercent}%", width - 34, 11, color)
+        }
+    }
+
+    private fun drawEvScale(canvas: NativeCanvas, frame: PixelOsdFrame) {
+        val width = logicWidth
+        val height = logicHeight
+        val top = (height * 0.31f).roundToInt().coerceAtLeast(22)
+        val bottom = (height * 0.76f).roundToInt().coerceAtMost(height - 22)
+        val centerY = (top + bottom) / 2
+        val halfRange = ((bottom - top) / 2f).coerceAtLeast(1f)
+        val step = frame.evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
+        val minStops = (frame.evMinimumIndex * step).coerceAtLeast(-3f)
+        val maxStops = (frame.evMaximumIndex * step).coerceAtMost(3f)
+        val span = (maxStops - minStops).coerceAtLeast(0.333f)
+        drawVLine(canvas, 12, top, bottom, PixelOsdPalette.WHITE, 180)
+        var tick = kotlin.math.ceil(minStops * 3f).toInt()
+        val lastTick = kotlin.math.floor(maxStops * 3f).toInt()
+        while (tick <= lastTick) {
+            val stops = tick / 3f
+            val y = (bottom - ((stops - minStops) / span) * (bottom - top)).roundToInt()
+            val major = tick % 3 == 0
+            val halfWidth = if (major) 4 else 2
+            drawHLine(canvas, 12 - halfWidth, 12 + halfWidth, y, PixelOsdPalette.WHITE, if (major) 230 else 125)
+            if (major) {
+                val label = if (tick == 0) "0" else if (tick > 0) "+${tick / 3}" else "${tick / 3}"
+                drawPixelText(canvas, label, 17, y + 3, PixelOsdPalette.WHITE)
+            }
+            tick++
+        }
+        val currentStops = (frame.evIndex * step).coerceIn(minStops, maxStops)
+        val pointerY = (bottom - ((currentStops - minStops) / span) * (bottom - top)).roundToInt()
+        drawPixel(canvas, 7, pointerY, PixelOsdPalette.AMBER)
+        drawPixel(canvas, 8, pointerY - 1, PixelOsdPalette.AMBER)
+        drawPixel(canvas, 8, pointerY + 1, PixelOsdPalette.AMBER)
+        drawPixel(canvas, 9, pointerY, PixelOsdPalette.AMBER)
+        if (frame.showEvOverlay) drawPixelText(canvas, frame.evValueText, 3, centerY - 4, PixelOsdPalette.AMBER)
+    }
+
+    private fun drawHistogram(canvas: NativeCanvas, bins: List<Int>) {
+        if (bins.isEmpty()) return
+        val width = logicWidth
+        val top = 15
+        val chartWidth = (width / 4).coerceIn(48, 70)
+        val chartHeight = 22
+        val left = 6
+        val maxValue = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
+        val count = minOf(64, bins.size)
+        for (index in 0 until count) {
+            val x = left + index * chartWidth / count
+            val nextX = left + (index + 1) * chartWidth / count
+            val barWidth = (nextX - x).coerceAtLeast(1)
+            val barHeight = (bins[index].coerceAtLeast(0).toFloat() / maxValue * chartHeight).roundToInt()
+            if (barHeight > 0) {
+                for (column in 0 until barWidth) {
+                    drawVLine(canvas, x + column, top + chartHeight - barHeight, top + chartHeight - 1,
+                        PixelOsdPalette.WHITE, 125)
+                }
+            }
+        }
+    }
+
+    private fun drawProHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
+        val height = logicHeight
+        val bottom = height - 7
+        var x = 7
+        fun put(value: String, color: Int = PixelOsdPalette.WHITE) {
+            if (value.isBlank() || x > logicWidth - 25) return
+            drawPixelText(canvas, value, x, bottom, color)
+            x += value.length * 5 + 5
+        }
+        put("M", if (frame.manualExposure) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
+        put(frame.afModeText.take(4))
+        put(frame.shutterText.take(7), if (frame.manualShutter) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
+        put(frame.apertureText.take(5))
+        put(frame.isoText.take(6), if (frame.manualIso) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
+
+        val rightText = listOf(
+            frame.dynamicRangeText.take(5),
+            frame.whiteBalanceText.take(6),
+            frame.filmSimulationText.take(3)
+        ).filter { it.isNotBlank() }.joinToString(" ")
+        if (rightText.isNotBlank()) {
+            val rightX = (logicWidth - rightText.length * 5 - 7).coerceAtLeast(x)
+            drawPixelText(canvas, rightText, rightX, 21,
+                if (frame.manualWhiteBalance) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
         }
     }
 

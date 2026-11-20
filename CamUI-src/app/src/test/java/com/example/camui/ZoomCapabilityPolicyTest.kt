@@ -128,6 +128,24 @@ class ZoomCapabilityPolicyTest {
     }
 
     @Test
+    fun telephotoZoomOutFromOneHundredTimesCompletesTheFullRangeInAboutSixPointFiveSeconds() {
+        var current = 100f
+        repeat(130) {
+            val next = advanceLogarithmicZoomRatio(
+                currentZoom = current,
+                direction = -1,
+                minimumRatio = 0.6f,
+                maximumRatio = 100f,
+                deltaSeconds = 0.05f,
+                traversalSeconds = 6.5f
+            )
+            assertTrue(next <= current)
+            current = next
+        }
+        assertEquals(0.6f, current, 0.0002f)
+    }
+
+    @Test
     fun zoomHoldIsMonotonicAndStopsAtItsRequestedLimits() {
         var zoomIn = 1f
         repeat(200) {

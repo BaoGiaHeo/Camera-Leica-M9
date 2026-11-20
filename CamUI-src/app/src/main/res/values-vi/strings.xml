@@ -38,6 +38,11 @@
     <string name="filter_category_basic">Cơ bản</string>
     <string name="camera_af_normal">AF</string>
     <string name="camera_af_locked">AF-L</string>
+    <string name="af_area_size_title">Kích thước khung AF trung tâm</string>
+    <string name="af_area_size_description">Chọn kích thước khung lấy nét tự động và đo sáng điểm ở giữa.</string>
+    <string name="af_area_size_small">NHỎ</string>
+    <string name="af_area_size_medium">VỪA</string>
+    <string name="af_area_size_large">LỚN</string>
     <string name="face_tracking_section_title">Lấy nét khuôn mặt &amp; mắt</string>
     <string name="face_tracking_section_description">Chọn cách máy ảnh nhận diện và theo dõi khuôn mặt. Ưu tiên khuôn mặt sẽ nhường quyền cho thao tác chạm hoặc khóa lấy nét thủ công.</string>
     <string name="face_tracking_hardware_note">Ưu tiên nhận diện phần cứng Camera2. ML Kit dùng luồng phân tích 640 × 480 khi máy không cung cấp nhận diện khuôn mặt hoặc điểm mắt cần thiết.</string>

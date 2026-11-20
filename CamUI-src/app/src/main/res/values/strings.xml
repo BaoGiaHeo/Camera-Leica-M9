@@ -38,6 +38,11 @@
     <string name="filter_category_basic">Basic</string>
     <string name="camera_af_normal">AF</string>
     <string name="camera_af_locked">AF-L</string>
+    <string name="af_area_size_title">Centre AF frame size</string>
+    <string name="af_area_size_description">Choose the size of the centre autofocus and spot-metering frame.</string>
+    <string name="af_area_size_small">SMALL</string>
+    <string name="af_area_size_medium">MEDIUM</string>
+    <string name="af_area_size_large">LARGE</string>
     <string name="face_tracking_section_title">Face &amp; Eye AF</string>
     <string name="face_tracking_section_description">Choose how the camera detects and follows faces. Face priority yields to a manual tap or focus lock.</string>
     <string name="face_tracking_hardware_note">Camera2 hardware detection is preferred. ML Kit uses the 640 × 480 analysis stream when the selected face or eye landmarks are unavailable.</string>

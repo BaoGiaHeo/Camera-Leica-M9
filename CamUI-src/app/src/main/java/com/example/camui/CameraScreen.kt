@@ -4636,7 +4636,9 @@ fun CameraScreen(
                                         lcdDisplayMode != CameraLcdDisplayMode.CLEAN && faceTrackCenter == null
                                     },
                                     centerAfStatus = if (focusLocked) 1 else centerAfStatus,
-                                    centerAfScale = when (metering) { 1 -> 2; 2 -> 0; else -> 1 },
+                                    centerAfScale = CameraAfAreaSize.fromPreference(
+                                        appPrefs.getString("af_area_size", "m")
+                                    ).pixelScale,
                                     focusPoints = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO -> peakPoints
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()

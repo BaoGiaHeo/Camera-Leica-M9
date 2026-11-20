@@ -164,6 +164,9 @@ private fun SettingsDetailPage(
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
+    var afAreaSize by remember {
+        mutableStateOf(CameraAfAreaSize.fromPreference(prefs.getString("af_area_size", "m")).preferenceValue)
+    }
     var faceTrackingMode by remember {
         mutableStateOf(
             prefs.getString(
@@ -237,6 +240,37 @@ var nightShotMode by remember {
             }
             "Focus & Lens" -> {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(
+                        stringResource(R.string.af_area_size_title),
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        stringResource(R.string.af_area_size_description),
+                        color = CamColors.Sub,
+                        fontSize = 10.sp
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            "s" to R.string.af_area_size_small,
+                            "m" to R.string.af_area_size_medium,
+                            "l" to R.string.af_area_size_large
+                        ).forEach { (value, labelRes) ->
+                            FujiChip(
+                                stringResource(labelRes),
+                                afAreaSize == value,
+                                {
+                                    afAreaSize = value
+                                    prefs.edit().putString("af_area_size", value).apply()
+                                },
+                                Modifier.weight(1f)
+                            )
+                        }
+                    }
                     Text(
                         stringResource(R.string.face_tracking_section_title),
                         color = FujiSkin.lcdGreen,

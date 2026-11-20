@@ -2384,10 +2384,28 @@ fun CameraScreen(
                 evIndex = appPrefs.getInt("pro_ev_index", 0)
                 val zoomStateOnBind = bound.cameraInfo.zoomState.value
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
+                val cameraXZoomMaximum = zoomStateOnBind?.maxZoomRatio ?: 1f
+                val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+                val cameraReportedZoomMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, cameraXZoomMaximum)
                 val maxSelectableZoom = Camera2Info.maxSelectableZoom(
                     activeCameraDetails,
                     activePhysicalCameraDetails,
-                    zoomStateOnBind?.maxZoomRatio ?: 1f
+                    cameraXZoomMaximum
+                )
+                val lensEquivalentSummary = buildList {
+                    activeCameraDetails?.eq35Mm?.let { add("logical=" + String.format(Locale.US, "%.1f", it)) }
+                    activePhysicalCameraDetails.forEach { lens ->
+                        lens.eq35Mm?.let { add(lens.id + "=" + String.format(Locale.US, "%.1f", it)) }
+                    }
+                }.joinToString()
+                android.util.Log.i(
+                    "FUJI_ZOOM_CAPABILITY",
+                    "cameraId=" + actualCameraId + " lenses35mm=[" + lensEquivalentSummary + "] main35mm=" +
+                        zoomAssessment.mainEquivalent35Mm + " longest35mm=" + zoomAssessment.longestEquivalent35Mm +
+                        " opticalTele=" + zoomAssessment.hasOpticalTelephoto + " opticalRatio=" + zoomAssessment.opticalRatio +
+                        " CONTROL_ZOOM_RATIO_RANGE=" + activeCameraDetails?.controlZoomRatioMin + ".." + activeCameraDetails?.controlZoomRatioMax +
+                        " cameraXMax=" + cameraXZoomMaximum + " reportedMax=" + cameraReportedZoomMaximum +
+                        " selectableMax=" + maxSelectableZoom + " min=" + (zoomStateOnBind?.minZoomRatio ?: 1f)
                 )
                 val restoredZoom = savedZoom.coerceIn(
                     zoomStateOnBind?.minZoomRatio ?: 1f,
@@ -4935,7 +4953,9 @@ fun CameraScreen(
                                     zoomMaximumRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
                                         Camera2Info.maxSelectableZoom(activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio)
                                     } ?: 2f,
-                                    zoomDigitalBoundaryRatio = camera?.cameraInfo?.zoomState?.value?.maxZoomRatio ?: 2f,
+                                    zoomDigitalBoundaryRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
+                                        Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
+                                    } ?: 2f,
                                     zoomBarPosition = zoomBarPosition,
                                     zoomBarAlpha = if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) zoomOverlayAlpha else 1f,
                                     evOverlayAlpha = evOverlayAlpha

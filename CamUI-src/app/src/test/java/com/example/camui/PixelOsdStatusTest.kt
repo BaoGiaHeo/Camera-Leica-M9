@@ -5,6 +5,15 @@ import org.junit.Test
 
 class PixelOsdStatusTest {
     @Test
+    fun evReadoutUsesTheInterpolatedIndexAndStepSize() {
+        assertEquals("EV +0.0", formatPixelEvReadout(0f, 1f / 3f))
+        assertEquals("EV +1.0", formatPixelEvReadout(3f, 1f / 3f))
+        assertEquals("EV -1.0", formatPixelEvReadout(-3f, 1f / 3f))
+        assertEquals("EV +0.5", formatPixelEvReadout(1f, 0.5f))
+        assertEquals("EV +0.0", formatPixelEvReadout(Float.NaN, 0f))
+    }
+
+    @Test
     fun batteryUsesFourDiscreteCells() {
         assertEquals(0, pixelBatteryCellCount(-1))
         assertEquals(0, pixelBatteryCellCount(0))

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.IntSize
+import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.roundToInt
@@ -33,6 +34,12 @@ private object PixelOsdPalette {
 
 internal fun pixelBatteryCellCount(percent: Int): Int =
     if (percent !in 0..100) 0 else ((percent + 24) / 25).coerceIn(0, 4)
+
+internal fun formatPixelEvReadout(evIndex: Float, evStepStops: Float): String {
+    val index = evIndex.takeIf { it.isFinite() } ?: 0f
+    val step = evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
+    return String.format(Locale.US, "EV %+.1f", index * step)
+}
 
 internal object PixelOsdSprites {
     private val sprites = mapOf(
@@ -336,8 +343,8 @@ class PixelOsdRenderer(context: Context) {
         if (frame.showEvOverlay) {
             drawPixelText(
                 canvas,
-                "EV ${frame.evValueText}",
-                (width / 2f - 18).roundToInt().coerceAtLeast(24),
+                formatPixelEvReadout(frame.evDisplayIndex, frame.evStepStops),
+                (width / 2f - 24).roundToInt().coerceAtLeast(24),
                 23,
                 PixelOsdPalette.AMBER,
                 frame.evOverlayAlpha
@@ -490,6 +497,14 @@ class PixelOsdRenderer(context: Context) {
         val left = 6
         val maxValue = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
         val count = minOf(64, bins.size)
+        drawHLine(canvas, left - 1, left + chartWidth, top - 1, PixelOsdPalette.WHITE, 185)
+        drawHLine(canvas, left - 1, left + chartWidth, top + chartHeight, PixelOsdPalette.WHITE, 185)
+        drawVLine(canvas, left - 1, top - 1, top + chartHeight, PixelOsdPalette.WHITE, 185)
+        drawVLine(canvas, left + chartWidth, top - 1, top + chartHeight, PixelOsdPalette.WHITE, 185)
+        for (quarter in 1..3) {
+            val gridY = top + quarter * chartHeight / 4
+            drawHLine(canvas, left, left + chartWidth - 1, gridY, PixelOsdPalette.WHITE, 48)
+        }
         for (index in 0 until count) {
             val x = left + index * chartWidth / count
             val nextX = left + (index + 1) * chartWidth / count
@@ -759,6 +774,18 @@ fun PixelOsdLayer(
         animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "face box display interpolation"
     )
+    val faceSizeTarget = frame.faceSize ?: Offset.Zero
+    val animatedFaceSize by animateOffsetAsState(
+        targetValue = faceSizeTarget,
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
+        label = "face box size interpolation"
+    )
+    val eyeTarget = frame.eyeCenter ?: Offset.Zero
+    val animatedEyeCenter by animateOffsetAsState(
+        targetValue = eyeTarget,
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
+        label = "eye box display interpolation"
+    )
     val afTarget = frame.centerAfPoint ?: Offset(0.5f, 0.5f)
     val animatedAfPoint by animateOffsetAsState(
         targetValue = afTarget,
@@ -767,6 +794,8 @@ fun PixelOsdLayer(
     )
     val animatedFrame = frame.copy(
         faceCenter = frame.faceCenter?.let { animatedFaceCenter },
+        faceSize = frame.faceSize?.let { animatedFaceSize },
+        eyeCenter = frame.eyeCenter?.let { animatedEyeCenter },
         centerAfPoint = frame.centerAfPoint?.let { animatedAfPoint }
     )
     Canvas(modifier) {

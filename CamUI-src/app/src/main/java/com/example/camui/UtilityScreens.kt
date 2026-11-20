@@ -2717,14 +2717,25 @@ fun applyCameraWatermark(
         var outputBitmap: Bitmap? = null
         var watermarkCropBitmap: Bitmap? = null
         try {
-        val selectedTemplate = (prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto"
-        val frameStyle = (prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White"
+        val selectedTemplate = (prefs.getString("watermark_template", "classic_bar") ?: "classic_bar").takeIf {
+            it in setOf(
+                "fuji_auto", "fuji_classic", "fuji_signature",
+                "classic_bar", "center_stack", "data_card", "film_strip", "polaroid",
+                "minimal_overlay", "corner_stamp", "glass_card", "blur_frame", "lcd_osd",
+                "viewfinder", "exposure_dial",
+                "classic", "dark", "minimal", "simple", "micro", "vintage", "gallery", "frosted", "film", "datestamp"
+            )
+        } ?: "classic_bar"
+        val frameStyle = (prefs.getString("watermark_style", "White") ?: "White")
+            .takeIf { it in setOf("White", "Black", "Auto", "LiquidGlass") } ?: "White"
         val template = if (selectedTemplate == "fuji_auto") {
             if (sourceBitmap.width > sourceBitmap.height) "fuji_classic" else "fuji_signature"
         } else {
             selectedTemplate
         }
-        val isFujiFooterTemplate = template != "minimal" && template != "simple" && template != "micro" && template != "datestamp"
+        val isFujiFooterTemplate = template !in setOf(
+            "minimal", "minimal_overlay", "simple", "micro", "datestamp", "corner_stamp", "lcd_osd"
+        )
         val sourceWidthPx = sourceBitmap.width
         val sourceHeightPx = sourceBitmap.height
         val sourceMinSide = minOf(sourceWidthPx, sourceHeightPx).toFloat()
@@ -2732,8 +2743,8 @@ fun applyCameraWatermark(
         // One-, two- and three-line footer heights follow the specification's common
         // short-side units (7.5%, 9.5% and 11%).
         val footerRows = when (template) {
-            "minimal", "micro", "datestamp" -> 1
-            "vintage", "film", "frosted", "polaroid" -> 2
+            "minimal", "minimal_overlay", "micro", "datestamp", "corner_stamp", "lcd_osd" -> 1
+            "data_card" -> 3
             else -> 2
         }
         val footerFraction = when (footerRows) {
@@ -2803,22 +2814,36 @@ fun applyCameraWatermark(
         val glassCorner = prefs.getFloat("watermark_glass_corner", 0.58f).coerceIn(0f, 1f)
         val glassGooey = prefs.getFloat("watermark_glass_gooey", 0.34f).coerceIn(0f, 1f)
         val glassTintMode = prefs.getString("watermark_glass_tint", "Auto") ?: "Auto"
-        val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+        val sourceLuminance = sampleBitmapLuminance(output)
+        val autoUsesLightPlate = sourceLuminance > 0.5f
+        val frameColor = when {
+            frameStyle == "Black" -> AndroidColor.BLACK
+            frameStyle == "Auto" && !autoUsesLightPlate -> AndroidColor.BLACK
+            else -> AndroidColor.WHITE
+        }
         val textColor = when {
             frameStyle == "White" -> AndroidColor.BLACK
-            glassEnabled && sampleBitmapLuminance(output) > 0.55f -> AndroidColor.rgb(24, 29, 35)
+            frameStyle == "Black" -> AndroidColor.WHITE
+            frameStyle == "Auto" -> if (autoUsesLightPlate) AndroidColor.BLACK else AndroidColor.WHITE
+            glassEnabled && sourceLuminance > 0.55f -> AndroidColor.rgb(24, 29, 35)
             else -> AndroidColor.WHITE
         }
         val panelColor = when (frameStyle) {
             "White" -> AndroidColor.argb(238, 255, 255, 255)
             "Black" -> AndroidColor.argb(220, 8, 8, 8)
+            "Auto" -> AndroidColor.argb(232, AndroidColor.red(frameColor), AndroidColor.green(frameColor), AndroidColor.blue(frameColor))
             "LiquidGlass" -> AndroidColor.argb(38, 228, 241, 250)
             else -> AndroidColor.TRANSPARENT
         }
         val minSide = minOf(output.width, output.height).toFloat()
         // Keep logo and metadata in one restrained visual scale across output resolutions.
         val watermarkTextSize = (minSide * 0.0125f).coerceAtLeast(12f)
-        val watermarkLogoHeight = minSide * 0.026f
+        val watermarkLogoHeight = minSide * when (prefs.getString("watermark_logo_size", "M")) {
+            "S" -> 0.020f
+            "L" -> 0.034f
+            else -> 0.026f
+        }
+        val logoScale = watermarkLogoHeight / (minSide * 0.026f)
         val margin = (minSide * 0.032f).coerceAtLeast(18f)
         fun exifNumber(tag: String): Double? = sourceExif[tag]?.let { raw ->
             val value = raw.trim()
@@ -3259,7 +3284,66 @@ fun applyCameraWatermark(
         val dateLabel = dateOnlyLine.ifBlank { timeLine }
 
         when (template) {
-            "dark" -> {
+            "classic_bar" -> {
+                drawWatermarkFooter(footerRect, (minSide * 0.009f).coerceAtLeast(4f))
+                val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = brandAccentColor()
+                    strokeWidth = (minSide * 0.001f).coerceAtLeast(1f)
+                }
+                val splitX = footerRect.left + footerWidth * 0.58f
+                canvas.drawLine(splitX, footerRect.top + pad * 0.45f, splitX, footerRect.bottom - pad * 0.45f, rule)
+                val logoH = minOf(watermarkLogoHeight, footerHeight * 0.48f)
+                val logoW = minOf(footerWidth * 0.22f, logoH * sharedLogoRatio)
+                drawBrandLogo(RectF(footerRect.left + pad, centerY - logoH / 2f,
+                    footerRect.left + pad + logoW, centerY + logoH / 2f))
+                drawTemplateText(cameraTitle, titlePaint, footerRect.left + pad + logoW + pad * 0.45f,
+                    centerY - footerHeight * 0.10f, footerWidth * 0.28f, primarySize * 0.8f)
+                drawTemplateText(lensModel.orEmpty(), detailPaint, footerRect.left + pad + logoW + pad * 0.45f,
+                    centerY + footerHeight * 0.22f, footerWidth * 0.28f, secondarySize)
+                drawTemplateText(exposureLine, accentPaint, splitX + pad * 0.45f,
+                    centerY - footerHeight * 0.06f, footerWidth * 0.37f, secondarySize)
+                drawTemplateText(dateLabel, watermarkDatePaint, splitX + pad * 0.45f,
+                    centerY + footerHeight * 0.24f, footerWidth * 0.37f, dateSize)
+            }
+            "center_stack" -> {
+                drawTemplateFooter(frameColor)
+                if (frameStyle == "LiquidGlass") drawLiquidGlassPanel(footerRect, sharedFooterRadius)
+                val logoH = minOf(watermarkLogoHeight, footerHeight * 0.34f)
+                val logoW = minOf(footerWidth * 0.30f, logoH * sharedLogoRatio)
+                drawBrandLogo(RectF(centerX - logoW / 2f, footerRect.top + footerHeight * 0.08f,
+                    centerX + logoW / 2f, footerRect.top + footerHeight * 0.08f + logoH))
+                drawTemplateText(cameraTitle, titlePaint, centerX, footerRect.top + footerHeight * 0.58f,
+                    footerWidth * 0.88f, primarySize, centered = true)
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime }).joinToString("  ·  "),
+                    detailPaint, centerX, footerRect.top + footerHeight * 0.82f, footerWidth * 0.90f, secondarySize, centered = true)
+            }
+            "data_card" -> {
+                drawTemplateFooter(frameColor)
+                val values = listOf(
+                    "FOCAL" to (exifFocal ?: "—"),
+                    "APERTURE" to (exifAperture ?: "—"),
+                    "SHUTTER" to (exifShutter ?: "—"),
+                    "ISO" to (exifIso?.let { "ISO $it" } ?: "—")
+                )
+                val columnWidth = footerWidth / 4f
+                values.forEachIndexed { index, item ->
+                    val x = footerRect.left + columnWidth * (index + 0.5f)
+                    drawTemplateText(item.first, detailPaint, x, footerRect.top + footerHeight * 0.34f,
+                        columnWidth * 0.9f, dateSize, centered = true)
+                    drawTemplateText(item.second, titlePaint, x, footerRect.top + footerHeight * 0.67f,
+                        columnWidth * 0.9f, primarySize * 0.82f, centered = true)
+                    if (index < 3) {
+                        val divider = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = brandAccentColor()
+                            strokeWidth = (minSide * 0.0008f).coerceAtLeast(1f)
+                        }
+                        val xDivider = footerRect.left + columnWidth * (index + 1f)
+                        canvas.drawLine(xDivider, footerRect.top + footerHeight * 0.18f,
+                            xDivider, footerRect.bottom - footerHeight * 0.18f, divider)
+                    }
+                }
+            }
+            "film_strip", "film" -> {
                 drawTemplateFooter(AndroidColor.rgb(18, 20, 23))
                 val white = Paint(titlePaint).apply { color = AndroidColor.WHITE }
                 val muted = Paint(detailPaint).apply { color = AndroidColor.rgb(190, 196, 202) }
@@ -3280,7 +3364,7 @@ fun applyCameraWatermark(
                 drawBrandLogo(RectF(footerRect.right - pad - logoW, centerY - logoH / 2f,
                     footerRect.right - pad, centerY + logoH / 2f))
             }
-            "minimal" -> {
+            "minimal", "minimal_overlay" -> {
                 val darkText = frameStyle == "White" || frameStyle == "LiquidGlass"
                 val linePaint = Paint(titlePaint).apply {
                     color = if (darkText) AndroidColor.BLACK else AndroidColor.WHITE
@@ -3370,7 +3454,7 @@ fun applyCameraWatermark(
                     .joinToString("  ·  "), quiet, centerX, footerRect.top + footerHeight * 0.72f,
                     footerWidth * 0.86f, secondarySize, centered = true)
             }
-            "frosted" -> {
+            "frosted", "glass_card" -> {
                 drawLiquidGlassPanel(footerRect, (sharedFooterRadius * (1f + glassGooey * 0.6f)).coerceAtLeast(8f))
                 val ink = Paint(titlePaint).apply { color = if (sampleBitmapLuminance(output) > 0.52f) AndroidColor.BLACK else AndroidColor.WHITE }
                 val quiet = Paint(detailPaint).apply { color = ink.color; alpha = 210 }
@@ -3407,7 +3491,7 @@ fun applyCameraWatermark(
                     footerRect.top + footerHeight * 0.44f, footerWidth * 0.34f,
                     dateSize, centered = false)
             }
-            "datestamp" -> {
+            "datestamp", "corner_stamp" -> {
                 val stamp = timeLine.ifBlank { dateLabel }
                 val ink = Paint(titlePaint).apply {
                     color = AndroidColor.rgb(255, 150, 55)
@@ -3421,6 +3505,86 @@ fun applyCameraWatermark(
                 val stampCenterY = footerRect.bottom - pad - capHeight * 0.5f
                 val stampBaseline = watermarkOpticalBaseline(ink, stampCenterY)
                 canvas.drawText(stamp, footerRect.right - pad, stampBaseline, ink)
+            }
+            "blur_frame" -> {
+                // Blur-frame layout samples and softens the photo under a floating caption card.
+                drawLiquidGlassPanel(footerRect, (sharedFooterRadius * 1.25f).coerceAtLeast(10f))
+                val ink = Paint(titlePaint).apply {
+                    color = if (sampleBitmapLuminance(output) > 0.5f) AndroidColor.BLACK else AndroidColor.WHITE
+                }
+                val quiet = Paint(detailPaint).apply { color = ink.color; alpha = 210 }
+                drawTemplateText(cameraTitle, ink, centerX, footerRect.top + footerHeight * 0.43f,
+                    footerWidth * 0.86f, primarySize, centered = true)
+                drawTemplateText(exposureLine, quiet, centerX, footerRect.top + footerHeight * 0.73f,
+                    footerWidth * 0.86f, secondarySize, centered = true)
+            }
+            "lcd_osd" -> {
+                drawTemplateFooter(AndroidColor.BLACK)
+                val lcdTypeface = FujiTypography.androidTypeface(context)
+                val lcdTitle = Paint(titlePaint).apply {
+                    color = AndroidColor.WHITE
+                    typeface = lcdTypeface
+                    textSize = primarySize * 0.82f
+                }
+                val lcdDetail = Paint(detailPaint).apply {
+                    color = AndroidColor.rgb(170, 220, 174)
+                    typeface = lcdTypeface
+                    textSize = secondarySize
+                }
+                drawTemplateText(cameraTitle.uppercase(Locale.US), lcdTitle, footerRect.left + pad,
+                    footerRect.top + footerHeight * 0.42f, footerWidth * 0.90f, lcdTitle.textSize)
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime }).joinToString("  ·  "),
+                    lcdDetail, footerRect.left + pad, footerRect.top + footerHeight * 0.75f,
+                    footerWidth * 0.90f, lcdDetail.textSize)
+            }
+            "viewfinder" -> {
+                val inkColor = if (sampleBitmapLuminance(output) > 0.5f) AndroidColor.BLACK else AndroidColor.WHITE
+                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = inkColor
+                    style = Paint.Style.STROKE
+                    strokeWidth = (minSide * 0.002f).coerceAtLeast(1.5f)
+                }
+                val corner = footerHeight * 0.16f
+                listOf(
+                    Offset(footerRect.left + pad, footerRect.top + pad),
+                    Offset(footerRect.right - pad, footerRect.top + pad),
+                    Offset(footerRect.left + pad, footerRect.bottom - pad),
+                    Offset(footerRect.right - pad, footerRect.bottom - pad)
+                ).forEachIndexed { index, point ->
+                    val sx = if (index == 1 || index == 3) -1f else 1f
+                    val sy = if (index >= 2) -1f else 1f
+                    canvas.drawLine(point.x, point.y, point.x + corner * sx, point.y, p)
+                    canvas.drawLine(point.x, point.y, point.x, point.y + corner * sy, p)
+                }
+                val text = Paint(titlePaint).apply { color = inkColor }
+                drawTemplateText(cameraTitle, text, centerX, footerRect.top + footerHeight * 0.49f,
+                    footerWidth * 0.82f, primarySize * 0.88f, centered = true)
+                drawTemplateText(exposureLine, detailPaint, centerX, footerRect.top + footerHeight * 0.77f,
+                    footerWidth * 0.82f, secondarySize, centered = true)
+            }
+            "exposure_dial" -> {
+                drawTemplateFooter(frameColor)
+                val dialLabels = listOf(
+                    "F" to (exifAperture ?: "—"),
+                    "SS" to (exifShutter ?: "—"),
+                    "ISO" to (exifIso ?: "—")
+                )
+                val dialRadius = footerHeight * 0.28f
+                val columnWidth = footerWidth / 3f
+                dialLabels.forEachIndexed { index, item ->
+                    val cx = footerRect.left + columnWidth * (index + 0.5f)
+                    val cy = centerY
+                    val circle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = brandAccentColor()
+                        style = Paint.Style.STROKE
+                        strokeWidth = (minSide * 0.0012f).coerceAtLeast(1f)
+                    }
+                    canvas.drawCircle(cx, cy, dialRadius, circle)
+                    drawTemplateText(item.first, detailPaint, cx, cy - dialRadius * 0.13f,
+                        columnWidth * 0.72f, dateSize, centered = true)
+                    drawTemplateText(item.second, titlePaint, cx, cy + dialRadius * 0.43f,
+                        columnWidth * 0.78f, secondarySize, centered = true)
+                }
             }
             else -> {
                     // The existing Fuji/Sony/Nikon/Canon lockup is retained for Auto and Signature.
@@ -3469,7 +3633,7 @@ fun applyCameraWatermark(
                 "canon" -> 3.0f
                 else -> 5.95f
             }
-            val logoHeight = minOf(footerHeight * 0.46f, logoColumnWidth / logoRatio)
+            val logoHeight = minOf(watermarkLogoHeight, footerHeight * 0.46f, logoColumnWidth / logoRatio)
             val logoWidth = logoHeight * logoRatio
             val logoCenterX = logoColumnLeft + logoColumnWidth * 0.5f
             drawBrandLogo(

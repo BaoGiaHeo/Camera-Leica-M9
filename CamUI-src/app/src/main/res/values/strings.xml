@@ -132,4 +132,5 @@
     <string name="watermark_field_copyright">Copyright</string>
     <string name="watermark_field_megapixels">MP</string>
     <string name="watermark_studio_copyright_placeholder">Name after ©</string>
+    <string name="watermark_studio_location_auto_note">Location uses the custom label or source-photo GPS metadata; it is hidden when neither is available.</string>
 </resources>

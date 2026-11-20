@@ -409,7 +409,13 @@ fun ToolboxScreen(
     }
     var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
     var watermarkStyle by remember { mutableStateOf((prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White") }
-    var watermarkTemplate by remember { mutableStateOf((prefs.getString("watermark_template", "fuji_auto") ?: "fuji_auto").takeIf { it in setOf("fuji_auto", "fuji_classic", "fuji_signature", "classic", "dark", "minimal", "simple", "micro", "vintage", "polaroid", "gallery", "frosted", "film", "datestamp") } ?: "fuji_auto") }
+    var watermarkTemplate by remember {
+        mutableStateOf(
+            prefs.getString("watermark_template", "classic_bar")
+                ?.takeIf { value -> watermarkStudioLayouts.any { it.first == value } }
+                ?: "classic_bar"
+        )
+    }
     var watermarkBrand by remember { mutableStateOf((prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm") }
     var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
     var watermarkShowSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
@@ -709,22 +715,22 @@ fun ToolboxScreen(
             modifier = Modifier.padding(bottom = 8.dp, top = 9.dp))
         val watermarkBrandLabel = cameraWatermarkBrands.firstOrNull { it.first == watermarkBrand }?.second
             ?: cameraWatermarkBrandTitle(watermarkBrand)
-        val watermarkTemplates = listOf(
-            Triple("fuji_auto", "$watermarkBrandLabel Auto", "Tự chọn bố cục ngang hoặc dọc"),
-            Triple("fuji_classic", "$watermarkBrandLabel Classic", "Logo + model trái · EXIF phải"),
-            Triple("fuji_signature", "$watermarkBrandLabel Signature", "Chữ ký máy · vị trí · ngày chụp"),
-            Triple("classic", "Classic Bar", "Thanh trắng · máy trái · thông số phải"),
-            Triple("dark", "Dark Bar", "Bố cục Classic trên nền đen"),
-            Triple("minimal", "Minimal", "Một dòng thông tin gọn, không logo"),
-            Triple("simple", "Simple", "Logo giữa · model bên dưới"),
-            Triple("micro", "Micro", "Dải thông số siêu mảnh một dòng"),
-            Triple("vintage", "Vintage", "Giấy ngà · chữ máy ảnh kiểu film"),
-            Triple("polaroid", "Polaroid", "Viền ảnh trắng · model nổi bật"),
-            Triple("gallery", "Gallery", "Passe-partout kiểu ảnh triển lãm"),
-            Triple("frosted", "Frosted", "Panel kính mờ trên ảnh"),
-            Triple("film", "Film Strip", "Viền phim 35mm · lỗ kéo film"),
-            Triple("datestamp", "Date Stamp", "Ngày chụp kiểu máy compact 90s")
-        )
+        val watermarkTemplates = watermarkStudioLayouts.map { (id, title) ->
+            Triple(id, title, when (id) {
+                "classic_bar" -> "Logo + model trái · EXIF phải"
+                "center_stack" -> "Logo và thông tin căn giữa"
+                "data_card" -> "FOCAL · APERTURE · SHUTTER · ISO"
+                "film_strip" -> "Viền phim 35mm · lỗ kéo film"
+                "polaroid" -> "Viền ảnh trắng · caption"
+                "minimal_overlay" -> "Một dòng thông tin nhỏ"
+                "corner_stamp" -> "Ngày chụp ở góc ảnh"
+                "glass_card" -> "Thẻ kính mờ"
+                "blur_frame" -> "Nền ảnh blur và thẻ nổi"
+                "lcd_osd" -> "Thanh đen kiểu LCD"
+                "viewfinder" -> "Khung ngắm 4 góc"
+                else -> "Ba vòng số F / SS / ISO"
+            })
+        }
         watermarkTemplates.chunked(2).forEach { rowItems ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 rowItems.forEach { (id, title, subtitle) ->

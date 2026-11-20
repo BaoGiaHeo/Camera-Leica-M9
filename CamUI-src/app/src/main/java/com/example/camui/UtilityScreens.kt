@@ -253,7 +253,8 @@ fun ToolboxScreen(
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit,
     animationPerformanceMode: Boolean = false,
-    onAnimationPerformanceModeChanged: (Boolean) -> Unit = {}
+    onAnimationPerformanceModeChanged: (Boolean) -> Unit = {},
+    onOpenWatermarkStudio: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
@@ -684,6 +685,8 @@ fun ToolboxScreen(
         CameraFrameSettingsPanel()
         Spacer(Modifier.height(16.dp))
         Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        FujiKey("OPEN WATERMARK STUDIO", onClick = onOpenWatermarkStudio,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
         ToolToggle("Enable Watermark", "Logo thương hiệu, thông số chụp và bố cục watermark đã chọn",
             "film", watermarkEnabled) {
             watermarkEnabled = it

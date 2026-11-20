@@ -3,7 +3,7 @@ package com.example.camui
 import kotlin.math.abs
 import kotlin.math.ln
 
-internal data class OpticalZoomAssessment(
+data class OpticalZoomAssessment(
     val mainEquivalent35Mm: Float?,
     val longestEquivalent35Mm: Float?,
     val opticalRatio: Float?,

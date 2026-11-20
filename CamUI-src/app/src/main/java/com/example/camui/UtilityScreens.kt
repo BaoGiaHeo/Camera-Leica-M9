@@ -2916,8 +2916,18 @@ fun applyCameraWatermark(
         outputBitmap = output
         val canvas = Canvas(output)
         val showTime = prefs.getBoolean("watermark_show_time", true)
-        val showModel = true
+        val showModel = prefs.getBoolean("watermark_show_camera_name", true)
         val showSpecs = prefs.getBoolean("watermark_show_specs", true)
+        val showLens = prefs.getBoolean("watermark_show_lens", true)
+        val showFocal = prefs.getBoolean("watermark_show_focal", true)
+        val showAperture = prefs.getBoolean("watermark_show_aperture", true)
+        val showShutter = prefs.getBoolean("watermark_show_shutter", true)
+        val showIso = prefs.getBoolean("watermark_show_iso", true)
+        val showEv = prefs.getBoolean("watermark_show_ev", true)
+        val showFilter = prefs.getBoolean("watermark_show_filter", false)
+        val showNightLabel = prefs.getBoolean("watermark_show_night", true)
+        val showCopyright = prefs.getBoolean("watermark_show_copyright", false)
+        val showMegapixels = prefs.getBoolean("watermark_show_megapixels", true)
 
         // Frame, backing plate and type all follow the selected watermark style.
         val glassEnabled = frameStyle == "LiquidGlass"
@@ -2993,6 +3003,7 @@ fun applyCameraWatermark(
             (if (ev > 0.0) "+" else "") + formatDecimal(ev, "%.1f EV")
         }
         val lensModel = sourceExif["LensModel"]?.trim()?.takeIf { it.isNotBlank() }
+            .takeIf { showLens }
         val exifMake = sourceExif["Make"]?.trim()?.takeIf { it.isNotBlank() }
         val exifModel = sourceExif["Model"]?.trim()?.takeIf { it.isNotBlank() }
         val cameraLabel = listOf(exifMake, exifModel).distinct().filterNotNull()
@@ -3009,16 +3020,32 @@ fun applyCameraWatermark(
             manufacturer = exifMake ?: android.os.Build.MANUFACTURER,
             model = exifModel ?: android.os.Build.MODEL
         )
-        // Prioritize the three exposure values the user needs to read at a glance.
-        // Focal length and exposure compensation follow only when space permits.
-        val specs = listOf(
-            exifFocal,
-            exifAperture,
-            exifShutter?.replace(" s", "s"),
-            exifIso?.let { "ISO $it" },
-            exposureBias
-        ).filterNotNull().filter { it.isNotBlank() }
-            .joinToString("  ·  ")
+        val filterName = prefs.getString("selected_filter", "None")
+            ?.trim()?.takeIf { showFilter && !it.isNullOrBlank() && !it.equals("None", true) }
+        val lunaDreamMode = prefs.getString("lunadream_mode", "off") ?: "off"
+        val nightShotMode = prefs.getString("nightshot_mode", "off") ?: "off"
+        val nightLabel = when {
+            lunaDreamMode != "off" -> "LD " + lunaDreamMode.removePrefix("ld_").uppercase(Locale.US)
+            nightShotMode != "off" -> "NIGHT"
+            else -> null
+        }.takeIf { showNightLabel }
+        val copyrightName = prefs.getString("watermark_custom_copyright", "")?.trim()
+            ?.takeIf { showCopyright && it.isNotBlank() }
+        val photoMegapixels = sourceWidthPx.toLong() * sourceHeightPx.toLong() / 1_000_000.0
+        val specs = buildList {
+            if (showFocal) {
+                exifFocal?.let(::add)
+                equivalent35mm?.let { add("$it mm eq.") }
+            }
+            if (showAperture) exifAperture?.let(::add)
+            if (showShutter) exifShutter?.replace(" s", "s")?.let(::add)
+            if (showIso) exifIso?.let { add("ISO $it") }
+            if (showEv) exposureBias?.let(::add)
+            filterName?.let(::add)
+            nightLabel?.let(::add)
+            copyrightName?.let { add("© $it") }
+            if (showMegapixels) add(String.format(Locale.US, "%.1f MP", photoMegapixels))
+        }.filter { it.isNotBlank() }.joinToString("  ·  ")
             .takeIf { showSpecs }.orEmpty()
         val modelLine = model.takeIf { showModel }.orEmpty()
         val capturedDateRaw = sourceExif["DateTimeOriginal"] ?: sourceExif["DateTime"]
@@ -3035,10 +3062,14 @@ fun applyCameraWatermark(
         val dateOnlyLine = capturedDate?.let {
             java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.forLanguageTag(AppLanguageManager.languageFor(context))).format(it)
         }.orEmpty().takeIf { showTime }.orEmpty()
-        val locationLine = watermarkLocationForDisplay(
-            prefs.getBoolean("watermark_show_location", true),
+        val showLocation = prefs.getBoolean("watermark_show_location", true)
+        val customLocationLine = watermarkLocationForDisplay(
+            showLocation,
             prefs.getString("watermark_custom_location", "")
         )
+        val locationLine = if (!showLocation) "" else customLocationLine.ifBlank {
+            formatWatermarkGpsCoordinates(sourceExif).orEmpty()
+        }
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
         val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
         // Watermark typography uses bundled OFL fonts, independent from the LCD VCR OSD.
@@ -3395,8 +3426,8 @@ fun applyCameraWatermark(
         val cameraLine = listOfNotNull(
             modelLine.takeIf { it.isNotBlank() },
             lensModel?.takeIf { it.isNotBlank() }
-        ).joinToString("  ·  ").ifBlank { cameraLabel }
-        val exposureLine = specs.ifBlank { "ISO N/A" }
+        ).joinToString("  ·  ")
+        val exposureLine = specs
         val dateLabel = dateOnlyLine.ifBlank { timeLine }
 
         when (template) {
@@ -3464,13 +3495,14 @@ fun applyCameraWatermark(
             }
             "data_card" -> {
                 drawTemplateFooter(frameColor)
-                val values = listOf(
-                    "FOCAL" to (exifFocal ?: "—"),
-                    "APERTURE" to (exifAperture ?: "—"),
-                    "SHUTTER" to (exifShutter ?: "—"),
-                    "ISO" to (exifIso?.let { "ISO $it" } ?: "—")
-                )
-                val columnWidth = footerWidth / 4f
+                val values = buildList {
+                    if (showFocal) exifFocal?.let { add("FOCAL" to it) }
+                    if (showAperture) exifAperture?.let { add("APERTURE" to it) }
+                    if (showShutter) exifShutter?.let { add("SHUTTER" to it) }
+                    if (showIso) exifIso?.let { add("ISO" to "ISO $it") }
+                }
+                val columnCount = values.size.coerceAtLeast(1)
+                val columnWidth = footerWidth / columnCount
                 values.forEachIndexed { index, item ->
                     val x = footerRect.left + columnWidth * (index + 0.5f)
                     drawTemplateText(item.first, detailPaint, x, footerRect.top + footerHeight * 0.34f,
@@ -3651,8 +3683,7 @@ fun applyCameraWatermark(
                     typeface = appWatermarkTypeface
                 }
                 val lineOne = cameraTitle.uppercase()
-                val lineTwo = listOfNotNull(exifFocal, exifAperture, exifShutter, exifIso?.let { "ISO $it" })
-                    .joinToString("  ")
+                val lineTwo = specs
                 drawTemplateText(lineOne, ink, centerX, footerRect.top + footerHeight * 0.39f,
                     footerWidth * 0.88f, primarySize * 0.8f, centered = true)
                 drawTemplateText(lineTwo, faded, centerX, footerRect.top + footerHeight * 0.70f,
@@ -3852,13 +3883,13 @@ fun applyCameraWatermark(
             }
             "exposure_dial" -> {
                 drawTemplateFooter(frameColor)
-                val dialLabels = listOf(
-                    "F" to (exifAperture ?: "—"),
-                    "SS" to (exifShutter ?: "—"),
-                    "ISO" to (exifIso ?: "—")
-                )
+                val dialLabels = buildList {
+                    if (showAperture) exifAperture?.let { add("F" to it) }
+                    if (showShutter) exifShutter?.let { add("SS" to it) }
+                    if (showIso) exifIso?.let { add("ISO" to it) }
+                }
                 val dialRadius = footerHeight * 0.28f
-                val columnWidth = footerWidth / 3f
+                val columnWidth = footerWidth / dialLabels.size.coerceAtLeast(1)
                 dialLabels.forEachIndexed { index, item ->
                     val cx = footerRect.left + columnWidth * (index + 0.5f)
                     val cy = centerY

@@ -2772,9 +2772,12 @@ fun applyCameraWatermark(
         val footerMarginPx = (sourceMinSide * 0.032f).roundToInt().coerceAtLeast(14)
         // One-, two- and three-line footer heights follow the specification's common
         // short-side units (7.5%, 9.5% and 11%).
+        val hasWatermarkLocation = prefs.getBoolean("watermark_show_location", true) &&
+            !prefs.getString("watermark_custom_location", "").isNullOrBlank()
         val footerRows = when (template) {
             "minimal", "minimal_overlay", "micro", "datestamp", "corner_stamp", "lcd_osd" -> 1
             "data_card" -> 3
+            "classic_bar" -> if (hasWatermarkLocation) 3 else 2
             else -> 2
         }
         val footerFraction = watermarkFooterFractionForRows(footerRows)
@@ -3309,25 +3312,54 @@ fun applyCameraWatermark(
 
         when (template) {
             "classic_bar" -> {
-                drawWatermarkFooter(footerRect, (minSide * 0.009f).coerceAtLeast(4f))
+                // Flat edge-to-edge plate: do not round the photo edge or cover the image with a pill.
+                drawWatermarkFooter(footerRect, 0f)
                 val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = brandAccentColor()
                     strokeWidth = (minSide * 0.001f).coerceAtLeast(1f)
                 }
                 val splitX = footerRect.left + footerWidth * 0.58f
-                canvas.drawLine(splitX, footerRect.top + pad * 0.45f, splitX, footerRect.bottom - pad * 0.45f, rule)
+                canvas.drawLine(splitX, footerRect.top + pad * 0.35f, splitX, footerRect.bottom - pad * 0.35f, rule)
                 val logoH = minOf(watermarkLogoHeight, footerHeight * 0.48f)
                 val logoW = minOf(footerWidth * 0.22f, logoH * sharedLogoRatio)
-                drawBrandLogo(RectF(footerRect.left + pad, centerY - logoH / 2f,
-                    footerRect.left + pad + logoW, centerY + logoH / 2f))
-                drawTemplateText(cameraTitle, titlePaint, footerRect.left + pad + logoW + pad * 0.45f,
-                    centerY - footerHeight * 0.10f, footerWidth * 0.28f, primarySize * 0.8f)
-                drawTemplateText(lensModel.orEmpty(), detailPaint, footerRect.left + pad + logoW + pad * 0.45f,
-                    centerY + footerHeight * 0.22f, footerWidth * 0.28f, secondarySize)
-                drawTemplateText(exposureLine, accentPaint, splitX + pad * 0.45f,
-                    centerY - footerHeight * 0.06f, footerWidth * 0.37f, secondarySize)
-                drawTemplateText(dateLabel, watermarkDatePaint, splitX + pad * 0.45f,
-                    centerY + footerHeight * 0.24f, footerWidth * 0.37f, dateSize)
+                drawBrandLogo(RectF(
+                    footerRect.left + pad,
+                    centerY - logoH / 2f,
+                    footerRect.left + pad + logoW,
+                    centerY + logoH / 2f
+                ))
+                val modelX = footerRect.left + pad + logoW + pad * 0.45f
+                drawTemplateText(
+                    cameraTitle,
+                    titlePaint,
+                    modelX,
+                    centerY - footerHeight * 0.12f,
+                    footerWidth * 0.28f,
+                    primarySize * 0.8f
+                )
+                drawTemplateText(
+                    lensModel.orEmpty(),
+                    detailPaint,
+                    modelX,
+                    centerY + footerHeight * 0.20f,
+                    footerWidth * 0.28f,
+                    secondarySize
+                )
+                val rightLines = listOf(exposureLine, dateLabel, locationLine)
+                    .filter { it.isNotBlank() }
+                val lineSpacing = footerHeight * 0.27f
+                val firstLineCenter = centerY - (rightLines.size - 1) * lineSpacing * 0.5f
+                rightLines.forEachIndexed { index, value ->
+                    val monoDate = value == dateLabel
+                    drawTemplateText(
+                        value,
+                        if (monoDate) watermarkDatePaint else accentPaint,
+                        splitX + pad * 0.45f,
+                        firstLineCenter + index * lineSpacing,
+                        footerWidth * 0.37f,
+                        if (monoDate) dateSize else secondarySize
+                    )
+                }
             }
             "center_stack" -> {
                 drawTemplateFooter(frameColor)

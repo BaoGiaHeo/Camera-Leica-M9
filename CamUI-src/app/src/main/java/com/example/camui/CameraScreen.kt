@@ -65,6 +65,7 @@ import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.view.PreviewView
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.mlkit.vision.face.FaceLandmark
 import androidx.camera.video.FallbackStrategy
@@ -457,7 +458,8 @@ fun CameraScreen(
             FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
                 .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+                .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
                 .setMinFaceSize(0.08f)
                 .enableTracking()
                 .build()
@@ -1939,7 +1941,9 @@ fun CameraScreen(
                                         rightEye = rightEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
                                         headYawDegrees = 0f,
                                         nowMs = faceTimestamp,
-                                        trackingId = bestCandidate.trackingId
+                                        trackingId = bestCandidate.trackingId,
+                                        leftConfidence = if (leftEye != null) 1f else 0f,
+                                        rightConfidence = if (rightEye != null) 1f else 0f
                                     )
                                     fun mapCamera2Eye(point: Offset?): Offset? = point?.let {
                                         rotateFacePoint(
@@ -2272,12 +2276,22 @@ fun CameraScreen(
                                             val leftEye = best.getLandmark(FaceLandmark.LEFT_EYE)?.position
                                             val rightEye = best.getLandmark(FaceLandmark.RIGHT_EYE)?.position
                                             val faceTimestamp = SystemClock.elapsedRealtime()
+                                            val leftEyeArea = eyeContourArea(
+                                                best.getContour(FaceContour.LEFT_EYE)?.points?.map { Offset(it.x, it.y) }
+                                            )
+                                            val rightEyeArea = eyeContourArea(
+                                                best.getContour(FaceContour.RIGHT_EYE)?.points?.map { Offset(it.x, it.y) }
+                                            )
                                             val primaryEye = primaryEyeSelector.select(
                                                 leftEye = leftEye?.let { Offset(it.x, it.y) },
                                                 rightEye = rightEye?.let { Offset(it.x, it.y) },
                                                 headYawDegrees = best.headEulerAngleY,
                                                 nowMs = faceTimestamp,
-                                                trackingId = bestCandidate.trackingId
+                                                trackingId = bestCandidate.trackingId,
+                                                leftEyeArea = leftEyeArea,
+                                                rightEyeArea = rightEyeArea,
+                                                leftConfidence = if (leftEyeArea != null) 1f else 0f,
+                                                rightConfidence = if (rightEyeArea != null) 1f else 0f
                                             )
                                             fun mapMlKitEye(point: Offset?): Offset? = point?.let {
                                                 rotateFacePoint(

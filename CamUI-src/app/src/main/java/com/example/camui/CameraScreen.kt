@@ -1372,6 +1372,30 @@ fun CameraScreen(
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
+    LaunchedEffect(previewView, digitalZoomCropScale) {
+        val safeDigitalScale = digitalZoomCropScale.takeIf { it.isFinite() && it >= 1f } ?: 1f
+        previewView.scaleX = safeDigitalScale
+        previewView.scaleY = safeDigitalScale
+        previewView.clipToOutline = true
+        previewView.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        val matrixValues = FloatArray(9)
+        previewView.matrix.getValues(matrixValues)
+        previewTransformText = String.format(
+            Locale.US,
+            "view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f] digitalCrop=%.4f",
+            previewView.width,
+            previewView.height,
+            previewView.scaleX,
+            previewView.scaleY,
+            previewView.translationX,
+            previewView.translationY,
+            matrixValues[0], matrixValues[1], matrixValues[2],
+            matrixValues[3], matrixValues[4], matrixValues[5],
+            matrixValues[6], matrixValues[7], matrixValues[8],
+            safeDigitalScale
+        )
+        android.util.Log.d("FUJI_ZOOM_PREVIEW_TRANSFORM", previewTransformText)
+    }
     var previewStreamState by remember(previewView) {
         mutableStateOf(
             previewView.previewStreamState.value ?: PreviewView.StreamState.IDLE

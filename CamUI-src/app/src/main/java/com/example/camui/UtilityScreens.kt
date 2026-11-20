@@ -2961,13 +2961,14 @@ fun applyCameraWatermark(
         )
         val watermarkBrand = (prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm"
         val brandTitle = cameraWatermarkBrandTitle(watermarkBrand)
-        // Watermark typography is intentionally independent from the LCD OSD typeface.
-        // These Android sans/mono families are fallbacks until the bundled OFL font assets
-        // are installed in the module; never route watermark text through FujiTypography.
+        // Watermark typography uses bundled OFL fonts, independent from the LCD VCR OSD.
+        // Jost is used for camera/brand titles, Inter for exposure data, and IBM Plex Mono
+        // for dates and coordinates. All are regular-weight resources; VCR OSD remains
+        // deliberately reserved for the explicit LCD OSD watermark layout.
         val brandInk = cameraWatermarkBrandAccent(watermarkBrand)
-        val watermarkSansTypeface = Typeface.create("sans-serif", Typeface.NORMAL)
-        val watermarkMediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        val watermarkMonoTypeface = Typeface.create("monospace", Typeface.NORMAL)
+        val watermarkSansTypeface = context.resources.getFont(R.font.jost_watermark)
+        val watermarkMediumTypeface = context.resources.getFont(R.font.inter_watermark)
+        val watermarkMonoTypeface = context.resources.getFont(R.font.ibm_plex_mono_watermark)
         val appWatermarkTypeface = watermarkSansTypeface
         val brandLogo = cameraWatermarkBrandLogoResource(watermarkBrand, frameStyle == "Black")?.let {
             ContextCompat.getDrawable(context, it)
@@ -3033,12 +3034,12 @@ fun applyCameraWatermark(
         // only by the explicit lcd_osd layout; all other layouts use the sans/mono roles.
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            typeface = watermarkMediumTypeface
+            typeface = watermarkSansTypeface
         }
         val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             alpha = 235
-            typeface = watermarkSansTypeface
+            typeface = watermarkMediumTypeface
         }
         val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor

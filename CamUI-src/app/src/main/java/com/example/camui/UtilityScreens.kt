@@ -44,6 +44,7 @@ import androidx.compose.foundation.Canvas as ComposeCanvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -1121,7 +1122,7 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewLoading by remember { mutableStateOf(false) }
-    var previewRevision by remember { mutableIntStateOf(0) }
+    var previewRevision by remember { mutableStateOf(0) }
     LaunchedEffect(layout, appearance, logoSize, showDate, showSpecs, showLocation, watermarkEnabled, customModel, customLocation, previewRevision) {
         prefs.edit()
             .putString("watermark_template", layout)
@@ -3019,8 +3020,8 @@ fun applyCameraWatermark(
             canvas.drawText(brandTitle, rect.centerX(), baseline, markPaint)
         }
 
-        // All watermark metadata uses the app-wide KK7 typography. Brand marks remain
-        // image assets where available; any text-drawn metadata uses this single typeface.
+        // Watermark typography is independent of the LCD OSD. The LCD OSD font is used
+        // only by the explicit lcd_osd layout; all other layouts use the sans/mono roles.
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
             typeface = watermarkMediumTypeface

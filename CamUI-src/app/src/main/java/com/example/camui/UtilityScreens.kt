@@ -77,6 +77,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -98,6 +99,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -1120,9 +1122,7 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
     var previewLoading by remember { mutableStateOf(false) }
     var previewRevision by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(layout, appearance, logoSize, showDate, showSpecs, showLocation, watermarkEnabled, previewRevision) {
+    LaunchedEffect(layout, appearance, logoSize, showDate, showSpecs, showLocation, watermarkEnabled, customModel, customLocation, previewRevision) {
         prefs.edit()
             .putString("watermark_template", layout)
             .putString("watermark_style", appearance)
@@ -1135,17 +1135,21 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
             .putString("watermark_custom_location", customLocation.trim())
             .apply()
         previewLoading = true
-        preview = renderWatermarkStudioPreview(context)
-        previewLoading = false
+        try {
+            delay(220L)
+            preview = renderWatermarkStudioPreview(context)
+        } finally {
+            previewLoading = false
+        }
     }
 
-    FujiPanel(title = "WATERMARK STUDIO", modifier = Modifier.fillMaxSize(), onBack = onBack) {
+    FujiPanel(title = stringResource(R.string.watermark_studio_title), modifier = Modifier.fillMaxSize(), onBack = onBack) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             Text(
-                "LIVE OUTPUT PREVIEW",
+                stringResource(R.string.watermark_studio_preview),
                 color = FujiSkin.lcdGreen,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
@@ -1166,32 +1170,42 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         FujiIconGlyph("image", Modifier.size(34.dp), FujiSkin.lcdGreen)
-                        Text("Chụp và lưu một ảnh để xem bản xem trước thật.",
+                        Text(stringResource(R.string.watermark_studio_no_photo),
                             color = Color.White, fontSize = 10.sp)
                     }
                 }
                 if (previewLoading) {
-                    Text("RENDERING…", color = FujiSkin.orange, fontSize = 9.sp,
+                    Text(stringResource(R.string.watermark_studio_rendering), color = FujiSkin.orange, fontSize = 9.sp,
                         modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
                 }
             }
             Text(
-                "Preview được render trên bản sao tạm bằng cùng hàm đóng watermark dùng khi lưu ảnh. Ảnh gốc không bị thay đổi.",
+                stringResource(R.string.watermark_studio_preview_note),
                 color = CamColors.Sub, fontSize = 10.sp
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                FujiKey("REFRESH", onClick = { previewRevision++ }, modifier = Modifier.weight(1f))
-                FujiKey("SHUFFLE", onClick = {
+                FujiKey(stringResource(R.string.watermark_studio_refresh), onClick = { previewRevision++ }, modifier = Modifier.weight(1f))
+                FujiKey(stringResource(R.string.watermark_studio_shuffle), onClick = {
                     val alternatives = watermarkStudioLayouts.map { it.first }.filter { it != layout }
                     layout = alternatives.random()
                 }, modifier = Modifier.weight(1f))
-                FujiKey("APPLY", onClick = {
+                FujiKey(stringResource(R.string.watermark_studio_apply), onClick = {
                     watermarkEnabled = true
-                    prefs.edit().putBoolean("watermark_enabled", true).apply()
+                    prefs.edit()
+                        .putString("watermark_template", layout)
+                        .putString("watermark_style", appearance)
+                        .putString("watermark_logo_size", logoSize)
+                        .putBoolean("watermark_show_time", showDate)
+                        .putBoolean("watermark_show_specs", showSpecs)
+                        .putBoolean("watermark_show_location", showLocation)
+                        .putBoolean("watermark_enabled", true)
+                        .putString("watermark_custom_model", customModel.trim())
+                        .putString("watermark_custom_location", customLocation.trim())
+                        .apply()
                     onBack()
                 }, modifier = Modifier.weight(1f))
             }
-            Text("LAYOUT · 12 STYLES", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.watermark_studio_layouts), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1200,36 +1214,41 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                     FujiChip(label, layout == id, { layout = id })
                 }
             }
-            Text("APPEARANCE", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.watermark_studio_appearance), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("White" to "LIGHT", "Black" to "DARK", "Auto" to "AUTO", "LiquidGlass" to "GLASS").forEach { (value, label) ->
+                listOf(
+                    "White" to stringResource(R.string.watermark_studio_light),
+                    "Black" to stringResource(R.string.watermark_studio_dark),
+                    "Auto" to stringResource(R.string.watermark_studio_auto),
+                    "LiquidGlass" to stringResource(R.string.watermark_studio_glass)
+                ).forEach { (value, label) ->
                     FujiChip(label, appearance == value, { appearance = value })
                 }
             }
-            Text("LOGO SIZE", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.watermark_studio_logo_size), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("S", "M", "L").forEach { value ->
                     FujiChip(value, logoSize == value, { logoSize = value })
                 }
             }
-            Text("FIELDS", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.watermark_studio_fields), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FujiChip(if (showDate) "DATE ON" else "DATE OFF", showDate,
+                FujiChip(stringResource(if (showDate) R.string.watermark_studio_date_on else R.string.watermark_studio_date_off), showDate,
                     { showDate = !showDate })
-                FujiChip(if (showSpecs) "EXIF ON" else "EXIF OFF", showSpecs,
+                FujiChip(stringResource(if (showSpecs) R.string.watermark_studio_exif_on else R.string.watermark_studio_exif_off), showSpecs,
                     { showSpecs = !showSpecs })
-                FujiChip(if (showLocation) "LOCATION ON" else "LOCATION OFF", showLocation,
+                FujiChip(stringResource(if (showLocation) R.string.watermark_studio_location_on else R.string.watermark_studio_location_off), showLocation,
                     { showLocation = !showLocation })
             }
-            Text("DEVICE NAME", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.watermark_studio_device_name), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             FujiSearchField(
                 value = customModel,
                 onValueChange = { customModel = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = "Auto · commercial device name"
+                placeholder = stringResource(R.string.watermark_studio_model_placeholder)
             )
-            Text("LOCATION", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.watermark_studio_location), color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             AnimatedVisibility(
                 visible = showLocation,
                 enter = fadeIn(animationSpec = tween(250)),
@@ -1239,15 +1258,15 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                     value = customLocation,
                     onValueChange = { customLocation = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = "Location text · blank hides the line"
+                    placeholder = stringResource(R.string.watermark_studio_location_placeholder)
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FujiChip("WATERMARK ON", watermarkEnabled, { watermarkEnabled = true })
-                FujiChip("WATERMARK OFF", !watermarkEnabled, { watermarkEnabled = false })
+                FujiChip(stringResource(R.string.watermark_studio_enabled), watermarkEnabled, { watermarkEnabled = true })
+                FujiChip(stringResource(R.string.watermark_studio_disabled), !watermarkEnabled, { watermarkEnabled = false })
             }
             Text(
-                "Studio preview recreates the selected output at a reduced decode size; final captured photos are processed at their full saved resolution.",
+                stringResource(R.string.watermark_studio_output_note),
                 color = CamColors.Sub, fontSize = 9.sp
             )
         }

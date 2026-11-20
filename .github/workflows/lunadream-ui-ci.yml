@@ -60,6 +60,8 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 900
           script: gradle -p CamUI-src :app:connectedDeveloperAndroidTest --stacktrace
+        env:
+          ANDROID_I_WANT_MY_TCG: 'yes'
 
       - name: Upload Developer test APK
         if: success()

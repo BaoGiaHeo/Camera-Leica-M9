@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.rotateIn
+import androidx.compose.animation.rotateOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -66,6 +68,10 @@ object AnimaT {
             scaleIn(
                 initialScale = 0.99f,
                 animationSpec = tween(durationMillis = 240, easing = motionEasing)
+            ) +
+            rotateIn(
+                initialRotation = 1.6f,
+                animationSpec = tween(durationMillis = 240, easing = motionEasing)
             )
     }
 
@@ -83,6 +89,10 @@ object AnimaT {
             fadeOut(animationSpec = tween(durationMillis = 180, easing = motionEasing)) +
             scaleOut(
                 targetScale = 0.995f,
+                animationSpec = tween(durationMillis = 190, easing = motionEasing)
+            ) +
+            rotateOut(
+                targetRotation = -1.0f,
                 animationSpec = tween(durationMillis = 190, easing = motionEasing)
             )
     }

@@ -175,9 +175,13 @@ data class PixelOsdFrame(
     val showProIso: Boolean = true,
     val showProFocus: Boolean = true,
     val showProWhiteBalance: Boolean = true,
-    val showZoom: Boolean = false,
-    val zoomText: String = "",
-    val zoomAlpha: Float = 1f,
+    val showZoomBar: Boolean = false,
+    val zoomRatio: Float = 1f,
+    val zoomMinimumRatio: Float = 1f,
+    val zoomMaximumRatio: Float = 2f,
+    val zoomDigitalBoundaryRatio: Float = 2f,
+    val zoomBarPosition: String = "top_center",
+    val zoomBarAlpha: Float = 1f,
     val evOverlayAlpha: Float = 1f
 )
 
@@ -390,15 +394,8 @@ class PixelOsdRenderer(context: Context) {
         if (frame.isPro) {
             drawProHud(canvas, frame)
         }
-        if (frame.showZoom && frame.zoomText.isNotBlank()) {
-            drawPixelText(
-                canvas,
-                frame.zoomText,
-                (width / 2f - frame.zoomText.length * 2.5f).roundToInt(),
-                18,
-                PixelOsdPalette.BLUE,
-                frame.zoomAlpha
-            )
+        if (frame.showZoomBar) {
+            drawZoomBar(canvas, frame)
         }
         if (frame.showEvOverlay) {
             drawPixelText(
@@ -809,6 +806,58 @@ class PixelOsdRenderer(context: Context) {
     private fun drawLine(canvas: NativeCanvas, x1: Int, y1: Int, x2: Int, y2: Int, color: Int) {
         strokePaint.color = color
         canvas.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), strokePaint)
+    }
+
+    private fun drawZoomBar(canvas: NativeCanvas, frame: PixelOsdFrame) {
+        val width = logicWidth
+        if (width < 100) return
+
+        val trackOuterWidth = (width * 0.22f).roundToInt().coerceIn(54, 88)
+        val left = if (frame.zoomBarPosition.equals("top_left", ignoreCase = true)) {
+            8
+        } else {
+            ((width - trackOuterWidth) / 2f).roundToInt()
+        }
+        val top = 6
+        val trackLeft = left + 8
+        val trackRight = left + trackOuterWidth - 8
+        val trackTop = top + 1
+        val trackBottom = top + 7
+        val alpha = (frame.zoomBarAlpha.coerceIn(0f, 1f) * 255f).roundToInt()
+        if (trackRight - trackLeft < 18 || alpha <= 0) return
+
+        val minimum = frame.zoomMinimumRatio
+        val maximum = frame.zoomMaximumRatio
+        val ratioPosition = logarithmicZoomPosition(frame.zoomRatio, minimum, maximum)
+        val digitalBoundary = frame.zoomDigitalBoundaryRatio
+        val digitalPosition = logarithmicZoomPosition(digitalBoundary, minimum, maximum)
+
+        // The amber section is only present when a separately supported digital
+        // crop range is supplied. The camera-control range remains white.
+        if (digitalBoundary.isFinite() && digitalBoundary > minimum &&
+            digitalBoundary < maximum && digitalPosition < 1f
+        ) {
+            val digitalStart = (trackLeft + digitalPosition * (trackRight - trackLeft)).roundToInt()
+            for (y in (trackTop + 1) until trackBottom) {
+                drawHLine(canvas, digitalStart, trackRight - 1, y, PixelOsdPalette.AMBER, (alpha * 72 / 255))
+            }
+        }
+
+        drawHLine(canvas, trackLeft, trackRight, trackTop, PixelOsdPalette.WHITE, alpha)
+        drawHLine(canvas, trackLeft, trackRight, trackBottom, PixelOsdPalette.WHITE, alpha)
+        drawVLine(canvas, trackLeft, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
+        drawVLine(canvas, trackRight, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
+
+        val handleSize = 4
+        val handleLeft = (trackLeft + ratioPosition * (trackRight - trackLeft - handleSize + 1))
+            .roundToInt().coerceIn(trackLeft, trackRight - handleSize + 1)
+        for (y in (trackTop + 1) until trackBottom) {
+            drawHLine(canvas, handleLeft, handleLeft + handleSize - 1, y, PixelOsdPalette.WHITE, alpha)
+        }
+
+        // W / T labels are rendered with the installed KK7 OSD typeface.
+        drawPixelText(canvas, "W", left, top + 8, PixelOsdPalette.WHITE, frame.zoomBarAlpha)
+        drawPixelText(canvas, "T", left + trackOuterWidth + 2, top + 8, PixelOsdPalette.WHITE, frame.zoomBarAlpha)
     }
 
     private fun drawPixelText(

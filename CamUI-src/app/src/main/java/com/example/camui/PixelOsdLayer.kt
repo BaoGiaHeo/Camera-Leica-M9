@@ -139,6 +139,7 @@ data class PixelOsdFrame(
     val zebraPoints: List<Offset> = emptyList(),
     val centerAfPoint: Offset? = Offset(0.5f, 0.5f),
     val centerAfStatus: Int = 0,
+    val showManualAfReticle: Boolean = false,
     val centerAfScale: Int = 1,
     val manualFocusMode: Boolean = false,
     val showStatus: Boolean = true,
@@ -347,9 +348,15 @@ class PixelOsdRenderer(context: Context) {
             }
         }
 
-        if (frame.centerAfPoint != null && frame.faceCenter == null) {
-            val cx = (frame.centerAfPoint.x * width).roundToInt()
-            val cy = (frame.centerAfPoint.y * height).roundToInt()
+        val manualAfPoint = frame.centerAfPoint
+        if (manualAfPoint != null && shouldDrawCenterAfReticle(
+                centerAfPointAvailable = true,
+                faceBoxVisible = frame.faceCenter != null,
+                manualOverrideActive = frame.showManualAfReticle
+            )
+        ) {
+            val cx = (manualAfPoint.x * width).roundToInt()
+            val cy = (manualAfPoint.y * height).roundToInt()
             val half = when (frame.centerAfScale) {
                 0 -> 7
                 2 -> 15

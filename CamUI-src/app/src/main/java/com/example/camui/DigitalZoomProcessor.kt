@@ -67,7 +67,7 @@ internal fun calculateDigitalZoomCropBounds(
  * supported range. The GPU renders bounded tiles instead of allocating a
  * full-resolution framebuffer. The JPEG is replaced only after render+encode.
  */
-private const val DIGITAL_ZOOM_DIGITAL_ZOOM_TILE_SIZE = 768
+private const val DIGITAL_ZOOM_TILE_SIZE = 768
 
 internal object DigitalZoomProcessor {
     private const val TAG = "FUJI_DIGITAL_ZOOM"
@@ -162,7 +162,7 @@ internal object DigitalZoomProcessor {
                 "Decoded crop region is too small"
             }
 
-            output = gl.renderLanczos3(sourceRegion!!, width, height, TILE_SIZE)
+            output = gl.renderLanczos3(sourceRegion!!, width, height, DIGITAL_ZOOM_TILE_SIZE)
             FileOutputStream(outputFile).use { stream ->
                 check(output!!.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)) {
                     "JPEG compression failed"
@@ -284,9 +284,9 @@ private class LanczosGlContext private constructor(
             put(floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f))
             position(0)
         }
-    private val readback = ByteBuffer.allocateDirect(TILE_SIZE * TILE_SIZE * 4)
+    private val readback = ByteBuffer.allocateDirect(DIGITAL_ZOOM_TILE_SIZE * DIGITAL_ZOOM_TILE_SIZE * 4)
         .order(ByteOrder.nativeOrder())
-    private val pixels = IntArray(TILE_SIZE * TILE_SIZE)
+    private val pixels = IntArray(DIGITAL_ZOOM_TILE_SIZE * DIGITAL_ZOOM_TILE_SIZE)
 
     fun renderLanczos3(source: Bitmap, outputWidth: Int, outputHeight: Int, tileSize: Int): Bitmap {
         check(EGL14.eglMakeCurrent(display, surface, surface, eglContext)) {
@@ -479,7 +479,7 @@ private class LanczosGlContext private constructor(
                 check(context != EGL14.EGL_NO_CONTEXT) { "EGL context creation failed" }
                 surface = EGL14.eglCreatePbufferSurface(
                     display, config,
-                    intArrayOf(EGL14.EGL_WIDTH, TILE_SIZE, EGL14.EGL_HEIGHT, TILE_SIZE, EGL14.EGL_NONE), 0
+                    intArrayOf(EGL14.EGL_WIDTH, DIGITAL_ZOOM_TILE_SIZE, EGL14.EGL_HEIGHT, DIGITAL_ZOOM_TILE_SIZE, EGL14.EGL_NONE), 0
                 )
                 check(surface != EGL14.EGL_NO_SURFACE) { "EGL tile surface creation failed" }
                 check(EGL14.eglMakeCurrent(display, surface, surface, context)) {

@@ -25,20 +25,44 @@ class FaceTrackSmootherTest {
     }
 
     @Test
-    fun smoothsFaceMovementAndUsesTheEyeCenterWhenProvided() {
+    fun oneEuroFilterSuppressesSmallJitterAndTracksFaceAndEyeMovement() {
         val tracker = FaceTrackSmoother()
         val initial = Offset(0.4f, 0.4f)
-        repeat(2) { tracker.onFaceDetected(initial, Offset(0.2f, 0.3f), null) }
-        val first = tracker.onFaceDetected(initial, Offset(0.2f, 0.3f), Offset(0.4f, 0.35f))
+        repeat(2) {
+            tracker.onFaceDetected(initial, Offset(0.2f, 0.3f), null, timestampMs = it * 40L)
+        }
+        val first = tracker.onFaceDetected(
+            initial,
+            Offset(0.2f, 0.3f),
+            Offset(0.4f, 0.35f),
+            timestampMs = 80L
+        )
         assertEquals(initial, first?.center)
         assertEquals(Offset(0.4f, 0.35f), first?.eyeCenter)
 
-        val moved = tracker.onFaceDetected(Offset(0.8f, 0.6f), Offset(0.4f, 0.5f), Offset(0.8f, 0.55f))
-        assertEquals(0.552f, moved!!.center.x, 0.0001f)
-        assertEquals(0.476f, moved.center.y, 0.0001f)
-        assertEquals(0.276f, moved.size.x, 0.0001f)
-        assertEquals(0.552f, moved.eyeCenter!!.x, 0.0001f)
-        assertEquals(0.426f, moved.eyeCenter.y, 0.0001f)
+        val smallJitter = tracker.onFaceDetected(
+            Offset(0.405f, 0.398f),
+            Offset(0.202f, 0.3f),
+            Offset(0.405f, 0.348f),
+            timestampMs = 120L
+        )
+        assertTrue(smallJitter!!.center.x < 0.405f)
+        assertTrue(smallJitter.center.y > 0.398f)
+        assertTrue(smallJitter.size.x < 0.202f)
+
+        val moved = tracker.onFaceDetected(
+            Offset(0.8f, 0.6f),
+            Offset(0.4f, 0.5f),
+            Offset(0.8f, 0.55f),
+            timestampMs = 160L
+        )
+        assertTrue(moved!!.center.x > smallJitter.center.x)
+        assertTrue(moved.center.x < 0.8f)
+        assertTrue(moved.center.y > smallJitter.center.y)
+        assertTrue(moved.eyeCenter!!.x > smallJitter.eyeCenter!!.x)
+        assertTrue(moved.eyeCenter.x < 0.8f)
+        assertTrue(moved.size.x > smallJitter.size.x)
+        assertTrue(moved.size.x < 0.4f)
     }
 
     @Test

@@ -3407,7 +3407,7 @@ fun applyCameraWatermark(
                     }
                 }
             }
-            "film_strip", "film" -> {
+            "film_strip" -> {
                 drawTemplateFooter(AndroidColor.rgb(18, 20, 23))
                 val white = Paint(titlePaint).apply { color = AndroidColor.WHITE }
                 val muted = Paint(detailPaint).apply { color = AndroidColor.rgb(190, 196, 202) }
@@ -3423,10 +3423,50 @@ fun applyCameraWatermark(
                 }
                 canvas.drawLine(footerRect.left + footerWidth * 0.61f, footerRect.top + footerHeight * 0.2f,
                     footerRect.left + footerWidth * 0.61f, footerRect.bottom - footerHeight * 0.2f, rule)
-                val logoH = footerHeight * 0.35f
+                val logoH = minOf(watermarkLogoHeight, footerHeight * 0.35f)
                 val logoW = minOf(footerWidth * 0.26f, logoH * sharedLogoRatio)
                 drawBrandLogo(RectF(footerRect.right - pad - logoW, centerY - logoH / 2f,
                     footerRect.right - pad, centerY + logoH / 2f))
+                // 35mm film sprocket holes on both long edges.
+                val holeW = footerWidth * 0.018f
+                val holeH = footerHeight * 0.13f
+                val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.rgb(226, 222, 208) }
+                val holeCount = (footerWidth / (holeW * 2.7f)).toInt().coerceIn(8, 72)
+                repeat(holeCount) { index ->
+                    val x = footerRect.left + index * (footerWidth / holeCount) + (footerWidth / holeCount - holeW) * 0.5f
+                    canvas.drawRoundRect(
+                        RectF(x, footerRect.top + footerHeight * 0.08f, x + holeW, footerRect.top + footerHeight * 0.08f + holeH),
+                        holeW * 0.18f, holeW * 0.18f, holePaint
+                    )
+                    canvas.drawRoundRect(
+                        RectF(x, footerRect.bottom - footerHeight * 0.08f - holeH, x + holeW, footerRect.bottom - footerHeight * 0.08f),
+                        holeW * 0.18f, holeW * 0.18f, holePaint
+                    )
+                }
+            }
+            "film" -> {
+                drawTemplateFooter(AndroidColor.rgb(18, 17, 16))
+                val orange = Paint(titlePaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = appWatermarkTypeface }
+                val line = Paint(detailPaint).apply { color = AndroidColor.rgb(240, 162, 74); typeface = appWatermarkTypeface }
+                val holeW = footerWidth * 0.024f
+                val holeH = footerHeight * 0.16f
+                val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.rgb(230, 224, 211) }
+                for (i in 0..((footerWidth / (holeW * 2.6f)).toInt().coerceAtMost(60))) {
+                    val x = footerRect.left + i * holeW * 2.6f + holeW
+                    canvas.drawRoundRect(RectF(x, footerRect.top + footerHeight * 0.08f,
+                        x + holeW, footerRect.top + footerHeight * 0.08f + holeH),
+                        holeW * 0.18f, holeW * 0.18f, holePaint)
+                    canvas.drawRoundRect(RectF(x, footerRect.bottom - footerHeight * 0.08f - holeH,
+                        x + holeW, footerRect.bottom - footerHeight * 0.08f),
+                        holeW * 0.18f, holeW * 0.18f, holePaint)
+                }
+                drawTemplateText(cameraTitle.uppercase(), orange, footerRect.left + pad,
+                    footerRect.top + footerHeight * 0.44f, footerWidth * 0.55f,
+                    secondarySize, centered = false)
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                    .joinToString("  ·  "), line, footerRect.right - pad - footerWidth * 0.34f,
+                    footerRect.top + footerHeight * 0.44f, footerWidth * 0.34f,
+                    dateSize, centered = false)
             }
             "minimal" -> {
                 val darkText = frameStyle == "White" || frameStyle == "LiquidGlass"
@@ -3662,7 +3702,7 @@ fun applyCameraWatermark(
                     drawTemplateText(
                         stamp,
                         ink,
-                        cornerRect.right - cornerHeight * 0.15f,
+                        cornerRect.left + cornerHeight * 0.34f,
                         cornerRect.centerY(),
                         cornerWidth * 0.82f,
                         dateSize,
@@ -3708,12 +3748,13 @@ fun applyCameraWatermark(
                     style = Paint.Style.STROKE
                     strokeWidth = (minSide * 0.002f).coerceAtLeast(1.5f)
                 }
-                val corner = footerHeight * 0.16f
+                val corner = minSide * 0.055f
+                val inset = margin
                 listOf(
-                    Offset(footerRect.left + pad, footerRect.top + pad),
-                    Offset(footerRect.right - pad, footerRect.top + pad),
-                    Offset(footerRect.left + pad, footerRect.bottom - pad),
-                    Offset(footerRect.right - pad, footerRect.bottom - pad)
+                    Offset(inset, inset),
+                    Offset(output.width - inset, inset),
+                    Offset(inset, output.height - inset),
+                    Offset(output.width - inset, output.height - inset)
                 ).forEachIndexed { index, point ->
                     val sx = if (index == 1 || index == 3) -1f else 1f
                     val sy = if (index >= 2) -1f else 1f
@@ -3721,10 +3762,12 @@ fun applyCameraWatermark(
                     canvas.drawLine(point.x, point.y, point.x, point.y + corner * sy, p)
                 }
                 val text = Paint(titlePaint).apply { color = inkColor }
-                drawTemplateText(cameraTitle, text, centerX, footerRect.top + footerHeight * 0.49f,
-                    footerWidth * 0.82f, primarySize * 0.88f, centered = true)
-                drawTemplateText(exposureLine, detailPaint, centerX, footerRect.top + footerHeight * 0.77f,
-                    footerWidth * 0.82f, secondarySize, centered = true)
+                drawTemplateText(cameraTitle, text, margin + corner * 0.2f,
+                    output.height - margin - corner * 0.25f, output.width * 0.42f,
+                    primarySize * 0.88f, centered = false)
+                drawTemplateText(exposureLine, detailPaint, output.width - margin - output.width * 0.42f,
+                    output.height - margin - corner * 0.25f, output.width * 0.42f,
+                    secondarySize, centered = false)
             }
             "exposure_dial" -> {
                 drawTemplateFooter(frameColor)

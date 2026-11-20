@@ -957,17 +957,6 @@ fun CameraScreen(
         animationSpec = spring(dampingRatio = 0.82f, stiffness = if (performanceMode) 720f else 520f),
         label = "EV OSD pointer interpolation"
     )
-    var evOverlayVisible by remember { mutableStateOf(false) }
-    val evOverlayAlpha by animateFloatAsState(
-        targetValue = if (evOverlayVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = if (performanceMode) 120 else 180),
-        label = "EV OSD fade"
-    )
-    LaunchedEffect(evIndex) {
-        evOverlayVisible = true
-        delay(1_020L)
-        evOverlayVisible = false
-    }
     var evHoldDirection by remember { mutableIntStateOf(0) }
     var iso by remember { mutableIntStateOf(0) }
     var shutterNs by remember { mutableLongStateOf(0L) }
@@ -5199,8 +5188,6 @@ fun CameraScreen(
                                     evMinimumIndex = evRange?.lower ?: -9,
                                     evMaximumIndex = evRange?.upper ?: 9,
                                     evStepStops = evStep.takeIf { it > 0f } ?: (1f / 3f),
-                                    evValueText = evText,
-                                    showEvOverlay = evOverlayAlpha > 0.001f && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     evDisplayIndex = evDisplayIndex,
                                     showHistogram = showHist && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     histogram = hist.toList(),
@@ -5275,7 +5262,6 @@ fun CameraScreen(
                                     } ?: 2f,
                                     zoomBarPosition = zoomBarPosition,
                                     zoomBarAlpha = if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) zoomOverlayAlpha else 1f,
-                                    evOverlayAlpha = evOverlayAlpha,
                                     pixelScaleMode = appPrefs.getString("osd_pixel_mode", "fine") ?: "fine"
                                 ),
                                 maxRefreshHz = when {

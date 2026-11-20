@@ -561,10 +561,7 @@ fun ToolboxScreen(
             Text("Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp.",
                 color = CamColors.Sub, fontSize = 11.sp,
                 modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
-            TonePadBoard(
-                filterName = prefs.getString("selected_filter", "None") ?: "None",
-                advancedContent = {
-                    Column(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth()) {
             Text("Highlight · ${String.format(Locale.US, "%+.2f", filmHighlight)}",
                 color = CamColors.Sub, fontSize = 12.sp)
             FujiSliderCompat(filmHighlight, {
@@ -657,9 +654,7 @@ fun ToolboxScreen(
                     .putFloat("film_custom_saturation", 1f)
                     .apply()
             }, modifier = Modifier.fillMaxWidth())
-                    }
-                }
-            )
+            }
             Text("Saved Film Recipes", color = CamColors.TextColor,
                 fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
@@ -2128,8 +2123,7 @@ private fun applyCameraLookPixels(
     context: Context,
     bitmap: Bitmap,
     preset: String,
-    cube: CubeLut?,
-    tonePadOverride: TonePadParameters? = null
+    cube: CubeLut?
 ): Boolean {
     if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) return false
     val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -2140,13 +2134,6 @@ private fun applyCameraLookPixels(
     val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
     val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
     val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
-    val tonePadPrefix = TonePadMath.preferencePrefix(preset)
-    val savedTonePad = TonePadParameters(
-        paleRich = recipe.getFloat("$tonePadPrefix.x", 0f).coerceIn(-1f, 1f),
-        darkBright = recipe.getFloat("$tonePadPrefix.y", 0f).coerceIn(-1f, 1f),
-        intensity = recipe.getFloat("$tonePadPrefix.intensity", 0.65f).coerceIn(0f, 1f)
-    )
-    val tonePad = tonePadOverride ?: savedTonePad
     val row = IntArray(bitmap.width)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
@@ -2188,18 +2175,6 @@ private fun applyCameraLookPixels(
             g -= tone * 0.035f
             b += tone * 0.018f
 
-            val tonePadRgb = TonePadMath.apply(
-                r,
-                g,
-                b,
-                tonePad.paleRich,
-                tonePad.darkBright,
-                tonePad.intensity
-            )
-            r = tonePadRgb.red
-            g = tonePadRgb.green
-            b = tonePadRgb.blue
-
             if (grain > 0.001f) {
                 // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
                 val seed = (x.toLong() * 73_856_093L) xor
@@ -2230,8 +2205,7 @@ fun renderCameraLookPreview(
     context: Context,
     source: Bitmap,
     preset: String,
-    maxDimension: Int = 180,
-    tonePad: TonePadParameters? = null
+    maxDimension: Int = 180
 ): Bitmap? {
     return runCatching {
         val maxSide = maxOf(source.width, source.height).coerceAtLeast(1)
@@ -2247,7 +2221,7 @@ fun renderCameraLookPreview(
         val output = scaled.copy(Bitmap.Config.ARGB_8888, true) ?: return@runCatching null
         if (scaled !== source) scaled.recycle()
         val cube = readCameraLookLut(context, preset)
-        if (!applyCameraLookPixels(context, output, preset, cube, tonePad)) {
+        if (!applyCameraLookPixels(context, output, preset, cube)) {
             output.recycle()
             return@runCatching null
         }
@@ -2402,9 +2376,7 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
         kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
         kotlin.math.abs(prefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("${TonePadMath.preferencePrefix(preset)}.x", 0f)) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("${TonePadMath.preferencePrefix(preset)}.y", 0f)) > 0.001f
+        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
     if (preset == "None" && !hasCustomAdjustments) return false
 
     return runCatching {

@@ -41,7 +41,6 @@ NightShot
 NightShotMode
 Milky Way
 Star Trails
-Tone Pad
 AnimaT
 HDMP
 HDRbyHDMP

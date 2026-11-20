@@ -148,6 +148,7 @@ private fun createSettingsBackup(context: Context): JSONObject {
 private fun encodePreferences(preferences: SharedPreferences): JSONObject {
     val json = JSONObject()
     preferences.all.toSortedMap().forEach { (key, value) ->
+        if (LegacyColorAdjustmentCleanup.isObsoletePreferenceKey(key)) return@forEach
         val item = JSONObject()
         when (value) {
             is Boolean -> item.put("type", "boolean").put("value", value)
@@ -181,12 +182,14 @@ private fun restoreSettingsBackup(context: Context, backup: JSONObject) {
     decodePreferences(contentsJson, contentsEditor)
     check(settingsEditor.commit()) { "Không ghi được cấu hình camera" }
     check(contentsEditor.commit()) { "Không ghi được danh sách nội dung" }
+    LegacyColorAdjustmentCleanup.migrateOnce(context)
 }
 
 private fun decodePreferences(json: JSONObject, editor: SharedPreferences.Editor) {
     val keys = json.keys()
     while (keys.hasNext()) {
         val key = keys.next()
+        if (LegacyColorAdjustmentCleanup.isObsoletePreferenceKey(key)) continue
         val item = json.optJSONObject(key) ?: continue
         when (item.optString("type")) {
             "boolean" -> editor.putBoolean(key, item.optBoolean("value"))

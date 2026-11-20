@@ -5520,49 +5520,27 @@ private fun FilterLookPreviewImage(
     source: Bitmap,
     preset: String,
     modifier: Modifier,
-    maxDimension: Int,
-    tonePad: TonePadParameters? = null,
-    liveTonePad: Boolean = true,
-    tonePadShaderOverride: TonePadLiveShader? = null
+    maxDimension: Int
 ) {
     val context = LocalContext.current
-    val localTonePadShader = remember(liveTonePad, tonePadShaderOverride) {
-        if (liveTonePad && tonePadShaderOverride == null && Build.VERSION.SDK_INT >= 33) {
-            runCatching { TonePadLiveShader() }.getOrNull()
-        } else null
-    }
-    val tonePadShader = tonePadShaderOverride ?: localTonePadShader
-    val tonePadForBitmap = if (liveTonePad && tonePadShader != null && tonePad != null) null else tonePad
-    androidx.compose.runtime.SideEffect {
-        tonePadShader?.update(tonePad ?: TonePadParameters())
-    }
     val renderedState by produceState(
         initialValue = Pair(false, null as ImageBitmap?),
         source,
         preset,
-        maxDimension,
-        tonePadForBitmap
+        maxDimension
     ) {
         val rendered = withContext(Dispatchers.Default) {
-            renderCameraLookPreview(context, source, preset, maxDimension, tonePadForBitmap)
+            renderCameraLookPreview(context, source, preset, maxDimension)
         }
         value = true to rendered?.asImageBitmap()
     }
     val preview = renderedState.second
-    val tonePadEffectModifier = if (liveTonePad && tonePadShader != null && tonePad != null) {
-        Modifier.graphicsLayer {
-            // State is observed by this layer block, so uniform changes invalidate
-            // the preview render layer without recomposing FilterLookDialog.
-            tonePadShader.frameRevision
-            renderEffect = tonePadShader.composeEffect
-        }
-    } else Modifier
     when {
         preview != null -> {
             Image(
                 bitmap = preview,
                 contentDescription = "$preset preview",
-                modifier = modifier.then(tonePadEffectModifier),
+                modifier = modifier,
                 contentScale = ContentScale.Crop
             )
         }
@@ -5618,24 +5596,6 @@ private fun FilterLookDialog(
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
-    var tonePadSettings by remember(activeFilter) {
-        mutableStateOf(
-            run {
-                val prefix = TonePadMath.preferencePrefix(activeFilter)
-                val settings = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-                TonePadParameters(
-                    paleRich = settings.getFloat("$prefix.x", 0f).coerceIn(-1f, 1f),
-                    darkBright = settings.getFloat("$prefix.y", 0f).coerceIn(-1f, 1f),
-                    intensity = settings.getFloat("$prefix.intensity", 0.65f).coerceIn(0f, 1f)
-                )
-            }
-        )
-    }
-    var tonePadCommitted by remember(activeFilter) { mutableStateOf(tonePadSettings) }
-    var tonePadOriginalActivated by remember(activeFilter) { mutableStateOf(false) }
-    val liveTonePadShader = remember(activeFilter) {
-        if (Build.VERSION.SDK_INT >= 33) runCatching { TonePadLiveShader() }.getOrNull() else null
-    }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -5712,9 +5672,6 @@ private fun FilterLookDialog(
                 preset = if (showingOriginal) "None" else activeFilter,
                 modifier = Modifier.fillMaxSize(),
                 maxDimension = 480,
-                tonePad = if (showingOriginal) TonePadParameters() else
-                     tonePadSettings.takeIf { activeFilter != "None" || tonePadOriginalActivated },
-                tonePadShaderOverride = liveTonePadShader
             )
             Text(
                 if (showingOriginal) "ẢNH GỐC · THẢ ĐỂ XEM LỌC" else "GIỮ ĐỂ XEM ẢNH GỐC",
@@ -5791,8 +5748,6 @@ private fun FilterLookDialog(
                                             preset = preset,
                                             modifier = Modifier.fillMaxSize(),
                                             maxDimension = 192,
-                                            tonePad = if (preset == activeFilter) tonePadCommitted else null,
-                                             liveTonePad = false
                                         )
                                         if (selected) {
                                             Text(
@@ -5866,20 +5821,6 @@ private fun FilterLookDialog(
                             )
                             previewPane(Modifier.weight(1f).fillMaxWidth())
                         }
-                        TonePadBoard(
-                            filterName = activeFilter,
-                            compact = true,
-                            enabled = activeFilter != "None" || tonePadOriginalActivated,
-                            modifier = Modifier.fillMaxWidth().height(140.dp),
-                            onActivate = { tonePadOriginalActivated = true },
-                            onToneInput = { liveTonePadShader?.update(it) },
-                            throttleParentUpdates = liveTonePadShader != null,
-                            onToneChanged = { tonePadSettings = it },
-                            onToneSettled = {
-                                tonePadSettings = it
-                                tonePadCommitted = it
-                            }
-                        )
                     }
                     Column(
                         Modifier.weight(1.12f).fillMaxHeight(),
@@ -5908,18 +5849,6 @@ private fun FilterLookDialog(
                 searchPane(Modifier)
                 categoryPane(Modifier)
                 Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
-                if (activeFilter != "None") {
-                    TonePadBoard(
-                        filterName = activeFilter,
-                        onToneInput = { liveTonePadShader?.update(it) },
-                        throttleParentUpdates = liveTonePadShader != null,
-                        onToneChanged = { tonePadSettings = it },
-                        onToneSettled = {
-                            tonePadSettings = it
-                            tonePadCommitted = it
-                        }
-                    )
-                }
                 presetGrid(Modifier.weight(1f))
             }
         }

@@ -68,7 +68,6 @@ private val settingItems = listOf(
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
     SettingItem("tab_08", "Language", "SYSTEM · ENGLISH · TIẾNG VIỆT"),
     SettingItem("tab_09", "About", "FujiFilm Mode · 2.5.0Dream"),
-    SettingItem("tab_10", "Toolbox", "Filters · Tone Pad guide")
 )
 
 @Composable
@@ -367,19 +366,6 @@ var nightShotMode by remember {
                     fontSize = 9.sp,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-            }
-            "Toolbox" -> {
-                var tonePadGuideEnabled by remember {
-                    mutableStateOf(prefs.getBoolean("tone_pad_guide_enabled", true))
-                }
-                SettingsSwitch(
-                    "Show Tone Pad guide",
-                    "Show the first-use guide and direction hint in the filter Tone Pad.",
-                    tonePadGuideEnabled
-                ) {
-                    tonePadGuideEnabled = it
-                    prefs.edit().putBoolean("tone_pad_guide_enabled", it).apply()
-                }
             }
             "Language" -> {
                 var selectedLanguage by remember {

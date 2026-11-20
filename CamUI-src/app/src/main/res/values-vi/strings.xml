@@ -8,19 +8,6 @@
     <string name="language_vietnamese">TIẾNG VIỆT</string>
     <string name="pixel_osd_preview_tab">XEM THỬ OSD</string>
     <string name="pixel_osd_preview_description">Kính ngắm Pro / Photo giả lập</string>
-    <string name="tone_pad_title">BẢNG CHỈNH MÀU</string>
-    <string name="tone_pad_filter_label">BỘ LỌC · %1$s</string>
-    <string name="tone_pad_reset">ĐẶT LẠI</string>
-    <string name="tone_pad_value_readout">T %1$+d  S %2$+d</string>
-    <string name="tone_pad_guide_title">KÉO CHẤM TRẮNG</string>
-    <string name="tone_pad_bright_dark">SÁNG / TỐI · LÊN / XUỐNG</string>
-    <string name="tone_pad_pale_rich">NHẠT / ĐẬM · TRÁI / PHẢI</string>
-    <string name="tone_pad_palette_label">BẢNG MÀU · %1$d%%</string>
-    <string name="tone_pad_hint">KÉO CHẤM TRẮNG · CHẠM KÉP ĐỂ VỀ GIỮA</string>
-    <string name="tone_pad_advanced">NÂNG CAO</string>
-    <string name="tone_pad_snap">HÍT VÀO LƯỚI</string>
-    <string name="tone_pad_on">BẬT</string>
-    <string name="tone_pad_off">TẮT</string>
     <string name="display_mode_standard">TIÊU CHUẨN</string>
     <string name="display_mode_full_info">ĐẦY ĐỦ THÔNG TIN</string>
     <string name="display_mode_clean">TỐI GIẢN</string>
@@ -38,7 +25,6 @@
     <string name="filter_count">%1$d / %2$d BỘ LỌC</string>
     <string name="filter_hold_original">GIỮ ĐỂ XEM ẢNH GỐC</string>
     <string name="filter_original_release_hint">ẢNH GỐC · THẢ ĐỂ XEM BỘ LỌC</string>
-    <string name="tone_pad_palette_short">M%1$d</string>
     <string name="filter_category_all">Tất cả</string>
     <string name="filter_category_fujifilm">Fujifilm</string>
     <string name="filter_category_color_film">Phim màu</string>

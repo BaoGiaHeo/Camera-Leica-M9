@@ -8,19 +8,6 @@
     <string name="language_vietnamese">TIẾNG VIỆT</string>
     <string name="pixel_osd_preview_tab">OSD PREVIEW</string>
     <string name="pixel_osd_preview_description">Pro / Photo dummy viewfinder</string>
-    <string name="tone_pad_title">TONE PAD</string>
-    <string name="tone_pad_filter_label">FILTER · %1$s</string>
-    <string name="tone_pad_reset">RESET</string>
-    <string name="tone_pad_value_readout">T %1$+d  S %2$+d</string>
-    <string name="tone_pad_guide_title">DRAG THE WHITE DOT</string>
-    <string name="tone_pad_bright_dark">BRIGHT / DARK · UP / DOWN</string>
-    <string name="tone_pad_pale_rich">PALE / RICH · LEFT / RIGHT</string>
-    <string name="tone_pad_palette_label">PALETTE · %1$d%%</string>
-    <string name="tone_pad_hint">DRAG THE WHITE DOT · DOUBLE TAP TO CENTER</string>
-    <string name="tone_pad_advanced">ADVANCED</string>
-    <string name="tone_pad_snap">SNAP TO GRID</string>
-    <string name="tone_pad_on">ON</string>
-    <string name="tone_pad_off">OFF</string>
     <string name="display_mode_standard">STANDARD</string>
     <string name="display_mode_full_info">FULL INFO</string>
     <string name="display_mode_clean">CLEAN</string>
@@ -38,7 +25,6 @@
     <string name="filter_count">%1$d / %2$d FILTERS</string>
     <string name="filter_hold_original">HOLD FOR ORIGINAL</string>
     <string name="filter_original_release_hint">ORIGINAL PHOTO · RELEASE TO VIEW FILTER</string>
-    <string name="tone_pad_palette_short">P%1$d</string>
     <string name="filter_category_all">All</string>
     <string name="filter_category_fujifilm">Fujifilm</string>
     <string name="filter_category_color_film">Color film</string>

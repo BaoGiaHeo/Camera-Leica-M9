@@ -161,6 +161,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LegacyColorAdjustmentCleanup.migrateOnce(this)
         AppLanguageManager.initialize(this)
         // The camera UI and capture orientation are landscape-only.
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE

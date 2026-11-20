@@ -35,6 +35,19 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
+      - name: Verify legacy colour controls are absent
+        run: |
+          legacy_compact="$(printf '%s%s' 'tone' 'pad')"
+          legacy_snake="$(printf '%s%s' 'tone' '_pad')"
+          legacy_spaced="$(printf '%s %s' 'tone' 'pad')"
+          legacy_dashed="$(printf '%s-%s' 'tone' 'pad')"
+          legacy_puck="$(printf '\160\165\143\153')"
+          pattern="${legacy_compact}|${legacy_snake}|${legacy_spaced}|${legacy_dashed}|${legacy_puck}"
+          if git grep -niE "$pattern" -- . \
+            ':!CamUI-src/app/src/main/java/com/example/camui/LegacyColorAdjustmentCleanup.kt'; then
+            echo "Obsolete colour-panel references remain in the repository."
+            exit 1
+          fi
       - name: Compile and run unit tests
         run: gradle -p CamUI-src testDebugUnitTest assembleDeveloper --stacktrace
 
@@ -61,10 +74,9 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \
             CamUI-src/app/src/main/java/com/example/camui/LunaDreamProcessingScope.kt \
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
+            CamUI-src/app/src/main/java/com/example/camui/LegacyColorAdjustmentCleanup.kt \
+            CamUI-src/app/src/test/java/com/example/camui/LegacyColorAdjustmentCleanupTest.kt \
             CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
-            CamUI-src/app/src/main/java/com/example/camui/TonePadBoard.kt \
-            CamUI-src/app/src/main/java/com/example/camui/TonePadLiveShader.kt \
-            CamUI-src/app/src/main/java/com/example/camui/TonePadPublishGate.kt \
             CamUI-src/app/src/main/res/values/strings.xml \
             CamUI-src/app/src/main/res/values-vi/strings.xml \
             CamUI-src/i18n_whitelist.txt \
@@ -72,7 +84,6 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/LocalizationResourceParityTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \
-            CamUI-src/app/src/test/java/com/example/camui/TonePadPublishGateTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PhotoOutputGeometryTest.kt \
             CamUI-src/app/build.gradle.kts
 

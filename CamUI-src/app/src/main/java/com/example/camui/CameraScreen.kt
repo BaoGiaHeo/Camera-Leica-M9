@@ -5124,7 +5124,8 @@ fun CameraScreen(
                                     } ?: 2f,
                                     zoomBarPosition = zoomBarPosition,
                                     zoomBarAlpha = if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) zoomOverlayAlpha else 1f,
-                                    evOverlayAlpha = evOverlayAlpha
+                                    evOverlayAlpha = evOverlayAlpha,
+                                    pixelScaleMode = appPrefs.getString("osd_pixel_mode", "fine") ?: "fine"
                                 ),
                                 maxRefreshHz = when {
                                     performanceMode -> 60

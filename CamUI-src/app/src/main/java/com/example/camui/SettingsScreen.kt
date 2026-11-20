@@ -79,8 +79,6 @@ fun SettingsScreen(
     onOpenToolbox: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val reducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
     val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {

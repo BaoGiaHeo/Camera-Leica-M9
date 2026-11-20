@@ -20,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -141,8 +142,12 @@ fun Modifier.animaTPageRotation(
     reducedMotion: Boolean
 ): Modifier = composed {
     val rotation = remember { Animatable(0f) }
-    LaunchedEffect(pageKey, returningToCamera, performanceMode, reducedMotion) {
-        if (performanceMode || reducedMotion) {
+    var hasAppeared by remember { mutableStateOf(false) }
+    LaunchedEffect(pageKey) {
+        if (!hasAppeared) {
+            hasAppeared = true
+            rotation.snapTo(0f)
+        } else if (performanceMode || reducedMotion) {
             rotation.snapTo(0f)
         } else {
             rotation.snapTo(if (returningToCamera) -1.0f else 1.6f)

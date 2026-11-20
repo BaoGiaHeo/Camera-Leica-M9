@@ -176,8 +176,10 @@ private fun restoreSettingsBackup(context: Context, backup: JSONObject) {
 
     val settings = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val contents = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
-    val settingsEditor = settings.edit().clear()
-    val contentsEditor = contents.edit().clear()
+    // Merge saved values instead of clearing newer or device-specific preferences that
+    // are not present in an older backup file.
+    val settingsEditor = settings.edit()
+    val contentsEditor = contents.edit()
     decodePreferences(settingsJson, settingsEditor)
     decodePreferences(contentsJson, contentsEditor)
     check(settingsEditor.commit()) { "Không ghi được cấu hình camera" }

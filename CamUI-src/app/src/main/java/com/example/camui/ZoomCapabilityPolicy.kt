@@ -57,3 +57,26 @@ internal fun logarithmicZoomPosition(
     val zoom = zoomRatio.takeIf { it.isFinite() && it > 0f } ?: min
     return (ln(zoom.coerceIn(min, max) / min) / ln(max / min)).toFloat().coerceIn(0f, 1f)
 }
+
+internal fun advanceLogarithmicZoomRatio(
+    currentZoom: Float,
+    direction: Int,
+    minimumRatio: Float,
+    maximumRatio: Float,
+    deltaSeconds: Float,
+    traversalSeconds: Float
+): Float {
+    val minimum = minimumRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
+    val maximum = maximumRatio.takeIf { it.isFinite() && it >= minimum } ?: minimum
+    val current = currentZoom.takeIf { it.isFinite() && it > 0f }?.coerceIn(minimum, maximum) ?: minimum
+    if (direction == 0 || deltaSeconds <= 0f || !deltaSeconds.isFinite() || maximum <= minimum) return current
+    val availableLogTravel = if (direction > 0) {
+        ln(maximum.coerceAtLeast(1f) / 1f)
+    } else {
+        ln(1f / minimum.coerceAtMost(1f))
+    }
+    if (availableLogTravel <= 0f) return current
+    val duration = traversalSeconds.takeIf { it.isFinite() && it > 0f } ?: 1f
+    val factor = kotlin.math.exp((availableLogTravel / duration) * deltaSeconds.coerceAtMost(0.05f))
+    return (if (direction > 0) current * factor else current / factor).coerceIn(minimum, maximum)
+}

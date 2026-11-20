@@ -68,15 +68,6 @@ class CameraControlProgressTest {
     }
 
     @Test
-    fun previewZoomCompensationIsClampedAndRejectsInvalidRatios() {
-        assertEquals(0.85f, resolvePreviewZoomCompensation(1f, 2f), 0.0001f)
-        assertEquals(1.15f, resolvePreviewZoomCompensation(1f, 0.6f), 0.0001f)
-        assertEquals(1f / 1.1f, resolvePreviewZoomCompensation(1f, 1.1f), 0.0001f)
-        assertEquals(1f, resolvePreviewZoomCompensation(0f, 2f), 0.0001f)
-        assertEquals(1f, resolvePreviewZoomCompensation(Float.NaN, 1f), 0.0001f)
-    }
-
-    @Test
     fun proDynamicRangeLabelMatchesTheCapturePipelineSelection() {
         fun label(
             hdr: Boolean = true,

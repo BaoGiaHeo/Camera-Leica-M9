@@ -557,6 +557,7 @@ fun CameraScreen(
             else !hardwareFaceDetectionAvailable
     )
     val faceTrackSmoother = remember { FaceTrackSmoother() }
+    val primaryEyeSelector = remember { PrimaryEyeSelector() }
     var faceTrackCenter by remember { mutableStateOf<Offset?>(null) }
     var faceTrackSize by remember { mutableStateOf<Offset?>(null) }
     var faceEyeCenter by remember { mutableStateOf<Offset?>(null) }
@@ -572,6 +573,7 @@ fun CameraScreen(
             .putBoolean("face_tracking_enabled", faceTrackingMode != "off")
             .apply()
         faceTrackSmoother.reset()
+        primaryEyeSelector.reset()
         if (faceTrackingMode == "off") {
             faceTrackCenter = null
             faceTrackSize = null
@@ -1677,6 +1679,7 @@ fun CameraScreen(
 
                 fun publishMissingFace() {
                     if (faceTrackSmoother.onNoFace()) {
+                        primaryEyeSelector.reset()
                         lastFaceAfTarget = null
                         scope.launch(Dispatchers.Main) {
                             faceTrackCenter = null
@@ -1844,31 +1847,27 @@ fun CameraScreen(
                                     } else {
                                         consecutiveHardwareFacesWithoutEyes = 0
                                     }
-                                    val eyeX = when {
-                                        leftEye != null && rightEye != null -> (leftEye.x + rightEye.x) / 2f
-                                        leftEye != null -> leftEye.x.toFloat()
-                                        rightEye != null -> rightEye.x.toFloat()
-                                        else -> Float.NaN
-                                    }
-                                    val eyeY = when {
-                                        leftEye != null && rightEye != null -> (leftEye.y + rightEye.y) / 2f
-                                        leftEye != null -> leftEye.y.toFloat()
-                                        rightEye != null -> rightEye.y.toFloat()
-                                        else -> Float.NaN
-                                    }
-                                    val eye = if (eyeX.isFinite() && eyeY.isFinite()) {
+                                    val faceTimestamp = SystemClock.elapsedRealtime()
+                                    val primaryEye = primaryEyeSelector.select(
+                                        leftEye = leftEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
+                                        rightEye = rightEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
+                                        headYawDegrees = 0f,
+                                        nowMs = faceTimestamp,
+                                        trackingId = bestCandidate.trackingId
+                                    )
+                                    val eye = primaryEye?.let {
                                         rotateFacePoint(
-                                            (eyeX - crop.left) / crop.width(),
-                                            (eyeY - crop.top) / crop.height(),
+                                            (it.x - crop.left) / crop.width(),
+                                            (it.y - crop.top) / crop.height(),
                                             faceSensorToDisplayRotation,
                                             front
                                         )
-                                    } else null
+                                    }
                                     publishDetectedFace(
                                         center,
                                         size,
                                         eye,
-                                        SystemClock.elapsedRealtime(),
+                                        faceTimestamp,
                                         bestCandidate.trackingId
                                     )
                                 } else {
@@ -2189,31 +2188,27 @@ fun CameraScreen(
                                             val size = bestCandidate.size
                                             val leftEye = best.getLandmark(FaceLandmark.LEFT_EYE)?.position
                                             val rightEye = best.getLandmark(FaceLandmark.RIGHT_EYE)?.position
-                                            val eyeX = when {
-                                                leftEye != null && rightEye != null -> (leftEye.x + rightEye.x) / 2f
-                                                leftEye != null -> leftEye.x
-                                                rightEye != null -> rightEye.x
-                                                else -> Float.NaN
-                                            }
-                                            val eyeY = when {
-                                                leftEye != null && rightEye != null -> (leftEye.y + rightEye.y) / 2f
-                                                leftEye != null -> leftEye.y
-                                                rightEye != null -> rightEye.y
-                                                else -> Float.NaN
-                                            }
-                                            val eye = if (eyeX.isFinite() && eyeY.isFinite()) {
+                                            val faceTimestamp = SystemClock.elapsedRealtime()
+                                            val primaryEye = primaryEyeSelector.select(
+                                                leftEye = leftEye?.let { Offset(it.x, it.y) },
+                                                rightEye = rightEye?.let { Offset(it.x, it.y) },
+                                                headYawDegrees = best.headEulerAngleY,
+                                                nowMs = faceTimestamp,
+                                                trackingId = bestCandidate.trackingId
+                                            )
+                                            val eye = primaryEye?.let {
                                                 rotateFacePoint(
-                                                    (eyeX - frameLeft) / frameWidth.toFloat(),
-                                                    (eyeY - frameTop) / frameHeight.toFloat(),
+                                                    (it.x - frameLeft) / frameWidth.toFloat(),
+                                                    (it.y - frameTop) / frameHeight.toFloat(),
                                                     0,
                                                     front
                                                 )
-                                            } else null
+                                            }
                                             publishDetectedFace(
                                                 center,
                                                 size,
                                                 eye,
-                                                SystemClock.elapsedRealtime(),
+                                                faceTimestamp,
                                                 bestCandidate.trackingId
                                             )
                                         } else {

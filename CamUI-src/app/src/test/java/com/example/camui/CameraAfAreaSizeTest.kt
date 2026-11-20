@@ -15,5 +15,8 @@ class CameraAfAreaSizeTest {
         assertEquals(0, CameraAfAreaSize.SMALL.pixelScale)
         assertEquals(1, CameraAfAreaSize.MEDIUM.pixelScale)
         assertEquals(2, CameraAfAreaSize.LARGE.pixelScale)
+        assertEquals(0.12f, CameraAfAreaSize.SMALL.focusPointSize, 0.0001f)
+        assertEquals(0.18f, CameraAfAreaSize.MEDIUM.focusPointSize, 0.0001f)
+        assertEquals(0.26f, CameraAfAreaSize.LARGE.focusPointSize, 0.0001f)
     }
 }

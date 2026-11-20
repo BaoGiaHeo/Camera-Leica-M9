@@ -1555,10 +1555,13 @@ fun CameraScreen(
                                 centerAfPoint = focusTarget
                                 centerAfStatus = 0
                                 runCatching {
+                                    val afPointSize = CameraAfAreaSize.fromPreference(
+                                        appPrefs.getString("af_area_size", "m")
+                                    ).focusPointSize
                                     val point = previewView.meteringPointFactory.createPoint(
                                         focusTarget.x * previewWidth,
                                         focusTarget.y * previewHeight,
-                                        0.18f
+                                        afPointSize
                                     )
                                     val action = FocusMeteringAction.Builder(
                                         point,
@@ -4538,8 +4541,14 @@ fun CameraScreen(
                                                 milkyWayInfinityFocusEnabled = false
                                                 runCatching { applyAutoFocus(active) }
                                             }
-                                            val area = when (metering) { 0 -> 0.38f; 1 -> 0.70f; else -> 0.12f }
-                                            val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, area)
+                                            val afPointSize = CameraAfAreaSize.fromPreference(
+                                                appPrefs.getString("af_area_size", "m")
+                                            ).focusPointSize
+                                            val point = previewView.meteringPointFactory.createPoint(
+                                                offset.x,
+                                                offset.y,
+                                                afPointSize
+                                            )
                                             val action = FocusMeteringAction.Builder(
                                                 point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
                                             ).disableAutoCancel().build()
@@ -4568,7 +4577,14 @@ fun CameraScreen(
                                                 )
                                                 preferredFaceCenter = centerAfPoint
                                                 centerAfStatus = 1
-                                                val point = previewView.meteringPointFactory.createPoint(offset.x, offset.y, 0.22f)
+                                                val afPointSize = CameraAfAreaSize.fromPreference(
+                                                    appPrefs.getString("af_area_size", "m")
+                                                ).focusPointSize
+                                                val point = previewView.meteringPointFactory.createPoint(
+                                                    offset.x,
+                                                    offset.y,
+                                                    afPointSize
+                                                )
                                                 val action = FocusMeteringAction.Builder(
                                                     point,
                                                     FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE

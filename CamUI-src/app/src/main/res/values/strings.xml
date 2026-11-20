@@ -119,4 +119,5 @@
     <string name="watermark_layout_lcd_osd_description">Black LCD-style information bar</string>
     <string name="watermark_layout_viewfinder_description">Four viewfinder corners with metadata</string>
     <string name="watermark_layout_exposure_dial_description">Three exposure dials for aperture, shutter and ISO</string>
+    <string name="watermark_studio_preview_content_description">Watermark Studio preview rendered with the production photo pipeline</string>
 </resources>

@@ -1413,7 +1413,21 @@ fun CameraScreen(
         )
     }
     var previewGapStartedAtMs by remember(previewView) { mutableLongStateOf(0L) }
+    var frozenPreviewBitmap by remember(previewView) { mutableStateOf<ImageBitmap?>(null) }
+    val frozenPreviewAlpha by animateFloatAsState(
+        targetValue = if (frozenPreviewBitmap != null && previewStreamState != PreviewView.StreamState.STREAMING) 1f else 0f,
+        animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+        label = "frozen preview crossfade"
+    )
     val previewBindGenerationState = rememberUpdatedState(cameraBindGeneration)
+    LaunchedEffect(previewStreamState, frozenPreviewBitmap) {
+        if (previewStreamState == PreviewView.StreamState.STREAMING && frozenPreviewBitmap != null) {
+            delay(150L)
+            if (previewStreamState == PreviewView.StreamState.STREAMING) {
+                frozenPreviewBitmap = null
+            }
+        }
+    }
     DisposableEffect(previewView, lifecycleOwner) {
         val observer = Observer<PreviewView.StreamState> { state ->
             val nextState = state ?: PreviewView.StreamState.IDLE
@@ -1478,6 +1492,17 @@ fun CameraScreen(
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
     ) {
         if (!hasCam) return@LaunchedEffect
+        if (previewStreamState == PreviewView.StreamState.STREAMING &&
+            previewView.width > 0 && previewView.height > 0
+        ) {
+            runCatching { previewView.bitmap?.asImageBitmap() }
+                .getOrNull()
+                ?.let { frozenPreviewBitmap = it }
+            android.util.Log.d(
+                "FUJI_PREVIEW_GAP",
+                "FROZEN_FRAME captured=${frozenPreviewBitmap != null} view=${previewView.width}x${previewView.height} bindGeneration=$cameraBindGeneration"
+            )
+        }
         val discoveredCamera2 = if (camera2Inventory.isNotEmpty()) {
             camera2Inventory
         } else {
@@ -5050,6 +5075,16 @@ fun CameraScreen(
                                         )
                                     }
                                 )
+                            }
+                            frozenPreviewBitmap?.let { frozen ->
+                                if (frozenPreviewAlpha > 0.001f) {
+                                    Image(
+                                        bitmap = frozen,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = frozenPreviewAlpha },
+                                        contentScale = ContentScale.FillBounds
+                                    )
+                                }
                             }
                             // LCD scanline texture is an optional display-only overlay. It is
                             // drawn above PreviewView and never enters ImageCapture or saved pixels.

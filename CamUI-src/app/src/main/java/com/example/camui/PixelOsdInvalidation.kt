@@ -84,7 +84,7 @@ internal fun pixelOsdDirtyRegions(
 
     if (previous.focusLocked != current.focusLocked) {
         add(0, 0, 50, 20)
-        add(width - 110, 7, width, 32)
+        add(width - 100, 7, width - 50, 32)
     }
 
     if (previous.showLevel != current.showLevel ||
@@ -123,7 +123,7 @@ internal fun pixelOsdDirtyRegions(
     } else {
         if (previous.focusLocked != current.focusLocked || previous.meteringText != current.meteringText) {
             add(0, 0, 50, 20)
-            add(width - 110, 7, width, 32)
+            add(width - 100, 7, width - 50, 32)
         }
         if (previous.batteryPercent != current.batteryPercent ||
             previous.batteryCharging != current.batteryCharging ||

@@ -4588,6 +4588,11 @@ fun CameraScreen(
                                     manualWhiteBalance = manualColorTempEnabled,
                                     manualIso = manualIsoEnabled,
                                     manualShutter = manualShutterEnabled,
+                                    selectedControl = when (proSel?.uppercase(Locale.US)) {
+                                        "TV" -> "TV"
+                                        "TONE" -> "WB"
+                                        else -> proSel?.uppercase(Locale.US).orEmpty()
+                                    },
                                     showZoom = zoomOverlayAlpha > 0.001f && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     zoomText = if (zoomDisplayValue < 1f || abs(zoomDisplayValue - zoomDisplayValue.toInt()) > 0.01f)
                                         String.format(Locale.US, "%.1fx", zoomDisplayValue) else "${zoomDisplayValue.toInt()}x",

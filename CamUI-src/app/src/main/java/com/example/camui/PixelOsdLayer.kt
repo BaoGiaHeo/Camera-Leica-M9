@@ -62,6 +62,7 @@ internal object PixelOsdSprites {
         "meter-center" to arrayOf("........", "..WWWW..", "..W..W..", "..WWWW..", "........"),
         "meter-spot" to arrayOf(".........", "....W....", "....W....", ".WWWWW...", "....W....", "....W....", "........."),
         "af-area" to arrayOf("WW.....WW", "W.......W", ".........", ".........", "WW.....WW"),
+        "shutter" to arrayOf("..WWW..", ".W...W.", "W..W..W", "W.W.W.W", "W..W..W", ".W...W.", "..WWW.."),
         "ae-lock" to arrayOf(".WWWWW.", "W.....W", "W.WWW.W", "W.W.W.W", "W.WWW.W", "WWWWWWW"),
         "pin" to arrayOf("..WWW..", ".W...W.", "W.....W", "W.....W", ".W...W.", "..WWW..", "...W..."),
         "temperature" to arrayOf("...W...", "...W...", "...W...", "..WWW..", "..WWW..", "...W...", "..WWW.."),
@@ -121,6 +122,7 @@ data class PixelOsdFrame(
     val manualWhiteBalance: Boolean = false,
     val manualIso: Boolean = false,
     val manualShutter: Boolean = false,
+    val selectedControl: String = "",
     val showZoom: Boolean = false,
     val zoomText: String = "",
     val zoomAlpha: Float = 1f,
@@ -446,10 +448,15 @@ class PixelOsdRenderer(context: Context) {
         val displayIndex = frame.evDisplayIndex.takeIf { it.isFinite() } ?: frame.evIndex.toFloat()
         val currentStops = (displayIndex * step).coerceIn(minStops, maxStops)
         val pointerY = (bottom - ((currentStops - minStops) / span) * (bottom - top)).roundToInt()
-        drawPixel(canvas, 7, pointerY, PixelOsdPalette.AMBER)
-        drawPixel(canvas, 8, pointerY - 1, PixelOsdPalette.AMBER)
-        drawPixel(canvas, 8, pointerY + 1, PixelOsdPalette.AMBER)
-        drawPixel(canvas, 9, pointerY, PixelOsdPalette.AMBER)
+        val pointerColor = when {
+            frame.manualExposure -> PixelOsdPalette.AMBER
+            frame.selectedControl.equals("EV", ignoreCase = true) -> PixelOsdPalette.BLUE
+            else -> PixelOsdPalette.WHITE
+        }
+        drawPixel(canvas, 7, pointerY, pointerColor)
+        drawPixel(canvas, 8, pointerY - 1, pointerColor)
+        drawPixel(canvas, 8, pointerY + 1, pointerColor)
+        drawPixel(canvas, 9, pointerY, pointerColor)
         if (frame.showEvOverlay) drawPixelText(canvas, frame.evValueText, 3, centerY - 4, PixelOsdPalette.AMBER)
     }
 
@@ -479,17 +486,50 @@ class PixelOsdRenderer(context: Context) {
     private fun drawProHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
         val height = logicHeight
         val bottom = height - 7
+        val selected = frame.selectedControl.uppercase()
         var x = 7
+
         fun put(value: String, color: Int = PixelOsdPalette.WHITE) {
             if (value.isBlank() || x > logicWidth - 25) return
             drawPixelText(canvas, value, x, bottom, color)
             x += value.length * 5 + 5
         }
-        put("M", if (frame.manualExposure) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
-        put(frame.afModeText.take(4))
-        put(frame.shutterText.take(7), if (frame.manualShutter) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
-        put(frame.apertureText.take(5))
-        put(frame.isoText.take(6), if (frame.manualIso) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
+
+        val exposureColor = when {
+            frame.manualExposure -> PixelOsdPalette.AMBER
+            selected == "EV" -> PixelOsdPalette.BLUE
+            else -> PixelOsdPalette.WHITE
+        }
+        val afColor = if (selected == "AF") PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
+        val shutterColor = when {
+            frame.manualShutter -> PixelOsdPalette.AMBER
+            selected == "TV" || selected == "SHUTTER" -> PixelOsdPalette.BLUE
+            else -> PixelOsdPalette.WHITE
+        }
+        val apertureColor = if (selected == "F" || selected == "APERTURE") {
+            PixelOsdPalette.BLUE
+        } else {
+            PixelOsdPalette.WHITE
+        }
+        val isoColor = when {
+            frame.manualIso -> PixelOsdPalette.AMBER
+            selected == "ISO" -> PixelOsdPalette.BLUE
+            else -> PixelOsdPalette.WHITE
+        }
+
+        put("M", exposureColor)
+        if (x <= logicWidth - 36) {
+            drawSprite(canvas, "af-area", x, bottom - 5)
+            x += 13
+        }
+        put(frame.afModeText.take(4), afColor)
+        if (x <= logicWidth - 34) {
+            drawSprite(canvas, "shutter", x, bottom - 7)
+            x += 11
+        }
+        put(frame.shutterText.take(7), shutterColor)
+        put(frame.apertureText.take(5), apertureColor)
+        put(frame.isoText.take(6), isoColor)
 
         val rightText = listOf(
             frame.dynamicRangeText.take(5),
@@ -498,8 +538,12 @@ class PixelOsdRenderer(context: Context) {
         ).filter { it.isNotBlank() }.joinToString(" ")
         if (rightText.isNotBlank()) {
             val rightX = (logicWidth - rightText.length * 5 - 7).coerceAtLeast(x)
-            drawPixelText(canvas, rightText, rightX, 21,
-                if (frame.manualWhiteBalance) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE)
+            val whiteBalanceColor = when {
+                frame.manualWhiteBalance -> PixelOsdPalette.AMBER
+                selected == "WB" -> PixelOsdPalette.BLUE
+                else -> PixelOsdPalette.WHITE
+            }
+            drawPixelText(canvas, rightText, rightX, 21, whiteBalanceColor)
         }
     }
 

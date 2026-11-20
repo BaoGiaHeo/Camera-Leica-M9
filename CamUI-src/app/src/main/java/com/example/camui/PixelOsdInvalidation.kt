@@ -147,7 +147,8 @@ internal fun pixelOsdDirtyRegions(
         previous.manualExposure != current.manualExposure ||
         previous.manualWhiteBalance != current.manualWhiteBalance ||
         previous.manualIso != current.manualIso ||
-        previous.manualShutter != current.manualShutter
+        previous.manualShutter != current.manualShutter ||
+        previous.selectedControl != current.selectedControl
     ) {
         add(0, height - 16, width, height)
         add(0, 12, width, 28)

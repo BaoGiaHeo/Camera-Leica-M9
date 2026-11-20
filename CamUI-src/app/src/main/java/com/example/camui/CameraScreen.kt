@@ -1658,7 +1658,8 @@ fun CameraScreen(
                                             value = face,
                                             center = center,
                                             size = size,
-                                            area = bounds.width().toFloat() * bounds.height()
+                                            area = bounds.width().toFloat() * bounds.height(),
+                                            trackingId = face.id.takeIf { it >= 0 }
                                         )
                                     }
                                 } else emptyList()
@@ -1668,7 +1669,9 @@ fun CameraScreen(
                                     preferredFaceCenterState.value
                                 )
                                 val bestFace = bestCandidate?.value
-                                if (bestFace != null && crop != null && crop.width() > 0 && crop.height() > 0) {
+                                if (bestFace != null && bestCandidate != null &&
+                                    crop != null && crop.width() > 0 && crop.height() > 0
+                                ) {
                                     val center = bestCandidate.center
                                     val size = bestCandidate.size
                                     val leftEye = bestFace.leftEyePosition

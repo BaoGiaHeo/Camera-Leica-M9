@@ -3428,7 +3428,7 @@ fun applyCameraWatermark(
                 drawBrandLogo(RectF(footerRect.right - pad - logoW, centerY - logoH / 2f,
                     footerRect.right - pad, centerY + logoH / 2f))
             }
-            "minimal", "minimal_overlay" -> {
+            "minimal" -> {
                 val darkText = frameStyle == "White" || frameStyle == "LiquidGlass"
                 val linePaint = Paint(titlePaint).apply {
                     color = if (darkText) AndroidColor.BLACK else AndroidColor.WHITE
@@ -3440,6 +3440,61 @@ fun applyCameraWatermark(
                 linePaint.setShadowLayer(if (frameStyle == "Transparent") 3f else 0f, 0f, 1f, AndroidColor.BLACK)
                 drawTemplateText(oneLine, linePaint, centerX, footerRect.top + footerHeight * 0.55f,
                     footerWidth * 0.92f, secondarySize, centered = true)
+            }
+            "minimal_overlay" -> {
+                val overlayHeight = (minSide * 0.14f).coerceAtMost(output.height.toFloat())
+                val overlayTop = output.height - overlayHeight
+                val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = android.graphics.LinearGradient(
+                        0f,
+                        overlayTop,
+                        0f,
+                        output.height.toFloat(),
+                        AndroidColor.TRANSPARENT,
+                        AndroidColor.argb(235, 0, 0, 0),
+                        android.graphics.Shader.TileMode.CLAMP
+                    )
+                }
+                canvas.drawRect(0f, overlayTop, output.width.toFloat(), output.height.toFloat(), gradientPaint)
+                val logoHeight = minOf(watermarkLogoHeight, overlayHeight * 0.44f)
+                val logoWidth = minOf(output.width * 0.22f, logoHeight * sharedLogoRatio)
+                val logoRect = RectF(
+                    output.width - margin - logoWidth,
+                    output.height - margin - logoHeight,
+                    output.width - margin,
+                    output.height - margin
+                )
+                drawBrandLogo(logoRect)
+                val leftTextWidth = (output.width - margin * 2f - logoWidth - margin * 0.7f).coerceAtLeast(1f)
+                val title = cameraTitle.ifBlank { modelLine }
+                val infoLine = listOfNotNull(
+                    exposureLine.takeIf { showSpecs },
+                    dateLabel.takeIf { showTime }
+                ).joinToString("  ·  ")
+                val whiteTitle = Paint(titlePaint).apply {
+                    color = AndroidColor.WHITE
+                    textSize = titleSize
+                    setShadowLayer(2f, 0f, 1f, AndroidColor.BLACK)
+                }
+                val whiteDetail = Paint(detailPaint).apply {
+                    color = AndroidColor.WHITE
+                    alpha = 235
+                    textSize = secondarySize
+                    setShadowLayer(2f, 0f, 1f, AndroidColor.BLACK)
+                }
+                val hasTwoRows = title.isNotBlank() && infoLine.isNotBlank()
+                val titleCenter = if (hasTwoRows) output.height - margin - overlayHeight * 0.47f else output.height - margin - overlayHeight * 0.5f
+                drawTemplateText(title, whiteTitle, margin, titleCenter, leftTextWidth, titleSize)
+                if (infoLine.isNotBlank()) {
+                    drawTemplateText(
+                        infoLine,
+                        whiteDetail,
+                        margin,
+                        if (hasTwoRows) output.height - margin - overlayHeight * 0.16f else titleCenter,
+                        leftTextWidth,
+                        secondarySize
+                    )
+                }
             }
             "simple" -> {
                 if (frameStyle == "White" || frameStyle == "Black") drawTemplateFooter(frameColor)

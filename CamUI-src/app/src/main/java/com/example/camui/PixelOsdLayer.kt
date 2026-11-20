@@ -35,6 +35,27 @@ private object PixelOsdPalette {
 internal fun pixelBatteryCellCount(percent: Int): Int =
     if (percent !in 0..100) 0 else ((percent + 24) / 25).coerceIn(0, 4)
 
+internal fun isPixelBatteryLow(percent: Int): Boolean = percent in 0..20
+
+internal fun pixelEvAccentColor(
+    evIndex: Float,
+    evStepStops: Float,
+    selected: Boolean = false,
+    manualExposure: Boolean = false
+): Int {
+    if (selected) return 0xFF3DA5FF.toInt()
+    if (manualExposure) return 0xFFFFB300.toInt()
+    val index = evIndex.takeIf { it.isFinite() } ?: 0f
+    val step = evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
+    val amount = kotlin.math.abs(index * step).coerceIn(0f, 1f)
+    fun mix(start: Int, end: Int): Int =
+        (start + ((end - start) * amount).roundToInt()).coerceIn(0, 255)
+    val red = mix(0xF2, 0xFF)
+    val green = mix(0xF2, 0xB3)
+    val blue = mix(0xF2, 0x00)
+    return (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
+}
+
 internal fun formatPixelEvReadout(evIndex: Float, evStepStops: Float): String {
     val index = evIndex.takeIf { it.isFinite() } ?: 0f
     val step = evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
@@ -367,7 +388,12 @@ class PixelOsdRenderer(context: Context) {
                 formatPixelEvReadout(frame.evDisplayIndex, frame.evStepStops),
                 (width / 2f - 24).roundToInt().coerceAtLeast(24),
                 23,
-                PixelOsdPalette.AMBER,
+                pixelEvAccentColor(
+                    frame.evDisplayIndex,
+                    frame.evStepStops,
+                    selected = frame.selectedControl.equals("EV", ignoreCase = true),
+                    manualExposure = frame.manualExposure
+                ),
                 frame.evOverlayAlpha
             )
         }
@@ -441,7 +467,8 @@ class PixelOsdRenderer(context: Context) {
         if (frame.batteryPercent in 0..100) {
             val left = width - 49
             val top = 7
-            val color = if (frame.batteryPercent < 20 && !frame.batteryCharging && !frame.batteryLowBlinkOn) {
+            val lowBattery = isPixelBatteryLow(frame.batteryPercent) && !frame.batteryCharging
+            val color = if (lowBattery && frame.batteryLowBlinkOn) {
                 PixelOsdPalette.RED
             } else {
                 PixelOsdPalette.WHITE
@@ -497,16 +524,25 @@ class PixelOsdRenderer(context: Context) {
         val displayIndex = frame.evDisplayIndex.takeIf { it.isFinite() } ?: frame.evIndex.toFloat()
         val currentStops = (displayIndex * step).coerceIn(minStops, maxStops)
         val pointerY = (bottom - ((currentStops - minStops) / span) * (bottom - top)).roundToInt()
-        val pointerColor = when {
-            frame.manualExposure -> PixelOsdPalette.AMBER
-            frame.selectedControl.equals("EV", ignoreCase = true) -> PixelOsdPalette.BLUE
-            else -> PixelOsdPalette.WHITE
-        }
+        val pointerColor = pixelEvAccentColor(
+            displayIndex,
+            step,
+            selected = frame.selectedControl.equals("EV", ignoreCase = true),
+            manualExposure = frame.manualExposure
+        )
         drawPixel(canvas, 7, pointerY, pointerColor)
         drawPixel(canvas, 8, pointerY - 1, pointerColor)
         drawPixel(canvas, 8, pointerY + 1, pointerColor)
         drawPixel(canvas, 9, pointerY, pointerColor)
-        if (frame.showEvOverlay) drawPixelText(canvas, frame.evValueText, 3, centerY - 4, PixelOsdPalette.AMBER)
+        if (frame.showEvOverlay) {
+            drawPixelText(
+                canvas,
+                formatPixelEvReadout(displayIndex, step),
+                3,
+                centerY - 4,
+                pointerColor
+            )
+        }
     }
 
     private fun drawHistogram(canvas: NativeCanvas, bins: List<Int>) {

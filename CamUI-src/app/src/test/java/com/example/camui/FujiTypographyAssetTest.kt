@@ -3,6 +3,7 @@ package com.example.camui
 import java.io.File
 import java.util.zip.GZIPInputStream
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -32,5 +33,8 @@ class FujiTypographyAssetTest {
         assertTrue("Share Tech Mono OFL notice is incomplete", license.readText().contains("SIL OPEN FONT LICENSE Version 1.1"))
         assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ĂÂĐÊÔƠƯ"))
         assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ăâđêôơư"))
+        val theme = File("src/main/res/values/themes.xml").readText()
+        assertTrue("Android XML theme must use KK7", theme.contains("@font/vcr_osd_mono_kk7"))
+        assertFalse("Android XML theme must not override KK7 with sans", theme.contains(">sans</item>"))
     }
 }

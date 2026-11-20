@@ -107,6 +107,7 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdInvalidationTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdGeometryTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdStatusTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/PixelOsdSpriteCoverageTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/ZoomHapticMilestonesTest.kt \
             CamUI-src/i18n_whitelist.txt \
             GLOSSARY.md

@@ -66,6 +66,11 @@ internal fun formatPixelEvReadout(evIndex: Float, evStepStops: Float): String {
 internal object PixelOsdSprites {
     private val sprites = mapOf(
         "memory-card" to arrayOf("WWWWWW", "W....W", "W.WW.W", "W.WW.W", "W....W", "WWWWWW"),
+        "ev-scale" to arrayOf("..W..", "..W..", "WWWWW", "..W..", "..W.."),
+        "dynamic-range" to arrayOf("WWWWW", "W...W", "WWWWW", "W....", "WWWWW"),
+        "white-balance" to arrayOf("...W...", "..WWW..", "WWWWWWW", "..WWW..", "...W..."),
+        "live" to arrayOf("WWWWW", "W...W", "W.W.W", "W...W", "WWWWW"),
+        "heat-warning" to arrayOf("..A..", "..A..", "..A..", "..A..", ".....", "..A.."),
         "battery" to arrayOf("..WWWWWW.", "WW......W", "W........", "WW......W", "..WWWWWW."),
         "battery-fill" to arrayOf("..WWWWWW.", "WWGG....W", "WGG......", "WWGG....W", "..WWWWWW."),
         "flash" to arrayOf("...WW...", "..WWW...", ".WWWWWWW", "...WW...", "..WW....."),
@@ -96,6 +101,13 @@ internal object PixelOsdSprites {
         "pin" to arrayOf("..WWW..", ".W...W.", "W.....W", "W.....W", ".W...W.", "..WWW..", "...W..."),
         "temperature" to arrayOf("...W...", "...W...", "...W...", "..WWW..", "..WWW..", "...W...", "..WWW.."),
         "steady" to arrayOf("W.....W", ".W...W.", "..W.W..", "...W...", "..W.W..", ".W...W.", "W.....W")
+    )
+
+    internal val requiredSpriteNames = setOf(
+        "memory-card", "battery", "battery-charge", "battery-low", "flash", "flash-off",
+        "face", "eye", "lock", "ae-lock", "focus-dot", "af-area", "meter-matrix",
+        "meter-center", "meter-spot", "shutter", "ev-scale", "dynamic-range",
+        "white-balance", "level", "live", "timer", "burst", "heat-warning"
     )
 
     fun get(name: String): Array<String>? = sprites[name]

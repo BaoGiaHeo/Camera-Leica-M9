@@ -68,6 +68,7 @@ private val settingItems = listOf(
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
     SettingItem("tab_08", "Language", "SYSTEM · ENGLISH · TIẾNG VIỆT"),
     SettingItem("tab_09", "About", "FujiFilm Mode · 2.5.0Dream"),
+    SettingItem("tab_10", "Watermark", "Watermark Studio · Layout · Fields"),
 )
 
 @Composable
@@ -77,7 +78,8 @@ fun SettingsScreen(
     showHist: Boolean, onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit,
     onOpenToolbox: () -> Unit = {},
-    onOpenContentsManagement: () -> Unit = {}
+    onOpenContentsManagement: () -> Unit = {},
+    onOpenWatermarkStudio: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
@@ -146,7 +148,8 @@ fun SettingsScreen(
                     selectedCategory = "Sao lưu & Khôi phục"
                 },
                 onOpenToolbox = onOpenToolbox,
-                onOpenContentsManagement = onOpenContentsManagement
+                onOpenContentsManagement = onOpenContentsManagement,
+                onOpenWatermarkStudio = onOpenWatermarkStudio
             )
         }
     }
@@ -168,7 +171,8 @@ private fun SettingsDetailPage(
     modifier: Modifier = Modifier,
     onOpenBackup: () -> Unit = {},
     onOpenToolbox: () -> Unit = {},
-    onOpenContentsManagement: () -> Unit = {}
+    onOpenContentsManagement: () -> Unit = {},
+    onOpenWatermarkStudio: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -248,6 +252,21 @@ var nightShotMode by remember {
         when (title) {
             stringResource(R.string.pixel_osd_preview_tab) -> {
                 PixelOsdPreview()
+            }
+            "Watermark" -> {
+                Text("WATERMARK", color = FujiSkin.lcdGreen, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(
+                    "Thiết kế bố cục, kiểu chữ, logo và trường thông tin được đóng lên ảnh.",
+                    color = CamColors.Sub, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
+                )
+                FujiListRow(
+                    "Watermark Studio",
+                    "OPEN",
+                    onClick = onOpenWatermarkStudio,
+                    description = "Canvas xem trước ảnh thật · 12 bố cục · Light / Dark / Auto"
+                )
             }
             "Assistive Tools" -> {
                 Text("Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm.",

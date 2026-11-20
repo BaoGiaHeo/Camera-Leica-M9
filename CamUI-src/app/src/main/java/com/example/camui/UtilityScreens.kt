@@ -33,6 +33,7 @@ import kotlin.math.abs
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -1200,16 +1201,27 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                     .border(1.dp, Color(0xFF596568), RoundedCornerShape(4.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                val image = preview
-                if (image != null) {
-                    Image(image, stringResource(R.string.watermark_studio_preview_content_description),
-                        Modifier.fillMaxWidth().heightIn(min = 170.dp, max = 300.dp),
-                        contentScale = ContentScale.Fit)
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FujiIconGlyph("image", Modifier.size(34.dp), FujiSkin.lcdGreen)
-                        Text(stringResource(R.string.watermark_studio_no_photo),
-                            color = Color.White, fontSize = 10.sp)
+                Crossfade(
+                    targetState = preview,
+                    animationSpec = tween(durationMillis = 250),
+                    label = "Watermark Studio preview"
+                ) { image ->
+                    if (image != null) {
+                        Image(
+                            image,
+                            stringResource(R.string.watermark_studio_preview_content_description),
+                            Modifier.fillMaxWidth().heightIn(min = 170.dp, max = 300.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            FujiIconGlyph("image", Modifier.size(34.dp), FujiSkin.lcdGreen)
+                            Text(
+                                stringResource(R.string.watermark_studio_no_photo),
+                                color = Color.White,
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                 }
                 if (previewLoading) {
@@ -1221,6 +1233,17 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
                 stringResource(R.string.watermark_studio_preview_note),
                 color = CamColors.Sub, fontSize = 10.sp
             )
+            AnimatedVisibility(
+                visible = showLocation,
+                enter = fadeIn(animationSpec = tween(250)),
+                exit = fadeOut(animationSpec = tween(250))
+            ) {
+                Text(
+                    stringResource(R.string.watermark_studio_location_auto_note),
+                    color = CamColors.Sub,
+                    fontSize = 9.sp
+                )
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 FujiKey(stringResource(R.string.watermark_studio_refresh), onClick = { previewRevision++ }, modifier = Modifier.weight(1f))
                 FujiKey(stringResource(R.string.watermark_studio_shuffle), onClick = {

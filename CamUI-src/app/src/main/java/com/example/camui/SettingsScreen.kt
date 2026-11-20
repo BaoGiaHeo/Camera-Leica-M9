@@ -223,6 +223,9 @@ var nightShotMode by remember {
     var zoomBarPosition by remember {
         mutableStateOf(prefs.getString("zoom_bar_position", "top_center")?.takeIf { it == "top_center" || it == "top_left" } ?: "top_center")
     }
+    var pixelScaleMode by remember {
+        mutableStateOf(prefs.getString("osd_pixel_mode", "fine")?.takeIf { it in setOf("fine", "medium", "chunky") } ?: "fine")
+    }
     var shutterButtonColor by remember { mutableStateOf(prefs.getString("shutter_button_color", "#FFD9DBDD") ?: "#FFD9DBDD") }
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
     var shutterSoundEnabled by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
@@ -400,6 +403,23 @@ var nightShotMode by remember {
                 }
                 Text(stringResource(R.string.zoom_bar_description), color = CamColors.Sub, fontSize = 10.sp,
                     modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
+                Text(stringResource(R.string.osd_pixel_scale_title), color = FujiSkin.lcdGreen,
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    listOf(
+                        "fine" to R.string.osd_pixel_fine,
+                        "medium" to R.string.osd_pixel_medium,
+                        "chunky" to R.string.osd_pixel_chunky
+                    ).forEach { (value, label) ->
+                        FujiChip(stringResource(label), pixelScaleMode == value, {
+                            pixelScaleMode = value
+                            prefs.edit().putString("osd_pixel_mode", value).apply()
+                        })
+                    }
+                }
                 SettingsSwitch(
                     "LCD texture",
                     "Scanline overlay chỉ hiển thị trên preview, không lưu vào ảnh.",

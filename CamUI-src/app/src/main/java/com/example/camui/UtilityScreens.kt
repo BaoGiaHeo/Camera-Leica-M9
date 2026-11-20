@@ -3209,9 +3209,9 @@ fun applyCameraWatermark(
         }
         fun drawWatermarkFooter(rect: RectF, radius: Float = 0f) {
             when (frameStyle) {
-                "White", "Black" -> {
+                "White", "Black", "Auto" -> {
                     val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
+                        color = frameColor
                         style = Paint.Style.FILL
                     }
                     if (radius > 0f) canvas.drawRoundRect(rect, radius, radius, fill)

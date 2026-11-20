@@ -182,7 +182,8 @@ data class PixelOsdFrame(
     val zoomDigitalBoundaryRatio: Float = 2f,
     val zoomBarPosition: String = "top_center",
     val zoomBarAlpha: Float = 1f,
-    val evOverlayAlpha: Float = 1f
+    val evOverlayAlpha: Float = 1f,
+    val pixelScaleMode: String = "fine"
 )
 
 /**
@@ -235,7 +236,7 @@ class PixelOsdRenderer(context: Context) {
 
     fun render(widthPx: Int, heightPx: Int, frame: PixelOsdFrame, maxRefreshHz: Int = 120) {
         if (widthPx <= 0 || heightPx <= 0) return
-        val geometry = PixelOsdGeometry.fromDisplayPixels(widthPx, heightPx)
+        val geometry = PixelOsdGeometry.fromDisplayPixels(widthPx, heightPx, frame.pixelScaleMode)
         val newWidth = geometry.logicWidth
         val newHeight = geometry.logicHeight
         val needsAllocation = bitmap == null || newWidth != logicWidth || newHeight != logicHeight
@@ -404,22 +405,6 @@ class PixelOsdRenderer(context: Context) {
         if (frame.showZoomBar) {
             drawZoomBar(canvas, frame)
         }
-        if (frame.showEvOverlay) {
-            drawPixelText(
-                canvas,
-                formatPixelEvReadout(frame.evDisplayIndex, frame.evStepStops),
-                (width / 2f - 24).roundToInt().coerceAtLeast(24),
-                23,
-                pixelEvAccentColor(
-                    frame.evDisplayIndex,
-                    frame.evStepStops,
-                    selected = frame.selectedControl.equals("EV", ignoreCase = true),
-                    manualExposure = frame.manualExposure
-                ),
-                frame.evOverlayAlpha
-            )
-        }
-
         if (frame.showLevel) {
             val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
             val halfSpan = (width * 0.12f).roundToInt().coerceAtLeast(8)
@@ -556,15 +541,6 @@ class PixelOsdRenderer(context: Context) {
         drawPixel(canvas, 8, pointerY - 1, pointerColor)
         drawPixel(canvas, 8, pointerY + 1, pointerColor)
         drawPixel(canvas, 9, pointerY, pointerColor)
-        if (frame.showEvOverlay) {
-            drawPixelText(
-                canvas,
-                formatPixelEvReadout(displayIndex, step),
-                3,
-                centerY - 4,
-                pointerColor
-            )
-        }
     }
 
     private fun drawHistogram(canvas: NativeCanvas, bins: List<Int>) {

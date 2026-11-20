@@ -4813,11 +4813,6 @@ fun CameraScreen(
                                             }.getOrElse { failure ->
                                                 centerAfStatus = -1
                                                 android.util.Log.w("FUJI_AF", "Tap-to-focus request failed to start.", failure)
-                                                localizedToast(
-                                                    context,
-                                                    "Camera không thể bắt đầu lấy nét.",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
                                                 scope.launch(Dispatchers.Main) {
                                                     withFrameNanos { }
                                                     withFrameNanos { }
@@ -4859,7 +4854,7 @@ fun CameraScreen(
                                         onLongPress = { offset ->
                                             val active = camera ?: return@detectTapGestures
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
-                                                localizedToast(context, "Chuyển AF sang Auto trước khi khóa nét.", Toast.LENGTH_SHORT).show()
+                                                return@detectTapGestures
                                             } else {
                                                 manualAfOverrideUntilMs = Long.MAX_VALUE
                                                 val lockPoint = Offset(
@@ -4889,11 +4884,6 @@ fun CameraScreen(
                                                 }.getOrElse { failure ->
                                                     manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
                                                     centerAfStatus = -1
-                                                    localizedToast(
-                                                        context,
-                                                        "Không thể khóa nét và phơi sáng.",
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
                                                     android.util.Log.w("FUJI_AF", "AF/AE lock request failed to start.", failure)
                                                     scope.launch(Dispatchers.Main) {
                                                         withFrameNanos { }
@@ -4924,18 +4914,10 @@ fun CameraScreen(
                                                     focusLocked = success
                                                     centerAfStatus = if (success) 1 else -1
                                                     if (success) {
-                                                        localizedToast(
-                                                            context,
-                                                            "Đã khóa nét và phơi sáng · chạm lại để lấy nét mới.",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
+                                                        android.util.Log.i("FUJI_AF", "AF/AE lock accepted")
                                                     } else {
                                                         manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
-                                                        localizedToast(
-                                                            context,
-                                                            "Camera không xác nhận khóa nét. Hãy thử lại.",
-                                                            Toast.LENGTH_LONG
-                                                        ).show()
+                                                        android.util.Log.i("FUJI_AF", "AF/AE lock missed; red frame feedback is shown")
                                                         scope.launch(Dispatchers.Main) {
                                                             withFrameNanos { }
                                                             withFrameNanos { }

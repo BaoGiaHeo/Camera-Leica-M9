@@ -780,6 +780,7 @@ fun CameraScreen(
         mutableStateOf(appPrefs.getString("zoom_bar_position", "top_center") ?: "top_center")
     }
     var previewBoundsText by remember { mutableStateOf("unmeasured") }
+    val previewBoundsTextState = rememberUpdatedState(previewBoundsText)
     DisposableEffect(appPrefs) {
         val preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
             when (key) {
@@ -1256,7 +1257,7 @@ fun CameraScreen(
                 )
                 android.util.Log.d(
                     "FUJI_ZOOM_FRAME",
-                    "direction=${if (direction > 0) "IN" else "OUT"} zoomTarget=$targetZoom zoomFromCaptureResult=$actualZoomRatio previewScale=1.0 previewRect=$previewBoundsText"
+                    "direction=${if (direction > 0) "IN" else "OUT"} zoomTarget=$targetZoom zoomFromCaptureResult=$actualZoomRatio previewScale=1.0 previewRect=${previewBoundsTextState.value}"
                 )
                 lastDiagnosticAt = now
                 tickCount = 0

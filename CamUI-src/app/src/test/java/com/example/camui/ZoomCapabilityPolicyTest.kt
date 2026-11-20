@@ -8,6 +8,36 @@ import org.junit.Test
 
 class ZoomCapabilityPolicyTest {
     @Test
+    fun oneCameraIdWithMultipleFocalLengthsUsesTheFullEquivalentRange() {
+        val range = calculateEquivalentFocalRange35Mm(
+            focalLengthsMm = listOf(4.5f, 13.5f),
+            sensorWidthMm = 6.4f,
+            sensorHeightMm = 4.8f
+        )
+        val expectedShortest = 4.5f * 43.27f / 8f
+        val expectedLongest = 13.5f * 43.27f / 8f
+        assertEquals(expectedShortest, range.shortest!!, 0.001f)
+        assertEquals(expectedLongest, range.longest!!, 0.001f)
+        val assessment = assessOpticalZoom(
+            listOf(range.shortest, range.longest),
+            mainEquivalent35Mm = range.shortest
+        )
+        assertTrue(assessment.hasOpticalTelephoto)
+        assertEquals(3f, assessment.opticalRatio!!, 0.001f)
+    }
+
+    @Test
+    fun invalidSensorGeometryDoesNotInventEquivalentFocalLengths() {
+        val range = calculateEquivalentFocalRange35Mm(
+            focalLengthsMm = listOf(4.5f, 13.5f),
+            sensorWidthMm = 0f,
+            sensorHeightMm = 4.8f
+        )
+        assertEquals(null, range.shortest)
+        assertEquals(null, range.longest)
+    }
+
+    @Test
     fun cameraWithoutTelephotoIsCappedAtTwoTimesEvenWhenHalReportsMore() {
         val assessment = assessOpticalZoom(listOf(13f, 26f), mainEquivalent35Mm = 26f)
         assertFalse(assessment.hasOpticalTelephoto)

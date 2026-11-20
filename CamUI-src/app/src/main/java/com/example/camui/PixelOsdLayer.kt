@@ -332,12 +332,19 @@ class PixelOsdRenderer(context: Context) {
             val color = if (frame.faceFocused) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
             drawCornerFrame(canvas, cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight, color, 5)
             // Only display the eye marker when Camera2 or ML Kit supplied a real landmark.
+            // A separate fine eye reticle is drawn at the selected primary eye only.
             frame.eyeCenter?.let { eye ->
-                drawSprite(
+                val eyeX = (eye.x * width).roundToInt()
+                val eyeY = (eye.y * height).roundToInt()
+                val eyeColor = if (frame.faceFocused) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+                drawCornerFrame(
                     canvas,
-                    "eye",
-                    (eye.x * width).roundToInt() - 3,
-                    (eye.y * height).roundToInt() - 2
+                    eyeX - 4,
+                    eyeY - 3,
+                    eyeX + 4,
+                    eyeY + 3,
+                    eyeColor,
+                    2
                 )
             }
         }

@@ -4,13 +4,13 @@ import androidx.compose.ui.geometry.Offset
 import kotlin.math.abs
 
 /**
- * Keeps one eye landmark for a face track.
+ * Keeps a single primary eye for a face track.
  *
- * Camera2 Face and ML Kit Face expose landmark positions but do not expose per-eye depth
- * or a calibrated confidence score. Head yaw is therefore used only as a stable side hint.
- * A side change must persist for switchConfirmMs and is rate-limited by minSwitchIntervalMs.
- * If the selected landmark disappears, the other eye is not adopted until lostFrameThreshold
- * consecutive observations have elapsed.
+ * The selected eye is never changed merely because head yaw fluctuates. While it is
+ * visible, the other eye may replace it only when its measured contour area is at
+ * least 25% larger continuously for 500 ms. If the selected landmark disappears,
+ * failover occurs only after more than ten consecutive missing frames. All automatic
+ * switches are separated by at least 800 ms; an explicit user tap bypasses that delay.
  */
 internal enum class PrimaryEyeSide { LEFT, RIGHT }
 
@@ -34,20 +34,27 @@ internal class PrimaryEyeSelector(
         headYawDegrees: Float,
         nowMs: Long,
         trackingId: Int? = null,
-        userPreferredSide: PrimaryEyeSide? = null
+        userPreferredSide: PrimaryEyeSide? = null,
+        leftEyeArea: Float? = null,
+        rightEyeArea: Float? = null,
+        leftConfidence: Float? = null,
+        rightConfidence: Float? = null
     ): Offset? {
         if (trackingId != null && activeTrackingId != trackingId) {
             reset()
             activeTrackingId = trackingId
         }
 
-        val preferred = userPreferredSide ?: when {
-            !headYawDegrees.isFinite() || abs(headYawDegrees) <= yawDeadZoneDegrees ->
-                selectedSide ?: if (leftEye != null) PrimaryEyeSide.LEFT else PrimaryEyeSide.RIGHT
-            headYawDegrees > 0f -> PrimaryEyeSide.RIGHT
-            else -> PrimaryEyeSide.LEFT
-        }
         if (selectedSide == null) {
+            val preferred = userPreferredSide ?: initialSide(
+                leftEye = leftEye,
+                rightEye = rightEye,
+                leftEyeArea = leftEyeArea,
+                rightEyeArea = rightEyeArea,
+                leftConfidence = leftConfidence,
+                rightConfidence = rightConfidence,
+                headYawDegrees = headYawDegrees
+            )
             selectedSide = when {
                 preferred == PrimaryEyeSide.LEFT && leftEye != null -> PrimaryEyeSide.LEFT
                 preferred == PrimaryEyeSide.RIGHT && rightEye != null -> PrimaryEyeSide.RIGHT
@@ -58,31 +65,39 @@ internal class PrimaryEyeSelector(
             lastSwitchAtMs = nowMs
         }
 
-        var selected = pointFor(selectedSide, leftEye, rightEye)
+        val selected = pointFor(selectedSide, leftEye, rightEye)
         val alternateSide = opposite(selectedSide!!)
         val alternate = pointFor(alternateSide, leftEye, rightEye)
         if (selected != null) {
             missingSelectedFrames = 0
-            if (preferred != selectedSide && alternate != null &&
+            val selectedArea = areaFor(selectedSide, leftEyeArea, rightEyeArea)
+            val alternateArea = areaFor(alternateSide, leftEyeArea, rightEyeArea)
+            val alternateIsSignificantlyLarger =
+                selectedArea != null && alternateArea != null &&
+                    alternateArea >= selectedArea * 1.25f
+
+            if (alternate != null && alternateIsSignificantlyLarger &&
                 nowMs - lastSwitchAtMs >= minSwitchIntervalMs
             ) {
-                if (pendingSide != preferred) {
-                    pendingSide = preferred
+                if (pendingSide != alternateSide) {
+                    pendingSide = alternateSide
                     pendingSinceMs = nowMs
                 } else if (nowMs - pendingSinceMs >= switchConfirmMs) {
-                    selectedSide = preferred
+                    selectedSide = alternateSide
                     lastSwitchAtMs = nowMs
                     pendingSide = null
-                    selected = pointFor(selectedSide, leftEye, rightEye)
+                    return alternate
                 }
             } else {
                 pendingSide = null
+                pendingSinceMs = 0L
             }
             return selected
         }
 
         missingSelectedFrames++
         pendingSide = null
+        pendingSinceMs = 0L
         if (alternate != null && missingSelectedFrames >= lostFrameThreshold &&
             nowMs - lastSwitchAtMs >= minSwitchIntervalMs
         ) {
@@ -94,7 +109,7 @@ internal class PrimaryEyeSelector(
         return null
     }
 
-    /** User taps bypass yaw hysteresis and switch to the requested eye immediately. */
+    /** User taps bypass size hysteresis and switch to the requested eye immediately. */
     @Synchronized
     fun forceSelect(side: PrimaryEyeSide, nowMs: Long, trackingId: Int? = null) {
         if (trackingId != null && activeTrackingId != null && trackingId != activeTrackingId) return
@@ -118,6 +133,45 @@ internal class PrimaryEyeSelector(
         pendingSinceMs = 0L
         lastSwitchAtMs = Long.MIN_VALUE / 2
     }
+
+    private fun initialSide(
+        leftEye: Offset?,
+        rightEye: Offset?,
+        leftEyeArea: Float?,
+        rightEyeArea: Float?,
+        leftConfidence: Float?,
+        rightConfidence: Float?,
+        headYawDegrees: Float
+    ): PrimaryEyeSide {
+        if (!headYawDegrees.isFinite()) {
+            // Continue with landmark confidence/area when pose is not available.
+        } else if (headYawDegrees > yawDeadZoneDegrees) {
+            return PrimaryEyeSide.RIGHT
+        } else if (headYawDegrees < -yawDeadZoneDegrees) {
+            return PrimaryEyeSide.LEFT
+        }
+
+        val leftScore = leftConfidence?.takeIf { it.isFinite() } ?: 0f
+        val rightScore = rightConfidence?.takeIf { it.isFinite() } ?: 0f
+        if (abs(leftScore - rightScore) >= 0.05f) {
+            return if (leftScore > rightScore) PrimaryEyeSide.LEFT else PrimaryEyeSide.RIGHT
+        }
+
+        val leftArea = leftEyeArea?.takeIf { it.isFinite() && it > 0f }
+        val rightArea = rightEyeArea?.takeIf { it.isFinite() && it > 0f }
+        if (leftEye != null && rightEye != null && leftArea != null && rightArea != null) {
+            if (leftArea >= rightArea * 1.05f) return PrimaryEyeSide.LEFT
+            if (rightArea >= leftArea * 1.05f) return PrimaryEyeSide.RIGHT
+        }
+        return if (leftEye != null || rightEye == null) PrimaryEyeSide.LEFT else PrimaryEyeSide.RIGHT
+    }
+
+    private fun areaFor(
+        side: PrimaryEyeSide,
+        leftArea: Float?,
+        rightArea: Float?
+    ): Float? = (if (side == PrimaryEyeSide.LEFT) leftArea else rightArea)
+        ?.takeIf { it.isFinite() && it > 0f }
 
     private fun pointFor(side: PrimaryEyeSide?, left: Offset?, right: Offset?): Offset? =
         when (side) {

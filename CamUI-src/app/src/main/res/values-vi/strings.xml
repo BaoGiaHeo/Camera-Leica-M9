@@ -120,4 +120,16 @@
     <string name="watermark_layout_viewfinder_description">Bốn góc khung ngắm và thông số</string>
     <string name="watermark_layout_exposure_dial_description">Ba mặt số F, SS và ISO</string>
     <string name="watermark_studio_preview_content_description">Ảnh xem trước Watermark Studio được kết xuất bằng pipeline xử lý ảnh thật</string>
+    <string name="watermark_field_camera_name">Tên máy ảnh</string>
+    <string name="watermark_field_lens">Ống kính</string>
+    <string name="watermark_field_focal">Tiêu cự</string>
+    <string name="watermark_field_aperture">Khẩu độ</string>
+    <string name="watermark_field_shutter">Tốc độ màn trập</string>
+    <string name="watermark_field_iso">ISO</string>
+    <string name="watermark_field_ev">EV</string>
+    <string name="watermark_field_filter">Mô phỏng phim</string>
+    <string name="watermark_field_night">LD / NIGHT</string>
+    <string name="watermark_field_copyright">Bản quyền</string>
+    <string name="watermark_field_megapixels">MP</string>
+    <string name="watermark_studio_copyright_placeholder">Tên hiển thị sau ©</string>
 </resources>

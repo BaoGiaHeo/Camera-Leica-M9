@@ -457,45 +457,47 @@ class PixelOsdRenderer(context: Context) {
             )
         }
         val afLabel = if (frame.focusLocked) "AF-L" else "AF"
+        val lowBattery = frame.batteryPercent in 0..100 &&
+            isPixelBatteryLow(frame.batteryPercent) && !frame.batteryCharging
+        val statusColor = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE
+        if (frame.batteryPercent in 0..100) {
+            val batteryLabel = "${frame.batteryPercent}%"
+            val batteryTextWidth = measurePixelTextWidthLogic(batteryLabel)
+            val batteryIconLeft = width - batteryTextWidth - 24
+            val top = 7
+            drawHLine(canvas, batteryIconLeft, batteryIconLeft + 10, top, statusColor, 255)
+            drawHLine(canvas, batteryIconLeft, batteryIconLeft + 10, top + 6, statusColor, 255)
+            drawVLine(canvas, batteryIconLeft, top, top + 6, statusColor, 255)
+            drawVLine(canvas, batteryIconLeft + 10, top + 1, top + 5, statusColor, 255)
+            drawVLine(canvas, batteryIconLeft + 12, top + 2, top + 4, statusColor, 255)
+            val cells = pixelBatteryCellCount(frame.batteryPercent)
+            if (statusColor != PixelOsdPalette.RED) {
+                for (cell in 0 until cells) {
+                    val cellX = batteryIconLeft + 1 + cell * 2
+                    for (y in 1..5) drawPixel(canvas, cellX, top + y, statusColor)
+                }
+            } else if (frame.batteryLowBlinkOn) {
+                for (cell in 0 until 4) {
+                    val cellX = batteryIconLeft + 1 + cell * 2
+                    for (y in 1..5) drawPixel(canvas, cellX, top + y, statusColor)
+                }
+            }
+            if (frame.batteryCharging) drawSprite(canvas, "flash", batteryIconLeft + 3, top + 1)
+            drawPixelText(canvas, batteryLabel, width - batteryTextWidth - 4, 15, statusColor)
+        }
+        val afWidth = measurePixelTextWidthLogic(afLabel)
+        val afRight = if (frame.batteryPercent in 0..100) {
+            width - measurePixelTextWidthLogic("${frame.batteryPercent}%") - 29
+        } else width - 7
         drawPixelText(
             canvas,
             afLabel,
-            width - if (frame.focusLocked) 95 else 65,
+            (afRight - afWidth).coerceAtLeast(4),
             15,
             if (frame.focusLocked) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
         )
         if (frame.focusLocked) {
-            drawPixelText(canvas, "AE-L", width - 95, 24, PixelOsdPalette.GREEN)
-        }
-
-        if (frame.batteryPercent in 0..100) {
-            val left = width - 49
-            val top = 7
-            val lowBattery = isPixelBatteryLow(frame.batteryPercent) && !frame.batteryCharging
-            val color = if (lowBattery && frame.batteryLowBlinkOn) {
-                PixelOsdPalette.RED
-            } else {
-                PixelOsdPalette.WHITE
-            }
-            drawHLine(canvas, left, left + 10, top, color, 255)
-            drawHLine(canvas, left, left + 10, top + 6, color, 255)
-            drawVLine(canvas, left, top, top + 6, color, 255)
-            drawVLine(canvas, left + 10, top + 1, top + 5, color, 255)
-            drawVLine(canvas, left + 12, top + 2, top + 4, color, 255)
-            val cells = pixelBatteryCellCount(frame.batteryPercent)
-            if (color != PixelOsdPalette.RED) {
-                for (cell in 0 until cells) {
-                    val cellX = left + 1 + cell * 2
-                    for (y in 1..5) drawPixel(canvas, cellX, top + y, color)
-                }
-            } else if (frame.batteryLowBlinkOn) {
-                for (cell in 0 until 4) {
-                    val cellX = left + 1 + cell * 2
-                    for (y in 1..5) drawPixel(canvas, cellX, top + y, color)
-                }
-            }
-            if (frame.batteryCharging) drawSprite(canvas, "flash", left + 3, top + 1)
-            drawPixelText(canvas, "${frame.batteryPercent}%", width - 34, 15, color)
+            drawPixelText(canvas, "AE-L", (afRight - afWidth - measurePixelTextWidthLogic("AE-L") - 3).coerceAtLeast(4), 28, PixelOsdPalette.GREEN)
         }
     }
 
@@ -579,7 +581,7 @@ class PixelOsdRenderer(context: Context) {
 
         fun put(value: String, key: String, color: Int = PixelOsdPalette.WHITE) {
             if (value.isBlank() || x > logicWidth - 25) return
-            val textWidth = value.length * 5
+            val textWidth = measurePixelTextWidthLogic(value)
             if (selected == key) {
                 drawPixelSelectionArc(
                     canvas,
@@ -659,10 +661,10 @@ class PixelOsdRenderer(context: Context) {
             }
             add(Triple(frame.filmSimulationText.take(3), filmColor, "FILM"))
         }.filter { it.first.isNotBlank() }
-        val rightTextWidth = rightSegments.sumOf { it.first.length * 5 + 3 }
+        val rightTextWidth = rightSegments.sumOf { measurePixelTextWidthLogic(it.first) + 3 }
         var rightX = (logicWidth - rightTextWidth - 7).coerceAtLeast(x)
         rightSegments.forEach { (value, color, key) ->
-            val textWidth = value.length * 5
+            val textWidth = measurePixelTextWidthLogic(value)
             if (selected == key || (key == "FILM" && selected == "FS")) {
                 drawPixelSelectionArc(
                     canvas,
@@ -841,6 +843,17 @@ class PixelOsdRenderer(context: Context) {
         // W / T labels are rendered with the installed KK7 OSD typeface.
         drawPixelText(canvas, "W", left, top + 8, PixelOsdPalette.WHITE, frame.zoomBarAlpha)
         drawPixelText(canvas, "T", left + trackOuterWidth + 2, top + 8, PixelOsdPalette.WHITE, frame.zoomBarAlpha)
+    }
+
+    private fun measurePixelTextWidthLogic(value: String): Int {
+        if (value.isEmpty()) return 0
+        if (loadedTypeface == null) {
+            loadedTypeface = runCatching { FujiTypography.androidTypeface(appContext) }
+                .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
+        }
+        textPaint.typeface = loadedTypeface ?: Typeface.DEFAULT
+        textPaint.textSize = maxOf(8f * pixelScale, 14f * displayDensity)
+        return kotlin.math.ceil(textPaint.measureText(value) / pixelScale.coerceAtLeast(1)).toInt()
     }
 
     private fun drawPixelText(

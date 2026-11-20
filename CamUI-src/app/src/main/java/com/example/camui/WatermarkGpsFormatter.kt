@@ -25,7 +25,8 @@ internal fun formatWatermarkGpsCoordinates(attributes: Map<String, String>): Str
         val seconds = components[2]!!
         if (degrees < 0.0 || minutes !in 0.0..60.0 || seconds !in 0.0..60.0) return null
         val magnitude = degrees + minutes / 60.0 + seconds / 3600.0
-        if (magnitude > if (valueTag == "GPSLatitude") 90.0 else 180.0) return null
+        val maximumDegrees = if (valueTag == "GPSLatitude") 90.0 else 180.0
+        if (magnitude > maximumDegrees) return null
         val reference = attributes[refTag]?.trim()?.uppercase(Locale.ROOT) ?: return null
         return if (reference in negativeRefs) -magnitude else magnitude
     }

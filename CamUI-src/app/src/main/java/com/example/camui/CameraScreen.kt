@@ -4651,6 +4651,7 @@ fun CameraScreen(
                                                 centerAfPoint = lockPoint
                                                 preferredFaceCenter = lockPoint
                                                 centerAfStatus = 0
+                                                focusLocked = false
                                                 focusLockRequestGeneration++
                                                 val lockRequestId = focusLockRequestGeneration
                                                 val afPointSize = CameraAfAreaSize.fromPreference(

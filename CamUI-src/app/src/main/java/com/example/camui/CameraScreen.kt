@@ -4893,6 +4893,10 @@ fun CameraScreen(
                                                 (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                                 (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
                                             )
+                                            android.util.Log.d(
+                                                "FUJI_AF_OSD",
+                                                "manualTapOverride=true faceBoxPresent=${faceTrackCenter != null} point=${tapPoint.x},${tapPoint.y}"
+                                            )
                                             val leftEye = faceLeftEyeCenter
                                             val rightEye = faceRightEyeCenter
                                             val leftEyeDistance = leftEye?.let {
@@ -4984,6 +4988,10 @@ fun CameraScreen(
                                                 return@detectTapGestures
                                             } else {
                                                 manualAfOverrideUntilMs = Long.MAX_VALUE
+                                                android.util.Log.d(
+                                                    "FUJI_AF_OSD",
+                                                    "manualLockOverride=true faceBoxPresent=${faceTrackCenter != null}"
+                                                )
                                                 val lockPoint = Offset(
                                                     (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                                     (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
@@ -5126,6 +5134,8 @@ fun CameraScreen(
                                     drawRect(Color.Black, Offset(0f, 0f), DrawSize(size.width, curtainHeight))
                                 }
                             }
+                            val manualAfReticleOverrideActive =
+                                manualAfOverrideUntilMs > SystemClock.elapsedRealtime()
                             PixelOsdLayer(
                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
@@ -5155,10 +5165,12 @@ fun CameraScreen(
                                         lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
                                     centerAfPoint = centerAfPoint.takeIf {
                                         lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
-                                            (manualFocus > 0f || milkyWayInfinityFocusEnabled ||
+                                            (manualAfReticleOverrideActive ||
+                                                manualFocus > 0f || milkyWayInfinityFocusEnabled ||
                                                 !faceTrackingEnabled || faceTrackCenter == null)
                                     },
                                     centerAfStatus = if (focusLocked) 1 else centerAfStatus,
+                                    showManualAfReticle = manualAfReticleOverrideActive,
                                     centerAfScale = CameraAfAreaSize.fromPreference(
                                         appPrefs.getString("af_area_size", "m")
                                     ).pixelScale,

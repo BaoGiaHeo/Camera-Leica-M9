@@ -808,6 +808,11 @@ fun CameraScreen(
     var renderEngine by remember { mutableStateOf(appPrefs.getString("camera_render_engine", "Performance") ?: "Performance") }
     var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)) }
     var focusLocked by remember { mutableStateOf(false) }
+    var focusLockRequestGeneration by remember { mutableIntStateOf(0) }
+    fun invalidatePendingFocusLock() {
+        focusLockRequestGeneration++
+        focusLocked = false
+    }
     var manualIsoEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_iso_enabled", false)) }
     var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
     var manualColorTempEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_wb_enabled", false)) }
@@ -4596,7 +4601,7 @@ fun CameraScreen(
                                                 return@detectTapGestures
                                             }
                                             val active = camera ?: return@detectTapGestures
-                                            focusLocked = false
+                                            invalidatePendingFocusLock()
                                             manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
                                             centerAfPoint = Offset(
                                                 (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
@@ -4639,12 +4644,15 @@ fun CameraScreen(
                                                 localizedToast(context, "Chuyển AF sang Auto trước khi khóa nét.", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 manualAfOverrideUntilMs = Long.MAX_VALUE
-                                                centerAfPoint = Offset(
+                                                val lockPoint = Offset(
                                                     (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                                     (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
                                                 )
-                                                preferredFaceCenter = centerAfPoint
-                                                centerAfStatus = 1
+                                                centerAfPoint = lockPoint
+                                                preferredFaceCenter = lockPoint
+                                                centerAfStatus = 0
+                                                focusLockRequestGeneration++
+                                                val lockRequestId = focusLockRequestGeneration
                                                 val afPointSize = CameraAfAreaSize.fromPreference(
                                                     appPrefs.getString("af_area_size", "m")
                                                 ).focusPointSize
@@ -4657,9 +4665,51 @@ fun CameraScreen(
                                                     point,
                                                     FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
                                                 ).disableAutoCancel().build()
-                                                active.cameraControl.startFocusAndMetering(action)
-                                                focusLocked = true
-                                                localizedToast(context, "Đã khóa nét và phơi sáng · chạm lại để lấy nét mới.", Toast.LENGTH_SHORT).show()
+                                                val lockFuture = runCatching {
+                                                    active.cameraControl.startFocusAndMetering(action)
+                                                }.getOrElse { failure ->
+                                                    manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
+                                                    centerAfStatus = -1
+                                                    localizedToast(
+                                                        context,
+                                                        "Không thể khóa nét và phơi sáng.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                    android.util.Log.w("FUJI_AF", "AF/AE lock request failed to start.", failure)
+                                                    return@detectTapGestures
+                                                }
+                                                lockFuture.addListener({
+                                                    if (focusLockRequestGeneration != lockRequestId ||
+                                                        centerAfPoint != lockPoint ||
+                                                        manualAfOverrideUntilMs != Long.MAX_VALUE
+                                                    ) {
+                                                        return@addListener
+                                                    }
+                                                    val success = runCatching {
+                                                        lockFuture.get().isFocusSuccessful
+                                                    }.getOrDefault(false)
+                                                    focusLocked = success
+                                                    centerAfStatus = if (success) 1 else -1
+                                                    if (success) {
+                                                        localizedToast(
+                                                            context,
+                                                            "Đã khóa nét và phơi sáng · chạm lại để lấy nét mới.",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    } else {
+                                                        manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
+                                                        localizedToast(
+                                                            context,
+                                                            "Camera không xác nhận khóa nét. Hãy thử lại.",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                        scope.launch(Dispatchers.Main) {
+                                                            withFrameNanos { }
+                                                            withFrameNanos { }
+                                                            if (centerAfStatus == -1 && !focusLocked) centerAfStatus = 0
+                                                        }
+                                                    }
+                                                }, mainExecutor)
                                             }
                                         }
                                     )
@@ -4989,7 +5039,7 @@ fun CameraScreen(
                                                             if (applied) {
                                                                 manualFocus = 0f
                                                                 milkyWayInfinityFocusEnabled = true
-                                                                focusLocked = false
+                                                                invalidatePendingFocusLock()
                                                                 localizedToast(context, "Đã đặt nét vô cực theo Camera2.", Toast.LENGTH_SHORT).show()
                                                             } else {
                                                                 localizedToast(context, "Camera không chấp nhận lấy nét vô cực.", Toast.LENGTH_LONG).show()
@@ -5222,7 +5272,7 @@ fun CameraScreen(
                                                         onValueChange = { f ->
                                                             manualFocus = f * maxFocus
                                                             milkyWayInfinityFocusEnabled = false
-                                                            focusLocked = false
+                                                            invalidatePendingFocusLock()
                                                             camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
                                                         },
 
@@ -5232,7 +5282,7 @@ fun CameraScreen(
                                                     modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualFocus = 0f
                                                         milkyWayInfinityFocusEnabled = false
-                                                        focusLocked = false
+                                                        invalidatePendingFocusLock()
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     })
                                             }
@@ -5291,7 +5341,7 @@ fun CameraScreen(
                                                     manualColorTempEnabled = false
                                                     manualFocus = 0f
                                                     milkyWayInfinityFocusEnabled = false
-                                                    focusLocked = false
+                                                    invalidatePendingFocusLock()
                                                     evIndex = 0
                                                     manualCaptureRevision++
                                                     camera?.let { c ->
@@ -5314,7 +5364,7 @@ fun CameraScreen(
                                                     if (key == "AF" && manualFocus > 0f) {
                                                         manualFocus = 0f
                                                         milkyWayInfinityFocusEnabled = false
-                                                        focusLocked = false
+                                                        invalidatePendingFocusLock()
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     }
                                                     proSel = if (active) null else key
@@ -5449,7 +5499,7 @@ fun CameraScreen(
                     manualColorTempEnabled = false
                     manualFocus = 0f
                     milkyWayInfinityFocusEnabled = false
-                    focusLocked = false
+                    invalidatePendingFocusLock()
                     manualCaptureRevision++
                     camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
                 },
@@ -5562,7 +5612,7 @@ fun CameraScreen(
             FujiShutterButton(
                 enabled = !isProcessing,
                 onHalfPress = {
-                    focusLocked = false
+                    invalidatePendingFocusLock()
                     centerAfStatus = 0
                     manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
                     if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {

@@ -36,7 +36,7 @@ private object PixelOsdPalette {
 internal fun pixelBatteryCellCount(percent: Int): Int =
     if (percent !in 0..100) 0 else ((percent + 24) / 25).coerceIn(0, 4)
 
-internal fun isPixelBatteryLow(percent: Int): Boolean = percent in 0 until 20
+internal fun isPixelBatteryLow(percent: Int): Boolean = percent in 0..20
 
 internal fun pixelEvAccentColor(
     evIndex: Float,
@@ -671,15 +671,7 @@ class PixelOsdRenderer(context: Context) {
         rightSegments.forEach { (value, color, key) ->
             val textWidth = value.length * 5
             if (selected == key || (key == "FILM" && selected == "FS")) {
-                drawPixelSelectionArc(
-                    canvas,
-                    rightX - 2,
-                    18,
-                    rightX + textWidth + 1,
-                    30,
-                    PixelOsdPalette.BLUE,
-                    frame.selectedControlProgress
-                )
+                drawPixelSelectionArc(canvas, rightX - 2, 18, rightX + textWidth + 1, 30, PixelOsdPalette.BLUE)
             }
             drawPixelText(canvas, value, rightX, 28, color)
             rightX += textWidth + 3
@@ -748,18 +740,10 @@ class PixelOsdRenderer(context: Context) {
         }
     }
 
-    private fun drawPixel(
-        canvas: NativeCanvas,
-        x: Int,
-        y: Int,
-        color: Int,
-        alpha: Int = 255
-    ) {
+    private fun drawPixel(canvas: NativeCanvas, x: Int, y: Int, color: Int) {
         if (x !in 0 until logicWidth || y !in 0 until logicHeight) return
         fillPaint.color = color
-        fillPaint.alpha = alpha.coerceIn(0, 255)
         canvas.drawRect(x.toFloat(), y.toFloat(), x + 1f, y + 1f, fillPaint)
-        fillPaint.alpha = 255
     }
 
     private fun drawHLine(canvas: NativeCanvas, x1: Int, x2: Int, y: Int, color: Int, alpha: Int = 110) {
@@ -857,8 +841,7 @@ fun PixelOsdLayer(
     modifier: Modifier = Modifier,
     frame: PixelOsdFrame,
     maxRefreshHz: Int = 120,
-    performanceMode: Boolean = false,
-    reducedMotion: Boolean = false
+    performanceMode: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val renderer = remember(context.applicationContext) {
@@ -867,50 +850,30 @@ fun PixelOsdLayer(
     val faceTarget = frame.faceCenter ?: Offset(0.5f, 0.5f)
     val animatedFaceCenter by animateOffsetAsState(
         targetValue = faceTarget,
-        animationSpec = tween(durationMillis = when {
-            reducedMotion -> 0
-            performanceMode -> 80
-            else -> 120
-        }),
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "face box display interpolation"
     )
     val animatedSelectedControlProgress by animateFloatAsState(
         targetValue = frame.selectedControlProgress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = when {
-            reducedMotion -> 0
-            performanceMode -> 100
-            else -> 180
-        }),
+        animationSpec = tween(durationMillis = if (performanceMode) 100 else 180),
         label = "selected Pro control arc interpolation"
     )
     val faceSizeTarget = frame.faceSize ?: Offset.Zero
     val animatedFaceSize by animateOffsetAsState(
         targetValue = faceSizeTarget,
-        animationSpec = tween(durationMillis = when {
-            reducedMotion -> 0
-            performanceMode -> 80
-            else -> 120
-        }),
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "face box size interpolation"
     )
     val eyeTarget = frame.eyeCenter ?: Offset.Zero
     val animatedEyeCenter by animateOffsetAsState(
         targetValue = eyeTarget,
-        animationSpec = tween(durationMillis = when {
-            reducedMotion -> 0
-            performanceMode -> 80
-            else -> 120
-        }),
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "eye box display interpolation"
     )
     val afTarget = frame.centerAfPoint ?: Offset(0.5f, 0.5f)
     val animatedAfPoint by animateOffsetAsState(
         targetValue = afTarget,
-        animationSpec = tween(durationMillis = when {
-            reducedMotion -> 0
-            performanceMode -> 80
-            else -> 120
-        }),
+        animationSpec = tween(durationMillis = if (performanceMode) 80 else 120),
         label = "center AF display interpolation"
     )
     val animatedFrame = frame.copy(

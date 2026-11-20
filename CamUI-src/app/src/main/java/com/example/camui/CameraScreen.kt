@@ -5710,6 +5710,12 @@ fun CameraScreen(
                         }
                     }
                 },
+                faceTrackingMode = faceTrackingMode,
+                onFaceTrackingModeChanged = { nextMode ->
+                    if (nextMode in setOf("off", "face", "face_eye")) {
+                        faceTrackingMode = nextMode
+                    }
+                },
                 onToolbox = { showQuick = false; onOpenToolbox() },
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },

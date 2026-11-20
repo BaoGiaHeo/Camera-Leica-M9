@@ -6,7 +6,7 @@ import org.junit.Test
 
 class PixelOsdStatusTest {
     @Test
-    fun lowBatteryThresholdIncludesExactlyTwentyPercent() {
+    fun lowBatteryThresholdStartsBelowTwentyPercent() {
         assertEquals(true, isPixelBatteryLow(0))
         assertEquals(true, isPixelBatteryLow(19))
         assertEquals(false, isPixelBatteryLow(20))

@@ -3513,7 +3513,7 @@ fun applyCameraWatermark(
                 ).joinToString("  ·  ")
                 val whiteTitle = Paint(titlePaint).apply {
                     color = AndroidColor.WHITE
-                    textSize = titleSize
+                    textSize = primarySize
                     setShadowLayer(2f, 0f, 1f, AndroidColor.BLACK)
                 }
                 val whiteDetail = Paint(detailPaint).apply {
@@ -3524,7 +3524,7 @@ fun applyCameraWatermark(
                 }
                 val hasTwoRows = title.isNotBlank() && infoLine.isNotBlank()
                 val titleCenter = if (hasTwoRows) output.height - margin - overlayHeight * 0.47f else output.height - margin - overlayHeight * 0.5f
-                drawTemplateText(title, whiteTitle, margin, titleCenter, leftTextWidth, titleSize)
+                drawTemplateText(title, whiteTitle, margin, titleCenter, leftTextWidth, primarySize)
                 if (infoLine.isNotBlank()) {
                     drawTemplateText(
                         infoLine,

@@ -49,4 +49,12 @@
     <string name="face_tracking_off">OFF</string>
     <string name="face_tracking_face">FACE</string>
     <string name="face_tracking_face_eye">FACE + EYE</string>
+    <string name="zoom_controls_section">ZOOM CONTROLS</string>
+    <string name="zoom_buttons_label">Zoom buttons</string>
+    <string name="zoom_buttons_standard">STANDARD · W OUT / T IN</string>
+    <string name="zoom_buttons_swapped">SWAPPED · W IN / T OUT</string>
+    <string name="zoom_bar_position_label">Zoom bar position</string>
+    <string name="zoom_bar_position_top_center">TOP-CENTER</string>
+    <string name="zoom_bar_position_top_left">TOP-LEFT</string>
+    <string name="zoom_bar_description">The bar stays visible in Standard, Full Info and Level + Grid. In Clean mode it fades 1.5 seconds after zooming.</string>
 </resources>

@@ -203,6 +203,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 val animationPerformanceMode = manualAnimationPerformanceMode ||
                     thermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
+                val reducedMotion = remember {
+                    AnimaT.isSystemReducedMotion(this@MainActivity)
+                }
                 var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
                 var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }
                 var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
@@ -248,7 +251,10 @@ class MainActivity : AppCompatActivity() {
                     AnimatedContent(
                         targetState = page,
                         modifier = Modifier.fillMaxSize(),
-                        transitionSpec = { AnimaT.enter(animationPerformanceMode) togetherWith AnimaT.exit(animationPerformanceMode) },
+                        transitionSpec = {
+                            AnimaT.enter(animationPerformanceMode, reducedMotion) togetherWith
+                                AnimaT.exit(animationPerformanceMode, reducedMotion)
+                        },
                         label = "FujiFilm Mode page transition"
                     ) { targetPage ->
                         when (targetPage) {

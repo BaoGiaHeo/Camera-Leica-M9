@@ -5036,10 +5036,14 @@ fun CameraScreen(
                                     zoomRatio = zoomDisplayValue,
                                     zoomMinimumRatio = camera?.cameraInfo?.zoomState?.value?.minZoomRatio ?: 1f,
                                     zoomMaximumRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
-                                        Camera2Info.maxSelectableZoom(activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio)
+                                        val reportedMax = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
+                                        maxTotalSelectableZoom(
+                                            reportedMax,
+                                            Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
+                                        )
                                     } ?: 2f,
                                     zoomDigitalBoundaryRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
-                                        Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
+                                        Camera2Info.maxSelectableZoom(activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio)
                                     } ?: 2f,
                                     zoomBarPosition = zoomBarPosition,
                                     zoomBarAlpha = if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) zoomOverlayAlpha else 1f,
@@ -5700,10 +5704,13 @@ fun CameraScreen(
     val rightHardwareContent: @Composable (Modifier) -> Unit = { sideModifier ->
         val zoomStateForDial = camera?.cameraInfo?.zoomState?.value
         val dialZoomMinimum = zoomStateForDial?.minZoomRatio ?: 1f
-        val dialZoomMaximum = Camera2Info.maxSelectableZoom(
+        val dialCameraReportedMaximum = Camera2Info.cameraReportedZoomMax(
             activeCameraDetails,
-            activePhysicalCameraDetails,
             zoomStateForDial?.maxZoomRatio ?: 1f
+        )
+        val dialZoomMaximum = maxTotalSelectableZoom(
+            dialCameraReportedMaximum,
+            Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails)
         )
 
         val wZoomDirection = if (zoomButtonsSwapped) 1 else -1

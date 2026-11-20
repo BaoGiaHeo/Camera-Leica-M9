@@ -307,7 +307,8 @@ class MainActivity : AppCompatActivity() {
                                 focusPeaking = focusPeaking,
                                 onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
                                 ratioIdx = ratioIdx,
-                                onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() }
+                                onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
+                                performanceMode = animationPerformanceMode
                             )
                         }
                     }

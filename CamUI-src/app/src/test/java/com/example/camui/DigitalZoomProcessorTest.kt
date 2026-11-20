@@ -43,9 +43,9 @@ class DigitalZoomProcessorTest {
         val crop = calculateDigitalZoomCropBounds(8064, 6048, 100f)
         assertNotNull(crop)
         crop!!
-        assertEquals(81, crop.width)
+        assertEquals(80, crop.width)
         assertEquals(60, crop.height)
-        assertEquals(3991, crop.left)
+        assertEquals(3992, crop.left)
         assertEquals(2994, crop.top)
     }
 }

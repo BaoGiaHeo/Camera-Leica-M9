@@ -1514,6 +1514,7 @@ fun CameraScreen(
                 var lastFaceTrackAtMs = 0L
                 var lastFaceAfAtMs = 0L
                 var lastFaceAfTarget: Offset? = null
+                var consecutiveHardwareFacesWithoutEyes = 0
 
                 fun publishDetectedFace(
                     center: Offset,
@@ -1712,6 +1713,27 @@ fun CameraScreen(
                                     val size = bestCandidate.size
                                     val leftEye = bestFace.leftEyePosition
                                     val rightEye = bestFace.rightEyePosition
+                                    if (needsMlKitEyeLandmarkFallback(
+                                            faceTrackingModeState.value,
+                                            leftEye != null,
+                                            rightEye != null
+                                        )
+                                    ) {
+                                        consecutiveHardwareFacesWithoutEyes++
+                                        if (consecutiveHardwareFacesWithoutEyes >= 5 &&
+                                            hardwareEyeLandmarksAvailableState.value
+                                        ) {
+                                            scope.launch(Dispatchers.Main) {
+                                                hardwareEyeLandmarksAvailable = false
+                                                android.util.Log.w(
+                                                    "FUJI_FACE_TRACK",
+                                                    "Camera2 FULL returned no eye landmarks for five detected frames; switching FACE+EYE to ML Kit."
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        consecutiveHardwareFacesWithoutEyes = 0
+                                    }
                                     val eyeX = when {
                                         leftEye != null && rightEye != null -> (leftEye.x + rightEye.x) / 2f
                                         leftEye != null -> leftEye.x.toFloat()

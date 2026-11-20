@@ -26,7 +26,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.stringResource
 
 @Composable
 fun QuickPanel(
@@ -43,8 +42,6 @@ fun QuickPanel(
     onLivePhotoChanged: (Boolean) -> Unit,
     nativeImageProcessingEnabled: Boolean,
     onNativeImageProcessingChanged: (Boolean) -> Unit,
-    faceTrackingMode: String,
-    onFaceTrackingModeChanged: (String) -> Unit,
     onToolbox: () -> Unit,
     onContentManagement: () -> Unit,
     onSettings: () -> Unit,
@@ -85,38 +82,6 @@ fun QuickPanel(
                     FujiSwitch(nativeImageProcessingEnabled, onNativeImageProcessingChanged)
                 }
             } else {
-                Text(
-                    stringResource(R.string.face_tracking_section_title),
-                    color = FujiSkin.lcdGreen,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    stringResource(R.string.face_tracking_section_description),
-                    color = FujiSkin.muted,
-                    fontSize = 8.sp
-                )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FujiChip(
-                        stringResource(R.string.face_tracking_off),
-                        faceTrackingMode == "off",
-                        { onFaceTrackingModeChanged("off") },
-                        Modifier.weight(1f)
-                    )
-                    FujiChip(
-                        stringResource(R.string.face_tracking_face),
-                        faceTrackingMode == "face",
-                        { onFaceTrackingModeChanged("face") },
-                        Modifier.weight(1f)
-                    )
-                    FujiChip(
-                        stringResource(R.string.face_tracking_face_eye),
-                        faceTrackingMode == "face_eye",
-                        { onFaceTrackingModeChanged("face_eye") },
-                        Modifier.weight(1f)
-                    )
-                }
                 Text("ASPECT RATIO", color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     aspectRatios.forEachIndexed { index, _ ->

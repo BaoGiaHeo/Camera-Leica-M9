@@ -134,7 +134,13 @@ internal fun FujiMultiFrameProgressPill(
     }
     val filledSegments = floor(safePercent * segmentCount / 100f).toInt().coerceIn(0, segmentCount)
     val hasCurrentSegment = filledSegments < segmentCount && safePercent > 0
-    val stageText = stringResource(state.stage.resourceId)
+    val stageText = if (state.stage == MultiFrameStage.CAPTURE && state.targetFrames > 0) {
+        stringResource(state.stage.resourceId) + " " +
+            state.capturedFrames.coerceAtLeast(0).coerceAtMost(state.targetFrames) +
+            "/" + state.targetFrames
+    } else {
+        stringResource(state.stage.resourceId)
+    }
     val thermalLabel = when {
         state.thermalStatus >= 4 -> stringResource(R.string.mf_thermal_hot)
         state.thermalStatus in 1..3 -> stringResource(R.string.mf_thermal_warm)
@@ -143,7 +149,7 @@ internal fun FujiMultiFrameProgressPill(
     val temperatureText = if (state.batteryTemperatureC >= 0) {
         stringResource(R.string.mf_temperature_format, state.batteryTemperatureC)
     } else {
-        "--°C"
+        stringResource(R.string.mf_temperature_unavailable)
     }
 
     AnimatedVisibility(

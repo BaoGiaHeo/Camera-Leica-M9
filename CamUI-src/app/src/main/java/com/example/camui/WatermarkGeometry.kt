@@ -158,8 +158,8 @@ internal object WatermarkGeometry {
                 val outer = cardW * 0.10f
                 val cw = if (settings.storyNineSixteen) (s * 9f / 16f).roundToInt() else (cardW + outer * 2f).roundToInt()
                 val ch = if (settings.storyNineSixteen) s.roundToInt() else (cardH + outer * 2f).roundToInt()
-                val cardLeft = if (settings.storyNineSixteen) ((cw - cardW).coerceAtLeast(0) * 0.5f) else outer
-                val cardTop = if (settings.storyNineSixteen) ((ch - cardH).coerceAtLeast(0) * 0.5f) else outer
+                val cardLeft = if (settings.storyNineSixteen) ((cw.toFloat() - cardW).coerceAtLeast(0f) * 0.5f) else outer
+                val cardTop = if (settings.storyNineSixteen) ((ch.toFloat() - cardH).coerceAtLeast(0f) * 0.5f) else outer
                 val card = WatermarkRect(cardLeft, cardTop, cardLeft + cardW, cardTop + cardH)
                 val photo = WatermarkRect(card.left + pad, card.top + pad, card.left + pad + sourceWidth, card.top + pad + sourceHeight)
                 val meta = WatermarkRect(photo.left, photo.bottom, photo.right, photo.bottom + band)

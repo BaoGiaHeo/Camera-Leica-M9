@@ -27,11 +27,40 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class WatermarkStudioContactSheetTest {
+    private val watermarkPreferenceKeys = setOf(
+        "watermark_enabled",
+        "watermark_template",
+        "watermark_style",
+        "watermark_logo_size",
+        "watermark_brand",
+        "watermark_show_time",
+        "watermark_show_specs",
+        "watermark_show_location",
+        "watermark_show_camera_name",
+        "watermark_show_lens",
+        "watermark_show_focal",
+        "watermark_show_aperture",
+        "watermark_show_shutter",
+        "watermark_show_iso",
+        "watermark_show_ev",
+        "watermark_show_filter",
+        "watermark_show_night",
+        "watermark_show_copyright",
+        "watermark_show_megapixels",
+        "watermark_custom_location",
+        "watermark_custom_model",
+        "watermark_custom_copyright",
+        "selected_filter",
+        "lunadream_mode",
+        "nightshot_mode"
+    )
+
     @Test
     fun rendersAllTwelveLayoutsAndExportsContactSheet() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val resolver = context.contentResolver
         val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        val originalPreferences = snapshotPreferences(prefs, watermarkPreferenceKeys)
         val outputDirectory = File(
             context.getExternalFilesDir(null) ?: context.cacheDir,
             "watermark-layout-golden"
@@ -186,7 +215,33 @@ class WatermarkStudioContactSheetTest {
             renderedBitmaps.forEach { (_, bitmap) -> if (!bitmap.isRecycled) bitmap.recycle() }
             renderedUris.forEach { uri -> runCatching { resolver.delete(uri, null, null) } }
             runCatching { resolver.delete(sourceUri, null, null) }
+            restorePreferences(prefs, originalPreferences)
         }
+    }
+
+    private fun snapshotPreferences(
+        preferences: android.content.SharedPreferences,
+        keys: Set<String>
+    ): Map<String, Any?> = keys.associateWith { key -> preferences.all[key] }
+
+    private fun restorePreferences(
+        preferences: android.content.SharedPreferences,
+        snapshot: Map<String, Any?>
+    ) {
+        val editor = preferences.edit()
+        snapshot.forEach { (key, value) ->
+            when (value) {
+                null -> editor.remove(key)
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Float -> editor.putFloat(key, value)
+                is String -> editor.putString(key, value)
+                is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                else -> editor.remove(key)
+            }
+        }
+        check(editor.commit()) { "Could not restore watermark preferences after instrumentation test" }
     }
 
     private fun createJpegRow(context: Context, suffix: String): Uri {

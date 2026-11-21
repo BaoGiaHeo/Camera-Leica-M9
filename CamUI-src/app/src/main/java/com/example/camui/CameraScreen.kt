@@ -5276,109 +5276,60 @@ fun CameraScreen(
                                                 }
                                             }, mainExecutor)
                                         },
-                                        onLongPress = { offset ->
+                                        onDoubleTap = {
                                             val active = camera ?: return@detectTapGestures
-                                            if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
-                                                return@detectTapGestures
-                                            } else {
-                                                manualAfOverrideUntilMs = Long.MAX_VALUE
-                                                applyCameraAeLock(active, locked = false)
-                                                android.util.Log.d(
-                                                    "FUJI_AF_OSD",
-                                                    "manualLockOverride=true faceBoxPresent=${faceTrackCenter != null}"
+                                            invalidatePendingFocusLock(active)
+                                            runCatching { active.cameraControl.cancelFocusAndMetering() }
+                                            val aeUnlocked = applyCameraAeLock(active, locked = false)
+                                            val center = Offset(0.5f, 0.5f)
+                                            centerAfPoint = center
+                                            preferredFaceCenter = digitalPreviewPointToCamera(center, digitalZoomCropScale)
+                                            centerAfStatus = 0
+                                            focusLocked = false
+                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
+                                            applyAutoFocus(active)
+                                            val previewWidth = previewView.width
+                                            val previewHeight = previewView.height
+                                            val cameraInfo = runCatching {
+                                                Camera2CameraInfo.from(active.cameraInfo)
+                                            }.getOrNull()
+                                            val maxAfRegions = cameraInfo?.getCameraCharacteristic(
+                                                CameraCharacteristics.CONTROL_MAX_REGIONS_AF
+                                            ) ?: 0
+                                            if (previewWidth > 0 && previewHeight > 0 && maxAfRegions > 0) {
+                                                val point = previewView.meteringPointFactory.createPoint(
+                                                    previewWidth * 0.5f,
+                                                    previewHeight * 0.5f,
+                                                    CameraAfAreaSize.fromPreference(
+                                                        appPrefs.getString("af_area_size", "m")
+                                                    ).focusPointSize
                                                 )
-                                                val lockPoint = Offset(
-                                                    (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                                                    (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                                                )
-                                                centerAfPoint = lockPoint
-                                                preferredFaceCenter = digitalPreviewPointToCamera(lockPoint, digitalZoomCropScale)
-                                                centerAfStatus = 0
-                                                focusLocked = false
-                                                focusLockRequestGeneration++
-                                                val lockRequestId = focusLockRequestGeneration
-                                                val afPointSize = CameraAfAreaSize.fromPreference(
-                                                    appPrefs.getString("af_area_size", "m")
-                                                ).focusPointSize
-                                                val cameraLockPoint = digitalPreviewPointToCamera(lockPoint, digitalZoomCropScale)
-                                                 val point = previewView.meteringPointFactory.createPoint(
-                                                     cameraLockPoint.x * previewView.width,
-                                                     cameraLockPoint.y * previewView.height,
-                                                     afPointSize
-                                                 )
-                                                 android.util.Log.d(
-                                                     "FUJI_AF_TRACE",
-                                                     "lockDisplay=${lockPoint.x},${lockPoint.y} " +
-                                                         "cameraNormalized=${cameraLockPoint.x},${cameraLockPoint.y} " +
-                                                         "digitalCrop=$digitalZoomCropScale"
-                                                 )
-                                                 val action = FocusMeteringAction.Builder(
+                                                val action = FocusMeteringAction.Builder(
                                                     point,
-                                                    FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                                                    FocusMeteringAction.FLAG_AF
                                                 ).disableAutoCancel().build()
-                                                val lockFuture = runCatching {
+                                                val future = runCatching {
                                                     active.cameraControl.startFocusAndMetering(action)
-                                                }.getOrElse { failure ->
-                                                    applyCameraAeLock(active, locked = false)
-                                                    manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
-                                                    focusLocked = false
-                                                    centerAfStatus = -1
-                                                    android.util.Log.w("FUJI_AF", "AF/AE lock request failed to start.", failure)
-                                                    scope.launch(Dispatchers.Main) {
-                                                        withFrameNanos { }
-                                                        withFrameNanos { }
-                                                        if (focusLockRequestGeneration == lockRequestId &&
-                                                            centerAfStatus == -1 && !focusLocked
-                                                        ) {
-                                                            centerAfStatus = 0
-                                                        }
-                                                    }
-                                                    return@detectTapGestures
-                                                }
-                                                lockFuture.addListener({
-                                                    if (!shouldAcceptFocusRequestResult(
-                                                            requestGeneration = lockRequestId,
-                                                            currentGeneration = focusLockRequestGeneration,
-                                                            requestedCenter = lockPoint,
-                                                            currentCenter = centerAfPoint,
-                                                            sameCamera = camera === active,
-                                                            requestStillActive = manualAfOverrideUntilMs == Long.MAX_VALUE
-                                                        )
-                                                    ) {
-                                                        return@addListener
-                                                    }
-                                                    val focusSuccess = runCatching {
-                                                        lockFuture.get().isFocusSuccessful
-                                                    }.getOrDefault(false)
-                                                    val aeLockApplied = if (focusSuccess) {
-                                                        applyCameraAeLock(active, locked = true)
-                                                    } else {
-                                                        applyCameraAeLock(active, locked = false)
-                                                        false
-                                                    }
-                                                    val success = focusSuccess && aeLockApplied
-                                                    focusLocked = success
-                                                    centerAfStatus = if (success) 1 else -1
-                                                    if (success) {
-                                                        android.util.Log.i("FUJI_AF", "AF/AE lock accepted; CONTROL_AE_LOCK=true")
-                                                    } else {
-                                                        manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
-                                                        android.util.Log.w(
+                                                }.getOrNull()
+                                                future?.addListener({
+                                                    val success = runCatching { future.get().isFocusSuccessful }.getOrDefault(false)
+                                                    if (camera === active && !focusLocked) {
+                                                        centerAfStatus = if (success) 1 else -1
+                                                        android.util.Log.i(
                                                             "FUJI_AF",
-                                                            "AF/AE lock not confirmed focusSuccess=$focusSuccess aeLockApplied=$aeLockApplied"
+                                                            "DOUBLE_TAP_CENTRE_AF success=$success unlocked=true"
                                                         )
-                                                        scope.launch(Dispatchers.Main) {
-                                                            withFrameNanos { }
-                                                            withFrameNanos { }
-                                                            if (focusLockRequestGeneration == lockRequestId &&
-                                                                centerAfStatus == -1 && !focusLocked
-                                                            ) {
-                                                                centerAfStatus = 0
-                                                            }
-                                                        }
                                                     }
                                                 }, mainExecutor)
+                                            } else {
+                                                triggerCamera2AfOnce(active)
                                             }
+                                            android.util.Log.i(
+                                                "FUJI_AF",
+                                                "DOUBLE_TAP_RESET center=0.5,0.5 unlocked=true " +
+                                                    "aeUnlockApplied=$aeUnlocked preview=\${previewWidth}x\${previewHeight} " +
+                                                    "maxRegionsAF=$maxAfRegions"
+                                            )
                                         }
                                     )
                                 }

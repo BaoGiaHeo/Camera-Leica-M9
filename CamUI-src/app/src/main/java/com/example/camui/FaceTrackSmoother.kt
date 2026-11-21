@@ -9,12 +9,19 @@ internal data class FaceTrackSnapshot(
     val trackingId: Int? = null
 )
 
-/** Camera2 FULL can be advertised without returning eye coordinates on every device. */
-internal fun needsMlKitEyeLandmarkFallback(
+/**
+ * Face-only tracking can use Camera2 FULL/SIMPLE. FACE+EYE requires per-eye contour
+ * geometry for the 25%-larger/500ms rule; Camera2 Face exposes eye points but not
+ * eye contours, so that mode must use the 640x480 ML Kit contour path.
+ */
+internal fun shouldUseMlKitFaceDetection(
     trackingMode: String,
-    leftEyeAvailable: Boolean,
-    rightEyeAvailable: Boolean
-): Boolean = trackingMode == "face_eye" && !leftEyeAvailable && !rightEyeAvailable
+    camera2FaceDetectionAvailable: Boolean
+): Boolean = when (trackingMode) {
+    "face_eye" -> true
+    "face" -> !camera2FaceDetectionAvailable
+    else -> false
+}
 
 internal data class FaceTrackCandidate<T>(
     val value: T,

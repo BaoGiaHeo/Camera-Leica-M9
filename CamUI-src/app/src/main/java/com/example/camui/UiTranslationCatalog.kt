@@ -414,6 +414,37 @@ internal object UiTranslationCatalog {
             "A tripod is recommended; true 1–8 second exposures require Manual Sensor support.",
         "NO SIGNAL\nCần cấp quyền Camera (chạm để cấp)" to "NO SIGNAL\nCamera permission required (tap to grant)",
         "Dùng nút màu" to "Use color button",
+        "Chưa có ảnh trong Pictures/FujifilmMode." to "No photos in Pictures/FujifilmMode.",
+        "EV không được hỗ trợ" to "EV is not supported",
+        "AF tự động" to "Automatic AF",
+        "Tông màu tự động" to "Automatic color temperature",
+        "Camera/API này không hỗ trợ chụp JPEG Ultra HDR." to "This camera/API does not support Ultra HDR JPEG capture.",
+        "ĐANG GHI STAR TRAILS" to "STAR TRAILS RECORDING",
+        "Giữ máy cố định · nhấn nút chụp lần nữa để dừng sau khung hiện tại" to
+            "Keep the phone steady · press the shutter again to stop after the current frame",
+        "Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm." to
+            "These tools directly control viewfinder overlays.",
+        "Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn." to
+            "Best uses the highest JPEG quality setting; actual resolution depends on the resolution provided by Camera2/CameraX for the selected camera.",
+        "Ảnh được lưu vào Pictures/FujifilmMode." to "Photos are saved to Pictures/FujifilmMode.",
+        "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to
+            "Change the shutter button color or use a PNG/JPG image as its face.",
+        "Đã chọn ảnh cho nút chụp." to "Image selected for the shutter button.",
+        "Thời lượng thu khung" to "Frame capture duration",
+        "Thời gian mỗi khung" to "Time per frame",
+        "Người làm App: Baoaka06" to "App creator: Baoaka06",
+        "Đang đọc CameraCharacteristics…" to "Reading CameraCharacteristics…",
+        "Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShotMode, RAW và cấu hình LunaDream." to
+            "Quickly save and restore aspect ratio, zoom, EV, filters, HDR, NightShotMode, RAW and LunaDream settings.",
+        "Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp." to
+            "This adjustment is applied consistently in the filter preview and the captured JPEG.",
+        "Xóa LUT?" to "Delete LUT?",
+        "Đang tải thư viện ảnh…" to "Loading photo library…",
+        "Đang tải ảnh…" to "Loading photo…",
+        "Đang đọc metadata ảnh…" to "Reading photo metadata…",
+        "Sao lưu & Khôi phục" to "Backup & Restore",
+        "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to
+            "LunaDream 2.0 did not finish; the 1.5 fallback algorithm was used. Reason:",
         "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật." to
             "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization, AI and enabled options."
     )

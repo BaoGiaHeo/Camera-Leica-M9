@@ -38,7 +38,8 @@ class LanguageImmediateUpdateTest {
         try {
             scenario.onActivity { originalActivity.set(it) }
 
-            val quickMenuEntry = device.wait(Until.findObject(By.text("Q")), 10_000L)
+            val quickMenuEntry = device.wait(Until.findObject(By.desc("Quick settings")), 10_000L)
+                ?: device.wait(Until.findObject(By.text("Q")), 2_000L)
             assertNotNull("Camera quick menu must be visible", quickMenuEntry)
             quickMenuEntry!!.click()
 

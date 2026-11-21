@@ -112,6 +112,102 @@ class PixelOsdGoldenRenderingTest {
         }
     }
 
+    @Test
+    fun kk7GlyphHeightIsIndependentOfFineMediumAndChunkyPixelGrids() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val outputDirectory = File(
+            context.getExternalFilesDir(null) ?: context.cacheDir,
+            "pixel-osd-golden"
+        ).apply { mkdirs() }
+        val sizes = listOf(
+            LcdSize(width = 640, height = 360),
+            LcdSize(width = 1280, height = 720)
+        )
+        val modes = listOf("fine", "medium", "chunky")
+
+        sizes.forEach { lcd ->
+            val glyphHeights = mutableListOf<Int>()
+            modes.forEach { mode ->
+                val renderer = PixelOsdRenderer(context)
+                val frame = PixelOsdFrame(
+                    showGrid = false,
+                    showPixelTexture = false,
+                    centerAfPoint = null,
+                    focusLocked = true,
+                    showStatus = true,
+                    batteryPercent = 74,
+                    showEvScale = false,
+                    showHistogram = false,
+                    isPro = false,
+                    showZoomBar = true,
+                    zoomRatio = 2f,
+                    zoomMinimumRatio = 0.6f,
+                    zoomMaximumRatio = 10f,
+                    zoomOpticalBoundaryRatio = 3f,
+                    zoomDigitalBoundaryRatio = 8f,
+                    pixelScaleMode = mode
+                )
+                renderer.render(lcd.width, lcd.height, frame)
+                val textLayer = renderer.textLayerSnapshotForTesting()
+                requireNotNull(textLayer) { "Native text plane missing for $mode at ${lcd.width}x${lcd.height}" }
+                try {
+                    assertEquals(lcd.width, textLayer.width)
+                    assertEquals(lcd.height, textLayer.height)
+                    val bounds = alphaBounds(textLayer)
+                    assertTrue("KK7 text plane is empty for $mode", bounds != null)
+                    val glyphHeight = bounds!!.bottom - bounds.top + 1
+                    assertTrue("KK7 glyphs too small for $mode: height=$glyphHeight", glyphHeight >= 7)
+                    assertTrue("KK7 glyphs too large for $mode: height=$glyphHeight", glyphHeight <= 24)
+                    glyphHeights += glyphHeight
+
+                    val file = File(
+                        outputDirectory,
+                        "pixel-osd-text-$mode-${lcd.width}x${lcd.height}.png"
+                    )
+                    file.outputStream().use { output ->
+                        assertTrue(
+                            "Text-plane PNG capture failed: ${file.name}",
+                            textLayer.compress(Bitmap.CompressFormat.PNG, 100, output)
+                        )
+                    }
+                    assertTrue("Text-plane PNG is empty: ${file.name}", file.length() > 300L)
+                } finally {
+                    textLayer.recycle()
+                }
+            }
+            val heightSpread = (glyphHeights.maxOrNull() ?: 0) - (glyphHeights.minOrNull() ?: 0)
+            assertTrue(
+                "KK7 glyph height changes with PIXEL mode at ${lcd.width}x${lcd.height}: $glyphHeights",
+                heightSpread <= 1
+            )
+        }
+    }
+
+    private data class PixelBounds(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int
+    )
+
+    private fun alphaBounds(bitmap: Bitmap): PixelBounds? {
+        var left = bitmap.width
+        var top = bitmap.height
+        var right = -1
+        var bottom = -1
+        for (y in 0 until bitmap.height) {
+            for (x in 0 until bitmap.width) {
+                if ((bitmap.getPixel(x, y) ushr 24) != 0) {
+                    left = minOf(left, x)
+                    top = minOf(top, y)
+                    right = maxOf(right, x)
+                    bottom = maxOf(bottom, y)
+                }
+            }
+        }
+        return if (right >= left && bottom >= top) PixelBounds(left, top, right, bottom) else null
+    }
+
     private fun render(
         context: Context,
         width: Int,

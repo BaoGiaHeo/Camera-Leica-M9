@@ -1,6 +1,7 @@
 package com.example.camui
 
 import kotlin.math.ceil
+import kotlin.math.round
 import kotlin.math.roundToInt
 
 internal enum class PixelOsdElementKind { TEXT, ICON, RULE }
@@ -106,7 +107,7 @@ internal object PixelOsdLayoutEngine {
     ): PixelOsdLayoutPlan {
         require(widthPx > 0 && heightPx > 0)
         val scale = pixelScale.coerceIn(2, 4)
-        val unit = (heightPx / 48f).roundToInt().coerceIn(15, 28)
+        val unit = round(heightPx / 48f).toInt().coerceIn(15, 28)
         val t1 = (unit * 1.2f).roundToInt().coerceAtLeast(1)
         val t2 = (unit * 0.95f).roundToInt().coerceAtLeast(1)
         val t3 = (unit * 0.8f).roundToInt().coerceAtLeast(1)

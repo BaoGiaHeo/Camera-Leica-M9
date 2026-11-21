@@ -258,12 +258,6 @@ internal object UiTranslationCatalog {
         Prefix("Không thể đặt khoảng nét ", "Could not set focus position "),
         Prefix("Import LUT thất bại: ", "LUT import failed: "),
         Prefix("Đã nhập ", "Imported "),
-        Prefix("Đã lưu Camera Preset ", "Saved Camera Preset "),
-        Prefix("Preset ", "Preset "),
-        Prefix("Đã nạp Camera Preset ", "Loaded Camera Preset "),
-        Prefix("Đã lưu Film Recipe ", "Saved Film Recipe "),
-        Prefix("Film Recipe ", "Film Recipe "),
-        Prefix("Đã nạp Film Recipe ", "Loaded Film Recipe "),
         Prefix("NIGHTSHOT · BẬT · ", "NIGHTSHOT · ON · "),
         Prefix("NIGHTSHOT · TẮT", "NIGHTSHOT · OFF")
     )
@@ -275,7 +269,12 @@ internal object UiTranslationCatalog {
 
     fun toEnglish(value: String): String? {
         vietnameseToEnglish[value]?.let { return it }
-        translatePrefix(value, vietnamesePrefixes)?.let { return it }
+        Regex("^Đã nhập (.+) LUT\\. Vào Content Manager để Add LUT vào bộ lọc\\.$").matchEntire(value)?.let {
+            return "Imported ${it.groupValues[1]} LUT. Open Content Manager to add the LUT to filters."
+        }
+        Regex("^Đã nhập (.+) LUT\\. Chọn Add để bật từng bộ lọc\\.$").matchEntire(value)?.let {
+            return "Imported ${it.groupValues[1]} LUT. Select Add to enable each filter."
+        }
         Regex("^(\\d+) bộ lọc$").matchEntire(value)?.let {
             return it.groupValues[1] + " filters"
         }
@@ -310,6 +309,24 @@ internal object UiTranslationCatalog {
         translatePrefix(value, reversePrefixes)?.let { return it }
         Regex("^(\\d+) filters$").matchEntire(value)?.let {
             return it.groupValues[1] + " bộ lọc"
+        }
+        Regex("^Loaded Camera Preset (\\d+) · capture settings restored\\.$").matchEntire(value)?.let {
+            return "Đã nạp Camera Preset ${it.groupValues[1]} · cấu hình chụp đã khôi phục"
+        }
+        Regex("^Saved Camera Preset (\\d+)$").matchEntire(value)?.let {
+            return "Đã lưu Camera Preset ${it.groupValues[1]}"
+        }
+        Regex("^Preset (\\d+) has not been saved\\.$").matchEntire(value)?.let {
+            return "Preset ${it.groupValues[1]} chưa được lưu"
+        }
+        Regex("^Saved Film Recipe (\\d+)$").matchEntire(value)?.let {
+            return "Đã lưu Film Recipe ${it.groupValues[1]}"
+        }
+        Regex("^Film Recipe (\\d+) has not been saved\\.$").matchEntire(value)?.let {
+            return "Film Recipe ${it.groupValues[1]} chưa được lưu"
+        }
+        Regex("^Loaded Film Recipe (\\d+)$").matchEntire(value)?.let {
+            return "Đã nạp Film Recipe ${it.groupValues[1]}"
         }
         Regex("^(\\d+) more keys\\.$").matchEntire(value)?.let {
             return "Còn " + it.groupValues[1] + " key khác."

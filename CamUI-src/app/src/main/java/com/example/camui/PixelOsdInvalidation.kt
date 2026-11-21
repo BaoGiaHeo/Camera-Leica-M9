@@ -142,8 +142,6 @@ internal fun pixelOsdDirtyRegions(
         previous.evMinimumIndex != current.evMinimumIndex ||
         previous.evMaximumIndex != current.evMaximumIndex ||
         previous.evStepStops != current.evStepStops ||
-        previous.evValueText != current.evValueText ||
-        previous.showEvOverlay != current.showEvOverlay
     ) {
         add(0, 18, 38, height - 16)
         add(width / 2 - 48, 0, width / 2 + 48, 30)
@@ -187,11 +185,5 @@ internal fun pixelOsdDirtyRegions(
     ) {
         add(0, 0, width, 24)
     }
-    if (previous.showEvOverlay != current.showEvOverlay ||
-        previous.evOverlayAlpha != current.evOverlayAlpha
-    ) {
-        add(width / 2 - 60, 12, width / 2 + 60, 32)
-    }
-
     return dirty.distinct()
 }

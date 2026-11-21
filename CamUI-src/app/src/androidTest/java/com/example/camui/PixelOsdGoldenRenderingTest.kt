@@ -69,7 +69,8 @@ class PixelOsdGoldenRenderingTest {
                     zoomRatio = 2f,
                     zoomMinimumRatio = 0.6f,
                     zoomMaximumRatio = 10f,
-                    zoomDigitalBoundaryRatio = 2f,
+                    zoomOpticalBoundaryRatio = 3f,
+                    zoomDigitalBoundaryRatio = 8f,
                     pixelScaleMode = mode
                 )
 

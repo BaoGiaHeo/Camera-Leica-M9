@@ -3950,6 +3950,7 @@ fun applyCameraWatermark(
             val modelLeft = logoColumnLeft + logoColumnWidth + footerWidth * 0.025f
             val modelWidth = (dividerX - modelLeft - footerWidth * 0.035f).coerceAtLeast(1f)
             val modelText = modelLine
+            val leftTitle = if (showModel) modelText.ifBlank { brandTitle } else ""
             val leftSecondary = when {
                 lensModel.isNullOrBlank() && locationLine.isBlank() -> ""
                 template == "fuji_signature" && locationLine.isNotBlank() -> locationLine

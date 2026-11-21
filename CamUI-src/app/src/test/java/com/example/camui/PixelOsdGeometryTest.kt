@@ -37,6 +37,39 @@ class PixelOsdGeometryTest {
     }
 
     @Test
+    fun middleLeftZoomBarIsVerticalCenteredAndPlacesTeleAboveWide() {
+        val frame = PixelOsdFrame(
+            showZoomBar = true,
+            zoomBarPosition = "middle_left",
+            zoomRatio = 2f,
+            zoomMinimumRatio = 0.6f,
+            zoomMaximumRatio = 10f
+        )
+        val plan = PixelOsdLayoutEngine.create(
+            frame = frame,
+            widthPx = 2400,
+            heightPx = 1080,
+            pixelScale = 2,
+            measureTextWidthPx = { text, capHeight -> text.length * capHeight * 0.55f }
+        )
+        val track = requireNotNull(plan.zoomTrackBounds)
+        val tele = requireNotNull(plan.elements.firstOrNull { it.id == "zoom-t" })
+        val wide = requireNotNull(plan.elements.firstOrNull { it.id == "zoom-w" })
+
+        assertEquals(1080f * 0.30f, track.height, 0.01f)
+        assertEquals(1080f * 0.35f, track.top, 0.01f)
+        assertEquals(1080f * 0.65f, track.bottom, 0.01f)
+        assertTrue("T must appear above the vertical track", tele.bounds.bottom <= track.top)
+        assertTrue("W must appear below the vertical track", wide.bounds.top >= track.bottom)
+        assertEquals(
+            "Zoom bar should be placed two LCD units to the right of the EV scale",
+            plan.evLineX + plan.unitPx * 2f,
+            track.left,
+            0.01f
+        )
+    }
+
+    @Test
     fun manualTouchOverrideKeepsAfReticleVisibleOverFaceBox() {
         assertTrue(shouldDrawCenterAfReticle(
             centerAfPointAvailable = true,

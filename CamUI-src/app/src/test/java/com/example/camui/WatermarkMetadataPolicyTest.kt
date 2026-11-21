@@ -39,7 +39,6 @@ class WatermarkMetadataPolicyTest {
             )
         )
     }
-}
 
     @Test
     fun dataCardAndExposureDialRespectTheGlobalExifAndIndividualSwitches() {

@@ -147,7 +147,8 @@ fun SettingsScreen(
                     selectedCategory = "Sao lưu & Khôi phục"
                 },
                 onOpenToolbox = onOpenToolbox,
-                onOpenContentsManagement = onOpenContentsManagement
+                onOpenContentsManagement = onOpenContentsManagement,
+                onReplayActivation = onReplayActivation
             )
         }
     }
@@ -169,7 +170,8 @@ private fun SettingsDetailPage(
     modifier: Modifier = Modifier,
     onOpenBackup: () -> Unit = {},
     onOpenToolbox: () -> Unit = {},
-    onOpenContentsManagement: () -> Unit = {}
+    onOpenContentsManagement: () -> Unit = {},
+    onReplayActivation: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE

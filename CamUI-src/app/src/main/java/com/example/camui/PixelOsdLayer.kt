@@ -929,27 +929,24 @@ class PixelOsdRenderer(context: Context) {
         val destinationWidth = (widthPx / pixelScale).roundToInt().coerceAtLeast(1)
         val left = (leftPx / pixelScale).roundToInt()
         val top = (topPx / pixelScale).roundToInt()
-        rows.forEachIndexed { rowIndex, row ->
-            val sourceY = (rowIndex * rows.size / destinationHeight).coerceIn(0, rows.lastIndex)
-            for (destinationY in 0 until destinationHeight) {
-                val y = top + destinationY
-                if (y !in 0 until logicHeight) continue
-                val sy = (destinationY * rows.size / destinationHeight).coerceIn(0, rows.lastIndex)
-                for (destinationX in 0 until destinationWidth) {
-                    val x = left + destinationX
-                    if (x !in 0 until logicWidth) continue
-                    val sx = (destinationX * row.length / destinationWidth).coerceIn(0, row.lastIndex)
-                    val pixel = rows[sy][sx]
-                    val color = when (pixel) {
-                        'W' -> monochromeColor
-                        'G' -> PixelOsdPalette.GREEN
-                        'R' -> PixelOsdPalette.RED
-                        'A' -> PixelOsdPalette.AMBER
-                        'B' -> PixelOsdPalette.BLUE
-                        else -> null
-                    }
-                    if (color != null) drawPixel(canvas, x, y, color)
+        for (destinationY in 0 until destinationHeight) {
+            val y = top + destinationY
+            if (y !in 0 until logicHeight) continue
+            val sourceY = (destinationY * rows.size / destinationHeight).coerceIn(0, rows.lastIndex)
+            val sourceRow = rows[sourceY]
+            for (destinationX in 0 until destinationWidth) {
+                val x = left + destinationX
+                if (x !in 0 until logicWidth) continue
+                val sourceX = (destinationX * sourceRow.length / destinationWidth).coerceIn(0, sourceRow.lastIndex)
+                val color = when (sourceRow[sourceX]) {
+                    'W' -> monochromeColor
+                    'G' -> PixelOsdPalette.GREEN
+                    'R' -> PixelOsdPalette.RED
+                    'A' -> PixelOsdPalette.AMBER
+                    'B' -> PixelOsdPalette.BLUE
+                    else -> null
                 }
+                if (color != null) drawPixel(canvas, x, y, color)
             }
         }
     }

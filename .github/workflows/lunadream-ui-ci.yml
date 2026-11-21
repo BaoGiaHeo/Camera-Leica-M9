@@ -63,9 +63,24 @@ jobs:
           disable-linux-hw-accel: true
           disable-animations: true
           emulator-boot-timeout: 900
-          script: gradle -p CamUI-src :app:connectedDeveloperAndroidTest --stacktrace
+          script: |
+            set +e
+            gradle -p CamUI-src :app:connectedDeveloperAndroidTest --stacktrace
+            test_status=$?
+            mkdir -p pixel-osd-golden
+            adb pull /sdcard/Android/data/com.fujifilm.mode.developer/files/pixel-osd-golden pixel-osd-golden/ || true
+            exit "$test_status"
         env:
           ANDROID_I_WANT_MY_TCG: 'yes'
+
+      - name: Upload Pixel OSD golden captures
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-2.5.0-Pixel-OSD-golden-captures
+          path: pixel-osd-golden/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Developer test APK
         if: success()
@@ -87,6 +102,7 @@ jobs:
             CamUI-src/app/src/androidTest/java/com/example/camui/FujiTypographyGlyphCoverageTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/DigitalZoomPreviewEffectTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkTypographyAssetTest.kt \
+            CamUI-src/app/src/androidTest/java/com/example/camui/PixelOsdGoldenRenderingTest.kt \
             CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-NOTICE.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-OFL.txt \

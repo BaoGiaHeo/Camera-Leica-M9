@@ -237,7 +237,7 @@ class WatermarkStudioContactSheetTest {
                 is Long -> editor.putLong(key, value)
                 is Float -> editor.putFloat(key, value)
                 is String -> editor.putString(key, value)
-                is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toMutableSet())
                 else -> editor.remove(key)
             }
         }

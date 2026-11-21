@@ -239,6 +239,8 @@ internal object UiTranslationCatalog {
             "Chụp đêm và Star Trails dùng các pipeline xử lý riêng.",
         "ISO Auto" to "ISO tự động",
         "Shutter Auto" to "Màn trập tự động",
+        "Original photo before LunaDream" to "Ảnh gốc trước LunaDream",
+        "Photo after LunaDream" to "Ảnh sau LunaDream",
         "LUT MANAGER" to "QUẢN LÝ LUT",
         "Color Temperature" to "Nhiệt độ màu",
         "Color Tone" to "Tông màu",
@@ -726,6 +728,7 @@ internal object UiTranslationCatalog {
         Prefix("Không thể đặt khoảng nét ", "Could not set focus position "),
         Prefix("Import LUT thất bại: ", "LUT import failed: "),
         Prefix("Lỗi chụp ảnh: ", "Capture error: "),
+        Prefix("LunaDream dự phòng · ", "LunaDream fallback · "),
         Prefix("Live Photo không khởi động được: ", "Live Photo could not start: "),
         Prefix("Đã nhập ", "Imported "),
         Prefix("NIGHTSHOT · BẬT · ", "NIGHTSHOT · ON · "),
@@ -916,6 +919,17 @@ internal object UiTranslationCatalog {
         Regex("^Live Photo không khởi động được: (.*)$").matchEntire(value)?.let {
             return "Live Photo could not start: ${it.groupValues[1]}"
         }
+        Regex("^LunaDream 1\\.5 dự phòng · (\\d+)%$").matchEntire(value)?.let {
+            return "LunaDream 1.5 fallback · ${it.groupValues[1]}%"
+        }
+        Regex("^Ảnh nguồn trong khi kết xuất (.+)$").matchEntire(value)?.let {
+            return "Preview source while rendering ${it.groupValues[1]}"
+        }
+        Regex("^Xem trước (.+)$").matchEntire(value)?.let {
+            return "${it.groupValues[1]} preview"
+        }
+        Regex("^Ảnh gốc trước LunaDream$").matchEntire(value)?.let { return "Original photo before LunaDream" }
+        Regex("^Ảnh sau LunaDream$").matchEntire(value)?.let { return "Photo after LunaDream" }
         translatePrefix(value, vietnamesePrefixes)?.let { return it }
         return null
     }
@@ -1099,6 +1113,25 @@ internal object UiTranslationCatalog {
         }
         Regex("^(\\d+) more keys\\.$").matchEntire(value)?.let {
             return "Còn " + it.groupValues[1] + " key khác."
+        }
+        Regex("^LunaDream 1\\.5 fallback · (\\d+)%$").matchEntire(value)?.let {
+            return "LunaDream 1.5 dự phòng · ${it.groupValues[1]}%"
+        }
+        Regex("^LunaDream fallback · (.*)$").matchEntire(value)?.let {
+            val reason = toVietnamese(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream dự phòng · $reason"
+        }
+        Regex("^Preview source while rendering (.+)$").matchEntire(value)?.let {
+            return "Ảnh nguồn trong khi kết xuất ${it.groupValues[1]}"
+        }
+        Regex("^(.+) preview$").matchEntire(value)?.let {
+            return "Xem trước ${it.groupValues[1]}"
+        }
+        Regex("^Original photo before LunaDream$").matchEntire(value)?.let {
+            return "Ảnh gốc trước LunaDream"
+        }
+        Regex("^Photo after LunaDream$").matchEntire(value)?.let {
+            return "Ảnh sau LunaDream"
         }
         return null
     }

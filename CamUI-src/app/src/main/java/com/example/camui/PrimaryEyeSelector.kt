@@ -65,12 +65,13 @@ internal class PrimaryEyeSelector(
             lastSwitchAtMs = nowMs
         }
 
-        val selected = pointFor(selectedSide, leftEye, rightEye)
-        val alternateSide = opposite(selectedSide!!)
+        val activeSide = selectedSide ?: return null
+        val selected = pointFor(activeSide, leftEye, rightEye)
+        val alternateSide = opposite(activeSide)
         val alternate = pointFor(alternateSide, leftEye, rightEye)
         if (selected != null) {
             missingSelectedFrames = 0
-            val selectedArea = areaFor(selectedSide, leftEyeArea, rightEyeArea)
+            val selectedArea = areaFor(activeSide, leftEyeArea, rightEyeArea)
             val alternateArea = areaFor(alternateSide, leftEyeArea, rightEyeArea)
             val alternateIsSignificantlyLarger =
                 selectedArea != null && alternateArea != null &&

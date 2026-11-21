@@ -5026,12 +5026,40 @@ fun CameraScreen(
                                                 return@detectTapGestures
                                             }
                                             val active = camera ?: return@detectTapGestures
-                                            invalidatePendingFocusLock(active)
-                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 3_000L
-                                            val tapPoint = Offset(
-                                                (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                                                (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                            val tapPoint = normalizedAfTapPoint(
+                                                Offset(offset.x, offset.y),
+                                                size.width.roundToInt(),
+                                                size.height.roundToInt()
                                             )
+                                            android.util.Log.i(
+                                                "FUJI_AF_TOUCH",
+                                                "TOUCH_DISPATCH received=true pass=Main screenPx=\${offset.x},\${offset.y} " +
+                                                    "container=\${size.width}x\${size.height} " +
+                                                    "preview=\${previewView.width}x\${previewView.height} " +
+                                                    "tap=\${tapPoint.x},\${tapPoint.y} focusLocked=$focusLocked"
+                                            )
+                                            if (focusLocked && isTapInsideAfReticle(
+                                                    tapPoint,
+                                                    centerAfPoint ?: Offset(0.5f, 0.5f),
+                                                    previewView.width,
+                                                    previewView.height
+                                                )
+                                            ) {
+                                                invalidatePendingFocusLock(active)
+                                                runCatching { active.cameraControl.cancelFocusAndMetering() }
+                                                val aeUnlocked = applyCameraAeLock(active, locked = false)
+                                                manualAfOverrideUntilMs = 0L
+                                                centerAfStatus = 0
+                                                android.util.Log.i(
+                                                    "FUJI_AF",
+                                                    "AF_LOCK_TOGGLE unlocked=true aeUnlockApplied=$aeUnlocked " +
+                                                        "point=\${tapPoint.x},\${tapPoint.y}"
+                                                )
+                                                return@detectTapGestures
+                                            }
+                                            // Tapping elsewhere replaces the previous AF/AE lock.
+                                            invalidatePendingFocusLock(active)
+                                            manualAfOverrideUntilMs = Long.MAX_VALUE
                                             android.util.Log.d(
                                                 "FUJI_AF_OSD",
                                                 "manualTapOverride=true faceBoxPresent=${faceTrackCenter != null} " +

@@ -3019,11 +3019,27 @@ fun CameraScreen(
     }
 
     fun openLastPhoto() {
-        if (lastUri == null) {
+        val uri = lastUri
+        if (uri == null) {
             localizedToast(context, "Chưa có ảnh trong Pictures/FujifilmMode.", Toast.LENGTH_SHORT).show()
             return
         }
-        photoViewerVisible = true
+        // Open the saved MediaStore item in the device's native photo/gallery app.
+        // The in-app viewer is retained only as a fallback when no external handler exists.
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "image/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching {
+            context.startActivity(viewIntent)
+        }.onFailure { failure ->
+            android.util.Log.w(
+                "FUJI_GALLERY",
+                "No native image viewer could open the latest photo; using the built-in viewer.",
+                failure
+            )
+            photoViewerVisible = true
+        }
     }
 
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {

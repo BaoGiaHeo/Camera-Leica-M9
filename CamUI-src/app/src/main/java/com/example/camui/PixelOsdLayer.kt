@@ -484,7 +484,8 @@ class PixelOsdRenderer(context: Context) {
                             bounds = element.bounds,
                             percent = frame.batteryPercent,
                             color = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
-                            unitPx = layout.unitPx
+                            unitPx = layout.unitPx,
+                            charging = frame.batteryCharging
                         )
                     } else {
                         drawPixelOsdIcon(
@@ -956,7 +957,8 @@ class PixelOsdRenderer(context: Context) {
         bounds: PixelOsdLayoutBounds,
         percent: Int,
         color: Int,
-        unitPx: Int
+        unitPx: Int,
+        charging: Boolean
     ) {
         val scale = pixelScale.coerceAtLeast(1)
         val left = (bounds.left / scale).roundToInt()
@@ -984,6 +986,17 @@ class PixelOsdRenderer(context: Context) {
                 for (y in innerTop..innerBottom) {
                     drawPixel(canvas, x, y, color)
                 }
+            }
+        }
+        if (charging) {
+            val bolt = PixelOsdSprites.get("flash")
+            if (bolt != null) {
+                drawSprite(
+                    canvas,
+                    "flash",
+                    left + ((width - bolt.first().length) / 2).coerceAtLeast(0),
+                    top + ((height - bolt.size) / 2).coerceAtLeast(0)
+                )
             }
         }
     }

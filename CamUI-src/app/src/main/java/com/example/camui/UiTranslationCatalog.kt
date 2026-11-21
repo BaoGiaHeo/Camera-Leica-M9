@@ -250,6 +250,87 @@ internal object UiTranslationCatalog {
         "Android thermal status:" to "Trạng thái nhiệt Android:"
     )
 
+    private val additionalVietnameseToEnglish = mapOf(
+        "Đang kiểm tra hỗ trợ phơi sáng" to "Checking exposure support",
+        "Camera này không hỗ trợ RAW/RawDream 2.0 đồng thời. Không thể dùng chế độ RAW đã chọn." to
+            "This camera cannot capture RAW and RawDream 2.0 simultaneously. The selected RAW mode is unavailable.",
+        "Camera chưa sẵn sàng." to "Camera is not ready.",
+        "Không thể ghép vệt sao từ phiên này. Hãy thử lại với máy ổn định hơn." to
+            "Could not merge star trails from this session. Try again with a steadier device.",
+        "Cần ít nhất 2 khung hình để tạo vệt sao. Hãy thử lại." to
+            "At least two frames are required to create star trails. Try again.",
+        "Không rõ nguyên nhân" to "Unknown reason",
+        "không rõ nguyên nhân" to "unknown reason",
+        "không rõ lỗi" to "unknown error",
+        "Camera không hỗ trợ RAW + JPEG đồng thời. RawDream 2.0 chưa chụp; ảnh không bị chuyển âm thầm sang JPEG thường." to
+            "The camera cannot capture RAW + JPEG simultaneously. RawDream 2.0 did not capture, and the app did not silently switch to standard JPEG.",
+        "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing." to
+            "LunaDream requires Photo/JPEG; RawDream 2.0 requires camera-supported RAW + JPEG. Turn off Ultra HDR, Burst and Bracketing.",
+        "Milky Way Stack cần Photo/JPEG 1x; hãy tắt RAW, UHD, FHD, Burst và Bracketing." to
+            "Milky Way Stack requires Photo/JPEG at 1x. Turn off RAW, UHD, FHD, Burst and Bracketing.",
+        "Đã lưu ảnh RAW DNG gốc vào Pictures/FujifilmMode/RAW." to
+            "Saved the original RAW DNG to Pictures/FujifilmMode/RAW.",
+        "Camera không trả về dữ liệu RAW_SENSOR hợp lệ." to "The camera did not return valid RAW_SENSOR data.",
+        "Live Photo chưa sẵn sàng: camera chưa tạo được luồng video. Ảnh chưa được chụp." to
+            "Live Photo is not ready: the camera has not created a video stream. No photo was captured.",
+        "Camera không bắt đầu được clip Live Photo. Ảnh chưa được chụp." to
+            "The camera could not start the Live Photo clip. No photo was captured.",
+        "Đã tắt Milky Way Stack: camera đang chọn không có Manual Sensor phù hợp." to
+            "Milky Way Stack was disabled because the selected camera has no compatible Manual Sensor support.",
+        "Đã tắt Milky Way Stack và trả phơi sáng về Auto." to
+            "Milky Way Stack was disabled and exposure returned to Auto.",
+        "Đã trở về AF tự động." to "Returned to automatic AF.",
+        "Đã đặt nét vô cực theo Camera2." to "Infinity focus was set through Camera2.",
+        "Camera không chấp nhận lấy nét vô cực." to "The camera rejected infinity focus.",
+        "TẮT MILKY WAY STACK ×8" to "TURN OFF MILKY WAY STACK ×8",
+        "ÁP DỤNG GỢI Ý + BẬT ASTRO STACK ×8" to "APPLY RECOMMENDATION + ENABLE ASTRO STACK ×8",
+        "Vui lòng tắt Live Photo" to "Please turn off Live Photo.",
+        "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream." to
+            "Please turn off Device-native Photo Processing to use LunaDream.",
+        "ẢNH GỐC · TRƯỚC LUNADREAM" to "ORIGINAL · BEFORE LUNADREAM",
+        "ẢNH ĐÃ XỬ LÝ · LUNADREAM" to "PROCESSED · LUNADREAM",
+        "ẢNH GỐC · THẢ ĐỂ XEM LỌC" to "ORIGINAL PHOTO · RELEASE TO VIEW FILTER",
+        "GIỮ ĐỂ XEM ẢNH GỐC" to "HOLD TO VIEW ORIGINAL PHOTO",
+        "Lưu hoặc nạp lại các thiết lập camera" to "Save or restore camera settings.",
+        "Scanline overlay chỉ hiển thị trên preview, không lưu vào ảnh." to
+            "The scanline overlay appears only in the preview and is never saved into photos.",
+        "Giảm texture và hiệu ứng để tiết kiệm GPU trên máy yếu." to
+            "Reduce textures and effects to save GPU resources on lower-powered devices.",
+        "Đảo vị trí cụm chế độ và cụm nút/dial." to
+            "Swap the positions of the mode group and the button/dial group.",
+        "AE bình thường · EV 0 · căn khung và gộp nhiều ảnh" to
+            "Standard AE · EV 0 · align and merge multiple photos",
+        "ĐANG QUÉT CAMERA…" to "SCANNING CAMERAS…",
+        "Không thể hoàn tất quét" to "The scan could not be completed.",
+        "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD." to
+            "Show or hide exposure compensation in the Pro HUD row.",
+        "LƯU" to "SAVE",
+        "Bật/tắt âm thanh chụp mặc định." to "Enable or disable the default shutter sound.",
+        "khung hình đã chụp" to "captured frames",
+        "Ảnh gốc" to "Original photo",
+        "Ảnh gần nhất" to "Most recent photo",
+        "SIÊU RỘNG" to "ULTRAWIDE",
+        "CAM THƯỜNG" to "MAIN CAMERA",
+        "Đã nhập " to "Imported ",
+        "Đã thêm · " to "Added · ",
+        "Chưa thêm · " to "Not added · ",
+        "Thông tin" to "Information",
+        "Đóng" to "Close",
+        "Bộ lọc" to "Filter"
+    )
+
+    private val additionalEnglishToVietnamese = mapOf(
+        "Checking exposure support" to "Đang kiểm tra hỗ trợ phơi sáng",
+        "Unknown reason" to "Không rõ nguyên nhân",
+        "unknown reason" to "không rõ nguyên nhân",
+        "unknown error" to "không rõ lỗi",
+        "TURN OFF MILKY WAY STACK ×8" to "TẮT MILKY WAY STACK ×8",
+        "APPLY RECOMMENDATION + ENABLE ASTRO STACK ×8" to "ÁP DỤNG GỢI Ý + BẬT ASTRO STACK ×8",
+        "ULTRAWIDE" to "SIÊU RỘNG",
+        "MAIN CAMERA" to "CAM THƯỜNG",
+        "Most recent photo" to "Ảnh gần nhất"
+    )
+
     private data class Prefix(val source: String, val translated: String)
 
     private val vietnamesePrefixes = listOf(
@@ -274,6 +355,7 @@ internal object UiTranslationCatalog {
 
     fun toEnglish(value: String): String? {
         vietnameseToEnglish[value]?.let { return it }
+        additionalVietnameseToEnglish[value]?.let { return it }
         Regex("^Đã nhập (.+) LUT\\. Vào Content Manager để Add LUT vào bộ lọc\\.$").matchEntire(value)?.let {
             return "Imported ${it.groupValues[1]} LUT. Open Content Manager to add the LUT to filters."
         }
@@ -310,6 +392,8 @@ internal object UiTranslationCatalog {
 
     fun toVietnamese(value: String): String? {
         englishToVietnamese[value]?.let { return it }
+        additionalEnglishToVietnamese[value]?.let { return it }
+        additionalVietnameseToEnglish.entries.firstOrNull { it.value == value }?.let { return it.key }
         vietnameseToEnglish.entries.firstOrNull { it.value == value }?.let { return it.key }
         val reversePrefixes = vietnamesePrefixes.map { Prefix(it.translated, it.source) }
         translatePrefix(value, reversePrefixes)?.let { return it }

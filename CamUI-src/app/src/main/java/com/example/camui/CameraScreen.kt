@@ -3167,8 +3167,17 @@ fun CameraScreen(
             val frames = mutableListOf<File>()
             var outputUri: Uri? = null
             var stoppedForStorage = false
+            var stoppedForBattery = false
             try {
                 while (!starTrailStopRequested) {
+                    val currentBattery = withContext(Dispatchers.Main.immediate) {
+                        batteryPercent to batteryCharging
+                    }
+                    if (shouldBlockBatteryIntensiveCapture(currentBattery.first, currentBattery.second)) {
+                        stoppedForBattery = true
+                        starTrailStopRequested = true
+                        break
+                    }
                     // Keep recording until the second shutter press. Stop early only to protect
                     // the device from filling its cache partition during a very long session.
                     if (context.cacheDir.usableSpace < 256L * 1024L * 1024L) {
@@ -3197,6 +3206,13 @@ fun CameraScreen(
                     localizedToast(
                         context,
                         "Star Trails tự dừng để bảo vệ bộ nhớ tạm. Đang ghép các khung đã ghi.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                if (stoppedForBattery) {
+                    localizedToast(
+                        context,
+                        "Pin còn rất thấp; Star Trails đã dừng và đang ghép các khung đã chụp.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -3925,7 +3941,6 @@ fun CameraScreen(
                                 var nightShotMerged = false
                                 var lunaDreamCapturedFrameCount = 0
                                 var lunaDreamFailureReason: String? = null
-                                var lunaDream20FallbackApplied = false
                                 if ((captureUseNightShot || captureUseFiveFrameStack ||
                                         captureUseLunaDream15 || captureUseLunaDream20Stack) &&
                                     (!captureNightShotExtension || captureUseLunaDream15 || captureUseLunaDream20Stack)
@@ -3970,10 +3985,25 @@ fun CameraScreen(
                                             }
 
                                             while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
+                                                val batteryAtLoopStart = withContext(Dispatchers.Main.immediate) {
+                                                    batteryPercent to batteryCharging
+                                                }
+                                                if (shouldBlockBatteryIntensiveCapture(batteryAtLoopStart.first, batteryAtLoopStart.second)) {
+                                                    stoppedForBattery = true
+                                                    stopSubmitting = true
+                                                }
                                                 while (!stopSubmitting &&
                                                     pendingCaptures.size < maxInFlightCaptures &&
                                                     stackedFrames.size + pendingCaptures.size < maxFrames
                                                 ) {
+                                                    val batteryBeforeRequest = withContext(Dispatchers.Main.immediate) {
+                                                        batteryPercent to batteryCharging
+                                                    }
+                                                    if (shouldBlockBatteryIntensiveCapture(batteryBeforeRequest.first, batteryBeforeRequest.second)) {
+                                                        stoppedForBattery = true
+                                                        stopSubmitting = true
+                                                        break
+                                                    }
                                                     if ((captureUseNightShot || captureUseMilkyWayStack) &&
                                                         context.cacheDir.usableSpace < 256L * 1024L * 1024L
                                                     ) {
@@ -4066,7 +4096,16 @@ fun CameraScreen(
                                             if (stoppedForStorage) {
                                                 android.util.Log.w("FUJI_NIGHTSHOT", "Stopped early to protect free cache storage; processing " + stackedFrames.size + " frames")
                                             }
-                                            if (captureUseNightShot && stackedFrames.size < maxFrames) {
+                                            if (stoppedForBattery) {
+                                                withContext(Dispatchers.Main) {
+                                                    localizedToast(
+                                                        context,
+                                                        "Pin còn rất thấp; đã dừng thu khung và xử lý các khung hình hợp lệ đã chụp.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
+                                            if (captureUseNightShot && stackedFrames.size < maxFrames && !stoppedForBattery) {
                                                 android.util.Log.w(
                                                     "FUJI_NIGHTSHOT",
                                                     "Incomplete stack " + stackedFrames.size + "/" + maxFrames +
@@ -4077,6 +4116,7 @@ fun CameraScreen(
                                             // enough to complete a valid multi-frame result when the
                                             // camera HAL rejects a late request. 2.0 keeps its prior rule.
                                             val minimumFramesRequired = when {
+                                                captureUseNightShot && stoppedForBattery -> 2
                                                 captureUseNightShot -> maxFrames
                                                 captureUseLunaDream15 -> 3
                                                 else -> 2
@@ -4088,7 +4128,7 @@ fun CameraScreen(
                                                     "FRAME_CAPTURE_SUMMARY",
                                                     "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
                                                         "; validFrames=${stackedFrames.size}; targetFrames=$maxFrames; minimumRequired=$minimumFramesRequired; " +
-                                                        "captureElapsed=${burstElapsedMs}ms; stoppedForStorage=$stoppedForStorage"
+                                                        "captureElapsed=${burstElapsedMs}ms; stoppedForStorage=$stoppedForStorage; stoppedForBattery=$stoppedForBattery"
                                                 )
                                             }
                                             if (stackedFrames.size < minimumFramesRequired && captureUseLunaDream) {
@@ -4174,71 +4214,7 @@ fun CameraScreen(
                                                         )
                                                     }
                                                 }
-                                                if (!nightShotMerged && captureUseLunaDream20Stack) {
-                                                    val primaryFailure = lunaDreamFailureReason
-                                                        ?: "LunaDream 2.0 merge returned false without a failure callback"
-                                                    if (stackedFrames.size >= 3) {
-                                                        var fallbackFailure: String? = null
-                                                        LunaDreamDiagnostics.record(
-                                                            context,
-                                                            "FALLBACK_20_TO_15_START",
-                                                            "originalMode=2.0; validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure"
-                                                        )
-                                                        android.util.Log.w(
-                                                            "FUJI_LUNADREAM",
-                                                            "LunaDream 2.0 merge failed; retrying the same ${stackedFrames.size} frames with the 1.5 fallback. reason=$primaryFailure"
-                                                        )
-                                                        nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
-                                                            context,
-                                                            stackedFrames,
-                                                            saved,
-                                                            NightShotProcessor.MergeMode.LUNA_DREAM_1_5,
-                                                            onFailure = { reason, failure ->
-                                                                fallbackFailure = reason
-                                                                android.util.Log.e(
-                                                                    "FUJI_LUNADREAM",
-                                                                    "LunaDream 1.5 fallback merge failed: $reason",
-                                                                    failure
-                                                                )
-                                                            },
-                                                            onProgress = { fallbackProgress ->
-                                                                mainExecutor.execute {
-                                                                    processingLabel = "LunaDream 1.5 fallback · $fallbackProgress%"
-                                                                    processingProgress = maxOf(processingProgress, fallbackProgress.coerceIn(0, 100))
-                                                                }
-                                                            }
-                                                        )
-                                                        if (nightShotMerged) {
-                                                            LunaDreamDiagnostics.record(
-                                                                context,
-                                                                "FALLBACK_20_TO_15_SUCCESS",
-                                                                "validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure"
-                                                            )
-                                                            lunaDream20FallbackApplied = true
-                                                            lunaDreamFailureReason = primaryFailure
-                                                            android.util.Log.w(
-                                                                "FUJI_LUNADREAM",
-                                                                "LunaDream 1.5 fallback succeeded after 2.0 failure; frames=${stackedFrames.size}; reason=$primaryFailure"
-                                                            )
-                                                        } else {
-                                                            lunaDreamFailureReason =
-                                                                "LunaDream 2.0 failed: $primaryFailure; LunaDream 1.5 fallback failed: ${fallbackFailure ?: "merge returned false"}"
-                                                            LunaDreamDiagnostics.record(
-                                                                context,
-                                                                "FALLBACK_20_TO_15_FAILED",
-                                                                "validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure; fallbackFailure=${fallbackFailure ?: "merge returned false"}"
-                                                            )
-                                                        }
-                                                    } else {
-                                                        lunaDreamFailureReason =
-                                                            "LunaDream 2.0 failed: $primaryFailure; 1.5 fallback requires at least 3 valid frames, but only ${stackedFrames.size} were captured"
-                                                        LunaDreamDiagnostics.record(
-                                                            context,
-                                                            "FALLBACK_20_TO_15_SKIPPED",
-                                                            "validFrames=${stackedFrames.size}; requiredAtLeast=3; primaryFailure=$primaryFailure"
-                                                        )
-                                                    }
-                                                }
+
                                             }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
@@ -4336,7 +4312,7 @@ fun CameraScreen(
                                         context,
                                         if (lunaDreamApplied) "CAPTURE_PROCESSING_COMPLETE" else "CAPTURE_PROCESSING_INCOMPLETE",
                                         "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
-                                            "; validFrames=$lunaDreamCapturedFrameCount; fallbackApplied=$lunaDream20FallbackApplied; " +
+                                            "; validFrames=$lunaDreamCapturedFrameCount; " +
                                             "merged=$nightShotMerged; reason=${lunaDreamFailureReason ?: "none"}"
                                     )
                                 }
@@ -4348,10 +4324,6 @@ fun CameraScreen(
                                     processingLabel = when {
                                         captureUseLunaDream15 && lunaDreamApplied ->
                                             "LunaDream Render · 1.5 đang phục hồi chi tiết"
-                                        captureUseRawDream20 && lunaDream20FallbackApplied ->
-                                            "RawDream 2.0 · đang hoàn tất JPEG bằng dự phòng LunaDream 1.5"
-                                        captureUseLunaDream20 && lunaDream20FallbackApplied ->
-                                            "LunaDream 2.0 · đang hoàn tất bằng dự phòng 1.5"
                                         captureUseRawDream20 && lunaDreamApplied ->
                                             "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép"
                                         captureUseLunaDream20 && lunaDreamApplied ->
@@ -4439,7 +4411,6 @@ fun CameraScreen(
                                     val requestedMp = when {
                                         captureUseNightShot -> 60_000_000L
                                         captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
-                                        captureUseLunaDream20Stack && lunaDream20FallbackApplied -> 50_000_000L
                                         captureUseLunaDream && lunaDreamApplied -> 108_000_000L
                                         else -> null
                                     }
@@ -4596,14 +4567,10 @@ fun CameraScreen(
                                 // final upright pixel coordinate system.
                                 val orientationLabelFixed = orientationNormalized && metadataPublished
                                 val inspectorLunaDreamStatus = when {
-                                    captureUseRawDream20 && lunaDream20FallbackApplied ->
-                                        "RawDream 2.0 · JPEG fallback LunaDream 1.5 · reason: " + (lunaDreamFailureReason ?: "unknown")
-                                    captureUseLunaDream20 && lunaDream20FallbackApplied ->
-                                        "LunaDream 2.0 · fallback LunaDream 1.5 · reason: " + (lunaDreamFailureReason ?: "unknown")
                                     captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · ghép " + lunaDreamCapturedFrameCount + "/5 khung"
                                     captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG gốc + JPEG ghép " + lunaDreamCapturedFrameCount + "/8 khung bằng LunaDream 2.0"
                                     captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép đa khung và phục hồi chi tiết"
-                                    captureUseLunaDream -> "LunaDream fallback · " + (lunaDreamFailureReason ?: "engine failure")
+                                    captureUseLunaDream -> "LunaDream chưa hoàn tất · " + (lunaDreamFailureReason ?: "engine failure")
                                     captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
                                     captureUseNightShot -> "NightShotMode · chụp đêm"
                                     captureUseDeviceProcessing && deviceProcessingApplied -> "Xử lý ảnh gốc thiết bị · ISP + tối ưu tông/chi tiết"
@@ -4656,12 +4623,6 @@ fun CameraScreen(
                                         ((it.actualPixels + 500_000L) / 1_000_000L).toInt()
                                     } ?: 0
                                     val message = when {
-                                        captureUseRawDream20 && lunaDream20FallbackApplied ->
-                                            localizedUiText(context, "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:") +
-                                                " " + (lunaDreamFailureReason ?: "unknown") + " · JPEG ${actualOutputMp}MP; DNG gốc được giữ."
-                                        captureUseLunaDream20 && lunaDream20FallbackApplied ->
-                                            localizedUiText(context, "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:") +
-                                                " " + (lunaDreamFailureReason ?: "unknown") + " · ${actualOutputMp}MP"
                                         captureUseLunaDream15 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 1.5 · 50MP."
                                             else "Đã lưu LunaDream 1.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
@@ -4672,7 +4633,7 @@ fun CameraScreen(
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
                                             else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream && !lunaDreamApplied ->
-                                            "LunaDream không hoàn tất: " + (lunaDreamFailureReason ?: "engine không cung cấp nguyên nhân") + ". Đã lưu JPEG gốc làm ảnh dự phòng."
+                                            "LunaDream không hoàn tất: " + (lunaDreamFailureReason ?: "engine không cung cấp nguyên nhân") + ". JPEG gốc vẫn được giữ nguyên."
                                         captureUseRawDream20 && lunaDreamApplied && !outputResolutionApplied ->
                                             "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn."
                                         captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied ->

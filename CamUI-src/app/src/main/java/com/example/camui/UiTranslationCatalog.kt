@@ -232,6 +232,10 @@ internal object UiTranslationCatalog {
         "RAW Capture" to "Chụp RAW",
         "Battery is critically low. Charge the phone before using Star Trails, NightShot or long exposure." to
             "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
+        "Pin còn rất thấp; Star Trails đã dừng và đang ghép các khung đã chụp." to
+            "Battery is critically low; Star Trails stopped and is merging the captured frames.",
+        "Pin còn rất thấp; đã dừng thu khung và xử lý các khung hình hợp lệ đã chụp." to
+            "Battery is critically low; frame capture stopped and the valid captured frames are being processed.",
         "Camera Presets" to "Thiết lập camera",
         "Film Simulation Customizer" to "Tùy chỉnh mô phỏng phim",
         "Saved Film Recipes" to "Công thức mô phỏng phim đã lưu",
@@ -728,6 +732,7 @@ internal object UiTranslationCatalog {
         Prefix("Không thể đặt khoảng nét ", "Could not set focus position "),
         Prefix("Import LUT thất bại: ", "LUT import failed: "),
         Prefix("Lỗi chụp ảnh: ", "Capture error: "),
+        Prefix("LunaDream chưa hoàn tất · ", "LunaDream did not complete · "),
         Prefix("LunaDream dự phòng · ", "LunaDream fallback · "),
         Prefix("Live Photo không khởi động được: ", "Live Photo could not start: "),
         Prefix("Đã nhập ", "Imported "),
@@ -929,6 +934,10 @@ internal object UiTranslationCatalog {
             return "${it.groupValues[1]} preview"
         }
         Regex("^Ảnh gốc trước LunaDream$").matchEntire(value)?.let { return "Original photo before LunaDream" }
+        Regex("^LunaDream không hoàn tất: (.*)\\. JPEG gốc vẫn được giữ nguyên\\.$").matchEntire(value)?.let {
+            val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream did not complete: $reason. The original JPEG was preserved."
+        }
         Regex("^Ảnh sau LunaDream$").matchEntire(value)?.let { return "Photo after LunaDream" }
         translatePrefix(value, vietnamesePrefixes)?.let { return it }
         return null
@@ -1129,6 +1138,10 @@ internal object UiTranslationCatalog {
         }
         Regex("^Original photo before LunaDream$").matchEntire(value)?.let {
             return "Ảnh gốc trước LunaDream"
+        }
+        Regex("^LunaDream did not complete: (.*)\\. The original JPEG was preserved\\.$").matchEntire(value)?.let {
+            val reason = toVietnamese(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream không hoàn tất: $reason. JPEG gốc vẫn được giữ nguyên."
         }
         Regex("^Photo after LunaDream$").matchEntire(value)?.let {
             return "Ảnh sau LunaDream"

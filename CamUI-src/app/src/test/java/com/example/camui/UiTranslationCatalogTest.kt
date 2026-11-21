@@ -95,6 +95,34 @@ class UiTranslationCatalogTest {
     }
 
     @Test
+    fun lowBatteryStopAndSelectedLunaDreamFailureAreLocalized() {
+        assertEquals(
+            "Battery is critically low; Star Trails stopped and is merging the captured frames.",
+            UiTranslationCatalog.toEnglish("Pin còn rất thấp; Star Trails đã dừng và đang ghép các khung đã chụp.")
+        )
+        assertEquals(
+            "Pin còn rất thấp; đã dừng thu khung và xử lý các khung hình hợp lệ đã chụp.",
+            UiTranslationCatalog.toVietnamese("Battery is critically low; frame capture stopped and the valid captured frames are being processed.")
+        )
+        assertEquals(
+            "LunaDream did not complete: merge failed. The original JPEG was preserved.",
+            UiTranslationCatalog.toEnglish("LunaDream không hoàn tất: merge failed. JPEG gốc vẫn được giữ nguyên.")
+        )
+        assertEquals(
+            "LunaDream không hoàn tất: merge failed. JPEG gốc vẫn được giữ nguyên.",
+            UiTranslationCatalog.toVietnamese("LunaDream did not complete: merge failed. The original JPEG was preserved.")
+        )
+        assertEquals(
+            "LunaDream did not complete · timeout",
+            UiTranslationCatalog.toEnglish("LunaDream chưa hoàn tất · timeout")
+        )
+        assertEquals(
+            "LunaDream chưa hoàn tất · timeout",
+            UiTranslationCatalog.toVietnamese("LunaDream did not complete · timeout")
+        )
+    }
+
+    @Test
     fun starExposureRecommendationKeepsIsoAndShutterValuesWhenTranslated() {
         assertEquals(
             "ISO 800 · 4.0s · suggested WB 3,800K",

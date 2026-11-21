@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Base64
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.zip.GZIPInputStream
 
 plugins {
@@ -135,11 +137,10 @@ val downloadSairaFontResources = tasks.register("downloadSairaFontResources") {
             val destination = kk7FontResourceDirectory.file(resourceName).asFile
             if (!destination.isFile || destination.length() < 20_000L) {
                 destination.parentFile.mkdirs()
-                val connection = java.net.URL(upstream + upstreamName).openConnection().apply {
-                    connectTimeout = 20_000
-                    readTimeout = 30_000
-                    setRequestProperty("User-Agent", "FujiFilm-Mode-Android-Build")
-                }
+                val connection = URL(upstream + upstreamName).openConnection() as HttpURLConnection
+                connection.connectTimeout = 20_000
+                connection.readTimeout = 30_000
+                connection.setRequestProperty("User-Agent", "FujiFilm-Mode-Android-Build")
                 connection.getInputStream().use { input ->
                     destination.outputStream().use { output -> input.copyTo(output) }
                 }
@@ -152,11 +153,10 @@ val downloadSairaFontResources = tasks.register("downloadSairaFontResources") {
         if (!sairaLicenseFile.asFile.isFile || sairaLicenseFile.asFile.length() < 500L) {
             sairaLicenseFile.asFile.parentFile.mkdirs()
             val licenseUrl = "https://raw.githubusercontent.com/Omnibus-Type/Saira/master/OFL.txt"
-            val connection = java.net.URL(licenseUrl).openConnection().apply {
-                connectTimeout = 20_000
-                readTimeout = 30_000
-                setRequestProperty("User-Agent", "FujiFilm-Mode-Android-Build")
-            }
+            val connection = URL(licenseUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 20_000
+            connection.readTimeout = 30_000
+            connection.setRequestProperty("User-Agent", "FujiFilm-Mode-Android-Build")
             connection.getInputStream().use { input ->
                 sairaLicenseFile.asFile.outputStream().use { output -> input.copyTo(output) }
             }

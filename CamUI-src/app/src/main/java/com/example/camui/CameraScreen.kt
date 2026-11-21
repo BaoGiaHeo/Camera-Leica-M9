@@ -830,9 +830,12 @@ fun CameraScreen(
     var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)) }
     var focusLocked by remember { mutableStateOf(false) }
     var focusLockRequestGeneration by remember { mutableIntStateOf(0) }
-    fun invalidatePendingFocusLock() {
+    fun invalidatePendingFocusLock(activeCamera: Camera? = null) {
         focusLockRequestGeneration++
         focusLocked = false
+        activeCamera?.let { cameraToUnlock ->
+            runCatching { applyCameraAeLock(cameraToUnlock, locked = false) }
+        }
     }
     var manualIsoEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_iso_enabled", false)) }
     var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
@@ -5007,7 +5010,7 @@ fun CameraScreen(
                                                 return@detectTapGestures
                                             }
                                             val active = camera ?: return@detectTapGestures
-                                            invalidatePendingFocusLock()
+                                            invalidatePendingFocusLock(active)
                                             manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 3_000L
                                             val tapPoint = Offset(
                                                 (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
@@ -5120,6 +5123,7 @@ fun CameraScreen(
                                                 return@detectTapGestures
                                             } else {
                                                 manualAfOverrideUntilMs = Long.MAX_VALUE
+                                                applyCameraAeLock(active, locked = false)
                                                 android.util.Log.d(
                                                     "FUJI_AF_OSD",
                                                     "manualLockOverride=true faceBoxPresent=${faceTrackCenter != null}"
@@ -5156,7 +5160,9 @@ fun CameraScreen(
                                                 val lockFuture = runCatching {
                                                     active.cameraControl.startFocusAndMetering(action)
                                                 }.getOrElse { failure ->
+                                                    applyCameraAeLock(active, locked = false)
                                                     manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
+                                                    focusLocked = false
                                                     centerAfStatus = -1
                                                     android.util.Log.w("FUJI_AF", "AF/AE lock request failed to start.", failure)
                                                     scope.launch(Dispatchers.Main) {
@@ -5182,16 +5188,26 @@ fun CameraScreen(
                                                     ) {
                                                         return@addListener
                                                     }
-                                                    val success = runCatching {
+                                                    val focusSuccess = runCatching {
                                                         lockFuture.get().isFocusSuccessful
                                                     }.getOrDefault(false)
+                                                    val aeLockApplied = if (focusSuccess) {
+                                                        applyCameraAeLock(active, locked = true)
+                                                    } else {
+                                                        applyCameraAeLock(active, locked = false)
+                                                        false
+                                                    }
+                                                    val success = focusSuccess && aeLockApplied
                                                     focusLocked = success
                                                     centerAfStatus = if (success) 1 else -1
                                                     if (success) {
-                                                        android.util.Log.i("FUJI_AF", "AF/AE lock accepted")
+                                                        android.util.Log.i("FUJI_AF", "AF/AE lock accepted; CONTROL_AE_LOCK=true")
                                                     } else {
                                                         manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 4_000L
-                                                        android.util.Log.i("FUJI_AF", "AF/AE lock missed; red frame feedback is shown")
+                                                        android.util.Log.w(
+                                                            "FUJI_AF",
+                                                            "AF/AE lock not confirmed focusSuccess=$focusSuccess aeLockApplied=$aeLockApplied"
+                                                        )
                                                         scope.launch(Dispatchers.Main) {
                                                             withFrameNanos { }
                                                             withFrameNanos { }
@@ -5585,7 +5601,7 @@ fun CameraScreen(
                                                             if (applied) {
                                                                 manualFocus = 0f
                                                                 milkyWayInfinityFocusEnabled = true
-                                                                invalidatePendingFocusLock()
+                                                                invalidatePendingFocusLock(camera)
                                                                 localizedToast(context, "Đã đặt nét vô cực theo Camera2.", Toast.LENGTH_SHORT).show()
                                                             } else {
                                                                 localizedToast(context, "Camera không chấp nhận lấy nét vô cực.", Toast.LENGTH_LONG).show()
@@ -5829,7 +5845,7 @@ fun CameraScreen(
                                                         onValueChange = { f ->
                                                             manualFocus = f * maxFocus
                                                             milkyWayInfinityFocusEnabled = false
-                                                            invalidatePendingFocusLock()
+                                                            invalidatePendingFocusLock(camera)
                                                             camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
                                                         },
 
@@ -5839,7 +5855,7 @@ fun CameraScreen(
                                                     modifier = Modifier.padding(start = 8.dp).animaTClickable {
                                                         manualFocus = 0f
                                                         milkyWayInfinityFocusEnabled = false
-                                                        invalidatePendingFocusLock()
+                                                        invalidatePendingFocusLock(camera)
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     })
                                             }
@@ -5898,7 +5914,7 @@ fun CameraScreen(
                                                     manualColorTempEnabled = false
                                                     manualFocus = 0f
                                                     milkyWayInfinityFocusEnabled = false
-                                                    invalidatePendingFocusLock()
+                                                    invalidatePendingFocusLock(camera)
                                                     evIndex = 0
 
                                                     camera?.let { c ->
@@ -5927,7 +5943,7 @@ fun CameraScreen(
                                                     if (key == "AF" && manualFocus > 0f) {
                                                         manualFocus = 0f
                                                         milkyWayInfinityFocusEnabled = false
-                                                        invalidatePendingFocusLock()
+                                                        invalidatePendingFocusLock(camera)
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     }
                                                     proSel = if (active) null else key
@@ -6062,7 +6078,7 @@ fun CameraScreen(
                     manualColorTempEnabled = false
                     manualFocus = 0f
                     milkyWayInfinityFocusEnabled = false
-                    invalidatePendingFocusLock()
+                    invalidatePendingFocusLock(camera)
 
                     camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
                 },
@@ -6162,7 +6178,7 @@ fun CameraScreen(
             FujiShutterButton(
                 enabled = !isProcessing,
                 onHalfPress = {
-                    invalidatePendingFocusLock()
+                    invalidatePendingFocusLock(camera)
                     centerAfStatus = 0
                     manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
                     if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
@@ -7150,6 +7166,36 @@ private fun applyCameraExposureState(
         "mode=${if (state.automatic) "AUTO" else "MANUAL"} " +
             "iso=${state.sensorSensitivityIso ?: "AE"} shutterNs=${state.sensorExposureTimeNs ?: "AE"}"
     )
+}
+
+/**
+ * CameraX FocusMeteringAction retains the AF region; this applies the matching Camera2
+ * AE lock explicitly after focus succeeds. Unsupported AE-lock devices are not reported
+ * as having completed a full AF/AE lock.
+ */
+private fun applyCameraAeLock(camera: Camera, locked: Boolean): Boolean {
+    val cameraId = runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }
+        .getOrNull() ?: "unknown"
+    val available = runCatching {
+        Camera2CameraInfo.from(camera.cameraInfo)
+            .getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_LOCK_AVAILABLE) == true
+    }.getOrDefault(false)
+
+    if (!available) {
+        android.util.Log.w("FUJI_AF", "CONTROL_AE_LOCK unavailable cameraId=$cameraId")
+        return !locked
+    }
+
+    return runCatching {
+        val options = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
+            .build()
+        Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+        android.util.Log.i("FUJI_AF", "CONTROL_AE_LOCK=$locked applied cameraId=$cameraId")
+        true
+    }.onFailure {
+        android.util.Log.w("FUJI_AF", "Could not apply CONTROL_AE_LOCK=$locked cameraId=$cameraId", it)
+    }.getOrDefault(false)
 }
 
 private fun applyAutoExposure(camera: Camera) {

@@ -179,6 +179,10 @@ private val englishUi = mapOf(
     "Màu frame" to "Frame color", "Màu khung" to "Frame color",
     "Hiện thời gian" to "Show date and time", "Hiện model máy" to "Show device model",
     "Hiện thông số" to "Show camera settings", "Save Model" to "Save Model",
+    "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark được bỏ qua để bảo toàn gain map." to
+        "Ultra HDR was saved with its original gain map. Watermark was skipped to preserve the gain map.",
+    "Đã lưu Ultra HDR nguyên bản. Watermark được bỏ qua để bảo toàn gain map." to
+        "Original Ultra HDR was saved. Watermark was skipped to preserve the gain map.",
     "Import ảnh cho nút chụp" to "Import shutter image", "Đổi ảnh nút chụp" to "Change shutter image",
     "Đã chọn ảnh cho nút chụp." to "Shutter image selected.", "Dùng nút màu" to "Use solid color",
     "Đang phơi sáng" to "Exposing", "Vui lòng để điện thoại cố định" to "Keep the phone steady",

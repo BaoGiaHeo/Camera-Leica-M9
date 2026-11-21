@@ -59,6 +59,18 @@ class UiTranslationCatalogTest {
     }
 
     @Test
+    fun starExposureRecommendationKeepsIsoAndShutterValuesWhenTranslated() {
+        assertEquals(
+            "ISO 800 · 4.0s · suggested WB 3,800K",
+            UiTranslationCatalog.toEnglish("ISO 800 · 4.0s · WB gợi ý 3,800K")
+        )
+        assertEquals(
+            "ISO 800 · 4.0s · WB gợi ý 3,800K",
+            UiTranslationCatalog.toVietnamese("ISO 800 · 4.0s · suggested WB 3,800K")
+        )
+    }
+
+    @Test
     fun dynamicMessagesKeepTheirValuesWhenTranslated() {
         assertEquals("2 bộ lọc", UiTranslationCatalog.toVietnamese("2 filters"))
         assertEquals("2 filters", UiTranslationCatalog.toEnglish("2 bộ lọc"))

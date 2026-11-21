@@ -2676,7 +2676,7 @@ fun applyCameraWatermark(
         if (seconds >= 0.4) String.format(Locale.US, "%.1fs", seconds).replace(".0s", "s")
         else "1/" + (1.0 / seconds).roundToInt().coerceAtLeast(1) + "s"
     } ?: shutter.trim().takeIf { it.isNotBlank() }?.let { if (it.endsWith("s", true)) it else it + "s" }.orEmpty()
-    val isoRaw = sourceExif[ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY]
+    val isoRaw = sourceExif["PhotographicSensitivity"]
         ?: sourceExif[ExifInterface.TAG_ISO_SPEED_RATINGS]
         ?: iso
     val isoNumber = isoRaw.substringBefore(',').trim().toIntOrNull()
@@ -2737,7 +2737,7 @@ fun applyCameraWatermark(
     )
     val metadata = WatermarkPhotoMetadata(
         cameraName = cameraName,
-        lensName = sourceExif[ExifInterface.TAG_LENS_MODEL]?.trim()?.takeIf { it.isNotBlank() }
+        lensName = sourceExif["LensModel"]?.trim()?.takeIf { it.isNotBlank() }
             ?: when {
                 (sourceExif["FocalLengthIn35mmFilm"]?.toIntOrNull() ?: 35) <= 20 -> "Ultra-wide"
                 (sourceExif["FocalLengthIn35mmFilm"]?.toIntOrNull() ?: 35) >= 70 -> "Tele"

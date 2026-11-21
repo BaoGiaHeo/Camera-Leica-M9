@@ -1,0 +1,54 @@
+package com.example.camui
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Test
+
+class UiTranslationCatalogTest {
+    @Test
+    fun cameraAndProcessingStatusMessagesHaveEnglishTranslations() {
+        val cases = listOf(
+            "Camera này không hỗ trợ RAW/RawDream 2.0 đồng thời. Không thể dùng chế độ RAW đã chọn.",
+            "Star Trails tự dừng để bảo vệ bộ nhớ tạm. Đang ghép các khung đã ghi.",
+            "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing.",
+            "Đang hoàn tất chuỗi Bracketing hiện tại…",
+            "Đã lưu ảnh RAW DNG gốc vào Pictures/FujifilmMode/RAW.",
+            "Đang quét CAMERA…"
+        )
+        cases.forEach { source ->
+            assertNotNull("Missing English translation for: $source", UiTranslationCatalog.toEnglish(source))
+        }
+    }
+
+    @Test
+    fun commonEnglishCameraAndSettingsLabelsHaveVietnameseTranslations() {
+        val cases = mapOf(
+            "Camera Presets" to "Thiết lập camera",
+            "Film Simulation Customizer" to "Tùy chỉnh mô phỏng phim",
+            "RAW Capture" to "Chụp RAW",
+            "Night capture and Star Trails use separate processing pipelines" to
+                "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng."
+        )
+        cases.forEach { (source, expected) ->
+            assertEquals(expected, UiTranslationCatalog.toVietnamese(source))
+        }
+    }
+
+    @Test
+    fun dynamicMessagesKeepTheirValuesWhenTranslated() {
+        assertEquals("2 bộ lọc", UiTranslationCatalog.toVietnamese("2 filters"))
+        assertEquals("2 filters", UiTranslationCatalog.toEnglish("2 bộ lọc"))
+        assertEquals(
+            "Đã lưu Camera Preset 3",
+            UiTranslationCatalog.toVietnamese("Saved Camera Preset 3")
+        )
+        assertEquals(
+            "Preset 3 has not been saved.",
+            UiTranslationCatalog.toEnglish("Preset 3 chưa được lưu")
+        )
+        assertEquals(
+            "NIGHTSHOT · OFF",
+            UiTranslationCatalog.toEnglish("NIGHTSHOT · TẮT")
+        )
+    }
+}

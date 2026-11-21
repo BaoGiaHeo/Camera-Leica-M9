@@ -417,10 +417,6 @@ class PixelOsdRenderer(context: Context) {
             }
         }
 
-        if (frame.focusLocked) {
-            drawSprite(canvas, "lock", 7, 7)
-        }
-
         if (frame.showStatus) drawStatusHud(canvas, frame, layout)
         if (frame.showEvScale) drawEvScale(canvas, frame, layout)
         layout.histogramBounds?.let { drawHistogram(canvas, frame.histogram, it) }
@@ -481,13 +477,19 @@ class PixelOsdRenderer(context: Context) {
                     }
                     drawPixelOsdText(element, color)
                 }
-                PixelOsdElementKind.ICON -> drawBatteryIcon(
-                    canvas = canvas,
-                    bounds = element.bounds,
-                    percent = frame.batteryPercent,
-                    color = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
-                    unitPx = layout.unitPx
-                )
+                PixelOsdElementKind.ICON -> {
+                    if (element.id == "battery") {
+                        drawBatteryIcon(
+                            canvas = canvas,
+                            bounds = element.bounds,
+                            percent = frame.batteryPercent,
+                            color = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
+                            unitPx = layout.unitPx
+                        )
+                    } else {
+                        drawPixelOsdIcon(canvas, element)
+                    }
+                }
                 PixelOsdElementKind.RULE -> Unit
             }
         }

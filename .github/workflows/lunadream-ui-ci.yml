@@ -138,6 +138,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/AnimaT.kt \
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraAfAreaSize.kt \
+            CamUI-src/app/src/main/java/com/example/camui/CameraAfTouchPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraExposureRequestPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraFrameMetricsDiagnostics.kt \
@@ -175,6 +176,7 @@ jobs:
             CamUI-src/app/src/main/res/values/themes.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfAreaSizeTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/CameraAfTouchPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraLcdDisplayModeTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraLookCatalogTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraFrameMetricsDiagnosticsTest.kt \

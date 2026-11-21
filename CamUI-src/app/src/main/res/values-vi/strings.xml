@@ -133,4 +133,18 @@
     <string name="watermark_field_megapixels">MP</string>
     <string name="watermark_studio_copyright_placeholder">Tên hiển thị sau ©</string>
     <string name="watermark_studio_location_auto_note">Vị trí dùng nhãn tùy chỉnh hoặc GPS trong EXIF của ảnh nguồn; trường sẽ ẩn nếu không có cả hai.</string>
+    <string name="mf_mode_ld15">LD 1.5</string>
+    <string name="mf_mode_ld20">LD 2.0</string>
+    <string name="mf_mode_night">NIGHT</string>
+    <string name="mf_stage_capture">CHỤP</string>
+    <string name="mf_stage_align">CĂN KHUNG</string>
+    <string name="mf_stage_merge">GHÉP</string>
+    <string name="mf_stage_tone">TONE MAP</string>
+    <string name="mf_stage_save">LƯU</string>
+    <string name="mf_hold_steady">GIỮ MÁY YÊN</string>
+    <string name="mf_move_freely">DI CHUYỂN TỰ DO</string>
+    <string name="mf_thermal_warm">NÓNG</string>
+    <string name="mf_thermal_hot">RẤT NÓNG</string>
+    <string name="mf_error_short">LỖI</string>
+    <string name="mf_temperature_format">%1$d°C</string>
 </resources>

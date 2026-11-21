@@ -180,4 +180,16 @@
     <string name="watermark_layout_card">CARD</string>
     <string name="watermark_layout_gallery">GALLERY</string>
     <string name="watermark_layout_black">BLACK</string>
+    <string name="activation_step_language">SELECT LANGUAGE</string>
+    <string name="activation_language_description">Choose the language used by FujiFilm Mode.</string>
+    <string name="activation_step_storage">STORAGE &amp; BATTERY</string>
+    <string name="activation_storage_description">Photos and videos are saved in Pictures/FujifilmMode. Android manages media access; battery use depends on camera resolution, frame rate and processing mode.</string>
+    <string name="activation_storage_continue">Tap this panel or wait 2.5 seconds to continue.</string>
+    <string name="activation_step_publisher">PUBLISHER</string>
+    <string name="activation_publisher">@baoaka06 on TikTok</string>
+    <string name="activation_publisher_note">Thank you for using FujiFilm Mode.</string>
+    <string name="activation_back">BACK</string>
+    <string name="activation_continue">CONTINUE</string>
+    <string name="activation_ok">OK</string>
+    <string name="activation_reopen">VIEW ACTIVATION INTRO</string>
 </resources>

@@ -165,6 +165,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdFontMetrics.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayoutEngine.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
+            CamUI-src/app/src/main/java/com/example/camui/CameraMultiFrameProgress.kt \
             CamUI-src/app/src/main/java/com/example/camui/QuickSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
@@ -175,6 +176,7 @@ jobs:
             CamUI-src/app/src/main/res/values-vi/strings.xml \
             CamUI-src/app/src/main/res/values/themes.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/CameraMultiFrameProgressTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfAreaSizeTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfTouchPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraLcdDisplayModeTest.kt \

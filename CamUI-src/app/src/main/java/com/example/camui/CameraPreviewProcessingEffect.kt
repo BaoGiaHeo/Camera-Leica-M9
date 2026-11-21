@@ -36,6 +36,7 @@ internal object CameraPreviewProcessingEffect {
         uniform float uStrength;
         uniform float uHold;
         uniform float uBloom;
+        uniform float uDensity;
         float wave(float h, float s) {
             return 0.5 + 0.5 * cos(6.2831853 * (h + s));
         }
@@ -68,7 +69,7 @@ internal object CameraPreviewProcessingEffect {
                           sweepActive * 0.10 * uStrength;
             float perimeter = min(min(uv.x, 1.0 - uv.x) * uResolution.x,
                                   min(uv.y, 1.0 - uv.y) * uResolution.y);
-            float border = 1.0 - smoothstep(1.5, 12.0, perimeter);
+            float border = 1.0 - smoothstep(2.0 * uDensity, 10.0 * uDensity, perimeter);
             float breath = 0.80 + 0.20 * (0.5 + 0.5 * sin(t * 6.2831853 * 0.6));
             float borderAlpha = border * 0.70 * breath * uStrength * (1.0 + 0.25 * uHold);
             float3 rgb = pastel * (auraAlpha + prism) + rgbHue * borderAlpha;
@@ -130,7 +131,8 @@ internal object CameraPreviewProcessingEffect {
         holdSteady: Boolean,
         idleLunaBorder: Boolean = false,
         activationProgress: Float = 1f,
-        completionBloom: Boolean = false
+        completionBloom: Boolean = false,
+        density: Float = 1f
     ) {
         if (width <= 0f || height <= 0f) return
         val time = if (reducedMotion || simpleMode) 0f else timeSeconds.takeIf { it.isFinite() } ?: 0f
@@ -138,14 +140,15 @@ internal object CameraPreviewProcessingEffect {
         when (mode) {
             "luna" -> {
                 if (idleLunaBorder && progressPercent <= 0) {
-                    drawIdleBorder(canvas, width, height, time, activationProgress)
+                    val borderTime = if (activationProgress < 1f) activationProgress * 6.6667f else time
+                    drawIdleBorder(canvas, width, height, borderTime, activationProgress, density)
                 } else if (Build.VERSION.SDK_INT >= 33 && !simpleMode) {
-                    drawAuroraShader(canvas, width, height, time, holdSteady, completionBloom)
+                    drawAuroraShader(canvas, width, height, time, holdSteady, completionBloom, density)
                 } else {
-                    drawAuroraFallback(canvas, width, height, time, holdSteady, simpleMode, completionBloom)
+                    drawAuroraFallback(canvas, width, height, time, holdSteady, simpleMode, completionBloom, density)
                 }
             }
-            else -> drawNightSky(canvas, width, height, time, progressPercent, reducedMotion, simpleMode, completionBloom)
+            else -> drawNightSky(canvas, width, height, time, progressPercent, reducedMotion, simpleMode, completionBloom, density)
         }
         val elapsedUs = (SystemClock.elapsedRealtimeNanos() - started) / 1_000L
         if (elapsedUs > 3_000L) {
@@ -158,7 +161,10 @@ internal object CameraPreviewProcessingEffect {
         paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
     }
 
-    private fun drawAuroraShader(canvas: Canvas, width: Float, height: Float, time: Float, hold: Boolean, bloom: Boolean) {
+    private fun drawAuroraShader(
+        canvas: Canvas, width: Float, height: Float, time: Float,
+        hold: Boolean, bloom: Boolean, density: Float
+    ) {
         val shader = runCatching { runtimeShader ?: RuntimeShader(AGSL).also { runtimeShader = it } }
             .getOrElse {
                 if (!shaderFailureLogged) {
@@ -174,12 +180,15 @@ internal object CameraPreviewProcessingEffect {
             shader.setFloatUniform("uStrength", 1f)
             shader.setFloatUniform("uHold", if (hold) 1f else 0f)
             shader.setFloatUniform("uBloom", if (bloom) 1f else 0f)
+            shader.setFloatUniform("uDensity", density.coerceAtLeast(0.5f))
+            canvas.drawColor(android.graphics.Color.argb(if (hold) 26 else 20, 0, 0, 0))
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.shader = shader
                 if (Build.VERSION.SDK_INT >= 29) blendMode = BlendMode.SCREEN
             }
             canvas.drawRect(0f, 0f, width, height, paint)
-            drawSparkles(canvas, width, height, time, false)
+            drawPrismChromaticShift(canvas, width, height, time, density)
+            drawSparkles(canvas, width, height, time, false, density)
         }.onFailure {
             Log.w(TAG, "AGSL rendering failed; Canvas fallback enabled", it)
             drawAuroraFallback(canvas, width, height, time, hold, false, bloom)
@@ -188,10 +197,10 @@ internal object CameraPreviewProcessingEffect {
 
     private fun drawAuroraFallback(
         canvas: Canvas, width: Float, height: Float, time: Float,
-        hold: Boolean, simple: Boolean, bloom: Boolean
+        hold: Boolean, simple: Boolean, bloom: Boolean, density: Float
     ) {
         val shortSide = min(width, height)
-        val veil = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(if (simple) 20 else 26, 0, 0, 0) }
+        val veil = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(if (hold) 26 else 20, 0, 0, 0) }
         canvas.drawRect(0f, 0f, width, height, veil)
         if (!simple) {
             val colors = intArrayOf(0xFFFFA8C7.toInt(), 0xFFFFD1A8.toInt(), 0xFFD8E7B8.toInt(), 0xFFA9E6E0.toInt(), 0xFFB9C7FF.toInt())
@@ -218,12 +227,18 @@ internal object CameraPreviewProcessingEffect {
         drawSparkles(canvas, width, height, time, simple)
     }
 
-    private fun drawIdleBorder(canvas: Canvas, width: Float, height: Float, time: Float, activation: Float) {
+    private fun drawIdleBorder(
+        canvas: Canvas, width: Float, height: Float, time: Float,
+        activation: Float, density: Float
+    ) {
         val alpha = if (activation < 1f) activation.coerceIn(0f, 1f) else 0.35f
-        drawRainbowBorder(canvas, width, height, time, alpha * (0.9f + 0.1f * sin(time * 3.77f)))
+        drawRainbowBorder(canvas, width, height, time, alpha * (0.9f + 0.1f * sin(time * 3.77f)), density)
     }
 
-    private fun drawRainbowBorder(canvas: Canvas, width: Float, height: Float, time: Float, alpha: Float) {
+    private fun drawRainbowBorder(
+        canvas: Canvas, width: Float, height: Float, time: Float,
+        alpha: Float, density: Float
+    ) {
         val rect = RectF(1f, 1f, width - 1f, height - 1f)
         val colors = intArrayOf(
             0xFFFF6F91.toInt(), 0xFFFFC16F.toInt(), 0xFFD9E66F.toInt(),
@@ -236,16 +251,16 @@ internal object CameraPreviewProcessingEffect {
         })
         val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 10f
+            strokeWidth = 10f * density
             shader = sweep
             this.alpha = (alpha * 90f).toInt().coerceIn(0, 255)
-            maskFilter = BlurMaskFilter(10f, BlurMaskFilter.Blur.NORMAL)
+            maskFilter = BlurMaskFilter(10f * density, BlurMaskFilter.Blur.NORMAL)
             screenBlend(this)
         }
         canvas.drawRoundRect(rect, 10f, 10f, glow)
         val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 2f
+            strokeWidth = 2f * density
             shader = sweep
             this.alpha = (alpha * 255f).toInt().coerceIn(0, 255)
         }
@@ -276,13 +291,16 @@ internal object CameraPreviewProcessingEffect {
         canvas.drawLine(sx, sy, ex, ey, paint)
     }
 
-    private fun drawSparkles(canvas: Canvas, width: Float, height: Float, time: Float, static: Boolean) {
+    private fun drawSparkles(
+        canvas: Canvas, width: Float, height: Float, time: Float,
+        static: Boolean, density: Float
+    ) {
         val random = Random(SEED xor 0x77A)
         repeat(16) { index ->
             val x = (0.03f + random.nextFloat() * 0.94f) * width
             val y = (0.03f + random.nextFloat() * 0.94f) * height
             val nearEdge = min(min(x, width - x) / width, min(y, height - y) / height) < 0.26f
-            val size = 2f + random.nextFloat() * 4f
+            val size = (4f + random.nextFloat() * 6f) * density
             val freq = 0.4f + random.nextFloat() * 0.6f
             val phase = random.nextFloat() * 2f * PI.toFloat()
             val twinkle = if (static) 0.78f else 0.55f + 0.45f * (0.5f + 0.5f * sin(time * 2f * PI.toFloat() * freq + phase))
@@ -296,12 +314,12 @@ internal object CameraPreviewProcessingEffect {
                 this.color = color
                 this.alpha = (twinkle * 185f).toInt().coerceIn(0, 255)
                 style = Paint.Style.STROKE
-                strokeWidth = 1f
+                strokeWidth = 0.7f * density
             }
             canvas.drawLine(x - size, y, x + size, y, paint)
             canvas.drawLine(x, y - size, x, y + size, paint)
             if (index % 2 == 0) {
-                paint.strokeWidth = 0.7f
+                paint.strokeWidth = 0.6f * density
                 canvas.drawLine(x - size * 0.55f, y - size * 0.55f, x + size * 0.55f, y + size * 0.55f, paint)
                 canvas.drawLine(x - size * 0.55f, y + size * 0.55f, x + size * 0.55f, y - size * 0.55f, paint)
             }
@@ -310,7 +328,8 @@ internal object CameraPreviewProcessingEffect {
 
     private fun drawNightSky(
         canvas: Canvas, width: Float, height: Float, time: Float,
-        progress: Int, reducedMotion: Boolean, simple: Boolean, bloom: Boolean
+        progress: Int, reducedMotion: Boolean, simple: Boolean, bloom: Boolean,
+        density: Float
     ) {
         val maxStars = if (simple) 60 else 140
         val visibleCount = ceil(maxStars * progress.coerceIn(0, 100) / 100f).toInt()
@@ -342,7 +361,7 @@ internal object CameraPreviewProcessingEffect {
                 2 -> 0xFFBFD6FF.toInt()
                 else -> 0xFFFFFFFF.toInt()
             }
-            val size = star.size
+            val size = star.size * density
             val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.color = color
                 this.alpha = (alpha * 64f).toInt().coerceIn(0, 255)
@@ -364,7 +383,7 @@ internal object CameraPreviewProcessingEffect {
                 canvas.drawLine(x, y - length, x, y + length, flare)
             }
         }
-        if (!reducedMotion && !simple) drawMeteor(canvas, width, height, time, progress)
+        if (!reducedMotion && !simple) drawMeteor(canvas, width, height, time, progress, density)
         if (bloom) {
             val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = RadialGradient(
@@ -392,7 +411,10 @@ internal object CameraPreviewProcessingEffect {
         canvas.restore()
     }
 
-    private fun drawMeteor(canvas: Canvas, width: Float, height: Float, time: Float, progress: Int) {
+    private fun drawMeteor(
+        canvas: Canvas, width: Float, height: Float, time: Float, progress: Int,
+        density: Float
+    ) {
         val phase = time % 6.7f
         if (phase > 0.78f || progress < 12) return
         val fraction = phase / 0.78f
@@ -403,7 +425,7 @@ internal object CameraPreviewProcessingEffect {
         val tx = x - cos(angle) * length
         val ty = y - sin(angle) * length
         val trail = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            strokeWidth = 1f
+            strokeWidth = 1f * density
             strokeCap = Paint.Cap.ROUND
             shader = LinearGradient(
                 tx.toFloat(), ty.toFloat(), x, y,
@@ -412,7 +434,7 @@ internal object CameraPreviewProcessingEffect {
             )
         }
         canvas.drawLine(tx.toFloat(), ty.toFloat(), x, y, trail)
-        canvas.drawCircle(x, y, 1.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() })
+        canvas.drawCircle(x, y, 1.5f * density, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() })
     }
 
     private fun alphaColor(color: Int, alpha: Int): Int =

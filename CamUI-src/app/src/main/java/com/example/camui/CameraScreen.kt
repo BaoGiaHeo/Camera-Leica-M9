@@ -985,6 +985,7 @@ fun CameraScreen(
     var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
+    var thumbUri by remember { mutableStateOf<Uri?>(null) }
     var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerOriginalBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerShowsOriginal by remember { mutableStateOf(false) }
@@ -2998,13 +2999,21 @@ fun CameraScreen(
         }
     }
 
-    LaunchedEffect(lastUri) {
-        val uri = lastUri ?: return@LaunchedEffect
-        thumb = withContext(Dispatchers.IO) {
+    LaunchedEffect(lastUri, thumbUri) {
+        val uri = lastUri
+        if (uri == null) {
+            thumb = null
+            thumbUri = null
+            return@LaunchedEffect
+        }
+        if (thumbUri == uri && thumb != null) return@LaunchedEffect
+        val decodedThumbnail = withContext(Dispatchers.IO) {
             runCatching {
                 decodeUprightBitmap(context, uri, maxDimension = 320)?.asImageBitmap()
             }.getOrNull()
         }
+        thumb = decodedThumbnail
+        thumbUri = uri.takeIf { decodedThumbnail != null }
     }
 
     LaunchedEffect(photoViewerVisible, lastUri) {
@@ -3207,6 +3216,7 @@ fun CameraScreen(
                         withContext(Dispatchers.Main) {
                             lastUri = starUri
                             thumb = previewThumb
+                            thumbUri = starUri.takeIf { previewThumb != null }
                             processingProgress = 100
                             localizedToast(
                                 context,
@@ -3428,6 +3438,7 @@ fun CameraScreen(
                             decodeUprightBitmap(context, mergedBracketUri!!, maxDimension = 320)?.asImageBitmap()
                         }.getOrNull()
                     }
+                    thumbUri = mergedBracketUri.takeIf { thumb != null }
                 }
                 val mergeMessage = when {
                     bracketSavedUris.size < 2 -> "Không đủ khung hình để ghép; các ảnh chụp thành công vẫn được giữ."
@@ -3509,6 +3520,7 @@ fun CameraScreen(
                             decodeUprightBitmap(context, lastSuccessfulUri!!, maxDimension = 320)?.asImageBitmap()
                         }.getOrNull()
                     }
+                    thumbUri = lastSuccessfulUri.takeIf { thumb != null }
                 }
                 localizedToast(
                     context,
@@ -4170,6 +4182,7 @@ fun CameraScreen(
                                         if (preserved) {
                                             lastUri = saved
                                             thumb = originalThumbnail
+                                            thumbUri = saved.takeIf { originalThumbnail != null }
                                         }
                                         nightShotCaptureInProgress = false
                                         multiFrameHoldActive = false
@@ -4375,6 +4388,7 @@ fun CameraScreen(
                                     withContext(Dispatchers.Main) {
                                         lastUri = null
                                         thumb = null
+                                        thumbUri = null
                                         photoViewerVisible = false
                                         isProcessing = false
                                         processingProgress = 0
@@ -4515,12 +4529,19 @@ fun CameraScreen(
                                         }
                                     )
                                     .apply()
+                                val finalThumbnail = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()
+                                    }.getOrNull()
+                                }
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 98
                                     processingEtaSeconds = 1
                                 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
+                                    thumb = finalThumbnail
+                                    thumbUri = saved.takeIf { finalThumbnail != null }
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     if (captureIsUltraHdr && watermarkRequested) {
@@ -4638,6 +4659,7 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
                                     thumb = fallbackThumbnail
+                                    thumbUri = saved.takeIf { fallbackThumbnail != null }
                                     isProcessing = false
                                     processingProgress = 0
                                     processingEtaSeconds = -1

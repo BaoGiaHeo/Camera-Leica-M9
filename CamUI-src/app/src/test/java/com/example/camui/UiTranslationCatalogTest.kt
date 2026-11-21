@@ -28,12 +28,18 @@ class UiTranslationCatalogTest {
             "RAW Capture" to "Chụp RAW",
             "Night capture and Star Trails use separate processing pipelines" to
                 "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng.",
+            "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung và các tùy chọn đã bật." to
+                "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization and enabled options."
             "SETTINGS  ›" to "CÀI ĐẶT  ›",
             "MENU/OK  >  SETTINGS" to "MENU/OK  >  CÀI ĐẶT"
         )
         cases.forEach { (source, expected) ->
             assertEquals(expected, UiTranslationCatalog.toVietnamese(source))
         }
+        assertEquals(
+            "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization and enabled options.",
+            UiTranslationCatalog.toEnglish("Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung và các tùy chọn đã bật.")
+        )
         assertEquals("SETTINGS  ›", UiTranslationCatalog.toEnglish("CÀI ĐẶT  ›"))
         assertEquals("MENU/OK  >  SETTINGS", UiTranslationCatalog.toEnglish("MENU/OK  >  CÀI ĐẶT"))
     }

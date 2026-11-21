@@ -138,9 +138,19 @@ class WatermarkStudioContactSheetTest {
                 }
                 requireNotNull(bitmap) { "Rendered output bitmap is null for $layoutId" }
                 assertTrue(
-                    "Unexpected output dimensions for $layoutId: ${bitmap.width}x${bitmap.height}",
-                    bitmap.width == 640 && bitmap.height == 360
+                    "Watermark output must retain source width and include the full photo area for $layoutId: ${bitmap.width}x${bitmap.height}",
+                    bitmap.width == 640 && bitmap.height >= 360
                 )
+                // Layout A-E templates may add a footer or frame outside the source photo.
+                // The renderer intentionally keeps the original 640x360 photo rectangle native-sized.
+                val expectedPhotoGeometry = WatermarkGeometry.build(
+                    640,
+                    360,
+                    WatermarkLayoutSettings(),
+                    WatermarkPhotoMetadata()
+                )
+                assertEquals(640f, expectedPhotoGeometry.photoRect.width, 0.01f)
+                assertEquals(360f, expectedPhotoGeometry.photoRect.height, 0.01f)
                 renderedBitmaps += layoutId to bitmap
             }
 

@@ -551,13 +551,12 @@ fun CameraScreen(
     val faceTrackingEnabledState = rememberUpdatedState(faceTrackingEnabled)
     val faceTrackingModeState = rememberUpdatedState(faceTrackingMode)
     var hardwareFaceDetectionAvailable by remember { mutableStateOf(false) }
-    var hardwareEyeLandmarksAvailable by remember { mutableStateOf(false) }
     val hardwareFaceDetectionAvailableState = rememberUpdatedState(hardwareFaceDetectionAvailable)
-    val hardwareEyeLandmarksAvailableState = rememberUpdatedState(hardwareEyeLandmarksAvailable)
     val useMlFaceDetectionState = rememberUpdatedState(
-        faceTrackingEnabled &&
-            if (faceTrackingMode == "face_eye") !hardwareEyeLandmarksAvailable
-            else !hardwareFaceDetectionAvailable
+        faceTrackingEnabled && shouldUseMlKitFaceDetection(
+            faceTrackingMode,
+            hardwareFaceDetectionAvailable
+        )
     )
     val faceTrackSmoother = remember { FaceTrackSmoother() }
     val primaryEyeSelector = remember { PrimaryEyeSelector() }
@@ -999,15 +998,15 @@ fun CameraScreen(
     var captureSetupReady by remember { mutableStateOf(false) }
 
     LaunchedEffect(faceTrackingMode, camera, activeCameraDetails) {
+        val active = camera
         if (faceTrackingMode == "off") {
             faceTrackCenter = null
             faceTrackSize = null
             faceEyeCenter = null
             hardwareFaceDetectionAvailable = false
-            hardwareEyeLandmarksAvailable = false
-            camera?.let { active ->
+            active?.let { bound ->
                 runCatching {
-                    Camera2CameraControl.from(active.cameraControl).addCaptureRequestOptions(
+                    Camera2CameraControl.from(bound.cameraControl).addCaptureRequestOptions(
                         CaptureRequestOptions.Builder()
                             .setCaptureRequestOption(
                                 CaptureRequest.STATISTICS_FACE_DETECT_MODE,
@@ -1019,8 +1018,32 @@ fun CameraScreen(
             }
             return@LaunchedEffect
         }
-        val active = camera
         if (active == null) return@LaunchedEffect
+
+        // Camera2 Face returns eye centres only; it has no per-eye contour area.
+        // FACE+EYE therefore uses ML Kit contours so the 25%-larger/500ms switch
+        // rule works consistently on every device, including Camera2 FULL devices.
+        if (faceTrackingMode == "face_eye") {
+            hardwareFaceDetectionAvailable = false
+            runCatching {
+                Camera2CameraControl.from(active.cameraControl).addCaptureRequestOptions(
+                    CaptureRequestOptions.Builder()
+                        .setCaptureRequestOption(
+                            CaptureRequest.STATISTICS_FACE_DETECT_MODE,
+                            CaptureRequest.STATISTICS_FACE_DETECT_MODE_OFF
+                        )
+                        .build()
+                )
+            }.onFailure {
+                android.util.Log.w("FUJI_FACE_TRACK", "Could not disable Camera2 face detection for contour-based FACE+EYE.", it)
+            }
+            android.util.Log.i(
+                "FUJI_FACE_TRACK",
+                "FACE+EYE uses ML Kit 640x480 contours for per-eye area hysteresis (Camera2 eye centres have no contour size)."
+            )
+            return@LaunchedEffect
+        }
+
         val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cameraId = activeCameraDetails?.id
             ?: runCatching { Camera2CameraInfo.from(active.cameraInfo).cameraId }.getOrNull()
@@ -1030,17 +1053,16 @@ fun CameraScreen(
                 .get(CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES)
                 ?: intArrayOf()
         }.getOrDefault(intArrayOf())
-        val fullAvailable = availableModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL)
-        val simpleAvailable = availableModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE)
-        hardwareFaceDetectionAvailable = fullAvailable || simpleAvailable
-        hardwareEyeLandmarksAvailable = fullAvailable
         val selectedMode = when {
-            fullAvailable -> CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
-            simpleAvailable -> CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
+            availableModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) ->
+                CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
+            availableModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE) ->
+                CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
             else -> null
         }
+        hardwareFaceDetectionAvailable = selectedMode != null
         if (selectedMode == null) {
-            android.util.Log.i("FUJI_FACE_TRACK", "No hardware face detection; selecting ML Kit fallback.")
+            android.util.Log.i("FUJI_FACE_TRACK", "No Camera2 FULL/SIMPLE face mode; selecting ML Kit fallback.")
             return@LaunchedEffect
         }
         runCatching {
@@ -1051,7 +1073,6 @@ fun CameraScreen(
             )
         }.onFailure {
             hardwareFaceDetectionAvailable = false
-            hardwareEyeLandmarksAvailable = false
             android.util.Log.w("FUJI_FACE_TRACK", "Could not enable Camera2 face detection; selecting ML Kit fallback.", it)
         }
     }
@@ -1693,7 +1714,6 @@ fun CameraScreen(
                 var lastFaceTrackAtMs = 0L
                 var lastFaceAfAtMs = 0L
                 var lastFaceAfTarget: Offset? = null
-                var consecutiveHardwareFacesWithoutEyes = 0
 
                 fun publishDetectedFace(
                     center: Offset,
@@ -1934,8 +1954,8 @@ fun CameraScreen(
                                 }
                             }
                             val shouldUseCamera2Faces = faceTrackingEnabledState.value &&
-                                if (faceTrackingModeState.value == "face_eye") hardwareEyeLandmarksAvailableState.value
-                                else hardwareFaceDetectionAvailableState.value
+                                faceTrackingModeState.value == "face" &&
+                                hardwareFaceDetectionAvailableState.value
                             if (shouldUseCamera2Faces) {
                                 val detectedFaces = result.get(CaptureResult.STATISTICS_FACES)
                                 val crop = result.get(CaptureResult.SCALER_CROP_REGION)
@@ -1974,71 +1994,15 @@ fun CameraScreen(
                                 ) {
                                     val center = bestCandidate.center
                                     val size = bestCandidate.size
-                                    val leftEye = bestFace.leftEyePosition
-                                    val rightEye = bestFace.rightEyePosition
-                                    if (needsMlKitEyeLandmarkFallback(
-                                            faceTrackingModeState.value,
-                                            leftEye != null,
-                                            rightEye != null
-                                        )
-                                    ) {
-                                        consecutiveHardwareFacesWithoutEyes++
-                                        if (consecutiveHardwareFacesWithoutEyes >= 5 &&
-                                            hardwareEyeLandmarksAvailableState.value
-                                        ) {
-                                            scope.launch(Dispatchers.Main) {
-                                                hardwareEyeLandmarksAvailable = false
-                                                android.util.Log.w(
-                                                    "FUJI_FACE_TRACK",
-                                                    "Camera2 FULL returned no eye landmarks for five detected frames; switching FACE+EYE to ML Kit."
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        consecutiveHardwareFacesWithoutEyes = 0
-                                    }
                                     val faceTimestamp = SystemClock.elapsedRealtime()
-                                    val previousPrimaryEye = primaryEyeSelector.currentSide()
-                                    val primaryEye = primaryEyeSelector.select(
-                                        leftEye = leftEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
-                                        rightEye = rightEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
-                                        headYawDegrees = 0f,
-                                        nowMs = faceTimestamp,
-                                        trackingId = bestCandidate.trackingId,
-                                        leftConfidence = if (leftEye != null) 1f else 0f,
-                                        rightConfidence = if (rightEye != null) 1f else 0f
-                                    )
-                                    fun mapCamera2Eye(point: Offset?): Offset? = point?.let {
-                                        rotateFacePoint(
-                                            (it.x - crop.left) / crop.width(),
-                                            (it.y - crop.top) / crop.height(),
-                                            faceSensorToDisplayRotation,
-                                            front
-                                        )
-                                    }
-                                    val selectedPrimaryEye = primaryEyeSelector.currentSide()
-                                    if (previousPrimaryEye != null && selectedPrimaryEye != null &&
-                                        previousPrimaryEye != selectedPrimaryEye
-                                    ) {
-                                        val switchRate = eyeSwitchRateTracker.recordSwitch(faceTimestamp)
-                                        android.util.Log.i(
-                                            "FUJI_FACE_TRACK",
-                                            "PRIMARY_EYE_SWITCH source=CAMERA2 from=$previousPrimaryEye to=$selectedPrimaryEye switchesLast60s=$switchRate"
-                                        )
-                                    }
-                                    val eye = mapCamera2Eye(primaryEye)
-                                    val leftEyeDisplay = mapCamera2Eye(
-                                        leftEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) }
-                                    )
-                                    val rightEyeDisplay = mapCamera2Eye(
-                                        rightEye?.let { Offset(it.x.toFloat(), it.y.toFloat()) }
-                                    )
+                                    // Camera2 is used for FACE-only mode; FACE+EYE takes the
+                                    // ML Kit contour path above, where individual eye areas exist.
                                     publishDetectedFace(
                                         center,
                                         size,
-                                        eye,
-                                        leftEyeDisplay,
-                                        rightEyeDisplay,
+                                        null,
+                                        null,
+                                        null,
                                         faceTimestamp,
                                         bestCandidate.trackingId
                                     )
@@ -2586,39 +2550,46 @@ fun CameraScreen(
                 val availableFaceModes = activeCameraCharacteristics?.get(
                     CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES
                 ) ?: intArrayOf()
-                val faceDetectMode = when {
-                    availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) ->
-                        CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
-                    availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE) ->
-                        CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
-                    else -> null
-                }
+                val faceDetectMode = if (faceTrackingMode == "face") {
+                    when {
+                        availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) ->
+                            CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
+                        availableFaceModes.contains(CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE) ->
+                            CaptureRequest.STATISTICS_FACE_DETECT_MODE_SIMPLE
+                        else -> null
+                    }
+                } else null
                 hardwareFaceDetectionAvailable = faceDetectMode != null
-                hardwareEyeLandmarksAvailable =
-                    faceDetectMode == CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL
-                if (faceTrackingEnabled && faceDetectMode != null) {
+                if (faceTrackingEnabled) {
                     runCatching {
                         val faceOptions = CaptureRequestOptions.Builder()
-                            .setCaptureRequestOption(CaptureRequest.STATISTICS_FACE_DETECT_MODE, faceDetectMode)
+                            .setCaptureRequestOption(
+                                CaptureRequest.STATISTICS_FACE_DETECT_MODE,
+                                faceDetectMode ?: CaptureRequest.STATISTICS_FACE_DETECT_MODE_OFF
+                            )
                             .build()
                         Camera2CameraControl.from(bound.cameraControl).addCaptureRequestOptions(faceOptions)
-                        android.util.Log.i(
-                            "FUJI_FACE_TRACK",
-                            "mode=${faceTrackingMode}; camera2FaceMode=${if (faceDetectMode == CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) "FULL" else "SIMPLE"}; eyeLandmarks=${faceDetectMode == CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL}"
-                        )
+                        if (faceDetectMode != null) {
+                            android.util.Log.i(
+                                "FUJI_FACE_TRACK",
+                                "mode=face; camera2FaceMode=${if (faceDetectMode == CaptureRequest.STATISTICS_FACE_DETECT_MODE_FULL) "FULL" else "SIMPLE"}"
+                            )
+                        } else {
+                            android.util.Log.i(
+                                "FUJI_FACE_TRACK",
+                                "mode=face_eye; Camera2 face stats OFF; ML Kit eye contours enabled at 640x480/24fps."
+                            )
+                        }
                     }.onFailure {
-                        android.util.Log.w("FUJI_FACE_TRACK", "Could not enable Camera2 face detection", it)
+                        android.util.Log.w("FUJI_FACE_TRACK", "Could not configure Camera2 face detection", it)
                         hardwareFaceDetectionAvailable = false
-                        hardwareEyeLandmarksAvailable = false
                     }
                 } else {
+                    hardwareFaceDetectionAvailable = false
                     faceTrackCenter = null
                     faceTrackSize = null
                     faceEyeCenter = null
                     faceTrackSmoother.reset()
-                    if (faceTrackingEnabled) {
-                        android.util.Log.i("FUJI_FACE_TRACK", "Using ML Kit fallback for face/eye tracking.")
-                    }
                 }
                 activeCameraDetails = discoveredCamera2.firstOrNull {
                     it.id == actualCameraId && it.parentId == null

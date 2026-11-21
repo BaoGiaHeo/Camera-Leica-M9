@@ -182,7 +182,6 @@ internal object CameraPreviewProcessingEffect {
             shader.setFloatUniform("uHold", if (hold) 1f else 0f)
             shader.setFloatUniform("uBloom", if (bloom) 1f else 0f)
             shader.setFloatUniform("uDensity", density.coerceAtLeast(0.5f))
-            canvas.drawColor(android.graphics.Color.argb(if (hold) 26 else 20, 0, 0, 0))
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.shader = shader
                 if (Build.VERSION.SDK_INT >= 29) blendMode = BlendMode.SCREEN
@@ -201,8 +200,6 @@ internal object CameraPreviewProcessingEffect {
         hold: Boolean, simple: Boolean, bloom: Boolean, density: Float
     ) {
         val shortSide = min(width, height)
-        val veil = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(if (hold) 26 else 20, 0, 0, 0) }
-        canvas.drawRect(0f, 0f, width, height, veil)
         val colors = intArrayOf(0xFFFFA8C7.toInt(), 0xFFFFD1A8.toInt(), 0xFFD8E7B8.toInt(), 0xFFA9E6E0.toInt(), 0xFFB9C7FF.toInt())
         val centres = floatArrayOf(0.20f, 0.42f, 0.70f, 0.85f, 0.32f, 0.24f, 0.72f, 0.25f, 0.76f, 0.50f)
         for (i in 0 until 5) {

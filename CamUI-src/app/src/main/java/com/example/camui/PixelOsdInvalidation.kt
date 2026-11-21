@@ -179,6 +179,7 @@ internal fun pixelOsdDirtyRegions(
         previous.zoomRatio != current.zoomRatio ||
         previous.zoomMinimumRatio != current.zoomMinimumRatio ||
         previous.zoomMaximumRatio != current.zoomMaximumRatio ||
+        previous.zoomOpticalBoundaryRatio != current.zoomOpticalBoundaryRatio ||
         previous.zoomDigitalBoundaryRatio != current.zoomDigitalBoundaryRatio ||
         previous.zoomBarPosition != current.zoomBarPosition ||
         previous.zoomBarAlpha != current.zoomBarAlpha

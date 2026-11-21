@@ -25,6 +25,13 @@ import kotlin.math.sin
 import kotlin.math.roundToInt
 
 internal const val PIXEL_OSD_GRID_ALPHA = 4
+internal fun formatEvReadout(evStops: Float): String {
+    val safeStops = evStops.takeIf { it.isFinite() } ?: 0f
+    val roundedStops = (safeStops * 10f).roundToInt() / 10f
+    val normalizedStops = if (roundedStops == 0f) 0f else roundedStops
+    return String.format(Locale.US, "%+.1f EV", normalizedStops)
+}
+
 internal const val PIXEL_OSD_REFLECTION_ALPHA = 3
 
 private object PixelOsdPalette {
@@ -535,6 +542,15 @@ class PixelOsdRenderer(context: Context) {
         drawPixel(canvas, 8, pointerY - 1, pointerColor)
         drawPixel(canvas, 8, pointerY + 1, pointerColor)
         drawPixel(canvas, 9, pointerY, pointerColor)
+        // One neutral numeric readout sits just below the EV ladder; no duplicate
+        // blue EV label is drawn elsewhere in the camera HUD.
+        drawPixelText(
+            canvas,
+            formatEvReadout(currentStops),
+            17,
+            (bottom + 12).coerceAtMost(height - 27),
+            PixelOsdPalette.WHITE
+        )
     }
 
     private fun drawHistogram(canvas: NativeCanvas, bins: List<Int>) {

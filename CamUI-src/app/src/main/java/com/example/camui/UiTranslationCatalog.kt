@@ -9,6 +9,10 @@ package com.example.camui
  */
 internal object UiTranslationCatalog {
     private val vietnameseToEnglish = linkedMapOf(
+        "Pin còn rất thấp; Star Trails đã dừng và đang ghép các khung đã chụp." to
+            "Battery is critically low; Star Trails stopped and is merging the captured frames.",
+        "Pin còn rất thấp; đã dừng thu khung và xử lý các khung hình hợp lệ đã chụp." to
+            "Battery is critically low; frame capture stopped and the valid captured frames are being processed.",
         "Camera này không hỗ trợ RAW/RawDream 2.0 đồng thời. Không thể dùng chế độ RAW đã chọn." to
             "This camera cannot capture RAW and RawDream 2.0 simultaneously. The selected RAW mode is unavailable.",
         "Hình xem trước có dấu hiệu mờ. Có thể ống kính bị bẩn hoặc che khuất; hãy kiểm tra và lau kính camera." to
@@ -232,10 +236,7 @@ internal object UiTranslationCatalog {
         "RAW Capture" to "Chụp RAW",
         "Battery is critically low. Charge the phone before using Star Trails, NightShot or long exposure." to
             "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
-        "Pin còn rất thấp; Star Trails đã dừng và đang ghép các khung đã chụp." to
-            "Battery is critically low; Star Trails stopped and is merging the captured frames.",
-        "Pin còn rất thấp; đã dừng thu khung và xử lý các khung hình hợp lệ đã chụp." to
-            "Battery is critically low; frame capture stopped and the valid captured frames are being processed.",
+
         "Camera Presets" to "Thiết lập camera",
         "Film Simulation Customizer" to "Tùy chỉnh mô phỏng phim",
         "Saved Film Recipes" to "Công thức mô phỏng phim đã lưu",

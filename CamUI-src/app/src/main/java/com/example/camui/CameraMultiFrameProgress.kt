@@ -125,7 +125,14 @@ internal fun FujiMultiFrameProgressPill(
         label = "multi-frame-current-segment-alpha"
     )
     val segmentCount = if (state.nightShot) 30 else 24
-    val safePercent = state.progressPercent.coerceIn(0, 100)
+    val capturePercent = if (state.targetFrames > 0) {
+        (state.capturedFrames.coerceAtLeast(0) * 100 / state.targetFrames).coerceIn(0, 100)
+    } else 0
+    val safePercent = if (state.stage == MultiFrameStage.CAPTURE) {
+        maxOf(state.progressPercent, capturePercent).coerceIn(0, 100)
+    } else {
+        state.progressPercent.coerceIn(0, 100)
+    }
     val filledSegments = floor(safePercent * segmentCount / 100f).toInt().coerceIn(0, segmentCount)
     val hasCurrentSegment = filledSegments < segmentCount && safePercent > 0
     val stageText = stringResource(state.stage.resourceId)
@@ -135,7 +142,7 @@ internal fun FujiMultiFrameProgressPill(
         else -> ""
     }
     val temperatureText = if (state.batteryTemperatureC >= 0) {
-        state.batteryTemperatureC.toString() + "°C"
+        stringResource(R.string.mf_temperature_format, state.batteryTemperatureC)
     } else {
         "--°C"
     }

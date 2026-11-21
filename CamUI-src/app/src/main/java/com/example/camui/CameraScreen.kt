@@ -940,6 +940,7 @@ fun CameraScreen(
                 1f,
                 animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
             )
+            delay(300L)
             previewEffectBloom = false
             previewFreezeAlpha.animateTo(
                 0f,
@@ -5796,7 +5797,8 @@ fun CameraScreen(
                                         holdSteady = multiFrameHoldActive || nightShotCaptureInProgress,
                                         idleLunaBorder = idleLunaEffect,
                                         activationProgress = lunaActivationProgress.value,
-                                        completionBloom = previewEffectBloom
+                                        completionBloom = previewEffectBloom,
+                                        density = density
                                     )
                                 }
                                 if (previewFreezeVisible) {

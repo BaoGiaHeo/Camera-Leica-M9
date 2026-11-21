@@ -773,21 +773,34 @@ class PixelOsdRenderer(context: Context) {
         val trackRight = (bounds.right / scale).roundToInt()
         val trackTop = (bounds.top / scale).roundToInt()
         val trackBottom = (bounds.bottom / scale).roundToInt()
-        if (trackRight - trackLeft < 8 || trackBottom <= trackTop) return
+        val vertical = frame.zoomBarPosition == "middle_left"
+        if ((!vertical && trackRight - trackLeft < 8) || (vertical && trackRight - trackLeft < 4) ||
+            trackBottom <= trackTop
+        ) return
 
         val minimum = frame.zoomMinimumRatio
         val maximum = frame.zoomMaximumRatio
         val ratioPosition = logarithmicZoomPosition(frame.zoomRatio, minimum, maximum)
         val opticalPosition = logarithmicZoomPosition(frame.zoomOpticalBoundaryRatio, minimum, maximum)
         val digitalPosition = logarithmicZoomPosition(frame.zoomDigitalBoundaryRatio, minimum, maximum)
+        val horizontalSpan = (trackRight - trackLeft).coerceAtLeast(1)
+        val verticalSpan = (trackBottom - trackTop).coerceAtLeast(1)
 
         if (frame.zoomOpticalBoundaryRatio.isFinite() && frame.zoomDigitalBoundaryRatio.isFinite() &&
             frame.zoomOpticalBoundaryRatio < frame.zoomDigitalBoundaryRatio && digitalPosition > opticalPosition
         ) {
-            val hybridStart = (trackLeft + opticalPosition * (trackRight - trackLeft)).roundToInt()
-            val hybridEnd = (trackLeft + digitalPosition * (trackRight - trackLeft)).roundToInt()
-            for (y in (trackTop + 1) until trackBottom) {
-                drawHLine(canvas, hybridStart, hybridEnd - 1, y, PixelOsdPalette.WHITE, alpha * 36 / 255)
+            if (vertical) {
+                val yDigital = (trackBottom - digitalPosition * verticalSpan).roundToInt()
+                val yOptical = (trackBottom - opticalPosition * verticalSpan).roundToInt()
+                for (x in (trackLeft + 1) until trackRight) {
+                    drawVLine(canvas, x, yDigital, yOptical - 1, PixelOsdPalette.WHITE, alpha * 36 / 255)
+                }
+            } else {
+                val hybridStart = (trackLeft + opticalPosition * horizontalSpan).roundToInt()
+                val hybridEnd = (trackLeft + digitalPosition * horizontalSpan).roundToInt()
+                for (y in (trackTop + 1) until trackBottom) {
+                    drawHLine(canvas, hybridStart, hybridEnd - 1, y, PixelOsdPalette.WHITE, alpha * 36 / 255)
+                }
             }
         }
         if (frame.zoomDigitalBoundaryRatio.isFinite() &&
@@ -795,13 +808,23 @@ class PixelOsdRenderer(context: Context) {
             frame.zoomDigitalBoundaryRatio < maximum &&
             digitalPosition < 1f
         ) {
-            val digitalStart = (trackLeft + digitalPosition * (trackRight - trackLeft)).roundToInt()
-            for (y in (trackTop + 1) until trackBottom) {
-                drawHLine(canvas, digitalStart, trackRight - 1, y, PixelOsdPalette.AMBER, alpha * 72 / 255)
-            }
             val markerThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
-            for (offset in 0 until markerThickness) {
-                drawVLine(canvas, digitalStart + offset, trackTop - 1, trackBottom + 1, PixelOsdPalette.AMBER, alpha)
+            if (vertical) {
+                val digitalY = (trackBottom - digitalPosition * verticalSpan).roundToInt()
+                for (x in (trackLeft + 1) until trackRight) {
+                    drawVLine(canvas, x, trackTop + 1, digitalY, PixelOsdPalette.AMBER, alpha * 72 / 255)
+                }
+                for (offset in 0 until markerThickness) {
+                    drawHLine(canvas, trackLeft - 1, trackRight + 1, digitalY + offset, PixelOsdPalette.AMBER, alpha)
+                }
+            } else {
+                val digitalStart = (trackLeft + digitalPosition * horizontalSpan).roundToInt()
+                for (y in (trackTop + 1) until trackBottom) {
+                    drawHLine(canvas, digitalStart, trackRight - 1, y, PixelOsdPalette.AMBER, alpha * 72 / 255)
+                }
+                for (offset in 0 until markerThickness) {
+                    drawVLine(canvas, digitalStart + offset, trackTop - 1, trackBottom + 1, PixelOsdPalette.AMBER, alpha)
+                }
             }
         }
         if (frame.zoomOpticalBoundaryRatio.isFinite() &&
@@ -809,8 +832,13 @@ class PixelOsdRenderer(context: Context) {
             frame.zoomOpticalBoundaryRatio < maximum &&
             opticalPosition < 1f
         ) {
-            val opticalStart = (trackLeft + opticalPosition * (trackRight - trackLeft)).roundToInt()
-            drawVLine(canvas, opticalStart, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha * 150 / 255)
+            if (vertical) {
+                val opticalY = (trackBottom - opticalPosition * verticalSpan).roundToInt()
+                drawHLine(canvas, trackLeft, trackRight, opticalY, PixelOsdPalette.WHITE, alpha * 150 / 255)
+            } else {
+                val opticalX = (trackLeft + opticalPosition * horizontalSpan).roundToInt()
+                drawVLine(canvas, opticalX, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha * 150 / 255)
+            }
         }
 
         val borderThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
@@ -821,14 +849,27 @@ class PixelOsdRenderer(context: Context) {
             drawVLine(canvas, trackRight - offset, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
         }
 
-        val handleWidth = (layout.unitPx * 0.32f / scale).roundToInt().coerceAtLeast(2)
-        val usable = (trackRight - trackLeft - handleWidth).coerceAtLeast(0)
-        val handleLeft = (trackLeft + ratioPosition * usable).roundToInt().coerceIn(
-            trackLeft + borderThickness,
-            (trackRight - borderThickness - handleWidth + 1).coerceAtLeast(trackLeft + borderThickness)
-        )
-        for (y in (trackTop + borderThickness) until (trackBottom - borderThickness + 1)) {
-            drawHLine(canvas, handleLeft, handleLeft + handleWidth - 1, y, PixelOsdPalette.WHITE, alpha)
+        if (vertical) {
+            val handleHeight = (layout.unitPx * 0.32f / scale).roundToInt().coerceAtLeast(2)
+            val usable = (trackBottom - trackTop - handleHeight).coerceAtLeast(0)
+            val handleTop = (trackBottom - handleHeight - ratioPosition * usable).roundToInt().coerceIn(
+                (trackTop + borderThickness).coerceAtMost(trackBottom - borderThickness),
+                (trackBottom - borderThickness - handleHeight + 1)
+                    .coerceAtLeast(trackTop + borderThickness)
+            )
+            for (x in (trackLeft + borderThickness) until (trackRight - borderThickness + 1)) {
+                drawVLine(canvas, x, handleTop, handleTop + handleHeight - 1, PixelOsdPalette.WHITE, alpha)
+            }
+        } else {
+            val handleWidth = (layout.unitPx * 0.32f / scale).roundToInt().coerceAtLeast(2)
+            val usable = (trackRight - trackLeft - handleWidth).coerceAtLeast(0)
+            val handleLeft = (trackLeft + ratioPosition * usable).roundToInt().coerceIn(
+                trackLeft + borderThickness,
+                (trackRight - borderThickness - handleWidth + 1).coerceAtLeast(trackLeft + borderThickness)
+            )
+            for (y in (trackTop + borderThickness) until (trackBottom - borderThickness + 1)) {
+                drawHLine(canvas, handleLeft, handleLeft + handleWidth - 1, y, PixelOsdPalette.WHITE, alpha)
+            }
         }
 
         layout.elements.filter { it.section == "zoom" && it.kind == PixelOsdElementKind.TEXT }

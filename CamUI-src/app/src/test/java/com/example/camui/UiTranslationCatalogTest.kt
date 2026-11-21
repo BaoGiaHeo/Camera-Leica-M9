@@ -59,6 +59,42 @@ class UiTranslationCatalogTest {
     }
 
     @Test
+    fun lunaDreamProgressAndImageDescriptionsAreLocalizedInBothDirections() {
+        assertEquals(
+            "LunaDream 1.5 dự phòng · 20%",
+            UiTranslationCatalog.toVietnamese("LunaDream 1.5 fallback · 20%")
+        )
+        assertEquals(
+            "LunaDream 1.5 fallback · 20%",
+            UiTranslationCatalog.toEnglish("LunaDream 1.5 dự phòng · 20%")
+        )
+        assertEquals(
+            "LunaDream dự phòng · Camera timeout",
+            UiTranslationCatalog.toVietnamese("LunaDream fallback · Camera timeout")
+        )
+        assertEquals(
+            "LunaDream fallback · Camera timeout",
+            UiTranslationCatalog.toEnglish("LunaDream dự phòng · Camera timeout")
+        )
+        assertEquals(
+            "Ảnh nguồn trong khi kết xuất Classic Film",
+            UiTranslationCatalog.toVietnamese("Preview source while rendering Classic Film")
+        )
+        assertEquals(
+            "Classic Film preview",
+            UiTranslationCatalog.toEnglish("Xem trước Classic Film")
+        )
+        assertEquals(
+            "Ảnh gốc trước LunaDream",
+            UiTranslationCatalog.toVietnamese("Original photo before LunaDream")
+        )
+        assertEquals(
+            "Photo after LunaDream",
+            UiTranslationCatalog.toEnglish("Ảnh sau LunaDream")
+        )
+    }
+
+    @Test
     fun starExposureRecommendationKeepsIsoAndShutterValuesWhenTranslated() {
         assertEquals(
             "ISO 800 · 4.0s · suggested WB 3,800K",

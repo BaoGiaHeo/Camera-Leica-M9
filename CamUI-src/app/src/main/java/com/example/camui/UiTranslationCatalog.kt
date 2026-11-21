@@ -241,6 +241,10 @@ internal object UiTranslationCatalog {
         "RAW Capture" to "Chụp RAW",
         "Battery is critically low. Charge the phone before using Star Trails, NightShot or long exposure." to
             "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
+        "Battery is critically low; Star Trails stopped and is merging the captured frames." to
+            "Pin còn rất thấp; Star Trails đã dừng và đang ghép các khung đã chụp.",
+        "Battery is critically low; frame capture stopped and the valid captured frames are being processed." to
+            "Pin còn rất thấp; đã dừng thu khung và xử lý các khung hình hợp lệ đã chụp.",
         "SETTINGS  ›" to "CÀI ĐẶT  ›",
         "MENU/OK  >  SETTINGS" to "MENU/OK  >  CÀI ĐẶT",
 

@@ -2274,15 +2274,23 @@ fun CameraScreen(
                     (!nativeProcessingExtensionActive || nativeProcessingAnalysisSupported)
                 ) analysis else null
                 var lastAnalysis = 0L
+                var lastFaceDetectionStartAtMs = 0L
                 var lastLensCheckAt = 0L
                 var consecutiveLensWarnings = 0
                 var lastLensWarningAt = 0L
                 analysis.setAnalyzer(analysisExecutor) { image ->
                     var imageReleasedByFaceDetector = false
                     try {
+                        val faceDetectionNowMs = SystemClock.elapsedRealtime()
                         if (useMlFaceDetectionState.value &&
+                            shouldRunFaceDetectionFrame(
+                                nowMs = faceDetectionNowMs,
+                                lastStartedAtMs = lastFaceDetectionStartAtMs,
+                                maxFramesPerSecond = 24
+                            ) &&
                             faceDetectionBusy.compareAndSet(false, true)
                         ) {
+                            lastFaceDetectionStartAtMs = faceDetectionNowMs
                             val mediaImage = image.image
                             if (mediaImage != null) {
                                 val faceTask = runCatching {

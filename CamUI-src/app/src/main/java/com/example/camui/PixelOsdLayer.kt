@@ -211,6 +211,9 @@ class PixelOsdRenderer(context: Context) {
     private var lastFrame: PixelOsdFrame? = null
     private var loadedTypeface: Typeface? = null
     private var fallbackTypeface: Typeface? = null
+    private var fontMetrics: PixelOsdFontMetrics? = null
+    private var currentLayout: PixelOsdLayoutPlan? = null
+    private var lastLayoutDiagnostic: String? = null
     private val systemFallbackTypeface = FujiTypography.systemMonoTypeface()
     private var lastRenderUptimeMillis = 0L
 
@@ -282,7 +285,19 @@ class PixelOsdRenderer(context: Context) {
         highResolutionTextCanvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
         // Icons and reticles remain crisp nearest-neighbour sprites on the selected pixel grid.
         // Glyphs are routed to a full LCD-resolution overlay by drawPixelText().
-        drawFrame(canvas, frame)
+        val layout = PixelOsdLayoutEngine.create(
+            frame = frame,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            pixelScale = pixelScale
+        ) { text, capHeight -> measurePixelTextWidthPx(text, capHeight) }
+        currentLayout = layout
+        val diagnostic = layout.diagnosticLine()
+        if (diagnostic != lastLayoutDiagnostic) {
+            android.util.Log.d("FUJI_OSD_LAYOUT", diagnostic)
+            lastLayoutDiagnostic = diagnostic
+        }
+        drawFrame(canvas, frame, layout)
         lastFrame = frame
         lastRenderUptimeMillis = SystemClock.uptimeMillis()
     }
@@ -304,7 +319,9 @@ class PixelOsdRenderer(context: Context) {
     internal fun textLayerSnapshotForTesting(): Bitmap? =
         textBitmap?.takeUnless { it.isRecycled }?.copy(Bitmap.Config.ARGB_8888, false)
 
-    private fun drawFrame(canvas: NativeCanvas, frame: PixelOsdFrame) {
+    internal fun layoutSnapshotForTesting(): PixelOsdLayoutPlan? = currentLayout
+
+    private fun drawFrame(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val width = logicWidth
         val height = logicHeight
         if (frame.showPixelTexture) drawPixelTexture(canvas)
@@ -403,21 +420,11 @@ class PixelOsdRenderer(context: Context) {
             drawSprite(canvas, "lock", 7, 7)
         }
 
-        if (frame.showStatus) {
-            drawStatusHud(canvas, frame)
-        }
-        if (frame.showEvScale) {
-            drawEvScale(canvas, frame)
-        }
-        if (frame.showHistogram) {
-            drawHistogram(canvas, frame.histogram)
-        }
-        if (frame.isPro) {
-            drawProHud(canvas, frame)
-        }
-        if (frame.showZoomBar) {
-            drawZoomBar(canvas, frame)
-        }
+        if (frame.showStatus) drawStatusHud(canvas, frame, layout)
+        if (frame.showEvScale) drawEvScale(canvas, frame, layout)
+        layout.histogramBounds?.let { drawHistogram(canvas, frame.histogram, it) }
+        if (frame.isPro) drawProHud(canvas, frame, layout)
+        if (frame.showZoomBar) drawZoomBar(canvas, frame, layout)
         if (frame.showLevel) {
             val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
             val halfSpan = (width * 0.12f).roundToInt().coerceAtLeast(8)
@@ -458,248 +465,185 @@ class PixelOsdRenderer(context: Context) {
         fillPaint.alpha = 255
     }
 
-    private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
-        val width = logicWidth
-        if (frame.isPro && frame.meteringText.isNotBlank()) {
-            drawSprite(
-                canvas,
-                when (frame.meteringText.uppercase()) {
-                    "M" -> "meter-center"
-                    "S" -> "meter-spot"
-                    else -> "meter-matrix"
-                },
-                7,
-                7
-            )
-        }
-        val afLabel = if (frame.focusLocked) "AF-L" else "AF"
+    private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val lowBattery = frame.batteryPercent in 0..100 &&
             isPixelBatteryLow(frame.batteryPercent) && !frame.batteryCharging
-        val statusColor = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE
-        if (frame.batteryPercent in 0..100) {
-            val batteryLabel = "${frame.batteryPercent}%"
-            val batteryTextWidth = measurePixelTextWidthLogic(batteryLabel)
-            val batteryIconLeft = width - batteryTextWidth - 24
-            val top = 7
-            drawHLine(canvas, batteryIconLeft, batteryIconLeft + 10, top, statusColor, 255)
-            drawHLine(canvas, batteryIconLeft, batteryIconLeft + 10, top + 6, statusColor, 255)
-            drawVLine(canvas, batteryIconLeft, top, top + 6, statusColor, 255)
-            drawVLine(canvas, batteryIconLeft + 10, top + 1, top + 5, statusColor, 255)
-            drawVLine(canvas, batteryIconLeft + 12, top + 2, top + 4, statusColor, 255)
-            val cells = pixelBatteryCellCount(frame.batteryPercent)
-            if (statusColor != PixelOsdPalette.RED) {
-                for (cell in 0 until cells) {
-                    val cellX = batteryIconLeft + 1 + cell * 2
-                    for (y in 1..5) drawPixel(canvas, cellX, top + y, statusColor)
+        layout.elements.filter { it.section == "status" }.forEach { element ->
+            when (element.kind) {
+                PixelOsdElementKind.TEXT -> {
+                    val color = if (element.id == "battery-percent" && lowBattery && frame.batteryLowBlinkOn) {
+                        PixelOsdPalette.RED
+                    } else if (element.id == "status-af" && frame.focusLocked) {
+                        PixelOsdPalette.GREEN
+                    } else {
+                        PixelOsdPalette.WHITE
+                    }
+                    drawPixelOsdText(element, color)
                 }
-            } else if (frame.batteryLowBlinkOn) {
-                for (cell in 0 until 4) {
-                    val cellX = batteryIconLeft + 1 + cell * 2
-                    for (y in 1..5) drawPixel(canvas, cellX, top + y, statusColor)
-                }
+                PixelOsdElementKind.ICON -> drawBatteryIcon(
+                    canvas = canvas,
+                    bounds = element.bounds,
+                    percent = frame.batteryPercent,
+                    color = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
+                    unitPx = layout.unitPx
+                )
+                PixelOsdElementKind.RULE -> Unit
             }
-            if (frame.batteryCharging) drawSprite(canvas, "flash", batteryIconLeft + 3, top + 1)
-            drawPixelText(canvas, batteryLabel, width - batteryTextWidth - 4, 15, statusColor)
         }
-        val afWidth = measurePixelTextWidthLogic(afLabel)
-        val afRight = if (frame.batteryPercent in 0..100) {
-            width - measurePixelTextWidthLogic("${frame.batteryPercent}%") - 29
-        } else width - 7
-        drawPixelText(
-            canvas,
-            afLabel,
-            (afRight - afWidth).coerceAtLeast(4),
-            15,
-            if (frame.focusLocked) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
-        )
     }
 
-    private fun drawEvScale(canvas: NativeCanvas, frame: PixelOsdFrame) {
-        val width = logicWidth
-        val height = logicHeight
-        val top = (height * 0.31f).roundToInt().coerceAtLeast(22)
-        val bottom = (height * 0.76f).roundToInt().coerceAtMost(height - 22)
-        val centerY = (top + bottom) / 2
-        val halfRange = ((bottom - top) / 2f).coerceAtLeast(1f)
+    private fun drawEvScale(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
+        val scale = pixelScale.coerceAtLeast(1)
+        val lineX = (layout.evLineX / scale).roundToInt()
+        val top = (layout.evTop / scale).roundToInt().coerceIn(0, logicHeight - 1)
+        val bottom = (layout.evBottom / scale).roundToInt().coerceIn(top + 1, logicHeight - 1)
         val step = frame.evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
         val minStops = (frame.evMinimumIndex * step).coerceAtLeast(-3f)
         val maxStops = (frame.evMaximumIndex * step).coerceAtMost(3f)
-        val span = (maxStops - minStops).coerceAtLeast(0.333f)
-        drawVLine(canvas, 12, top, bottom, PixelOsdPalette.WHITE, 180)
+        val span = (maxStops - minStops).coerceAtLeast(1f / 3f)
+        val tickThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
+        for (offset in 0 until tickThickness) {
+            drawVLine(canvas, lineX + offset, top, bottom, PixelOsdPalette.WHITE, 180)
+        }
+
         var tick = kotlin.math.ceil(minStops * 3f).toInt()
         val lastTick = kotlin.math.floor(maxStops * 3f).toInt()
         while (tick <= lastTick) {
             val stops = tick / 3f
-            val y = (bottom - ((stops - minStops) / span) * (bottom - top)).roundToInt()
+            val normalized = ((stops - minStops) / span).coerceIn(0f, 1f)
+            val y = (bottom - normalized * (bottom - top)).roundToInt()
             val major = tick % 3 == 0
-            val halfWidth = if (major) 4 else 2
-            drawHLine(canvas, 12 - halfWidth, 12 + halfWidth, y, PixelOsdPalette.WHITE, if (major) 230 else 125)
-            if (major) {
-                val label = if (tick == 0) "0" else if (tick > 0) "+${tick / 3}" else "${tick / 3}"
-                drawPixelText(canvas, label, 17, y + 3, PixelOsdPalette.WHITE)
+            val halfWidth = ((layout.unitPx * if (major) 0.35f else 0.18f) / scale)
+                .roundToInt().coerceAtLeast(1)
+            for (offset in 0 until tickThickness) {
+                drawHLine(
+                    canvas,
+                    lineX - halfWidth,
+                    lineX + halfWidth,
+                    y + offset,
+                    PixelOsdPalette.WHITE,
+                    if (major) 230 else 125
+                )
             }
             tick++
         }
+
         val displayIndex = frame.evDisplayIndex.takeIf { it.isFinite() } ?: frame.evIndex.toFloat()
         val currentStops = (displayIndex * step).coerceIn(minStops, maxStops)
-        val pointerY = (bottom - ((currentStops - minStops) / span) * (bottom - top)).roundToInt()
+        val normalized = ((currentStops - minStops) / span).coerceIn(0f, 1f)
+        val pointerY = (bottom - normalized * (bottom - top)).roundToInt()
         val pointerColor = pixelEvAccentColor(
             displayIndex,
             step,
             selected = frame.selectedControl.equals("EV", ignoreCase = true),
             manualExposure = frame.manualExposure
         )
-        drawPixel(canvas, 7, pointerY, pointerColor)
-        drawPixel(canvas, 8, pointerY - 1, pointerColor)
-        drawPixel(canvas, 8, pointerY + 1, pointerColor)
-        drawPixel(canvas, 9, pointerY, pointerColor)
-        // One neutral numeric readout sits just below the EV ladder; no duplicate
-        // blue EV label is drawn elsewhere in the camera HUD.
-        drawPixelText(
-            canvas,
-            formatPixelEvReadout(displayIndex, step),
-            17,
-            (bottom + 12).coerceAtMost(height - 27),
-            PixelOsdPalette.WHITE
-        )
+        val pointerSize = (layout.unitPx * 0.22f / scale).roundToInt().coerceAtLeast(2)
+        for (row in -pointerSize..pointerSize) {
+            val half = (pointerSize - kotlin.math.abs(row)).coerceAtLeast(0)
+            drawHLine(canvas, lineX + 2, lineX + 2 + half, pointerY + row, pointerColor, 255)
+        }
+
+        layout.elements.filter { it.section == "ev" && it.kind == PixelOsdElementKind.TEXT }
+            .forEach { drawPixelOsdText(it, PixelOsdPalette.WHITE) }
     }
 
-    private fun drawHistogram(canvas: NativeCanvas, bins: List<Int>) {
+    private fun drawHistogram(
+        canvas: NativeCanvas,
+        bins: List<Int>,
+        bounds: PixelOsdLayoutBounds
+    ) {
         if (bins.isEmpty()) return
-        val width = logicWidth
-        val top = 15
-        val chartWidth = (width / 4).coerceIn(48, 70)
-        val chartHeight = 22
-        val left = 6
+        val scale = pixelScale.coerceAtLeast(1)
+        val left = (bounds.left / scale).roundToInt()
+        val top = (bounds.top / scale).roundToInt()
+        val chartWidth = (bounds.width / scale).roundToInt().coerceAtLeast(12)
+        val chartHeight = (bounds.height / scale).roundToInt().coerceAtLeast(8)
         val maxValue = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
         val count = minOf(64, bins.size)
-        drawHLine(canvas, left - 1, left + chartWidth, top - 1, PixelOsdPalette.WHITE, 185)
-        drawHLine(canvas, left - 1, left + chartWidth, top + chartHeight, PixelOsdPalette.WHITE, 185)
-        drawVLine(canvas, left - 1, top - 1, top + chartHeight, PixelOsdPalette.WHITE, 185)
-        drawVLine(canvas, left + chartWidth, top - 1, top + chartHeight, PixelOsdPalette.WHITE, 185)
+        drawHLine(canvas, left, left + chartWidth, top, PixelOsdPalette.WHITE, 185)
+        drawHLine(canvas, left, left + chartWidth, top + chartHeight, PixelOsdPalette.WHITE, 185)
+        drawVLine(canvas, left, top, top + chartHeight, PixelOsdPalette.WHITE, 185)
+        drawVLine(canvas, left + chartWidth, top, top + chartHeight, PixelOsdPalette.WHITE, 185)
         for (quarter in 1..3) {
             val gridY = top + quarter * chartHeight / 4
-            drawHLine(canvas, left, left + chartWidth - 1, gridY, PixelOsdPalette.WHITE, 48)
+            drawHLine(canvas, left + 1, left + chartWidth - 1, gridY, PixelOsdPalette.WHITE, 48)
         }
         for (index in 0 until count) {
             val x = left + index * chartWidth / count
             val nextX = left + (index + 1) * chartWidth / count
             val barWidth = (nextX - x).coerceAtLeast(1)
-            val barHeight = (bins[index].coerceAtLeast(0).toFloat() / maxValue * chartHeight).roundToInt()
+            val barHeight = (
+                bins[index].coerceAtLeast(0).toFloat() / maxValue * (chartHeight - 2)
+            ).roundToInt()
             if (barHeight > 0) {
                 for (column in 0 until barWidth) {
-                    drawVLine(canvas, x + column, top + chartHeight - barHeight, top + chartHeight - 1,
-                        PixelOsdPalette.WHITE, 125)
+                    drawVLine(
+                        canvas,
+                        x + column,
+                        top + chartHeight - barHeight,
+                        top + chartHeight - 1,
+                        PixelOsdPalette.WHITE,
+                        125
+                    )
                 }
             }
         }
     }
 
-    private fun drawProHud(canvas: NativeCanvas, frame: PixelOsdFrame) {
-        val height = logicHeight
-        val bottom = height - 7
+    private fun drawProHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val selected = frame.selectedControl.uppercase()
-        var x = 7
-
-        fun put(value: String, key: String, color: Int = PixelOsdPalette.WHITE) {
-            if (value.isBlank() || x > logicWidth - 25) return
-            val textWidth = measurePixelTextWidthLogic(value)
-            if (selected == key) {
-                drawPixelSelectionArc(
-                    canvas,
-                    x - 2,
-                    bottom - 10,
-                    x + textWidth + 1,
-                    bottom + 2,
-                    PixelOsdPalette.BLUE,
-                    frame.selectedControlProgress
-                )
+        val elements = layout.elements.filter {
+            it.section == "pro-top" || it.section == "pro-bottom"
+        }
+        elements.forEach { element ->
+            if (element.kind == PixelOsdElementKind.TEXT) {
+                val key = when (element.id) {
+                    "pro-dr" -> "DR"
+                    "pro-wb" -> "WB"
+                    "pro-mode" -> "EV"
+                    "pro-af" -> "AF"
+                    "pro-shutter-label", "pro-shutter-value" -> "TV"
+                    "pro-aperture-label", "pro-aperture-value" -> "F"
+                    "pro-iso-label", "pro-iso-value" -> "ISO"
+                    else -> ""
+                }
+                val selectedThis = selected == key ||
+                    (key == "TV" && selected == "SHUTTER") ||
+                    (key == "F" && selected == "APERTURE")
+                val textColor = when {
+                    selectedThis -> PixelOsdPalette.BLUE
+                    (key == "EV" && frame.manualExposure) ||
+                        (key == "TV" && frame.manualShutter) ||
+                        (key == "ISO" && frame.manualIso) ||
+                        (key == "WB" && frame.manualWhiteBalance) -> PixelOsdPalette.AMBER
+                    else -> PixelOsdPalette.WHITE
+                }
+                if (selectedThis) {
+                    val scale = pixelScale.coerceAtLeast(1)
+                    drawPixelSelectionArc(
+                        canvas,
+                        (element.bounds.left / scale).roundToInt() - 2,
+                        (element.bounds.top / scale).roundToInt() - 2,
+                        (element.bounds.right / scale).roundToInt() + 1,
+                        (element.bounds.bottom / scale).roundToInt() + 2,
+                        PixelOsdPalette.BLUE,
+                        frame.selectedControlProgress
+                    )
+                }
+                drawPixelOsdText(element, textColor)
+            } else if (element.kind == PixelOsdElementKind.ICON) {
+                drawPixelOsdIcon(canvas, element)
+            } else if (element.kind == PixelOsdElementKind.RULE) {
+                val scale = pixelScale.coerceAtLeast(1)
+                val x = (element.bounds.left / scale).roundToInt()
+                val top = (element.bounds.top / scale).roundToInt()
+                val bottom = (element.bounds.bottom / scale).roundToInt()
+                val thickness = (element.bounds.width / scale).roundToInt().coerceAtLeast(1)
+                for (offset in 0 until thickness) {
+                    drawVLine(canvas, x + offset, top, bottom, PixelOsdPalette.WHITE, 160)
+                }
             }
-            drawPixelText(canvas, value, x, bottom, color)
-            x += textWidth + 3
-        }
-
-        val exposureColor = when {
-            frame.manualExposure -> PixelOsdPalette.AMBER
-            selected == "EV" -> PixelOsdPalette.BLUE
-            else -> PixelOsdPalette.WHITE
-        }
-        val afColor = if (selected == "AF") PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
-        val shutterColor = when {
-            frame.manualShutter -> PixelOsdPalette.AMBER
-            selected == "TV" || selected == "SHUTTER" -> PixelOsdPalette.BLUE
-            else -> PixelOsdPalette.WHITE
-        }
-        val apertureColor = if (selected == "F" || selected == "APERTURE") {
-            PixelOsdPalette.BLUE
-        } else {
-            PixelOsdPalette.WHITE
-        }
-        val isoColor = when {
-            frame.manualIso -> PixelOsdPalette.AMBER
-            selected == "ISO" -> PixelOsdPalette.BLUE
-            else -> PixelOsdPalette.WHITE
-        }
-
-        if (frame.showProEv) put("M", "EV", exposureColor)
-        if (frame.showProFocus) {
-            if (x <= logicWidth - 36) {
-                drawSprite(canvas, "af-area", x, bottom - 5)
-                x += 13
-            }
-            put(frame.afModeText.take(4), "AF", afColor)
-        }
-        if (frame.showProShutter) {
-            if (x <= logicWidth - 34) {
-                drawSprite(canvas, "shutter", x, bottom - 7)
-                x += 10
-            }
-            put("SS", "", PixelOsdPalette.WHITE)
-            put(frame.shutterText.take(5), "TV", shutterColor)
-            put(frame.apertureText.take(5), "F", apertureColor)
-        }
-        if (frame.showProIso) {
-            put("ISO${frame.isoText.take(4)}", "ISO", isoColor)
-        }
-        if (frame.batteryPercent in 0..100 && x <= logicWidth - 15) {
-            drawSprite(canvas, "battery", logicWidth - 13, bottom - 6)
-        }
-
-        val dynamicRangeColor = if (selected == "DR") PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
-        val whiteBalanceColor = when {
-            frame.manualWhiteBalance -> PixelOsdPalette.AMBER
-            selected == "WB" -> PixelOsdPalette.BLUE
-            else -> PixelOsdPalette.WHITE
-        }
-        val filmColor = if (selected == "FILM" || selected == "FS") {
-            PixelOsdPalette.BLUE
-        } else {
-            PixelOsdPalette.WHITE
-        }
-        val rightSegments = buildList {
-            add(Triple(frame.dynamicRangeText.take(5), dynamicRangeColor, "DR"))
-            if (frame.showProWhiteBalance) {
-                add(Triple(frame.whiteBalanceText.take(6), whiteBalanceColor, "WB"))
-            }
-            add(Triple(frame.filmSimulationText.take(3), filmColor, "FILM"))
-        }.filter { it.first.isNotBlank() }
-        val rightTextWidth = rightSegments.sumOf { measurePixelTextWidthLogic(it.first) + 3 }
-        var rightX = (logicWidth - rightTextWidth - 7).coerceAtLeast(x)
-        rightSegments.forEach { (value, color, key) ->
-            val textWidth = measurePixelTextWidthLogic(value)
-            if (selected == key || (key == "FILM" && selected == "FS")) {
-                drawPixelSelectionArc(
-                    canvas,
-                    rightX - 2,
-                    18,
-                    rightX + textWidth + 1,
-                    30,
-                    PixelOsdPalette.BLUE,
-                    frame.selectedControlProgress
-                )
-            }
-            drawPixelText(canvas, value, rightX, 28, color)
-            rightX += textWidth + 3
         }
     }
 
@@ -812,95 +756,251 @@ class PixelOsdRenderer(context: Context) {
         canvas.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), strokePaint)
     }
 
-    private fun drawZoomBar(canvas: NativeCanvas, frame: PixelOsdFrame) {
-        val width = logicWidth
-        if (width < 100) return
-
-        val trackOuterWidth = (width * 0.22f).roundToInt().coerceAtLeast(54).coerceAtMost(width - 24)
-        val left = if (frame.zoomBarPosition.equals("top_left", ignoreCase = true)) {
-            8
-        } else {
-            ((width - trackOuterWidth) / 2f).roundToInt()
-        }
-        // Keep the optional top-left bar below the histogram so the two overlays never collide.
-        val top = if (frame.zoomBarPosition.equals("top_left", ignoreCase = true)) 44 else 6
-        val trackLeft = left + 8
-        val trackRight = left + trackOuterWidth - 8
-        val trackTop = top + 1
-        val trackBottom = top + 7
+    private fun drawZoomBar(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
+        val bounds = layout.zoomTrackBounds ?: return
         val alpha = (frame.zoomBarAlpha.coerceIn(0f, 1f) * 255f).roundToInt()
-        if (trackRight - trackLeft < 18 || alpha <= 0) return
+        if (alpha <= 0) return
+        val scale = pixelScale.coerceAtLeast(1)
+        val trackLeft = (bounds.left / scale).roundToInt()
+        val trackRight = (bounds.right / scale).roundToInt()
+        val trackTop = (bounds.top / scale).roundToInt()
+        val trackBottom = (bounds.bottom / scale).roundToInt()
+        if (trackRight - trackLeft < 8 || trackBottom <= trackTop) return
 
         val minimum = frame.zoomMinimumRatio
         val maximum = frame.zoomMaximumRatio
         val ratioPosition = logarithmicZoomPosition(frame.zoomRatio, minimum, maximum)
-        val opticalBoundary = frame.zoomOpticalBoundaryRatio
-        val opticalPosition = logarithmicZoomPosition(opticalBoundary, minimum, maximum)
-        val digitalBoundary = frame.zoomDigitalBoundaryRatio
-        val digitalPosition = logarithmicZoomPosition(digitalBoundary, minimum, maximum)
+        val opticalPosition = logarithmicZoomPosition(frame.zoomOpticalBoundaryRatio, minimum, maximum)
+        val digitalPosition = logarithmicZoomPosition(frame.zoomDigitalBoundaryRatio, minimum, maximum)
 
-        // Physical-lens optical range stays clear. The range between the final
-        // advertised optical lens and HAL maximum is subdued hybrid/HAL zoom.
-        // Amber begins only when additional GPU crop becomes responsible for zoom.
-        if (opticalBoundary.isFinite() && digitalBoundary.isFinite() &&
-            opticalBoundary < digitalBoundary && digitalPosition > opticalPosition
+        if (frame.zoomOpticalBoundaryRatio.isFinite() && frame.zoomDigitalBoundaryRatio.isFinite() &&
+            frame.zoomOpticalBoundaryRatio < frame.zoomDigitalBoundaryRatio && digitalPosition > opticalPosition
         ) {
             val hybridStart = (trackLeft + opticalPosition * (trackRight - trackLeft)).roundToInt()
             val hybridEnd = (trackLeft + digitalPosition * (trackRight - trackLeft)).roundToInt()
             for (y in (trackTop + 1) until trackBottom) {
-                drawHLine(
-                    canvas,
-                    hybridStart,
-                    hybridEnd - 1,
-                    y,
-                    PixelOsdPalette.WHITE,
-                    (alpha * 36 / 255)
-                )
+                drawHLine(canvas, hybridStart, hybridEnd - 1, y, PixelOsdPalette.WHITE, alpha * 36 / 255)
             }
         }
-        if (digitalBoundary.isFinite() && digitalBoundary > minimum &&
-            digitalBoundary < maximum && digitalPosition < 1f
+        if (frame.zoomDigitalBoundaryRatio.isFinite() &&
+            frame.zoomDigitalBoundaryRatio > minimum &&
+            frame.zoomDigitalBoundaryRatio < maximum &&
+            digitalPosition < 1f
         ) {
             val digitalStart = (trackLeft + digitalPosition * (trackRight - trackLeft)).roundToInt()
             for (y in (trackTop + 1) until trackBottom) {
-                drawHLine(canvas, digitalStart, trackRight - 1, y, PixelOsdPalette.AMBER, (alpha * 72 / 255))
+                drawHLine(canvas, digitalStart, trackRight - 1, y, PixelOsdPalette.AMBER, alpha * 72 / 255)
             }
-            drawVLine(canvas, digitalStart, trackTop - 1, trackBottom + 1, PixelOsdPalette.AMBER, alpha)
+            val markerThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
+            for (offset in 0 until markerThickness) {
+                drawVLine(canvas, digitalStart + offset, trackTop - 1, trackBottom + 1, PixelOsdPalette.AMBER, alpha)
+            }
         }
-        if (opticalBoundary.isFinite() && opticalBoundary > minimum &&
-            opticalBoundary < maximum && opticalPosition < 1f
+        if (frame.zoomOpticalBoundaryRatio.isFinite() &&
+            frame.zoomOpticalBoundaryRatio > minimum &&
+            frame.zoomOpticalBoundaryRatio < maximum &&
+            opticalPosition < 1f
         ) {
             val opticalStart = (trackLeft + opticalPosition * (trackRight - trackLeft)).roundToInt()
-            drawVLine(canvas, opticalStart, trackTop, trackBottom, PixelOsdPalette.WHITE, (alpha * 150 / 255))
+            drawVLine(canvas, opticalStart, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha * 150 / 255)
         }
 
-        drawHLine(canvas, trackLeft, trackRight, trackTop, PixelOsdPalette.WHITE, alpha)
-        drawHLine(canvas, trackLeft, trackRight, trackBottom, PixelOsdPalette.WHITE, alpha)
-        drawVLine(canvas, trackLeft, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
-        drawVLine(canvas, trackRight, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
-
-        val handleSize = 4
-        val handleLeft = (trackLeft + ratioPosition * (trackRight - trackLeft - handleSize + 1))
-            .roundToInt().coerceIn(trackLeft, trackRight - handleSize + 1)
-        for (y in (trackTop + 1) until trackBottom) {
-            drawHLine(canvas, handleLeft, handleLeft + handleSize - 1, y, PixelOsdPalette.WHITE, alpha)
+        val borderThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
+        for (offset in 0 until borderThickness) {
+            drawHLine(canvas, trackLeft, trackRight, trackTop + offset, PixelOsdPalette.WHITE, alpha)
+            drawHLine(canvas, trackLeft, trackRight, trackBottom - offset, PixelOsdPalette.WHITE, alpha)
+            drawVLine(canvas, trackLeft + offset, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
+            drawVLine(canvas, trackRight - offset, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
         }
 
-        // W / T labels are rendered with the installed KK7 OSD typeface.
-        drawPixelText(canvas, "W", left, top + 8, PixelOsdPalette.WHITE, frame.zoomBarAlpha)
-        drawPixelText(canvas, "T", left + trackOuterWidth + 2, top + 8, PixelOsdPalette.WHITE, frame.zoomBarAlpha)
+        val handleWidth = (layout.unitPx * 0.32f / scale).roundToInt().coerceAtLeast(2)
+        val usable = (trackRight - trackLeft - handleWidth).coerceAtLeast(0)
+        val handleLeft = (trackLeft + ratioPosition * usable).roundToInt().coerceIn(
+            trackLeft + borderThickness,
+            (trackRight - borderThickness - handleWidth + 1).coerceAtLeast(trackLeft + borderThickness)
+        )
+        for (y in (trackTop + borderThickness) until (trackBottom - borderThickness + 1)) {
+            drawHLine(canvas, handleLeft, handleLeft + handleWidth - 1, y, PixelOsdPalette.WHITE, alpha)
+        }
+
+        layout.elements.filter { it.section == "zoom" && it.kind == PixelOsdElementKind.TEXT }
+            .forEach { drawPixelOsdText(it, PixelOsdPalette.WHITE, frame.zoomBarAlpha) }
     }
 
-    private fun measurePixelTextWidthLogic(value: String): Int {
-        if (value.isEmpty()) return 0
+    private fun ensureTextFonts() {
         if (loadedTypeface == null) {
             loadedTypeface = runCatching { FujiTypography.androidTypeface(appContext) }
                 .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
         }
-        textPaint.typeface = loadedTypeface ?: Typeface.DEFAULT
-        // This paint is measured in physical LCD pixels; PIXEL mode must not scale glyph size.
-        textPaint.textSize = 14f * displayDensity
-        return kotlin.math.ceil(textPaint.measureText(value) / pixelScale.coerceAtLeast(1)).toInt()
+        if (fallbackTypeface == null) {
+            fallbackTypeface = runCatching { FujiTypography.shareTechTypeface(appContext) }
+                .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
+        }
+        if (fontMetrics == null) {
+            fontMetrics = PixelOsdFontMetrics.load(appContext, loadedTypeface ?: Typeface.DEFAULT)
+        }
+    }
+
+    private fun typefaceForGlyph(glyph: String): Typeface {
+        ensureTextFonts()
+        val primary = loadedTypeface ?: Typeface.DEFAULT
+        val fallback = fallbackTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        glyphCheckPaint.typeface = primary
+        fallbackGlyphCheckPaint.typeface = fallback
+        return when {
+            glyphCheckPaint.hasGlyph(glyph) -> primary
+            fallbackGlyphCheckPaint.hasGlyph(glyph) -> fallback
+            else -> systemFallbackTypeface
+        }
+    }
+
+    private fun measurePixelTextWidthPx(value: String, capHeightPx: Int): Float {
+        if (value.isEmpty()) return 0f
+        ensureTextFonts()
+        textPaint.textSize = (fontMetrics ?: return 0f).textSizeForCapHeight(capHeightPx.toFloat())
+        var width = 0f
+        var index = 0
+        while (index < value.length) {
+            val codePoint = value.codePointAt(index)
+            val count = Character.charCount(codePoint)
+            textPaint.typeface = typefaceForGlyph(value.substring(index, index + count))
+            width += textPaint.measureText(value, index, index + count)
+            index += count
+        }
+        return width
+    }
+
+    private fun measurePixelTextWidthLogic(value: String): Int {
+        val cap = (currentLayout?.t1CapHeightPx ?: 18).coerceAtLeast(1)
+        return kotlin.math.ceil(measurePixelTextWidthPx(value, cap) / pixelScale.coerceAtLeast(1)).toInt()
+    }
+
+    private fun drawPixelOsdText(
+        element: PixelOsdLayoutElement,
+        color: Int,
+        alpha: Float = 1f
+    ) {
+        val text = element.text ?: return
+        drawPixelTextPhysical(
+            text = text,
+            leftPx = element.bounds.left,
+            topPx = element.bounds.top,
+            capHeightPx = element.capHeightPx,
+            color = color,
+            alpha = alpha
+        )
+    }
+
+    private fun drawPixelOsdIcon(canvas: NativeCanvas, element: PixelOsdLayoutElement) {
+        val sprite = element.sprite ?: return
+        drawSpriteScaled(
+            canvas = canvas,
+            name = sprite,
+            leftPx = element.bounds.left,
+            topPx = element.bounds.top,
+            widthPx = element.bounds.width,
+            heightPx = element.bounds.height
+        )
+    }
+
+    private fun drawSpriteScaled(
+        canvas: NativeCanvas,
+        name: String,
+        leftPx: Float,
+        topPx: Float,
+        widthPx: Float,
+        heightPx: Float
+    ) {
+        val rows = PixelOsdSprites.get(name) ?: return
+        val destinationHeight = (heightPx / pixelScale).roundToInt().coerceAtLeast(1)
+        val destinationWidth = (widthPx / pixelScale).roundToInt().coerceAtLeast(1)
+        val left = (leftPx / pixelScale).roundToInt()
+        val top = (topPx / pixelScale).roundToInt()
+        rows.forEachIndexed { rowIndex, row ->
+            val sourceY = (rowIndex * rows.size / destinationHeight).coerceIn(0, rows.lastIndex)
+            for (destinationY in 0 until destinationHeight) {
+                val y = top + destinationY
+                if (y !in 0 until logicHeight) continue
+                val sy = (destinationY * rows.size / destinationHeight).coerceIn(0, rows.lastIndex)
+                for (destinationX in 0 until destinationWidth) {
+                    val x = left + destinationX
+                    if (x !in 0 until logicWidth) continue
+                    val sx = (destinationX * row.length / destinationWidth).coerceIn(0, row.lastIndex)
+                    val pixel = rows[sy][sx]
+                    val color = when (pixel) {
+                        'W' -> PixelOsdPalette.WHITE
+                        'G' -> PixelOsdPalette.GREEN
+                        'R' -> PixelOsdPalette.RED
+                        'A' -> PixelOsdPalette.AMBER
+                        'B' -> PixelOsdPalette.BLUE
+                        else -> null
+                    }
+                    if (color != null) drawPixel(canvas, x, y, color)
+                }
+            }
+        }
+    }
+
+    private fun drawBatteryIcon(
+        canvas: NativeCanvas,
+        bounds: PixelOsdLayoutBounds,
+        percent: Int,
+        color: Int,
+        unitPx: Int
+    ) {
+        val scale = pixelScale.coerceAtLeast(1)
+        val left = (bounds.left / scale).roundToInt()
+        val top = (bounds.top / scale).roundToInt()
+        val width = (bounds.width / scale).roundToInt().coerceAtLeast(8)
+        val height = (bounds.height / scale).roundToInt().coerceAtLeast(4)
+        val thickness = (unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
+        for (offset in 0 until thickness) {
+            drawHLine(canvas, left, left + width - thickness - 1, top + offset, color, 255)
+            drawHLine(canvas, left, left + width - thickness - 1, top + height - 1 - offset, color, 255)
+            drawVLine(canvas, left + offset, top, top + height - 1, color, 255)
+            drawVLine(canvas, left + width - thickness - 1 + offset, top + 1, top + height - 2, color, 255)
+        }
+        val cells = pixelBatteryCellCount(percent)
+        val innerTop = top + thickness + 1
+        val innerBottom = (top + height - thickness - 1).coerceAtLeast(innerTop)
+        val innerLeft = left + thickness + 1
+        val innerRight = left + width - thickness - 2
+        val innerWidth = (innerRight - innerLeft + 1).coerceAtLeast(1)
+        val cellGap = 1
+        val cellWidth = ((innerWidth - cellGap * 3) / 4).coerceAtLeast(1)
+        for (cell in 0 until cells) {
+            val cellLeft = innerLeft + cell * (cellWidth + cellGap)
+            for (x in cellLeft until (cellLeft + cellWidth).coerceAtMost(innerRight + 1)) {
+                for (y in innerTop..innerBottom) {
+                    drawPixel(canvas, x, y, color)
+                }
+            }
+        }
+    }
+
+    private fun drawPixelTextPhysical(
+        text: String,
+        leftPx: Float,
+        topPx: Float,
+        capHeightPx: Int,
+        color: Int,
+        alpha: Float = 1f
+    ) {
+        if (text.isEmpty()) return
+        ensureTextFonts()
+        val target = textNativeCanvas ?: return
+        val metrics = fontMetrics ?: return
+        val textSizePx = metrics.textSizeForCapHeight(capHeightPx.toFloat())
+        val baselinePx = topPx + capHeightPx
+        val strokeWidth = maxOf(1.5f, capHeightPx * 0.06f)
+        drawPixelTextPass(
+            target, text, leftPx, baselinePx, PixelOsdPalette.SHADOW,
+            Paint.Style.STROKE, alpha, textSizePx, strokeWidth
+        )
+        drawPixelTextPass(
+            target, text, leftPx, baselinePx, color,
+            Paint.Style.FILL, alpha, textSizePx, 0f
+        )
     }
 
     private fun drawPixelText(
@@ -911,67 +1011,51 @@ class PixelOsdRenderer(context: Context) {
         color: Int,
         alpha: Float = 1f
     ) {
-        if (loadedTypeface == null) {
-            loadedTypeface = runCatching { FujiTypography.androidTypeface(appContext) }
-                .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
-        }
-        if (fallbackTypeface == null) {
-            fallbackTypeface = runCatching { FujiTypography.shareTechTypeface(appContext) }
-                .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
-        }
-        val textTarget = textNativeCanvas
-        if (textTarget == null) {
-            drawPixelTextPass(canvas, text, x, baseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE, alpha)
-            drawPixelTextPass(canvas, text, x, baseline, color, Paint.Style.FILL, alpha)
-            return
-        }
-        val physicalX = x * pixelScale
-        var physicalBaseline = baseline * pixelScale
-        val minimumGlyphPixels = 14f * displayDensity
-        // Top HUD labels are given enough room for the 14dp cap-height target.
-        if (physicalBaseline < minimumGlyphPixels) {
-            physicalBaseline = (minimumGlyphPixels + physicalBaseline * 0.35f).roundToInt()
-        }
-        drawPixelTextPass(textTarget, text, physicalX, physicalBaseline, PixelOsdPalette.SHADOW, Paint.Style.STROKE, alpha)
-        drawPixelTextPass(textTarget, text, physicalX, physicalBaseline, color, Paint.Style.FILL, alpha)
+        val capHeight = (currentLayout?.t1CapHeightPx ?: 18).coerceAtLeast(1)
+        val baselinePx = baseline * pixelScale
+        drawPixelTextPhysical(
+            text = text,
+            leftPx = (x * pixelScale).toFloat(),
+            topPx = (baselinePx - capHeight).toFloat(),
+            capHeightPx = capHeight,
+            color = color,
+            alpha = alpha
+        )
     }
 
     private fun drawPixelTextPass(
         canvas: NativeCanvas,
         text: String,
-        x: Int,
-        baseline: Int,
+        x: Float,
+        baseline: Float,
         color: Int,
         style: Paint.Style,
-        alpha: Float
+        alpha: Float,
+        textSizePx: Float,
+        strokeWidthPx: Float
     ) {
-        val primary = loadedTypeface ?: Typeface.DEFAULT
-        val fallback = fallbackTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
-        glyphCheckPaint.typeface = primary
-        fallbackGlyphCheckPaint.typeface = fallback
-        var cursorX = x.toFloat()
+        ensureTextFonts()
+        textPaint.textSize = textSizePx
+        textPaint.style = style
+        textPaint.strokeWidth = strokeWidthPx
+        textPaint.color = color
+        textPaint.alpha = ((color ushr 24) * alpha.coerceIn(0f, 1f)).roundToInt()
+        var cursorX = x
         var index = 0
         while (index < text.length) {
             val codePoint = text.codePointAt(index)
             val count = Character.charCount(codePoint)
             val glyph = text.substring(index, index + count)
-            textPaint.typeface = when {
-                glyphCheckPaint.hasGlyph(glyph) -> primary
-                fallbackGlyphCheckPaint.hasGlyph(glyph) -> fallback
-                else -> systemFallbackTypeface
-            }
-            // Text is drawn directly into the full-resolution LCD bitmap, independent of icon grid scale.
-            textPaint.textSize = 14f * displayDensity
-            textPaint.style = style
-            textPaint.strokeWidth = if (style == Paint.Style.STROKE) 1f else 0f
-            textPaint.color = color
-            textPaint.alpha = ((color ushr 24) * alpha.coerceIn(0f, 1f)).roundToInt()
-            canvas.drawText(text, index, index + count, cursorX, baseline.toFloat(), textPaint)
+            textPaint.typeface = typefaceForGlyph(glyph)
+            canvas.drawText(text, index, index + count, cursorX, baseline, textPaint)
             cursorX += textPaint.measureText(text, index, index + count)
-            textPaint.alpha = 255
             index += count
         }
+        textPaint.alpha = 255
+        textPaint.style = Paint.Style.FILL
+        textPaint.strokeWidth = 0f
     }
+
 }
 
 @Composable

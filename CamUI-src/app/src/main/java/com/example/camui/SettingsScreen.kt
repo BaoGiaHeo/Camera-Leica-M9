@@ -218,7 +218,7 @@ var nightShotMode by remember {
         mutableStateOf(prefs.getString("zoom_buttons_mode", "standard")?.takeIf { it == "standard" || it == "swapped" } ?: "standard")
     }
     var zoomBarPosition by remember {
-        mutableStateOf(prefs.getString("zoom_bar_position", "top_center")?.takeIf { it == "top_center" || it == "top_left" } ?: "top_center")
+        mutableStateOf(prefs.getString("zoom_bar_position", "top_center")?.let { if (it == "top_left") "middle_left" else it }?.takeIf { it == "top_center" || it == "middle_left" } ?: "top_center")
     }
     var pixelScaleMode by remember {
         mutableStateOf(prefs.getString("osd_pixel_mode", "fine")?.takeIf { it in setOf("fine", "medium", "chunky") } ?: "fine")
@@ -397,9 +397,9 @@ var nightShotMode by remember {
                         zoomBarPosition = "top_center"
                         prefs.edit().putString("zoom_bar_position", "top_center").apply()
                     })
-                    FujiChip(stringResource(R.string.zoom_bar_position_top_left), zoomBarPosition == "top_left", {
-                        zoomBarPosition = "top_left"
-                        prefs.edit().putString("zoom_bar_position", "top_left").apply()
+                    FujiChip(stringResource(R.string.zoom_bar_position_middle_left), zoomBarPosition == "middle_left", {
+                        zoomBarPosition = "middle_left"
+                        prefs.edit().putString("zoom_bar_position", "middle_left").apply()
                     })
                 }
                 Text(stringResource(R.string.zoom_bar_description), color = CamColors.Sub, fontSize = 10.sp,

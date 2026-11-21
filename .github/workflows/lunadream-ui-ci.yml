@@ -69,6 +69,7 @@ jobs:
             test_status=$?
             mkdir -p pixel-osd-golden
             adb pull /sdcard/Android/data/com.fujifilm.mode.developer/files/pixel-osd-golden pixel-osd-golden/ || true
+            adb pull /sdcard/Android/data/com.fujifilm.mode.developer/files/watermark-layout-golden watermark-layout-golden/ || true
             exit "$test_status"
         env:
           ANDROID_I_WANT_MY_TCG: 'yes'
@@ -79,6 +80,15 @@ jobs:
         with:
           name: FujiFilm-Mode-2.5.0-Pixel-OSD-golden-captures
           path: pixel-osd-golden/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Watermark Studio contact sheet
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-2.5.0-Watermark-Studio-Contact-Sheet
+          path: watermark-layout-golden/
           if-no-files-found: warn
           retention-days: 14
 
@@ -103,6 +113,7 @@ jobs:
             CamUI-src/app/src/androidTest/java/com/example/camui/DigitalZoomPreviewEffectTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkTypographyAssetTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/PixelOsdGoldenRenderingTest.kt \
+            CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkStudioContactSheetTest.kt \
             CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-NOTICE.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-OFL.txt \

@@ -260,7 +260,7 @@ class MainActivity : AppCompatActivity() {
 
                 BackHandler(enabled = page != "camera") {
                     page = when (page) {
-                        "toolbox", "contents", "watermark_studio" -> settingsSubpageReturnTarget
+                        "toolbox", "contents", "watermark_panel" -> settingsSubpageReturnTarget
                         else -> "camera"
                     }
                 }
@@ -284,7 +284,7 @@ class MainActivity : AppCompatActivity() {
                         ratioIdx = ratioIdx,
                         onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
                         performanceMode = animationPerformanceMode,
-                        onOpenWatermarkStudio = { settingsSubpageReturnTarget = "camera"; page = "watermark_studio" }
+                        onOpenWatermarkPanel = { settingsSubpageReturnTarget = "camera"; page = "watermark_panel" }
                     )
                     AnimatedContent(
                         targetState = page,
@@ -321,7 +321,6 @@ class MainActivity : AppCompatActivity() {
                                 onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                                 focusPeaking = focusPeaking,
                                 onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                                onOpenWatermarkStudio = { settingsSubpageReturnTarget = "settings"; page = "watermark_studio" }
                             )
                             "toolbox" -> ToolboxScreen(
                                 onBack = { page = settingsSubpageReturnTarget },
@@ -336,9 +335,8 @@ class MainActivity : AppCompatActivity() {
                                     manualAnimationPerformanceMode = it
                                     settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
                                 },
-                                onOpenWatermarkStudio = { settingsSubpageReturnTarget = "toolbox"; page = "watermark_studio" }
                             )
-                            "watermark_studio" -> WatermarkStudioScreen(onBack = { page = settingsSubpageReturnTarget })
+                            "watermark_panel" -> WatermarkPanelScreen(onBack = { page = settingsSubpageReturnTarget })
                             "contents" -> ContentManagementScreen(onBack = { page = settingsSubpageReturnTarget })
                             else -> Spacer(Modifier.fillMaxSize())
                         }

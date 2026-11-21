@@ -191,7 +191,7 @@ internal object CameraPreviewProcessingEffect {
             drawSparkles(canvas, width, height, time, false, density)
         }.onFailure {
             Log.w(TAG, "AGSL rendering failed; Canvas fallback enabled", it)
-            drawAuroraFallback(canvas, width, height, time, hold, false, bloom)
+            drawAuroraFallback(canvas, width, height, time, hold, false, bloom, density)
         }
     }
 

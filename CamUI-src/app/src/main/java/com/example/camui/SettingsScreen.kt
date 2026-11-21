@@ -66,7 +66,7 @@ private val settingItems = listOf(
     SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
-    SettingItem("tab_08", "Language", "SYSTEM · ENGLISH · TIẾNG VIỆT"),
+    SettingItem("tab_08", "Language", "ENGLISH · TIẾNG VIỆT"),
     SettingItem("tab_09", "About", "FujiFilm Mode · 2.5.0Dream"),
 )
 
@@ -77,7 +77,8 @@ fun SettingsScreen(
     showHist: Boolean, onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit,
     onOpenToolbox: () -> Unit = {},
-    onOpenContentsManagement: () -> Unit = {}
+    onOpenContentsManagement: () -> Unit = {},
+    onReplayActivation: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
@@ -540,7 +541,6 @@ var nightShotMode by remember {
                     modifier = Modifier.padding(top = 5.dp, bottom = 10.dp)
                 )
                 val languages = listOf(
-                    "system" to stringResource(R.string.language_system),
                     "en" to stringResource(R.string.language_english),
                     "vi" to stringResource(R.string.language_vietnamese)
                 )
@@ -774,6 +774,13 @@ var nightShotMode by remember {
                 }.getOrDefault(60f)
                 Text("${localizedUiText(context, "Refresh rate")} ~ ${activeRefreshRate.toInt()}Hz", color = CamColors.Sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 5.dp))
+                Text(
+                    stringResource(R.string.activation_reopen),
+                    color = FujiSkin.orange,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 18.dp).clickable { onReplayActivation() }
+                )
             }
         }
     }

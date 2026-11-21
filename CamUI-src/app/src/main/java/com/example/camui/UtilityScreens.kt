@@ -3519,7 +3519,7 @@ fun applyCameraWatermark(
                     centerX + logoW / 2f, footerRect.top + footerHeight * 0.08f + logoH))
                 drawTemplateText(cameraTitle, titlePaint, centerX, footerRect.top + footerHeight * 0.58f,
                     footerWidth * 0.88f, primarySize, centered = true)
-                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime }).joinToString("  ·  "),
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime }).joinToString("  ·  "),
                     detailPaint, centerX, footerRect.top + footerHeight * 0.82f, footerWidth * 0.90f, secondarySize, centered = true)
             }
             "data_card" -> {
@@ -3605,7 +3605,7 @@ fun applyCameraWatermark(
                 drawTemplateText(cameraTitle.uppercase(), orange, footerRect.left + pad,
                     footerRect.top + footerHeight * 0.44f, footerWidth * 0.55f,
                     secondarySize, centered = false)
-                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime })
                     .joinToString("  ·  "), line, footerRect.right - pad - footerWidth * 0.34f,
                     footerRect.top + footerHeight * 0.44f, footerWidth * 0.34f,
                     dateSize, centered = false)
@@ -3617,7 +3617,7 @@ fun applyCameraWatermark(
                     textSize = secondarySize
                 }
                 if (frameStyle == "White" || frameStyle == "Black") drawTemplateFooter(frameColor)
-                val oneLine = listOfNotNull(cameraTitle.takeIf { it.isNotBlank() }, exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                val oneLine = listOfNotNull(cameraTitle.takeIf { it.isNotBlank() }, exposureLine.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime })
                     .joinToString("   ·   ")
                 linePaint.setShadowLayer(if (frameStyle == "Transparent") 3f else 0f, 0f, 1f, AndroidColor.BLACK)
                 drawTemplateText(oneLine, linePaint, centerX, footerRect.top + footerHeight * 0.55f,
@@ -3650,7 +3650,7 @@ fun applyCameraWatermark(
                 val leftTextWidth = (output.width - margin * 2f - logoWidth - margin * 0.7f).coerceAtLeast(1f)
                 val title = cameraTitle.ifBlank { modelLine }
                 val infoLine = listOfNotNull(
-                    exposureLine.takeIf { showSpecs },
+                    exposureLine.takeIf { it.isNotBlank() },
                     dateLabel.takeIf { showTime }
                 ).joinToString("  ·  ")
                 val whiteTitle = Paint(titlePaint).apply {
@@ -3692,7 +3692,7 @@ fun applyCameraWatermark(
                 val bg = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
                 if (frameStyle != "Transparent" && frameStyle != "LiquidGlass") drawTemplateFooter(bg)
                 else if (frameStyle == "LiquidGlass") drawLiquidGlassPanel(footerRect, sharedFooterRadius)
-                val text = listOfNotNull(cameraTitle, specs.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                val text = listOfNotNull(cameraTitle, specs.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime })
                     .filter { it.isNotBlank() }.joinToString("  ·  ")
                 val ink = Paint(detailPaint).apply {
                     color = if (frameStyle == "White" || frameStyle == "LiquidGlass") AndroidColor.BLACK else AndroidColor.WHITE
@@ -3733,7 +3733,7 @@ fun applyCameraWatermark(
                 drawTemplateText(cameraTitle, captionPaint, centerX,
                     footerRect.top + footerHeight * 0.48f, footerWidth * 0.90f,
                     primarySize * 1.05f, centered = true)
-                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime })
                     .joinToString("  ·  "), small, centerX,
                     footerRect.top + footerHeight * 0.76f, footerWidth * 0.90f,
                     secondarySize, centered = true)
@@ -3750,7 +3750,7 @@ fun applyCameraWatermark(
                     footerRect.right - pad * 0.45f, footerRect.bottom - footerHeight * 0.12f, border)
                 drawTemplateText(cameraTitle, ink, centerX, footerRect.top + footerHeight * 0.43f,
                     footerWidth * 0.86f, primarySize, centered = true)
-                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime })
                     .joinToString("  ·  "), quiet, centerX, footerRect.top + footerHeight * 0.72f,
                     footerWidth * 0.86f, secondarySize, centered = true)
             }
@@ -3786,7 +3786,7 @@ fun applyCameraWatermark(
                 drawTemplateText(cameraTitle.uppercase(), orange, footerRect.left + pad,
                     footerRect.top + footerHeight * 0.44f, footerWidth * 0.55f,
                     secondarySize, centered = false)
-                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime })
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime })
                     .joinToString("  ·  "), line, footerRect.right - pad - footerWidth * 0.34f,
                     footerRect.top + footerHeight * 0.44f, footerWidth * 0.34f,
                     dateSize, centered = false)
@@ -3878,7 +3878,7 @@ fun applyCameraWatermark(
                 }
                 drawTemplateText(cameraTitle.uppercase(Locale.US), lcdTitle, footerRect.left + pad,
                     footerRect.top + footerHeight * 0.42f, footerWidth * 0.90f, lcdTitle.textSize)
-                drawTemplateText(listOfNotNull(exposureLine.takeIf { showSpecs }, dateLabel.takeIf { showTime }).joinToString("  ·  "),
+                drawTemplateText(listOfNotNull(exposureLine.takeIf { it.isNotBlank() }, dateLabel.takeIf { showTime }).joinToString("  ·  "),
                     lcdDetail, footerRect.left + pad, footerRect.top + footerHeight * 0.75f,
                     footerWidth * 0.90f, lcdDetail.textSize)
             }

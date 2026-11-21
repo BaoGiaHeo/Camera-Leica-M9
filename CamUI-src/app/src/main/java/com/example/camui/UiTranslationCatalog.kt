@@ -53,8 +53,8 @@ internal object UiTranslationCatalog {
             "The camera does not report an exposure-compensation range for HDR Bracketing.",
         "Đang dừng Burst sau khung hình hiện tại…" to
             "Stopping Burst after the current frame…",
-        "Burst hoàn tất · đã lưu $burstCompletedFrames/25 ảnh JPEG gốc. Tốc độ phụ thuộc camera và bộ nhớ." to
-            "Burst complete · saved $burstCompletedFrames/25 original JPEG photos. Speed depends on the camera and storage.",
+        "Burst hoàn tất · đã lưu \$burstCompletedFrames/25 ảnh JPEG gốc. Tốc độ phụ thuộc camera và bộ nhớ." to
+            "Burst complete · saved \$burstCompletedFrames/25 original JPEG photos. Speed depends on the camera and storage.",
         "Đang dừng Star Trails sau khung hình hiện tại…" to
             "Stopping Star Trails after the current frame…",
         "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing." to
@@ -139,6 +139,77 @@ internal object UiTranslationCatalog {
             "Not added · ",
         "Lưu" to "Save",
         "Nạp" to "Load",
+        "Camera không hỗ trợ RAW + JPEG đồng thời. RawDream 2.0 chưa chụp; ảnh không bị chuyển âm thầm sang JPEG thường." to
+            "The camera cannot capture RAW + JPEG simultaneously. RawDream 2.0 did not capture, and the app did not silently switch to standard JPEG.",
+        "Đang hoàn tất chuỗi Bracketing hiện tại…" to "Finishing the current Bracketing sequence…",
+        "Chọn HDR Bracketing hoặc Focus Bracketing, không bật đồng thời." to
+            "Choose HDR Bracketing or Focus Bracketing; they cannot be enabled together.",
+        "Camera không công bố hỗ trợ lấy nét thủ công để Focus Bracketing." to
+            "The camera does not report manual focus support for Focus Bracketing.",
+        "Camera không công bố dải bù trừ phơi sáng cho HDR Bracketing." to
+            "The camera does not report an exposure compensation range for HDR Bracketing.",
+        "Không thể đặt khoảng nét \${index + 1}; dừng Focus Bracketing." to
+            "Could not set focus position \${index + 1}; stopping Focus Bracketing.",
+        "Đang dừng Burst sau khung hình hiện tại…" to "Stopping Burst after the current frame…",
+        "Đang dừng Star Trails sau khung hình hiện tại…" to "Stopping Star Trails after the current frame…",
+        "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing." to
+            "LunaDream requires Photo/JPEG; RawDream 2.0 requires camera-supported RAW + JPEG. Turn off Ultra HDR, Burst and Bracketing.",
+        "Milky Way Stack cần Photo/JPEG 1x; hãy tắt RAW, UHD, FHD, Burst và Bracketing." to
+            "Milky Way Stack requires Photo/JPEG at 1x. Turn off RAW, UHD, FHD, Burst and Bracketing.",
+        "Đang đồng bộ hướng cảm biến, hãy chụp lại sau một chút." to
+            "Synchronizing sensor orientation. Please capture again in a moment.",
+        "Đã lưu ảnh RAW DNG gốc vào Pictures/FujifilmMode/RAW." to
+            "Saved the original RAW DNG to Pictures/FujifilmMode/RAW.",
+        "Camera không trả về dữ liệu RAW_SENSOR hợp lệ." to "The camera did not return valid RAW_SENSOR data.",
+        "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map." to
+            "Saved the original Ultra HDR file and preserved its gain map.",
+        "Live Photo chưa sẵn sàng: camera chưa tạo được luồng video. Ảnh chưa được chụp." to
+            "Live Photo is not ready: the camera has not created a video stream. No photo was captured.",
+        "Camera không bắt đầu được clip Live Photo. Ảnh chưa được chụp." to
+            "The camera could not start the Live Photo clip. No photo was captured.",
+        "Đã tắt Milky Way Stack: camera đang chọn không có Manual Sensor phù hợp." to
+            "Milky Way Stack was disabled because the selected camera has no compatible Manual Sensor support.",
+        "Tripod · nét vô cực · Astro Stack ×8 nếu Manual Sensor hỗ trợ" to
+            "Tripod · infinity focus · Astro Stack ×8 when Manual Sensor is supported",
+        "Đã tắt Milky Way Stack và trả phơi sáng về Auto." to
+            "Milky Way Stack was disabled and exposure returned to Auto.",
+        "Không thể áp dụng Manual Sensor/WB trên camera này." to
+            "Manual Sensor/WB could not be applied on this camera.",
+        "ĐANG KHÓA NÉT VÔ CỰC · CHẠM ĐỂ TRỞ VỀ AF" to
+            "LOCKING INFINITY FOCUS · TAP TO RETURN TO AF",
+        "ĐẶT LẤY NÉT VÔ CỰC" to "SET INFINITY FOCUS",
+        "Đã trở về AF tự động." to "Returned to automatic AF.",
+        "Đã đặt nét vô cực theo Camera2." to "Infinity focus was set through Camera2.",
+        "Camera không chấp nhận lấy nét vô cực." to "The camera rejected infinity focus.",
+        "Vui lòng tắt Live Photo" to "Please turn off Live Photo.",
+        "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream." to
+            "Please turn off Device-native Photo Processing to use LunaDream.",
+        "ẢNH GỐC · TRƯỚC LUNADREAM" to "ORIGINAL · BEFORE LUNADREAM",
+        "ẢNH ĐÃ XỬ LÝ · LUNADREAM" to "PROCESSED · LUNADREAM",
+        "ẢNH GỐC · THẢ ĐỂ XEM LỌC" to "ORIGINAL PHOTO · RELEASE TO VIEW FILTER",
+        "GIỮ ĐỂ XEM ẢNH GỐC" to "HOLD TO VIEW ORIGINAL PHOTO",
+        "Màn trập cơ dùng WAV riêng 210 ms; tiếng phím và detent được tạo tổng hợp, có thể tắt riêng." to
+            "The mechanical shutter uses a dedicated 210 ms WAV. Key and dial-detent sounds are synthesized and can be disabled separately.",
+        "AE bình thường · EV 0 · căn khung và gộp nhiều ảnh" to
+            "Standard AE · EV 0 · align and merge multiple photos",
+        "ĐANG QUÉT CAMERA…" to "SCANNING CAMERAS…",
+        "Không thể hoàn tất quét" to "The scan could not be completed.",
+        "Còn \${scan.vendorMetadataKeys.size - 30} key khác." to
+            "\${scan.vendorMetadataKeys.size - 30} more keys.",
+        "Lưu hoặc nạp lại các thiết lập camera" to "Save or restore camera settings.",
+        "Scanline overlay chỉ hiển thị trên preview, không lưu vào ảnh." to
+            "The scanline overlay appears only in the preview and is never saved into photos.",
+        "Giảm texture và hiệu ứng để tiết kiệm GPU trên máy yếu." to
+            "Reduce textures and effects to save GPU resources on lower-powered devices.",
+        "Đảo vị trí cụm chế độ và cụm nút/dial." to
+            "Swap the positions of the mode group and the button/dial group.",
+        "Bật/tắt âm thanh chụp mặc định." to "Enable or disable the default shutter sound.",
+        "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD." to
+            "Show or hide exposure compensation in the Pro HUD row.",
+        "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật." to
+            "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization, AI and enabled options.",
+        "Night capture and Star Trails use separate processing pipelines" to
+            "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng."
         "Thông tin" to "Information",
         "Đóng" to "Close",
         "Ảnh gốc" to "Original photo",

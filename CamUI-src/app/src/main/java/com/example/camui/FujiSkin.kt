@@ -67,6 +67,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -359,6 +361,7 @@ fun FujiTopKey(
     val pressedOffset by animateDpAsState(if (pressed) 1.5.dp else 0.dp, tween(80), label = "fuji-key-press")
     Column(
         modifier = modifier.widthIn(min = 48.dp).heightIn(min = 48.dp)
+            .semantics { contentDescription = if (label.equals("Q", true)) "Quick settings" else label.uppercase() }
             .combinedClickable(
                 interactionSource = interaction,
                 indication = null,

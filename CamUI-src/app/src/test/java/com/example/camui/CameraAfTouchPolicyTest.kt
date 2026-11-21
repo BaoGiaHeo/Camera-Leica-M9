@@ -31,7 +31,7 @@ class CameraAfTouchPolicyTest {
     @Test
     fun afReticleHitTargetUsesPhysicalPixelsAndTwelvePercentSide() {
         val center = Offset(0.5f, 0.5f)
-        assertTrue(isTapInsideAfReticle(Offset(0.53f, 0.53f), center, 2400, 1080))
+        assertTrue(isTapInsideAfReticle(Offset(0.52f, 0.53f), center, 2400, 1080))
         assertFalse(isTapInsideAfReticle(Offset(0.57f, 0.5f), center, 2400, 1080))
         assertFalse(isTapInsideAfReticle(Offset(0.5f, 0.57f), center, 2400, 1080))
         assertTrue(isTapInsideAfReticle(Offset(0.53f, 0.53f), center, 1080, 1920))

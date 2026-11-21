@@ -50,5 +50,33 @@ class UiTranslationCatalogTest {
             "NIGHTSHOT · OFF",
             UiTranslationCatalog.toEnglish("NIGHTSHOT · TẮT")
         )
+        assertEquals(
+            "Merging Star Trails · 8 frames",
+            UiTranslationCatalog.toEnglish("Đang ghép vệt sao · 8 khung hình")
+        )
+        assertEquals(
+            "Saved Star Trails from 8 frames.",
+            UiTranslationCatalog.toEnglish("Đã lưu Star Trails từ 8 khung hình")
+        )
+        assertEquals(
+            "Could not set focus position 3; stopping Focus Bracketing.",
+            UiTranslationCatalog.toEnglish("Không thể đặt khoảng nét 3; dừng Focus Bracketing.")
+        )
+        assertEquals(
+            "Applied ISO 800 · 1.0s · WB 3800K. Capture 8 photos for alignment and noise reduction.",
+            UiTranslationCatalog.toEnglish("Đã áp dụng ISO 800 · 1.0s · WB 3800K. Chụp 8 ảnh để căn chỉnh và giảm nhiễu.")
+        )
+        assertEquals(
+            "Showing 10 / 25 matching LUTs · Total 42",
+            UiTranslationCatalog.toEnglish("Hiển thị 10 / 25 LUT khớp · Tổng 42")
+        )
+        assertEquals(
+            "Are you sure you want to delete LUT Classic.cube? This LUT will also be removed from Filters.",
+            UiTranslationCatalog.toEnglish("Bạn có chắc chắn muốn xóa LUT \"Classic.cube\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc.")
+        )
+        assertEquals(
+            "LunaDream is optimizing output size to 50MP",
+            UiTranslationCatalog.toEnglish("LunaDream đang tối ưu kích thước 50MP")
+        )
     }
 }

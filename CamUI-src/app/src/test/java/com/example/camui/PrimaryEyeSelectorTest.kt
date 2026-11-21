@@ -103,7 +103,7 @@ class PrimaryEyeSelectorTest {
         assertEquals(right, selector.select(left, right, 18f, 0L, trackingId = 1))
         selector.reset()
         assertEquals(right, selector.select(
-            left, right, 0f, 1_000L, trackingId = 2,
+            left, right, -20f, 1_000L, trackingId = 2,
             leftConfidence = 0.70f, rightConfidence = 0.90f
         ))
         selector.reset()

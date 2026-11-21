@@ -35,6 +35,30 @@ class UiTranslationCatalogTest {
     }
 
     @Test
+    fun settingsScannerLutInspectorAndBackupCopyIsLocalized() {
+        val cases = mapOf(
+            "QUÉT LẠI PHẦN CỨNG CAMERA" to "RESCAN CAMERA HARDWARE",
+            "Lấy nét gần nhất" to "Nearest focus",
+            "LUT MANAGER" to "LUT MANAGER",
+            "Tìm LUT theo tên hoặc nhóm" to "Search LUTs by name or category",
+            "PHOTO INSPECTOR" to "PHOTO INSPECTOR",
+            "Độ phân giải" to "Resolution",
+            "Physical Camera ID thực tế" to "Actual Physical Camera ID",
+            "KHÔI PHỤC BẢN SAO LƯU" to "RESTORE BACKUP",
+            "Click nhẹ theo từng nấc của vòng zoom và command dial." to
+                "Subtle clicks for each zoom-ring and command-dial detent.",
+            "RAW lưu DNG gốc theo dữ liệu cảm biến. RawDream 2.0 chụp đồng thời DNG và JPEG; JPEG được căn chỉnh, ghép đa khung, khử nhiễu và phục hồi chi tiết bằng LunaDream 2.0, đầu ra mục tiêu 108MP. RawDream 2.0 không kết hợp NightShotMode, Star Trails, Burst hoặc Bracketing. Nếu camera không hỗ trợ đồng thời RAW + JPEG, ứng dụng báo lỗi và không tự chuyển sang JPEG thường." to
+                "RAW saves the original sensor data as DNG. RawDream 2.0 captures DNG and JPEG together; the JPEG is aligned, multi-frame merged, denoised and detail-recovered by LunaDream 2.0, targeting 108MP output. RawDream 2.0 cannot be combined with NightShotMode, Star Trails, Burst or Bracketing. If the camera cannot capture RAW + JPEG simultaneously, the app reports an error and does not silently switch to standard JPEG."
+        )
+        cases.forEach { (source, expected) ->
+            assertEquals("English translation missing for: $source", expected, UiTranslationCatalog.toEnglish(source))
+        }
+        assertEquals("QUÉT LẠI PHẦN CỨNG CAMERA", UiTranslationCatalog.toVietnamese("RESCAN CAMERA HARDWARE"))
+        assertEquals("Tìm LUT theo tên hoặc nhóm", UiTranslationCatalog.toVietnamese("Search LUTs by name or category"))
+        assertEquals("Độ phân giải", UiTranslationCatalog.toVietnamese("Resolution"))
+    }
+
+    @Test
     fun dynamicMessagesKeepTheirValuesWhenTranslated() {
         assertEquals("2 bộ lọc", UiTranslationCatalog.toVietnamese("2 filters"))
         assertEquals("2 filters", UiTranslationCatalog.toEnglish("2 bộ lọc"))

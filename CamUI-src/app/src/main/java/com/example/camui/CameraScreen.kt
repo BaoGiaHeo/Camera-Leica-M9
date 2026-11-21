@@ -4523,6 +4523,12 @@ fun CameraScreen(
                                     lastUri = saved
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
+                                    if (captureIsUltraHdr && watermarkRequested) {
+                                        android.util.Log.i(
+                                            "FUJI_WATERMARK",
+                                            "Skipped watermark on Ultra HDR to preserve the original gain map."
+                                        )
+                                    }
                                     val actualOutputMp = outputResolutionResult?.let {
                                         ((it.actualPixels + 500_000L) / 1_000_000L).toInt()
                                     } ?: 0
@@ -4554,7 +4560,11 @@ fun CameraScreen(
                                             "NightShotMode đã xử lý bằng chế độ NIGHT của camera."
                                         captureUseNightShot && orientationLabelFixed ->
                                             "NightShotMode không ghép đủ khung hình; ảnh gốc vẫn được giữ."
+                                        captureIsUltraHdr && watermarkRequested && orientationLabelFixed ->
+                                            localizedUiText(context, "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark được bỏ qua để bảo toàn gain map.")
                                         captureIsUltraHdr && orientationLabelFixed -> "Đã lưu Ultra HDR nguyên bản và giữ gain map."
+                                        captureIsUltraHdr && watermarkRequested ->
+                                            localizedUiText(context, "Đã lưu Ultra HDR nguyên bản. Watermark được bỏ qua để bảo toàn gain map.")
                                         captureIsUltraHdr -> "Đã lưu tệp Ultra HDR nguyên bản; giữ nguyên gain map."
                                         stamped && lookApplied && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark."
                                         stamped && orientationLabelFixed -> "Đã lưu ảnh đúng tỉ lệ, đúng hướng và có watermark."

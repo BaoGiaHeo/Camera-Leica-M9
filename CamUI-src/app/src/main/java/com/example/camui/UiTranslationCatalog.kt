@@ -830,6 +830,9 @@ internal object UiTranslationCatalog {
         Regex("^Đã áp dụng ISO (\\d+) · (.+) · WB (\\d+)K\\. Chụp 8 ảnh để căn chỉnh và giảm nhiễu\\.$").matchEntire(value)?.let {
             return "Applied ISO ${it.groupValues[1]} · ${it.groupValues[2]} · WB ${it.groupValues[3]}K. Capture 8 photos for alignment and noise reduction."
         }
+        Regex("^(.+?) · WB gợi ý (.+)$").matchEntire(value)?.let {
+            return "${it.groupValues[1]} · suggested WB ${it.groupValues[2]}"
+        }
         Regex("^Tông màu (\\d+) K$").matchEntire(value)?.let {
             return "Color temperature ${it.groupValues[1]} K"
         }
@@ -980,6 +983,9 @@ internal object UiTranslationCatalog {
         }
         Regex("^Applied ISO (\\d+) · (.+) · WB (\\d+)K\\. Capture 8 photos for alignment and noise reduction\\.$").matchEntire(value)?.let {
             return "Đã áp dụng ISO ${it.groupValues[1]} · ${it.groupValues[2]} · WB ${it.groupValues[3]}K. Chụp 8 ảnh để căn chỉnh và giảm nhiễu."
+        }
+        Regex("^(.+?) · suggested WB (.+)$").matchEntire(value)?.let {
+            return "${it.groupValues[1]} · WB gợi ý ${it.groupValues[2]}"
         }
         Regex("^Color temperature (\\d+) K$").matchEntire(value)?.let {
             return "Tông màu ${it.groupValues[1]} K"

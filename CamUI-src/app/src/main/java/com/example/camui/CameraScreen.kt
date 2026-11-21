@@ -6577,7 +6577,15 @@ fun CameraScreen(
                     }
                 },
                 onToolbox = { showQuick = false; onOpenToolbox() },
-                onWatermarkStudio = { showQuick = false; onOpenWatermarkStudio() },
+                onWatermarkPanel = { showQuick = false; onOpenWatermarkStudio() },
+                watermarkEnabled = appPrefs.getBoolean("watermark_enabled", true),
+                watermarkLayoutLabel = when (appPrefs.getString("watermark_template", "classic_bar")) {
+                    "caption" -> "CAPTION"
+                    "card" -> "CARD"
+                    "gallery" -> "GALLERY"
+                    "black" -> "BLACK"
+                    else -> "BAR"
+                },
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },
                 onDismiss = { showQuick = false },

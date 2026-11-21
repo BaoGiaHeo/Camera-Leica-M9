@@ -71,6 +71,27 @@ class MainActivity : AppCompatActivity() {
         hideStatusBar()
     }
 
+
+    /**
+     * Existing installs are upgraded in place and must bypass the introduction.
+     * A genuinely new package install shows it once; the completion flag then
+     * lives in the app's private settings alongside the camera preferences.
+     */
+    private fun shouldShowFirstActivation(preferences: android.content.SharedPreferences): Boolean {
+        if (preferences.contains("first_activation_completed")) {
+            return !preferences.getBoolean("first_activation_completed", false)
+        }
+        val isFreshInstall = runCatching {
+            val info = packageManager.getPackageInfo(packageName, 0)
+            info.firstInstallTime >= info.lastUpdateTime - 5_000L
+        }.getOrDefault(false)
+        if (!isFreshInstall) {
+            preferences.edit().putBoolean("first_activation_completed", true).apply()
+            return false
+        }
+        return true
+    }
+
     private fun mostRecentPhotoUri(): Uri? {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(MediaStore.Images.Media._ID)
@@ -174,6 +195,8 @@ class MainActivity : AppCompatActivity() {
             frameMetricsDiagnostics = CameraFrameMetricsDiagnostics.attach(window)
         }
         LegacyColorAdjustmentCleanup.migrateOnce(this)
+        val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
+        val showInitialActivation = shouldShowFirstActivation(settingsPrefs)
         AppLanguageManager.initialize(this)
         // The camera UI and capture orientation are landscape-only.
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -186,7 +209,6 @@ class MainActivity : AppCompatActivity() {
         )
         hideStatusBar()
         requestHighestSupportedRefreshRate()
-        val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         setContent {
             // Explicitly expose the hosting Activity's registry to every nested ComposeView.
             // This prevents rememberLauncherForActivityResult from seeing a null owner when
@@ -195,7 +217,7 @@ class MainActivity : AppCompatActivity() {
                 LocalActivityResultRegistryOwner provides this@MainActivity
             ) {
             CamTheme {
-                var page by remember { mutableStateOf("camera") }
+                var page by remember { mutableStateOf(if (showInitialActivation) "activation" else "camera") }
                 LaunchedEffect(page) { CrashContextDiagnostics.updateRoute(page) }
                 var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
                 var manualAnimationPerformanceMode by remember {
@@ -258,7 +280,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-                BackHandler(enabled = page != "camera") {
+                BackHandler(enabled = page != "camera" && page != "activation") {
                     page = when (page) {
                         "toolbox", "contents", "watermark_panel" -> settingsSubpageReturnTarget
                         else -> "camera"
@@ -268,6 +290,7 @@ class MainActivity : AppCompatActivity() {
                     // Keep the camera composition and its CaptureSession alive beneath
                     // Settings, Toolbox and Contents. Closing these panels therefore does
                     // not dispose/rebind PreviewView or create a black preview interval.
+                    if (page != "activation") {
                     CameraScreen(
                         onOpenSettings = { page = "settings" },
                         onOpenToolbox = { settingsSubpageReturnTarget = "camera"; page = "toolbox" },
@@ -286,6 +309,7 @@ class MainActivity : AppCompatActivity() {
                         performanceMode = animationPerformanceMode,
                         onOpenWatermarkPanel = { settingsSubpageReturnTarget = "camera"; page = "watermark_panel" }
                     )
+                    }
                     AnimatedContent(
                         targetState = page,
                         modifier = Modifier.fillMaxSize().animaTPageRotation(
@@ -301,6 +325,12 @@ class MainActivity : AppCompatActivity() {
                         label = "FujiFilm Mode page transition"
                     ) { targetPage ->
                         when (targetPage) {
+                            "activation" -> ActivationScreen(
+                                onComplete = {
+                                    settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
+                                    page = "camera"
+                                }
+                            )
                             "camera" -> Spacer(Modifier.fillMaxSize())
                             "album" -> AlbumScreen(onBack = { page = "camera" })
                             "settings" -> SettingsScreen(
@@ -321,6 +351,7 @@ class MainActivity : AppCompatActivity() {
                                 onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                                 focusPeaking = focusPeaking,
                                 onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                                onReplayActivation = { page = "activation" }
                             )
                             "toolbox" -> ToolboxScreen(
                                 onBack = { page = settingsSubpageReturnTarget },

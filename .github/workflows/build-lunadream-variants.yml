@@ -61,9 +61,9 @@ jobs:
           APK="app/build/outputs/apk/release/FujiFilm-Mode-2.5.0.apk"
           AAPT="$ANDROID_HOME/build-tools/37.0.0/aapt"
           BADGING=$("$AAPT" dump badging "$APK")
-          PACKAGE=$(printf '%s\\n' "$BADGING" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")
-          VERSION_CODE=$(printf '%s\\n' "$BADGING" | sed -n "s/^package:.*versionCode='\\([^']*\\)'.*/\\1/p")
-          VERSION_NAME=$(printf '%s\\n' "$BADGING" | sed -n "s/^package:.*versionName='\\([^']*\\)'.*/\\1/p")
+          PACKAGE=$(printf '%s\n' "$BADGING" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")
+          VERSION_CODE=$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionCode='\\([^']*\\)'.*/\\1/p")
+          VERSION_NAME=$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionName='\\([^']*\\)'.*/\\1/p")
           echo "package=$PACKAGE versionCode=$VERSION_CODE versionName=$VERSION_NAME"
           test "$PACKAGE" = "com.fujifilm.mode.developer"
           test "$VERSION_CODE" = "16"

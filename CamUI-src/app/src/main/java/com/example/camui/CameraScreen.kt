@@ -6923,13 +6923,13 @@ private fun FilterLookDialog(
                     }
                     importedLuts = loadCustomCameraLuts(context)
                     activeLutIds = activeCustomCameraLutIds(context)
-                    Toast.makeText(
+                    localizedToast(
                         context,
                         "Đã nhập " + imported.size + " LUT. Vào Content Manager để Add LUT vào bộ lọc.",
                         Toast.LENGTH_LONG
                     ).show()
                 } catch (failure: Throwable) {
-                    Toast.makeText(
+                    localizedToast(
                         context,
                         "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
                         Toast.LENGTH_LONG

@@ -156,3 +156,20 @@ internal fun advanceLogarithmicZoomRatio(
     val factor = kotlin.math.exp((availableLogTravel / duration) * deltaSeconds.coerceAtMost(0.05f))
     return (if (direction > 0) current * factor else current / factor).coerceIn(minimum, maximum)
 }
+
+
+/**
+ * Returns the final physical-lens focal-length boundary expressed as a ratio
+ * against the main rear camera. It is distinct from the HAL/camera-control
+ * maximum, after which the renderer must use its additional GPU crop path.
+ */
+internal fun opticalZoomBoundaryRatio(
+    assessment: OpticalZoomAssessment,
+    minimumZoomRatio: Float = 1f
+): Float {
+    val minimum = minimumZoomRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
+    val physicalBoundary = assessment.opticalRatio
+        ?.takeIf { it.isFinite() && it >= 1f }
+        ?: 1f
+    return maxOf(minimum, physicalBoundary)
+}

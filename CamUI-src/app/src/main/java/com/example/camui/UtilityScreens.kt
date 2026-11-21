@@ -257,8 +257,7 @@ fun ToolboxScreen(
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit,
     animationPerformanceMode: Boolean = false,
-    onAnimationPerformanceModeChanged: (Boolean) -> Unit = {},
-    onOpenWatermarkStudio: () -> Unit = {}
+    onAnimationPerformanceModeChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
@@ -329,7 +328,6 @@ fun ToolboxScreen(
         Toast.makeText(context, "Đã nạp Camera Preset $slot · cấu hình chụp đã khôi phục", Toast.LENGTH_LONG).show()
         onBack()
     }
-    var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
     var retroLcdEnabled by remember { mutableStateOf(prefs.getBoolean("lcd_texture_overlay_enabled", false)) }
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
     var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
@@ -412,22 +410,6 @@ fun ToolboxScreen(
         Toast.makeText(context, "Đã nạp Film Recipe $slot", Toast.LENGTH_SHORT).show()
     }
     var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
-    var watermarkStyle by remember { mutableStateOf((prefs.getString("watermark_style", "White") ?: "White").takeIf { it == "White" || it == "Black" } ?: "White") }
-    var watermarkTemplate by remember {
-        mutableStateOf(
-            prefs.getString("watermark_template", "classic_bar")
-                ?.takeIf { value -> watermarkStudioLayouts.any { it.first == value } }
-                ?: "classic_bar"
-        )
-    }
-    var watermarkBrand by remember { mutableStateOf((prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm").lowercase().takeIf { id -> cameraWatermarkBrands.any { it.first == id } } ?: "fujifilm") }
-    var watermarkShowTime by remember { mutableStateOf(prefs.getBoolean("watermark_show_time", true)) }
-    var watermarkShowSpecs by remember { mutableStateOf(prefs.getBoolean("watermark_show_specs", true)) }
-    var watermarkShowLocation by remember { mutableStateOf(prefs.getBoolean("watermark_show_location", true)) }
-    LaunchedEffect(watermarkStyle) { prefs.edit().putString("watermark_style", watermarkStyle).apply() }
-    LaunchedEffect(watermarkBrand) { prefs.edit().putString("watermark_brand", watermarkBrand).apply() }
-    var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
-    var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
     // Sound selection was removed: use one fixed bundled default, with only the on/off switch.
     LaunchedEffect(Unit) {
@@ -692,104 +674,6 @@ fun ToolboxScreen(
                 }
             }
         }
-        CameraFrameSettingsPanel()
-        Spacer(Modifier.height(16.dp))
-        Text("Watermark", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        FujiKey("OPEN WATERMARK STUDIO", onClick = onOpenWatermarkStudio,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
-        ToolToggle("Enable Watermark", "Logo thương hiệu, thông số chụp và bố cục watermark đã chọn",
-            "film", watermarkEnabled) {
-            watermarkEnabled = it
-            prefs.edit().putBoolean("watermark_enabled", it).apply()
-        }
-        Text("Thương hiệu watermark", color = CamColors.Sub, fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 7.dp, top = 9.dp))
-        cameraWatermarkBrands.chunked(3).forEach { brandRow ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                brandRow.forEach { (id, label) ->
-                    Chip(label, watermarkBrand == id, {
-                        watermarkBrand = id
-                        prefs.edit().putString("watermark_brand", id).apply()
-                    }, Modifier.weight(1f))
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-        }
-        Text("Mẫu watermark · chọn riêng từng kiểu", color = CamColors.Sub, fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp, top = 9.dp))
-        val watermarkBrandLabel = cameraWatermarkBrands.firstOrNull { it.first == watermarkBrand }?.second
-            ?: cameraWatermarkBrandTitle(watermarkBrand)
-        val watermarkTemplates = watermarkStudioLayoutResources.map { item ->
-            Triple(item.id, stringResource(item.title), stringResource(item.description))
-        }
-        watermarkTemplates.chunked(2).forEach { rowItems ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                rowItems.forEach { (id, title, subtitle) ->
-                    WatermarkTemplateCard(
-                        id = id, title = title, subtitle = subtitle,
-                        brand = watermarkBrand,
-                        frameStyle = watermarkStyle,
-                        selected = watermarkTemplate == id,
-                        onClick = {
-                            watermarkTemplate = id
-                            prefs.edit().putString("watermark_template", id).apply()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            Spacer(Modifier.height(9.dp))
-        }
-        Text("Màu khung", color = CamColors.Sub, fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 7.dp, top = 5.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf("White", "Black").forEach { style ->
-                Chip(style, watermarkStyle == style, {
-                    watermarkStyle = style
-                    prefs.edit().putString("watermark_style", style).apply()
-                }, Modifier.weight(1f))
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        ToolToggle("Hiện thời gian", "Bật/tắt ngày và giờ trên watermark",
-            "sliders", watermarkShowTime) {
-            watermarkShowTime = it
-            prefs.edit().putBoolean("watermark_show_time", it).apply()
-        }
-        ToolToggle("Hiện thông số", "Bật/tắt tiêu cự, khẩu độ, tốc độ màn trập và ISO",
-            "sliders", watermarkShowSpecs) {
-            watermarkShowSpecs = it
-            prefs.edit().putBoolean("watermark_show_specs", it).apply()
-        }
-        ToolToggle("Hiện địa điểm", "Bật/tắt dòng địa điểm trên watermark Signature",
-            "map-pin", watermarkShowLocation) {
-            watermarkShowLocation = it
-            prefs.edit().putBoolean("watermark_show_location", it).apply()
-        }
-        Text("Model tùy chỉnh", color = Color.White, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 15.dp))
-        Text("Auto sẽ lấy tên model của điện thoại: ${android.os.Build.MODEL}",
-            color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
-        FujiSearchField(value = customModel, onValueChange = { customModel = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = "Custom Model (để trống = Auto)")
-        FujiKey("SAVE MODEL", onClick = { prefs.edit().putString("watermark_custom_model", customModel.trim()).apply() }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-        Text("Tên model tùy chỉnh được lưu trong dữ liệu ứng dụng và giữ nguyên cho đến khi xóa dữ liệu hoặc gỡ ứng dụng.",
-            color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp))
-        AnimatedVisibility(
-            visible = watermarkShowLocation,
-            enter = fadeIn(animationSpec = tween(250)) + scaleIn(animationSpec = tween(250)),
-            exit = fadeOut(animationSpec = tween(250)) + scaleOut(animationSpec = tween(250))
-        ) {
-            Column {
-                Text("Địa điểm watermark (dùng cho mẫu Fuji Signature)", color = Color.White,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
-                FujiSearchField(value = customLocation, onValueChange = { customLocation = it }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = "Ví dụ: Winnipeg · để trống = ẩn")
-                FujiKey("SAVE LOCATION", onClick = { prefs.edit().putString("watermark_custom_location", customLocation.trim()).apply() }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-            }
-        }
-        Text("Watermark được đóng trực tiếp lên ảnh sau khi chụp. Thông số mm, khẩu độ, shutter và ISO lấy từ camera đang hoạt động khi HAL có cung cấp.",
-            color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
-
-        Spacer(Modifier.height(20.dp))
         Text(localizedUiText(context, "Shutter sound"), color = CamColors.TextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         ToolToggle("Âm thanh màn trập", "Bật/tắt âm thanh chụp mặc định.",
             "sliders", shutterSound) {
@@ -802,202 +686,6 @@ fun ToolboxScreen(
         }
     }
 }
-
-
-@Composable
-private fun CameraFrameSettingsPanel() {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
-    val contentPrefs = remember { context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE) }
-    var selectedTemplate by remember {
-        mutableStateOf(prefs.getString("selected_frame_template", "none") ?: "none")
-    }
-    var selectedStyle by remember {
-        mutableStateOf(prefs.getString("frame_style", "White") ?: "White")
-    }
-    val customFrames = remember {
-        mutableStateListOf<String>().apply {
-            addAll(contentPrefs.getStringSet("frames", emptySet())?.toList()?.sorted() ?: emptyList())
-        }
-    }
-    val builtIn = listOf(
-        "none" to "Tắt frame",
-        "classic" to "Classic Card",
-        "clean" to "Clean Corners",
-        "film" to "35mm Film",
-        "polaroid" to "Instant / Polaroid",
-        "logo" to "Center Logo",
-        "expo_around" to "Expo Around",
-        "expo_left" to "Expo Left",
-        "expo_right" to "Expo Right",
-        "double" to "Double Line"
-    )
-    val allFrames = builtIn + customFrames.map { uri ->
-        "custom|$uri" to documentDisplayName(context, Uri.parse(uri))
-    }
-
-    Spacer(Modifier.height(20.dp))
-    Text("Photo Frame", color = CamColors.TextColor, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-    Text(
-        "Chọn frame tại đây. Frame được đóng lên ảnh sau khi chụp; không còn nút Frame ở màn hình chụp.",
-        color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
-    )
-    allFrames.chunked(2).forEach { row ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            row.forEach { (id, title) ->
-                CameraFrameTemplateCard(
-                    id = id,
-                    title = title,
-                    frameStyle = selectedStyle,
-                    selected = selectedTemplate == id,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        selectedTemplate = id
-                        prefs.edit().putString("selected_frame_template", id).apply()
-                    }
-                )
-            }
-            if (row.size == 1) Spacer(Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(8.dp))
-    }
-    Text("Màu frame", color = CamColors.Sub, fontSize = 12.sp,
-        modifier = Modifier.padding(top = 5.dp, bottom = 7.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("White", "Black", "Transparent").forEach { style ->
-            Chip(style, selectedStyle == style, {
-                selectedStyle = style
-                prefs.edit().putString("frame_style", style).apply()
-            }, Modifier.weight(1f))
-        }
-    }
-    Text(
-        "Frame có viền trắng hoặc đen; ảnh PNG nhập vào vẫn giữ độ trong suốt gốc.",
-        color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 7.dp)
-    )
-    if (customFrames.isEmpty()) {
-        Text("Muốn thêm frame PNG/JPG, vào Contents Management → Frame Manage → Import Frame.",
-            color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
-    }
-}
-
-@Composable
-private fun CameraFrameTemplateCard(
-    id: String,
-    title: String,
-    frameStyle: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val lineColor = when (frameStyle) {
-        "Black" -> Color.Black
-        "Transparent" -> Color.Transparent
-        else -> Color.White
-    }
-    val fillColor = when (frameStyle) {
-        "Black" -> Color.Black
-        "White" -> Color.White
-        else -> Color.Transparent
-    }
-    val textColor = if (frameStyle == "White") Color.Black else Color.White
-    Column(
-        modifier.background(if (selected) Color(0xFF25312F) else FujiSkin.lcd)
-            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF344247))
-            .animaTClickable(onClick = onClick)
-            .padding(7.dp)
-    ) {
-        Box(
-            Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(7.dp))
-                .background(Color(0xFF536C60))
-        ) {
-            ComposeCanvas(Modifier.fillMaxSize()) {
-                drawRect(Color(0xFF748678))
-                drawCircle(Color(0xFFFFD79A), size.minDimension * 0.10f,
-                    Offset(size.width * 0.78f, size.height * 0.24f))
-                drawLine(Color(0xFF344D41), Offset(0f, size.height * 0.64f),
-                    Offset(size.width, size.height * 0.57f), size.height * 0.22f)
-                drawLine(Color(0xFF293B32), Offset(0f, size.height * 0.86f),
-                    Offset(size.width, size.height * 0.76f), size.height * 0.23f)
-                if (!id.startsWith("custom|") && id != "none" && frameStyle != "Transparent") {
-                    val inset = size.minDimension * 0.075f
-                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
-                        width = (size.minDimension * 0.025f).coerceAtLeast(1.2f)
-                    )
-                    when (id) {
-                        "clean" -> {
-                            val arm = size.minDimension * 0.16f
-                            for (sx in listOf(1f, -1f)) for (sy in listOf(1f, -1f)) {
-                                val x = if (sx > 0f) inset else size.width - inset
-                                val y = if (sy > 0f) inset else size.height - inset
-                                drawLine(lineColor, Offset(x, y), Offset(x + arm * sx, y), strokeWidth = stroke.width)
-                                drawLine(lineColor, Offset(x, y), Offset(x, y + arm * sy), strokeWidth = stroke.width)
-                            }
-                        }
-                        "film" -> {
-                            drawRect(lineColor, topLeft = Offset(inset, inset),
-                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
-                                style = stroke)
-                            val holeW = size.width * 0.045f
-                            for (n in 0..8) {
-                                val x = size.width * 0.08f + n * size.width * 0.105f
-                                drawRoundRect(lineColor, Offset(x, 2f), androidx.compose.ui.geometry.Size(holeW, 4f))
-                                drawRoundRect(lineColor, Offset(x, size.height - 6f), androidx.compose.ui.geometry.Size(holeW, 4f))
-                            }
-                        }
-                        "logo" -> {
-                            drawRect(lineColor, topLeft = Offset(inset, inset),
-                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
-                                style = stroke)
-                            drawLine(lineColor, Offset(size.width * 0.34f, size.height * 0.50f),
-                                Offset(size.width * 0.66f, size.height * 0.50f), strokeWidth = stroke.width)
-                        }
-                        "expo_left", "expo_right" -> {
-                            val band = size.width * 0.10f
-                            drawRect(fillColor, topLeft = Offset(if (id == "expo_left") 0f else size.width - band, 0f),
-                                size = androidx.compose.ui.geometry.Size(band, size.height))
-                            drawRect(lineColor, topLeft = Offset(inset, inset),
-                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
-                                style = stroke)
-                        }
-                        "polaroid" -> {
-                            drawRect(fillColor, topLeft = Offset(inset, inset),
-                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2))
-                            drawRect(Color(0xFF748678), topLeft = Offset(inset * 1.6f, inset * 1.6f),
-                                size = androidx.compose.ui.geometry.Size(size.width - inset * 3.2f, size.height - inset * 4f))
-                        }
-                        else -> {
-                            drawRect(lineColor, topLeft = Offset(inset, inset),
-                                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
-                                style = stroke)
-                            if (id == "double" || id == "expo_around") {
-                                drawRect(lineColor, topLeft = Offset(inset * 1.8f, inset * 1.8f),
-                                    size = androidx.compose.ui.geometry.Size(size.width - inset * 3.6f, size.height - inset * 3.6f),
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke.width * 0.65f))
-                            }
-                        }
-                    }
-                }
-            }
-            if (id.startsWith("custom|")) {
-                Text("PNG / JPG", color = Color.White, fontSize = 8.sp,
-                    modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xAA000000))
-                        .padding(horizontal = 4.dp, vertical = 2.dp))
-            }
-            if (id == "none") {
-                Text("ORIGINAL", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Center).background(Color(0xAA000000)).padding(5.dp))
-            }
-        }
-        Text(title, color = if (selected) FujiSkin.orange else CamColors.TextColor,
-            fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-            modifier = Modifier.padding(top = 6.dp))
-        Text(if (id.startsWith("custom|")) "Imported frame" else "Preview · $frameStyle",
-            color = CamColors.Sub, fontSize = 9.sp, maxLines = 1)
-    }
-}
-
-
 
 
 internal val watermarkStudioLayouts = listOf(
@@ -4192,9 +3880,7 @@ private fun applyWatermarkBoxBlur(bitmap: Bitmap, radius: Int, passes: Int) {
 @Composable
 fun ContentManagementScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("fujifilm_contents", 0) }
     val scope = rememberCoroutineScope()
-    var frames by remember { mutableStateOf(prefs.getStringSet("frames", emptySet()).orEmpty().toList()) }
     var luts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var lutSearch by remember { mutableStateOf("") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
@@ -4208,86 +3894,97 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                 val imported = withContext(Dispatchers.IO) { importCustomCameraLuts(context, uri) }
                 luts = loadCustomCameraLuts(context)
                 activeLutIds = activeCustomCameraLutIds(context)
-                Toast.makeText(context, "Đã nhập " + imported.size + " LUT. Chọn Add để bật từng bộ lọc.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    "Đã nhập " + imported.size + " LUT. Chọn Add để bật từng bộ lọc.",
+                    Toast.LENGTH_LONG
+                ).show()
             } catch (failure: Throwable) {
-                Toast.makeText(context, "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"), Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
+                    Toast.LENGTH_LONG
+                ).show()
             } finally {
                 isImportingLut = false
             }
         }
     }
-    val framePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            val value = uri.toString()
-            if (!frames.contains(value)) frames = frames + value
-            prefs.edit().putStringSet("frames", frames.toSet()).apply()
-        }
-    }
 
-    FujiPanel(title = "SETTINGS · MENU", breadcrumb = "CONTENTS MANAGEMENT", modifier = Modifier.fillMaxSize(), onBack = onBack) {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(end = 4.dp)) {
-                Text("LUT Manage", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(
-                    "Nhập LUT .cube, LUT Canon RGB 33x33x33 (.bin), hoặc ZIP chứa tối đa 700 LUT .cube/.bin. Hỗ trợ ZIP lồng. LUT Log được giữ riêng, không áp nhầm lên JPEG sRGB.",
-                    color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
-                )
-                FujiSearchField(
-                    value = lutSearch, onValueChange = { lutSearch = it },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    placeholder = "Tìm LUT theo tên hoặc nhóm"
-                )
-                FujiKey(
-                    if (isImportingLut) "ĐANG NHẬP LUT…" else "+ IMPORT LUT",
-                    onClick = { lutPicker.launch(arrayOf("*/*")) },
-                    enabled = !isImportingLut, modifier = Modifier.fillMaxWidth()
-                )
-                if (luts.isEmpty()) {
-                    EmptyNote("Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT.")
-                } else {
-                    val matchingLuts = luts.filter {
-                        lutSearch.isBlank() || it.name.contains(lutSearch.trim(), ignoreCase = true) || it.category.contains(lutSearch.trim(), ignoreCase = true)
-                    }
-                    Text(
-                        "Hiển thị ${matchingLuts.size.coerceAtMost(100)} / ${matchingLuts.size} LUT khớp · Tổng ${luts.size}",
-                        color = FujiSkin.muted, fontSize = 9.sp, modifier = Modifier.padding(vertical = 6.dp)
-                    )
-                    matchingLuts.take(100).forEach { entry ->
-                        val active = activeLutIds.contains(entry.id)
-                        Column(Modifier.fillMaxWidth().background(FujiSkin.lcd).padding(horizontal = 6.dp, vertical = 4.dp)) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(entry.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                    Text((if (active) "Đã thêm · " else "Chưa thêm · ") + entry.category, color = FujiSkin.muted, fontSize = 8.sp)
-                                }
-                                FujiSwitch(checked = active, onCheckedChange = {
-                                    setCustomCameraLutActive(context, entry.id, it)
-                                    activeLutIds = activeCustomCameraLutIds(context)
-                                })
-                                FujiKey("X", onClick = { pendingDeleteLut = entry }, modifier = Modifier.width(34.dp).padding(start = 4.dp))
-                            }
-                            Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(0.6.dp).background(Color(0xFF2A383B)))
-                        }
-                    }
+    FujiPanel(
+        title = "SETTINGS · MENU",
+        breadcrumb = "LUT",
+        modifier = Modifier.fillMaxSize(),
+        onBack = onBack
+    ) {
+        Column(
+            Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text("LUT MANAGER", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(
+                "Nhập LUT .cube, LUT Canon RGB 33x33x33 (.bin), hoặc ZIP chứa tối đa 700 LUT .cube/.bin. Hỗ trợ ZIP lồng. LUT Log được giữ riêng, không áp nhầm lên JPEG sRGB.",
+                color = FujiSkin.muted,
+                fontSize = 10.sp
+            )
+            FujiSearchField(
+                value = lutSearch,
+                onValueChange = { lutSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = "Tìm LUT theo tên hoặc nhóm"
+            )
+            FujiKey(
+                if (isImportingLut) "ĐANG NHẬP LUT…" else "+ IMPORT LUT",
+                onClick = { lutPicker.launch(arrayOf("*/*")) },
+                enabled = !isImportingLut,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (luts.isEmpty()) {
+                EmptyNote("Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT.")
+            } else {
+                val matchingLuts = luts.filter {
+                    lutSearch.isBlank() ||
+                        it.name.contains(lutSearch.trim(), ignoreCase = true) ||
+                        it.category.contains(lutSearch.trim(), ignoreCase = true)
                 }
-            }
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 4.dp)) {
-                Text("Frame Manage", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("Nhập khung phủ PNG/JPG để quản lý.", color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
-                FujiKey("+ IMPORT FRAME", onClick = { framePicker.launch(arrayOf("image/png", "image/jpeg")) }, modifier = Modifier.fillMaxWidth())
-                if (frames.isEmpty()) {
-                    EmptyNote("Chưa có frame nào được nhập.")
-                } else {
-                    frames.forEach { value ->
-                        val name = documentDisplayName(context, Uri.parse(value))
-                        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                            FujiListRow(title = name, value = "FRAME", onClick = {}, modifier = Modifier.weight(1f), navigate = false)
-                            FujiKey("X", onClick = {
-                                frames = frames.filterNot { it == value }
-                                prefs.edit().putStringSet("frames", frames.toSet()).apply()
-                            }, modifier = Modifier.width(34.dp))
+                Text(
+                    "Hiển thị \${matchingLuts.size.coerceAtMost(100)} / \${matchingLuts.size} LUT khớp · Tổng \${luts.size}",
+                    color = FujiSkin.muted,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                matchingLuts.take(100).forEach { entry ->
+                    val active = activeLutIds.contains(entry.id)
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .background(FujiSkin.lcd)
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(entry.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    (if (active) "Đã thêm · " else "Chưa thêm · ") + entry.category,
+                                    color = FujiSkin.muted,
+                                    fontSize = 8.sp
+                                )
+                            }
+                            FujiSwitch(checked = active, onCheckedChange = {
+                                setCustomCameraLutActive(context, entry.id, it)
+                                activeLutIds = activeCustomCameraLutIds(context)
+                            })
+                            FujiKey(
+                                "X",
+                                onClick = { pendingDeleteLut = entry },
+                                modifier = Modifier.width(34.dp).padding(start = 4.dp)
+                            )
                         }
+                        Box(
+                            Modifier.fillMaxWidth().padding(top = 4.dp)
+                                .height(0.6.dp).background(Color(0xFF2A383B))
+                        )
                     }
                 }
             }
@@ -4298,7 +3995,12 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         Dialog(onDismissRequest = { pendingDeleteLut = null }) {
             FujiPanel(title = "DELETE LUT", modifier = Modifier.width(340.dp)) {
                 Text("Xóa LUT?", color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Bạn có chắc chắn muốn xóa LUT \"" + entry.name + "\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc.", color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(vertical = 8.dp))
+                Text(
+                    "Bạn có chắc chắn muốn xóa LUT \"" + entry.name + "\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc.",
+                    color = FujiSkin.muted,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FujiKey("HỦY", onClick = { pendingDeleteLut = null }, modifier = Modifier.weight(1f))
                     FujiKey("XÓA", onClick = {
@@ -4643,277 +4345,3 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
 }
 
 
-/**
- * Applies a selected border/layout frame to the already-upright capture.
- * Built-in layouts are original Android Canvas implementations based on the flexible
- * photo-card / clean / film / expo layout ideas demonstrated by phew.
- */
-fun applyCameraFrameOverlay(context: Context, uri: Uri): Boolean {
-    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    val brandId = prefs.getString("watermark_brand", "fujifilm") ?: "fujifilm"
-    val brandTitle = cameraWatermarkBrandTitle(brandId)
-    val template = prefs.getString("selected_frame_template", "none") ?: "none"
-    if (template == "none") return false
-
-    return runCatching {
-        val sourceExif = readImageExifAttributes(context, uri)
-        val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
-        var outputBitmap: Bitmap? = null
-        try {
-            val output = if (bitmap.isMutable) {
-                bitmap.also { outputBitmap = it }
-            } else {
-                bitmap.copy(Bitmap.Config.ARGB_8888, true)?.also { outputBitmap = it }
-                    ?: return@runCatching false
-            }
-            val canvas = Canvas(output)
-        val frameTextTypeface = FujiTypography.androidTypeface(context)
-        val frameStyle = (prefs.getString("frame_style", "White") ?: "White").takeIf { it == "Black" || it == "White" } ?: "White"
-        val transparent = false
-        val frameColor = if (frameStyle == "Black") AndroidColor.BLACK else AndroidColor.WHITE
-        val textColor = if (frameStyle == "Black" || transparent) AndroidColor.WHITE else AndroidColor.BLACK
-        val minSide = minOf(output.width, output.height).toFloat()
-        val margin = (minSide * 0.035f).coerceAtLeast(16f)
-        val stroke = (minSide * 0.0032f).coerceAtLeast(2f)
-
-        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = frameColor
-            this.style = Paint.Style.STROKE
-            strokeWidth = stroke
-        }
-        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = frameColor
-            this.style = Paint.Style.FILL
-        }
-        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (transparent) AndroidColor.WHITE else textColor
-            typeface = frameTextTypeface
-            textSize = (minSide * 0.022f).coerceIn(14f, 48f)
-        }
-        val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (transparent) AndroidColor.WHITE else textColor
-            alpha = 220
-            typeface = frameTextTypeface
-            textSize = (minSide * 0.012f).coerceIn(10f, 26f)
-        }
-        fun border(rect: RectF, width: Float = stroke) {
-            if (transparent) return
-            linePaint.strokeWidth = width
-            canvas.drawRect(rect, linePaint)
-        }
-        fun plate(rect: RectF, radius: Float = margin * 0.16f) {
-            if (!transparent) canvas.drawRoundRect(rect, radius, radius, fillPaint)
-        }
-        fun caption(title: String, detail: String = "") {
-            val bandHeight = (minSide * 0.075f).coerceAtLeast(42f)
-            val band = RectF(margin, output.height - margin - bandHeight, output.width - margin, output.height - margin)
-            plate(band)
-            val x = band.left + margin * 0.42f
-            val titleBaseline = band.top + band.height() * 0.43f
-            canvas.drawText(title, x, titleBaseline, textPaint)
-            if (detail.isNotBlank()) {
-                canvas.drawText(detail.take(90), x, band.top + band.height() * 0.77f, detailPaint)
-            }
-        }
-
-        if (template.startsWith("custom|")) {
-            val frameUri = Uri.parse(template.removePrefix("custom|"))
-            val imported = context.contentResolver.openInputStream(frameUri)?.use {
-                BitmapFactory.decodeStream(it)
-            } ?: return@runCatching false
-            try {
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-                if (!transparent) {
-                    paint.colorFilter = android.graphics.PorterDuffColorFilter(
-                        frameColor, android.graphics.PorterDuff.Mode.SRC_IN
-                    )
-                }
-                canvas.drawBitmap(imported, null, RectF(0f, 0f, output.width.toFloat(), output.height.toFloat()), paint)
-            } finally {
-                if (!imported.isRecycled) imported.recycle()
-            }
-        } else {
-            val outer = RectF(margin, margin, output.width - margin, output.height - margin)
-            val inner = RectF(margin * 1.55f, margin * 1.55f,
-                output.width - margin * 1.55f, output.height - margin * 1.55f)
-            when (template) {
-                "classic" -> {
-                    border(outer, stroke * 1.8f)
-                    border(inner, stroke * 0.55f)
-                    caption("${brandTitle}  /  CAMERA", "PHOTO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}")
-                }
-                "clean" -> {
-                    val corner = minSide * 0.085f
-                    val p = Paint(linePaint).apply { strokeWidth = stroke * 1.5f }
-                    if (!transparent) {
-                        listOf(
-                            Triple(margin, margin, 1), Triple(output.width - margin, margin, 2),
-                            Triple(margin, output.height - margin, 3), Triple(output.width - margin, output.height - margin, 4)
-                        ).forEach { (x, y, index) ->
-                            val sx = if (index == 1 || index == 3) -1f else 1f
-                            val sy = if (index >= 3) -1f else 1f
-                            canvas.drawLine(x, y, x + corner * sx, y, p)
-                            canvas.drawLine(x, y, x, y + corner * sy, p)
-                        }
-                    }
-                    textPaint.textAlign = Paint.Align.RIGHT
-                    canvas.drawText("FUJIFILM MODE", output.width - margin, output.height - margin * 1.65f, textPaint)
-                    textPaint.textAlign = Paint.Align.LEFT
-                }
-                "film" -> {
-                    border(outer, stroke * 2f)
-                    if (!transparent) {
-                        val holeW = minSide * 0.028f
-                        val holeH = minSide * 0.014f
-                        val gap = holeW * 0.75f
-                        val count = (output.width / (holeW + gap)).toInt().coerceIn(4, 28)
-                        val start = (output.width - count * (holeW + gap) + gap) / 2f
-                        for (i in 0 until count) {
-                            val x = start + i * (holeW + gap)
-                            canvas.drawRoundRect(RectF(x, margin * 0.28f, x + holeW, margin * 0.28f + holeH), 3f, 3f, fillPaint)
-                            canvas.drawRoundRect(RectF(x, output.height - margin * 0.28f - holeH,
-                                x + holeW, output.height - margin * 0.28f), 3f, 3f, fillPaint)
-                        }
-                    }
-                    caption("35mm FILM", "FRAME  ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())}")
-                }
-                "polaroid" -> {
-                    val band = RectF(margin, margin, output.width - margin, output.height - margin)
-                    val imageInset = margin * 0.55f
-                    val imageArea = RectF(band.left + imageInset, band.top + imageInset,
-                        band.right - imageInset, band.bottom - margin * 2.35f)
-                    // Paint only the outside strips. Never fill the whole photo rectangle.
-                    if (!transparent) {
-                        fillPaint.alpha = 255
-                        canvas.drawRect(RectF(band.left, band.top, band.right, imageArea.top), fillPaint)
-                        canvas.drawRect(RectF(band.left, imageArea.top, imageArea.left, imageArea.bottom), fillPaint)
-                        canvas.drawRect(RectF(imageArea.right, imageArea.top, band.right, imageArea.bottom), fillPaint)
-                        canvas.drawRect(RectF(band.left, imageArea.bottom, band.right, band.bottom), fillPaint)
-                    }
-                    border(imageArea, stroke * 0.55f)
-                    textPaint.textAlign = Paint.Align.CENTER
-                    canvas.drawText("INSTANT  /  FUJIFILM", output.width / 2f,
-                        output.height - margin * 1.25f, textPaint)
-                    textPaint.textAlign = Paint.Align.LEFT
-                }
-                "logo" -> {
-                    border(outer, stroke)
-                    textPaint.textAlign = Paint.Align.CENTER
-                    textPaint.textSize = (minSide * 0.045f).coerceIn(24f, 76f)
-                    canvas.drawText("FUJIFILM", output.width / 2f, output.height * 0.52f, textPaint)
-                    textPaint.textSize = (minSide * 0.014f).coerceIn(11f, 28f)
-                    detailPaint.textAlign = Paint.Align.CENTER
-                    canvas.drawText("X SERIES", output.width / 2f, output.height * 0.55f, detailPaint)
-                    detailPaint.textAlign = Paint.Align.LEFT
-                    textPaint.textAlign = Paint.Align.LEFT
-                }
-                "expo_left", "expo_right" -> {
-                    val bandWidth = minSide * 0.105f
-                    val leftSide = template == "expo_left"
-                    val band = if (leftSide) RectF(0f, 0f, bandWidth, output.height.toFloat())
-                        else RectF(output.width - bandWidth, 0f, output.width.toFloat(), output.height.toFloat())
-                    plate(band, 0f)
-                    textPaint.textAlign = Paint.Align.CENTER
-                    textPaint.textSize = (minSide * 0.018f).coerceIn(12f, 34f)
-                    canvas.save()
-                    canvas.rotate(if (leftSide) -90f else 90f, band.centerX(), band.centerY())
-                    canvas.drawText("FUJIFILM  •  ${java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.US).format(java.util.Date())}",
-                        band.centerX(), band.centerY(), textPaint)
-                    canvas.restore()
-                    textPaint.textAlign = Paint.Align.LEFT
-                    border(outer, stroke * 0.7f)
-                }
-                "expo_around" -> {
-                    border(outer, stroke * 1.2f)
-                    border(inner, stroke * 0.45f)
-                    caption("EXPO", "EXPO  •  ${java.text.SimpleDateFormat("yyyy.MM.dd  HH:mm", java.util.Locale.US).format(java.util.Date())}")
-                }
-                "double" -> {
-                    border(outer, stroke * 1.8f)
-                    border(RectF(margin * 2.1f, margin * 2.1f,
-                        output.width - margin * 2.1f, output.height - margin * 2.1f), stroke * 0.6f)
-                }
-                else -> return@runCatching false
-            }
-        }
-
-        val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
-            output.compress(Bitmap.CompressFormat.JPEG, 98, it)
-        } ?: false
-        if (!written) return@runCatching false
-        val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, output.width, output.height)
-        setMediaStoreOrientationUpright(context, uri)
-        exifWritten
-        } finally {
-            outputBitmap?.let { if (it !== bitmap && !it.isRecycled) it.recycle() }
-            if (!bitmap.isRecycled) bitmap.recycle()
-        }
-    }.onFailure {
-        android.util.Log.e("FUJI_FRAME", "Could not apply selected frame", it)
-    }.getOrDefault(false)
-}
-
-@Composable
-fun CameraFrameDialog(
-    selectedTemplate: String,
-    selectedStyle: String,
-    customFrames: List<String>,
-    onSelectTemplate: (String) -> Unit,
-    onSelectStyle: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val builtInFrames = listOf(
-        "none" to "Tắt frame",
-        "classic" to "Classic Card",
-        "clean" to "Clean Corners",
-        "film" to "35mm Film",
-        "polaroid" to "Instant / Polaroid",
-        "logo" to "Center Logo",
-        "expo_around" to "Expo Around",
-        "expo_left" to "Expo Left",
-        "expo_right" to "Expo Right",
-        "double" to "Double Line"
-    )
-    val options = builtInFrames + customFrames.map { uri ->
-        "custom|$uri" to documentDisplayName(context, Uri.parse(uri))
-    }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        FujiPanel(
-            title = "SETTINGS · MENU", breadcrumb = "PHOTO FRAMES",
-            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 680.dp),
-            onBack = onDismiss
-        ) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(10.dp)) {
-                Text("Chọn frame để xem trước và đóng lên ảnh sau khi chụp.",
-                    color = FujiSkin.muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 10.dp))
-                options.chunked(2).forEach { rowOptions ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        rowOptions.forEach { (id, label) ->
-                            Column(
-                                Modifier.weight(1f).padding(bottom = 7.dp)
-                                    .background(if (selectedTemplate == id) Color(0xFF25312F) else FujiSkin.lcd)
-                                    .border(1.dp, if (selectedTemplate == id) FujiSkin.orange else Color(0xFF344247))
-                                    .animaTClickable { onSelectTemplate(id) }.padding(10.dp)
-                            ) {
-                                Text(label, color = if (selectedTemplate == id) FujiSkin.lcdGreen else Color.White, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
-                                Text(if (id.startsWith("custom|")) "PNG trong suốt khuyên dùng · JPG có thể che ảnh" else "Frame dựng sẵn",
-                                    color = FujiSkin.muted, fontSize = 8.sp, modifier = Modifier.padding(top = 3.dp))
-                            }
-                        }
-                        if (rowOptions.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-                Text("Frame color", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 7.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf("White", "Black").forEach { style ->
-                        Chip(style, selectedStyle == style, { onSelectStyle(style) }, Modifier.weight(1f))
-                    }
-                }
-                Text("Transparent: bỏ viền và panel nền; các chi tiết chữ/ảnh PNG vẫn được giữ.", color = FujiSkin.muted, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
-                FujiKey("ÁP DỤNG FRAME", onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
-            }
-        }
-    }
-}

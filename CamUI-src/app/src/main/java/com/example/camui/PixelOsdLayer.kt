@@ -54,6 +54,13 @@ internal fun pixelBatteryCellCount(percent: Int): Int =
 
 internal fun isPixelBatteryLow(percent: Int): Boolean = percent in 0 until 20
 
+internal fun isPixelBatterySlashVisible(percent: Int): Boolean = percent in 0..5
+
+internal fun isPixelBatteryEmergency(percent: Int): Boolean = percent in 0..1
+
+internal fun shouldBlockBatteryIntensiveCapture(percent: Int, charging: Boolean): Boolean =
+    isPixelBatterySlashVisible(percent) && !charging
+
 internal fun pixelEvAccentColor(
     evIndex: Float,
     evStepStops: Float,
@@ -153,6 +160,7 @@ data class PixelOsdFrame(
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
     val batteryLowBlinkOn: Boolean = true,
+    val batteryCriticalText: String = "BATTERY CRITICAL",
     val showEvScale: Boolean = true,
     val evIndex: Int = 0,
     val evDisplayIndex: Float = evIndex.toFloat(),
@@ -497,6 +505,21 @@ class PixelOsdRenderer(context: Context) {
                 }
                 PixelOsdElementKind.RULE -> Unit
             }
+        }
+        if (isPixelBatteryEmergency(frame.batteryPercent) && !frame.batteryCharging) {
+            val warning = frame.batteryCriticalText.take(22)
+            val estimatedWidth = warning.length * layout.t1CapHeightPx * 0.64f
+            val left = ((layout.widthPx - estimatedWidth) / 2f)
+                .coerceAtLeast(layout.safeMarginPx.toFloat())
+            val top = (layout.safeMarginPx + layout.t1CapHeightPx + layout.itemGapPx).toFloat()
+            drawPixelTextPhysical(
+                text = warning,
+                leftPx = left,
+                topPx = top,
+                capHeightPx = layout.t1CapHeightPx.coerceAtLeast(1),
+                color = PixelOsdPalette.RED,
+                alpha = if (frame.batteryLowBlinkOn) 1f else 0.45f
+            )
         }
     }
 
@@ -1038,6 +1061,13 @@ class PixelOsdRenderer(context: Context) {
                     left + ((width - bolt.first().length) / 2).coerceAtLeast(0),
                     top + ((height - bolt.size) / 2).coerceAtLeast(0)
                 )
+            }
+        } else if (isPixelBatterySlashVisible(percent)) {
+            val steps = maxOf(width, height).coerceAtLeast(1)
+            for (step in 0..steps) {
+                val x = left + (step * (width - 1) / steps)
+                val y = top + height - 1 - (step * (height - 1) / steps)
+                drawPixel(canvas, x, y, PixelOsdPalette.RED)
             }
         }
     }

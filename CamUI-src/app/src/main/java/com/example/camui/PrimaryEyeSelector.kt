@@ -144,25 +144,24 @@ internal class PrimaryEyeSelector(
         rightConfidence: Float?,
         headYawDegrees: Float
     ): PrimaryEyeSide {
-        if (!headYawDegrees.isFinite()) {
-            // Continue with landmark confidence/area when pose is not available.
-        } else if (headYawDegrees > yawDeadZoneDegrees) {
-            return PrimaryEyeSide.RIGHT
-        } else if (headYawDegrees < -yawDeadZoneDegrees) {
-            return PrimaryEyeSide.LEFT
-        }
-
         val leftScore = leftConfidence?.takeIf { it.isFinite() } ?: 0f
         val rightScore = rightConfidence?.takeIf { it.isFinite() } ?: 0f
         if (abs(leftScore - rightScore) >= 0.05f) {
             return if (leftScore > rightScore) PrimaryEyeSide.LEFT else PrimaryEyeSide.RIGHT
         }
 
+        // A larger visible contour is a better near-eye cue than pose alone.
         val leftArea = leftEyeArea?.takeIf { it.isFinite() && it > 0f }
         val rightArea = rightEyeArea?.takeIf { it.isFinite() && it > 0f }
         if (leftEye != null && rightEye != null && leftArea != null && rightArea != null) {
             if (leftArea >= rightArea * 1.05f) return PrimaryEyeSide.LEFT
             if (rightArea >= leftArea * 1.05f) return PrimaryEyeSide.RIGHT
+        }
+
+        // Head yaw is only a fallback when confidence and contour size are tied/missing.
+        if (headYawDegrees.isFinite()) {
+            if (headYawDegrees > yawDeadZoneDegrees) return PrimaryEyeSide.RIGHT
+            if (headYawDegrees < -yawDeadZoneDegrees) return PrimaryEyeSide.LEFT
         }
         return if (leftEye != null || rightEye == null) PrimaryEyeSide.LEFT else PrimaryEyeSide.RIGHT
     }

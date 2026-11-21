@@ -5370,6 +5370,16 @@ fun CameraScreen(
                                             Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
                                         )
                                     } ?: 2f,
+                                    zoomOpticalBoundaryRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
+                                        opticalZoomBoundaryRatio(
+                                            Camera2Info.opticalZoomAssessment(
+                                                activeCameraDetails,
+                                                activePhysicalCameraDetails,
+                                                camera2Inventory
+                                            ),
+                                            state.minZoomRatio
+                                        )
+                                    } ?: 1f,
                                     zoomDigitalBoundaryRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
                                         Camera2Info.maxSelectableZoom(activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio, camera2Inventory)
                                     } ?: 2f,

@@ -55,7 +55,7 @@
     <string name="zoom_buttons_swapped">SWAPPED · W IN / T OUT</string>
     <string name="zoom_bar_position_label">Zoom bar position</string>
     <string name="zoom_bar_position_top_center">TOP-CENTER</string>
-    <string name="zoom_bar_position_top_left">TOP-LEFT</string>
+    <string name="zoom_bar_position_middle_left">TOP-LEFT</string>
     <string name="zoom_bar_description">The bar stays visible in Standard, Full Info and Level + Grid. In Clean mode it fades 1.5 seconds after zooming.</string>
     <string name="digital_zoom_processing">Applying GPU Lanczos digital crop</string>
     <string name="digital_zoom_success">DIGITAL zoom: Lanczos crop applied and XMP written. Detail quality is lower than optical zoom.</string>

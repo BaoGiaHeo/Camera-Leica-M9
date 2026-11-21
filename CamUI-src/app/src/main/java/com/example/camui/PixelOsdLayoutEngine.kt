@@ -181,15 +181,13 @@ internal object PixelOsdLayoutEngine {
             val batteryTextWidth = if (batteryLabel.isNotBlank()) measureTextWidthPx(batteryLabel, t1) else 0f
             val batteryWidth = snapGrid(unit * 1.9f)
             val batteryHeight = snapGrid(unit.toFloat())
-            val lockWidth = if (frame.focusLocked) {
-                val rows = PixelOsdSprites.get("lock") ?: emptyArray()
-                snapGrid(t1 * rows.firstOrNull()?.length.orEmpty().ifEmpty { 7 }.toFloat() /
-                    rows.size.coerceAtLeast(1))
-            } else 0f
+            val lockRows = PixelOsdSprites.get("lock")
+            val lockAspect = lockRows?.let { it.first().length.toFloat() / it.size.coerceAtLeast(1) } ?: 1f
+            val lockWidth = if (frame.focusLocked) snapGrid(t1 * lockAspect) else 0f
             val lockHeight = snapGrid(t1.toFloat())
             val total = afWidth +
-                if (frame.focusLocked) itemGap + lockWidth else 0f +
-                if (batteryLabel.isNotBlank()) itemGap + batteryWidth + labelValueGap + batteryTextWidth else 0f
+                (if (frame.focusLocked) itemGap + lockWidth else 0f) +
+                (if (batteryLabel.isNotBlank()) itemGap + batteryWidth + labelValueGap + batteryTextWidth else 0f)
             var x = widthPx - margin - total
             val top = margin.toFloat()
             val afMeasuredWidth = addText("status-af", "status", afText, x, top, t1)

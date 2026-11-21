@@ -300,6 +300,7 @@ internal object UiTranslationCatalog {
         Regex("^Đã nạp Film Recipe (\\d+)$").matchEntire(value)?.let {
             return "Loaded Film Recipe " + it.groupValues[1]
         }
+        translatePrefix(value, vietnamesePrefixes)?.let { return it }
         return null
     }
 

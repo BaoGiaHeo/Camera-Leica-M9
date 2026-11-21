@@ -152,6 +152,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.geometry.Size as DrawSize
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -4665,7 +4666,7 @@ fun CameraScreen(
                                         else -> ""
                                     }
                                     val finalMessage = (if (captureIsUltraHdr) message
-                                        else if (frameApplied) "$message Frame đã được áp dụng." else message) +
+                                        else message) +
                                         digitalZoomSuffix
                                     val deviceProcessingSuffix = when {
                                         !captureUseDeviceProcessing -> ""
@@ -5076,8 +5077,8 @@ fun CameraScreen(
                                             val active = camera ?: return@detectTapGestures
                                             val tapPoint = normalizedAfTapPoint(
                                                 Offset(offset.x, offset.y),
-                                                size.width.roundToInt(),
-                                                size.height.roundToInt()
+                                                size.width,
+                                                size.height
                                             )
                                             android.util.Log.i(
                                                 "FUJI_AF_TOUCH",

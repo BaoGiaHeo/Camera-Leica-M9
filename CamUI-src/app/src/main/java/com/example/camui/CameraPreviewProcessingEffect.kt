@@ -171,7 +171,7 @@ internal object CameraPreviewProcessingEffect {
                     Log.w(TAG, "AGSL unavailable; Canvas fallback enabled", it)
                     shaderFailureLogged = true
                 }
-                drawAuroraFallback(canvas, width, height, time, hold, false, bloom)
+                drawAuroraFallback(canvas, width, height, time, hold, false, bloom, density)
                 return
             }
         runCatching {
@@ -202,29 +202,31 @@ internal object CameraPreviewProcessingEffect {
         val shortSide = min(width, height)
         val veil = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(if (hold) 26 else 20, 0, 0, 0) }
         canvas.drawRect(0f, 0f, width, height, veil)
-        if (!simple) {
-            val colors = intArrayOf(0xFFFFA8C7.toInt(), 0xFFFFD1A8.toInt(), 0xFFD8E7B8.toInt(), 0xFFA9E6E0.toInt(), 0xFFB9C7FF.toInt())
-            val centres = floatArrayOf(0.20f, 0.42f, 0.70f, 0.85f, 0.32f, 0.24f, 0.72f, 0.25f, 0.76f, 0.50f)
-            for (i in 0 until 5) {
-                val phase = i * 1.256637f
-                val cx = (centres[i] + 0.10f * sin(time * 0.70f + phase)) * width
-                val cy = (centres[i + 5] + 0.09f * cos(time * 0.52f + phase * 1.13f)) * height
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    shader = RadialGradient(
-                        cx, cy, shortSide * 0.52f,
-                        intArrayOf(alphaColor(colors[i], 35), alphaColor(colors[i], 18), alphaColor(colors[i], 0)),
-                        floatArrayOf(0f, 0.42f, 1f), Shader.TileMode.CLAMP
-                    )
-                    screenBlend(this)
-                }
-                canvas.drawCircle(cx, cy, shortSide * 0.52f, paint)
+        val colors = intArrayOf(0xFFFFA8C7.toInt(), 0xFFFFD1A8.toInt(), 0xFFD8E7B8.toInt(), 0xFFA9E6E0.toInt(), 0xFFB9C7FF.toInt())
+        val centres = floatArrayOf(0.20f, 0.42f, 0.70f, 0.85f, 0.32f, 0.24f, 0.72f, 0.25f, 0.76f, 0.50f)
+        for (i in 0 until 5) {
+            val phase = i * 1.256637f
+            val motion = if (simple) 0f else 1f
+            val cx = (centres[i] + 0.10f * sin(time * 0.70f * motion + phase)) * width
+            val cy = (centres[i + 5] + 0.09f * cos(time * 0.52f * motion + phase * 1.13f)) * height
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = RadialGradient(
+                    cx, cy, shortSide * 0.52f,
+                    intArrayOf(alphaColor(colors[i], 35), alphaColor(colors[i], 18), alphaColor(colors[i], 0)),
+                    floatArrayOf(0f, 0.42f, 1f), Shader.TileMode.CLAMP
+                )
+                screenBlend(this)
             }
+            canvas.drawCircle(cx, cy, shortSide * 0.52f, paint)
+        }
+        if (!simple) {
             drawPrism(canvas, width, height, time)
+            drawPrismChromaticShift(canvas, width, height, time, density)
         }
         val breath = 0.8f + 0.2f * (0.5f + 0.5f * sin(time * 2f * PI.toFloat() * 0.6f))
         val borderAlpha = (0.70f * breath * (if (hold) 1.25f else 1f) * (if (bloom) 1.2f else 1f)).coerceIn(0f, 0.9f)
-        drawRainbowBorder(canvas, width, height, time, borderAlpha)
-        drawSparkles(canvas, width, height, time, simple)
+        drawRainbowBorder(canvas, width, height, time, borderAlpha, density)
+        drawSparkles(canvas, width, height, time, simple, density)
     }
 
     private fun drawIdleBorder(
@@ -289,6 +291,32 @@ internal object CameraPreviewProcessingEffect {
             screenBlend(this)
         }
         canvas.drawLine(sx, sy, ex, ey, paint)
+    }
+
+    private fun drawPrismChromaticShift(canvas: Canvas, width: Float, height: Float, time: Float, density: Float) {
+        val phase = time % 2.4f
+        if (phase > 0.9f) return
+        val progress = phase / 0.9f
+        val cx = (-0.20f + progress * 1.40f) * width
+        val cy = height * 0.5f
+        val sx = cx - width * 0.25f
+        val sy = cy + height * 0.091f
+        val ex = cx + width * 0.25f
+        val ey = cy - height * 0.091f
+        val offset = 2.5f * density
+        val colours = intArrayOf(0x18FF667E, 0x184BDAFF, 0x18A2FFB9)
+        val shifts = floatArrayOf(-offset, 0f, offset)
+        for (index in shifts.indices) {
+            val shift = shifts[index]
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = colours[index]
+                strokeWidth = density
+                strokeCap = Paint.Cap.ROUND
+                maskFilter = BlurMaskFilter(1.2f * density, BlurMaskFilter.Blur.NORMAL)
+                screenBlend(this)
+            }
+            canvas.drawLine(sx + shift, sy - shift * 0.364f, ex + shift, ey - shift * 0.364f, paint)
+        }
     }
 
     private fun drawSparkles(

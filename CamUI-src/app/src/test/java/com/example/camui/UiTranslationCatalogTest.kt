@@ -27,11 +27,15 @@ class UiTranslationCatalogTest {
             "Film Simulation Customizer" to "Tùy chỉnh mô phỏng phim",
             "RAW Capture" to "Chụp RAW",
             "Night capture and Star Trails use separate processing pipelines" to
-                "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng."
+                "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng.",
+            "SETTINGS  ›" to "CÀI ĐẶT  ›",
+            "MENU/OK  >  SETTINGS" to "MENU/OK  >  CÀI ĐẶT"
         )
         cases.forEach { (source, expected) ->
             assertEquals(expected, UiTranslationCatalog.toVietnamese(source))
         }
+        assertEquals("SETTINGS  ›", UiTranslationCatalog.toEnglish("CÀI ĐẶT  ›"))
+        assertEquals("MENU/OK  >  SETTINGS", UiTranslationCatalog.toEnglish("MENU/OK  >  CÀI ĐẶT"))
     }
 
     @Test

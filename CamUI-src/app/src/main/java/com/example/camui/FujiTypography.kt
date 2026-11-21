@@ -13,11 +13,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.res.ResourcesCompat
 
 /**
- * The one typography source for Compose text and the native pixel OSD renderer.
- *
- * KK7 remains the primary face. The Gradle resource task inflates the checked-in
- * compressed source into the Android resource res/font/vcr_osd_mono_kk7.ttf.
- * Share Tech Mono is the per-glyph fallback for characters not present in KK7.
+ * Saira Semi Condensed is shared by all application UI surfaces and WatermarkRenderer.
+ * KK7 is reserved for the live pixel OSD preview and is not used by ordinary UI text.
+ * Its compressed source is inflated into res/font/vcr_osd_mono_kk7.ttf by Gradle.
+ * Share Tech Mono supplies missing glyphs in the KK7 OSD rendering path.
  */
 object FujiTypography {
     const val FONT_ASSET_PATH = "fonts/vcr_osd_mono_kk7.ttf.gz"

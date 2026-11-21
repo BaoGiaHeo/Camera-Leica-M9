@@ -236,6 +236,8 @@ internal object UiTranslationCatalog {
         "RAW Capture" to "Chụp RAW",
         "Battery is critically low. Charge the phone before using Star Trails, NightShot or long exposure." to
             "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
+        "SETTINGS  ›" to "CÀI ĐẶT  ›",
+        "MENU/OK  >  SETTINGS" to "MENU/OK  >  CÀI ĐẶT",
 
         "Camera Presets" to "Thiết lập camera",
         "Film Simulation Customizer" to "Tùy chỉnh mô phỏng phim",

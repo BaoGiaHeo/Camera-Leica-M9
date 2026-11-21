@@ -33,6 +33,19 @@ class WatermarkTypographyAssetTest {
     }
 
     @Test
+    fun appUiUsesTheSameSairaFaceAsWatermarkAndPreviewUsesOnlyKk7() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val watermarkUiFace = context.resources.getFont(R.font.saira_semicondensed_semibold)
+        val appUiFace = FujiTypography.uiTypeface(context)
+        val previewFace = FujiTypography.androidTypeface(context)
+        val kk7Face = context.resources.getFont(R.font.vcr_osd_mono_kk7)
+
+        assertEquals(watermarkUiFace.toString(), appUiFace.toString())
+        assertEquals(kk7Face.toString(), previewFace.toString())
+        assertNotEquals(appUiFace.toString(), previewFace.toString())
+    }
+
+    @Test
     fun watermarkTypefaceResourcesAreDistinctFromTheVcrOsdResource() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val jost = context.resources.getFont(R.font.jost_watermark)

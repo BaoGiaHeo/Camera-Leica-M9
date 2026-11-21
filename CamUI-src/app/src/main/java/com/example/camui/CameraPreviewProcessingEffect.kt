@@ -19,6 +19,7 @@ import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.max
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -457,7 +458,7 @@ internal object CameraPreviewProcessingEffect {
             strokeCap = Paint.Cap.ROUND
             shader = LinearGradient(
                 tx.toFloat(), ty.toFloat(), x, y,
-                intArrayOf(0x00FFFFFF, 0x66BFD6FF, 0xF2FFFFFF),
+                intArrayOf(0x00FFFFFF.toInt(), 0x66BFD6FF, 0xF2FFFFFF.toInt()),
                 floatArrayOf(0f, 0.68f, 1f), Shader.TileMode.CLAMP
             )
         }

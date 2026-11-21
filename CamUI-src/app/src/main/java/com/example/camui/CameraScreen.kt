@@ -5050,10 +5050,10 @@ fun CameraScreen(
                                             )
                                             android.util.Log.i(
                                                 "FUJI_AF_TOUCH",
-                                                "TOUCH_DISPATCH received=true pass=Main screenPx=\${offset.x},\${offset.y} " +
-                                                    "container=\${size.width}x\${size.height} " +
-                                                    "preview=\${previewView.width}x\${previewView.height} " +
-                                                    "tap=\${tapPoint.x},\${tapPoint.y} focusLocked=$focusLocked"
+                                                "TOUCH_DISPATCH received=true pass=Main screenPx=${offset.x},${offset.y} " +
+                                                    "container=${size.width}x${size.height} " +
+                                                    "preview=${previewView.width}x${previewView.height} " +
+                                                    "tap=${tapPoint.x},${tapPoint.y} focusLocked=$focusLocked"
                                             )
                                             if (focusLocked && isTapInsideAfReticle(
                                                     tapPoint,
@@ -5070,7 +5070,7 @@ fun CameraScreen(
                                                 android.util.Log.i(
                                                     "FUJI_AF",
                                                     "AF_LOCK_TOGGLE unlocked=true aeUnlockApplied=$aeUnlocked " +
-                                                        "point=\${tapPoint.x},\${tapPoint.y}"
+                                                        "point=${tapPoint.x},${tapPoint.y}"
                                                 )
                                                 return@detectTapGestures
                                             }
@@ -5144,12 +5144,12 @@ fun CameraScreen(
                                             android.util.Log.i(
                                                 "FUJI_AF_TRACE",
                                                 "REGIONS maxRegionsAF=$maxAfRegions maxRegionsAE=$maxAeRegions " +
-                                                    "cameraId=\${camera2Info?.cameraId} " +
-                                                    "sensorOrientation=\${camera2Info?.getCameraCharacteristic(CameraCharacteristics.SENSOR_ORIENTATION)} " +
-                                                    "lensFacing=\${camera2Info?.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)} " +
-                                                    "display=\${tapPoint.x},\${tapPoint.y} " +
-                                                    "cameraNormalized=\${cameraTapPoint.x},\${cameraTapPoint.y} " +
-                                                    "meteringPoint=\${point.x},\${point.y}"
+                                                    "cameraId=${camera2Info?.cameraId} " +
+                                                    "sensorOrientation=${camera2Info?.getCameraCharacteristic(CameraCharacteristics.SENSOR_ORIENTATION)} " +
+                                                    "lensFacing=${camera2Info?.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)} " +
+                                                    "display=${tapPoint.x},${tapPoint.y} " +
+                                                    "cameraNormalized=${cameraTapPoint.x},${cameraTapPoint.y} " +
+                                                    "meteringPoint=${point.x},${point.y}"
                                             )
                                             if (maxAfRegions <= 0) {
                                                 applyAutoFocus(active)
@@ -5327,7 +5327,7 @@ fun CameraScreen(
                                             android.util.Log.i(
                                                 "FUJI_AF",
                                                 "DOUBLE_TAP_RESET center=0.5,0.5 unlocked=true " +
-                                                    "aeUnlockApplied=$aeUnlocked preview=\${previewWidth}x\${previewHeight} " +
+                                                    "aeUnlockApplied=$aeUnlocked preview=${previewWidth}x${previewHeight} " +
                                                     "maxRegionsAF=$maxAfRegions"
                                             )
                                         }

@@ -95,7 +95,7 @@ class PrimaryEyeSelectorTest {
     }
 
     @Test
-    fun initialSelectionUsesTheNearerPoseHintThenEyeConfidenceAndSize() {
+    fun initialSelectionPrioritizesEyeConfidenceAndContourSizeBeforePoseHint() {
         val selector = PrimaryEyeSelector()
         val left = Offset(0.42f, 0.48f)
         val right = Offset(0.58f, 0.48f)
@@ -108,7 +108,7 @@ class PrimaryEyeSelectorTest {
         ))
         selector.reset()
         assertEquals(right, selector.select(
-            left, right, 0f, 2_000L, trackingId = 3,
+            left, right, -20f, 2_000L, trackingId = 3,
             leftEyeArea = 10f, rightEyeArea = 12f
         ))
     }

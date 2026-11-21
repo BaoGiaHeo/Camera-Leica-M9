@@ -320,6 +320,7 @@ class PixelOsdRenderer(context: Context) {
         textBitmap?.takeUnless { it.isRecycled }?.copy(Bitmap.Config.ARGB_8888, false)
 
     internal fun layoutSnapshotForTesting(): PixelOsdLayoutPlan? = currentLayout
+    internal fun fontMetricsSnapshotForTesting(): PixelOsdFontMetrics? = fontMetrics
 
     private fun drawFrame(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val width = logicWidth

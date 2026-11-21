@@ -108,6 +108,23 @@ class ZoomCapabilityPolicyTest {
     }
 
     @Test
+    fun opticalZoomBoundaryComesFromTheLongestPhysicalLensNotTheHalLimit() {
+        val tele = assessOpticalZoom(listOf(13f, 26f, 78f), mainEquivalent35Mm = 26f)
+        assertEquals(3f, opticalZoomBoundaryRatio(tele), 0.0001f)
+        assertEquals(3f, opticalZoomBoundaryRatio(tele, minimumZoomRatio = 0.6f), 0.0001f)
+
+        val noTele = assessOpticalZoom(listOf(13f, 26f), mainEquivalent35Mm = 26f)
+        assertEquals(1f, opticalZoomBoundaryRatio(noTele), 0.0001f)
+    }
+
+    @Test
+    fun opticalBoundaryNeverFallsBelowCameraMinimum() {
+        val assessment = assessOpticalZoom(listOf(26f), mainEquivalent35Mm = 26f)
+        assertEquals(0.6f, opticalZoomBoundaryRatio(assessment, 0.6f), 0.0001f)
+        assertEquals(1f, opticalZoomBoundaryRatio(assessment), 0.0001f)
+    }
+
+    @Test
     fun zoomBarUsesLogarithmicPosition() {
         assertEquals(0f, logarithmicZoomPosition(0.6f, 0.6f, 100f), 0.0001f)
         assertEquals(1f, logarithmicZoomPosition(100f, 0.6f, 100f), 0.0001f)

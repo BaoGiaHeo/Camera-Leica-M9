@@ -168,8 +168,14 @@ internal fun opticalZoomBoundaryRatio(
     minimumZoomRatio: Float = 1f
 ): Float {
     val minimum = minimumZoomRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
-    val physicalBoundary = assessment.opticalRatio
-        ?.takeIf { it.isFinite() && it >= 1f }
-        ?: 1f
+    val physicalBoundary = if (assessment.hasOpticalTelephoto) {
+        assessment.opticalRatio
+            ?.takeIf { it.isFinite() && it >= 1f }
+            ?: minimum
+    } else {
+        // Without a separate telephoto lens, the optical segment ends at the
+        // active camera's minimum ratio; the rest of the selectable range is crop.
+        minimum
+    }
     return maxOf(minimum, physicalBoundary)
 }

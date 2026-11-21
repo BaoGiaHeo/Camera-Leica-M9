@@ -1731,83 +1731,151 @@ fun normalizeCapturedImage(
     }.getOrDefault(false)
 }
 
-private data class CubeLut(
+internal data class CubeLut(
     val size: Int,
     val domainMin: FloatArray,
     val domainMax: FloatArray,
-    val values: FloatArray
+    val values: FloatArray,
+    val oneDSize: Int = 0,
+    val oneDValues: FloatArray = FloatArray(0),
+    /** Canon's raw binary files use R-fastest ordering; standard .cube files use B-fastest. */
+    val redFastest: Boolean = false
 ) {
-    private fun value(x: Int, y: Int, z: Int, channel: Int): Float =
-        values[((z * size + y) * size + x) * 3 + channel]
+    private fun value(red: Int, green: Int, blue: Int, channel: Int): Float {
+        val voxel = if (redFastest) {
+            (blue * size + green) * size + red
+        } else {
+            (red * size + green) * size + blue
+        }
+        return values[voxel * 3 + channel]
+    }
 
     private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
 
     fun sample(red: Float, green: Float, blue: Float): Triple<Float, Float, Float> {
-        fun coordinate(input: Float, channel: Int): Pair<Int, Float> {
+        val input = floatArrayOf(red, green, blue)
+        val oneD = if (oneDSize >= 2) {
+            FloatArray(3) { channel ->
+                val position = input[channel].coerceIn(0f, 1f) * (oneDSize - 1)
+                val low = position.toInt().coerceIn(0, oneDSize - 1)
+                val high = (low + 1).coerceAtMost(oneDSize - 1)
+                val fraction = position - low
+                val a = oneDValues[low * 3 + channel]
+                val b = oneDValues[high * 3 + channel]
+                mix(a, b, fraction).coerceIn(0f, 1f)
+            }
+        } else input
+
+        if (size < 2) return Triple(oneD[0], oneD[1], oneD[2])
+
+        fun coordinate(value: Float, channel: Int): Pair<Int, Float> {
             val span = (domainMax[channel] - domainMin[channel]).coerceAtLeast(0.00001f)
-            val normalized = ((input - domainMin[channel]) / span).coerceIn(0f, 1f) * (size - 1)
+            val normalized = ((value - domainMin[channel]) / span).coerceIn(0f, 1f) * (size - 1)
             val low = normalized.toInt().coerceIn(0, size - 1)
             return low to (normalized - low).coerceIn(0f, 1f)
         }
-        val (r0, rt) = coordinate(red, 0)
-        val (g0, gt) = coordinate(green, 1)
-        val (b0, bt) = coordinate(blue, 2)
+
+        val (r0, rt) = coordinate(oneD[0], 0)
+        val (g0, gt) = coordinate(oneD[1], 1)
+        val (b0, bt) = coordinate(oneD[2], 2)
         val r1 = (r0 + 1).coerceAtMost(size - 1)
         val g1 = (g0 + 1).coerceAtMost(size - 1)
         val b1 = (b0 + 1).coerceAtMost(size - 1)
+
         fun channel(c: Int): Float {
-            val c00 = mix(value(r0, g0, b0, c), value(r1, g0, b0, c), rt)
-            val c10 = mix(value(r0, g1, b0, c), value(r1, g1, b0, c), rt)
-            val c01 = mix(value(r0, g0, b1, c), value(r1, g0, b1, c), rt)
-            val c11 = mix(value(r0, g1, b1, c), value(r1, g1, b1, c), rt)
-            return mix(mix(c00, c10, gt), mix(c01, c11, gt), bt).coerceIn(0f, 1f)
+            val c00 = mix(value(r0, g0, b0, c), value(r0, g0, b1, c), bt)
+            val c01 = mix(value(r0, g1, b0, c), value(r0, g1, b1, c), bt)
+            val c10 = mix(value(r1, g0, b0, c), value(r1, g0, b1, c), bt)
+            val c11 = mix(value(r1, g1, b0, c), value(r1, g1, b1, c), bt)
+            return mix(mix(c00, c01, gt), mix(c10, c11, gt), rt).coerceIn(0f, 1f)
         }
         return Triple(channel(0), channel(1), channel(2))
     }
 }
 
-private fun parseCubeLutText(text: String): CubeLut? {
+/**
+ * Reads standard .cube 1D/3D data in two passes so a 129^3 file does not allocate
+ * millions of small FloatArray objects. Standard .cube ordering has blue varying fastest.
+ */
+internal fun parseCubeLutText(text: String): CubeLut? {
     return runCatching {
-        var size = 0
-        var oneDSize = 0
+        if (text.length > 96 * 1024 * 1024) return@runCatching null
+        var size3d = 0
+        var size1d = 0
         val min = floatArrayOf(0f, 0f, 0f)
         val max = floatArrayOf(1f, 1f, 1f)
-        val rows = ArrayList<FloatArray>()
+        var declared = false
+
         text.lineSequence().forEach { raw ->
             val line = raw.substringBefore("#").trim()
             if (line.isEmpty()) return@forEach
             val parts = line.split(Regex("\\s+"))
             when (parts.firstOrNull()) {
                 "TITLE" -> Unit
-                "LUT_1D_SIZE" -> oneDSize = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                "DOMAIN_MIN" -> if (parts.size >= 4) for (i in 0..2) min[i] = parts[i + 1].toFloat()
-                "DOMAIN_MAX" -> if (parts.size >= 4) for (i in 0..2) max[i] = parts[i + 1].toFloat()
-                else -> if (parts.size >= 3) {
-                    val rgb = parts.take(3).mapNotNull { it.toFloatOrNull() }
-                    if (rgb.size == 3) rows.add(floatArrayOf(rgb[0], rgb[1], rgb[2]))
+                "LUT_1D_SIZE" -> size1d = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                "LUT_3D_SIZE" -> {
+                    size3d = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                    declared = true
+                }
+                "DOMAIN_MIN" -> {
+                    require(parts.size >= 4) { "DOMAIN_MIN requires three components." }
+                    for (i in 0..2) min[i] = parts[i + 1].toFloat()
+                }
+                "DOMAIN_MAX" -> {
+                    require(parts.size >= 4) { "DOMAIN_MAX requires three components." }
+                    for (i in 0..2) max[i] = parts[i + 1].toFloat()
                 }
             }
         }
-        if (size !in 2..65) return@runCatching null
-        val expected3dRows = size * size * size
-        val cubeRows = when {
-            rows.size == expected3dRows -> rows
-            oneDSize in 2..65536 && rows.size == expected3dRows + oneDSize ->
-                rows.drop(oneDSize)
-            else -> return@runCatching null
+
+        require(size3d == 0 || size3d in 2..129) { "LUT_3D_SIZE must be 2..129." }
+        require(size1d == 0 || size1d in 2..65536) { "LUT_1D_SIZE must be 2..65536." }
+        require(size3d > 0 || size1d > 0) { "No LUT_1D_SIZE or LUT_3D_SIZE header found." }
+        require((0..2).all { min[it].isFinite() && max[it].isFinite() && max[it] > min[it] }) {
+            "LUT domain must contain finite increasing ranges."
         }
-        if (cubeRows.any { rgb -> rgb.any { !it.isFinite() } }) return@runCatching null
-        if ((0..2).any { max[it] <= min[it] || !min[it].isFinite() || !max[it].isFinite() }) {
-            return@runCatching null
+        if (size3d > 0) require(declared) { "Missing LUT_3D_SIZE." }
+
+        val expected1d = size1d
+        val expected3d = if (size3d > 0) size3d * size3d * size3d else 0
+        val totalRows = expected1d + expected3d
+        val values = FloatArray(totalRows * 3)
+        var rowIndex = 0
+
+        text.lineSequence().forEach { raw ->
+            val line = raw.substringBefore("#").trim()
+            if (line.isEmpty()) return@forEach
+            val first = line.firstOrNull()
+            if (first == null || first.isLetter() || first == '_' ) return@forEach
+            val parts = line.split(Regex("\\s+"))
+            require(parts.size == 3) { "Each LUT data row must have exactly three components." }
+            val r = parts[0].toFloat()
+            val g = parts[1].toFloat()
+            val b = parts[2].toFloat()
+            require(r.isFinite() && g.isFinite() && b.isFinite()) { "LUT contains NaN or infinity." }
+            require(rowIndex < totalRows) { "LUT contains more rows than declared." }
+            val offset = rowIndex * 3
+            values[offset] = r
+            values[offset + 1] = g
+            values[offset + 2] = b
+            rowIndex++
         }
-        CubeLut(size, min, max, FloatArray(cubeRows.size * 3).also { out ->
-            cubeRows.forEachIndexed { index, rgb ->
-                out[index * 3] = rgb[0]
-                out[index * 3 + 1] = rgb[1]
-                out[index * 3 + 2] = rgb[2]
-            }
-        })
+        require(rowIndex == totalRows) {
+            "LUT row count mismatch: expected $totalRows, received $rowIndex."
+        }
+
+        val oneDValueCount = expected1d * 3
+        val oneDValues = if (oneDValueCount > 0) values.copyOfRange(0, oneDValueCount) else FloatArray(0)
+        val threeDValues = if (expected3d > 0) values.copyOfRange(oneDValueCount, values.size) else FloatArray(0)
+        CubeLut(
+            size = size3d,
+            domainMin = min,
+            domainMax = max,
+            values = threeDValues,
+            oneDSize = size1d,
+            oneDValues = oneDValues,
+            redFastest = false
+        )
     }.getOrNull()
 }
 
@@ -1824,10 +1892,11 @@ private fun parseCanonBinaryLut(bytes: ByteArray): CubeLut? {
         (bytes[index].toInt() and 0xFF) / 255f
     }
     return CubeLut(
-        CANON_LUT_SIZE,
-        floatArrayOf(0f, 0f, 0f),
-        floatArrayOf(1f, 1f, 1f),
-        values
+        size = CANON_LUT_SIZE,
+        domainMin = floatArrayOf(0f, 0f, 0f),
+        domainMax = floatArrayOf(1f, 1f, 1f),
+        values = values,
+        redFastest = true
     )
 }
 

@@ -60,7 +60,7 @@ jobs:
         run: gradle --no-daemon :app:testDeveloperUnitTest --stacktrace
 
       - name: Upload Release APK
-        if: always() && steps.build_release.outcome == 'success'
+        if: success() && steps.build_release.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: FujiFilm-Mode-Release-2.5.0

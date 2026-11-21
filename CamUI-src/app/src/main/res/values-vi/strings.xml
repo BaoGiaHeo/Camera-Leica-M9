@@ -55,7 +55,7 @@
     <string name="zoom_buttons_swapped">ĐẢO CHIỀU · W VÀO / T RA</string>
     <string name="zoom_bar_position_label">Vị trí thanh zoom</string>
     <string name="zoom_bar_position_top_center">TRÊN · GIỮA</string>
-    <string name="zoom_bar_position_top_left">TRÊN · TRÁI</string>
+    <string name="zoom_bar_position_middle_left">TRÊN · TRÁI</string>
     <string name="zoom_bar_description">Thanh luôn hiện ở Standard, Full Info và Level + Grid. Ở Clean, thanh mờ sau 1,5 giây kể từ lần zoom.</string>
     <string name="digital_zoom_processing">Đang crop zoom số bằng GPU Lanczos</string>
     <string name="digital_zoom_success">Zoom DIGITAL: đã crop Lanczos và ghi XMP. Chi tiết ảnh giảm so với zoom quang học.</string>

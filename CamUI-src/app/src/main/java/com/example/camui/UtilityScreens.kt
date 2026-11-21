@@ -3055,7 +3055,7 @@ fun applyCameraWatermark(
         val copyrightName = prefs.getString("watermark_custom_copyright", "")?.trim()
             ?.takeIf { showCopyright && it.isNotBlank() }
         val photoMegapixels = sourceWidthPx.toLong() * sourceHeightPx.toLong() / 1_000_000.0
-        val specs = buildList {
+        val exposureSpecs = buildList {
             if (showFocal) {
                 exifFocal?.let(::add)
                 equivalent35mm?.let(::add)
@@ -3064,12 +3064,18 @@ fun applyCameraWatermark(
             if (showShutter) exifShutter?.replace(" s", "s")?.let(::add)
             if (showIso) exifIso?.let { add("ISO $it") }
             if (showEv) exposureBias?.let(::add)
+        }
+        val supplementalSpecs = buildList {
             filterName?.let(::add)
             nightLabel?.let(::add)
             copyrightName?.let { add("© $it") }
             if (showMegapixels) add(String.format(Locale.US, "%.1f MP", photoMegapixels))
-        }.filter { it.isNotBlank() }.joinToString("  ·  ")
-            .takeIf { showSpecs }.orEmpty()
+        }
+        val specs = combineWatermarkMetadataLines(
+            exposureFields = exposureSpecs,
+            supplementalFields = supplementalSpecs,
+            showExposureFields = showSpecs
+        )
         val modelLine = model.takeIf { showModel }.orEmpty()
         val capturedDateRaw = sourceExif["DateTimeOriginal"] ?: sourceExif["DateTime"]
         val capturedDate = capturedDateRaw?.let { raw ->

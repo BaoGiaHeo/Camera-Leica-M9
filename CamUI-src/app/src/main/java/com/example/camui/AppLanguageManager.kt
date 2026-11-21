@@ -20,30 +20,35 @@ object AppLanguageManager {
     var currentLanguage by mutableStateOf("en")
         private set
 
-    var selectedPreference by mutableStateOf("system")
+    var selectedPreference by mutableStateOf("en")
         private set
 
     fun normalizePreference(value: String?): String {
         return when (value?.trim()?.lowercase()) {
-            "system" -> "system"
-            "en", "english" -> "en"
             "vi", "vietnamese" -> "vi"
-            else -> "system"
+            "en", "english" -> "en"
+            else -> "en"
         }
     }
 
     fun resolveLanguage(preference: String?, systemLanguageTag: String?): String {
-        return when (normalizePreference(preference)) {
-            "en" -> "en"
-            "vi" -> "vi"
-            else -> {
-                val language = systemLanguageTag
-                    ?.trim()
-                    ?.lowercase()
-                    ?.replace('_', '-')
-                    .orEmpty()
-                if (language == "vi" || language.startsWith("vi-")) "vi" else "en"
-            }
+        val raw = preference?.trim()?.lowercase()
+        if (raw == "system" || raw.isNullOrBlank()) {
+            val language = systemLanguageTag
+                ?.trim()
+                ?.lowercase()
+                ?.replace('_', '-')
+                .orEmpty()
+            return if (language == "vi" || language.startsWith("vi-")) "vi" else "en"
+        }
+        return normalizePreference(preference)
+    }
+
+    private fun migratedPreference(value: String?, context: Context): String {
+        return if (value?.trim()?.lowercase() == "system" || value.isNullOrBlank()) {
+            resolveLanguage("system", systemLanguageTag(context))
+        } else {
+            normalizePreference(value)
         }
     }
 
@@ -52,12 +57,12 @@ object AppLanguageManager {
         val preferences = context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val stored = preferences.getString(LANGUAGE_KEY, "system")
-        val normalized = normalizePreference(stored)
+        val normalized = migratedPreference(stored, context)
         if (stored != normalized) {
             preferences.edit().putString(LANGUAGE_KEY, normalized).apply()
         }
         selectedPreference = normalized
-        currentLanguage = resolveLanguage(normalized, systemLanguageTag(context))
+        currentLanguage = normalized
         initialized = true
     }
 
@@ -79,11 +84,12 @@ object AppLanguageManager {
     fun refreshSystemLanguage(context: Context) {
         val preferences = context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val stored = normalizePreference(preferences.getString(LANGUAGE_KEY, "system"))
-        selectedPreference = stored
-        if (stored == "system") {
-            currentLanguage = resolveLanguage(stored, systemLanguageTag(context))
+        val stored = migratedPreference(preferences.getString(LANGUAGE_KEY, "system"), context)
+        if (preferences.getString(LANGUAGE_KEY, null) != stored) {
+            preferences.edit().putString(LANGUAGE_KEY, stored).apply()
         }
+        selectedPreference = stored
+        currentLanguage = stored
         initialized = true
     }
 
@@ -98,12 +104,11 @@ object AppLanguageManager {
 
     fun languageFor(context: Context): String {
         if (initialized) return currentLanguage
-        val preference = normalizePreference(
-            context.applicationContext
-                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(LANGUAGE_KEY, "system")
-        )
-        return resolveLanguage(preference, systemLanguageTag(context))
+        val preferences = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val stored = preferences.getString(LANGUAGE_KEY, "system")
+        val resolved = migratedPreference(stored, context)
+        if (stored != resolved) preferences.edit().putString(LANGUAGE_KEY, resolved).apply()
+        return resolved
     }
 
     private fun systemLanguageTag(context: Context): String {

@@ -869,6 +869,8 @@ fun CameraScreen(
     var processingEtaSeconds by remember { mutableIntStateOf(-1) }
     var multiFrameHoldActive by remember { mutableStateOf(false) }
     var multiFrameRenderStarted by remember { mutableStateOf(false) }
+    var multiFrameCapturedFrames by remember { mutableIntStateOf(0) }
+    var multiFrameTargetFrames by remember { mutableIntStateOf(5) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
@@ -3740,6 +3742,12 @@ fun CameraScreen(
                 }
                 multiFrameHoldActive = true
                 multiFrameRenderStarted = false
+                multiFrameCapturedFrames = 0
+                multiFrameTargetFrames = when {
+                    captureUseNightShot -> captureNightTargetFrames
+                    captureUseLunaDream15 -> 5
+                    else -> 8
+                }
                 isProcessing = true
                 processingProgress = 0
                 processingEtaSeconds = -1
@@ -3868,6 +3876,10 @@ fun CameraScreen(
                                                 captureUseLunaDream15 -> 5
                                                 else -> 5
                                             }
+                                            withContext(Dispatchers.Main.immediate) {
+                                                multiFrameCapturedFrames = stackedFrames.size
+                                                multiFrameTargetFrames = maxFrames
+                                            }
                                             if (captureUseNightShot) {
                                                 withContext(Dispatchers.Main) {
                                                     nightShotCapturedFrameCount = stackedFrames.size
@@ -3965,6 +3977,9 @@ fun CameraScreen(
 
                                                 consecutiveCaptureFailures = 0
                                                 stackedFrames.add(nextFrame)
+                                                withContext(Dispatchers.Main.immediate) {
+                                                    multiFrameCapturedFrames = stackedFrames.size
+                                                }
                                                 if (captureUseNightShot) {
                                                     withContext(Dispatchers.Main) {
                                                         nightShotCapturedFrameCount = stackedFrames.size
@@ -4023,7 +4038,9 @@ fun CameraScreen(
                                                 )
                                             }
                                             if (stackedFrames.size >= minimumFramesRequired) {
-                                                withContext(Dispatchers.Main) {
+                                                withContext(Dispatchers.Main.immediate) {
+                                                    multiFrameHoldActive = false
+                                                    multiFrameRenderStarted = true
                                                     processingLabel = when {
                                                         captureUseLunaDream15 ->
                                                             "LunaDream 1.5: căn chỉnh và khử nhiễu " + stackedFrames.size + "/5 khung"
@@ -4180,9 +4197,9 @@ fun CameraScreen(
                                         withContext(Dispatchers.Main) {
                                             if (captureUseNightShot) nightShotCaptureInProgress = false
                                             if (captureUseLunaDream || captureUseNightShot) {
-                                                // Keep the device steady until the Render stage visibly starts.
-                                                multiFrameHoldActive = nightShotMerged
-                                                multiFrameRenderStarted = false
+                                                // Frame acquisition has ended; merge/render now runs in the background.
+                                                multiFrameHoldActive = false
+                                                multiFrameRenderStarted = true
                                             }
                                         }
                                     }
@@ -4261,8 +4278,7 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) {
                                     if (captureUseLunaDream || captureUseNightShot) {
                                         multiFrameHoldActive = false
-                                        multiFrameRenderStarted = lunaDreamApplied ||
-                                            (captureUseNightShot && (nightShotMerged || captureNightShotExtension))
+                                        multiFrameRenderStarted = true
                                     }
                                     processingLabel = when {
                                         captureUseLunaDream15 && lunaDreamApplied ->

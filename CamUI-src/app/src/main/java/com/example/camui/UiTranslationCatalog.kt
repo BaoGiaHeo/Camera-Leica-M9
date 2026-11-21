@@ -213,8 +213,8 @@ internal object UiTranslationCatalog {
         "Bật/tắt âm thanh chụp mặc định." to "Enable or disable the default shutter sound.",
         "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD." to
             "Show or hide exposure compensation in the Pro HUD row.",
-        "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật." to
-            "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization, AI and enabled options.",
+        "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung và các tùy chọn đã bật." to
+            "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization and enabled options.",
         "Night capture and Star Trails use separate processing pipelines" to
             "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng.",
         "Thông tin" to "Information",

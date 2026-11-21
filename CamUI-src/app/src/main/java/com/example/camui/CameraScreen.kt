@@ -860,6 +860,8 @@ fun CameraScreen(
     var previewFreezeVisible by remember { mutableStateOf(false) }
     val previewFreezeAlpha = remember { Animatable(0f) }
     val previewEffectPosition = remember { Animatable(-0.35f) }
+    val lunaActivationProgress = remember { Animatable(1f) }
+    var previewEffectBloom by remember { mutableStateOf(false) }
     val previewFreezeBlockInteraction = remember { MutableInteractionSource() }
     var isProcessing by remember { mutableStateOf(false) }
     var livePhotoCaptureInProgress by remember { mutableStateOf(false) }
@@ -911,17 +913,37 @@ fun CameraScreen(
             processingElapsedSeconds = 0
         }
     }
+    LaunchedEffect(lunaDreamMode, dispReducedMotion) {
+        if (lunaDreamMode == "off") {
+            lunaActivationProgress.snapTo(1f)
+        } else if (dispReducedMotion) {
+            lunaActivationProgress.snapTo(1f)
+        } else {
+            lunaActivationProgress.snapTo(0f)
+            lunaActivationProgress.animateTo(
+                1f,
+                animationSpec = tween(durationMillis = 600, easing = LinearEasing)
+            )
+        }
+    }
     LaunchedEffect(previewFreezeEffect, isProcessing) {
         val activeEffect = previewFreezeEffect
         if (activeEffect == "off") {
             previewFreezeVisible = false
+            previewEffectBloom = false
             previewFreezeAlpha.snapTo(0f)
             return@LaunchedEffect
         }
         if (!isProcessing) {
+            previewEffectBloom = true
+            previewFreezeAlpha.animateTo(
+                1f,
+                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
+            )
+            previewEffectBloom = false
             previewFreezeAlpha.animateTo(
                 0f,
-                animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
             )
             previewFreezeVisible = false
             frozenPreviewBitmap = null
@@ -5754,78 +5776,30 @@ fun CameraScreen(
                                         .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
                                 )
                             }
-                            if (previewFreezeVisible && previewFreezeEffect != "off") {
-                                val effectMode = previewFreezeEffect
-                                val overlayAlpha = previewFreezeAlpha.value
-                                Box(Modifier.fillMaxSize()) {
-                                    frozenPreviewBitmap?.let { frame ->
-                                        Image(
-                                            bitmap = frame,
-                                            contentDescription = "Khung hình Preview được đóng băng",
-                                            modifier = Modifier.fillMaxSize()
-                                                .blur(16.dp)
-                                                .graphicsLayer { alpha = overlayAlpha },
-                                            contentScale = ContentScale.FillBounds
-                                        )
-                                    }
-                                    Box(
-                                        Modifier.fillMaxSize()
-                                            .background(Color(0x55080D18))
-                                            .graphicsLayer { alpha = overlayAlpha }
+                            val idleLunaEffect = lunaDreamMode != "off" && !isProcessing
+                            if ((previewFreezeVisible && previewFreezeEffect != "off") || idleLunaEffect) {
+                                val effectMode = if (previewFreezeVisible) previewFreezeEffect else "luna"
+                                val overlayAlpha = if (previewFreezeVisible) previewFreezeAlpha.value else 0.35f
+                                val position = previewEffectPosition.value
+                                val passSeconds = if (effectMode == "night") 6.5f else 8.5f
+                                val timeSeconds = ((position + 0.35f) / 1.70f).coerceIn(0f, 1f) * passSeconds
+                                Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = overlayAlpha }) {
+                                    CameraPreviewProcessingEffect.draw(
+                                        canvas = drawContext.canvas.nativeCanvas,
+                                        width = size.width,
+                                        height = size.height,
+                                        mode = effectMode,
+                                        timeSeconds = timeSeconds,
+                                        progressPercent = processingProgress,
+                                        reducedMotion = dispReducedMotion,
+                                        simpleMode = appPrefs.getBoolean("simple_ui_mode_enabled", false),
+                                        holdSteady = multiFrameHoldActive || nightShotCaptureInProgress,
+                                        idleLunaBorder = idleLunaEffect,
+                                        activationProgress = lunaActivationProgress.value,
+                                        completionBloom = previewEffectBloom
                                     )
-                                    Canvas(
-                                        Modifier.fillMaxSize().graphicsLayer { alpha = overlayAlpha }
-                                    ) {
-                                        val position = previewEffectPosition.value
-                                        if (effectMode == "luna") {
-                                            val rainbow = listOf(
-                                                Color(0xFFFF668A), Color(0xFFFFB86B), Color(0xFFFFE58A),
-                                                Color(0xFF78E8B2), Color(0xFF70D4FF), Color(0xFF9C8BFF),
-                                                Color(0xFFE6A0FF)
-                                            )
-                                            val drift = ((position + 0.35f) / 1.70f).coerceIn(0f, 1f)
-                                            val shortSide = minOf(size.width, size.height)
-                                            rainbow.forEachIndexed { index, color ->
-                                                val phase = (drift * 0.58f + index * 0.173f) % 1.35f
-                                                val centerX = (phase - 0.16f) * size.width
-                                                val centerY = (((index * 0.23f + drift * 0.42f) % 1.28f) - 0.12f) * size.height
-                                                val center = Offset(centerX, centerY)
-                                                drawCircle(
-                                                    color = color.copy(alpha = 0.095f),
-                                                    radius = shortSide * 0.24f,
-                                                    center = center
-                                                )
-                                                drawLine(
-                                                    color = color.copy(alpha = 0.075f),
-                                                    start = Offset(centerX - size.width * 0.62f, centerY + size.height * 0.28f),
-                                                    end = Offset(centerX + size.width * 0.62f, centerY - size.height * 0.28f),
-                                                    strokeWidth = shortSide * 0.22f,
-                                                    cap = StrokeCap.Round
-                                                )
-                                            }
-                                        } else {
-                                            val headX = size.width * position
-                                            val headY = size.height * (0.48f - position * 0.10f)
-                                            val head = Offset(headX, headY)
-                                            val tail = Offset(headX - size.width * 0.24f, headY + size.height * 0.10f)
-                                            drawLine(
-                                                color = Color(0xFF8EDBFF).copy(alpha = 0.36f),
-                                                start = tail,
-                                                end = head,
-                                                strokeWidth = 18.dp.toPx(),
-                                                cap = StrokeCap.Round
-                                            )
-                                            drawLine(
-                                                color = Color.White.copy(alpha = 0.90f),
-                                                start = tail,
-                                                end = head,
-                                                strokeWidth = 4.dp.toPx(),
-                                                cap = StrokeCap.Round
-                                            )
-                                            drawCircle(Color(0xFFFFF4C2).copy(alpha = 0.34f), 15.dp.toPx(), head)
-                                            drawCircle(Color.White, 5.dp.toPx(), head)
-                                        }
-                                    }
+                                }
+                                if (previewFreezeVisible) {
                                     Box(
                                         Modifier.fillMaxSize().clickable(
                                             interactionSource = previewFreezeBlockInteraction,

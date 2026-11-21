@@ -487,7 +487,11 @@ class PixelOsdRenderer(context: Context) {
                             unitPx = layout.unitPx
                         )
                     } else {
-                        drawPixelOsdIcon(canvas, element)
+                        drawPixelOsdIcon(
+                            canvas,
+                            element,
+                            monochromeColor = if (element.id == "af-lock") PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+                        )
                     }
                 }
                 PixelOsdElementKind.RULE -> Unit
@@ -894,7 +898,11 @@ class PixelOsdRenderer(context: Context) {
         )
     }
 
-    private fun drawPixelOsdIcon(canvas: NativeCanvas, element: PixelOsdLayoutElement) {
+    private fun drawPixelOsdIcon(
+        canvas: NativeCanvas,
+        element: PixelOsdLayoutElement,
+        monochromeColor: Int = PixelOsdPalette.WHITE
+    ) {
         val sprite = element.sprite ?: return
         drawSpriteScaled(
             canvas = canvas,
@@ -902,7 +910,8 @@ class PixelOsdRenderer(context: Context) {
             leftPx = element.bounds.left,
             topPx = element.bounds.top,
             widthPx = element.bounds.width,
-            heightPx = element.bounds.height
+            heightPx = element.bounds.height,
+            monochromeColor = monochromeColor
         )
     }
 
@@ -912,7 +921,8 @@ class PixelOsdRenderer(context: Context) {
         leftPx: Float,
         topPx: Float,
         widthPx: Float,
-        heightPx: Float
+        heightPx: Float,
+        monochromeColor: Int = PixelOsdPalette.WHITE
     ) {
         val rows = PixelOsdSprites.get(name) ?: return
         val destinationHeight = (heightPx / pixelScale).roundToInt().coerceAtLeast(1)
@@ -931,7 +941,7 @@ class PixelOsdRenderer(context: Context) {
                     val sx = (destinationX * row.length / destinationWidth).coerceIn(0, row.lastIndex)
                     val pixel = rows[sy][sx]
                     val color = when (pixel) {
-                        'W' -> PixelOsdPalette.WHITE
+                        'W' -> monochromeColor
                         'G' -> PixelOsdPalette.GREEN
                         'R' -> PixelOsdPalette.RED
                         'A' -> PixelOsdPalette.AMBER

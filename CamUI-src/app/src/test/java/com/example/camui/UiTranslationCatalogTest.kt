@@ -96,5 +96,31 @@ class UiTranslationCatalogTest {
             UiTranslationCatalog.toEnglish("Film Recipe 2 chưa được lưu")
         )
         assertEquals("Loaded Film Recipe 2", UiTranslationCatalog.toEnglish("Đã nạp Film Recipe 2"))
+        assertEquals("10 seconds", UiTranslationCatalog.toEnglish("10 giây"))
+        assertEquals("10 giây", UiTranslationCatalog.toVietnamese("10 seconds"))
+        assertEquals(
+            "The LUT package exceeds the limit of 700 filters.",
+            UiTranslationCatalog.toEnglish("Gói LUT vượt quá 700 bộ lọc.")
+        )
+        assertEquals(
+            "Gói LUT vượt quá 700 bộ lọc.",
+            UiTranslationCatalog.toVietnamese("The LUT package exceeds the limit of 700 filters.")
+        )
+        assertEquals(
+            "Multi-frame: capturing frame 4/5",
+            UiTranslationCatalog.toEnglish("Multi-frame: chụp khung 4/5")
+        )
+        assertEquals(
+            "NightShotMode: capturing frame 3/8 · queue 2",
+            UiTranslationCatalog.toEnglish("NightShotMode: thu khung 3/8 · hàng đợi 2")
+        )
+        assertEquals(
+            "HDR Bracketing: saved 3/3 frames. Merged the composite photo and preserved 3 original photos.",
+            UiTranslationCatalog.toEnglish("HDR Bracketing: đã lưu 3/3 khung. Đã ghép ảnh tổng hợp và vẫn giữ 3 ảnh gốc.")
+        )
+        assertEquals(
+            "Đã lưu Live Photo: ảnh IMG_0001.jpg và clip VID_0001.mp4 trong Movies/FujifilmMode/LivePhoto.",
+            UiTranslationCatalog.toVietnamese("Saved Live Photo: photo IMG_0001.jpg and clip VID_0001.mp4 in Movies/FujifilmMode/LivePhoto.")
+        )
     }
 }

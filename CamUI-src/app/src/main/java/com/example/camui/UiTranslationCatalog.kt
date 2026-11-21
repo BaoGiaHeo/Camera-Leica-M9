@@ -243,7 +243,7 @@ internal object UiTranslationCatalog {
         "Film Simulation Customizer" to "Tùy chỉnh mô phỏng phim",
         "Saved Film Recipes" to "Công thức mô phỏng phim đã lưu",
         "Night capture and Star Trails use separate processing pipelines" to
-            "Chụp đêm và Star Trails dùng các pipeline xử lý riêng.",
+            "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng.",
         "ISO Auto" to "ISO tự động",
         "Shutter Auto" to "Màn trập tự động",
         "Original photo before LunaDream" to "Ảnh gốc trước LunaDream",
@@ -819,9 +819,9 @@ internal object UiTranslationCatalog {
             val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
             return "LunaDream 2.0 · fallback LunaDream 1.5 · reason: $reason"
         }
-        Regex("^LunaDream fallback · (.*)$").matchEntire(value)?.let {
+        Regex("^LunaDream dự phòng · (.*)$").matchEntire(value)?.let {
             val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
-            return "LunaDream dự phòng · $reason"
+            return "LunaDream fallback · $reason"
         }
         Regex("^(HDR Bracketing|Focus Bracketing): đã lưu (\\d+)/(\\d+) khung\\. (.*)$").matchEntire(value)?.let {
             val mode = it.groupValues[1]
@@ -991,7 +991,7 @@ internal object UiTranslationCatalog {
         }
         Regex("^LunaDream fallback · (.*)$").matchEntire(value)?.let {
             val reason = toVietnamese(it.groupValues[1]) ?: it.groupValues[1]
-            return "LunaDream fallback · $reason"
+            return "LunaDream dự phòng · $reason"
         }
         Regex("^(HDR Bracketing|Focus Bracketing): saved (\\d+)/(\\d+) frames\\. (.*)$").matchEntire(value)?.let {
             val result = toVietnamese(it.groupValues[4]) ?: it.groupValues[4]

@@ -1,0 +1,39 @@
+package com.example.camui
+
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+
+/**
+ * Completes the first-install introduction when a test starts with clean app data.
+ * Upgraded/previously activated installations are left untouched.
+ */
+internal fun completeFirstRunActivationIfNeeded(device: UiDevice) {
+    val englishTitle = device.wait(Until.findObject(By.text("SELECT LANGUAGE")), 750L)
+    val vietnameseTitle = if (englishTitle == null) {
+        device.wait(Until.findObject(By.text("CHỌN NGÔN NGỮ")), 750L)
+    } else null
+    if (englishTitle == null && vietnameseTitle == null) return
+
+    val englishOption = device.findObject(By.text("ENGLISH"))
+    englishOption?.click()
+
+    val continueLabel = if (englishTitle != null) "CONTINUE" else "TIẾP TỤC"
+    val next = device.wait(Until.findObject(By.text(continueLabel)), 3_000L)
+    checkNotNull(next) { "Activation language step must expose Continue." }.click()
+
+    val storageTitle = if (englishTitle != null) "STORAGE & BATTERY" else "LƯU TRỮ & PIN"
+    val storage = device.wait(Until.findObject(By.text(storageTitle)), 3_000L)
+    checkNotNull(storage) { "Activation storage step must be visible." }
+    // The storage panel accepts a tap to continue; the production screen also
+    // advances automatically after the specified 2.5 second viewing interval.
+    storage.click()
+
+    val publisherTitle = if (englishTitle != null) "PUBLISHER" else "NHÀ PHÁT HÀNH"
+    checkNotNull(device.wait(Until.findObject(By.text(publisherTitle)), 3_000L)) {
+        "Activation publisher step must be visible."
+    }
+    val ok = device.wait(Until.findObject(By.text("OK")), 3_000L)
+    checkNotNull(ok) { "Activation publisher step must expose OK." }.click()
+    device.wait(Until.hasObject(By.desc("Quick settings")), 5_000L)
+}

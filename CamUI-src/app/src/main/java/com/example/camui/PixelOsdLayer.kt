@@ -32,6 +32,12 @@ internal fun formatEvReadout(evStops: Float): String {
     return String.format(Locale.US, "%+.1f EV", normalizedStops)
 }
 
+internal fun formatPixelEvReadout(evDisplayIndex: Float, evStepStops: Float): String {
+    val safeIndex = evDisplayIndex.takeIf { it.isFinite() } ?: 0f
+    val safeStep = evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
+    return formatEvReadout(safeIndex * safeStep)
+}
+
 internal const val PIXEL_OSD_REFLECTION_ALPHA = 3
 
 private object PixelOsdPalette {
@@ -546,7 +552,7 @@ class PixelOsdRenderer(context: Context) {
         // blue EV label is drawn elsewhere in the camera HUD.
         drawPixelText(
             canvas,
-            formatEvReadout(currentStops),
+            formatPixelEvReadout(displayIndex, step),
             17,
             (bottom + 12).coerceAtMost(height - 27),
             PixelOsdPalette.WHITE

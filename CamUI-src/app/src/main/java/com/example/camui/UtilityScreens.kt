@@ -4040,7 +4040,7 @@ fun applyCameraWatermark(
             val secondarySize = (minSide * 0.017f).coerceAtLeast(14f)
             val specsSize = (minSide * 0.017f).coerceAtLeast(14f)
             val dateSize = (minSide * 0.0135f).coerceAtLeast(14f)
-            val leftTitle = if (showModel) modelText.ifBlank { brandTitle } else ""
+
             val rightDate = dateOnlyLine.ifBlank { timeLine }
             drawMeasuredLine(leftTitle, titlePaint, leftTitleCenterY, modelLeft, modelWidth, titleSize, (titleSize * 0.72f).coerceAtLeast(16f))
             drawMeasuredLine(leftSecondary, detailPaint, leftSecondaryCenterY, modelLeft, modelWidth, secondarySize, (secondarySize * 0.72f).coerceAtLeast(12f))

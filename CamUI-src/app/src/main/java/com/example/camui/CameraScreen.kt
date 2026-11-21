@@ -808,13 +808,23 @@ fun CameraScreen(
     var zoomOverlayVisible by remember { mutableStateOf(false) }
     val zoomOverlayAlpha by animateFloatAsState(
         targetValue = if (zoomOverlayVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = if (performanceMode) 120 else 180),
+        animationSpec = tween(durationMillis = if (zoomOverlayVisible) 120 else 250),
         label = "zoom OSD fade"
     )
-    LaunchedEffect(zoomSel) {
+    var lastZoomOverlayRatio by remember { mutableFloatStateOf(Float.NaN) }
+    LaunchedEffect(zoomSel, actualZoomRatio) {
+        val observedRatio = actualZoomRatio.takeIf { it.isFinite() } ?: zoomSel
+        val previousRatio = lastZoomOverlayRatio
+        lastZoomOverlayRatio = observedRatio
+        if (!previousRatio.isFinite() || kotlin.math.abs(observedRatio - previousRatio) < 0.001f) {
+            return@LaunchedEffect
+        }
         zoomOverlayVisible = true
-        delay(1_500L)
-        zoomOverlayVisible = false
+        delay(1_200L)
+        val latestRatio = actualZoomRatio.takeIf { it.isFinite() } ?: zoomSel
+        if (kotlin.math.abs(latestRatio - observedRatio) < 0.001f) {
+            zoomOverlayVisible = false
+        }
     }
     var zoomHoldDirection by remember { mutableIntStateOf(0) }
     var zoomAnimationJob by remember { mutableStateOf<Job?>(null) }
@@ -5421,7 +5431,7 @@ fun CameraScreen(
                                     showProIso = proHudShowIso,
                                     showProFocus = proHudShowFocus,
                                     showProWhiteBalance = proHudShowWhiteBalance,
-                                    showZoomBar = lcdDisplayMode != CameraLcdDisplayMode.CLEAN || zoomOverlayAlpha > 0.001f,
+                                    showZoomBar = zoomOverlayVisible || zoomOverlayAlpha > 0.001f,
                                     zoomRatio = zoomDisplayValue,
                                     zoomMinimumRatio = camera?.cameraInfo?.zoomState?.value?.minZoomRatio ?: 1f,
                                     zoomMaximumRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
@@ -5445,7 +5455,7 @@ fun CameraScreen(
                                         Camera2Info.maxSelectableZoom(activeCameraDetails, activePhysicalCameraDetails, state.maxZoomRatio, camera2Inventory)
                                     } ?: 2f,
                                     zoomBarPosition = zoomBarPosition,
-                                    zoomBarAlpha = if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) zoomOverlayAlpha else 1f,
+                                    zoomBarAlpha = zoomOverlayAlpha,
                                     pixelScaleMode = appPrefs.getString("osd_pixel_mode", "fine") ?: "fine"
                                 ),
                                 maxRefreshHz = when {

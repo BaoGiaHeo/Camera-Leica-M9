@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,7 +39,6 @@ internal fun ActivationScreen(onComplete: () -> Unit) {
     val context = LocalContext.current
     var step by remember { mutableIntStateOf(0) }
     var selectedLanguage by remember { mutableStateOf(AppLanguageManager.currentLanguage) }
-    val languageIsVietnamese = AppLanguageManager.currentLanguage == "vi"
     val orange = FujiSkin.orange
     val border = Color(0xFF465154)
     val panel = Color(0xFF111719)
@@ -72,8 +73,8 @@ internal fun ActivationScreen(onComplete: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 repeat(3) { index ->
                     Box(
-                        Modifier.widthIn(min = 30.dp).height(4.dp)
-                            .background(if (index == step) orange else Color(0xFF394347), RoundedCornerShape(4.dp))
+                        Modifier.size(7.dp)
+                            .background(if (index == step) orange else Color(0xFF394347), CircleShape)
                     )
                 }
             }

@@ -46,7 +46,9 @@ fun QuickPanel(
     faceTrackingMode: String,
     onFaceTrackingModeChanged: (String) -> Unit,
     onToolbox: () -> Unit,
-    onWatermarkStudio: () -> Unit = {},
+    onWatermarkPanel: () -> Unit = {},
+    watermarkEnabled: Boolean = true,
+    watermarkLayoutLabel: String = "BAR",
     onContentManagement: () -> Unit,
     onSettings: () -> Unit,
     onDismiss: () -> Unit,
@@ -158,15 +160,19 @@ fun QuickPanel(
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FujiTile(
-                        "Watermark Studio", "Design stamp", false, onWatermarkStudio,
-                        icon = "image", modifier = Modifier.weight(1f)
+                        "WATERMARK",
+                        if (watermarkEnabled) "ON · " + watermarkLayoutLabel.uppercase() else "OFF",
+                        true,
+                        onWatermarkPanel,
+                        icon = "image",
+                        modifier = Modifier.weight(1f)
                     )
                     FujiTile(
                         "Toolbox", "Assistive tools", false, onToolbox,
                         icon = "tab_08", modifier = Modifier.weight(1f)
                     )
                     FujiTile(
-                        "Contents", "Frames", false, onContentManagement,
+                        "Contents", "LUT", false, onContentManagement,
                         icon = "sliders", modifier = Modifier.weight(1f)
                     )
                 }

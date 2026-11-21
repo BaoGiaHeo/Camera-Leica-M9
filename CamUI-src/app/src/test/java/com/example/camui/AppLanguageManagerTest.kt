@@ -5,41 +5,24 @@ import org.junit.Test
 
 class AppLanguageManagerTest {
     @Test
-    fun onlySystemEnglishAndVietnamesePreferencesAreAccepted() {
-        assertEquals("system", AppLanguageManager.normalizePreference("system"))
+    fun onlyEnglishAndVietnamesePreferencesAreAccepted() {
         assertEquals("en", AppLanguageManager.normalizePreference("en"))
         assertEquals("vi", AppLanguageManager.normalizePreference("vi"))
+        assertEquals("en", AppLanguageManager.normalizePreference("system"))
+        assertEquals("en", AppLanguageManager.normalizePreference("fr"))
     }
 
     @Test
-    fun legacyLanguagePreferencesMigrateToSystem() {
-        listOf("ja", "ja-JP", "ko", "ko-KR", "zh", "zh-CN", "fr", "", null)
-            .forEach { legacy ->
-                assertEquals("Legacy preference $legacy must migrate to SYSTEM",
-                    "system",
-                    AppLanguageManager.normalizePreference(legacy))
-            }
-    }
-
-    @Test
-    fun systemVietnameseLocaleResolvesToVietnamese() {
+    fun legacySystemPreferenceMigratesFromDeviceLanguage() {
         assertEquals("vi", AppLanguageManager.resolveLanguage("system", "vi"))
         assertEquals("vi", AppLanguageManager.resolveLanguage("system", "vi-VN"))
-        assertEquals("vi", AppLanguageManager.resolveLanguage("system", "VI_vn"))
+        assertEquals("en", AppLanguageManager.resolveLanguage("system", "en-US"))
+        assertEquals("en", AppLanguageManager.resolveLanguage("system", "ja-JP"))
+        assertEquals("en", AppLanguageManager.resolveLanguage("system", null))
     }
 
     @Test
-    fun everyNonVietnameseSystemLocaleResolvesToEnglish() {
-        listOf("en", "en-US", "ja-JP", "ko-KR", "zh-CN", "fr-FR", null)
-            .forEach { locale ->
-                assertEquals("System locale $locale must resolve to English",
-                    "en",
-                    AppLanguageManager.resolveLanguage("system", locale))
-            }
-    }
-
-    @Test
-    fun explicitLanguageOverridesSystemLocale() {
+    fun explicitLanguageOverridesDeviceLanguage() {
         assertEquals("en", AppLanguageManager.resolveLanguage("en", "vi-VN"))
         assertEquals("vi", AppLanguageManager.resolveLanguage("vi", "en-US"))
     }

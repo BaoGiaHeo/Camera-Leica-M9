@@ -806,24 +806,23 @@ fun CameraScreen(
         onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(preferenceListener) }
     }
     var zoomOverlayVisible by remember { mutableStateOf(false) }
+    var zoomInteractionGeneration by remember { mutableIntStateOf(0) }
     val zoomOverlayAlpha by animateFloatAsState(
         targetValue = if (zoomOverlayVisible) 1f else 0f,
         animationSpec = tween(durationMillis = if (zoomOverlayVisible) 120 else 250),
         label = "zoom OSD fade"
     )
-    var lastZoomOverlayRatio by remember { mutableFloatStateOf(Float.NaN) }
-    LaunchedEffect(zoomSel, actualZoomRatio) {
-        val observedRatio = actualZoomRatio.takeIf { it.isFinite() } ?: zoomSel
-        val previousRatio = lastZoomOverlayRatio
-        lastZoomOverlayRatio = observedRatio
-        if (!previousRatio.isFinite() || kotlin.math.abs(observedRatio - previousRatio) < 0.001f) {
-            return@LaunchedEffect
+    LaunchedEffect(zoomInteractionGeneration) {
+        val observedGeneration = zoomInteractionGeneration
+        if (observedGeneration == 0) return@LaunchedEffect
+        if (!zoomOverlayVisible) {
+            android.util.Log.d("FUJI_ZOOM_OSD", "SHOW reason=W_T generation=$observedGeneration")
         }
         zoomOverlayVisible = true
         delay(1_200L)
-        val latestRatio = actualZoomRatio.takeIf { it.isFinite() } ?: zoomSel
-        if (kotlin.math.abs(latestRatio - observedRatio) < 0.001f) {
+        if (zoomInteractionGeneration == observedGeneration) {
             zoomOverlayVisible = false
+            android.util.Log.d("FUJI_ZOOM_OSD", "HIDE idleMs=1200 generation=$observedGeneration")
         }
     }
     var zoomHoldDirection by remember { mutableIntStateOf(0) }
@@ -1287,6 +1286,7 @@ fun CameraScreen(
                 zoomSel = plan.effectiveZoomRatio
                 actualZoomRatio = plan.effectiveZoomRatio
                 digitalZoomCropScale = plan.digitalCropRatio
+                zoomInteractionGeneration++
                 if (abs(state.zoomRatio - plan.cameraControlZoomRatio) > 0.002f) {
                     lastZoomFuture = active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
                 }
@@ -4891,6 +4891,7 @@ fun CameraScreen(
                 zoomSel = plan.effectiveZoomRatio
                 actualZoomRatio = plan.effectiveZoomRatio
                 digitalZoomCropScale = plan.digitalCropRatio
+                zoomInteractionGeneration++
             }
             appPrefs.edit().putFloat("camera_zoom_ratio", safeTarget).apply()
         }

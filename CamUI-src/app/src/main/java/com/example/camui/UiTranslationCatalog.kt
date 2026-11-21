@@ -9,6 +9,10 @@ package com.example.camui
  */
 internal object UiTranslationCatalog {
     private val vietnameseToEnglish = linkedMapOf(
+        "Không thể đặt khoảng nét 3; dừng Focus Bracketing." to
+            "Could not set focus position 3; stopping Focus Bracketing.",
+        "LunaDream 1.5 dự phòng · 20%" to "LunaDream 1.5 fallback · 20%",
+        "LunaDream dự phòng · Camera timeout" to "LunaDream fallback · Camera timeout",
         "Pin còn rất thấp; Star Trails đã dừng và đang ghép các khung đã chụp." to
             "Battery is critically low; Star Trails stopped and is merging the captured frames.",
         "Pin còn rất thấp; đã dừng thu khung và xử lý các khung hình hợp lệ đã chụp." to
@@ -233,6 +237,7 @@ internal object UiTranslationCatalog {
     )
 
     private val englishToVietnamese = mapOf(
+        "LunaDream fallback · Camera timeout" to "LunaDream dự phòng · Camera timeout",
         "RAW Capture" to "Chụp RAW",
         "Battery is critically low. Charge the phone before using Star Trails, NightShot or long exposure." to
             "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",

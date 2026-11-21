@@ -147,4 +147,5 @@
     <string name="mf_thermal_hot">RẤT NÓNG</string>
     <string name="mf_error_short">LỖI</string>
     <string name="mf_temperature_format">%1$d°C</string>
+    <string name="mf_temperature_unavailable">--°C</string>
 </resources>

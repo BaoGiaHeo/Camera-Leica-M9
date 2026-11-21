@@ -790,7 +790,7 @@ fun CameraScreen(
         mutableStateOf(appPrefs.getString("zoom_buttons_mode", "standard") == "swapped")
     }
     var zoomBarPosition by remember {
-        mutableStateOf(appPrefs.getString("zoom_bar_position", "top_center") ?: "top_center")
+        mutableStateOf(appPrefs.getString("zoom_bar_position", "top_center")?.let { if (it == "top_left") "middle_left" else it } ?: "top_center")
     }
     var previewBoundsText by remember { mutableStateOf("unmeasured") }
     val previewBoundsTextState = rememberUpdatedState(previewBoundsText)
@@ -800,7 +800,7 @@ fun CameraScreen(
         val preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
             when (key) {
                 "zoom_buttons_mode" -> zoomButtonsSwapped = preferences?.getString(key, "standard") == "swapped"
-                "zoom_bar_position" -> zoomBarPosition = preferences?.getString(key, "top_center") ?: "top_center"
+                "zoom_bar_position" -> zoomBarPosition = preferences?.getString(key, "top_center")?.let { if (it == "top_left") "middle_left" else it } ?: "top_center"
             }
         }
         appPrefs.registerOnSharedPreferenceChangeListener(preferenceListener)

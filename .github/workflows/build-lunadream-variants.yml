@@ -10,6 +10,7 @@ on:
     branches:
       - feature/lunadream-2.5.0dream
       - fix/2.5.0dream-af-label
+      - fuji-2.5.0-from-8c22d844
     paths:
       - "CamUI-src/**"
       - ".github/workflows/build-lunadream-variants.yml"
@@ -65,7 +66,7 @@ jobs:
           VERSION_CODE=$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionCode='\\([^']*\\)'.*/\\1/p")
           VERSION_NAME=$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionName='\\([^']*\\)'.*/\\1/p")
           echo "package=$PACKAGE versionCode=$VERSION_CODE versionName=$VERSION_NAME"
-          test "$PACKAGE" = "com.fujifilm.mode.developer"
+          test "$PACKAGE" = "com.fujifilm.mode"
           test "$VERSION_CODE" = "16"
           test "$VERSION_NAME" = "2.5.0"
 

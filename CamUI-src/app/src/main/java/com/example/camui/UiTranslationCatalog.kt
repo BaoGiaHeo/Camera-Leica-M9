@@ -87,6 +87,8 @@ internal object UiTranslationCatalog {
             "Milky Way Stack was disabled and exposure returned to Auto.",
         "Camera chưa sẵn sàng." to
             "Camera is not ready.",
+        "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài." to
+            "Battery is critically low. Charge the phone before using Star Trails, NightShot or long exposure.",
         "Không thể áp dụng Manual Sensor/WB trên camera này." to
             "Manual Sensor/WB could not be applied on this camera.",
         "ĐANG KHÓA NÉT VÔ CỰC · CHẠM ĐỂ TRỞ VỀ AF" to
@@ -228,6 +230,8 @@ internal object UiTranslationCatalog {
 
     private val englishToVietnamese = mapOf(
         "RAW Capture" to "Chụp RAW",
+        "Battery is critically low. Charge the phone before using Star Trails, NightShot or long exposure." to
+            "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
         "Camera Presets" to "Thiết lập camera",
         "Film Simulation Customizer" to "Tùy chỉnh mô phỏng phim",
         "Saved Film Recipes" to "Công thức mô phỏng phim đã lưu",

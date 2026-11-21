@@ -5783,7 +5783,11 @@ fun CameraScreen(
                                 val overlayAlpha = if (previewFreezeVisible) previewFreezeAlpha.value else 0.35f
                                 val position = previewEffectPosition.value
                                 val passSeconds = if (effectMode == "night") 6.5f else 8.5f
-                                val timeSeconds = ((position + 0.35f) / 1.70f).coerceIn(0f, 1f) * passSeconds
+                                val timeSeconds = if (idleLunaEffect) {
+                                    lunaActivationProgress.value * 6.6667f
+                                } else {
+                                    ((position + 0.35f) / 1.70f).coerceIn(0f, 1f) * passSeconds
+                                }
                                 Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = overlayAlpha }) {
                                     CameraPreviewProcessingEffect.draw(
                                         canvas = drawContext.canvas.nativeCanvas,
@@ -5791,7 +5795,7 @@ fun CameraScreen(
                                         height = size.height,
                                         mode = effectMode,
                                         timeSeconds = timeSeconds,
-                                        progressPercent = processingProgress,
+                                        progressPercent = if (idleLunaEffect) 0 else processingProgress,
                                         reducedMotion = dispReducedMotion,
                                         simpleMode = appPrefs.getBoolean("simple_ui_mode_enabled", false),
                                         holdSteady = multiFrameHoldActive || nightShotCaptureInProgress,

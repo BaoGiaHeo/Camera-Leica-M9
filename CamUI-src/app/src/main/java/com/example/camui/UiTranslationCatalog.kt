@@ -607,6 +607,35 @@ internal object UiTranslationCatalog {
         "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn." to
             "RawDream 2.0 preserved the original DNG and merged the JPEG with LunaDream 2.0, but could not safely upscale the JPEG.",
         "LunaDream fallback · " to "LunaDream fallback · ",
+        "NightShotMode · ghép đa khung" to "NightShotMode · multi-frame merge",
+        "NightShotMode · chụp đêm" to "NightShotMode · night capture",
+        "Xử lý ảnh gốc thiết bị · ISP + tối ưu tông/chi tiết" to
+            "Device-native photo processing · ISP + tone/detail optimization",
+        "Xử lý ảnh gốc thiết bị chưa hoàn tất · giữ ảnh JPEG" to
+            "Device-native photo processing did not finish · preserving JPEG",
+        "Xử lý ảnh gốc thiết bị đã hoàn tất: tối ưu dải sáng và độ sắc nét." to
+            "Device-native photo processing completed: optimized dynamic range and sharpness.",
+        "Bước xử lý ảnh gốc thiết bị không hoàn tất; ảnh JPEG gốc vẫn được giữ." to
+            "Device-native photo processing did not finish; the original JPEG is preserved.",
+        "LunaDream 1.5 đã ghép " to "LunaDream 1.5 merged ",
+        " khung hình." to " frames.",
+        "RawDream 2.0 giữ DNG cảm biến gốc và ghép " to "RawDream 2.0 preserved the original sensor DNG and merged ",
+        " JPEG bằng thuật toán LunaDream 2.0." to " JPEG with the LunaDream 2.0 algorithm.",
+        "LunaDream 2.0 đã ghép và phục hồi chi tiết đa khung." to "LunaDream 2.0 merged multiple frames and recovered detail.",
+        "LunaDream vẫn được giữ làm chế độ đã chọn." to "LunaDream remains the selected mode.",
+        "engine không cung cấp nguyên nhân" to "engine did not provide a reason",
+        "Không nội suy độ phân giải" to "No resolution interpolation",
+        "HAL không công bố" to "Not reported by HAL",
+        "Không công bố" to "Not reported",
+        "NO SIGNAL\nCần cấp quyền Camera (chạm để cấp)" to "NO SIGNAL\nCamera permission required (tap to grant)",
+        "Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT." to
+            "No LUTs yet. Supports .cube, Canon RGB .bin and ZIP files containing multiple LUTs.",
+        "ĐANG NHẬP LUT…" to "IMPORTING LUT…",
+        "Tìm LUT theo tên hoặc nhóm" to "Search LUTs by name or category",
+        "Hỗ trợ .cube, LUT .bin RGB 33x33x33 và ZIP chứa các định dạng này." to
+            "Supports .cube, 33x33x33 RGB .bin LUTs and ZIP files containing these formats.",
+        "Tệp .cube không hợp lệ hoặc không phải LUT 3D." to "The .cube file is invalid or is not a 3D LUT.",
+        "Tệp .bin không phải LUT RGB 33x33x33 được hỗ trợ." to "The .bin file is not a supported 33x33x33 RGB LUT.",
         "LunaDream vẫn được giữ làm chế độ đã chọn." to "LunaDream remains the selected mode.",
         "LunaDream 2.0 đã ghép và phục hồi chi tiết đa khung." to "LunaDream 2.0 merged multiple frames and recovered detail.",
         "Không lưu được clip Live Photo; ảnh tĩnh vẫn được giữ nếu đã chụp thành công." to
@@ -770,6 +799,18 @@ internal object UiTranslationCatalog {
         Regex("^LunaDream 2\\.0 không hoàn tất; đã dùng thuật toán dự phòng 1\\.5\\. Lý do:$").matchEntire(value)?.let {
             return "LunaDream 2.0 did not finish; the 1.5 fallback algorithm was used. Reason:"
         }
+        Regex("^RawDream 2\\.0 · JPEG fallback LunaDream 1\\.5 · reason: (.*)$").matchEntire(value)?.let {
+            val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
+            return "RawDream 2.0 · JPEG fallback LunaDream 1.5 · reason: $reason"
+        }
+        Regex("^LunaDream 2\\.0 · fallback LunaDream 1\\.5 · reason: (.*)$").matchEntire(value)?.let {
+            val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream 2.0 · fallback LunaDream 1.5 · reason: $reason"
+        }
+        Regex("^LunaDream fallback · (.*)$").matchEntire(value)?.let {
+            val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream fallback · $reason"
+        }
         Regex("^(HDR Bracketing|Focus Bracketing): đã lưu (\\d+)/(\\d+) khung\\. (.*)$").matchEntire(value)?.let {
             val mode = it.groupValues[1]
             val result = toEnglish(it.groupValues[4]) ?: it.groupValues[4]
@@ -909,6 +950,18 @@ internal object UiTranslationCatalog {
         }
         Regex("^LunaDream 2\\.0 did not finish; the 1\\.5 fallback algorithm was used\\. Reason:$").matchEntire(value)?.let {
             return "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:"
+        }
+        Regex("^RawDream 2\\.0 · JPEG fallback LunaDream 1\\.5 · reason: (.*)$").matchEntire(value)?.let {
+            val reason = toVietnamese(it.groupValues[1]) ?: it.groupValues[1]
+            return "RawDream 2.0 · JPEG fallback LunaDream 1.5 · lý do: $reason"
+        }
+        Regex("^LunaDream 2\\.0 · fallback LunaDream 1\\.5 · reason: (.*)$").matchEntire(value)?.let {
+            val reason = toVietnamese(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream 2.0 · fallback LunaDream 1.5 · lý do: $reason"
+        }
+        Regex("^LunaDream fallback · (.*)$").matchEntire(value)?.let {
+            val reason = toVietnamese(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream fallback · $reason"
         }
         Regex("^(HDR Bracketing|Focus Bracketing): saved (\\d+)/(\\d+) frames\\. (.*)$").matchEntire(value)?.let {
             val result = toVietnamese(it.groupValues[4]) ?: it.groupValues[4]

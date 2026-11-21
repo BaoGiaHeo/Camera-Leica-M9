@@ -3921,7 +3921,7 @@ fun CameraScreen(
                             LunaDreamProcessingScope.launch {
                                 try {
                                 // Publish a small preview of the first valid JPEG immediately,
-                                // before multi-frame stacking, AI render, HDR or watermark work.
+                                // before multi-frame stacking, image processing, HDR or watermark work.
                                 val initialThumbnail = withContext(Dispatchers.IO) {
                                     runCatching {
                                         decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()

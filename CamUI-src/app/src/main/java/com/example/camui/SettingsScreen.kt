@@ -743,7 +743,7 @@ var nightShotMode by remember {
                 Spacer(Modifier.padding(5.dp))
                 Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2); không có xử lý AI sau chụp. Ultra HDR giữ nguyên dữ liệu JPEG_R.",
+                    "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2). Ultra HDR giữ nguyên dữ liệu JPEG_R.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )

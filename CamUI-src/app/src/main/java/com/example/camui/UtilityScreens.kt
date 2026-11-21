@@ -3055,16 +3055,20 @@ fun applyCameraWatermark(
         val copyrightName = prefs.getString("watermark_custom_copyright", "")?.trim()
             ?.takeIf { showCopyright && it.isNotBlank() }
         val photoMegapixels = sourceWidthPx.toLong() * sourceHeightPx.toLong() / 1_000_000.0
-        val exposureSpecs = buildList {
-            if (showFocal) {
-                exifFocal?.let(::add)
-                equivalent35mm?.let(::add)
-            }
-            if (showAperture) exifAperture?.let(::add)
-            if (showShutter) exifShutter?.replace(" s", "s")?.let(::add)
-            if (showIso) exifIso?.let { add("ISO $it") }
-            if (showEv) exposureBias?.let(::add)
-        }
+        val exposureValues = WatermarkExposureValues(
+            focal = listOfNotNull(exifFocal, equivalent35mm).joinToString("  ·  ").takeIf { it.isNotBlank() },
+            aperture = exifAperture,
+            shutter = exifShutter?.replace(" s", "s"),
+            iso = exifIso
+        )
+        val exposureSpecs = visibleWatermarkExposureFields(
+            values = exposureValues,
+            showExposureMaster = showSpecs,
+            showFocal = showFocal,
+            showAperture = showAperture,
+            showShutter = showShutter,
+            showIso = showIso
+        ) + (exposureBias?.takeIf { showSpecs && showEv }.orEmpty().takeIf { it.isNotBlank() } ?: "")
         val supplementalSpecs = buildList {
             filterName?.let(::add)
             nightLabel?.let(::add)
@@ -3524,12 +3528,14 @@ fun applyCameraWatermark(
             }
             "data_card" -> {
                 drawTemplateFooter(frameColor)
-                val values = buildList {
-                    if (showSpecs && showFocal) exifFocal?.let { add("FOCAL" to it) }
-                    if (showSpecs && showAperture) exifAperture?.let { add("APERTURE" to it) }
-                    if (showSpecs && showShutter) exifShutter?.let { add("SHUTTER" to it) }
-                    if (showSpecs && showIso) exifIso?.let { add("ISO" to "ISO $it") }
-                }
+                val values = visibleWatermarkDataCardItems(
+                    values = exposureValues,
+                    showExposureMaster = showSpecs,
+                    showFocal = showFocal,
+                    showAperture = showAperture,
+                    showShutter = showShutter,
+                    showIso = showIso
+                )
                 val columnCount = values.size.coerceAtLeast(1)
                 val columnWidth = footerWidth / columnCount
                 values.forEachIndexed { index, item ->
@@ -3912,11 +3918,13 @@ fun applyCameraWatermark(
             }
             "exposure_dial" -> {
                 drawTemplateFooter(frameColor)
-                val dialLabels = buildList {
-                    if (showSpecs && showAperture) exifAperture?.let { add("F" to it) }
-                    if (showSpecs && showShutter) exifShutter?.let { add("SS" to it) }
-                    if (showSpecs && showIso) exifIso?.let { add("ISO" to it) }
-                }
+                val dialLabels = visibleWatermarkExposureDialItems(
+                    values = exposureValues,
+                    showExposureMaster = showSpecs,
+                    showAperture = showAperture,
+                    showShutter = showShutter,
+                    showIso = showIso
+                )
                 val dialRadius = footerHeight * 0.28f
                 val columnWidth = footerWidth / dialLabels.size.coerceAtLeast(1)
                 dialLabels.forEachIndexed { index, item ->

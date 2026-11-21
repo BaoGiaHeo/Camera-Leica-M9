@@ -9,6 +9,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.res.ResourcesCompat
 
 /**
@@ -40,6 +41,63 @@ object FujiTypography {
     @Volatile private var startupReportLogged = false
 
     private val lock = Any()
+
+    /**
+     * Saira is the application UI face. KK7 remains isolated to the viewfinder OSD
+     * through composeFamily()/androidTypeface(); watermark typography is rendered
+     * by WatermarkRenderer and is intentionally kept independent.
+     */
+    val uiFont: FontFamily by lazy {
+        FontFamily(
+            Font(R.font.saira_semicondensed_semibold, FontWeight.SemiBold),
+            Font(R.font.saira_semicondensed_bold, FontWeight.Bold)
+        )
+    }
+
+    @Volatile private var cachedUiTypeface: Typeface? = null
+
+    fun uiTypeface(context: Context): Typeface {
+        cachedUiTypeface?.let { return it }
+        return synchronized(lock) {
+            cachedUiTypeface ?: runCatching {
+                ResourcesCompat.getFont(context.applicationContext, R.font.saira_semicondensed_semibold)
+                    ?: error("Saira Semi Condensed SemiBold font resource is missing.")
+            }.getOrElse {
+                Log.w(TAG, "Saira UI font could not be loaded; using sans-serif fallback.", it)
+                Typeface.create("sans-serif-condensed", Typeface.BOLD)
+            }.also { cachedUiTypeface = it }
+        }
+    }
+
+    fun withUiMissingGlyphFallback(value: String): AnnotatedString {
+        val primary = Paint().apply { typeface = uiTypefaceFallbackForCompose() }
+        val fallbackPaint = Paint().apply {
+            typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        }
+        val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
+        val fallbackFamily = shareTechComposeFamily()
+        return buildAnnotatedString {
+            append(value)
+            var index = 0
+            while (index < value.length) {
+                val codePoint = value.codePointAt(index)
+                val charCount = Character.charCount(codePoint)
+                val glyph = String(Character.toChars(codePoint))
+                if (!primary.hasGlyph(glyph)) {
+                    val family = when {
+                        fallbackPaint.hasGlyph(glyph) -> fallbackFamily
+                        systemPaint.hasGlyph(glyph) -> FontFamily.Monospace
+                        else -> FontFamily.Monospace
+                    }
+                    addStyle(SpanStyle(fontFamily = family), index, index + charCount)
+                }
+                index += charCount
+            }
+        }
+    }
+
+    private fun uiTypefaceFallbackForCompose(): Typeface =
+        cachedUiTypeface ?: Typeface.create("sans-serif-condensed", Typeface.BOLD)
 
     data class GlyphCoverageReport(
         val testedGlyphs: Int,

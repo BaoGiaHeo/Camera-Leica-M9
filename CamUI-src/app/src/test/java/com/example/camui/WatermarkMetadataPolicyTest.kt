@@ -34,7 +34,7 @@ class WatermarkMetadataPolicyTest {
             "NIGHT  ·  12.0 MP",
             combineWatermarkMetadataLines(
                 exposureFields = listOf("", " "),
-                supplementalFields = listOf(null.orEmpty(), "NIGHT", "12.0 MP"),
+                supplementalFields = listOf("", "NIGHT", "12.0 MP"),
                 showExposureFields = true
             )
         )

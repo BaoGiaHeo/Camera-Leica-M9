@@ -7393,6 +7393,44 @@ private fun applyAutoFocus(camera: Camera) {
     Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
+/**
+ * Issues a one-shot Camera2 AF trigger for devices that expose no AF metering regions.
+ * CONTROL_AF_TRIGGER is reset to IDLE after the sensor has received the START edge.
+ */
+private fun triggerCamera2AfOnce(camera: Camera): Boolean = runCatching {
+    val cameraId = runCatching {
+        Camera2CameraInfo.from(camera.cameraInfo).cameraId
+    }.getOrDefault("unknown")
+    val control = Camera2CameraControl.from(camera.cameraControl)
+    val start = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        .setCaptureRequestOption(
+            CaptureRequest.CONTROL_AF_MODE,
+            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+        )
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START)
+        .build()
+    control.addCaptureRequestOptions(start)
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        runCatching {
+            val idle = CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(
+                    CaptureRequest.CONTROL_AF_TRIGGER,
+                    CaptureRequest.CONTROL_AF_TRIGGER_IDLE
+                )
+                .build()
+            control.addCaptureRequestOptions(idle)
+            android.util.Log.d("FUJI_AF", "CONTROL_AF_TRIGGER=IDLE cameraId=$cameraId")
+        }.onFailure {
+            android.util.Log.w("FUJI_AF", "Could not reset CONTROL_AF_TRIGGER cameraId=$cameraId", it)
+        }
+    }, 120L)
+    android.util.Log.i("FUJI_AF", "CONTROL_AF_TRIGGER=START cameraId=$cameraId source=Camera2Fallback")
+    true
+}.onFailure {
+    android.util.Log.w("FUJI_AF", "CONTROL_AF_TRIGGER_START failed", it)
+}.getOrDefault(false)
+
 private fun applyAutoWhiteBalance(camera: Camera) {
     val options = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)

@@ -358,9 +358,9 @@ internal object PixelOsdLayoutEngine {
             }
 
             fun totalWidth(shrink: Float): Float =
-                groups.sumOf { group ->
+                (groups.sumOf { group ->
                     group.parts.sumOf { (partWidth(it, shrink) + it.beforeGap).toDouble() }
-                } + groupGap * (groups.size - 1).coerceAtLeast(0)
+                } + groupGap * (groups.size - 1).coerceAtLeast(0)).toFloat()
 
             val available = (widthPx - margin * 2).coerceAtLeast(1).toFloat()
             val fitScale = if (totalWidth(1f) <= available) 1f

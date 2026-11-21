@@ -127,6 +127,7 @@ internal object UiTranslationCatalog {
             "SCANNING CAMERAS…",
         "Không thể hoàn tất quét" to
             "The scan could not be completed.",
+        "ĐANG QUÉT CAMERA…" to "SCANNING CAMERAS…",
         "Bật/tắt âm thanh chụp mặc định." to
             "Enable or disable the default shutter sound.",
         "Hiện hoặc ẩn thông số bù phơi sáng trong hàng Pro HUD." to
@@ -330,24 +331,6 @@ internal object UiTranslationCatalog {
         }
         Regex("^(\\d+) more keys\\.$").matchEntire(value)?.let {
             return "Còn " + it.groupValues[1] + " key khác."
-        }
-        Regex("^Saved Camera Preset (\\d+)$").matchEntire(value)?.let {
-            return "Đã lưu Camera Preset " + it.groupValues[1]
-        }
-        Regex("^Preset (\\d+) has not been saved\\.$").matchEntire(value)?.let {
-            return "Preset " + it.groupValues[1] + " chưa được lưu"
-        }
-        Regex("^Loaded Camera Preset (\\d+) · capture settings restored\\.$").matchEntire(value)?.let {
-            return "Đã nạp Camera Preset " + it.groupValues[1] + " · cấu hình chụp đã khôi phục"
-        }
-        Regex("^Saved Film Recipe (\\d+)$").matchEntire(value)?.let {
-            return "Đã lưu Film Recipe " + it.groupValues[1]
-        }
-        Regex("^Film Recipe (\\d+) has not been saved\\.$").matchEntire(value)?.let {
-            return "Film Recipe " + it.groupValues[1] + " chưa được lưu"
-        }
-        Regex("^Loaded Film Recipe (\\d+)$").matchEntire(value)?.let {
-            return "Đã nạp Film Recipe " + it.groupValues[1]
         }
         return null
     }

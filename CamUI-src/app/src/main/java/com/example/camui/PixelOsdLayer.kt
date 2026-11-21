@@ -300,6 +300,10 @@ class PixelOsdRenderer(context: Context) {
 
     fun scaleFactor(): Int = pixelScale
 
+    /** Snapshot of the full-resolution text plane for native-pixel instrumentation tests. */
+    internal fun textLayerSnapshotForTesting(): Bitmap? =
+        textBitmap?.takeUnless { it.isRecycled }?.copy(Bitmap.Config.ARGB_8888, false)
+
     private fun drawFrame(canvas: NativeCanvas, frame: PixelOsdFrame) {
         val width = logicWidth
         val height = logicHeight
@@ -894,7 +898,8 @@ class PixelOsdRenderer(context: Context) {
                 .getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
         }
         textPaint.typeface = loadedTypeface ?: Typeface.DEFAULT
-        textPaint.textSize = maxOf(8f * pixelScale, 14f * displayDensity)
+        // This paint is measured in physical LCD pixels; PIXEL mode must not scale glyph size.
+        textPaint.textSize = 14f * displayDensity
         return kotlin.math.ceil(textPaint.measureText(value) / pixelScale.coerceAtLeast(1)).toInt()
     }
 
@@ -955,7 +960,8 @@ class PixelOsdRenderer(context: Context) {
                 fallbackGlyphCheckPaint.hasGlyph(glyph) -> fallback
                 else -> systemFallbackTypeface
             }
-            textPaint.textSize = maxOf(8f * pixelScale, 14f * displayDensity)
+            // Text is drawn directly into the full-resolution LCD bitmap, independent of icon grid scale.
+            textPaint.textSize = 14f * displayDensity
             textPaint.style = style
             textPaint.strokeWidth = if (style == Paint.Style.STROKE) 1f else 0f
             textPaint.color = color

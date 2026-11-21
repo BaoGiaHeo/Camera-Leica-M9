@@ -20,7 +20,7 @@ android {
         applicationId = "com.fujifilm.mode"
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 16
         versionName = "2.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -123,7 +123,8 @@ val generateKk7FontResource = tasks.register("generateKk7FontResource") {
 val sairaFontFiles = linkedMapOf(
     "SairaSemiCondensed-Regular.ttf" to "saira_semicondensed_regular.ttf",
     "SairaSemiCondensed-Medium.ttf" to "saira_semicondensed_medium.ttf",
-    "SairaSemiCondensed-SemiBold.ttf" to "saira_semicondensed_semibold.ttf"
+    "SairaSemiCondensed-SemiBold.ttf" to "saira_semicondensed_semibold.ttf",
+    "SairaSemiCondensed-Bold.ttf" to "saira_semicondensed_bold.ttf"
 )
 val sairaFontOutputFiles = sairaFontFiles.values.map { kk7FontResourceDirectory.file(it) }
 val sairaLicenseFile = layout.projectDirectory.file("src/main/assets/fonts/SAIRA-OFL.txt")

@@ -43,11 +43,11 @@ class PixelOsdStatusTest {
 
     @Test
     fun evReadoutUsesTheInterpolatedIndexAndStepSize() {
-        assertEquals("EV +0.0", formatPixelEvReadout(0f, 1f / 3f))
-        assertEquals("EV +1.0", formatPixelEvReadout(3f, 1f / 3f))
-        assertEquals("EV -1.0", formatPixelEvReadout(-3f, 1f / 3f))
-        assertEquals("EV +0.5", formatPixelEvReadout(1f, 0.5f))
-        assertEquals("EV +0.0", formatPixelEvReadout(Float.NaN, 0f))
+        assertEquals("+0.0 EV", formatPixelEvReadout(0f, 1f / 3f))
+        assertEquals("+1.0 EV", formatPixelEvReadout(3f, 1f / 3f))
+        assertEquals("-1.0 EV", formatPixelEvReadout(-3f, 1f / 3f))
+        assertEquals("+0.5 EV", formatPixelEvReadout(1f, 0.5f))
+        assertEquals("+0.0 EV", formatPixelEvReadout(Float.NaN, 0f))
     }
 
     @Test

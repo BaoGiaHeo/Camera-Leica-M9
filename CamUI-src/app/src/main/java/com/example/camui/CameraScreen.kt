@@ -3220,7 +3220,6 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                             }
                             val look = runCatching { applyCameraLook(context, starUri) }.getOrDefault(false)
-                            val frame = runCatching { applyCameraFrameOverlay(context, starUri) }.getOrDefault(false)
                             val stamped = runCatching {
                                 applyCameraWatermark(
                                     context,
@@ -3237,7 +3236,7 @@ fun CameraScreen(
                             val metadata = runCatching {
                                 finalizeCapturedImageMetadata(context, starUri)
                             }.getOrDefault(false)
-                            listOf(look, frame, stamped, metadata)
+                            listOf(look, stamped, metadata)
                         }
                         val previewThumb = withContext(Dispatchers.IO) {
                             runCatching {
@@ -3252,7 +3251,7 @@ fun CameraScreen(
                             localizedToast(
                                 context,
                                 "Đã lưu Star Trails từ " + frames.size + " khung hình" +
-                                    if (postProcessed[3]) "." else " (cần kiểm tra lại metadata).",
+                                    if (postProcessed.last()) "." else " (cần kiểm tra lại metadata).",
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -4492,11 +4491,6 @@ fun CameraScreen(
                                             "camera-only JPEG is retained and must not be labeled DIGITAL"
                                     )
                                 }
-
-                                // Render the optional frame after MP sizing and digital crop,
-                                // so its borders and watermark remain crisp at the final output size.
-                                val frameApplied = if (captureIsUltraHdr) false else
-                                    runCatching { applyCameraFrameOverlay(context, saved) }.getOrDefault(false)
 
                                 // Apply watermark only after final MP resampling so text,
                                 // logos and spacing are drawn at the final pixel density, not enlarged.

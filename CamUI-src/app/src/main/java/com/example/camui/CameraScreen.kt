@@ -5146,14 +5146,34 @@ fun CameraScreen(
                                                 ) {
                                                     return@addListener
                                                 }
-                                                val success = runCatching { focusFuture.get().isFocusSuccessful }.getOrDefault(false)
-                                                centerAfStatus = if (success) 1 else -1
-                                                if (!success) {
+                                                val focusSuccess = runCatching {
+                                                    focusFuture.get().isFocusSuccessful
+                                                }.getOrDefault(false)
+                                                val aeLockApplied = if (focusSuccess) {
+                                                    applyCameraAeLock(active, locked = true)
+                                                } else {
+                                                    applyCameraAeLock(active, locked = false)
+                                                    false
+                                                }
+                                                focusLocked = focusSuccess && aeLockApplied
+                                                centerAfStatus = if (focusLocked) 1 else -1
+                                                if (focusLocked) {
+                                                    android.util.Log.i(
+                                                        "FUJI_AF",
+                                                        "AF_STATE=FOCUSED AF_LOCK=true AE_LOCK=true request=$focusRequestId"
+                                                    )
+                                                } else {
+                                                    manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
+                                                    android.util.Log.w(
+                                                        "FUJI_AF",
+                                                        "AF_STATE=NOT_FOCUSED focusSuccess=$focusSuccess " +
+                                                            "aeLockApplied=$aeLockApplied request=$focusRequestId"
+                                                    )
                                                     scope.launch(Dispatchers.Main) {
                                                         withFrameNanos { }
                                                         withFrameNanos { }
                                                         if (focusLockRequestGeneration == focusRequestId &&
-                                                            centerAfStatus == -1
+                                                            centerAfStatus == -1 && !focusLocked
                                                         ) {
                                                             centerAfStatus = 0
                                                         }

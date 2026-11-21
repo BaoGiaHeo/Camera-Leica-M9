@@ -274,26 +274,54 @@ internal object PixelOsdLayoutEngine {
         val evLineX = margin + maxEvLabelWidth + unit * 0.75f
 
         val zoomTrack = if (frame.showZoomBar) {
-            val trackWidth = widthPx * 0.18f
-            val trackHeight = unit * 0.9f
             val wText = "W"
             val tText = "T"
             val wWidth = measureTextWidthPx(wText, t3).coerceAtLeast(1f)
             val tWidth = measureTextWidthPx(tText, t3).coerceAtLeast(1f)
-            val totalWidth = wWidth + itemGap + trackWidth + itemGap + tWidth
-            val startX = (widthPx - totalWidth) / 2f
-            val textTop = margin.toFloat()
-            addText("zoom-w", "zoom", wText, startX, textTop, t3)
-            val trackLeft = startX + wWidth + itemGap
-            val trackTop = textTop + (t3 - trackHeight) / 2f
-            val bounds = PixelOsdLayoutBounds(
-                trackLeft,
-                trackTop,
-                trackLeft + trackWidth,
-                trackTop + trackHeight
-            )
-            addText("zoom-t", "zoom", tText, trackLeft + trackWidth + itemGap, textTop, t3)
-            bounds
+            if (frame.zoomBarPosition == "middle_left") {
+                // The vertical scale is centered at 50% LCD height and sits 2u
+                // to the right of the EV scale; W is the minimum (bottom) end.
+                val trackWidth = unit * 0.9f
+                val trackHeight = heightPx * 0.30f
+                val centerY = heightPx * 0.5f
+                val trackTop = centerY - trackHeight * 0.5f
+                val trackLeft = (evLineX + unit * 2f).coerceAtMost(widthPx - margin - trackWidth)
+                    .coerceAtLeast(margin.toFloat())
+                val trackBottom = trackTop + trackHeight
+                addText(
+                    "zoom-t", "zoom", tText,
+                    trackLeft + (trackWidth - tWidth) * 0.5f,
+                    trackTop - itemGap - t3,
+                    t3
+                )
+                val bounds = PixelOsdLayoutBounds(
+                    trackLeft, trackTop, trackLeft + trackWidth, trackBottom
+                )
+                addText(
+                    "zoom-w", "zoom", wText,
+                    trackLeft + (trackWidth - wWidth) * 0.5f,
+                    trackBottom + itemGap,
+                    t3
+                )
+                bounds
+            } else {
+                val trackWidth = widthPx * 0.18f
+                val trackHeight = unit * 0.9f
+                val totalWidth = wWidth + itemGap + trackWidth + itemGap + tWidth
+                val startX = (widthPx - totalWidth) / 2f
+                val textTop = margin.toFloat()
+                addText("zoom-w", "zoom", wText, startX, textTop, t3)
+                val trackLeft = startX + wWidth + itemGap
+                val trackTop = textTop + (t3 - trackHeight) / 2f
+                val bounds = PixelOsdLayoutBounds(
+                    trackLeft,
+                    trackTop,
+                    trackLeft + trackWidth,
+                    trackTop + trackHeight
+                )
+                addText("zoom-t", "zoom", tText, trackLeft + trackWidth + itemGap, textTop, t3)
+                bounds
+            }
         } else null
 
         if (frame.isPro) {

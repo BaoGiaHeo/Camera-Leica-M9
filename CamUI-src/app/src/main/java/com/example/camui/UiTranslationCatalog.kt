@@ -444,6 +444,8 @@ internal object UiTranslationCatalog {
         "Đang tải ảnh…" to "Loading photo…",
         "Đang đọc metadata ảnh…" to "Reading photo metadata…",
         "Sao lưu & Khôi phục" to "Backup & Restore",
+        "Nút chụp tùy chỉnh" to "Custom shutter button",
+        "Âm thanh màn trập" to "Shutter sound",
         "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to
             "LunaDream 2.0 did not finish; the 1.5 fallback algorithm was used. Reason:",
         "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật." to
@@ -459,7 +461,12 @@ internal object UiTranslationCatalog {
         "APPLY RECOMMENDATION + ENABLE ASTRO STACK ×8" to "ÁP DỤNG GỢI Ý + BẬT ASTRO STACK ×8",
         "ULTRAWIDE" to "SIÊU RỘNG",
         "MAIN CAMERA" to "CAM THƯỜNG",
-        "Most recent photo" to "Ảnh gần nhất"
+        "Most recent photo" to "Ảnh gần nhất",
+        "Custom shutter button" to "Nút chụp tùy chỉnh",
+        "Shutter sound" to "Âm thanh màn trập",
+        "Highlight" to "Vùng sáng",
+        "Shadow" to "Vùng tối",
+        "Green ↔ Magenta" to "Xanh lá ↔ Đỏ tươi"
     )
 
     private data class Prefix(val source: String, val translated: String)
@@ -592,6 +599,12 @@ internal object UiTranslationCatalog {
             val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
             return "LunaDream did not finish: $reason. The original JPEG was saved as a fallback."
         }
+        Regex("^Phiên bản (.+) · Bản dựng (.+)$").matchEntire(value)?.let {
+            return "Version ${it.groupValues[1]} · Build ${it.groupValues[2]}"
+        }
+        Regex("^Công thức (\\d+) · (.+)$").matchEntire(value)?.let {
+            return "Recipe ${it.groupValues[1]} · ${it.groupValues[2]}"
+        }
         Regex("^Star Trails gặp lỗi: (.*)$").matchEntire(value)?.let {
             val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
             return "Star Trails error: $reason"
@@ -640,6 +653,21 @@ internal object UiTranslationCatalog {
         }
         Regex("^Imported (.+) LUT\\. Select Add to enable each filter\\.$").matchEntire(value)?.let {
             return "Đã nhập ${it.groupValues[1]} LUT. Chọn Add để bật từng bộ lọc."
+        }
+        Regex("^Version (.+) · Build (.+)$").matchEntire(value)?.let {
+            return "Phiên bản ${it.groupValues[1]} · Bản dựng ${it.groupValues[2]}"
+        }
+        Regex("^Recipe (\\d+) · (.+)$").matchEntire(value)?.let {
+            return "Công thức ${it.groupValues[1]} · ${it.groupValues[2]}"
+        }
+        listOf(
+            "Highlight · " to "Vùng sáng · ",
+            "Shadow · " to "Vùng tối · ",
+            "Color Temperature · " to "Nhiệt độ màu · ",
+            "Color Tone · " to "Tông màu · ",
+            "Saturation · " to "Độ bão hòa · "
+        ).firstOrNull { value.startsWith(it.first) }?.let {
+            return it.second + value.removePrefix(it.first)
         }
         Regex("^Merging Star Trails · (\\d+) frames$").matchEntire(value)?.let {
             return "Đang ghép vệt sao · ${it.groupValues[1]} khung hình"

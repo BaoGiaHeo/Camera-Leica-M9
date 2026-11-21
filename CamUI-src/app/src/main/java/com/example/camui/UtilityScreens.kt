@@ -305,11 +305,11 @@ fun ToolboxScreen(
             .putLong("$slot.saved_at", System.currentTimeMillis())
             .apply()
         presetUiRevision++
-        Toast.makeText(context, "Đã lưu Camera Preset $slot", Toast.LENGTH_SHORT).show()
+        localizedToast(context, "Đã lưu Camera Preset $slot", Toast.LENGTH_SHORT).show()
     }
     fun loadCameraPreset(slot: String) {
         if (!presetStore.getBoolean("$slot.exists", false)) {
-            Toast.makeText(context, "Preset $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            localizedToast(context, "Preset $slot chưa được lưu", Toast.LENGTH_SHORT).show()
             return
         }
         val saved = presetStore.all
@@ -326,7 +326,7 @@ fun ToolboxScreen(
             }
         }
         editor.apply()
-        Toast.makeText(context, "Đã nạp Camera Preset $slot · cấu hình chụp đã khôi phục", Toast.LENGTH_LONG).show()
+        localizedToast(context, "Đã nạp Camera Preset $slot · cấu hình chụp đã khôi phục", Toast.LENGTH_LONG).show()
         onBack()
     }
     var retroLcdEnabled by remember { mutableStateOf(prefs.getBoolean("lcd_texture_overlay_enabled", false)) }
@@ -378,11 +378,11 @@ fun ToolboxScreen(
         editor.putBoolean("$slot.exists", true)
             .putLong("$slot.saved_at", System.currentTimeMillis())
             .apply()
-        Toast.makeText(context, "Đã lưu Film Recipe $slot", Toast.LENGTH_SHORT).show()
+        localizedToast(context, "Đã lưu Film Recipe $slot", Toast.LENGTH_SHORT).show()
     }
     fun loadFilmRecipe(slot: String) {
         if (!filmRecipeStore.getBoolean("$slot.exists", false)) {
-            Toast.makeText(context, "Film Recipe $slot chưa được lưu", Toast.LENGTH_SHORT).show()
+            localizedToast(context, "Film Recipe $slot chưa được lưu", Toast.LENGTH_SHORT).show()
             return
         }
         val values = filmRecipeStore
@@ -408,7 +408,7 @@ fun ToolboxScreen(
             .putFloat("film_custom_saturation", filmSaturation)
             .putString("selected_filter", selected)
             .apply()
-        Toast.makeText(context, "Đã nạp Film Recipe $slot", Toast.LENGTH_SHORT).show()
+        localizedToast(context, "Đã nạp Film Recipe $slot", Toast.LENGTH_SHORT).show()
     }
     var lensCorrectionEnabled by remember { mutableStateOf(prefs.getBoolean("lens_correction_enabled", true)) }
     var shutterSound by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
@@ -3007,13 +3007,13 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                 val imported = withContext(Dispatchers.IO) { importCustomCameraLuts(context, uri) }
                 luts = loadCustomCameraLuts(context)
                 activeLutIds = activeCustomCameraLutIds(context)
-                Toast.makeText(
+                localizedToast(
                     context,
                     "Đã nhập " + imported.size + " LUT. Chọn Add để bật từng bộ lọc.",
                     Toast.LENGTH_LONG
                 ).show()
             } catch (failure: Throwable) {
-                Toast.makeText(
+                localizedToast(
                     context,
                     "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
                     Toast.LENGTH_LONG

@@ -3525,10 +3525,10 @@ fun applyCameraWatermark(
             "data_card" -> {
                 drawTemplateFooter(frameColor)
                 val values = buildList {
-                    if (showFocal) exifFocal?.let { add("FOCAL" to it) }
-                    if (showAperture) exifAperture?.let { add("APERTURE" to it) }
-                    if (showShutter) exifShutter?.let { add("SHUTTER" to it) }
-                    if (showIso) exifIso?.let { add("ISO" to "ISO $it") }
+                    if (showSpecs && showFocal) exifFocal?.let { add("FOCAL" to it) }
+                    if (showSpecs && showAperture) exifAperture?.let { add("APERTURE" to it) }
+                    if (showSpecs && showShutter) exifShutter?.let { add("SHUTTER" to it) }
+                    if (showSpecs && showIso) exifIso?.let { add("ISO" to "ISO $it") }
                 }
                 val columnCount = values.size.coerceAtLeast(1)
                 val columnWidth = footerWidth / columnCount
@@ -3913,9 +3913,9 @@ fun applyCameraWatermark(
             "exposure_dial" -> {
                 drawTemplateFooter(frameColor)
                 val dialLabels = buildList {
-                    if (showAperture) exifAperture?.let { add("F" to it) }
-                    if (showShutter) exifShutter?.let { add("SS" to it) }
-                    if (showIso) exifIso?.let { add("ISO" to it) }
+                    if (showSpecs && showAperture) exifAperture?.let { add("F" to it) }
+                    if (showSpecs && showShutter) exifShutter?.let { add("SS" to it) }
+                    if (showSpecs && showIso) exifIso?.let { add("ISO" to it) }
                 }
                 val dialRadius = footerHeight * 0.28f
                 val columnWidth = footerWidth / dialLabels.size.coerceAtLeast(1)

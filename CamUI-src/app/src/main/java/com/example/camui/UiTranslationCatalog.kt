@@ -349,6 +349,16 @@ internal object UiTranslationCatalog {
         "Xử lý ảnh gốc thiết bị · tối ưu tông sáng và chi tiết" to "Device-native photo processing · optimizing tones and detail",
         "Đang giữ trọn khung ảnh theo tỷ lệ đã chọn" to "Preserving the full frame at the selected aspect ratio",
         "Đang đóng watermark ở độ phân giải cuối" to "Applying watermark at final output resolution",
+        "NightShotMode: căn khung và giảm nhiễu" to "NightShotMode: aligning frames and reducing noise",
+        "Milky Way: căn chỉnh sao và giảm nhiễu" to "Milky Way: aligning stars and reducing noise",
+        "Multi-frame: ghép 5 khung" to "Multi-frame: merging 5 frames",
+        "NightShotMode · ghép đa khung" to "NightShotMode · multi-frame merge",
+        "NightShotMode · chụp đêm" to "NightShotMode · night capture",
+        "Xử lý ảnh gốc thiết bị · ISP + tối ưu tông/chi tiết" to
+            "Device-native photo processing · ISP + tone/detail optimization",
+        "Xử lý ảnh gốc thiết bị chưa hoàn tất · giữ ảnh JPEG" to
+            "Device-native photo processing did not finish · preserving JPEG",
+        "Chụp RAW" to "RAW capture",
         "Không thu đủ dữ liệu hoặc engine không trả kết quả ghép" to "Insufficient capture data or the engine returned no merged result",
         "Không nội suy độ phân giải" to "No resolution interpolation",
         "Không công bố" to "Not reported",
@@ -491,6 +501,54 @@ internal object UiTranslationCatalog {
         Regex("^Bạn có chắc chắn muốn xóa LUT \\"(.+)\\"\\? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc\\.$").matchEntire(value)?.let {
             return "Are you sure you want to delete LUT \\"${it.groupValues[1]}\\"? This LUT will also be removed from Filters."
         }
+        Regex("^Đang ghép vệt sao · (\\d+) khung hình$").matchEntire(value)?.let {
+            return "Merging Star Trails · ${it.groupValues[1]} frames"
+        }
+        Regex("^Không thể đặt khoảng nét (\\d+); dừng Focus Bracketing\\.$").matchEntire(value)?.let {
+            return "Could not set focus position ${it.groupValues[1]}; stopping Focus Bracketing."
+        }
+        Regex("^Đã ghép ảnh tổng hợp và vẫn giữ (\\d+) ảnh gốc\\.$").matchEntire(value)?.let {
+            return "Merged the composite photo and preserved ${it.groupValues[1]} original photos."
+        }
+        Regex("^Chỉ thu được (\\d+)/(\\d+) khung hình hợp lệ$").matchEntire(value)?.let {
+            return "Captured only ${it.groupValues[1]}/${it.groupValues[2]} valid frames"
+        }
+        Regex("^LunaDream 1\\.5: căn chỉnh và khử nhiễu (\\d+)/5 khung$").matchEntire(value)?.let {
+            return "LunaDream 1.5: aligning and denoising ${it.groupValues[1]}/5 frames"
+        }
+        Regex("^(RawDream 2\\.0|LunaDream 2\\.0): căn chỉnh và khử nhiễu (\\d+)/8 khung$").matchEntire(value)?.let {
+            return "${it.groupValues[1]}: aligning and denoising ${it.groupValues[2]}/8 frames"
+        }
+        Regex("^NightShotMode Milky Way: căn chỉnh và gộp (\\d+)/8 khung$").matchEntire(value)?.let {
+            return "NightShotMode Milky Way: aligning and merging ${it.groupValues[1]}/8 frames"
+        }
+        Regex("^NightShotMode: căn chỉnh và gộp (\\d+) khung$").matchEntire(value)?.let {
+            return "NightShotMode: aligning and merging ${it.groupValues[1]} frames"
+        }
+        Regex("^Multi-frame: căn chỉnh và gộp (\\d+)/5 khung$").matchEntire(value)?.let {
+            return "Multi-frame: aligning and merging ${it.groupValues[1]}/5 frames"
+        }
+        Regex("^LunaDream 1\\.5 · căn chỉnh và ghép (\\d+)/5 khung$").matchEntire(value)?.let {
+            return "LunaDream 1.5 · aligning and merging ${it.groupValues[1]}/5 frames"
+        }
+        Regex("^LunaDream đang tối ưu kích thước (\\d+)MP$").matchEntire(value)?.let {
+            return "LunaDream is optimizing output size to ${it.groupValues[1]}MP"
+        }
+        Regex("^Đã lưu LunaDream 1\\.5 · (\\d+)MP theo giới hạn bộ nhớ\\.$").matchEntire(value)?.let {
+            return "Saved LunaDream 1.5 · ${it.groupValues[1]}MP within memory limits."
+        }
+        Regex("^Đã lưu RawDream 2\\.0 · DNG gốc \\+ JPEG LunaDream 2\\.0 (\\d+)MP theo giới hạn bộ nhớ\\.$").matchEntire(value)?.let {
+            return "Saved RawDream 2.0 · original DNG + LunaDream 2.0 JPEG ${it.groupValues[1]}MP within memory limits."
+        }
+        Regex("^Đã lưu LunaDream 2\\.0 · (\\d+)MP theo giới hạn bộ nhớ\\.$").matchEntire(value)?.let {
+            return "Saved LunaDream 2.0 · ${it.groupValues[1]}MP within memory limits."
+        }
+        Regex("^Đã lưu NightShotMode · (\\d+) khung thực tế\\.$").matchEntire(value)?.let {
+            return "Saved NightShotMode · ${it.groupValues[1]} captured frames."
+        }
+        Regex("^LunaDream không hoàn tất: (.*)\\. Đã lưu JPEG gốc làm ảnh dự phòng\\.$").matchEntire(value)?.let {
+            return "LunaDream did not finish: ${it.groupValues[1]}. The original JPEG was saved as a fallback."
+        }
         translatePrefix(value, vietnamesePrefixes)?.let { return it }
         return null
     }
@@ -529,6 +587,54 @@ internal object UiTranslationCatalog {
         }
         Regex("^Imported (.+) LUT\\. Select Add to enable each filter\\.$").matchEntire(value)?.let {
             return "Đã nhập ${it.groupValues[1]} LUT. Chọn Add để bật từng bộ lọc."
+        }
+        Regex("^Merging Star Trails · (\\d+) frames$").matchEntire(value)?.let {
+            return "Đang ghép vệt sao · ${it.groupValues[1]} khung hình"
+        }
+        Regex("^Could not set focus position (\\d+); stopping Focus Bracketing\\.$").matchEntire(value)?.let {
+            return "Không thể đặt khoảng nét ${it.groupValues[1]}; dừng Focus Bracketing."
+        }
+        Regex("^Merged the composite photo and preserved (\\d+) original photos\\.$").matchEntire(value)?.let {
+            return "Đã ghép ảnh tổng hợp và vẫn giữ ${it.groupValues[1]} ảnh gốc."
+        }
+        Regex("^Captured only (\\d+)/(\\d+) valid frames$").matchEntire(value)?.let {
+            return "Chỉ thu được ${it.groupValues[1]}/${it.groupValues[2]} khung hình hợp lệ"
+        }
+        Regex("^LunaDream 1\\.5: aligning and denoising (\\d+)/5 frames$").matchEntire(value)?.let {
+            return "LunaDream 1.5: căn chỉnh và khử nhiễu ${it.groupValues[1]}/5 khung"
+        }
+        Regex("^(RawDream 2\\.0|LunaDream 2\\.0): aligning and denoising (\\d+)/8 frames$").matchEntire(value)?.let {
+            return "${it.groupValues[1]}: căn chỉnh và khử nhiễu ${it.groupValues[2]}/8 khung"
+        }
+        Regex("^NightShotMode Milky Way: aligning and merging (\\d+)/8 frames$").matchEntire(value)?.let {
+            return "NightShotMode Milky Way: căn chỉnh và gộp ${it.groupValues[1]}/8 khung"
+        }
+        Regex("^NightShotMode: aligning and merging (\\d+) frames$").matchEntire(value)?.let {
+            return "NightShotMode: căn chỉnh và gộp ${it.groupValues[1]} khung"
+        }
+        Regex("^Multi-frame: aligning and merging (\\d+)/5 frames$").matchEntire(value)?.let {
+            return "Multi-frame: căn chỉnh và gộp ${it.groupValues[1]}/5 khung"
+        }
+        Regex("^LunaDream 1\\.5 · aligning and merging (\\d+)/5 frames$").matchEntire(value)?.let {
+            return "LunaDream 1.5 · căn chỉnh và ghép ${it.groupValues[1]}/5 khung"
+        }
+        Regex("^LunaDream is optimizing output size to (\\d+)MP$").matchEntire(value)?.let {
+            return "LunaDream đang tối ưu kích thước ${it.groupValues[1]}MP"
+        }
+        Regex("^Saved LunaDream 1\\.5 · (\\d+)MP within memory limits\\.$").matchEntire(value)?.let {
+            return "Đã lưu LunaDream 1.5 · ${it.groupValues[1]}MP theo giới hạn bộ nhớ."
+        }
+        Regex("^Saved RawDream 2\\.0 · original DNG \\+ LunaDream 2\\.0 JPEG (\\d+)MP within memory limits\\.$").matchEntire(value)?.let {
+            return "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 ${it.groupValues[1]}MP theo giới hạn bộ nhớ."
+        }
+        Regex("^Saved LunaDream 2\\.0 · (\\d+)MP within memory limits\\.$").matchEntire(value)?.let {
+            return "Đã lưu LunaDream 2.0 · ${it.groupValues[1]}MP theo giới hạn bộ nhớ."
+        }
+        Regex("^Saved NightShotMode · (\\d+) captured frames\\.$").matchEntire(value)?.let {
+            return "Đã lưu NightShotMode · ${it.groupValues[1]} khung thực tế."
+        }
+        Regex("^LunaDream did not finish: (.*)\\. The original JPEG was saved as a fallback\\.$").matchEntire(value)?.let {
+            return "LunaDream không hoàn tất: ${it.groupValues[1]}. Đã lưu JPEG gốc làm ảnh dự phòng."
         }
         val reversePrefixes = vietnamesePrefixes.map { Prefix(it.translated, it.source) }
         translatePrefix(value, reversePrefixes)?.let { return it }

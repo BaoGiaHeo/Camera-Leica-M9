@@ -36,6 +36,7 @@ class LanguageImmediateUpdateTest {
         val originalActivity = AtomicReference<MainActivity>()
 
         try {
+            completeFirstRunActivationIfNeeded(device)
             scenario.onActivity { originalActivity.set(it) }
 
             val quickMenuEntry = device.wait(Until.findObject(By.desc("Quick settings")), 10_000L)

@@ -449,7 +449,171 @@ internal object UiTranslationCatalog {
         "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to
             "LunaDream 2.0 did not finish; the 1.5 fallback algorithm was used. Reason:",
         "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật." to
-            "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization, AI and enabled options."
+            "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization, AI and enabled options.",
+        "Chế độ chụp đêm" to "Night capture mode",
+        "Tắt" to "Off",
+        "Phơi sáng lâu · Star Trails" to "Long exposure · Star Trails",
+        "Chụp ảnh bình thường" to "Standard photo capture",
+        "Thời lượng thu khung" to "Capture duration",
+        "Camera liên tục chụp trong khoảng thời gian đã chọn; số khung thực tế tùy tốc độ cảm biến và giới hạn CameraX." to
+            "The camera continuously captures during the selected duration; the actual frame count depends on sensor speed and CameraX limits.",
+        "Mỗi khung dùng màn trập 1, 2, 4 hoặc 8 giây, ISO 800 và lấy nét vô cực khi camera hỗ trợ MANUAL_SENSOR. Máy không hỗ trợ sẽ báo rõ và dùng AE tự động; không giả lập thời gian phơi sáng." to
+            "Each frame uses a 1, 2, 4 or 8 second shutter, ISO 800 and infinity focus when the camera supports MANUAL_SENSOR. Unsupported devices are identified and use automatic AE; exposure time is never simulated.",
+        "Dùng tripod, tắt flash và hướng máy vào bầu trời. Nhấn nút chụp lần nữa để dừng sau khung hiện tại; ứng dụng sẽ ghép các vị trí sao sáng thành vệt dài. Chỉ tự dừng sớm khi bộ nhớ tạm gần đầy." to
+            "Use a tripod, turn off the flash and point the camera at the sky. Press the shutter again to stop after the current frame; the app merges bright star positions into trails. It stops early only when temporary storage is nearly full.",
+        "Bật để dùng nhánh căn chỉnh và ghép khung bầu trời trong NightShotMode. Tắt mặc định; không hoạt động ở Photo thường." to
+            "Enable the sky-frame alignment and stacking pipeline in NightShotMode. Disabled by default; it does not run in standard Photo mode.",
+        "Engine HDR tone mapping độc lập, tự điều chỉnh mức xử lý theo dữ liệu sáng/tối và tài nguyên thiết bị. HDR không thay đổi độ phân giải đầu ra của LunaDream." to
+            "The independent HDR tone-mapping engine adjusts processing based on highlight/shadow data and device resources. HDR does not change LunaDream output resolution.",
+        "RAW lưu DNG gốc theo dữ liệu cảm biến. RawDream 2.0 chụp đồng thời DNG và JPEG; JPEG được căn chỉnh, ghép đa khung, khử nhiễu và phục hồi chi tiết bằng LunaDream 2.0, đầu ra mục tiêu 108MP. RawDream 2.0 không kết hợp NightShotMode, Star Trails, Burst hoặc Bracketing. Nếu camera không hỗ trợ đồng thời RAW + JPEG, ứng dụng báo lỗi và không tự chuyển sang JPEG thường." to
+            "RAW saves the original sensor data as DNG. RawDream 2.0 captures DNG and JPEG together; the JPEG is aligned, multi-frame merged, denoised and detail-recovered by LunaDream 2.0, targeting 108MP output. RawDream 2.0 cannot be combined with NightShotMode, Star Trails, Burst or Bracketing. If the camera cannot capture RAW + JPEG simultaneously, the app reports an error and does not silently switch to standard JPEG.",
+        "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2); không có xử lý AI sau chụp. Ultra HDR giữ nguyên dữ liệu JPEG_R." to
+            "Off disables noise reduction. Low / Medium / High use only the camera's built-in Camera2 noise-reduction algorithms; no post-capture AI processing is applied. Ultra HDR preserves the JPEG_R data.",
+        "Quét Camera2 công khai, Physical Camera và vendor metadata được HAL công bố." to
+            "Scan public Camera2 cameras, physical cameras and vendor metadata exposed by the HAL.",
+        "QUÉT LẠI PHẦN CỨNG CAMERA" to "RESCAN CAMERA HARDWARE",
+        "Không thể hoàn tất quét" to "Scan could not be completed",
+        "Camera ID công khai" to "Public Camera IDs",
+        "Physical ID được công bố" to "Reported physical IDs",
+        "Tổng mục đã đọc" to "Total entries read",
+        "Nhóm camera chạy đồng thời" to "Concurrent camera groups",
+        "ID không đọc được" to "Unreadable IDs",
+        "Chưa tìm thấy camera" to "No cameras found",
+        "Không có Camera ID nào được hệ thống công khai cho ứng dụng. Hãy kiểm tra quyền Camera và thử quét lại." to
+            "The system has not exposed any Camera IDs to this app. Check Camera permission and scan again.",
+        "Hướng" to "Facing",
+        "Tiêu cự" to "Focal length",
+        "Tương đương 35mm" to "35mm equivalent",
+        "Không công bố / không manual focus" to "Not reported / no manual focus",
+        "Kích thước cảm biến" to "Sensor size",
+        "JPEG lớn nhất" to "Maximum JPEG",
+        "RAW_SENSOR lớn nhất" to "Maximum RAW_SENSOR",
+        "Zoom số tối đa" to "Maximum digital zoom",
+        "Vendor metadata mở rộng" to "Extended vendor metadata",
+        "Key riêng của OEM được HAL công bố trên camera truy cập được" to
+            "OEM-specific keys exposed by the HAL on accessible cameras",
+        "Không có vendor key ngoài namespace Android được công bố trong metadata đọc được." to
+            "No vendor keys outside the Android namespace were exposed in the readable metadata.",
+        "Camera ID OEM không công khai" to "Non-public OEM camera IDs",
+        "Giới hạn truy cập của Android" to "Android access limitations",
+        "Scanner đã kiểm tra Logical Camera, các Physical ID mà OEM đưa vào metadata và vendor metadata có thể đọc được. Camera ID bị camera service/firmware ẩn hoàn toàn không thể được liệt kê bằng API Android công khai; muốn truy cập cần OEM/system API hoặc quyền hệ thống. App không tạo ID giả và không dùng root/hidden-API reflection để vượt giới hạn." to
+            "The scanner checked logical cameras, physical IDs provided by the OEM in metadata and readable vendor metadata. Camera IDs fully hidden by the camera service or firmware cannot be listed through public Android APIs; accessing them requires OEM/system APIs or system permissions. The app does not invent IDs or use root/hidden-API reflection to bypass these limits.",
+        "Hiện hoặc ẩn tốc độ màn trập trong hàng Pro HUD." to "Show or hide shutter speed in the Pro HUD row.",
+        "Hiện hoặc ẩn độ nhạy ISO trong hàng Pro HUD." to "Show or hide ISO sensitivity in the Pro HUD row.",
+        "Hiện hoặc ẩn trạng thái lấy nét trong hàng Pro HUD." to "Show or hide focus status in the Pro HUD row.",
+        "Hiện hoặc ẩn nhiệt độ màu / cân bằng trắng trong hàng Pro HUD." to "Show or hide color temperature / white balance in the Pro HUD row.",
+        "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview." to "Histogram of red, green and blue channels from the preview frame.",
+        "Ưu tiên khuôn mặt khi Camera2/HAL công bố face detection; tự đưa AF về vùng mặt." to
+            "Prioritize faces when Camera2/HAL exposes face detection; move AF to the detected face region.",
+        "Giảm trượt/scale khi máy nóng hoặc khi bật thủ công; Android tự kích hoạt khi nhiệt độ đạt mức trung bình." to
+            "Reduce sliding and scaling when the device is hot or when manually enabled; Android activates this automatically at a moderate thermal level.",
+        "Yêu cầu Camera2/HAL hiệu chỉnh méo hình, viền màu và tối góc bằng các chế độ công khai nếu ống kính hỗ trợ; không tự bịa dữ liệu lens profile." to
+            "Request public Camera2/HAL correction for distortion, chromatic aberration and vignetting when supported by the lens; no lens profiles are fabricated.",
+        "Đánh dấu vùng sáng gần cháy sáng trên kính ngắm (không ảnh hưởng ảnh lưu)." to
+            "Mark near-clipped highlights in the viewfinder; this does not affect saved photos.",
+        "Đo độ nghiêng bằng cảm biến thiết bị và hiển thị đường chân trời trong kính ngắm." to
+            "Measure device tilt using its sensors and show the horizon in the viewfinder.",
+        "Chụp 3 khung JPEG với EV thấp / chuẩn / cao nếu camera công bố dải phơi sáng." to
+            "Capture three JPEG frames at low / normal / high EV when the camera exposes an exposure-compensation range.",
+        "Chụp 5 khoảng nét từ gần đến vô cực khi ống kính hỗ trợ lấy nét thủ công." to
+            "Capture five focus distances from near to infinity when the lens supports manual focus.",
+        "Trống" to "Empty",
+        "Chưa lưu" to "Not saved",
+        "NẠP" to "LOAD",
+        "LUT tùy chỉnh" to "Custom LUT",
+        "Tệp LUT vượt quá giới hạn dung lượng cho phép." to "The LUT file exceeds the allowed size limit.",
+        "LUT nhập" to "Imported LUT",
+        "ZIP LUT lồng quá nhiều cấp." to "The LUT ZIP contains too many nested levels.",
+        "ZIP chứa quá nhiều tệp." to "The ZIP contains too many files.",
+        "Dung lượng giải nén ZIP vượt giới hạn an toàn." to "The expanded ZIP size exceeds the safety limit.",
+        "Tệp .cube bên trong ZIP không đúng định dạng LUT 3D." to "The .cube file inside the ZIP is not a valid 3D LUT.",
+        "Tệp .bin không phải LUT RGB 33x33x33 được hỗ trợ." to "The .bin file is not a supported 33x33x33 RGB LUT.",
+        "Gói LUT vượt quá $MAX_LUTS_PER_IMPORT bộ lọc." to "The LUT package exceeds the limit of $MAX_LUTS_PER_IMPORT filters.",
+        "LUT đã nhập" to "Imported LUT",
+        "Không thể mở tệp LUT đã chọn." to "Could not open the selected LUT file.",
+        "Tệp .cube không hợp lệ hoặc không phải LUT 3D." to "The .cube file is invalid or is not a 3D LUT.",
+        "Hỗ trợ .cube, LUT .bin RGB 33x33x33 và ZIP chứa các định dạng này." to
+            "Supports .cube, 33x33x33 RGB .bin LUTs and ZIP files containing these formats.",
+        "Không tìm thấy LUT .cube hoặc .bin hợp lệ bên trong ZIP." to "No valid .cube or .bin LUT was found in the ZIP.",
+        "Tìm LUT theo tên hoặc nhóm" to "Search LUTs by name or category",
+        "ĐANG NHẬP LUT…" to "IMPORTING LUT…",
+        "Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT." to
+            "No LUTs yet. Supports .cube, Canon RGB .bin and ZIP files containing multiple LUTs.",
+        "HỦY" to "CANCEL",
+        "XÓA" to "DELETE",
+        "Thông tin ảnh" to "Photo information",
+        "Không thể đọc metadata: " to "Could not read metadata: ",
+        "Chưa có ảnh. Ảnh chụp trong ứng dụng sẽ xuất hiện ở đây." to
+            "No photos yet. Photos captured in the app will appear here.",
+        "Ảnh trong album" to "Photo in album",
+        "Không có" to "Not available",
+        "Không có dữ liệu phiên LunaDream" to "No LunaDream session data",
+        "Không ghi nhận" to "Not recorded",
+        "Không có EXIF" to "No EXIF",
+        "Tên tệp" to "File name",
+        "Độ phân giải" to "Resolution",
+        "Dung lượng" to "File size",
+        "Định dạng" to "Format",
+        "Thiết bị" to "Device",
+        "Camera ID logic" to "Logical Camera ID",
+        "Physical Camera ID thực tế" to "Actual Physical Camera ID",
+        "Ống kính" to "Lens",
+        "Tốc độ màn trập" to "Shutter speed",
+        "Khẩu độ" to "Aperture",
+        "Ngày chụp" to "Capture date",
+        "Độ nét (ước tính)" to "Sharpness (estimated)",
+        "Vùng cháy sáng" to "Highlight clipping",
+        "Vùng tối bệt" to "Shadow clipping",
+        "Nhiễu nền (ước tính)" to "Noise level (estimated)",
+        "Gợi ý chất lượng" to "Quality recommendation",
+        "Kích thước sau xử lý" to "Processed output size",
+        "Trạng thái LunaDream" to "LunaDream status",
+        "Không phân tích được" to "Could not analyze",
+        "Không có dữ liệu phiên LunaDream" to "No LunaDream session data",
+        "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ" to
+            "50MP · single capture · direct processing, optimized for speed",
+        "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa" to
+            "108MP · multi-frame · prioritizes maximum detail recovery",
+        "Milky Way được bật/tắt trong Cài đặt → NightShotMode." to
+            "Milky Way can be toggled in Settings → NightShotMode.",
+        "Không mở được tệp đích" to "Could not open the destination file",
+        "Đã xuất bản sao lưu cài đặt." to "Settings backup exported.",
+        "Không thể tạo bản sao lưu. Hãy kiểm tra vị trí lưu và thử lại." to
+            "Could not create the backup. Check the save location and try again.",
+        "Không đọc được tệp" to "Could not read the file",
+        "Đã khôi phục cài đặt camera, zoom và các tính năng đã bật." to
+            "Camera settings, zoom and enabled features have been restored.",
+        "Không thể khôi phục. Hãy chọn tệp sao lưu Fujifilm Mode hợp lệ." to
+            "Could not restore. Select a valid FujiFilm Mode backup file.",
+        "XUẤT BẢN SAO LƯU" to "EXPORT BACKUP",
+        "KHÔI PHỤC BẢN SAO LƯU" to "RESTORE BACKUP",
+        "Lưu ý: tệp này lưu cấu hình camera, frame và ảnh nút chụp; không nhúng tệp frame/ảnh gốc. Sau khi cài lại ứng dụng hoặc chuyển máy, cần nhập lại frame/ảnh tùy chỉnh và cấp quyền đọc chúng." to
+            "Note: this file stores camera settings, frames and shutter-button images; it does not embed the original frame/image files. After reinstalling the app or moving to another device, re-import custom frames/images and grant read access.",
+        "Không đúng định dạng Fujifilm Mode" to "Invalid FujiFilm Mode format",
+        "Phiên bản sao lưu không được hỗ trợ" to "Backup version is not supported",
+        "Thiếu dữ liệu cài đặt" to "Missing settings data",
+        "Thiếu cấu hình camera" to "Missing camera settings",
+        "Không ghi được cấu hình camera" to "Could not write camera settings",
+        "Không ghi được danh sách nội dung" to "Could not write the content list",
+        "Import ảnh cho nút chụp" to "Import shutter button image",
+        "Đổi ảnh nút chụp" to "Change shutter button image",
+        "Âm thanh màn trập của ảnh chụp." to "Photo shutter sound.",
+        "Click nhẹ theo từng nấc của vòng zoom và command dial." to "Subtle clicks for each zoom-ring and command-dial detent.",
+        "Tick phím, clack công tắc và tiếng xác nhận panel." to "Key ticks, switch clacks and panel confirmation sounds.",
+        "Rung nhẹ khi xoay núm, gạt công tắc và nhấn nửa cò." to "Subtle haptics when turning dials, toggling switches and half-pressing the shutter.",
+        "Phơi sáng 1–8 giây mỗi khung trên máy hỗ trợ; nhấn chụp lần nữa để dừng rồi ghép vệt sao" to
+            "1–8 second exposure per frame on supported devices; press the shutter again to stop and merge star trails",
+        "Tắt mặc định; không hoạt động ở Photo thường." to "Off by default; inactive in standard Photo mode.",
+        "QUÉT LẠI PHẦN CỨNG CAMERA" to "RESCAN CAMERA HARDWARE",
+        "Physical ID được công bố" to "Reported physical IDs",
+        "Tổng mục đã đọc" to "Total entries read",
+        "Nhóm camera chạy đồng thời" to "Concurrent camera groups",
+        "ID không đọc được" to "Unreadable IDs",
+        "Chưa tìm thấy camera" to "No cameras found",
+        "Camera ID OEM không công khai" to "Non-public OEM Camera IDs",
+        "Giới hạn truy cập của Android" to "Android access limits",
+        "Còn " to "Remaining "
+
     )
 
     private val additionalEnglishToVietnamese = mapOf(

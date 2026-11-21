@@ -41,7 +41,7 @@ android {
         release {
             // The deliverable keeps the requested .developer application ID,
             // matching the Developer test variant and preserving install/upgrade identity.
-            applicationIdSuffix = ".developer"
+            // Release package is the requested stable application ID: com.fujifilm.mode.
             isMinifyEnabled = false
             buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "false")
             // Debug signing keeps CI output directly installable for on-device testing.

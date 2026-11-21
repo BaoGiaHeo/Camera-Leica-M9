@@ -316,7 +316,88 @@ internal object UiTranslationCatalog {
         "Chưa thêm · " to "Not added · ",
         "Thông tin" to "Information",
         "Đóng" to "Close",
-        "Bộ lọc" to "Filter"
+        "Bộ lọc" to "Filter",
+        "Camera không hỗ trợ phơi sáng thủ công; Star Trails dùng AE tự động. Nhấn lần nữa để dừng và ghép." to
+            "Manual exposure is unsupported; Star Trails is using automatic exposure. Press again to stop and merge.",
+        "AE tự động · không hỗ trợ manual sensor" to "Automatic AE · manual sensor unsupported",
+        "Đang hoàn tất ảnh Star Trails" to "Finishing Star Trails image",
+        "Đang ghép HDR Bracketing" to "Merging HDR Bracketing",
+        "Đang ghép Focus Stack" to "Merging Focus Stack",
+        "HDR Fusion · đang ghép vùng phơi sáng" to "HDR Fusion · merging exposure regions",
+        "Focus Stack · đang chọn vùng nét" to "Focus Stack · selecting focused regions",
+        "Không đủ khung hình để ghép; các ảnh chụp thành công vẫn được giữ." to
+            "Not enough frames to merge; successfully captured photos are preserved.",
+        "Ghép ảnh chưa thành công; toàn bộ ảnh gốc vẫn được giữ." to
+            "Image merging failed; all original photos are preserved.",
+        "Đang giữ nguyên dữ liệu Ultra HDR" to "Preserving original Ultra HDR data",
+        "LunaDream 1.5 · chuẩn bị ghép tối đa 5 khung" to "LunaDream 1.5 · preparing to merge up to 5 frames",
+        "RawDream 2.0 · chuẩn bị ghép 8 khung, giữ DNG gốc" to "RawDream 2.0 · preparing to merge 8 frames and preserve the original DNG",
+        "LunaDream 2.0 · chuẩn bị ghép 8 khung" to "LunaDream 2.0 · preparing to merge 8 frames",
+        "NightShotMode Milky Way · chuẩn bị căn chỉnh 8 khung" to "NightShotMode Milky Way · preparing to align 8 frames",
+        "NightShotMode · chuẩn bị căn chỉnh và ghép nhiều khung" to "NightShotMode · preparing to align and merge multiple frames",
+        "Đang xử lý Software HDR" to "Processing Software HDR",
+        "Ảnh đang được xử lý" to "Processing photo",
+        "LunaDream 1.5 Render · khử nhiễu và phục hồi chi tiết" to "LunaDream 1.5 Render · denoising and detail recovery",
+        "RawDream 2.0 Render · hoàn thiện ảnh JPEG" to "RawDream 2.0 Render · finishing JPEG",
+        "LunaDream 2.0 Render · khử nhiễu và phục hồi chi tiết" to "LunaDream 2.0 Render · denoising and detail recovery",
+        "NightShot Render · đang hoàn tất ảnh đã ghép" to "NightShot Render · finishing merged photo",
+        "LunaDream 2.0 · đang hoàn tất bằng dự phòng 1.5" to "LunaDream 2.0 · finishing with 1.5 fallback",
+        "RawDream 2.0 · đang hoàn tất JPEG bằng dự phòng LunaDream 1.5" to "RawDream 2.0 · finishing JPEG with LunaDream 1.5 fallback",
+        "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép" to "LunaDream Render · RawDream 2.0 processing merged JPEG",
+        "LunaDream Render · 2.0 đang phục hồi chi tiết" to "LunaDream Render · 2.0 detail recovery",
+        "Đang hoàn tất ảnh" to "Finishing photo",
+        "Xử lý ảnh gốc thiết bị · tối ưu tông sáng và chi tiết" to "Device-native photo processing · optimizing tones and detail",
+        "Đang giữ trọn khung ảnh theo tỷ lệ đã chọn" to "Preserving the full frame at the selected aspect ratio",
+        "Đang đóng watermark ở độ phân giải cuối" to "Applying watermark at final output resolution",
+        "Không thu đủ dữ liệu hoặc engine không trả kết quả ghép" to "Insufficient capture data or the engine returned no merged result",
+        "Không nội suy độ phân giải" to "No resolution interpolation",
+        "Không công bố" to "Not reported",
+        "HAL không công bố" to "Not reported by HAL",
+        "Chụp ảnh thường" to "Standard photo capture",
+        "LunaDream không thể hoàn tất; ảnh gốc đã được giữ. Lý do:" to
+            "LunaDream could not finish; the original photo was preserved. Reason:",
+        "LunaDream không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to
+            "LunaDream did not finish; the 1.5 fallback algorithm was used. Reason:",
+        "LunaDream không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:" to
+            "LunaDream did not finish; the 1.5 fallback algorithm was used. Reason:",
+        "LunaDream đã ghép và phục hồi ảnh nhưng không thể đạt kích thước đầu ra an toàn; ảnh đã xử lý được giữ lại." to
+            "LunaDream merged and recovered the photo but could not safely reach the requested output size; the processed image was preserved.",
+        "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn." to
+            "RawDream 2.0 preserved the original DNG and merged the JPEG with LunaDream 2.0, but could not safely upscale the JPEG.",
+        "NightShotMode đã xử lý bằng chế độ NIGHT của camera." to
+            "NightShotMode was processed using the camera's NIGHT mode.",
+        "NightShotMode không ghép đủ khung hình; ảnh gốc vẫn được giữ." to
+            "NightShotMode could not merge enough frames; the original photo is preserved.",
+        "Đã lưu Ultra HDR nguyên bản và giữ gain map. Watermark được bỏ qua để bảo toàn gain map." to
+            "Saved original Ultra HDR and preserved the gain map. Watermark was skipped to preserve the gain map.",
+        "Đã lưu Ultra HDR nguyên bản. Watermark được bỏ qua để bảo toàn gain map." to
+            "Saved original Ultra HDR. Watermark was skipped to preserve the gain map.",
+        "Đã lưu ảnh đúng tỉ lệ, đúng hướng, có màu và watermark." to "Saved the photo at the correct ratio and orientation, with color and watermark.",
+        "Đã lưu ảnh đúng tỉ lệ, đúng hướng và có watermark." to "Saved the photo at the correct ratio and orientation, with watermark.",
+        "Watermark đã đóng nhưng tỉ lệ/hướng ảnh chưa được xác minh." to "Watermark was applied, but image ratio/orientation has not been verified.",
+        "Đã lưu ảnh đúng tỉ lệ, đúng hướng và áp dụng bộ lọc màu." to "Saved the photo at the correct ratio and orientation with the color filter applied.",
+        "Đã áp dụng màu nhưng chưa xác minh được tỉ lệ/hướng ảnh." to "Color was applied, but image ratio/orientation could not be verified.",
+        "Đã lưu ảnh đã tối ưu kích thước đầu ra." to "Saved the photo with optimized output dimensions.",
+        "Đã lưu ảnh đúng hướng; đã áp dụng Software HDR." to "Saved the photo in the correct orientation with Software HDR applied.",
+        "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album." to "Saved the photo at the correct ratio and normalized its metadata in the album.",
+        "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh." to
+            "The photo was saved, but its ratio/orientation metadata could not be verified. Please check the photo.",
+        "Ảnh đã chụp nhưng MediaStore không trả về URI." to "Photo captured, but MediaStore did not return a URI.",
+        "Ảnh đã chụp nhưng hậu kỳ gặp lỗi; tệp ảnh hợp lệ gần nhất đã được giữ. Lý do:" to
+            "The photo was captured, but post-processing failed; the most recent valid image file was preserved. Reason:",
+        "Không thể tạo preview cho bộ lọc này" to "Could not create a preview for this filter",
+        "Đang tạo preview…" to "Creating preview…",
+        "MILKY WAY INTELLIGENCE · CẢNH TỐI" to "MILKY WAY INTELLIGENCE · DARK SCENE",
+        "HAL không công bố Manual Sensor · chụp Auto riêng lẻ, Astro Stack không khả dụng" to
+            "HAL does not report Manual Sensor support · single Auto captures only; Astro Stack is unavailable",
+        "Gợi ý từ độ sáng preview và thông số ống kính; không đo được mây / trăng / ô nhiễm sáng." to
+            "Suggestions are based on preview brightness and lens metadata; clouds, moonlight and light pollution are not measured.",
+        "Khuyên dùng tripod; camera hỗ trợ manual sensor mới dùng được 1–8 giây thật" to
+            "A tripod is recommended; true 1–8 second exposures require Manual Sensor support.",
+        "NO SIGNAL\nCần cấp quyền Camera (chạm để cấp)" to "NO SIGNAL\nCamera permission required (tap to grant)",
+        "Dùng nút màu" to "Use color button",
+        "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật." to
+            "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization, AI and enabled options."
     )
 
     private val additionalEnglishToVietnamese = mapOf(

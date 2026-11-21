@@ -83,3 +83,4 @@ class WatermarkMetadataPolicyTest {
             visibleWatermarkExposureFields(values, true, true, false, false, true)
         )
     }
+}

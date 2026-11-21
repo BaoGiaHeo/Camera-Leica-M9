@@ -133,4 +133,18 @@
     <string name="watermark_field_megapixels">MP</string>
     <string name="watermark_studio_copyright_placeholder">Name after ©</string>
     <string name="watermark_studio_location_auto_note">Location uses the custom label or source-photo GPS metadata; it is hidden when neither is available.</string>
+    <string name="mf_mode_ld15">LD 1.5</string>
+    <string name="mf_mode_ld20">LD 2.0</string>
+    <string name="mf_mode_night">NIGHT</string>
+    <string name="mf_stage_capture">CAPTURE</string>
+    <string name="mf_stage_align">ALIGN</string>
+    <string name="mf_stage_merge">MERGE</string>
+    <string name="mf_stage_tone">TONE MAP</string>
+    <string name="mf_stage_save">SAVE</string>
+    <string name="mf_hold_steady">HOLD STEADY</string>
+    <string name="mf_move_freely">MOVE FREELY</string>
+    <string name="mf_thermal_warm">WARM</string>
+    <string name="mf_thermal_hot">HOT</string>
+    <string name="mf_error_short">ERR</string>
+    <string name="mf_temperature_format">%1$d°C</string>
 </resources>

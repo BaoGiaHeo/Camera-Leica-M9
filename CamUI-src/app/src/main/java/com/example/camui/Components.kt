@@ -510,6 +510,7 @@ private val vietnameseUi = buildMap {
 
 private fun translateFullUiText(value: String, language: String): String? {
     if (language != "en") return null
+    UiTranslationCatalog.toEnglish(value)?.let { return it }
     fullEnglishUi[value]?.let { return it }
     val dynamic = listOf(
         "Camera ID " to "Camera ID ",
@@ -546,6 +547,7 @@ private fun translateFullUiText(value: String, language: String): String? {
 
 private fun translateUiText(value: String, language: String): String {
     if (language == "vi") {
+        UiTranslationCatalog.toVietnamese(value)?.let { return it }
         vietnameseUi[value]?.let { return it }
         val dynamicVietnamese = listOf(
             "LunaDream 1.5: capturing frame " to "LunaDream 1.5: thu khung ",

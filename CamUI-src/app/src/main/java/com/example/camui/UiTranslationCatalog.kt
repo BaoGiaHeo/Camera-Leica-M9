@@ -528,7 +528,6 @@ internal object UiTranslationCatalog {
         "Dung lượng giải nén ZIP vượt giới hạn an toàn." to "The expanded ZIP size exceeds the safety limit.",
         "Tệp .cube bên trong ZIP không đúng định dạng LUT 3D." to "The .cube file inside the ZIP is not a valid 3D LUT.",
         "Tệp .bin không phải LUT RGB 33x33x33 được hỗ trợ." to "The .bin file is not a supported 33x33x33 RGB LUT.",
-        "Gói LUT vượt quá $MAX_LUTS_PER_IMPORT bộ lọc." to "The LUT package exceeds the limit of $MAX_LUTS_PER_IMPORT filters.",
         "LUT đã nhập" to "Imported LUT",
         "Không thể mở tệp LUT đã chọn." to "Could not open the selected LUT file.",
         "Tệp .cube không hợp lệ hoặc không phải LUT 3D." to "The .cube file is invalid or is not a 3D LUT.",
@@ -720,6 +719,12 @@ internal object UiTranslationCatalog {
         Regex("^(\\d+) ảnh$").matchEntire(value)?.let {
             return "${it.groupValues[1]} photos"
         }
+        Regex("^(\\d+) giây$").matchEntire(value)?.let {
+            return "${it.groupValues[1]} seconds"
+        }
+        Regex("^Gói LUT vượt quá (\\d+) bộ lọc\\.$").matchEntire(value)?.let {
+            return "The LUT package exceeds the limit of ${it.groupValues[1]} filters."
+        }
         Regex("^Hiển thị (\\d+) / (\\d+) LUT khớp · Tổng (\\d+)$").matchEntire(value)?.let {
             return "Showing ${it.groupValues[1]} / ${it.groupValues[2]} matching LUTs · Total ${it.groupValues[3]}"
         }
@@ -817,6 +822,12 @@ internal object UiTranslationCatalog {
         }
         Regex("^(\\d+) photos$").matchEntire(value)?.let {
             return "${it.groupValues[1]} ảnh"
+        }
+        Regex("^(\\d+) seconds$").matchEntire(value)?.let {
+            return "${it.groupValues[1]} giây"
+        }
+        Regex("^The LUT package exceeds the limit of (\\d+) filters\\.$").matchEntire(value)?.let {
+            return "Gói LUT vượt quá ${it.groupValues[1]} bộ lọc."
         }
         Regex("^Showing (\\d+) / (\\d+) matching LUTs · Total (\\d+)$").matchEntire(value)?.let {
             return "Hiển thị ${it.groupValues[1]} / ${it.groupValues[2]} LUT khớp · Tổng ${it.groupValues[3]}"

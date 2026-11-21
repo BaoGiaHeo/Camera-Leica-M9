@@ -143,6 +143,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkGpsFormatter.kt \
+            CamUI-src/app/src/main/java/com/example/camui/WatermarkMetadataPolicy.kt \
             CamUI-src/app/src/main/res/font/share_tech_mono.ttf \
             CamUI-src/app/src/main/res/values/strings.xml \
             CamUI-src/app/src/main/res/values-vi/strings.xml \
@@ -168,6 +169,7 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdInvalidationTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdGeometryTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/WatermarkGpsFormatterTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/WatermarkMetadataPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdStatusTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdSpriteCoverageTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/ZoomHapticMilestonesTest.kt \

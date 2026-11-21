@@ -23,7 +23,9 @@ class CameraAfLabelContractTest {
         val pixelText = pixelRenderer.readText()
         assertTrue(
             "The pixel LCD must draw AF/AF-L instead of an instructional prompt.",
-            pixelText.contains("if (frame.focusLocked) \"AF-L\" else \"AF\"")
+            pixelText.contains("if (frame.focusLocked) \"AF-L\" else frame.afModeText.ifBlank { \"AF\" }.take(6)") &&
+                pixelText.contains("element.id == \"status-af\" && frame.focusLocked") &&
+                pixelText.contains("PixelOsdPalette.GREEN")
         )
     }
 

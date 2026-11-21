@@ -216,7 +216,7 @@ internal object UiTranslationCatalog {
         "Sao lưu camera trước/sau, tỷ lệ khung hình, zoom, chế độ Pro/Photo, flash, hẹn giờ, HDR, UHD, chống rung, AI và các tùy chọn đã bật." to
             "Back up front/rear camera selection, aspect ratio, zoom, Pro/Photo mode, flash, timer, HDR, UHD, stabilization, AI and enabled options.",
         "Night capture and Star Trails use separate processing pipelines" to
-            "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng."
+            "Chụp đêm và Star Trails sử dụng các pipeline xử lý riêng.",
         "Thông tin" to "Information",
         "Đóng" to "Close",
         "Ảnh gốc" to "Original photo",
@@ -668,7 +668,7 @@ internal object UiTranslationCatalog {
         "Không ghi nhận" to "Not recorded",
         "LUT MANAGER" to "LUT MANAGER",
         "DELETE LUT" to "DELETE LUT",
-        "PHOTO INSPECTOR" to "PHOTO INSPECTOR"
+        "PHOTO INSPECTOR" to "PHOTO INSPECTOR",
 
         "Import ảnh cho nút chụp" to "Import shutter button image",
         "Đổi ảnh nút chụp" to "Change shutter button image",

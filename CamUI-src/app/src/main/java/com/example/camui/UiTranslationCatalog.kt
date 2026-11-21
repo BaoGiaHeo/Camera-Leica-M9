@@ -594,6 +594,45 @@ internal object UiTranslationCatalog {
         "Thiếu cấu hình camera" to "Missing camera settings",
         "Không ghi được cấu hình camera" to "Could not write camera settings",
         "Không ghi được danh sách nội dung" to "Could not write the content list",
+        "Camera không hỗ trợ Ultra HDR; đã chuyển về JPEG thường." to "This camera does not support Ultra HDR; switched to standard JPEG.",
+        "HDR đa khung đang hoạt động; máy không hỗ trợ JPEG_R nên ảnh được lưu dạng JPEG." to
+            "Multi-frame HDR is active; this device does not support JPEG_R, so the photo will be saved as JPEG.",
+        "Đang đồng bộ hướng và tỉ lệ khung ngắm, hãy chụp lại sau một chút." to
+            "Synchronizing viewfinder orientation and aspect ratio; capture again in a moment.",
+        "LunaDream đã ghép ảnh nhưng không đạt độ phân giải yêu cầu. Ảnh được giữ riêng trong Pictures/FujifilmMode/Unprocessed; không xuất như ảnh 50/108MP." to
+            "LunaDream merged the photo but did not reach the requested resolution. The image is kept separately in Pictures/FujifilmMode/Unprocessed and is not exported as a 50/108MP photo.",
+        "LunaDream 2.0 · ghép đa khung và phục hồi chi tiết" to "LunaDream 2.0 · multi-frame merge and detail recovery",
+        "RawDream 2.0 · căn chỉnh và ghép 8 khung" to "RawDream 2.0 · aligning and merging 8 frames",
+        "LunaDream 2.0 · căn chỉnh và ghép 8 khung" to "LunaDream 2.0 · aligning and merging 8 frames",
+        "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn." to
+            "RawDream 2.0 preserved the original DNG and merged the JPEG with LunaDream 2.0, but could not safely upscale the JPEG.",
+        "LunaDream fallback · " to "LunaDream fallback · ",
+        "LunaDream vẫn được giữ làm chế độ đã chọn." to "LunaDream remains the selected mode.",
+        "LunaDream 2.0 đã ghép và phục hồi chi tiết đa khung." to "LunaDream 2.0 merged multiple frames and recovered detail.",
+        "Không lưu được clip Live Photo; ảnh tĩnh vẫn được giữ nếu đã chụp thành công." to
+            "Could not save the Live Photo clip; the still photo is preserved if capture succeeded.",
+        "Astro Stack ×8 cần Manual Sensor, ISO và thời gian phơi sáng do Camera2 công bố." to
+            "Astro Stack ×8 requires Manual Sensor, ISO and exposure time exposed by Camera2.",
+        "Ảnh gốc trước LunaDream" to "Original photo before LunaDream",
+        "Ảnh sau LunaDream" to "Photo after LunaDream",
+        "ẢNH GỐC · TRƯỚC LUNADREAM" to "ORIGINAL · BEFORE LUNADREAM",
+        "ẢNH ĐÃ XỬ LÝ · LUNADREAM" to "PROCESSED · LUNADREAM",
+        "Sau LunaDream" to "After LunaDream",
+        "ĐÓNG" to "CLOSE",
+        "Đổi ảnh nút chụp" to "Change shutter button image",
+        "Âm thanh màn trập của ảnh chụp." to "Photo shutter sound.",
+        "Click nhẹ theo từng nấc của vòng zoom và command dial." to "Subtle clicks for each zoom-ring and command-dial detent.",
+        "Tick phím, clack công tắc và tiếng xác nhận panel." to "Key ticks, switch clacks and panel confirmation sounds.",
+        "Rung nhẹ khi xoay núm, gạt công tắc và nhấn nửa cò." to "Subtle haptics when turning dials, toggling switches and half-pressing the shutter.",
+        "Tắt mặc định; không hoạt động ở Photo thường." to "Disabled by default; not active in standard Photo mode.",
+        "Không có EXIF" to "No EXIF",
+        "Không phân tích được" to "Unable to analyze",
+        "Không có dữ liệu phiên LunaDream" to "No LunaDream session data",
+        "Không ghi nhận" to "Not recorded",
+        "LUT MANAGER" to "LUT MANAGER",
+        "DELETE LUT" to "DELETE LUT",
+        "PHOTO INSPECTOR" to "PHOTO INSPECTOR"
+
         "Import ảnh cho nút chụp" to "Import shutter button image",
         "Đổi ảnh nút chụp" to "Change shutter button image",
         "Âm thanh màn trập của ảnh chụp." to "Photo shutter sound.",
@@ -707,6 +746,42 @@ internal object UiTranslationCatalog {
         Regex("^Đã lưu Star Trails từ (\\d+) khung hình(?: \\(cần kiểm tra lại metadata\\)\\.)?$").matchEntire(value)?.let {
             return "Saved Star Trails from ${it.groupValues[1]} frames."
         }
+        Regex("^Multi-frame: chụp khung (\\d+)/5$").matchEntire(value)?.let {
+            return "Multi-frame: capturing frame ${it.groupValues[1]}/5"
+        }
+        Regex("^NightShotMode: thu khung (\\d+)/(\\d+) · hàng đợi 2$").matchEntire(value)?.let {
+            return "NightShotMode: capturing frame ${it.groupValues[1]}/${it.groupValues[2]} · queue 2"
+        }
+        Regex("^(LunaDream 1\\.5|RawDream 2\\.0|LunaDream 2\\.0|NightShotMode Milky Way): thu khung (\\d+)/(\\d+)$").matchEntire(value)?.let {
+            return "${it.groupValues[1]}: capturing frame ${it.groupValues[2]}/${it.groupValues[3]}"
+        }
+        Regex("^LunaDream 1\\.5 · đang chụp khung đầu tiên$").matchEntire(value)?.let {
+            return "LunaDream 1.5 · capturing first frame"
+        }
+        Regex("^RawDream 2\\.0 · đang chụp khung đầu tiên$").matchEntire(value)?.let {
+            return "RawDream 2.0 · capturing first frame"
+        }
+        Regex("^LunaDream 2\\.0 · đang chụp khung đầu tiên$").matchEntire(value)?.let {
+            return "LunaDream 2.0 · capturing first frame"
+        }
+        Regex("^NightShotMode · đang chụp khung đầu tiên$").matchEntire(value)?.let {
+            return "NightShotMode · capturing first frame"
+        }
+        Regex("^LunaDream 2\\.0 không hoàn tất; đã dùng thuật toán dự phòng 1\\.5\\. Lý do:$").matchEntire(value)?.let {
+            return "LunaDream 2.0 did not finish; the 1.5 fallback algorithm was used. Reason:"
+        }
+        Regex("^(HDR Bracketing|Focus Bracketing): đã lưu (\\d+)/(\\d+) khung\\. (.*)$").matchEntire(value)?.let {
+            val mode = it.groupValues[1]
+            val result = toEnglish(it.groupValues[4]) ?: it.groupValues[4]
+            return "$mode: saved ${it.groupValues[2]}/${it.groupValues[3]} frames. $result"
+        }
+        Regex("^Đã lưu Live Photo: ảnh (.+)\\.jpg và clip (.+)\\.mp4 trong Movies/FujifilmMode/LivePhoto\\.$").matchEntire(value)?.let {
+            return "Saved Live Photo: photo ${it.groupValues[1]}.jpg and clip ${it.groupValues[2]}.mp4 in Movies/FujifilmMode/LivePhoto."
+        }
+        Regex("^Live Photo không khởi động được: (.*)\\. Ảnh chưa được chụp\\.$").matchEntire(value)?.let {
+            val cause = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
+            return "Live Photo could not start: $cause. No photo was captured."
+        }
         Regex("^Burst hoàn tất · đã lưu (\\d+)/25 ảnh JPEG gốc\\. Tốc độ phụ thuộc camera và bộ nhớ\\.$").matchEntire(value)?.let {
             return "Burst complete · saved ${it.groupValues[1]}/25 original JPEG photos. Speed depends on the camera and storage."
         }
@@ -810,6 +885,41 @@ internal object UiTranslationCatalog {
         }
         Regex("^Saved Star Trails from (\\d+) frames\\.$").matchEntire(value)?.let {
             return "Đã lưu Star Trails từ ${it.groupValues[1]} khung hình"
+        }
+        Regex("^Multi-frame: capturing frame (\\d+)/5$").matchEntire(value)?.let {
+            return "Multi-frame: chụp khung ${it.groupValues[1]}/5"
+        }
+        Regex("^NightShotMode: capturing frame (\\d+)/(\\d+) · queue 2$").matchEntire(value)?.let {
+            return "NightShotMode: thu khung ${it.groupValues[1]}/${it.groupValues[2]} · hàng đợi 2"
+        }
+        Regex("^(LunaDream 1\\.5|RawDream 2\\.0|LunaDream 2\\.0|NightShotMode Milky Way): capturing frame (\\d+)/(\\d+)$").matchEntire(value)?.let {
+            return "${it.groupValues[1]}: thu khung ${it.groupValues[2]}/${it.groupValues[3]}"
+        }
+        Regex("^LunaDream 1\\.5 · capturing first frame$").matchEntire(value)?.let {
+            return "LunaDream 1.5 · đang chụp khung đầu tiên"
+        }
+        Regex("^RawDream 2\\.0 · capturing first frame$").matchEntire(value)?.let {
+            return "RawDream 2.0 · đang chụp khung đầu tiên"
+        }
+        Regex("^LunaDream 2\\.0 · capturing first frame$").matchEntire(value)?.let {
+            return "LunaDream 2.0 · đang chụp khung đầu tiên"
+        }
+        Regex("^NightShotMode · capturing first frame$").matchEntire(value)?.let {
+            return "NightShotMode · đang chụp khung đầu tiên"
+        }
+        Regex("^LunaDream 2\\.0 did not finish; the 1\\.5 fallback algorithm was used\\. Reason:$").matchEntire(value)?.let {
+            return "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:"
+        }
+        Regex("^(HDR Bracketing|Focus Bracketing): saved (\\d+)/(\\d+) frames\\. (.*)$").matchEntire(value)?.let {
+            val result = toVietnamese(it.groupValues[4]) ?: it.groupValues[4]
+            return "${it.groupValues[1]}: đã lưu ${it.groupValues[2]}/${it.groupValues[3]} khung. $result"
+        }
+        Regex("^Saved Live Photo: photo (.+)\\.jpg and clip (.+)\\.mp4 in Movies/FujifilmMode/LivePhoto\\.$").matchEntire(value)?.let {
+            return "Đã lưu Live Photo: ảnh ${it.groupValues[1]}.jpg và clip ${it.groupValues[2]}.mp4 trong Movies/FujifilmMode/LivePhoto."
+        }
+        Regex("^Live Photo could not start: (.*)\\. No photo was captured\\.$").matchEntire(value)?.let {
+            val cause = toVietnamese(it.groupValues[1]) ?: it.groupValues[1]
+            return "Live Photo không khởi động được: $cause. Ảnh chưa được chụp."
         }
         Regex("^Burst complete · saved (\\d+)/25 original JPEG photos\\. Speed depends on the camera and storage\\.$").matchEntire(value)?.let {
             return "Burst hoàn tất · đã lưu ${it.groupValues[1]}/25 ảnh JPEG gốc. Tốc độ phụ thuộc camera và bộ nhớ."

@@ -118,13 +118,16 @@ class FaceTrackSmootherTest {
     }
 
     @Test
-    fun faceEyeFallsBackWhenCamera2FullDoesNotProvideEyeLandmarks() {
-        assertTrue(needsMlKitEyeLandmarkFallback("face_eye", false, false))
-        assertFalse(needsMlKitEyeLandmarkFallback("face_eye", true, false))
-        assertFalse(needsMlKitEyeLandmarkFallback("face_eye", false, true))
-        assertFalse(needsMlKitEyeLandmarkFallback("face_eye", true, true))
-        assertFalse(needsMlKitEyeLandmarkFallback("face", false, false))
-        assertFalse(needsMlKitEyeLandmarkFallback("off", false, false))
+    fun faceEyeAlwaysUsesMlKitContourPathEvenWhenCamera2FullHasEyePoints() {
+        assertTrue(shouldUseMlKitFaceDetection("face_eye", false))
+        assertTrue(shouldUseMlKitFaceDetection("face_eye", true))
+    }
+
+    @Test
+    fun faceOnlyPrefersCamera2AndFallsBackToMlKitWhenUnavailable() {
+        assertFalse(shouldUseMlKitFaceDetection("face", true))
+        assertTrue(shouldUseMlKitFaceDetection("face", false))
+        assertFalse(shouldUseMlKitFaceDetection("off", false))
     }
 
     @Test

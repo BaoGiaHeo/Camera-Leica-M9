@@ -386,6 +386,30 @@ internal object UiTranslationCatalog {
         Regex("^Đã nạp Film Recipe (\\d+)$").matchEntire(value)?.let {
             return "Loaded Film Recipe " + it.groupValues[1]
         }
+        Regex("^Star Trails đang ghi: (.+)\\. Nhấn nút chụp lần nữa để dừng và ghép vệt sao\\.$").matchEntire(value)?.let {
+            return "Star Trails recording: ${it.groupValues[1]}. Press the shutter again to stop after the current frame and merge the trails."
+        }
+        Regex("^Đã lưu Star Trails từ (\\d+) khung hình(?: \\(cần kiểm tra lại metadata\\)\\.)?$").matchEntire(value)?.let {
+            return "Saved Star Trails from ${it.groupValues[1]} frames."
+        }
+        Regex("^Burst hoàn tất · đã lưu (\\d+)/25 ảnh JPEG gốc\\. Tốc độ phụ thuộc camera và bộ nhớ\\.$").matchEntire(value)?.let {
+            return "Burst complete · saved ${it.groupValues[1]}/25 original JPEG photos. Speed depends on the camera and storage."
+        }
+        Regex("^Đã áp dụng ISO (\\d+) · (.+) · WB (\\d+)K\\. Chụp 8 ảnh để căn chỉnh và giảm nhiễu\\.$").matchEntire(value)?.let {
+            return "Applied ISO ${it.groupValues[1]} · ${it.groupValues[2]} · WB ${it.groupValues[3]}K. Capture 8 photos for alignment and noise reduction."
+        }
+        Regex("^Tông màu (\\d+) K$").matchEntire(value)?.let {
+            return "Color temperature ${it.groupValues[1]} K"
+        }
+        Regex("^(\\d+) ảnh$").matchEntire(value)?.let {
+            return "${it.groupValues[1]} photos"
+        }
+        Regex("^Hiển thị (\\d+) / (\\d+) LUT khớp · Tổng (\\d+)$").matchEntire(value)?.let {
+            return "Showing ${it.groupValues[1]} / ${it.groupValues[2]} matching LUTs · Total ${it.groupValues[3]}"
+        }
+        Regex("^Bạn có chắc chắn muốn xóa LUT \\"(.+)\\"\\? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc\\.$").matchEntire(value)?.let {
+            return "Are you sure you want to delete LUT \\"${it.groupValues[1]}\\"? This LUT will also be removed from Filters."
+        }
         translatePrefix(value, vietnamesePrefixes)?.let { return it }
         return null
     }
@@ -395,6 +419,36 @@ internal object UiTranslationCatalog {
         additionalEnglishToVietnamese[value]?.let { return it }
         additionalVietnameseToEnglish.entries.firstOrNull { it.value == value }?.let { return it.key }
         vietnameseToEnglish.entries.firstOrNull { it.value == value }?.let { return it.key }
+        Regex("^Star Trails recording: (.+)\\. Press the shutter again to stop after the current frame and merge the trails\\.$").matchEntire(value)?.let {
+            return "Star Trails đang ghi: ${it.groupValues[1]}. Nhấn nút chụp lần nữa để dừng và ghép vệt sao."
+        }
+        Regex("^Saved Star Trails from (\\d+) frames\\.$").matchEntire(value)?.let {
+            return "Đã lưu Star Trails từ ${it.groupValues[1]} khung hình"
+        }
+        Regex("^Burst complete · saved (\\d+)/25 original JPEG photos\\. Speed depends on the camera and storage\\.$").matchEntire(value)?.let {
+            return "Burst hoàn tất · đã lưu ${it.groupValues[1]}/25 ảnh JPEG gốc. Tốc độ phụ thuộc camera và bộ nhớ."
+        }
+        Regex("^Applied ISO (\\d+) · (.+) · WB (\\d+)K\\. Capture 8 photos for alignment and noise reduction\\.$").matchEntire(value)?.let {
+            return "Đã áp dụng ISO ${it.groupValues[1]} · ${it.groupValues[2]} · WB ${it.groupValues[3]}K. Chụp 8 ảnh để căn chỉnh và giảm nhiễu."
+        }
+        Regex("^Color temperature (\\d+) K$").matchEntire(value)?.let {
+            return "Tông màu ${it.groupValues[1]} K"
+        }
+        Regex("^(\\d+) photos$").matchEntire(value)?.let {
+            return "${it.groupValues[1]} ảnh"
+        }
+        Regex("^Showing (\\d+) / (\\d+) matching LUTs · Total (\\d+)$").matchEntire(value)?.let {
+            return "Hiển thị ${it.groupValues[1]} / ${it.groupValues[2]} LUT khớp · Tổng ${it.groupValues[3]}"
+        }
+        Regex("^Are you sure you want to delete LUT \\"(.+)\\"\\? This LUT will also be removed from Filters\\.$").matchEntire(value)?.let {
+            return "Bạn có chắc chắn muốn xóa LUT \\"${it.groupValues[1]}\\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc."
+        }
+        Regex("^Imported (.+) LUT\\. Open Content Manager to add the LUT to filters\\.$").matchEntire(value)?.let {
+            return "Đã nhập ${it.groupValues[1]} LUT. Vào Content Manager để Add LUT vào bộ lọc."
+        }
+        Regex("^Imported (.+) LUT\\. Select Add to enable each filter\\.$").matchEntire(value)?.let {
+            return "Đã nhập ${it.groupValues[1]} LUT. Chọn Add để bật từng bộ lọc."
+        }
         val reversePrefixes = vietnamesePrefixes.map { Prefix(it.translated, it.source) }
         translatePrefix(value, reversePrefixes)?.let { return it }
         Regex("^(\\d+) filters$").matchEntire(value)?.let {

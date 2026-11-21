@@ -84,6 +84,25 @@ class PixelOsdLayoutTest {
                             "Renderer did not publish layout for " + size.width + "x" + size.height
                         }
 
+                        val metrics = requireNotNull(renderer.fontMetricsSnapshotForTesting()) {
+                            "Renderer did not load VCR OSD font metrics"
+                        }
+                        assertEquals(
+                            "OSD sizing must use TrueType OS/2.sCapHeight, not fallback metrics",
+                            "OS/2.sCapHeight",
+                            metrics.source
+                        )
+                        assertTrue("Invalid unitsPerEm=" + metrics.unitsPerEm, metrics.unitsPerEm > 0)
+                        assertTrue(
+                            "Invalid OS/2 sCapHeight=" + metrics.capHeightUnits,
+                            metrics.capHeightUnits in 1 until metrics.unitsPerEm
+                        )
+                        Log.i(
+                            "OSD_LayoutTest",
+                            "FONT source=" + metrics.source + " unitsPerEm=" + metrics.unitsPerEm +
+                                " sCapHeight=" + metrics.capHeightUnits
+                        )
+
                         assertEquals(
                             "u must come from physical LCD height for " + mode + "/" + size.width + "x" + size.height,
                             (size.height / 48f).let { kotlin.math.round(it).toInt().coerceIn(15, 28) },

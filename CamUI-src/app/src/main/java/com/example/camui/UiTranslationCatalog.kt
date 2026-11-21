@@ -813,7 +813,7 @@ internal object UiTranslationCatalog {
         }
         Regex("^LunaDream fallback · (.*)$").matchEntire(value)?.let {
             val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
-            return "LunaDream fallback · $reason"
+            return "LunaDream dự phòng · $reason"
         }
         Regex("^(HDR Bracketing|Focus Bracketing): đã lưu (\\d+)/(\\d+) khung\\. (.*)$").matchEntire(value)?.let {
             val mode = it.groupValues[1]

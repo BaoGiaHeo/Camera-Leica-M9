@@ -78,5 +78,23 @@ class UiTranslationCatalogTest {
             "LunaDream is optimizing output size to 50MP",
             UiTranslationCatalog.toEnglish("LunaDream đang tối ưu kích thước 50MP")
         )
+        assertEquals("Color temperature 4200 K", UiTranslationCatalog.toEnglish("Tông màu 4200 K"))
+        assertEquals("12 filters", UiTranslationCatalog.toEnglish("12 bộ lọc"))
+        assertEquals("4 photos", UiTranslationCatalog.toEnglish("4 ảnh"))
+        assertEquals("Saved Camera Preset 2", UiTranslationCatalog.toEnglish("Đã lưu Camera Preset 2"))
+        assertEquals(
+            "Preset 2 has not been saved.",
+            UiTranslationCatalog.toEnglish("Preset 2 chưa được lưu")
+        )
+        assertEquals(
+            "Loaded Camera Preset 2 · capture settings restored.",
+            UiTranslationCatalog.toEnglish("Đã nạp Camera Preset 2 · cấu hình chụp đã khôi phục")
+        )
+        assertEquals("Saved Film Recipe 2", UiTranslationCatalog.toEnglish("Đã lưu Film Recipe 2"))
+        assertEquals(
+            "Film Recipe 2 has not been saved.",
+            UiTranslationCatalog.toEnglish("Film Recipe 2 chưa được lưu")
+        )
+        assertEquals("Loaded Film Recipe 2", UiTranslationCatalog.toEnglish("Đã nạp Film Recipe 2"))
     }
 }

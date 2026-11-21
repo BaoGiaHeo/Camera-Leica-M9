@@ -141,7 +141,7 @@ internal fun pixelOsdDirtyRegions(
         previous.evDisplayIndex != current.evDisplayIndex ||
         previous.evMinimumIndex != current.evMinimumIndex ||
         previous.evMaximumIndex != current.evMaximumIndex ||
-        previous.evStepStops != current.evStepStops ||
+        previous.evStepStops != current.evStepStops
     ) {
         add(0, 18, 38, height - 16)
         add(width / 2 - 48, 0, width / 2 + 48, 30)

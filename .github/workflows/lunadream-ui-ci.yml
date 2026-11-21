@@ -123,6 +123,7 @@ jobs:
             CamUI-src/app/src/androidTest/java/com/example/camui/DigitalZoomPreviewEffectTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkTypographyAssetTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/PixelOsdGoldenRenderingTest.kt \
+             CamUI-src/app/src/androidTest/java/com/example/camui/CameraPreviewProcessingEffectGoldenTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/PixelOsdLayoutTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkStudioContactSheetTest.kt \
             CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
@@ -165,6 +166,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdFontMetrics.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayoutEngine.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
+            CamUI-src/app/src/main/java/com/example/camui/CameraPreviewProcessingEffect.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraMultiFrameProgress.kt \
             CamUI-src/app/src/main/java/com/example/camui/QuickSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \

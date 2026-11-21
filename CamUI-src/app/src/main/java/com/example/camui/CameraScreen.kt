@@ -444,7 +444,7 @@ fun CameraScreen(
     ratioIdx: Int,
     onRatio: (Int) -> Unit,
     performanceMode: Boolean = false,
-    onOpenWatermarkStudio: () -> Unit = {}
+    onOpenWatermarkPanel: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -6571,7 +6571,7 @@ fun CameraScreen(
                     }
                 },
                 onToolbox = { showQuick = false; onOpenToolbox() },
-                onWatermarkPanel = { showQuick = false; onOpenWatermarkStudio() },
+                onWatermarkPanel = { showQuick = false; onOpenWatermarkPanel() },
                 watermarkEnabled = appPrefs.getBoolean("watermark_enabled", true),
                 watermarkLayoutLabel = when (appPrefs.getString("watermark_template", "classic_bar")) {
                     "caption" -> "CAPTION"

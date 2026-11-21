@@ -98,7 +98,7 @@ internal object CameraPreviewProcessingEffect {
             }
             val x = random.nextFloat()
             var y = random.nextFloat()
-            if (x in 0.30f..0.70f && y in 0.28f..0.72f) y = if (y < 0.5f) y * 0.5f else 0.72f + (y - 0.72f) * 0.5f
+            if (x in 0.30f..0.70f && y in 0.28f..0.72f) y = if (y < 0.5f) y * 0.5f else 0.72f + (y - 0.5f) * 0.5f
             Star(
                 x.coerceIn(0.02f, 0.98f), y.coerceIn(0.02f, 0.98f),
                 when (layer) {
@@ -364,7 +364,7 @@ internal object CameraPreviewProcessingEffect {
         val vignette = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
                 width * 0.5f, height * 0.5f, max(width, height) * 0.74f,
-                intArrayOf(0x00000000, 0x1F00010A, 0x3B00010A),
+                intArrayOf(0x00000000, 0x1700010A, 0x2D00010A),
                 floatArrayOf(0.45f, 0.78f, 1f), Shader.TileMode.CLAMP
             )
         }
@@ -428,7 +428,7 @@ internal object CameraPreviewProcessingEffect {
         val band = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, width, height * 0.28f,
-                intArrayOf(0x000C1E4A, 0x16172F6B, 0x1B4D3578, 0x001A2B66),
+                intArrayOf(0x000C1E4A, 0x16172F6B, 0x194D3578, 0x001A2B66),
                 floatArrayOf(0f, 0.35f, 0.68f, 1f), Shader.TileMode.CLAMP
             )
             maskFilter = BlurMaskFilter(height * 0.08f, BlurMaskFilter.Blur.NORMAL)

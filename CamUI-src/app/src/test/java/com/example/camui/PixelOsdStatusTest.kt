@@ -26,6 +26,24 @@ class PixelOsdStatusTest {
     }
 
     @Test
+    fun criticalBatteryHasSlashAndEmergencyWarningThresholds() {
+        assertTrue(isPixelBatterySlashVisible(0))
+        assertTrue(isPixelBatterySlashVisible(5))
+        assertEquals(false, isPixelBatterySlashVisible(6))
+        assertEquals(false, isPixelBatterySlashVisible(-1))
+
+        assertTrue(isPixelBatteryEmergency(0))
+        assertTrue(isPixelBatteryEmergency(1))
+        assertEquals(false, isPixelBatteryEmergency(2))
+
+        assertTrue(shouldBlockBatteryIntensiveCapture(5, charging = false))
+        assertTrue(shouldBlockBatteryIntensiveCapture(0, charging = false))
+        assertEquals(false, shouldBlockBatteryIntensiveCapture(6, charging = false))
+        assertEquals(false, shouldBlockBatteryIntensiveCapture(1, charging = true))
+        assertEquals(false, shouldBlockBatteryIntensiveCapture(-1, charging = false))
+    }
+
+    @Test
     fun evAccentTransitionsFromNeutralWhiteToAmber() {
         assertEquals(0xFFF2F2F2.toInt(), pixelEvAccentColor(0f, 1f / 3f))
         assertEquals(0xFFFFB300.toInt(), pixelEvAccentColor(3f, 1f / 3f))

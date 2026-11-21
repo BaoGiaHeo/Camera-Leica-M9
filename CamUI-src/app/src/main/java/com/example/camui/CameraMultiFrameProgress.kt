@@ -77,19 +77,20 @@ internal fun resolveMultiFrameStage(
     return when {
         label.contains("watermark") || label.contains("save") ||
             label.contains("lưu") || label.contains("đóng watermark") -> MultiFrameStage.SAVE
-        label.contains("tone") || label.contains("render") ||
+        progressPercent >= 82 || label.contains("render") || label.contains("tone") ||
             label.contains("phục hồi") || label.contains("khử nhiễu") ||
-            progressPercent >= 82 -> MultiFrameStage.TONE
+            label.contains("giảm nhiễu") -> MultiFrameStage.TONE
+        label.contains("ghép") || label.contains("gộp") || label.contains("merge") ||
+            label.contains("căn chỉnh và ghép") -> MultiFrameStage.MERGE
         label.contains("align") || label.contains("căn chỉnh") ||
             label.contains("căn khung") -> MultiFrameStage.ALIGN
-        label.contains("merge") || label.contains("ghép") ||
-            progressPercent in 25..81 -> MultiFrameStage.MERGE
+        progressPercent in 25..81 -> MultiFrameStage.MERGE
         else -> MultiFrameStage.CAPTURE
     }
 }
 
 internal fun multiFrameThermalColor(status: Int): Long = when {
-    status >= 4 -> 0xFFFF4A3D
+    status >= 3 -> 0xFFFF4A3D
     status >= 1 -> 0xFFE5A13B
     else -> 0xFF26302F
 }

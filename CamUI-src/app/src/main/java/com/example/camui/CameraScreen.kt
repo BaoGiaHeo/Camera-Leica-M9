@@ -1700,66 +1700,74 @@ fun CameraScreen(
                     now: Long,
                     trackingId: Int? = null
                 ) {
+                    // Tracking continuity and face selection remain in camera-normalized space.
+                    // Only the overlay is transformed to match the additional digital crop.
                     val digitalCropScale = digitalZoomCropScaleState.value
-                    val displayedCenter = cameraPointToDigitalPreview(center, digitalCropScale)
-                    val displayedSize = cameraBoxSizeToDigitalPreview(size, digitalCropScale)
-                    val displayedEye = eyeCenter?.let { cameraPointToDigitalPreview(it, digitalCropScale) }
-                    val displayedLeftEye = leftEyeCenter?.let { cameraPointToDigitalPreview(it, digitalCropScale) }
-                    val displayedRightEye = rightEyeCenter?.let { cameraPointToDigitalPreview(it, digitalCropScale) }
                     val smoothed = faceTrackSmoother.onFaceDetected(
-                        displayedCenter, displayedSize, displayedEye, trackingId, now
+                        center, size, eyeCenter, trackingId, now
                     ) ?: return
+                    val displayedCenter = cameraPointToDigitalPreview(smoothed.center, digitalCropScale)
+                    val displayedSize = cameraBoxSizeToDigitalPreview(smoothed.size, digitalCropScale)
+                    val displayedEye = smoothed.eyeCenter?.let {
+                        cameraPointToDigitalPreview(it, digitalCropScale)
+                    }
+                    val displayedLeftEye = leftEyeCenter?.let {
+                        cameraPointToDigitalPreview(it, digitalCropScale)
+                    }
+                    val displayedRightEye = rightEyeCenter?.let {
+                        cameraPointToDigitalPreview(it, digitalCropScale)
+                    }
                     val uiCenterMoved = now - lastFaceTrackAtMs >= 40L
                     if (uiCenterMoved) {
                         lastFaceTrackAtMs = now
                         scope.launch(Dispatchers.Main) {
-                            faceTrackCenter = smoothed.center
-                            faceTrackSize = smoothed.size
-                            faceEyeCenter = if (faceTrackingModeState.value == "face_eye") smoothed.eyeCenter else null
+                            faceTrackCenter = displayedCenter
+                            faceTrackSize = displayedSize
+                            faceEyeCenter = if (faceTrackingModeState.value == "face_eye") displayedEye else null
                             faceLeftEyeCenter = if (faceTrackingModeState.value == "face_eye") displayedLeftEye else null
                             faceRightEyeCenter = if (faceTrackingModeState.value == "face_eye") displayedRightEye else null
                         }
                     }
-                    val focusTarget = if (faceTrackingModeState.value == "face_eye") {
+                    val focusTargetCamera = if (faceTrackingModeState.value == "face_eye") {
                         smoothed.eyeCenter ?: smoothed.center
                     } else smoothed.center
+                    val focusTargetDisplay = cameraPointToDigitalPreview(
+                        focusTargetCamera,
+                        digitalCropScale
+                    )
                     if (now < manualAfOverrideUntilMsState.value) {
                         lastFaceAfTarget = null
                         return
                     }
                     val previousTarget = lastFaceAfTarget
                     val movedEnough = previousTarget == null ||
-                        kotlin.math.abs(previousTarget.x - focusTarget.x) +
-                        kotlin.math.abs(previousTarget.y - focusTarget.y) > 0.025f
+                        kotlin.math.abs(previousTarget.x - focusTargetCamera.x) +
+                        kotlin.math.abs(previousTarget.y - focusTargetCamera.y) > 0.025f
                     if (movedEnough && now - lastFaceAfAtMs >= 200L &&
                         !focusLockedState.value && manualFocusState.value <= 0f
                     ) {
                         lastFaceAfAtMs = now
-                        lastFaceAfTarget = focusTarget
+                        lastFaceAfTarget = focusTargetCamera
                         scope.launch(Dispatchers.Main) {
                             val previewWidth = previewView.width
                             val previewHeight = previewView.height
                             if (previewWidth > 0 && previewHeight > 0) {
-                                centerAfPoint = focusTarget
+                                centerAfPoint = focusTargetDisplay
                                 centerAfStatus = 0
                                 runCatching {
                                     val afPointSize = CameraAfAreaSize.fromPreference(
                                         appPrefs.getString("af_area_size", "m")
                                     ).focusPointSize
-                                    val cameraFocusTarget = digitalPreviewPointToCamera(
-                                        focusTarget,
-                                        digitalZoomCropScaleState.value
-                                    )
                                     val point = previewView.meteringPointFactory.createPoint(
-                                        cameraFocusTarget.x * previewWidth,
-                                        cameraFocusTarget.y * previewHeight,
+                                        focusTargetCamera.x * previewWidth,
+                                        focusTargetCamera.y * previewHeight,
                                         afPointSize
                                     )
                                     android.util.Log.d(
                                         "FUJI_AF_TRACE",
-                                        "faceTargetDisplay=${focusTarget.x},${focusTarget.y} " +
-                                            "cameraTarget=${cameraFocusTarget.x},${cameraFocusTarget.y} " +
-                                            "digitalCrop=${digitalZoomCropScaleState.value}"
+                                        "faceTargetDisplay=${focusTargetDisplay.x},${focusTargetDisplay.y} " +
+                                            "cameraTarget=${focusTargetCamera.x},${focusTargetCamera.y} " +
+                                            "digitalCrop=$digitalCropScale"
                                     )
                                     val action = FocusMeteringAction.Builder(
                                         point,
@@ -4995,7 +5003,7 @@ fun CameraScreen(
                                                 }
                                             }
                                             centerAfPoint = tapPoint
-                                            preferredFaceCenter = tapPoint
+                                            preferredFaceCenter = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
                                             centerAfStatus = 0
                                             val focusRequestId = focusLockRequestGeneration
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
@@ -5081,7 +5089,7 @@ fun CameraScreen(
                                                     (offset.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
                                                 )
                                                 centerAfPoint = lockPoint
-                                                preferredFaceCenter = lockPoint
+                                                preferredFaceCenter = digitalPreviewPointToCamera(lockPoint, digitalZoomCropScale)
                                                 centerAfStatus = 0
                                                 focusLocked = false
                                                 focusLockRequestGeneration++

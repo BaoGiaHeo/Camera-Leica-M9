@@ -55,8 +55,8 @@ internal fun isTapInsideAfReticle(
     if (!tapPoint.x.isFinite() || !tapPoint.y.isFinite() ||
         !currentPoint.x.isFinite() || !currentPoint.y.isFinite()
     ) return false
-    val side = min(previewWidthPx, previewHeightPx) *
-        reticleSideFraction.takeIf { it.isFinite() && it > 0f }!!.coerceAtMost(1f)
+    val safeFraction = reticleSideFraction.takeIf { it.isFinite() && it > 0f } ?: 0.12f
+    val side = min(previewWidthPx, previewHeightPx) * safeFraction.coerceAtMost(1f)
     val halfSide = side * 0.5f
     val dxPx = abs(tapPoint.x - currentPoint.x) * previewWidthPx
     val dyPx = abs(tapPoint.y - currentPoint.y) * previewHeightPx

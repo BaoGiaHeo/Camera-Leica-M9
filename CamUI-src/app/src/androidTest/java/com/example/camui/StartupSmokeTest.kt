@@ -69,7 +69,9 @@ class StartupSmokeTest {
     @Test
     fun coldStartRemainsResumedAfterCameraInitialization() {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         try {
+            completeFirstRunActivationIfNeeded(device)
             // ActivityScenario.launch() already waits for the activity to reach RESUMED.
             // Do not wait for a completely idle UI: a live camera preview continuously posts frames.
             Thread.sleep(3_000L)
@@ -92,7 +94,9 @@ class StartupSmokeTest {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val automation = instrumentation.uiAutomation
+        val device = UiDevice.getInstance(instrumentation)
         try {
+            completeFirstRunActivationIfNeeded(device)
             scenario.onActivity { activity ->
                 assertEquals(
                     "Activity must lock the camera UI and capture to landscape",
@@ -121,6 +125,7 @@ class StartupSmokeTest {
         val device = UiDevice.getInstance(instrumentation)
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
+            completeFirstRunActivationIfNeeded(device)
             setLandscape(automation, instrumentation)
             assertTrue(
                 "Quick Settings button must remain visible in landscape",
@@ -160,6 +165,7 @@ class StartupSmokeTest {
         val device = UiDevice.getInstance(instrumentation)
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
+            completeFirstRunActivationIfNeeded(device)
             setLandscape(automation, instrumentation)
             assertTrue("Camera controls must be visible after rotation", device.wait(Until.hasObject(By.desc("Quick settings")), 10_000L))
 

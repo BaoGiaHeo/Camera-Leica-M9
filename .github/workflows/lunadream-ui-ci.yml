@@ -141,6 +141,7 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdGeometry.kt \
             CamUI-src/app/src/main/java/com/example/camui/Components.kt \
             CamUI-src/app/src/main/java/com/example/camui/FaceTrackSmoother.kt \
+            CamUI-src/app/src/main/java/com/example/camui/FaceDetectionFrameLimiter.kt \
             CamUI-src/app/src/main/java/com/example/camui/PrimaryEyeSelector.kt \
             CamUI-src/app/src/main/java/com/example/camui/EyeSwitchRateTracker.kt \
             CamUI-src/app/src/main/java/com/example/camui/FujiSkin.kt \
@@ -171,6 +172,7 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/DigitalZoomXmpWriterTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/ZoomCapabilityPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FaceTrackSmootherTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/FaceDetectionFrameLimiterTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/PrimaryEyeSelectorTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/EyeSwitchRateTrackerTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/FujiKeyHoldPolicyTest.kt \

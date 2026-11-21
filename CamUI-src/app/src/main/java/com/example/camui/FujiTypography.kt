@@ -43,12 +43,13 @@ object FujiTypography {
     private val lock = Any()
 
     /**
-     * Saira is the application UI face. KK7 remains isolated to the viewfinder OSD
-     * through composeFamily()/androidTypeface(); watermark typography is rendered
-     * by WatermarkRenderer and is intentionally kept independent.
+     * Saira Semi Condensed is shared by every application UI surface and WatermarkRenderer.
+     * KK7 is reserved exclusively for the live OSD preview through composeFamily()/androidTypeface().
      */
     val uiFont: FontFamily by lazy {
         FontFamily(
+            Font(R.font.saira_semicondensed_regular, FontWeight.Normal),
+            Font(R.font.saira_semicondensed_medium, FontWeight.Medium),
             Font(R.font.saira_semicondensed_semibold, FontWeight.SemiBold),
             Font(R.font.saira_semicondensed_bold, FontWeight.Bold)
         )

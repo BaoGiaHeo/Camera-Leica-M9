@@ -559,8 +559,8 @@ internal object UiTranslationCatalog {
         Regex("^Hiển thị (\\d+) / (\\d+) LUT khớp · Tổng (\\d+)$").matchEntire(value)?.let {
             return "Showing ${it.groupValues[1]} / ${it.groupValues[2]} matching LUTs · Total ${it.groupValues[3]}"
         }
-        Regex("^Bạn có chắc chắn muốn xóa LUT \\"(.+)\\"\\? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc\\.$").matchEntire(value)?.let {
-            return "Are you sure you want to delete LUT \\"${it.groupValues[1]}\\"? This LUT will also be removed from Filters."
+        Regex("""^Bạn có chắc chắn muốn xóa LUT "(.+)"\? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc\.$""").matchEntire(value)?.let {
+            return """Are you sure you want to delete LUT "${it.groupValues[1]}"? This LUT will also be removed from Filters."""
         }
         Regex("^Đang ghép vệt sao · (\\d+) khung hình$").matchEntire(value)?.let {
             return "Merging Star Trails · ${it.groupValues[1]} frames"
@@ -657,8 +657,8 @@ internal object UiTranslationCatalog {
         Regex("^Showing (\\d+) / (\\d+) matching LUTs · Total (\\d+)$").matchEntire(value)?.let {
             return "Hiển thị ${it.groupValues[1]} / ${it.groupValues[2]} LUT khớp · Tổng ${it.groupValues[3]}"
         }
-        Regex("^Are you sure you want to delete LUT \\"(.+)\\"\\? This LUT will also be removed from Filters\\.$").matchEntire(value)?.let {
-            return "Bạn có chắc chắn muốn xóa LUT \\"${it.groupValues[1]}\\"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc."
+        Regex("""^Are you sure you want to delete LUT "(.+)"\? This LUT will also be removed from Filters\.$""").matchEntire(value)?.let {
+            return """Bạn có chắc chắn muốn xóa LUT "${it.groupValues[1]}"? LUT này cũng sẽ bị gỡ khỏi mục Bộ lọc."""
         }
         Regex("^Imported (.+) LUT\\. Open Content Manager to add the LUT to filters\\.$").matchEntire(value)?.let {
             return "Đã nhập ${it.groupValues[1]} LUT. Vào Content Manager để Add LUT vào bộ lọc."

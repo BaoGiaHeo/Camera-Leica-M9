@@ -7,6 +7,15 @@ import org.junit.Test
 
 class PixelOsdGeometryTest {
     @Test
+    fun evReadoutShowsOneSignedValueRoundedToOneDecimalPlace() {
+        assertEquals("+0.0 EV", formatEvReadout(0f))
+        assertEquals("+0.3 EV", formatEvReadout(1f / 3f))
+        assertEquals("-1.0 EV", formatEvReadout(-1f))
+        assertEquals("+0.0 EV", formatEvReadout(-0.01f))
+        assertEquals("+0.0 EV", formatEvReadout(Float.NaN))
+    }
+
+    @Test
     fun fineIsTheDefaultAndUsesTwoDisplayPixelsPerLogicPixel() {
         val geometry = PixelOsdGeometry.fromDisplayPixels(1920, 1080)
         assertEquals(2, geometry.pixelScale)

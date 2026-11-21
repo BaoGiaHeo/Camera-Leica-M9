@@ -70,6 +70,7 @@ jobs:
             mkdir -p pixel-osd-golden
             adb pull /sdcard/Android/data/com.fujifilm.mode.developer/files/pixel-osd-golden pixel-osd-golden/ || true
             adb pull /sdcard/Android/data/com.fujifilm.mode.developer/files/watermark-layout-golden watermark-layout-golden/ || true
+            adb pull /sdcard/Android/data/com.fujifilm.mode.developer/files/test-output test-output/ || true
             exit "$test_status"
         env:
           ANDROID_I_WANT_MY_TCG: 'yes'
@@ -80,6 +81,15 @@ jobs:
         with:
           name: FujiFilm-Mode-2.5.0-Pixel-OSD-golden-captures
           path: pixel-osd-golden/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload OSD layout regression goldens
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-OSD-LayoutTest-goldens
+          path: test-output/
           if-no-files-found: warn
           retention-days: 14
 

@@ -343,6 +343,7 @@ internal object UiTranslationCatalog {
         "NightShot Render · đang hoàn tất ảnh đã ghép" to "NightShot Render · finishing merged photo",
         "LunaDream 2.0 · đang hoàn tất bằng dự phòng 1.5" to "LunaDream 2.0 · finishing with 1.5 fallback",
         "RawDream 2.0 · đang hoàn tất JPEG bằng dự phòng LunaDream 1.5" to "RawDream 2.0 · finishing JPEG with LunaDream 1.5 fallback",
+        "LunaDream Render · 1.5 đang phục hồi chi tiết" to "LunaDream Render · 1.5 detail recovery",
         "LunaDream Render · RawDream 2.0 đang xử lý JPEG ghép" to "LunaDream Render · RawDream 2.0 processing merged JPEG",
         "LunaDream Render · 2.0 đang phục hồi chi tiết" to "LunaDream Render · 2.0 detail recovery",
         "Đang hoàn tất ảnh" to "Finishing photo",
@@ -390,6 +391,13 @@ internal object UiTranslationCatalog {
         "Đã lưu ảnh đã tối ưu kích thước đầu ra." to "Saved the photo with optimized output dimensions.",
         "Đã lưu ảnh đúng hướng; đã áp dụng Software HDR." to "Saved the photo in the correct orientation with Software HDR applied.",
         "Đã lưu ảnh đúng tỉ lệ và chuẩn hóa metadata vào album." to "Saved the photo at the correct ratio and normalized its metadata in the album.",
+        "Ảnh đã lưu nhưng watermark chưa được đóng. Kiểm tra lại mục Watermark." to
+            "The photo was saved, but the watermark was not applied. Check Watermark settings.",
+        "Đã lưu LunaDream 1.5 · 50MP." to "Saved LunaDream 1.5 · 50MP.",
+        "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 108MP." to
+            "Saved RawDream 2.0 · original DNG + LunaDream 2.0 JPEG at 108MP.",
+        "Đã lưu LunaDream 2.0 · 108MP." to "Saved LunaDream 2.0 · 108MP.",
+        "LunaDream không hoàn tất: " to "LunaDream did not finish: ",
         "Ảnh đã lưu nhưng chưa xác minh được tỉ lệ/hướng metadata. Hãy kiểm tra lại ảnh." to
             "The photo was saved, but its ratio/orientation metadata could not be verified. Please check the photo.",
         "Ảnh đã chụp nhưng MediaStore không trả về URI." to "Photo captured, but MediaStore did not return a URI.",
@@ -434,6 +442,8 @@ internal object UiTranslationCatalog {
         Prefix("Star Trails gặp lỗi: ", "Star Trails error: "),
         Prefix("Không thể đặt khoảng nét ", "Could not set focus position "),
         Prefix("Import LUT thất bại: ", "LUT import failed: "),
+        Prefix("Lỗi chụp ảnh: ", "Capture error: "),
+        Prefix("Live Photo không khởi động được: ", "Live Photo could not start: "),
         Prefix("Đã nhập ", "Imported "),
         Prefix("NIGHTSHOT · BẬT · ", "NIGHTSHOT · ON · "),
         Prefix("NIGHTSHOT · TẮT", "NIGHTSHOT · OFF")
@@ -547,7 +557,18 @@ internal object UiTranslationCatalog {
             return "Saved NightShotMode · ${it.groupValues[1]} captured frames."
         }
         Regex("^LunaDream không hoàn tất: (.*)\\. Đã lưu JPEG gốc làm ảnh dự phòng\\.$").matchEntire(value)?.let {
-            return "LunaDream did not finish: ${it.groupValues[1]}. The original JPEG was saved as a fallback."
+            val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
+            return "LunaDream did not finish: $reason. The original JPEG was saved as a fallback."
+        }
+        Regex("^Star Trails gặp lỗi: (.*)$").matchEntire(value)?.let {
+            val reason = toEnglish(it.groupValues[1]) ?: it.groupValues[1]
+            return "Star Trails error: $reason"
+        }
+        Regex("^Lỗi chụp ảnh: (.*)$").matchEntire(value)?.let {
+            return "Capture error: ${it.groupValues[1]}"
+        }
+        Regex("^Live Photo không khởi động được: (.*)$").matchEntire(value)?.let {
+            return "Live Photo could not start: ${it.groupValues[1]}"
         }
         translatePrefix(value, vietnamesePrefixes)?.let { return it }
         return null

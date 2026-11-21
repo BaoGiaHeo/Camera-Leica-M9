@@ -3077,6 +3077,14 @@ fun CameraScreen(
     }
 
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {
+        if (shouldBlockBatteryIntensiveCapture(batteryPercent, batteryCharging)) {
+            localizedToast(
+                context,
+                "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         val captureRotation = targetRotation
         val captureIsLandscape = isLandscape
         if (boundCameraRotation != captureRotation ||
@@ -3570,6 +3578,24 @@ fun CameraScreen(
             isProcessing || livePhotoCaptureInProgress ||
             nightShotCaptureInProgress || starTrailCaptureInProgress
         ) return
+        val batteryBlocksSelectedCapture = shouldBlockBatteryIntensiveCapture(batteryPercent, batteryCharging) &&
+            (
+                mode == "Photo" && (
+                    nightShotMode == "night" ||
+                        nightShotMode == "star_trails" ||
+                        lunaDreamMode != "off" ||
+                        rawCaptureMode == "raw_dream"
+                    ) ||
+                    mode == "Pro" && manualShutterEnabled && manualShutterNs >= 1_000_000_000L
+                )
+        if (batteryBlocksSelectedCapture) {
+            localizedToast(
+                context,
+                "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         if (mode == "Photo" && nightShotMode == "star_trails") {
             val activeCapture = imageCapture ?: return
             val activeCamera = camera ?: return
@@ -3583,6 +3609,24 @@ fun CameraScreen(
                     delay(1000)
                 }
                 countdown = 0
+            }
+            val batteryStillBlocksCapture = shouldBlockBatteryIntensiveCapture(batteryPercent, batteryCharging) &&
+                (
+                    mode == "Photo" && (
+                        nightShotMode == "night" ||
+                            nightShotMode == "star_trails" ||
+                            lunaDreamMode != "off" ||
+                            rawCaptureMode == "raw_dream"
+                        ) ||
+                        mode == "Pro" && manualShutterEnabled && manualShutterNs >= 1_000_000_000L
+                    )
+            if (batteryStillBlocksCapture) {
+                localizedToast(
+                    context,
+                    "Pin còn rất thấp. Hãy sạc pin trước khi dùng Star Trails, NightShot hoặc phơi sáng dài.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
             }
             // Resolve the active camera/use case after the timer, because the user may rotate
             // or switch lenses while the countdown is running.
@@ -5494,6 +5538,11 @@ fun CameraScreen(
                                     batteryPercent = batteryPercent,
                                     batteryCharging = batteryCharging,
                                     batteryLowBlinkOn = batteryLowBlinkOn,
+                                    batteryCriticalText = if (AppLanguageManager.currentLanguage == "vi") {
+                                        "PIN CÒN $batteryPercent%"
+                                    } else {
+                                        "BATTERY $batteryPercent%"
+                                    },
                                     showEvScale = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     evIndex = evIndex,
                                     evMinimumIndex = evRange?.lower ?: -9,

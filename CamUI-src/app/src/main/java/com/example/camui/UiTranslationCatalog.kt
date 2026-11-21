@@ -484,6 +484,7 @@ internal object UiTranslationCatalog {
         "Hướng" to "Facing",
         "Tiêu cự" to "Focal length",
         "Tương đương 35mm" to "35mm equivalent",
+        "Lấy nét gần nhất" to "Nearest focus",
         "Không công bố / không manual focus" to "Not reported / no manual focus",
         "Kích thước cảm biến" to "Sensor size",
         "JPEG lớn nhất" to "Maximum JPEG",

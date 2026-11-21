@@ -69,8 +69,8 @@ object FujiTypography {
         }
     }
 
-    fun withUiMissingGlyphFallback(value: String): AnnotatedString {
-        val primary = Paint().apply { typeface = uiTypefaceFallbackForCompose() }
+    fun withUiMissingGlyphFallback(context: Context, value: String): AnnotatedString {
+        val primary = Paint().apply { typeface = uiTypeface(context) }
         val fallbackPaint = Paint().apply {
             typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
         }
@@ -96,8 +96,6 @@ object FujiTypography {
         }
     }
 
-    private fun uiTypefaceFallbackForCompose(): Typeface =
-        cachedUiTypeface ?: Typeface.create("sans-serif-condensed", Typeface.BOLD)
 
     data class GlyphCoverageReport(
         val testedGlyphs: Int,

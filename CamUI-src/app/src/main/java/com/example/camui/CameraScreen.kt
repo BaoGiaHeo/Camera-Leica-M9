@@ -3972,6 +3972,7 @@ fun CameraScreen(
                                             // The device's actual sensor/ISP throughput remains authoritative.
                                             var consecutiveCaptureFailures = 0
                                             var stoppedForStorage = false
+                                            var stoppedForBattery = false
                                             var stopSubmitting = false
                                             var nextFrameNumber = stackedFrames.size + 1
                                             val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, Boolean>>>()

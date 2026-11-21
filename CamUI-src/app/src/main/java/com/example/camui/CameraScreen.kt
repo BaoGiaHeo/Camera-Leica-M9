@@ -6002,7 +6002,7 @@ fun CameraScreen(
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     })
                                             }
-                                            Text(if (focusLocked) "Focus locked" else afText, color = CamColors.Sub, fontSize = 9.sp)
+                                            Text(if (focusLocked) stringResource(R.string.focus_locked) else afText, color = CamColors.Sub, fontSize = 9.sp)
                                         }
                                     }
                                     "Tone" -> {

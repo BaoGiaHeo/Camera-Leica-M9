@@ -13,7 +13,7 @@ class UiTranslationCatalogTest {
             "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing.",
             "Đang hoàn tất chuỗi Bracketing hiện tại…",
             "Đã lưu ảnh RAW DNG gốc vào Pictures/FujifilmMode/RAW.",
-            "Đang quét CAMERA…"
+            "ĐANG QUÉT CAMERA…"
         )
         cases.forEach { source ->
             assertNotNull("Missing English translation for: $source", UiTranslationCatalog.toEnglish(source))

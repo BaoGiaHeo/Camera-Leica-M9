@@ -185,6 +185,7 @@ data class PixelOsdFrame(
     val zoomRatio: Float = 1f,
     val zoomMinimumRatio: Float = 1f,
     val zoomMaximumRatio: Float = 2f,
+    val zoomOpticalBoundaryRatio: Float = 1f,
     val zoomDigitalBoundaryRatio: Float = 2f,
     val zoomBarPosition: String = "top_center",
     val zoomBarAlpha: Float = 1f,
@@ -829,11 +830,30 @@ class PixelOsdRenderer(context: Context) {
         val minimum = frame.zoomMinimumRatio
         val maximum = frame.zoomMaximumRatio
         val ratioPosition = logarithmicZoomPosition(frame.zoomRatio, minimum, maximum)
+        val opticalBoundary = frame.zoomOpticalBoundaryRatio
+        val opticalPosition = logarithmicZoomPosition(opticalBoundary, minimum, maximum)
         val digitalBoundary = frame.zoomDigitalBoundaryRatio
         val digitalPosition = logarithmicZoomPosition(digitalBoundary, minimum, maximum)
 
-        // The amber section is only present when a separately supported digital
-        // crop range is supplied. The camera-control range remains white.
+        // Physical-lens optical range stays clear. The range between the final
+        // advertised optical lens and HAL maximum is subdued hybrid/HAL zoom.
+        // Amber begins only when additional GPU crop becomes responsible for zoom.
+        if (opticalBoundary.isFinite() && digitalBoundary.isFinite() &&
+            opticalBoundary < digitalBoundary && digitalPosition > opticalPosition
+        ) {
+            val hybridStart = (trackLeft + opticalPosition * (trackRight - trackLeft)).roundToInt()
+            val hybridEnd = (trackLeft + digitalPosition * (trackRight - trackLeft)).roundToInt()
+            for (y in (trackTop + 1) until trackBottom) {
+                drawHLine(
+                    canvas,
+                    hybridStart,
+                    hybridEnd - 1,
+                    y,
+                    PixelOsdPalette.WHITE,
+                    (alpha * 36 / 255)
+                )
+            }
+        }
         if (digitalBoundary.isFinite() && digitalBoundary > minimum &&
             digitalBoundary < maximum && digitalPosition < 1f
         ) {
@@ -841,8 +861,13 @@ class PixelOsdRenderer(context: Context) {
             for (y in (trackTop + 1) until trackBottom) {
                 drawHLine(canvas, digitalStart, trackRight - 1, y, PixelOsdPalette.AMBER, (alpha * 72 / 255))
             }
-            // Distinct optical/hybrid-to-digital boundary marker.
             drawVLine(canvas, digitalStart, trackTop - 1, trackBottom + 1, PixelOsdPalette.AMBER, alpha)
+        }
+        if (opticalBoundary.isFinite() && opticalBoundary > minimum &&
+            opticalBoundary < maximum && opticalPosition < 1f
+        ) {
+            val opticalStart = (trackLeft + opticalPosition * (trackRight - trackLeft)).roundToInt()
+            drawVLine(canvas, opticalStart, trackTop, trackBottom, PixelOsdPalette.WHITE, (alpha * 150 / 255))
         }
 
         drawHLine(canvas, trackLeft, trackRight, trackTop, PixelOsdPalette.WHITE, alpha)

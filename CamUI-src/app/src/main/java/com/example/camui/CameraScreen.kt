@@ -886,7 +886,6 @@ fun CameraScreen(
             }
         )
     }
-    var processingPanelOffset by remember { mutableStateOf(Offset.Zero) }
     LaunchedEffect(lunaDreamMode) {
         appPrefs.edit().putString("lunadream_mode", lunaDreamMode).apply()
     }
@@ -964,7 +963,6 @@ fun CameraScreen(
         } else {
             measuredBatteryTempC = -1
             thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
-            processingPanelOffset = Offset.Zero
         }
     }
     // EV is a command value. Do not overwrite it with delayed per-frame Camera2 results.
@@ -5834,18 +5832,62 @@ fun CameraScreen(
                                             indication = null
                                         ) {}
                                     )
-                                    Text(
-                                        if (effectMode == "luna") "LUNADREAM · ĐANG XỬ LÝ" else "NIGHT SHOT · ĐANG GHÉP ẢNH",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.align(Alignment.Center)
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .background(Color(0xAA111722))
-                                            .padding(horizontal = 15.dp, vertical = 9.dp)
-                                            .graphicsLayer { alpha = overlayAlpha }
-                                    )
                                 }
+                            }
+                            if (isProcessing && previewFreezeEffect != "off") {
+                                val nightMode = previewFreezeEffect == "night"
+                                val modeLabel = when {
+                                    nightMode -> stringResource(R.string.mf_mode_night)
+                                    lunaDreamMode == "luna15" -> stringResource(R.string.mf_mode_ld15)
+                                    else -> stringResource(R.string.mf_mode_ld20)
+                                }
+                                val isCapturingMultiFrame = multiFrameHoldActive || nightShotCaptureInProgress
+                                val phase = resolveMultiFrameStage(
+                                    processingLabel = processingLabel,
+                                    progressPercent = processingProgress,
+                                    capturing = isCapturingMultiFrame
+                                )
+                                val labelLower = processingLabel.lowercase(Locale.ROOT)
+                                val hasError = listOf("fail", "lỗi", "không thể", "incomplete")
+                                    .any(labelLower::contains)
+                                val stability = when {
+                                    kotlin.math.abs(horizonRollDegrees) <= 0.5f -> 3
+                                    kotlin.math.abs(horizonRollDegrees) <= 1.5f -> 2
+                                    else -> 1
+                                }
+                                FujiMultiFrameProgressPill(
+                                    state = MultiFrameProgressUiState(
+                                        visible = true,
+                                        modeLabel = modeLabel,
+                                        stage = phase,
+                                        progressPercent = processingProgress,
+                                        capturedFrames = if (nightMode) {
+                                            nightShotCapturedFrameCount
+                                        } else {
+                                            multiFrameCapturedFrames
+                                        },
+                                        targetFrames = if (nightMode) {
+                                            nightShotTargetFrameCount
+                                        } else {
+                                            multiFrameTargetFrames
+                                        },
+                                        nightShot = nightMode,
+                                        queueCount = if (nightMode && labelLower.contains("hàng đợi 2")) 2 else 0,
+                                        holdSteady = isCapturingMultiFrame,
+                                        stabilityBars = stability,
+                                        elapsedSeconds = processingElapsedSeconds,
+                                        batteryTemperatureC = measuredBatteryTempC,
+                                        thermalStatus = thermalStatusCode,
+                                        errorCode = if (hasError) stringResource(R.string.mf_error_short) else null,
+                                        reducedMotion = dispReducedMotion,
+                                        simpleMode = appPrefs.getBoolean("simple_ui_mode_enabled", false)
+                                    ),
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .offset(y = frameHeight * 0.30f),
+                                    maxWidth = frameWidth * 0.36f,
+                                    maxHeight = frameHeight * 0.10f
+                                )
                             }
                         }
                     }
@@ -6605,129 +6647,6 @@ fun CameraScreen(
                 }
             }
         }
-        if (nightShotCaptureInProgress) {
-            Box(
-                Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(horizontal = 28.dp, vertical = 86.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.background(Color(0xFF080B0C))
-                        .border(1.dp, Color(0xFF536C6E)).padding(horizontal = 18.dp, vertical = 14.dp)
-                ) {
-                    Text(
-                        if (milkyWayStackEnabled) "NightShotMode · MILKY WAY" else "NightShotMode · ĐANG CHỤP",
-                        color = FujiSkin.orange, fontSize = 14.sp, fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "$nightShotCapturedFrameCount/$nightShotTargetFrameCount khung hình · đủ khung mới render",
-                        color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 7.dp)
-                    )
-                    Text("Giữ máy ổn định đến khi thu và ghép xong. Khi LunaDream bắt đầu xử lý, có thể di chuyển tự do.",
-                        color = CamColors.Sub, fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 5.dp))
-                }
-            }
-        }
-        if (isProcessing) {
-            Column(
-                Modifier.align(Alignment.BottomCenter)
-                    .offset { IntOffset(processingPanelOffset.x.roundToInt(), processingPanelOffset.y.roundToInt()) }
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            processingPanelOffset = Offset(
-                                (processingPanelOffset.x + dragAmount.x).coerceIn(-220f, 220f),
-                                (processingPanelOffset.y + dragAmount.y).coerceIn(-260f, 260f)
-                            )
-                        }
-                    }
-                    .padding(horizontal = 28.dp, vertical = 18.dp)
-                    .fillMaxWidth().background(Color(0xFF080B0C))
-                    .border(1.dp, Color(0xFF536C6E)).padding(14.dp)
-            ) {
-                val visibleProgress = if (processingLabel == "Nhiễu đang được xử lý") {
-                    noiseReductionProgress
-                } else processingProgress
-                val etaText = when {
-                    processingEtaSeconds < 0 -> ""
-                    processingEtaSeconds >= 60 -> "Còn ${processingEtaSeconds / 60}p ${processingEtaSeconds % 60}s"
-                    else -> "Còn ${processingEtaSeconds}s"
-                }
-                val elapsedText = when {
-                    processingElapsedSeconds >= 60 ->
-                        "${processingElapsedSeconds / 60}p ${processingElapsedSeconds % 60}s"
-                    else -> "${processingElapsedSeconds}s"
-                }
-                val captureStatus = when {
-                    multiFrameHoldActive || nightShotCaptureInProgress || starTrailCaptureInProgress ||
-                        burstCaptureActive || bracketCaptureActive ->
-                        "Giữ thiết bị ổn định"
-                    multiFrameRenderStarted ->
-                        "Bạn có thể di chuyển thiết bị tự do"
-                    else -> ""
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(processingLabel, color = Color.White, fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text(
-                        if (etaText.isNotEmpty()) "${etaText} · ${visibleProgress}%" else "${visibleProgress}%",
-                        color = FujiSkin.orange, fontSize = 11.sp, fontWeight = FontWeight.Bold
-                    )
-                }
-                Text(
-                    "Đã xử lý: $elapsedText",
-                    color = CamColors.Sub,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(top = 5.dp)
-                )
-                if (captureStatus.isNotEmpty()) {
-                    Text(
-                        captureStatus,
-                        color = CamColors.Sub,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 3.dp)
-                    )
-                }
-                val androidThermalText = when (thermalStatusCode) {
-                    PowerManager.THERMAL_STATUS_LIGHT -> "Nhẹ"
-                    PowerManager.THERMAL_STATUS_MODERATE -> "Trung bình"
-                    PowerManager.THERMAL_STATUS_SEVERE -> "Cao"
-                    PowerManager.THERMAL_STATUS_CRITICAL -> "Nghiêm trọng"
-                    PowerManager.THERMAL_STATUS_EMERGENCY -> "Khẩn cấp"
-                    PowerManager.THERMAL_STATUS_SHUTDOWN -> "Ngưỡng tắt bảo vệ"
-                    else -> "Bình thường / chưa báo"
-                }
-                val thermalLoadText = when {
-                    measuredBatteryTempC >= 43 -> "Giảm tải mạnh"
-                    measuredBatteryTempC >= 41 -> "Đang điều tiết tải"
-                    measuredBatteryTempC > 40 -> "Đang giảm tải"
-                    measuredBatteryTempC >= 0 -> "Bình thường"
-                    else -> "Không có dữ liệu pin"
-                }
-                Text(
-                    "Nhiệt pin: ${if (measuredBatteryTempC >= 0) "$measuredBatteryTempC°C" else "--"} · $thermalLoadText",
-                    color = if (measuredBatteryTempC > 40) FujiSkin.orange else CamColors.Sub,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(top = 5.dp)
-                )
-                Text(
-                    "Trạng thái nhiệt Android: $androidThermalText",
-                    color = CamColors.Sub,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(top = 3.dp)
-                )
-                Canvas(Modifier.fillMaxWidth().padding(top = 9.dp).height(5.dp)) {
-                    drawRoundRect(Color(0xFF454545), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
-                    drawRoundRect(FujiSkin.orange, size = DrawSize(size.width * visibleProgress / 100f, size.height),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
-                }
-            }
-        }
-
         if (filterDialogVisible) {
             FilterLookDialog(
                 previewSource = filterPreviewSourceBitmap ?: fallbackFilterPreviewBitmap,

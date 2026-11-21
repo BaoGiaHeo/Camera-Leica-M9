@@ -77,14 +77,12 @@ internal fun resolveMultiFrameStage(
     return when {
         label.contains("watermark") || label.contains("save") ||
             label.contains("lưu") || label.contains("đóng watermark") -> MultiFrameStage.SAVE
-        progressPercent >= 82 || label.contains("render") || label.contains("tone") ||
-            label.contains("phục hồi") || label.contains("khử nhiễu") ||
-            label.contains("giảm nhiễu") -> MultiFrameStage.TONE
+        label.contains("render") || label.contains("tone") ||
+            label.contains("phục hồi") || progressPercent >= 82 -> MultiFrameStage.TONE
         label.contains("ghép") || label.contains("gộp") || label.contains("merge") ||
-            label.contains("căn chỉnh và ghép") -> MultiFrameStage.MERGE
+            progressPercent in 28..81 -> MultiFrameStage.MERGE
         label.contains("align") || label.contains("căn chỉnh") ||
             label.contains("căn khung") -> MultiFrameStage.ALIGN
-        progressPercent in 25..81 -> MultiFrameStage.MERGE
         else -> MultiFrameStage.CAPTURE
     }
 }

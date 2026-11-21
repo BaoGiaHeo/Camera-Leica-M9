@@ -40,3 +40,47 @@ class WatermarkMetadataPolicyTest {
         )
     }
 }
+
+    @Test
+    fun dataCardAndExposureDialRespectTheGlobalExifAndIndividualSwitches() {
+        val values = WatermarkExposureValues(
+            focal = "24 mm",
+            aperture = "F1.8",
+            shutter = "1/125s",
+            iso = "200"
+        )
+        assertEquals(
+            emptyList<Pair<String, String>>(),
+            visibleWatermarkDataCardItems(values, false, true, true, true, true)
+        )
+        assertEquals(
+            listOf("APERTURE" to "F1.8", "ISO" to "ISO 200"),
+            visibleWatermarkDataCardItems(values, true, false, true, false, true)
+        )
+        assertEquals(
+            emptyList<Pair<String, String>>(),
+            visibleWatermarkExposureDialItems(values, false, true, true, true)
+        )
+        assertEquals(
+            listOf("SS" to "1/125s"),
+            visibleWatermarkExposureDialItems(values, true, false, true, false)
+        )
+    }
+
+    @Test
+    fun standardLayoutExposureFieldsRespectTheSameGlobalAndPerFieldSwitches() {
+        val values = WatermarkExposureValues(
+            focal = "24 mm · 35 mm eq.",
+            aperture = "F1.8",
+            shutter = "1/125s",
+            iso = "200"
+        )
+        assertEquals(
+            emptyList<String>(),
+            visibleWatermarkExposureFields(values, false, true, true, true, true)
+        )
+        assertEquals(
+            listOf("24 mm · 35 mm eq.", "ISO 200"),
+            visibleWatermarkExposureFields(values, true, true, false, false, true)
+        )
+    }

@@ -18,21 +18,20 @@ internal fun completeFirstRunActivationIfNeeded(device: UiDevice) {
     val englishOption = device.findObject(By.text("ENGLISH"))
     englishOption?.click()
 
-    val continueLabel = if (englishTitle != null) "CONTINUE" else "TIẾP TỤC"
-    val next = device.wait(Until.findObject(By.text(continueLabel)), 3_000L)
+    val next = device.wait(Until.findObject(By.text("CONTINUE")), 1_500L)
+        ?: device.wait(Until.findObject(By.text("TIẾP TỤC")), 1_500L)
     checkNotNull(next) { "Activation language step must expose Continue." }.click()
 
-    val storageTitle = if (englishTitle != null) "STORAGE & BATTERY" else "LƯU TRỮ & PIN"
-    val storage = device.wait(Until.findObject(By.text(storageTitle)), 3_000L)
+    val storage = device.wait(Until.findObject(By.text("STORAGE & BATTERY")), 1_500L)
+        ?: device.wait(Until.findObject(By.text("LƯU TRỮ & PIN")), 1_500L)
     checkNotNull(storage) { "Activation storage step must be visible." }
     // The storage panel accepts a tap to continue; the production screen also
     // advances automatically after the specified 2.5 second viewing interval.
     storage.click()
 
-    val publisherTitle = if (englishTitle != null) "PUBLISHER" else "NHÀ PHÁT HÀNH"
-    checkNotNull(device.wait(Until.findObject(By.text(publisherTitle)), 3_000L)) {
-        "Activation publisher step must be visible."
-    }
+    val publisher = device.wait(Until.findObject(By.text("PUBLISHER")), 1_500L)
+        ?: device.wait(Until.findObject(By.text("NHÀ PHÁT HÀNH")), 1_500L)
+    checkNotNull(publisher) { "Activation publisher step must be visible." }
     val ok = device.wait(Until.findObject(By.text("OK")), 3_000L)
     checkNotNull(ok) { "Activation publisher step must expose OK." }.click()
     device.wait(Until.hasObject(By.desc("Quick settings")), 5_000L)

@@ -3821,6 +3821,24 @@ fun CameraScreen(
                             }
                             LunaDreamProcessingScope.launch {
                                 try {
+                                // Publish a small preview of the first valid JPEG immediately,
+                                // before multi-frame stacking, AI render, HDR or watermark work.
+                                val initialThumbnail = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()
+                                    }.getOrNull()
+                                }
+                                withContext(Dispatchers.Main.immediate) {
+                                    lastUri = saved
+                                    if (initialThumbnail != null) {
+                                        thumb = initialThumbnail
+                                        thumbUri = saved
+                                    }
+                                }
+                                android.util.Log.d(
+                                    "FUJI_THUMBNAIL",
+                                    "Initial capture thumbnail published=${initialThumbnail != null} uri=$saved before post-processing"
+                                )
                                 var nightShotMerged = false
                                 var lunaDreamCapturedFrameCount = 0
                                 var lunaDreamFailureReason: String? = null

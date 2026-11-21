@@ -434,6 +434,7 @@ internal object UiTranslationCatalog {
         "Thời gian mỗi khung" to "Time per frame",
         "Người làm App: Baoaka06" to "App creator: Baoaka06",
         "Đang đọc CameraCharacteristics…" to "Reading CameraCharacteristics…",
+        "Đã sao chép log" to "Log copied",
         "Lưu và nạp nhanh tỉ lệ, zoom, EV, bộ lọc, HDR, NightShotMode, RAW và cấu hình LunaDream." to
             "Quickly save and restore aspect ratio, zoom, EV, filters, HDR, NightShotMode, RAW and LunaDream settings.",
         "Điều chỉnh này được áp dụng giống nhau trong preview bộ lọc và ảnh JPEG sau chụp." to

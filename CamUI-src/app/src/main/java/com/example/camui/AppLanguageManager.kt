@@ -8,8 +8,8 @@ import androidx.compose.runtime.setValue
 /**
  * Central language preference and runtime language state.
  *
- * Supported preferences are SYSTEM, en and vi. Legacy or unknown values are
- * normalized to SYSTEM so older backups cannot activate removed locales.
+ * The only persisted languages are English and Vietnamese. Legacy SYSTEM or
+ * unknown values are migrated once using the device language at upgrade time.
  */
 object AppLanguageManager {
     private const val PREFS_NAME = "fujifilm_settings"

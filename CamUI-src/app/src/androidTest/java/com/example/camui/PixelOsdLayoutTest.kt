@@ -46,6 +46,7 @@ class PixelOsdLayoutTest {
                             showGrid = false,
                             centerAfPoint = Offset(0.5f, 0.5f),
                             showStatus = true,
+                            focusLocked = true,
                             batteryPercent = 72,
                             batteryCharging = false,
                             showEvScale = true,

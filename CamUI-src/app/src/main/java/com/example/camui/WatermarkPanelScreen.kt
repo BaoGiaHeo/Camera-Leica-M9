@@ -101,7 +101,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
         saveMode = saveMode
     )
     val previewMetadata = WatermarkPhotoMetadata(
-        cameraName = customModel.trim().ifBlank { "X-T5" },
+        cameraName = customModel.trim(),
         lensName = "Main",
         focal35mm = "35mm",
         trueFocalLength = "23mm",
@@ -123,7 +123,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
     LaunchedEffect(sourceBitmap, settings, customModel) {
         val source = sourceBitmap ?: return@LaunchedEffect
         val metadata = previewMetadata.copy(
-            cameraName = customModel.trim().ifBlank { previewMetadata.cameraName }
+            cameraName = customModel.trim()
         )
         val rendered = withContext(Dispatchers.IO) {
             WatermarkRenderer.renderPreview(context, source, settings, metadata, 1600)

@@ -783,6 +783,21 @@ fun CameraScreen(
         previewFpsEstimator.reset()
         measuredPreviewFps = Float.NaN
     }
+    var previewFpsMode by remember {
+        mutableStateOf(
+            if (appPrefs.getBoolean("preview_fps_keep", false)) {
+                appPrefs.getString("preview_fps_mode", "60")
+                    ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
+            } else "60"
+        )
+    }
+    var previewFpsTarget by remember { mutableFloatStateOf(60f) }
+    LaunchedEffect(Unit) {
+        if (!appPrefs.getBoolean("preview_fps_keep", false)) {
+            appPrefs.edit().putString("preview_fps_mode", "60").apply()
+            previewFpsMode = "60"
+        }
+    }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
@@ -807,6 +822,8 @@ fun CameraScreen(
             when (key) {
                 "zoom_buttons_mode" -> zoomButtonsSwapped = preferences?.getString(key, "standard") == "swapped"
                 "zoom_bar_position" -> zoomBarPosition = preferences?.getString(key, "top_center")?.let { if (it == "top_left") "middle_left" else it } ?: "top_center"
+                "preview_fps_mode" -> previewFpsMode = preferences?.getString(key, "60")
+                    ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
             }
         }
         appPrefs.registerOnSharedPreferenceChangeListener(preferenceListener)
@@ -1559,7 +1576,8 @@ fun CameraScreen(
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         nativeImageProcessingEnabled, livePhotoEnabled, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
-        starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
+        starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode,
+        previewFpsMode
     ) {
         if (!hasCam) return@LaunchedEffect
         if (!isProcessing && previewFreezeEffect == "off" &&
@@ -1918,6 +1936,34 @@ fun CameraScreen(
                     else -> null
                 }
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
+                val advertisedPreviewFpsRanges = activeFacingId?.let { id ->
+                    runCatching {
+                        cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                            ?.map { range -> PreviewFpsRange(range.lower, range.upper) }
+                            .orEmpty()
+                    }.onFailure {
+                        android.util.Log.w("FUJI_PREVIEW_FPS", "Could not read Camera2 AE FPS ranges", it)
+                    }.getOrDefault(emptyList())
+                }.orEmpty()
+                val fpsSelection = selectPreviewFpsRange(previewFpsMode, advertisedPreviewFpsRanges)
+                fpsSelection.range?.let { selectedRange ->
+                    Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+                        android.util.Range(selectedRange.lower, selectedRange.upper)
+                    )
+                }
+                scope.launch(Dispatchers.Main.immediate) {
+                    previewFpsTarget = fpsSelection.targetFps?.toFloat() ?: Float.NaN
+                    android.util.Log.i(
+                        "FUJI_PREVIEW_FPS",
+                        "mode=" + previewFpsMode +
+                            " selected=" + (fpsSelection.range?.let { it.lower.toString() + ".." + it.upper } ?: "none") +
+                            " target=" + (fpsSelection.targetFps?.toString() ?: "none") +
+                            " fallback=" + fpsSelection.fellBack +
+                            " reason=" + fpsSelection.reason
+                    )
+                }
                 if (distortionCorrectionMode != null &&
                     distortionModes.contains(distortionCorrectionMode)
                 ) {
@@ -5610,6 +5656,7 @@ fun CameraScreen(
                                         else -> "FHD"
                                     },
                                     previewFps = measuredPreviewFps.takeIf { it.isFinite() && it > 0f },
+                                    previewFpsTarget = previewFpsTarget.takeIf { it.isFinite() && it > 0f },
                                     batteryPercent = batteryPercent,
                                     batteryCharging = batteryCharging,
                                     batteryLowBlinkOn = batteryLowBlinkOn,

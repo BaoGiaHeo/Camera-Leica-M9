@@ -119,6 +119,33 @@ class PixelOsdGeometryTest {
     }
 
     @Test
+    fun histogramIsPlacedBelowResolutionAndFpsWithinTheEvScaleTopBoundary() {
+        val sizes = listOf(2400 to 1080, 2640 to 1200, 1920 to 1080)
+        val scales = listOf(2, 3, 4)
+        sizes.forEach { (width, height) ->
+            scales.forEach { scale ->
+                val plan = PixelOsdLayoutEngine.create(
+                    frame = PixelOsdFrame(
+                        showHistogram = true,
+                        histogram = listOf(1, 3, 5, 2),
+                        previewFps = 59.94f
+                    ),
+                    widthPx = width,
+                    heightPx = height,
+                    pixelScale = scale,
+                    measureTextWidthPx = { text, capHeight -> text.length * capHeight * 0.55f }
+                )
+                val histogram = requireNotNull(plan.histogramBounds)
+                val fps = requireNotNull(plan.elements.firstOrNull { it.id == "status-fps" })
+                assertTrue(histogram.width > 0f)
+                assertTrue(histogram.height > 0f)
+                assertTrue(histogram.top >= fps.bounds.bottom)
+                assertTrue(histogram.bottom < plan.evTop)
+            }
+        }
+    }
+
+    @Test
     fun manualTouchOverrideKeepsAfReticleVisibleOverFaceBox() {
         assertTrue(shouldDrawCenterAfReticle(
             centerAfPointAvailable = true,

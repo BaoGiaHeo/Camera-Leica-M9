@@ -245,12 +245,17 @@ fun FujiIconGlyph(
 ) {
     val context = LocalContext.current
     val reducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
-    val rotation = remember { Animatable(FujiIconRotationState.degrees.toFloat()) }
-    LaunchedEffect(FujiIconRotationState.degrees, reducedMotion) {
-        val target = shortestIconRotationTarget(
-            rotation.value,
-            if (FujiIconRotationState.enabled) FujiIconRotationState.degrees else 0
-        )
+    val rotation = remember { Animatable(0f) }
+    val rotatesWithHandset = name in setOf(
+        "flash", "flash_on", "flash_off", "timer", "film", "sliders", "tune", "histogram", "af",
+        "camera_switch", "camera-front", "camera-back"
+    )
+    LaunchedEffect(FujiIconRotationState.degrees, FujiIconRotationState.enabled, reducedMotion, rotatesWithHandset) {
+        val target = if (rotatesWithHandset && FujiIconRotationState.enabled) {
+            shortestIconRotationTarget(rotation.value, FujiIconRotationState.degrees)
+        } else {
+            0f
+        }
         if (reducedMotion) {
             rotation.snapTo(target)
         } else {
@@ -260,7 +265,10 @@ fun FujiIconGlyph(
             )
         }
     }
-    Canvas(modifier.graphicsLayer { rotationZ = rotation.value }.size(22.dp)) {
+    Canvas(
+        (if (rotatesWithHandset) modifier.graphicsLayer { rotationZ = rotation.value } else modifier)
+            .size(22.dp)
+    ) {
         val unit = min(size.width, size.height) / 24f
         val stroke = 1.6.dp.toPx()
         fun point(x: Float, y: Float) = Offset(x * unit, y * unit)

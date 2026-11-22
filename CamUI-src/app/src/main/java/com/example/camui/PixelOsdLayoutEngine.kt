@@ -262,9 +262,9 @@ internal object PixelOsdLayoutEngine {
         val histogram = if (frame.showHistogram && frame.histogram.isNotEmpty()) {
             PixelOsdLayoutBounds(
                 margin.toFloat(),
-                margin + t1 + t3 + itemGap * 2f,
+                heightPx * 0.115f,
                 margin + widthPx * 0.14f,
-                margin + heightPx * 0.075f
+                heightPx * 0.18f
             )
         } else null
 

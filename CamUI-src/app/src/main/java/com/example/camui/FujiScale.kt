@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,10 +62,10 @@ internal fun FujiScale(
     onAuto: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val osdFont = remember(context) { FujiTypography.composeFamily(context) }
     val haptics = LocalHapticFeedback.current
     val safePosition = position.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0.5f
+    val latestPosition = rememberUpdatedState(safePosition)
+    val latestOnPositionChange = rememberUpdatedState(onPositionChange)
     val textPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
@@ -99,7 +100,7 @@ internal fun FujiScale(
             Text(
                 valueText,
                 color = Color(0xFF4DA3FF),
-                fontFamily = osdFont,
+                fontFamily = FujiTypography.uiFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
                 maxLines = 1
@@ -136,17 +137,17 @@ internal fun FujiScale(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(34.dp)
-                .pointerInput(safePosition) {
-                    var dragPosition = safePosition
+                .pointerInput(Unit) {
+                    var dragPosition = latestPosition.value
                     detectDragGestures(
-                        onDragStart = { dragPosition = safePosition },
+                        onDragStart = { dragPosition = latestPosition.value },
                         onDrag = { change, dragAmount ->
                             change.consume()
                             dragPosition = advanceFujiScalePosition(
                                 dragPosition,
                                 -dragAmount.x / size.width.coerceAtLeast(1).toFloat() * 0.72f
                             )
-                            onPositionChange(dragPosition)
+                            latestOnPositionChange.value(dragPosition)
                         }
                     )
                 }

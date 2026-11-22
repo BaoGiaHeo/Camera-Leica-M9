@@ -83,11 +83,11 @@ class ZoomCapabilityPolicyTest {
     }
 
     @Test
-    fun threeTimesTelephotoPassesTheOnePointEightThreshold() {
+    fun threeTimesTelephotoIsCappedAtItsOpticalRatio() {
         val assessment = assessOpticalZoom(listOf(26f, 78f), mainEquivalent35Mm = 26f)
         assertTrue(assessment.hasOpticalTelephoto)
         assertEquals(3f, assessment.opticalRatio!!, 0.0001f)
-        assertEquals(12f, selectableCameraZoomMax(12f, assessment), 0.0001f)
+        assertEquals(3f, selectableCameraZoomMax(12f, assessment), 0.0001f)
     }
 
     @Test

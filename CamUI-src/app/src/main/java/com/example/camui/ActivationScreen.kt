@@ -127,7 +127,7 @@ internal fun ActivationScreen(onComplete: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                "FUJIFILM MODE",
+                stringResource(R.string.app_name),
                 color = Color(0xFFF2F3F2),
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,

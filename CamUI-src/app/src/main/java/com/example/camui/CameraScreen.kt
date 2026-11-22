@@ -6244,7 +6244,7 @@ fun CameraScreen(
                                     val range = shutterRange
                                     if (manualSensorSupported && range != null && range.upper > range.lower) {
                                         val lo = range.lower
-                                        val hi = range.upper.coerceAtMost(1_000_000_000L).coerceAtLeast(lo)
+                                        val hi = range.upper.coerceAtLeast(lo)
                                         val fraction = shutterFraction(
                                             manualShutterNs.coerceIn(lo, hi),
                                             lo,

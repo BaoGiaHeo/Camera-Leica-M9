@@ -78,7 +78,8 @@ fun SettingsScreen(
     focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit,
     onOpenToolbox: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {},
-    onReplayActivation: () -> Unit = {}
+    onReplayActivation: () -> Unit = {},
+    supportedPreviewFpsModes: Set<String> = setOf("60", "30", "24", "AUTO")
 ) {
     var selectedCategory by remember { mutableStateOf("Assistive Tools") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
@@ -143,7 +144,8 @@ fun SettingsScreen(
                 },
                 onOpenToolbox = onOpenToolbox,
                 onOpenContentsManagement = onOpenContentsManagement,
-                onReplayActivation = onReplayActivation
+                onReplayActivation = onReplayActivation,
+                supportedPreviewFpsModes = supportedPreviewFpsModes
             )
         }
     }
@@ -161,6 +163,7 @@ private fun SettingsDetailPage(
     onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean,
     onFocusPeaking: (Boolean) -> Unit,
+    supportedPreviewFpsModes: Set<String>,
     embedded: Boolean = false,
     modifier: Modifier = Modifier,
     onOpenBackup: () -> Unit = {},
@@ -733,7 +736,9 @@ var nightShotMode by remember {
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf("60", "30", "24", "AUTO").forEach { option ->
+                    listOf("60", "30", "24", "AUTO")
+                        .filter { option -> option in supportedPreviewFpsModes }
+                        .forEach { option ->
                         FujiChip(
                             if (option == "AUTO") option else option + "FPS",
                             previewFpsMode == option,

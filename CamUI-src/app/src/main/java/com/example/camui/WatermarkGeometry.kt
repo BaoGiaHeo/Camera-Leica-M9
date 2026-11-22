@@ -1,24 +1,41 @@
 package com.example.camui
 
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 internal enum class WatermarkLayoutType(val id: String) {
-    BAR("A"), CAPTION("B"), CARD("C"), GALLERY("D"), BLACK("E");
+    BAR("A"),
+    CAPTION("B"),
+    GALLERY("C"),
+    BLACK("D"),
+    DOT_LIGHT("E"),
+    DOT_DARK("F"),
+    SPLIT("G"),
+    PALETTE("H");
 
     companion object {
-        fun fromPreference(value: String?): WatermarkLayoutType = when (value?.lowercase()) {
+        fun fromPreference(value: String?): WatermarkLayoutType = when (value?.trim()?.lowercase()) {
             "caption", "b" -> CAPTION
-            "card", "c" -> CARD
-            "gallery", "d" -> GALLERY
-            "black", "e" -> BLACK
+            "gallery", "c", "d" -> GALLERY
+            "black", "d-black" -> BLACK
+            "dot_light", "dot-light", "dotlight", "e" -> DOT_LIGHT
+            "dot_dark", "dot-dark", "dotdark", "f" -> DOT_DARK
+            "split", "g" -> SPLIT
+            "palette", "h" -> PALETTE
+            // Backward compatibility: the retired CARD preset migrates to DOT LIGHT.
+            "card", "c-card" -> DOT_LIGHT
             else -> BAR
         }
+
         fun preferenceValue(type: WatermarkLayoutType): String = when (type) {
             BAR -> "bar"
             CAPTION -> "caption"
-            CARD -> "card"
             GALLERY -> "gallery"
             BLACK -> "black"
+            DOT_LIGHT -> "dot_light"
+            DOT_DARK -> "dot_dark"
+            SPLIT -> "split"
+            PALETTE -> "palette"
         }
     }
 }
@@ -45,8 +62,7 @@ internal data class WatermarkLayoutSettings(
     val locationMode: String = "PLACE",
     val useTrueFocalLength: Boolean = false,
     val customCameraName: String = "",
-    val saveMode: String = "watermarked",
-    val storyNineSixteen: Boolean = false
+    val saveMode: String = "watermarked"
 ) {
     val sizeScale: Float get() = 1f + sizeStep.coerceIn(-2, 2) * 0.05f
 }
@@ -65,7 +81,9 @@ internal data class WatermarkPhotoMetadata(
     val coordinates: String = "",
     val filterName: String = "",
     val filterCategory: String = "Fujifilm",
-    val filterBadge: String = ""
+    val filterBadge: String = "",
+    val title: String = "",
+    val author: String = ""
 ) {
     fun focal(settings: WatermarkLayoutSettings): String =
         if (settings.useTrueFocalLength) trueFocalLength.ifBlank { focal35mm }
@@ -97,12 +115,13 @@ internal data class WatermarkLayoutGeometry(
     val canvasWidth: Int,
     val canvasHeight: Int,
     val photoRect: WatermarkRect,
-    val footerRect: WatermarkRect?,
-    val cardRect: WatermarkRect?,
-    val metadataRect: WatermarkRect?,
-    val logoRect: WatermarkRect?,
-    val badgeRect: WatermarkRect?,
-    val visibleTextLines: Int
+    val footerRect: WatermarkRect? = null,
+    val paletteRect: WatermarkRect? = null,
+    val metadataRect: WatermarkRect? = null,
+    val logoRect: WatermarkRect? = null,
+    val badgeRect: WatermarkRect? = null,
+    val visibleTextLines: Int = 1,
+    val paletteBelowText: Boolean = false
 ) {
     val outputAspectRatio: Float get() = canvasWidth.toFloat() / canvasHeight.coerceAtLeast(1)
     val outputRatioLabel: String get() = canvasWidth.toString() + ":" + canvasHeight.toString()
@@ -116,64 +135,56 @@ internal object WatermarkGeometry {
         metadata: WatermarkPhotoMetadata
     ): WatermarkLayoutGeometry {
         require(sourceWidth > 0 && sourceHeight > 0)
-        val s = minOf(sourceWidth, sourceHeight).toFloat()
+        val s = min(sourceWidth, sourceHeight).toFloat()
         val scale = settings.sizeScale
         val lineCount = lineCount(metadata, settings)
+        val photoBounds = WatermarkRect(0f, 0f, sourceWidth.toFloat(), sourceHeight.toFloat())
 
         return when (settings.layout) {
             WatermarkLayoutType.BAR -> {
                 val barHeight = (s * (10.35f + (lineCount - 1) * 4.06f) * scale / 100f)
                     .roundToInt().coerceAtLeast(1)
-                val footer = WatermarkRect(0f, sourceHeight.toFloat(), sourceWidth.toFloat(), (sourceHeight + barHeight).toFloat())
+                val footer = WatermarkRect(
+                    0f, sourceHeight.toFloat(), sourceWidth.toFloat(),
+                    (sourceHeight + barHeight).toFloat()
+                )
                 val logoHeight = s * 0.03f * scale
                 val logoWidth = logoHeight * 6.2f
                 val logoLeft = s * 0.068f
                 WatermarkLayoutGeometry(
-                    WatermarkLayoutType.BAR, sourceWidth, sourceHeight, s, sourceWidth, sourceHeight + barHeight,
-                    WatermarkRect(0f, 0f, sourceWidth.toFloat(), sourceHeight.toFloat()),
-                    footer, null,
-                    WatermarkRect(sourceWidth * 0.56f, footer.top, sourceWidth - s * 0.063f, footer.bottom),
-                    WatermarkRect(logoLeft, footer.centerY - logoHeight / 2f, logoLeft + logoWidth, footer.centerY + logoHeight / 2f),
-                    null, lineCount
+                    layout = WatermarkLayoutType.BAR,
+                    sourceWidth = sourceWidth, sourceHeight = sourceHeight, shortSide = s,
+                    canvasWidth = sourceWidth, canvasHeight = sourceHeight + barHeight,
+                    photoRect = photoBounds,
+                    footerRect = footer,
+                    metadataRect = WatermarkRect(
+                        sourceWidth * 0.56f, footer.top,
+                        sourceWidth - s * 0.063f, footer.bottom
+                    ),
+                    logoRect = WatermarkRect(
+                        logoLeft, footer.centerY - logoHeight / 2f,
+                        logoLeft + logoWidth, footer.centerY + logoHeight / 2f
+                    ),
+                    visibleTextLines = lineCount
                 )
             }
+
             WatermarkLayoutType.CAPTION -> {
                 val side = s * 0.041f * scale
-                val top = side
                 val lower = s * 0.23f * scale
                 val cw = sourceWidth + (side * 2f).roundToInt()
                 val ch = sourceHeight + side.roundToInt() + lower.roundToInt()
-                val photo = WatermarkRect(side, top, side + sourceWidth, top + sourceHeight)
+                val photo = WatermarkRect(side, side, side + sourceWidth, side + sourceHeight)
                 val footer = WatermarkRect(0f, photo.bottom, cw.toFloat(), ch.toFloat())
                 WatermarkLayoutGeometry(
-                    WatermarkLayoutType.CAPTION, sourceWidth, sourceHeight, s, cw, ch,
-                    photo, footer, null, footer, null, null, lineCount
+                    layout = WatermarkLayoutType.CAPTION,
+                    sourceWidth = sourceWidth, sourceHeight = sourceHeight, shortSide = s,
+                    canvasWidth = cw, canvasHeight = ch,
+                    photoRect = photo, footerRect = footer, metadataRect = footer,
+                    visibleTextLines = lineCount
                 )
             }
-            WatermarkLayoutType.CARD -> {
-                val pad = s * 0.037f * scale
-                val band = s * 0.287f * scale
-                val cardW = sourceWidth + 2f * pad
-                val cardH = sourceHeight + pad + band
-                val outer = cardW * 0.10f
-                val cw = if (settings.storyNineSixteen) (s * 9f / 16f).roundToInt() else (cardW + outer * 2f).roundToInt()
-                val ch = if (settings.storyNineSixteen) s.roundToInt() else (cardH + outer * 2f).roundToInt()
-                val cardLeft = if (settings.storyNineSixteen) ((cw.toFloat() - cardW).coerceAtLeast(0f) * 0.5f) else outer
-                val cardTop = if (settings.storyNineSixteen) ((ch.toFloat() - cardH).coerceAtLeast(0f) * 0.5f) else outer
-                val card = WatermarkRect(cardLeft, cardTop, cardLeft + cardW, cardTop + cardH)
-                val photo = WatermarkRect(card.left + pad, card.top + pad, card.left + pad + sourceWidth, card.top + pad + sourceHeight)
-                val meta = WatermarkRect(photo.left, photo.bottom, photo.right, photo.bottom + band)
-                val logoHeight = s * 0.035f * scale
-                val logoWidth = logoHeight * 6.2f
-                val logoLeft = photo.left + s * 0.049f
-                val logoTop = meta.top + (band * 0.62f) - logoHeight / 2f
-                WatermarkLayoutGeometry(
-                    WatermarkLayoutType.CARD, sourceWidth, sourceHeight, s, cw, ch,
-                    photo, null, card, meta,
-                    WatermarkRect(logoLeft, logoTop, logoLeft + logoWidth, logoTop + logoHeight),
-                    null, lineCount
-                )
-            }
+
             WatermarkLayoutType.GALLERY -> {
                 val side = s * 0.05f * scale
                 val lower = s * 0.246f * scale
@@ -184,12 +195,19 @@ internal object WatermarkGeometry {
                 val logoH = s * 0.039f * scale
                 val logoW = logoH * 6.2f
                 val logoCenterY = photo.bottom + s * 0.074f * scale
-                val logo = WatermarkRect((cw - logoW) / 2f, logoCenterY - logoH / 2f, (cw + logoW) / 2f, logoCenterY + logoH / 2f)
+                val logo = WatermarkRect(
+                    (cw - logoW) / 2f, logoCenterY - logoH / 2f,
+                    (cw + logoW) / 2f, logoCenterY + logoH / 2f
+                )
                 WatermarkLayoutGeometry(
-                    WatermarkLayoutType.GALLERY, sourceWidth, sourceHeight, s, cw, ch,
-                    photo, footer, null, footer, logo, null, lineCount
+                    layout = WatermarkLayoutType.GALLERY,
+                    sourceWidth = sourceWidth, sourceHeight = sourceHeight, shortSide = s,
+                    canvasWidth = cw, canvasHeight = ch,
+                    photoRect = photo, footerRect = footer, metadataRect = footer,
+                    logoRect = logo, visibleTextLines = lineCount
                 )
             }
+
             WatermarkLayoutType.BLACK -> {
                 val side = s * 0.032f * scale
                 val lower = s * 0.14f * scale
@@ -199,10 +217,123 @@ internal object WatermarkGeometry {
                 val footer = WatermarkRect(0f, photo.bottom, cw.toFloat(), ch.toFloat())
                 val badge = s * 0.076f * scale
                 val bx = side + s * 0.01f
-                val badgeRect = WatermarkRect(bx, footer.centerY - badge / 2f, bx + badge, footer.centerY + badge / 2f)
+                val badgeRect = WatermarkRect(
+                    bx, footer.centerY - badge / 2f,
+                    bx + badge, footer.centerY + badge / 2f
+                )
                 WatermarkLayoutGeometry(
-                    WatermarkLayoutType.BLACK, sourceWidth, sourceHeight, s, cw, ch,
-                    photo, footer, null, footer, null, badgeRect, lineCount
+                    layout = WatermarkLayoutType.BLACK,
+                    sourceWidth = sourceWidth, sourceHeight = sourceHeight, shortSide = s,
+                    canvasWidth = cw, canvasHeight = ch,
+                    photoRect = photo, footerRect = footer, metadataRect = footer,
+                    badgeRect = badgeRect, visibleTextLines = lineCount
+                )
+            }
+
+            WatermarkLayoutType.DOT_LIGHT,
+            WatermarkLayoutType.DOT_DARK -> {
+                val border = s * 0.024f * scale
+                val footerHeight = s * 0.176f * scale
+                val cw = sourceWidth + (border * 2f).roundToInt()
+                val ch = sourceHeight + border.roundToInt() + footerHeight.roundToInt()
+                val photo = WatermarkRect(
+                    border, border, border + sourceWidth, border + sourceHeight
+                )
+                val footer = WatermarkRect(0f, photo.bottom, cw.toFloat(), ch.toFloat())
+                val logoWidth = s * 0.182f * scale
+                val logoHeight = logoWidth / 6.2f
+                val logoLeft = photo.left + s * 0.053f * scale
+                val logo = WatermarkRect(
+                    logoLeft, footer.centerY - logoHeight / 2f,
+                    logoLeft + logoWidth, footer.centerY + logoHeight / 2f
+                )
+                val dot = s * 0.032f * scale
+                val specRight = photo.right - s * 0.054f * scale
+                val specWidth = s * 0.54f * scale
+                val dotCenterX = specRight - specWidth - s * 0.029f * scale - dot / 2f
+                val dotRect = WatermarkRect(
+                    dotCenterX - dot / 2f, footer.centerY - dot / 2f,
+                    dotCenterX + dot / 2f, footer.centerY + dot / 2f
+                )
+                WatermarkLayoutGeometry(
+                    layout = settings.layout,
+                    sourceWidth = sourceWidth, sourceHeight = sourceHeight, shortSide = s,
+                    canvasWidth = cw, canvasHeight = ch,
+                    photoRect = photo, footerRect = footer,
+                    metadataRect = WatermarkRect(
+                        dotRect.right + s * 0.029f * scale, footer.top,
+                        specRight, footer.bottom
+                    ),
+                    logoRect = logo, badgeRect = dotRect,
+                    visibleTextLines = lineCount
+                )
+            }
+
+            WatermarkLayoutType.SPLIT -> {
+                val footerHeight = s * 0.11f * scale
+                val ch = sourceHeight + footerHeight.roundToInt()
+                val photo = photoBounds
+                val footer = WatermarkRect(0f, sourceHeight.toFloat(), sourceWidth.toFloat(), ch.toFloat())
+                val logoWidth = s * 0.15f * scale
+                val logoHeight = logoWidth / 6.2f
+                val specsWidth = sourceWidth * 0.38f
+                val separatorWidth = maxOf(1f, s * 0.0012f * scale)
+                val gapBeforeSeparator = s * 0.022f * scale
+                val gapAfterSeparator = s * 0.022f * scale
+                val rightInset = s * 0.0575f * scale
+                val logoRight = sourceWidth - rightInset - specsWidth - gapAfterSeparator -
+                    separatorWidth - gapBeforeSeparator
+                val logoLeft = logoRight - logoWidth
+                val logo = WatermarkRect(
+                    logoLeft, footer.centerY - logoHeight / 2f,
+                    logoRight, footer.centerY + logoHeight / 2f
+                )
+                WatermarkLayoutGeometry(
+                    layout = WatermarkLayoutType.SPLIT,
+                    sourceWidth = sourceWidth, sourceHeight = sourceHeight, shortSide = s,
+                    canvasWidth = sourceWidth, canvasHeight = ch,
+                    photoRect = photo, footerRect = footer,
+                    metadataRect = WatermarkRect(
+                        s * 0.044f * scale, footer.top,
+                        sourceWidth - rightInset, footer.bottom
+                    ),
+                    logoRect = logo, visibleTextLines = lineCount
+                )
+            }
+
+            WatermarkLayoutType.PALETTE -> {
+                val side = s * 0.045f * scale
+                val top = s * 0.269f * scale
+                val bottom = s * 0.295f * scale
+                val cw = sourceWidth + (side * 2f).roundToInt()
+                val ch = sourceHeight + top.roundToInt() + bottom.roundToInt()
+                val photo = WatermarkRect(
+                    side, top, side + sourceWidth, top + sourceHeight
+                )
+                val footer = WatermarkRect(0f, photo.bottom, cw.toFloat(), ch.toFloat())
+                val logoWidth = s * 0.316f * scale
+                val logoHeight = logoWidth / 6.2f
+                val logoTop = s * 0.082f * scale
+                val logo = WatermarkRect(
+                    photo.left, logoTop, photo.left + logoWidth, logoTop + logoHeight
+                )
+                val paletteBelow = sourceHeight >= sourceWidth * 0.9f
+                val paletteWidth = if (paletteBelow) sourceWidth.toFloat()
+                    else min(s * 0.72f * scale, sourceWidth * 0.48f)
+                val paletteHeight = s * (if (paletteBelow) 0.045f else 0.057f) * scale
+                val paletteTop = photo.bottom + s * (if (paletteBelow) 0.25f else 0.075f) * scale
+                val paletteLeft = if (paletteBelow) photo.left else photo.right - paletteWidth
+                val paletteRect = WatermarkRect(
+                    paletteLeft, paletteTop, paletteLeft + paletteWidth, paletteTop + paletteHeight
+                )
+                WatermarkLayoutGeometry(
+                    layout = WatermarkLayoutType.PALETTE,
+                    sourceWidth = sourceWidth, sourceHeight = sourceHeight, shortSide = s,
+                    canvasWidth = cw, canvasHeight = ch,
+                    photoRect = photo, footerRect = footer, paletteRect = paletteRect,
+                    metadataRect = footer, logoRect = logo,
+                    paletteBelowText = paletteBelow,
+                    visibleTextLines = lineCount
                 )
             }
         }

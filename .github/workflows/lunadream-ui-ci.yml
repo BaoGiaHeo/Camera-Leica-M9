@@ -11,6 +11,7 @@ on:
     branches:
       - feature/lunadream-2.5.0dream
       - fix/2.5.0dream-af-label
+      - fuji-2.5.0-spec-implementation
 
 permissions:
   contents: read
@@ -116,8 +117,18 @@ jobs:
         run: |
           mkdir -p source-artifacts
           zip -q source-artifacts/FujiFilm-Mode-2.5.0-source-files.zip \
+            .github/workflows/build-camui.yml \
             .github/workflows/build-lunadream-variants.yml \
             .github/workflows/lunadream-ui-ci.yml \
+            CamUI-src/app/src/main/java/com/example/camui/WatermarkRenderer.kt \
+            CamUI-src/app/src/main/java/com/example/camui/HorizonLevelPolicy.kt \
+            CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
+            CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayoutEngine.kt \
+            CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
+            CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
+            CamUI-src/app/src/main/java/com/example/camui/Components.kt \
+            CamUI-src/app/src/test/java/com/example/camui/HorizonLevelPolicyTest.kt \
+            CamUI-src/app/src/androidTest/java/com/example/camui/PixelOsdLayoutTest.kt \
             CamUI-src/app/build.gradle.kts \
             CamUI-src/app/src/androidTest/java/com/example/camui/FujiTypographyGlyphCoverageTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/DigitalZoomPreviewEffectTest.kt \

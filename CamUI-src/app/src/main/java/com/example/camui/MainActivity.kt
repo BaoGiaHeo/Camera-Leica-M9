@@ -251,6 +251,7 @@ class MainActivity : AppCompatActivity() {
                     AnimaT.isSystemReducedMotion(this@MainActivity)
                 }
                 var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
+                var supportedPreviewFpsModes by remember { mutableStateOf(setOf("AUTO")) }
                 var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }
                 var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
                 var ratioIdx by remember {

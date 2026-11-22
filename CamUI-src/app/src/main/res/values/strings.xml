@@ -185,7 +185,6 @@
     <string name="watermark_status_on">ON</string>
     <string name="watermark_status_off">OFF</string>
     <string name="watermark_layout">LAYOUT</string>
-    <string name="watermark_story_916">STORY 9:16</string>
     <string name="watermark_invert">INVERT</string>
     <string name="watermark_size_value">SIZE %1$d</string>
     <string name="watermark_size_label">SIZE</string>
@@ -207,9 +206,12 @@
     <string name="watermark_reset">RESET</string>
     <string name="watermark_layout_bar">BAR</string>
     <string name="watermark_layout_caption">CAPTION</string>
-    <string name="watermark_layout_card">CARD</string>
     <string name="watermark_layout_gallery">GALLERY</string>
     <string name="watermark_layout_black">BLACK</string>
+    <string name="watermark_layout_dot_light">DOT LIGHT</string>
+    <string name="watermark_layout_dot_dark">DOT DARK</string>
+    <string name="watermark_layout_split">SPLIT</string>
+    <string name="watermark_layout_palette">PALETTE</string>
     <string name="activation_step_language">SELECT LANGUAGE</string>
     <string name="activation_language_description">Choose the language used by FujiFilm Mode.</string>
     <string name="activation_step_storage">STORAGE &amp; BATTERY</string>

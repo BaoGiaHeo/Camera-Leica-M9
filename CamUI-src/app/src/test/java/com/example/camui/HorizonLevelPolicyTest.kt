@@ -61,6 +61,8 @@ class HorizonLevelPolicyTest {
         assertEquals(20f, nearestAxisErrorDegrees(20f), 0.001f)
         assertEquals(44.9f, nearestAxisErrorDegrees(44.9f), 0.001f)
         assertEquals(-44.9f, nearestAxisErrorDegrees(-44.9f), 0.001f)
+        assertEquals(-45f, nearestAxisErrorDegrees(45f), 0.001f)
+        assertEquals(-45f, nearestAxisErrorDegrees(-45f), 0.001f)
     }
 
     @Test

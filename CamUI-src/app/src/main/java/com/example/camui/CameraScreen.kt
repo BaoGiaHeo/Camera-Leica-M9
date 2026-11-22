@@ -1327,6 +1327,9 @@ fun CameraScreen(
         appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
     }
 
+    DisposableEffect(Unit) {
+        onDispose { CameraSoundEngine.stopAll() }
+    }
     LaunchedEffect(zoomHoldDirection, camera, activeCameraDetails, activePhysicalCameraDetails, camera2Inventory) {
         val direction = zoomHoldDirection
         val active = camera
@@ -5949,7 +5952,7 @@ fun CameraScreen(
                                 Box(
                                     Modifier.align(Alignment.BottomCenter)
                                         .fillMaxWidth()
-                                        .height((frameHeight / 48f * 6f).coerceAtLeast(52.dp))
+                                        .height((frameHeight / 48f * 6f).coerceAtLeast(96.dp))
                                         .background(Color(0xE00B0B0B))
                                         .border(1.dp, Color(0xFF737B7D), RoundedCornerShape(6.dp))
                                         .padding(horizontal = 5.dp, vertical = 2.dp)

@@ -1,0 +1,112 @@
+name: FujiFilm Mode 2.5.0 · all three rounds
+
+on:
+  push:
+    branches: ["fuji-2.5.0-all-3-rounds-package-mode"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuji-2.5.0-all-rounds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android API 37 platform and build tools
+        run: |
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" --channel=3
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Run Developer unit tests
+        working-directory: CamUI-src
+        run: gradle :app:testDeveloperUnitTest --stacktrace --console=plain
+
+      - name: Assemble installable APK variants
+        id: assemble
+        if: always()
+        working-directory: CamUI-src
+        run: gradle :app:assembleDeveloper :app:assembleDebug --stacktrace --console=plain
+
+      - name: Verify canonical Developer application ID
+        if: steps.assemble.outcome == 'success'
+        working-directory: CamUI-src
+        run: |
+          APK="app/build/outputs/apk/developer/app-developer.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee developer-apk-badging.txt
+          grep -F "package: name='com.fujifilm.mode'" developer-apk-badging.txt
+          grep -F "versionCode='16'" developer-apk-badging.txt
+          grep -F "versionName='2.5.0'" developer-apk-badging.txt
+          sha256sum "$APK" | tee developer-apk-sha256.txt
+
+      - name: Upload installable APKs and build identity
+        if: steps.assemble.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fujifilm-mode-2.5.0-all-rounds-apks
+          path: |
+            CamUI-src/app/build/outputs/apk/developer/app-developer.apk
+            CamUI-src/app/build/outputs/apk/debug/app-debug.apk
+            CamUI-src/developer-apk-badging.txt
+            CamUI-src/developer-apk-sha256.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Update Android command-line tools
+        if: success()
+        run: |
+          yes | sdkmanager --licenses --channel=3 >/dev/null
+          sdkmanager --install "cmdline-tools;latest" --channel=3
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+      - name: Cold-start smoke test
+        if: success()
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: "yes"
+        with:
+          api-level: "35"
+          target: google_apis
+          channel: stable
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
+          emulator-boot-timeout: 600
+          script: |
+            bash .github/scripts/camui-emulator-smoke-test.sh
+
+      - name: Upload emulator inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fujifilm-mode-2.5.0-emulator-inspection
+          path: emulator-artifacts/
+          if-no-files-found: warn
+          retention-days: 14

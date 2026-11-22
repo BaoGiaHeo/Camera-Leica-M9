@@ -190,6 +190,9 @@
     <string name="activation_battery_value">BATTERY %1$s</string>
     <string name="activation_storage_warning">LOW STORAGE · LESS THAN 1 GB FREE</string>
     <string name="activation_battery_warning">LOW BATTERY · BELOW 20%</string>
+    <string name="preview_fps_title">PREVIEW FPS</string>
+    <string name="preview_fps_description">Set the preview stream frame-rate range. The HUD reports measured camera FPS.</string>
+    <string name="preview_fps_keep">Keep FPS selection between launches</string>
     <string name="activation_step_publisher">PUBLISHER</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>
     <string name="activation_publisher_note">Thank you for using FujiFilm Mode.</string>

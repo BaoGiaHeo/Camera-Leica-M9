@@ -209,4 +209,11 @@
     <string name="camera_no_signal">NO SIGNAL</string>
     <string name="camera_no_signal_permission">Cấp quyền Camera để bật khung ngắm. Chạm để yêu cầu quyền.</string>
     <string name="capture_low_battery_blocked">Pin còn 5%% trở xuống. NightShot, LunaDream 2.0 và phơi sáng lâu bị tạm khóa cho đến khi sạc pin.</string>
+    <string name="wb_preset_auto">TỰ ĐỘNG</string>
+    <string name="wb_preset_daylight">NẮNG</string>
+    <string name="wb_preset_cloudy">NHIỀU MÂY</string>
+    <string name="wb_preset_shade">BÓNG RÂM</string>
+    <string name="wb_preset_tungsten">ĐÈN SỢI ĐỐT</string>
+    <string name="wb_preset_fluorescent">HUỲNH QUANG</string>
+    <string name="wb_auto">Cân bằng trắng tự động</string>
 </resources>

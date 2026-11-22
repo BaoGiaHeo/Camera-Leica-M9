@@ -198,8 +198,6 @@
     <string name="processing_lock_live_photo">Live Photo is unavailable with this processing mode.</string>
     <string name="preview_fps_title">PREVIEW FPS</string>
     <string name="preview_fps_description">Set the preview stream frame-rate range. The HUD reports measured camera FPS.</string>
-    <string name="icon_rotation_title">ICON ROTATION</string>
-    <string name="icon_rotation_description">Rotate viewfinder control icons to match handset orientation. Capture and watermark geometry remain unchanged.</string>
     <string name="preview_fps_keep">Keep FPS selection between launches</string>
     <string name="activation_step_publisher">PUBLISHER</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>

@@ -5663,7 +5663,37 @@ fun CameraScreen(
                             PixelOsdLayer(
                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
-                                    videoFormatText = "FHD",
+                                    videoFormatText = when (lunaDreamMode) {
+                                        "luna20" -> "UHD"
+                                        "luna15" -> "FHD+"
+                                        else -> "FHD"
+                                    },
+                                    imageSizeText = run {
+                                        val selectedResolution = imageCapture?.resolutionInfo?.resolution
+                                        val selectedMegapixels = selectedResolution?.let {
+                                            it.width.toDouble() * it.height.toDouble() / 1_000_000.0
+                                        }
+                                        val sensorMegapixels = activeCameraDetails?.pixelArray
+                                            ?.split("x", "X")
+                                            ?.mapNotNull { it.trim().toDoubleOrNull() }
+                                            ?.takeIf { it.size == 2 }
+                                            ?.let { it[0] * it[1] / 1_000_000.0 }
+                                        val fraction = if (
+                                            selectedMegapixels != null && sensorMegapixels != null && sensorMegapixels > 0.0
+                                        ) selectedMegapixels / sensorMegapixels else 1.0
+                                        when {
+                                            fraction >= 0.70 -> "L"
+                                            fraction >= 0.35 -> "M"
+                                            else -> "S"
+                                        }
+                                    },
+                                    focusStatusText = "F",
+                                    focusStatusCode = when {
+                                        manualFocus > 0f || milkyWayInfinityFocusEnabled -> 2
+                                        centerAfStatus == 1 -> 1
+                                        centerAfStatus < 0 -> -1
+                                        else -> 0
+                                    },
                                     fpsText = measuredPreviewFps.takeIf { it.isFinite() && it > 0f }
                                         ?.let { String.format(Locale.US, "%.2f", it) } ?: "--.--",
                                     fpsTarget = previewFpsTarget,
@@ -5760,7 +5790,7 @@ fun CameraScreen(
                                         livePhotoEnabled = livePhotoEnabled
                                     ),
                                     whiteBalanceText = toneText,
-                                    filmSimulationText = activeFilter.takeIf { it != "None" }?.take(2)?.uppercase(Locale.US) ?: "",
+                                    filmSimulationText = activeFilter.takeIf { it != "None" }?.take(2)?.uppercase(Locale.US) ?: "ST",
                                     manualExposure = manualExposure,
                                     manualWhiteBalance = manualColorTempEnabled,
                                     manualIso = manualIsoEnabled,

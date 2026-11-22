@@ -199,7 +199,7 @@ private val englishUi = mapOf(
     "Không đọc được Camera ID. Hãy cấp quyền camera cho ứng dụng." to "Could not read Camera IDs. Grant camera permission to the app.",
     "Aspect Ratio" to "Aspect Ratio", "Image Quality" to "Image Quality",
     "Ảnh được lưu vào Pictures/FujifilmMode." to "Photos are saved to Pictures/FujifilmMode.",
-    "Capture Quality" to "Capture Quality", "Noise Reduction" to "Noise Reduction",
+    "Capture Quality" to "Capture Quality", 
     "Shutter" to "Shutter", "Hiệu ứng khi bấm chụp" to "Shutter effect",
     "Mẫu watermark · chọn riêng từng kiểu" to "Watermark templates · select a style",
     "Màu khung" to "Frame color", "Model tùy chỉnh" to "Custom model",
@@ -211,7 +211,7 @@ private val englishUi = mapOf(
     "Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút." to "Change the shutter button color or use a PNG/JPG image.",
     "Đã chọn ảnh cho nút chụp." to "Shutter image selected.",
     "Chọn ngôn ngữ hiển thị. Ứng dụng sẽ tải lại giao diện sau khi đổi." to "Choose the interface language. The app will reload after the change.",
-    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "Off requests no camera noise reduction; actual support depends on the Camera2 HAL.",
+    
     "Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn."
         to "Best uses the highest JPEG quality. Actual resolution depends on the output sizes exposed by the active Camera2/CameraX camera.",
     "Người làm App: Baoaka06" to "By Baoaka06",
@@ -282,8 +282,8 @@ private val fullEnglishUi = mapOf(
         to "Prioritizes multi-exposure HDR from CameraX/OEM. If the device has no HDR Extension, the app tries Ultra HDR JPEG_R when supported. Merging uses the device imaging pipeline; Android does not let apps force a GPU-only or CPU-only path.",
     "UHD · Độ phân giải tối đa" to "UHD · Maximum resolution",
     "Yêu cầu CameraX chọn kích thước JPEG lớn nhất mà camera đang dùng hỗ trợ; không nội suy vượt cảm biến." to "Requests the largest JPEG size supported by the active camera; does not upscale beyond the sensor.",
-    "Noise Reduction" to "Noise Reduction",
-    "Tắt sẽ yêu cầu camera không khử nhiễu; mức hỗ trợ thực tế tùy Camera2 HAL." to "Off requests no camera noise reduction; actual support depends on the Camera2 HAL.",
+    
+    
     "Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn." to "Best uses the highest JPEG quality. Actual resolution depends on the output sizes exposed by the active Camera2/CameraX camera.",
     "Ảnh được lưu vào Pictures/FujifilmMode." to "Photos are saved to Pictures/FujifilmMode.",
     "Import ảnh cho nút chụp" to "Import shutter image", "Đổi ảnh nút chụp" to "Change shutter image",
@@ -476,8 +476,8 @@ private val vietnameseUi = buildMap {
             "Appearance" to "Giao diện",
             "Language" to "Ngôn ngữ",
             "About" to "Giới thiệu",
-            "Noise Reduction" to "Giảm nhiễu",
-            "Noise reduction" to "Giảm nhiễu",
+            
+            
             "Save Location" to "Vị trí lưu",
             "Save location" to "Vị trí lưu",
             "Image Quality" to "Chất lượng ảnh",

@@ -177,65 +177,43 @@ internal object PixelOsdLayoutEngine {
 
         if (frame.showStatus) {
             val resolutionText = frame.resolutionText.ifBlank { "FHD" }.take(4)
-            addText(
-                "status-resolution",
-                "status",
-                resolutionText,
-                margin + 3f,
-                margin + 2f,
-                t3
-            )
+            addText("status-resolution", "status", resolutionText, margin + 3f, margin + 2f, t3)
             val fpsText = frame.previewFps
                 ?.takeIf { it.isFinite() && it > 0f }
                 ?.let { String.format(java.util.Locale.US, "%.2f", it) }
                 ?: "--.--"
             addText(
-                "status-fps",
-                "status",
-                fpsText,
-                margin.toFloat(),
-                (margin + t3 + labelValueGap).toFloat(),
-                t1
+                "status-fps", "status", fpsText,
+                margin.toFloat(), (margin + t3 + labelValueGap).toFloat(), t1
             )
-
-            val afText = if (frame.focusLocked) "AF-L" else frame.afModeText.ifBlank { "AF" }.take(6)
-            val afWidth = measureTextWidthPx(afText, t1).coerceAtLeast(1f)
-            val batteryLabel = frame.batteryPercent.takeIf { it in 0..100 }?.let { it.toString() + "%" }.orEmpty()
-            val batteryTextWidth = if (batteryLabel.isNotBlank()) measureTextWidthPx(batteryLabel, t1) else 0f
-            val batteryWidth = snapGrid(unit * 1.9f)
-            val batteryHeight = snapGrid(unit.toFloat())
-            val lockRows = PixelOsdSprites.get("lock")
-            val lockAspect = lockRows?.let { it.first().length.toFloat() / it.size.coerceAtLeast(1) } ?: 1f
-            val lockWidth = if (frame.focusLocked) snapGrid(t1 * lockAspect) else 0f
-            val lockHeight = snapGrid(t1.toFloat())
-            val total = afWidth +
-                (if (frame.focusLocked) itemGap + lockWidth else 0f) +
-                (if (batteryLabel.isNotBlank()) itemGap + batteryWidth + labelValueGap + batteryTextWidth else 0f)
+            val wbLabel = frame.whiteBalanceText.ifBlank { "AUTO" }.take(8)
+            val batteryLabel = if (!frame.isPro) {
+                frame.batteryPercent.takeIf { it in 0..100 }?.let { "$it%" }.orEmpty()
+            } else ""
+            val batteryWidth = if (batteryLabel.isNotBlank()) snapGrid(unit * 1.9f) else 0f
+            val batteryTextWidth = if (batteryLabel.isNotBlank()) {
+                measureTextWidthPx(batteryLabel, t1).coerceAtLeast(1f)
+            } else 0f
+            val wbWidth = measureTextWidthPx(wbLabel, t2).coerceAtLeast(1f)
+            val fWidth = measureTextWidthPx("F", t1).coerceAtLeast(1f)
+            val sizeLabel = frame.outputSizeLabel.ifBlank { "L" }.take(1)
+            val sizeWidth = measureTextWidthPx(sizeLabel, t1).coerceAtLeast(1f)
+            val total = fWidth + sizeWidth + wbWidth + groupGap * 2 +
+                if (batteryLabel.isNotBlank()) itemGap + batteryWidth + labelValueGap + batteryTextWidth else 0f
             var x = widthPx - margin - total
             val top = margin.toFloat()
-            val afMeasuredWidth = addText("status-af", "status", afText, x, top, t1)
-            x += afMeasuredWidth
-            if (frame.focusLocked) {
-                x += itemGap
-                x += addIcon(
-                    id = "af-lock",
-                    section = "status",
-                    sprite = "lock",
-                    left = x,
-                    top = top + (t1 - lockHeight) / 2f,
-                    requestedHeight = lockHeight.roundToInt()
-                )
-            }
+            val fActual = addText("status-focus", "status", "F", x, top, t1)
+            x += fActual + groupGap
+            val sizeActual = addText("status-size", "status", sizeLabel, x, top, t1)
+            x += sizeActual + groupGap
+            val wbActual = addText("status-wb", "status", wbLabel, x, top + (t1 - t2) / 2f, t2)
+            x += wbActual
             if (batteryLabel.isNotBlank()) {
                 x += itemGap
                 addIcon(
-                    id = "battery",
-                    section = "status",
-                    sprite = "battery",
-                    left = x,
-                    top = top + (t1 - batteryHeight) / 2f,
-                    requestedHeight = batteryHeight.roundToInt(),
-                    requestedWidth = batteryWidth.roundToInt()
+                    id = "battery", section = "status", sprite = "battery",
+                    left = x, top = top + (t1 - unit) / 2f,
+                    requestedHeight = unit, requestedWidth = batteryWidth.roundToInt()
                 )
                 x += batteryWidth + labelValueGap
                 addText("battery-percent", "status", batteryLabel, x, top, t1)
@@ -243,31 +221,55 @@ internal object PixelOsdLayoutEngine {
         }
 
         if (frame.isPro && frame.showStatus) {
-            val rightItems = buildList {
-                if (frame.dynamicRangeText.isNotBlank()) add("pro-dr" to frame.dynamicRangeText.take(8))
-                if (frame.showProWhiteBalance && frame.whiteBalanceText.isNotBlank()) {
-                    add("pro-wb" to frame.whiteBalanceText.take(8))
-                }
-            }
-            val widths = rightItems.map { measureTextWidthPx(it.second, t2).coerceAtLeast(1f) }
-            val total = widths.sum() + groupGap * (rightItems.size - 1).coerceAtLeast(0)
-            var x = widthPx - margin - total
-            val top = margin + t1 + itemGap
-            rightItems.forEachIndexed { index, item ->
-                val w = addText(item.first, "pro-top", item.second, x, top.toFloat(), t2)
-                x += w + if (index < rightItems.lastIndex) groupGap else 0
+            val columnWidth = unit * 4.6f
+            val rightX = (widthPx - margin - columnWidth).coerceAtLeast(margin.toFloat())
+            var y = maxOf(heightPx * 0.18f, margin + t1 + itemGap)
+            val areaHeight = (unit * 2.4f).roundToInt()
+            addIcon(
+                id = "pro-area-icon", section = "pro-right", sprite = "af-area",
+                left = rightX, top = y, requestedHeight = areaHeight,
+                requestedWidth = columnWidth.roundToInt()
+            )
+            y += unit * 2.5f
+            val areaLabelWidth = measureTextWidthPx("AREA", t3)
+            addText(
+                "pro-area", "pro-right", "AREA",
+                rightX + (columnWidth - areaLabelWidth) / 2f, y, t3
+            )
+            y += unit * 1.35f
+            val kelvin = frame.whiteBalanceKelvinText.ifBlank { "----K" }.take(8)
+            addText("pro-kelvin", "pro-right", kelvin, rightX, y, t1)
+            y += t1 + itemGap
+            val film = frame.filmSimulationText.ifBlank { "ST" }.take(2)
+            addText("pro-film", "pro-right", film, rightX + unit * 0.7f, y, t2)
+            y += t2 + itemGap
+            addText("pro-dr-label", "pro-right", "DR", rightX, y, t3)
+            y += t3 + 1f
+            val drValue = if (frame.dynamicRangeText.contains("400", ignoreCase = true)) "400" else "100"
+            addText("pro-dr-value", "pro-right", drValue, rightX, y, t2)
+            y += t2 + itemGap
+            if (frame.focusLocked) {
+                addIcon(
+                    "pro-lock-icon", "pro-right", "lock",
+                    rightX, y, (unit * 1.7f).roundToInt()
+                )
+                addText("pro-lock", "pro-right", "AF-L", rightX + unit * 1.7f, y, t3)
             }
         }
-
         val histogram = if (frame.showHistogram && frame.histogram.isNotEmpty()) {
+            val histogramWidth = widthPx * 0.14f
+            val histogramHeight = heightPx * 0.075f
+            val bottomClearance = if (frame.isPro) {
+                margin + t1 * 1.4f + unit * 1.8f
+            } else margin
+            val bottom = heightPx - bottomClearance
             PixelOsdLayoutBounds(
-                margin.toFloat(),
-                heightPx * 0.115f,
-                margin + widthPx * 0.14f,
-                heightPx * 0.18f
+                (widthPx - margin - histogramWidth).coerceAtLeast(margin.toFloat()),
+                (bottom - histogramHeight).coerceAtLeast(margin.toFloat()),
+                widthPx - margin.toFloat(),
+                bottom
             )
         } else null
-
         val evTop = heightPx * 0.19f
         val evBottom = heightPx * 0.81f
         val evStep = frame.evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
@@ -294,6 +296,17 @@ internal object PixelOsdLayoutEngine {
             addText("ev-label-" + index, "ev", pair.first, evLabelX, y, t2)
         }
         val evLineX = margin + maxEvLabelWidth + unit * 0.75f
+
+        if (frame.showLevel && kotlin.math.abs(frame.horizonRollDegrees) >= 0.5f) {
+            val angle = String.format(java.util.Locale.US, "%.1f°", frame.horizonRollDegrees)
+            val width = measureTextWidthPx(angle, t3)
+            addText(
+                "level-angle", "level", angle,
+                (widthPx - width) / 2f,
+                (heightPx * 0.5f + unit * 1.7f).coerceAtMost(heightPx - margin - t3),
+                t3
+            )
+        }
 
         val zoomTrack = if (frame.showZoomBar) {
             val wText = "W"
@@ -434,7 +447,8 @@ internal object PixelOsdLayoutEngine {
             val fitScale = if (totalWidth(1f) <= available) 1f
                 else (available / totalWidth(1f)).coerceIn(0.85f, 1f)
             var x = margin.toFloat()
-            val top = (heightPx - margin - t1 * fitScale).coerceAtLeast(margin.toFloat())
+            val panelLift = if (frame.adjustmentPanelVisible) unit * 7f else 0f
+            val top = (heightPx - margin - t1 * fitScale - panelLift).coerceAtLeast(margin.toFloat())
             groups.forEachIndexed { groupIndex, group ->
                 group.parts.forEach { part ->
                     x += part.beforeGap

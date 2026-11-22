@@ -61,6 +61,10 @@ internal fun FujiScale(
     onPositionChange: (Float) -> Unit,
     onAuto: () -> Unit,
     onBack: () -> Unit = {},
+    showAutoControl: Boolean = true,
+    keyWidth: androidx.compose.ui.unit.Dp = 22.dp,
+    keyHeight: androidx.compose.ui.unit.Dp = 20.dp,
+    backKeyWidth: androidx.compose.ui.unit.Dp = 42.dp,
     modifier: Modifier = Modifier
 ) {
     val haptics = LocalHapticFeedback.current
@@ -110,29 +114,31 @@ internal fun FujiScale(
             ScaleKey("-", onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onPositionChange(advanceFujiScalePosition(safePosition, -safeStep))
-            })
+            }, keyWidth = keyWidth, keyHeight = keyHeight)
             ScaleKey("+", onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onPositionChange(advanceFujiScalePosition(safePosition, safeStep))
-            })
-            Box(
-                modifier = Modifier
-                    .size(width = 22.dp, height = 20.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(if (auto) Color(0xFF352411) else Color(0xFF15191A))
-                    .border(1.dp, if (auto) Color(0xFFFFB300) else Color(0xFF596265), RoundedCornerShape(3.dp))
-                    .clickable(onClick = onAuto),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "A",
-                    color = if (auto) Color(0xFFFFB300) else Color(0xFFF2F2F2),
-                    fontFamily = FujiTypography.uiFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp
-                )
+            }, keyWidth = keyWidth, keyHeight = keyHeight)
+            if (showAutoControl) {
+                Box(
+                    modifier = Modifier
+                        .size(width = keyWidth, height = keyHeight)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (auto) Color(0xFF352411) else Color(0xFF15191A))
+                        .border(1.dp, if (auto) Color(0xFFFFB300) else Color(0xFF596265), RoundedCornerShape(3.dp))
+                        .clickable(onClick = onAuto),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "A",
+                        color = if (auto) Color(0xFFFFB300) else Color(0xFFF2F2F2),
+                        fontFamily = FujiTypography.uiFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                }
             }
-            ScaleKey("BACK", onClick = onBack, wide = true)
+            ScaleKey("BACK", onClick = onBack, wide = true, keyHeight = keyHeight, wideWidth = backKeyWidth)
         }
 
         Box(
@@ -208,10 +214,17 @@ internal fun FujiScale(
 }
 
 @Composable
-private fun ScaleKey(label: String, onClick: () -> Unit, wide: Boolean = false) {
+private fun ScaleKey(
+    label: String,
+    onClick: () -> Unit,
+    wide: Boolean = false,
+    keyWidth: androidx.compose.ui.unit.Dp = 22.dp,
+    keyHeight: androidx.compose.ui.unit.Dp = 20.dp,
+    wideWidth: androidx.compose.ui.unit.Dp = 42.dp
+) {
     Box(
         modifier = Modifier
-            .size(width = if (wide) 42.dp else 22.dp, height = 20.dp)
+            .size(width = if (wide) wideWidth else keyWidth, height = keyHeight)
             .clip(RoundedCornerShape(3.dp))
             .background(Color(0xFF15191A))
             .border(1.dp, Color(0xFF596265), RoundedCornerShape(3.dp))

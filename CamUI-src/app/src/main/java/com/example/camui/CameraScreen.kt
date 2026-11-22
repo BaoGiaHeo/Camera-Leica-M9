@@ -888,6 +888,7 @@ fun CameraScreen(
     var countdownCancelGeneration by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
+    val zoomVisualRatio = remember { mutableFloatStateOf(zoomSel) }
     var zoomRequestedTarget by remember { mutableFloatStateOf(zoomSel) }
     var zoomControllerGeneration by remember { mutableIntStateOf(0) }
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
@@ -2942,6 +2943,7 @@ fun CameraScreen(
                 val restoredZoom = restoredPlan.effectiveZoomRatio
                 zoomSel = restoredZoom
                 zoomRequestedTarget = restoredZoom
+                zoomVisualRatio.floatValue = restoredZoom
                 actualZoomRatio = restoredZoom
                 digitalZoomCropScale = restoredPlan.digitalCropRatio
                 zoomFromCaptureResult = Float.NaN
@@ -6103,6 +6105,7 @@ fun CameraScreen(
                                     showProWhiteBalance = proHudShowWhiteBalance,
                                     showZoomBar = zoomOverlayVisible || zoomOverlayAlpha > 0.001f,
                                     zoomRatio = zoomDisplayValue,
+                                    zoomRatioState = zoomVisualRatio,
                                     zoomMinimumRatio = camera?.cameraInfo?.zoomState?.value?.minZoomRatio ?: 1f,
                                     zoomMaximumRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
                                         val reportedMax = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)

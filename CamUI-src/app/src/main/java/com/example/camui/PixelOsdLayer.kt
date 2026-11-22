@@ -141,7 +141,11 @@ data class PixelOsdFrame(
     val focusLocked: Boolean = false,
     val focusPoints: List<Offset> = emptyList(),
     val showLevel: Boolean = false,
+    /** Opposite-signed, nearest-axis correction angle used to rotate the indicator. */
     val horizonRollDegrees: Float = 0f,
+    /** Signed measured error, shown below the bar while the phone is not level. */
+    val horizonErrorDegrees: Float = 0f,
+    val horizonLevelAligned: Boolean = false,
     val showZebra: Boolean = false,
     val zebraPoints: List<Offset> = emptyList(),
     val centerAfPoint: Offset? = Offset(0.5f, 0.5f),
@@ -430,21 +434,74 @@ class PixelOsdRenderer(context: Context) {
         if (frame.isPro) drawProHud(canvas, frame, layout)
         if (frame.showZoomBar) drawZoomBar(canvas, frame, layout)
         if (frame.showLevel) {
-            val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
-            val halfSpan = (width * 0.12f).roundToInt().coerceAtLeast(8)
-            val cx = width / 2
-            val cy = height / 2
+            val target = textNativeCanvas ?: canvas
+            val scale = if (textNativeCanvas != null) pixelScale.coerceAtLeast(1) else 1
+            val radians = Math.toRadians(
+                frame.horizonRollDegrees.takeIf { it.isFinite() }?.toDouble() ?: 0.0
+            )
+            val halfSpan = (width * 0.19f).coerceAtLeast(8f) * scale
+            val cx = width * 0.5f * scale
+            val cy = height * 0.5f * scale
             val dx = cos(radians).toFloat() * halfSpan
             val dy = sin(radians).toFloat() * halfSpan
-            drawLine(
-                canvas,
-                (cx - dx).roundToInt(),
-                (cy - dy).roundToInt(),
-                (cx + dx).roundToInt(),
-                (cy + dy).roundToInt(),
-                if (kotlin.math.abs(frame.horizonRollDegrees) < 1.2f) PixelOsdPalette.GREEN else PixelOsdPalette.AMBER
-            )
-            drawSprite(canvas, "level", cx - 4, cy - 3)
+            val x1 = cx - dx
+            val y1 = cy - dy
+            val x2 = cx + dx
+            val y2 = cy + dy
+            val lineWidth = ((currentLayout?.unitPx ?: 20) * 0.18f).coerceAtLeast(1f)
+            val oldStrokeWidth = strokePaint.strokeWidth
+            val oldStrokeCap = strokePaint.strokeCap
+            val oldStyle = strokePaint.style
+            val oldColor = strokePaint.color
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeCap = Paint.Cap.BUTT
+
+            // One-pixel dark outline keeps the white/green bar visible over bright scenes.
+            strokePaint.color = 0xFF000000.toInt()
+            strokePaint.strokeWidth = lineWidth + 2f
+            target.drawLine(x1, y1, x2, y2, strokePaint)
+
+            val lineColor = if (frame.horizonLevelAligned) {
+                PixelOsdPalette.GREEN
+            } else {
+                PixelOsdPalette.WHITE
+            }
+            strokePaint.color = lineColor
+            strokePaint.strokeWidth = lineWidth
+            target.drawLine(x1, y1, x2, y2, strokePaint)
+
+            val capHalf = (lineWidth * 1.35f).coerceAtLeast(2f)
+            val capDx = -sin(radians).toFloat() * capHalf
+            val capDy = cos(radians).toFloat() * capHalf
+            strokePaint.color = 0xFF000000.toInt()
+            strokePaint.strokeWidth = lineWidth + 2f
+            target.drawLine(x1 - capDx, y1 - capDy, x1 + capDx, y1 + capDy, strokePaint)
+            target.drawLine(x2 - capDx, y2 - capDy, x2 + capDx, y2 + capDy, strokePaint)
+            strokePaint.color = lineColor
+            strokePaint.strokeWidth = lineWidth
+            target.drawLine(x1 - capDx, y1 - capDy, x1 + capDx, y1 + capDy, strokePaint)
+            target.drawLine(x2 - capDx, y2 - capDy, x2 + capDx, y2 + capDy, strokePaint)
+
+            strokePaint.strokeWidth = oldStrokeWidth
+            strokePaint.strokeCap = oldStrokeCap
+            strokePaint.style = oldStyle
+            strokePaint.color = oldColor
+
+            if (!frame.horizonLevelAligned) {
+                val label = String.format(Locale.US, "%+.1f°", frame.horizonErrorDegrees)
+                val capHeightPx = ((currentLayout?.unitPx ?: 20) * 0.8f)
+                    .roundToInt().coerceAtLeast(1)
+                val labelWidth = measurePixelTextWidthPx(label, capHeightPx)
+                val physicalCenterX = width * 0.5f * scale
+                val textTop = cy + (capHeightPx * 0.18f)
+                drawPixelTextPhysical(
+                    text = label,
+                    leftPx = physicalCenterX - labelWidth * 0.5f,
+                    topPx = textTop,
+                    capHeightPx = capHeightPx,
+                    color = PixelOsdPalette.WHITE
+                )
+            }
         }
         if (frame.showBatteryLowNotice && !frame.batteryCharging) {
             drawBatteryLowNotice(frame)

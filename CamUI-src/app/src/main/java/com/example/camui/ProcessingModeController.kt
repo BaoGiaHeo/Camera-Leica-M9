@@ -35,6 +35,40 @@ internal data class ProcessingModeSnapshot(
 }
 
 internal object ProcessingModeController {
+    fun fromPreferences(preferences: android.content.SharedPreferences): ProcessingModeSnapshot =
+        ProcessingModeSnapshot(
+            lunaDreamMode = preferences.getString("lunadream_mode", "off") ?: "off",
+            nightShotMode = preferences.getString("nightshot_mode", "off") ?: "off",
+            hdrToneMappingEnabled = preferences.getBoolean("hdr_enabled", false),
+            nativeProcessingEnabled = preferences.getBoolean("native_image_processing_enabled", false),
+            livePhotoEnabled = preferences.getBoolean("live_photo_enabled", false)
+        )
+
+    fun persist(
+        preferences: android.content.SharedPreferences,
+        snapshot: ProcessingModeSnapshot
+    ) {
+        preferences.edit()
+            .putString("lunadream_mode", snapshot.lunaDreamMode)
+            .putString("nightshot_mode", snapshot.nightShotMode)
+            .putBoolean("hdr_enabled", snapshot.hdrToneMappingEnabled)
+            .putBoolean("hdr_coming_soon", false)
+            .putBoolean("native_image_processing_enabled", snapshot.nativeProcessingEnabled)
+            .putBoolean("live_photo_enabled", snapshot.livePhotoEnabled)
+            .apply()
+    }
+
+    fun transitionFromPreferences(
+        preferences: android.content.SharedPreferences,
+        requested: ProcessingPrimaryMode,
+        enabled: Boolean,
+        nightShotValue: String = "night"
+    ): ProcessingModeSnapshot {
+        val next = transition(fromPreferences(preferences), requested, enabled, nightShotValue)
+        persist(preferences, next)
+        return next
+    }
+
     fun transition(
         current: ProcessingModeSnapshot,
         requested: ProcessingPrimaryMode,

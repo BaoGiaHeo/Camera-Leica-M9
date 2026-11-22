@@ -47,7 +47,7 @@ jobs:
 
       - name: Run unit tests and build an internal emulator APK
         working-directory: CamUI-src
-        run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        run: gradle :app:testDeveloperUnitTest :app:assembleDebug --stacktrace
 
       - name: Update Android command-line tools for API 37 preview emulator
         run: |
@@ -137,7 +137,7 @@ jobs:
             echo "app_process_alive=1" >> emulator-artifacts/command-status.txt
 
             # Run instrumentation only after the plain install + cold start was observed.
-            gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
+            gradle --no-daemon -p CamUI-src :app:connectedDeveloperAndroidTest --stacktrace --console=plain
 
             # End-to-end crash-report test: this trigger exists only in the debug source set.
             adb shell am force-stop com.fujifilm.mode.debug

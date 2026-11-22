@@ -189,6 +189,7 @@ dependencies {
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     val camerax = "1.6.2"
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.window:window:1.4.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")

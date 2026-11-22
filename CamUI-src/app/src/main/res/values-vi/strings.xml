@@ -188,6 +188,11 @@
     <string name="watermark_invert">ĐẢO MÀU</string>
     <string name="watermark_size_value">KÍCH THƯỚC %1$d</string>
     <string name="watermark_size_label">CỠ</string>
+    <string name="watermark_title_label">TIÊU ĐỀ</string>
+    <string name="watermark_title_hint">Tiêu đề ảnh (không bắt buộc)</string>
+    <string name="watermark_author_label">TÁC GIẢ</string>
+    <string name="watermark_author_hint">Tên nhiếp ảnh gia</string>
+    <string name="watermark_photographed_in">CHỤP NGÀY : %1$s</string>
     <string name="watermark_fields">TRƯỜNG THÔNG TIN</string>
     <string name="watermark_field_model">Tên máy ảnh</string>
     <string name="watermark_field_date">Ngày</string>

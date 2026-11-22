@@ -233,4 +233,14 @@
     <string name="sound_pcm_note">Phản hồi camera được tổng hợp ở dạng PCM16 mono 44,1 kHz, đỉnh -3 dBFS. Độ trễ thực tế phụ thuộc lịch trình âm thanh của thiết bị.</string>
 
     <string name="preview_fps_none">Camera sau không công bố tốc độ khung hình xem trước được hỗ trợ.</string>
+    <string name="mf_mode_ld25">LD 2.5</string>
+    <string name="mf_mode_ld30">LD 3.0</string>
+    <string name="lunadream_15_title">LunaDream 1.5</string>
+    <string name="lunadream_15_subtitle">Mục tiêu 50 MP · ghép 5 khung · ưu tiên tốc độ</string>
+    <string name="lunadream_20_title">LunaDream 2.0</string>
+    <string name="lunadream_20_subtitle">Mục tiêu 150 MP · ghép 8 khung Lucas–Kanade</string>
+    <string name="lunadream_25_title">LunaDream 2.5</string>
+    <string name="lunadream_25_subtitle">Mục tiêu 150 MP · ghép 8 khung · phục hồi chi tiết thích ứng</string>
+    <string name="lunadream_30_title">LunaDream 3.0</string>
+    <string name="lunadream_30_subtitle">Mục tiêu 200 MP · ghép 8 khung · tăng vi chi tiết có giới hạn</string>
 </resources>

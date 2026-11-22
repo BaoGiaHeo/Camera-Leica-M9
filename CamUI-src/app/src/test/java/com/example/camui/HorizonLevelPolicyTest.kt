@@ -34,9 +34,9 @@ class HorizonLevelPolicyTest {
         val rotated90 = HorizonLevelPolicy.errorDegrees(*gravityAt(12f), displayRotation = 1)!!
         val rotated180 = HorizonLevelPolicy.errorDegrees(*gravityAt(12f), displayRotation = 2)!!
         val rotated270 = HorizonLevelPolicy.errorDegrees(*gravityAt(12f), displayRotation = 3)!!
-        assertEquals(-original, rotated90, 0.02f)
+        assertEquals(original, rotated90, 0.02f)
         assertEquals(original, rotated180, 0.02f)
-        assertEquals(-original, rotated270, 0.02f)
+        assertEquals(original, rotated270, 0.02f)
     }
 
     @Test

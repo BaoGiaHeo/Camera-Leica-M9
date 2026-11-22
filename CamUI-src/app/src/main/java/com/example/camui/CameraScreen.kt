@@ -792,6 +792,8 @@ fun CameraScreen(
     var zoomBarPosition by remember {
         mutableStateOf(appPrefs.getString("zoom_bar_position", "top_center")?.let { if (it == "top_left") "middle_left" else it } ?: "top_center")
     }
+    val previewFpsTracker = remember { PreviewFpsTracker() }
+    var measuredPreviewFps by remember { mutableFloatStateOf(Float.NaN) }
     var previewBoundsText by remember { mutableStateOf("unmeasured") }
     val previewBoundsTextState = rememberUpdatedState(previewBoundsText)
     var previewTransformText by remember { mutableStateOf("unmeasured") }
@@ -1928,6 +1930,8 @@ fun CameraScreen(
                     Camera2Interop.Extender(previewBuilder)
                         .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                 }
+                previewFpsTracker.reset()
+                var lastPreviewFpsPublishAtMs = 0L
                 var lastAfTraceAtMs = 0L
                 if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
@@ -1937,6 +1941,20 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            val sensorTimestampNs = result.get(CaptureResult.SENSOR_TIMESTAMP)
+                            val measuredFps = previewFpsTracker.addSensorTimestamp(sensorTimestampNs)
+                            val fpsNowMs = SystemClock.elapsedRealtime()
+                            if (measuredFps != null && fpsNowMs - lastPreviewFpsPublishAtMs >= 500L) {
+                                lastPreviewFpsPublishAtMs = fpsNowMs
+                                scope.launch(Dispatchers.Main.immediate) {
+                                    measuredPreviewFps = measuredFps
+                                }
+                                android.util.Log.d(
+                                    "FUJI_PREVIEW_FPS",
+                                    "source=SENSOR_TIMESTAMP samples=30 fps=${String.format(Locale.US, "%.2f", measuredFps)} " +
+                                        "sensorTimestampNs=${sensorTimestampNs ?: -1L}"
+                                )
+                            }
                             val afRegions = request.get(CaptureRequest.CONTROL_AF_REGIONS).orEmpty()
                             val afState = result.get(CaptureResult.CONTROL_AF_STATE)
                             val afNowMs = SystemClock.elapsedRealtime()
@@ -5536,6 +5554,10 @@ fun CameraScreen(
                             PixelOsdLayer(
                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
+                                    videoFormatText = "FHD",
+                                    fpsText = measuredPreviewFps.takeIf { it.isFinite() && it > 0f }
+                                        ?.let { String.format(Locale.US, "%.2f", it) } ?: "--.--",
+                                    fpsTarget = 60,
                                     showPixelTexture = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     showGrid = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,

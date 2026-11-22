@@ -205,4 +205,5 @@
     <string name="activation_continue">CONTINUE</string>
     <string name="activation_ok">OK</string>
     <string name="activation_reopen">VIEW ACTIVATION INTRO</string>
+    <string name="quick_display_title">DISPLAY</string>
 </resources>

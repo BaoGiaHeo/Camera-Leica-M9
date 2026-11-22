@@ -43,6 +43,12 @@
     <string name="filter_preview_hold_original">HOLD FOR ORIGINAL</string>
     <string name="filter_preview_show_original">ORIGINAL · RELEASE TO FILTER</string>
     <string name="filter_preview_name">Preview · %1$s</string>
+
+    <string name="common_on">ON</string>
+    <string name="common_off">OFF</string>
+    <string name="filter_import_success">Imported %1$d LUTs. Open Content Manager to add them to the filter picker.</string>
+    <string name="filter_import_failure">LUT import failed: %1$s</string>
+    <string name="filter_import_unknown_error">Unknown error</string>
     <string name="filter_search_placeholder">Search filters...</string>
     <string name="filter_count">%1$d / %2$d FILTERS</string>
     <string name="filter_hold_original">HOLD FOR ORIGINAL</string>

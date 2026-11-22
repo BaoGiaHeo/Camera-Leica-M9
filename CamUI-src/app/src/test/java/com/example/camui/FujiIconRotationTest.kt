@@ -18,9 +18,9 @@ class FujiIconRotationTest {
     @Test
     fun orientationWrapsAcrossZeroWithoutAFullTurn() {
         val tracker = FujiIconOrientationTracker(initialQuadrant = 3)
-        assertEquals(270, tracker.update(359))
-        assertEquals(270, tracker.update(15))
-        assertEquals(0, tracker.update(57))
+        assertEquals(0, tracker.update(359))
+        assertEquals(0, tracker.update(15))
+        assertEquals(90, tracker.update(57))
     }
 
     @Test

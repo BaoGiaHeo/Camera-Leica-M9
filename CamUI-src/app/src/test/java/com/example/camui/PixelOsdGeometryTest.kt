@@ -139,8 +139,11 @@ class PixelOsdGeometryTest {
                 val fps = requireNotNull(plan.elements.firstOrNull { it.id == "status-fps" })
                 assertTrue(histogram.width > 0f)
                 assertTrue(histogram.height > 0f)
+                assertTrue(histogram.left > plan.evLineX)
+                assertTrue(histogram.top > plan.evBottom)
+                assertTrue(histogram.right <= width - plan.safeMarginPx)
+                assertTrue(histogram.bottom <= height - plan.safeMarginPx)
                 assertTrue(histogram.top >= fps.bounds.bottom)
-                assertTrue(histogram.bottom < plan.evTop)
             }
         }
     }
@@ -172,6 +175,13 @@ class PixelOsdGeometryTest {
             faceBoxVisible = false,
             manualOverrideActive = false
         ))
+    }
+
+    @Test
+    fun afAndEyeReticlesUseScreenRelativeSizeAndReadableStroke() {
+        assertEquals(32, centerAfReticleHalfSize(540))
+        assertEquals(19, eyeReticleHalfSize(22, 2))
+        assertEquals(2, afReticleStrokeWidth(22, 2))
     }
 
     @Test

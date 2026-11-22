@@ -261,7 +261,7 @@ internal object PixelOsdLayoutEngine {
             val histogramHeight = heightPx * 0.075f
             val bottomClearance = if (frame.isPro) {
                 margin + t1 * 1.4f + unit * 1.8f
-            } else margin
+            } else margin.toFloat()
             val bottom = heightPx.toFloat() - bottomClearance
             PixelOsdLayoutBounds(
                 (widthPx - margin - histogramWidth).coerceAtLeast(margin.toFloat()),

@@ -26,7 +26,10 @@ class KelvinEstimatorTest {
     @Test
     fun asShotNeutralUsesInverseRggbGainsAndAverageGreen() {
         val neutral = KelvinEstimator.asShotNeutral(
-            android.hardware.camera2.params.RggbChannelVector(2f, 1f, 1.5f, 4f)
+            redGain = 2f,
+            greenEvenGain = 1f,
+            greenOddGain = 1.5f,
+            blueGain = 4f
         )!!
         assertEquals(0.5f, neutral[0], 0.0001f)
         assertEquals(0.8f, neutral[1], 0.0001f)
@@ -35,10 +38,6 @@ class KelvinEstimatorTest {
 
     @Test
     fun zeroOrNonFiniteGainsAreRejected() {
-        assertNull(
-            KelvinEstimator.asShotNeutral(
-                android.hardware.camera2.params.RggbChannelVector(0f, 1f, 1f, 2f)
-            )
-        )
+        assertNull(KelvinEstimator.asShotNeutral(0f, 1f, 1f, 2f))
     }
 }

@@ -810,14 +810,15 @@ class PixelOsdRenderer(context: Context) {
                             }
                         }
                     }
-                    "pro-dr-value-box" -> {
-                        val left = (element.bounds.left / scale).roundToInt()
-                        val top = (element.bounds.top / scale).roundToInt()
-                        val right = (element.bounds.right / scale).roundToInt()
-                        val bottom = (element.bounds.bottom / scale).roundToInt()
-                        fillPaint.color = if (frame.dynamicRangeText.contains("400")) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE
-                        canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), fillPaint)
-                    }
+                    "pro-dr-value-box" -> drawPixelOutlineRect(
+                        canvas,
+                        (element.bounds.left / scale).roundToInt(),
+                        (element.bounds.top / scale).roundToInt(),
+                        (element.bounds.right / scale).roundToInt(),
+                        (element.bounds.bottom / scale).roundToInt(),
+                        PixelOsdPalette.BLACK,
+                        220
+                    )
                     else -> {
                         val x = (element.bounds.left / scale).roundToInt()
                         val top = (element.bounds.top / scale).roundToInt()

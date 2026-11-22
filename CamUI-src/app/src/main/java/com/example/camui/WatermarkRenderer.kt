@@ -390,13 +390,13 @@ internal object WatermarkRenderer {
         drawMeasuredText(
             canvas, line2, centerX, footerTop + s * 0.125f,
             geometry.canvasWidth * 0.90f, s * 0.019f * settings.sizeScale,
-            fonts.regular, 0xFF8C8C8C.toInt(), fonts.regularCapRatio
+            fonts.regular, secondaryText, fonts.regularCapRatio
         )
         if (location.isNotBlank()) {
             drawMeasuredText(
                 canvas, location, centerX, footerTop + s * 0.172f,
                 geometry.canvasWidth * 0.90f, s * 0.019f * settings.sizeScale,
-                fonts.regular, 0xFFA0A0A0.toInt(), fonts.regularCapRatio
+                fonts.regular, secondaryText, fonts.regularCapRatio
             )
         }
     }
@@ -456,7 +456,7 @@ internal object WatermarkRenderer {
             drawMeasuredText(
                 canvas, location, geometry.canvasWidth * 0.5f, photo.bottom + s * 0.189f * settings.sizeScale,
                 geometry.canvasWidth * 0.86f, s * 0.019f * settings.sizeScale,
-                fonts.regular, 0xFF9C9C9C.toInt(), fonts.regularCapRatio
+                fonts.regular, secondaryText, fonts.regularCapRatio
             )
         }
     }

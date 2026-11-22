@@ -117,16 +117,24 @@ internal fun selectPreviewFpsRange(
         )
     }
 
-    val cappedRanges = ranges.filter { it.upper <= requested }
-    val selected = cappedRanges.maxWithOrNull(
-        compareBy<PreviewFpsRange> { it.upper }.thenBy { it.lower }
-    )
+    // Only expose the app's supported fixed targets (60/30/24); do not
+    // invent intermediate values such as 48 FPS from a broad AE range.
+    val fallbackTarget = listOf(30, 24).firstOrNull { candidate ->
+        candidate < requested && ranges.any { it.lower <= candidate && it.upper >= candidate }
+    }
+    val selected = fallbackTarget?.let { target ->
+        ranges.filter { it.lower <= target && it.upper >= target }
+            .minByOrNull { it.upper - it.lower }
+    }
     return PreviewFpsSelection(
         range = selected,
-        targetFps = selected?.upper,
+        targetFps = fallbackTarget,
         fellBack = true,
-        reason = if (selected == null) "No advertised AE range supports this target"
-            else "Requested " + requested + " FPS unavailable; selected advertised range " +
-                selected.lower + ".." + selected.upper
+        reason = if (selected == null || fallbackTarget == null) {
+            "No advertised AE range supports a lower fixed target"
+        } else {
+            "Requested " + requested + " FPS unavailable; selected supported target " +
+                fallbackTarget + " FPS using AE range " + selected.lower + ".." + selected.upper
+        }
     )
 }

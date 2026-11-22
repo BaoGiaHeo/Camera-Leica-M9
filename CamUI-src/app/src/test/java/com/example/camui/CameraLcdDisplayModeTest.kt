@@ -24,11 +24,12 @@ class CameraLcdDisplayModeTest {
     }
 
     @Test
-    fun everyDisplayModeCyclesBackToStandard() {
-        repeat(CameraLcdDisplayMode.entries.size) {
+    fun visibleDispModesCycleBackToStandard() {
+        repeat(3) {
             var mode = CameraLcdDisplayMode.STANDARD
-            repeat(CameraLcdDisplayMode.entries.size) { mode = mode.next() }
+            repeat(3) { mode = mode.next() }
             assertEquals(CameraLcdDisplayMode.STANDARD, mode)
         }
+        assertEquals(CameraLcdDisplayMode.STANDARD, CameraLcdDisplayMode.FULL_INFO.next())
     }
 }

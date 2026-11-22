@@ -5145,6 +5145,21 @@ fun CameraScreen(
     }
     val manualInfinityFocusSupported = maxFocus >= 8f &&
         availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
+    LaunchedEffect(camera, proAfMode, availableAfModes?.contentToString()) {
+        val active = camera
+        val mapped = camera2AfModeForProSelection(proAfMode, availableAfModes)
+        if (active != null && mapped != null) {
+            runCatching {
+                val options = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, mapped)
+                    .build()
+                Camera2CameraControl.from(active.cameraControl).addCaptureRequestOptions(options)
+            }.onFailure {
+                android.util.Log.w("FUJI_PRO_AF", "Could not restore persisted AF mode=$proAfMode", it)
+            }
+        }
+    }
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
@@ -5842,16 +5857,31 @@ fun CameraScreen(
                                     manualIso = manualIsoEnabled,
                                     manualShutter = manualShutterEnabled,
                                     selectedControl = when (proSel?.uppercase(Locale.US)) {
-                                        "TV" -> "TV"
-                                        "TONE" -> "WB"
-                                        else -> proSel?.uppercase(Locale.US).orEmpty()
-                                    },
-                                    selectedControlProgress = cameraControlProgress(
-                                        selectedControl = when (proSel?.uppercase(Locale.US)) {
-                                            "TV" -> "TV"
-                                            "TONE" -> "WB"
-                                            else -> proSel?.uppercase(Locale.US).orEmpty()
-                                        },
+                                         "TV" -> "TV"
+                                         "TONE" -> "WB"
+                                         "FL" -> "FL"
+                                         else -> proSel?.uppercase(Locale.US).orEmpty()
+                                     },
+                                    selectedControlProgress = if (proSel?.uppercase(Locale.US) == "FL") {
+                                         val zoomState = camera?.cameraInfo?.zoomState?.value
+                                         val minimumZoom = zoomState?.minZoomRatio ?: 1f
+                                         val reportedMaximum = zoomState?.let {
+                                             Camera2Info.cameraReportedZoomMax(activeCameraDetails, it.maxZoomRatio)
+                                         } ?: 2f
+                                         val assessment = Camera2Info.opticalZoomAssessment(
+                                             activeCameraDetails,
+                                             activePhysicalCameraDetails,
+                                             camera2Inventory
+                                         )
+                                         val maximumZoom = maxTotalSelectableZoom(reportedMaximum, assessment)
+                                             .coerceAtLeast(minimumZoom)
+                                         logarithmicZoomPosition(zoomSel, minimumZoom, maximumZoom)
+                                     } else cameraControlProgress(
+                                         selectedControl = when (proSel?.uppercase(Locale.US)) {
+                                             "TV" -> "TV"
+                                             "TONE" -> "WB"
+                                             else -> proSel?.uppercase(Locale.US).orEmpty()
+                                         },
                                         evIndex = evDisplayIndex,
                                         evMinimumIndex = evRange?.lower ?: -9,
                                         evMaximumIndex = evRange?.upper ?: 9,

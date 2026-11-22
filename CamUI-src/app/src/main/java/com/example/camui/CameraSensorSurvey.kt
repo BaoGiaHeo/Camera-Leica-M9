@@ -81,6 +81,19 @@ internal data class CameraResolutionCapability(
 
 /** Reads public Camera2 metadata only; vendor-private sensor modes are not assumed. */
 internal object CameraSensorSurvey {
+    fun inspectAvailable(manager: CameraManager): List<CameraResolutionCapability> {
+        val ids = linkedSetOf<String>()
+        manager.cameraIdList.forEach { id ->
+            ids += id
+            if (Build.VERSION.SDK_INT >= 28) {
+                runCatching {
+                    manager.getCameraCharacteristics(id).physicalCameraIds
+                }.getOrDefault(emptySet()).forEach { ids += it }
+            }
+        }
+        return ids.mapNotNull { id -> inspect(manager, id) }
+    }
+
     fun inspect(manager: CameraManager, cameraId: String): CameraResolutionCapability? = runCatching {
         val c = manager.getCameraCharacteristics(cameraId)
         val normalMap = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)

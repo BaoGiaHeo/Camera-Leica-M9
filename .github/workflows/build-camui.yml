@@ -47,7 +47,7 @@ jobs:
 
       - name: Run unit tests and build an internal emulator APK
         working-directory: CamUI-src
-        run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
+        run: gradle :app:testDeveloperUnitTest :app:assembleDebug --stacktrace
 
       - name: Update Android command-line tools for API 37 preview emulator
         run: |

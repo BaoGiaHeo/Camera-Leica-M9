@@ -192,7 +192,7 @@ internal fun rememberScreenProfile(): ScreenProfile {
                     profile = latest.copy(
                         foldingFeatureBounds = feature?.bounds?.let(::Rect),
                         foldingFeatureSeparating = feature?.isSeparating == true,
-                        foldingFeatureOrientation = feature?.orientation?.name
+                        foldingFeatureOrientation = feature?.orientation?.toString()
                     )
                     android.util.Log.i("FUJI_SCREEN_PROFILE", "FOLDING ${profile?.diagnosticLine()}")
                 }

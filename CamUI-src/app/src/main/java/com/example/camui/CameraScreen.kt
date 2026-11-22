@@ -855,6 +855,12 @@ fun CameraScreen(
     var burstMode by remember {
         mutableStateOf(appPrefs.getBoolean("burst_capture_mode_enabled", false))
     }
+    var burstHighMode by remember {
+        mutableStateOf(appPrefs.getBoolean("burst_capture_high_speed", false))
+    }
+    LaunchedEffect(burstHighMode) {
+        appPrefs.edit().putBoolean("burst_capture_high_speed", burstHighMode).apply()
+    }
     var burstCaptureActive by remember { mutableStateOf(false) }
     var burstStopRequested by remember { mutableStateOf(false) }
     var burstCompletedFrames by remember { mutableIntStateOf(0) }
@@ -997,6 +1003,7 @@ fun CameraScreen(
     var manualIsoEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_iso_enabled", false)) }
     var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
     var manualColorTempEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_wb_enabled", false)) }
+    val manualColorTempEnabledState = rememberUpdatedState(manualColorTempEnabled)
     var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2000, 10000)) }
     var estimatedAutoKelvin by remember { mutableIntStateOf(0) }
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -2282,6 +2289,7 @@ fun CameraScreen(
                 var lastAfTraceAtMs = 0L
                 var lastEvTraceAtMs = 0L
                 var lastKelvinEstimateAtMs = 0L
+                var lastKelvinValidAtMs = 0L
                 if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
@@ -2290,7 +2298,7 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
-                            if (!manualColorTempEnabled) {
+                            if (!manualColorTempEnabledState.value) {
                                 val kelvinNowMs = SystemClock.elapsedRealtime()
                                 if (kelvinNowMs - lastKelvinEstimateAtMs >= 500L) {
                                     lastKelvinEstimateAtMs = kelvinNowMs
@@ -2298,7 +2306,9 @@ fun CameraScreen(
                                         KelvinEstimator.estimate(result, characteristics)
                                     }
                                     if (estimate != null) {
+                                        lastKelvinValidAtMs = kelvinNowMs
                                         scope.launch(Dispatchers.Main.immediate) {
+                                            if (manualColorTempEnabledState.value) return@launch
                                             val previous = estimatedAutoKelvin
                                             val smoothed = if (previous in 1_800..12_000) {
                                                 (previous * 0.75f + estimate * 0.25f).roundToInt()
@@ -2309,6 +2319,19 @@ fun CameraScreen(
                                                 "FUJI_WB_KELVIN",
                                                 "cameraId=${activeCameraDetails?.id ?: "unknown"} raw=$estimate smoothed=$estimatedAutoKelvin source=Camera2.AWB"
                                             )
+                                        }
+                                    } else if (lastKelvinValidAtMs > 0L &&
+                                        kelvinNowMs - lastKelvinValidAtMs >= 1_500L
+                                    ) {
+                                        lastKelvinValidAtMs = 0L
+                                        scope.launch(Dispatchers.Main.immediate) {
+                                            if (!manualColorTempEnabledState.value && estimatedAutoKelvin != 0) {
+                                                estimatedAutoKelvin = 0
+                                                android.util.Log.w(
+                                                    "FUJI_WB_KELVIN",
+                                                    "cameraId=${activeCameraDetails?.id ?: "unknown"} data unavailable; HUD= AUTO"
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -3987,7 +4010,8 @@ fun CameraScreen(
                         }
                         // Best effort: do not add delay when the camera itself takes longer than 200 ms.
                         val elapsed = SystemClock.elapsedRealtime() - frameStartedAt
-                        val remaining = 200L - elapsed
+                        val burstIntervalMs = if (burstHighMode) 100L else 200L
+                        val remaining = burstIntervalMs - elapsed
                         if (remaining > 0L && frameIndex < 24 && !burstStopRequested) delay(remaining)
                     }
                 } finally {
@@ -5540,9 +5564,20 @@ fun CameraScreen(
                     flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 })
                 FujiTopKey(label = "DRIVE", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
-                    timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
+                    if (burstMode) {
+                        burstHighMode = !burstHighMode
+                        android.util.Log.i("FUJI_DRIVE", "BURST_SPEED mode=${if (burstHighMode) "H" else "L"}")
+                    } else {
+                        timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
+                    }
                 }, onLongClick = {
-                    if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
+                    if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) {
+                        burstMode = !burstMode
+                        if (burstMode) {
+                            burstHighMode = false
+                            timerSec = 0
+                        }
+                    }
                 })
                 FujiTopKey(label = "ADJ", icon = "sliders", selected = false, onClick = onOpenToolbox)
                 FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
@@ -6156,7 +6191,7 @@ fun CameraScreen(
                                         lcdDisplayMode == CameraLcdDisplayMode.LEVEL_GRID,
                                     driveModeText = when {
                                         timerSec > 0 -> "${timerSec}s"
-                                        burstMode -> "BURST L"
+                                        burstMode -> if (burstHighMode) "BURST H" else "BURST L"
                                         else -> ""
                                     },
                                     driveFrameCount = burstCompletedFrames.takeIf { burstCaptureActive } ?: 0,
@@ -6296,7 +6331,7 @@ fun CameraScreen(
                             if (mode == "Pro" && proSel != null) {
                                 val selectedPanel = proAdjustmentContent
                                 val adjustmentRows = if (proSel == "AF" && proAfMode == "MF") 10.8f else if (proSel == "AF") 4.6f else 6f
-                                val adjustmentMinimum = if (proSel == "AF" && proAfMode == "MF") 88.dp else 48.dp
+                                val adjustmentMinimum = if (proSel == "AF" && proAfMode == "MF") 110.dp else 48.dp
                                 val adjustmentHeight = (frameHeight / 48f * adjustmentRows)
                                     .coerceAtLeast(adjustmentMinimum)
                                     .coerceAtMost(frameHeight * 0.45f)
@@ -6789,7 +6824,7 @@ fun CameraScreen(
                                                     modeOption,
                                                     proAfMode == modeOption,
                                                     { selectProAfMode(modeOption) },
-                                                    Modifier.weight(1f)
+                                                    Modifier.weight(1f).heightIn(min = 40.dp)
                                                 )
                                             }
                                             FujiChip(
@@ -6805,7 +6840,7 @@ fun CameraScreen(
                                                     }
                                                     android.util.Log.i("FUJI_AF_TOUCH", "TOUCH_AF enabled=$touchAfEnabled")
                                                 },
-                                                Modifier.weight(1.2f)
+                                                Modifier.weight(1f).heightIn(min = 40.dp)
                                             )
                                         }
                                         if (proAfMode == "MF" && maxFocus > 0f &&
@@ -6850,7 +6885,7 @@ fun CameraScreen(
                                                     "PEAK",
                                                     focusPeaking,
                                                     { onFocusPeaking(!focusPeaking) },
-                                                    Modifier.widthIn(min = 48.dp)
+                                                    Modifier.widthIn(min = 48.dp).heightIn(min = 40.dp)
                                                 )
                                             }
                                         } else if (proAfMode == "MF") {
@@ -7259,7 +7294,7 @@ fun CameraScreen(
                     centerAfStatus = 0
                     manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
                     if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
-                        camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                        camera?.let { active -> runCatching { applyAutoFocus(active, if (mode == "Pro") proAfMode else "AF-S") } }
                     }
                 },
                 onCapture = { takePhoto() },

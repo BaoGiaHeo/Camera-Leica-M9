@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -68,16 +69,17 @@ internal fun FujiScale(
     modifier: Modifier = Modifier
 ) {
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     val safePosition = position.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0.5f
     val safeStep = stepFraction.takeIf { it.isFinite() && it > 0f } ?: 0.01f
     val latestPosition = rememberUpdatedState(safePosition)
     val latestOnPositionChange = rememberUpdatedState(onPositionChange)
-    val textPaint = remember {
+    val textPaint = remember(context) {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
             textAlign = Paint.Align.LEFT
             textSize = 8f
-            typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
+            typeface = FujiTypography.uiTypeface(context)
         }
     }
 
@@ -89,7 +91,7 @@ internal fun FujiScale(
         verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(21.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = keyHeight),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {

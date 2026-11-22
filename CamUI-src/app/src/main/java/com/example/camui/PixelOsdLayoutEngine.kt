@@ -279,7 +279,11 @@ internal object PixelOsdLayoutEngine {
             y += t2 + itemGap
             addText("pro-dr-label", "pro-right", "DR", rightX, y, t3)
             y += t3 + 1f
-            val drValue = if (frame.dynamicRangeText.contains("400", ignoreCase = true)) "400" else "100"
+            val drValue = when {
+                frame.dynamicRangeText.contains("400", ignoreCase = true) -> "400"
+                frame.dynamicRangeText.contains("200", ignoreCase = true) -> "200"
+                else -> "100"
+            }
             addText("pro-dr-value", "pro-right", drValue, rightX, y, t2)
             y += t2 + itemGap
             if (frame.focusLocked) {

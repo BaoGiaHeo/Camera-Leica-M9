@@ -826,13 +826,11 @@ class PixelOsdRenderer(context: Context) {
                         frame.batteryCharging,
                         frame.batteryCrossed
                     )
-                    "pro-area-icon" -> {
-                        drawHLine(canvas, left, right, top, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
-                        drawHLine(canvas, left, right, bottom, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
-                        drawVLine(canvas, left, top, bottom, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
-                        drawVLine(canvas, right, top, bottom, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
-                        drawPixelOsdIcon(canvas, element, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE)
-                    }
+                    "pro-area-icon" -> drawPixelOsdIcon(
+                        canvas,
+                        element,
+                        if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
+                    )
                     "pro-lock-icon" -> drawPixelOsdIcon(canvas, element, PixelOsdPalette.AMBER)
                     else -> drawPixelOsdIcon(canvas, element)
                 }

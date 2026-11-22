@@ -12,6 +12,7 @@ on:
       - feature/lunadream-2.5.0dream
       - fix/2.5.0dream-af-label
       - fuji-2.5.0-user-prompt-round1-2026-11-22
+      - fuji-2.5.0-user-prompt-round1-fixpass-2026-11-23
 
 permissions:
   contents: read
@@ -141,7 +142,12 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraAfAreaSize.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraAfTouchPolicy.kt \
+            .github/workflows/build-camui.yml \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
+            CamUI-src/app/src/main/java/com/example/camui/FujiScale.kt \
+            CamUI-src/app/src/main/java/com/example/camui/PreviewFpsPolicy.kt \
+            CamUI-src/app/src/main/java/com/example/camui/ProOsdTapTarget.kt \
+            CamUI-src/app/src/main/java/com/example/camui/ScreenProfile.kt \
             CamUI-src/app/src/main/java/com/example/camui/HorizonLevelPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/KelvinEstimator.kt \
             CamUI-src/app/src/main/java/com/example/camui/ZoomSmoothingPolicy.kt \
@@ -183,6 +189,9 @@ jobs:
             CamUI-src/app/src/main/res/values/themes.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/HorizonLevelPolicyTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/PreviewFpsPolicyTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/ProOsdTapTargetTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/ScreenProfileLayoutTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/KelvinEstimatorTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/ZoomSmoothingPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraMultiFrameProgressTest.kt \

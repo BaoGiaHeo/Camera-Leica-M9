@@ -466,6 +466,21 @@ fun FujiKey(
     onPressEnd: (() -> Unit)? = null
 ) {
     val view = LocalView.current
+    val rotateGlyph = label == "+" || label == "−" || label == "-"
+    val glyphRotation = remember { Animatable(0f) }
+    LaunchedEffect(FujiIconRotationState.degrees, FujiIconRotationState.enabled, rotateGlyph) {
+        val targetDegrees = if (rotateGlyph && FujiIconRotationState.enabled) {
+            shortestIconRotationTarget(glyphRotation.value, FujiIconRotationState.degrees)
+        } else 0f
+        if (AnimaT.isSystemReducedMotion(view.context)) {
+            glyphRotation.snapTo(targetDegrees)
+        } else {
+            glyphRotation.animateTo(
+                targetDegrees,
+                animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+            )
+        }
+    }
     val interaction = remember { MutableInteractionSource() }
     val clickPressed by interaction.collectIsPressedAsState()
     val hasPressCallbacks = onPressStart != null || onPressEnd != null
@@ -571,7 +586,9 @@ fun FujiKey(
     ) {
         Text(
             label.uppercase(),
-            modifier = Modifier.offset(y = y),
+            modifier = Modifier
+                .offset(y = y)
+                .then(if (rotateGlyph) Modifier.graphicsLayer { rotationZ = glyphRotation.value } else Modifier),
             color = if (enabled) Color(0xFFE8ECE9) else Color(0xFF858B8D),
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,

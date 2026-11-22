@@ -452,29 +452,7 @@ class PixelOsdRenderer(context: Context) {
         layout.histogramBounds?.let { drawHistogram(canvas, frame.histogram, it) }
         if (frame.isPro) drawProHud(canvas, frame, layout)
         if (frame.showZoomBar) drawZoomBar(canvas, frame, layout)
-        if (frame.showLevel) {
-            val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
-            val halfSpan = (width * 0.19f).roundToInt().coerceAtLeast(8)
-            val cx = width / 2
-            val cy = height / 2
-            val drawRadians = if (levelBalanced) 0.0 else -radians
-            val dx = cos(drawRadians).toFloat() * halfSpan
-            val dy = sin(drawRadians).toFloat() * halfSpan
-            drawLine(
-                canvas,
-                (cx - dx).roundToInt(),
-                (cy - dy).roundToInt(),
-                (cx + dx).roundToInt(),
-                (cy + dy).roundToInt(),
-                if (levelBalanced) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
-            )
-            drawSprite(canvas, "level", cx - 4, cy - 3)
-            if (!levelBalanced) {
-                layout.elements.firstOrNull { it.id == "level-angle" }?.let { angle ->
-                    drawPixelOsdText(angle, PixelOsdPalette.WHITE)
-                }
-            }
-        }
+        if (frame.showLevel) drawHorizonBar(canvas, frame, layout, width, height)
         if (frame.showBatteryLowNotice && !frame.batteryCharging) {
             drawBatteryLowNotice(frame)
         }
@@ -991,6 +969,51 @@ class PixelOsdRenderer(context: Context) {
     private fun drawLine(canvas: NativeCanvas, x1: Int, y1: Int, x2: Int, y2: Int, color: Int) {
         strokePaint.color = color
         canvas.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), strokePaint)
+    }
+
+    private fun drawHorizonBar(
+        canvas: NativeCanvas,
+        frame: PixelOsdFrame,
+        layout: PixelOsdLayoutPlan,
+        width: Int,
+        height: Int
+    ) {
+        val cx = width / 2f
+        val cy = height / 2f
+        val halfSpan = (width * 0.19f).coerceAtLeast(8f)
+        val radians = if (levelBalanced) 0.0 else
+            -Math.toRadians(frame.horizonRollDegrees.toDouble())
+        val ux = cos(radians).toFloat()
+        val uy = sin(radians).toFloat()
+        val px = -uy
+        val py = ux
+        val x1 = cx - ux * halfSpan
+        val y1 = cy - uy * halfSpan
+        val x2 = cx + ux * halfSpan
+        val y2 = cy + uy * halfSpan
+        val thickness = (layout.unitPx * 0.18f).coerceAtLeast(1f)
+        val tickHalf = (layout.unitPx * 0.34f).coerceAtLeast(2f)
+        val color = if (levelBalanced) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+
+        // One-pixel black keyline keeps the white/green spirit level legible on bright scenes.
+        strokePaint.color = android.graphics.Color.BLACK
+        strokePaint.strokeWidth = thickness + 2f
+        canvas.drawLine(x1, y1, x2, y2, strokePaint)
+        canvas.drawLine(x1 - px * tickHalf, y1 - py * tickHalf, x1 + px * tickHalf, y1 + py * tickHalf, strokePaint)
+        canvas.drawLine(x2 - px * tickHalf, y2 - py * tickHalf, x2 + px * tickHalf, y2 + py * tickHalf, strokePaint)
+
+        strokePaint.color = color
+        strokePaint.strokeWidth = thickness
+        canvas.drawLine(x1, y1, x2, y2, strokePaint)
+        canvas.drawLine(x1 - px * tickHalf, y1 - py * tickHalf, x1 + px * tickHalf, y1 + py * tickHalf, strokePaint)
+        canvas.drawLine(x2 - px * tickHalf, y2 - py * tickHalf, x2 + px * tickHalf, y2 + py * tickHalf, strokePaint)
+        strokePaint.strokeWidth = 1f
+
+        if (!levelBalanced) {
+            layout.elements.firstOrNull { it.id == "level-angle" }?.let { angle ->
+                drawPixelOsdText(angle, PixelOsdPalette.WHITE)
+            }
+        }
     }
 
     private fun drawZoomBar(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {

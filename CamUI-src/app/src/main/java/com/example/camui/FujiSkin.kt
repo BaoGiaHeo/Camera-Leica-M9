@@ -438,11 +438,10 @@ fun FujiTopKey(
                 }
             }
         }
-        Text(
+        AutoFitText(
             label.uppercase(),
             color = Color(0xFF2A2A2A),
             fontSize = 9.sp,
-            lineHeight = 10.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.72.sp,
             maxLines = 1
@@ -592,7 +591,7 @@ fun FujiKey(
             .padding(horizontal = 3.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
+        AutoFitText(
             label.uppercase(),
             modifier = Modifier
                 .offset(y = y)
@@ -630,11 +629,11 @@ fun FujiScreenScaffold(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Text(title.uppercase(), color = Color(0xFF171A1B), fontSize = 10.sp,
+                AutoFitText(title.uppercase(), color = Color(0xFF171A1B), fontSize = 10.sp,
                     fontWeight = FontWeight.Black, letterSpacing = 0.85.sp, maxLines = 1)
                 breadcrumb?.takeIf { it.isNotBlank() }?.let { crumb ->
                     Text("  ›  ", color = Color(0xFF454D50), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Text(crumb.uppercase(), color = Color(0xFF333A3D), fontSize = 9.sp,
+                    AutoFitText(crumb.uppercase(), color = Color(0xFF333A3D), fontSize = 9.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp, maxLines = 1)
                 }
             }
@@ -775,7 +774,7 @@ fun FujiChip(
             .padding(horizontal = 9.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text, color = if (selected) FujiSkin.lcdGreen else Color(0xFFE2E4E3), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+        AutoFitText(text, color = if (selected) FujiSkin.lcdGreen else Color(0xFFE2E4E3), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 2)
         if (selected) Spacer(Modifier.padding(top = 2.dp).width(12.dp).height(2.dp).background(FujiSkin.orange))
     }
 }
@@ -799,8 +798,8 @@ fun FujiTile(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         if (icon != null) FujiIconGlyph(icon, Modifier.size(16.dp), FujiSkin.lcdGreen)
-        Text(title.uppercase(), color = Color(0xFFC7D0D1), fontSize = 8.sp, letterSpacing = 0.7.sp, maxLines = 1)
-        Text(value, color = FujiSkin.lcdGreen, fontFamily = kk7Font, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+        AutoFitText(title.uppercase(), color = Color(0xFFC7D0D1), fontSize = 8.sp, letterSpacing = 0.7.sp, maxLines = 1)
+        AutoFitText(value, color = FujiSkin.lcdGreen, fontFamily = FujiTypography.uiFont, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
     }
 }
 
@@ -821,15 +820,15 @@ fun FujiListRow(
             .padding(vertical = 6.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = Color(0xFFE8EBE9), fontSize = 11.sp, modifier = Modifier.weight(1f))
-            Text(
+            AutoFitText(title, color = Color(0xFFE8EBE9), fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 2)
+            AutoFitText(
                 when {
                     adjustable -> "<  $value  >"
                     else -> value
                 },
                 color = FujiSkin.lcdGreen,
                 fontSize = 10.sp,
-                fontFamily = kk7Font,
+                fontFamily = FujiTypography.uiFont,
                 maxLines = 1
             )
             if (navigate && !adjustable) Text("  ›", color = FujiSkin.lcdGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)

@@ -62,6 +62,8 @@ internal fun FujiScale(
     onAuto: () -> Unit,
     onBack: () -> Unit = {},
     showAutoControl: Boolean = true,
+    showNudgeControls: Boolean = true,
+    showBackControl: Boolean = true,
     keyWidth: androidx.compose.ui.unit.Dp = 22.dp,
     keyHeight: androidx.compose.ui.unit.Dp = 20.dp,
     backKeyWidth: androidx.compose.ui.unit.Dp = 42.dp,
@@ -111,14 +113,16 @@ internal fun FujiScale(
                 maxLines = 1
             )
             Spacer(Modifier.weight(1f))
-            ScaleKey("-", onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onPositionChange(advanceFujiScalePosition(safePosition, -safeStep))
-            }, keyWidth = keyWidth, keyHeight = keyHeight)
-            ScaleKey("+", onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onPositionChange(advanceFujiScalePosition(safePosition, safeStep))
-            }, keyWidth = keyWidth, keyHeight = keyHeight)
+            if (showNudgeControls) {
+                ScaleKey("-", onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onPositionChange(advanceFujiScalePosition(safePosition, -safeStep))
+                }, keyWidth = keyWidth, keyHeight = keyHeight)
+                ScaleKey("+", onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onPositionChange(advanceFujiScalePosition(safePosition, safeStep))
+                }, keyWidth = keyWidth, keyHeight = keyHeight)
+            }
             if (showAutoControl) {
                 Box(
                     modifier = Modifier
@@ -138,7 +142,9 @@ internal fun FujiScale(
                     )
                 }
             }
-            ScaleKey("BACK", onClick = onBack, wide = true, keyHeight = keyHeight, wideWidth = backKeyWidth)
+            if (showBackControl) {
+                ScaleKey("BACK", onClick = onBack, wide = true, keyHeight = keyHeight, wideWidth = backKeyWidth)
+            }
         }
 
         Box(

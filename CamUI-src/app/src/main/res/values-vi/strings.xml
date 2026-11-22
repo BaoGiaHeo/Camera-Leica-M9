@@ -216,11 +216,6 @@
     <string name="watermark_layout_dot_dark">CHẤM TỐI</string>
     <string name="watermark_layout_split">CHIA ĐÔI</string>
     <string name="watermark_layout_palette">BẢNG MÀU</string>
-    <string name="watermark_title_label">Tiêu đề ảnh</string>
-    <string name="watermark_title_hint">Tiêu đề tuỳ chọn</string>
-    <string name="watermark_author_label">Tác giả</string>
-    <string name="watermark_author_hint">Tên tác giả tuỳ chọn</string>
-    <string name="watermark_photographed_in">CHỤP NGÀY : %1$s</string>
     <string name="activation_step_language">CHỌN NGÔN NGỮ</string>
     <string name="activation_language_description">Chọn ngôn ngữ hiển thị trong FujiFilm Mode.</string>
     <string name="activation_step_storage">LƯU TRỮ &amp; PIN</string>

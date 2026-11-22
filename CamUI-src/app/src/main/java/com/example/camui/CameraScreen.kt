@@ -846,6 +846,8 @@ fun CameraScreen(
     var previewFpsTarget by remember { mutableFloatStateOf(60f) }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
+    var autoWhiteBalanceKelvin by remember { mutableIntStateOf(0) }
+    val whiteBalanceKelvinSmoother = remember { WhiteBalanceKelvinSmoother() }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
     val digitalZoomCropScaleState = rememberUpdatedState(digitalZoomCropScale)
     val zoomDisplayValue by animateFloatAsState(
@@ -2037,6 +2039,7 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                 }
                 var lastAfTraceAtMs = 0L
+                var lastWhiteBalanceEstimateAtMs = 0L
                 if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
@@ -2045,6 +2048,42 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            val wbNowMs = SystemClock.elapsedRealtime()
+                            if (wbNowMs - lastWhiteBalanceEstimateAtMs >= 500L) {
+                                lastWhiteBalanceEstimateAtMs = wbNowMs
+                                val gains = result.get(CaptureResult.COLOR_CORRECTION_GAINS)
+                                val sensorTransform =
+                                    activeCameraCharacteristics?.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1)
+                                        ?: activeCameraCharacteristics?.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2)
+                                val resultTransform = result.get(CaptureResult.COLOR_CORRECTION_TRANSFORM)
+                                val matrixSource = sensorTransform ?: resultTransform
+                                val matrix = matrixSource?.let { transform ->
+                                    FloatArray(9) { index ->
+                                        transform.getElement(index / 3, index % 3).toFloat()
+                                    }
+                                }
+                                val estimatedKelvin = if (gains != null && matrix != null && !manualColorTempEnabled) {
+                                    WhiteBalanceCctPolicy.estimateKelvin(
+                                        floatArrayOf(
+                                            gains.red,
+                                            gains.greenEven,
+                                            gains.greenOdd,
+                                            gains.blue
+                                        ),
+                                        matrix
+                                    )
+                                } else null
+                                val smoothedKelvin = if (manualColorTempEnabled) null else
+                                    whiteBalanceKelvinSmoother.update(estimatedKelvin, wbNowMs)
+                                scope.launch(Dispatchers.Main.immediate) {
+                                    autoWhiteBalanceKelvin = smoothedKelvin ?: 0
+                                }
+                                android.util.Log.d(
+                                    "FUJI_WB_CCT",
+                                    "gains=${gains?.let { "${it.red},${it.greenEven},${it.greenOdd},${it.blue}" } ?: "missing"} " +
+                                        "matrix=${matrixSource?.let { "camera2" } ?: "missing"} cct=${smoothedKelvin ?: "AUTO"}"
+                                )
+                            }
                             val sensorTimestampNs = result.get(CaptureResult.SENSOR_TIMESTAMP)
                             if (sensorTimestampNs != null) {
                                 val measuredFps = previewFpsEstimator.add(
@@ -5153,7 +5192,9 @@ fun CameraScreen(
     val mainEquivalentFocal = activeCameraDetails?.eq35Mm?.takeIf { it.isFinite() && it > 0f }
         ?: activePhysicalCameraDetails.mapNotNull { it.eq35Mm }.filter { it.isFinite() && it > 0f }.minOrNull()
     val focalLengthText = mainEquivalentFocal?.let { "${(it * zoomSel).roundToInt()}mm" } ?: "--mm"
-    val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO"
+    val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else {
+        autoWhiteBalanceKelvin.takeIf { it in 1800..25000 }?.let { "${it}K" } ?: "AUTO"
+    }
 
     // Milky Way setup advice is derived from the active camera's public Camera2 metadata
     // and the live preview's measured luminance. It is advisory; it cannot detect clouds,

@@ -443,9 +443,13 @@ internal object PixelOsdLayoutEngine {
                     group.parts.sumOf { (partWidth(it, shrink) + it.beforeGap).toDouble() }
                 } + groupGap * (groups.size - 1).coerceAtLeast(0)).toFloat()
 
-            val available = (widthPx - margin * 2).coerceAtLeast(1).toFloat()
+            val batteryLabel = frame.batteryPercent.takeIf { it in 0..100 }?.let { "$it%" }.orEmpty()
+            val proBatteryWidth = if (batteryLabel.isNotBlank()) {
+                unit * 1.9f + labelValueGap + measureTextWidthPx(batteryLabel, t3).coerceAtLeast(1f) + itemGap
+            } else 0f
+            val available = (widthPx - margin * 2 - proBatteryWidth).coerceAtLeast(1).toFloat()
             val fitScale = if (totalWidth(1f) <= available) 1f
-                else (available / totalWidth(1f)).coerceIn(0.85f, 1f)
+                else (available / totalWidth(1f)).coerceIn(0.72f, 1f)
             var x = margin.toFloat()
             val panelLift = if (frame.adjustmentPanelVisible) unit * 7f else 0f
             val top = (heightPx - margin - t1 * fitScale - panelLift).coerceAtLeast(margin.toFloat())
@@ -479,6 +483,21 @@ internal object PixelOsdLayoutEngine {
                         addRule("pro-separator", "pro-bottom", x - groupGap / 2f, top, t1 * fitScale)
                     }
                 }
+            }
+            if (batteryLabel.isNotBlank()) {
+                val batteryWidth = snapGrid(unit * 1.9f)
+                val batteryHeight = snapGrid(unit.toFloat())
+                val batteryX = widthPx - margin - proBatteryWidth + itemGap
+                addIcon(
+                    id = "pro-battery", section = "pro-bottom", sprite = "battery",
+                    left = batteryX, top = top + (t1 * fitScale - batteryHeight) / 2f,
+                    requestedHeight = batteryHeight.roundToInt(),
+                    requestedWidth = batteryWidth.roundToInt()
+                )
+                addText(
+                    "pro-battery-percent", "pro-bottom", batteryLabel,
+                    batteryX + batteryWidth + labelValueGap, top, t3
+                )
             }
         }
 

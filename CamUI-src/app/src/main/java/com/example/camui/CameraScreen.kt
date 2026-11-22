@@ -7595,6 +7595,16 @@ private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
     Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
+private fun shutterTimeLabel(value: Long): String {
+    if (value <= 0L) return "--"
+    val seconds = value / 1_000_000_000.0
+    return if (seconds >= 0.5) {
+        String.format(Locale.US, "%.1f″", seconds)
+    } else {
+        "1/" + (1.0 / seconds).roundToInt()
+    }
+}
+
 private fun shutterFraction(value: Long, minValue: Long, maxValue: Long): Float {
     if (minValue <= 0L || maxValue <= minValue) return 0.5f
     val minLog = kotlin.math.ln(minValue.toDouble())

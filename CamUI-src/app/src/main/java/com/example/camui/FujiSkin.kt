@@ -112,6 +112,14 @@ object FujiFeedback {
 
     fun dialClick(context: Context) =
         tone(context, ToneGenerator.TONE_PROP_BEEP2, 22, "dial_click_enabled")
+
+    fun driveCountdown(context: Context, urgent: Boolean = false) =
+        tone(
+            context,
+            if (urgent) ToneGenerator.TONE_PROP_BEEP2 else ToneGenerator.TONE_PROP_BEEP,
+            if (urgent) 48 else 28,
+            "ui_sound_enabled"
+        )
 }
 
 object FujiSkin {

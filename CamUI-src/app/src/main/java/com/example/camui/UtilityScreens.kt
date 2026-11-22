@@ -760,35 +760,27 @@ fun ToolboxScreen(
 
 
 internal val watermarkStudioLayouts = listOf(
-    "classic_bar" to "CLASSIC BAR",
-    "center_stack" to "CENTER STACK",
-    "data_card" to "DATA CARD",
-    "film_strip" to "FILM STRIP",
-    "polaroid" to "POLAROID",
-    "minimal_overlay" to "MINIMAL OVERLAY",
-    "corner_stamp" to "CORNER STAMP",
-    "glass_card" to "GLASS CARD",
-    "blur_frame" to "BLUR FRAME",
-    "lcd_osd" to "LCD OSD",
-    "viewfinder" to "VIEWFINDER",
-    "exposure_dial" to "EXPOSURE DIAL"
+    "bar" to "BAR",
+    "caption" to "CAPTION",
+    "gallery" to "GALLERY",
+    "black" to "BLACK",
+    "dot_light" to "DOT LIGHT",
+    "dot_dark" to "DOT DARK",
+    "split" to "SPLIT",
+    "palette" to "PALETTE"
 )
 
-private data class WatermarkLayoutResource(val id: String, val title: Int, val description: Int)
+private data class WatermarkLayoutResource(val id: String, val title: Int)
 
 private val watermarkStudioLayoutResources = listOf(
-    WatermarkLayoutResource("classic_bar", R.string.watermark_layout_classic_bar, R.string.watermark_layout_classic_bar_description),
-    WatermarkLayoutResource("center_stack", R.string.watermark_layout_center_stack, R.string.watermark_layout_center_stack_description),
-    WatermarkLayoutResource("data_card", R.string.watermark_layout_data_card, R.string.watermark_layout_data_card_description),
-    WatermarkLayoutResource("film_strip", R.string.watermark_layout_film_strip, R.string.watermark_layout_film_strip_description),
-    WatermarkLayoutResource("polaroid", R.string.watermark_layout_polaroid, R.string.watermark_layout_polaroid_description),
-    WatermarkLayoutResource("minimal_overlay", R.string.watermark_layout_minimal_overlay, R.string.watermark_layout_minimal_overlay_description),
-    WatermarkLayoutResource("corner_stamp", R.string.watermark_layout_corner_stamp, R.string.watermark_layout_corner_stamp_description),
-    WatermarkLayoutResource("glass_card", R.string.watermark_layout_glass_card, R.string.watermark_layout_glass_card_description),
-    WatermarkLayoutResource("blur_frame", R.string.watermark_layout_blur_frame, R.string.watermark_layout_blur_frame_description),
-    WatermarkLayoutResource("lcd_osd", R.string.watermark_layout_lcd_osd, R.string.watermark_layout_lcd_osd_description),
-    WatermarkLayoutResource("viewfinder", R.string.watermark_layout_viewfinder, R.string.watermark_layout_viewfinder_description),
-    WatermarkLayoutResource("exposure_dial", R.string.watermark_layout_exposure_dial, R.string.watermark_layout_exposure_dial_description)
+    WatermarkLayoutResource("bar", R.string.watermark_layout_bar),
+    WatermarkLayoutResource("caption", R.string.watermark_layout_caption),
+    WatermarkLayoutResource("gallery", R.string.watermark_layout_gallery),
+    WatermarkLayoutResource("black", R.string.watermark_layout_black),
+    WatermarkLayoutResource("dot_light", R.string.watermark_layout_dot_light),
+    WatermarkLayoutResource("dot_dark", R.string.watermark_layout_dot_dark),
+    WatermarkLayoutResource("split", R.string.watermark_layout_split),
+    WatermarkLayoutResource("palette", R.string.watermark_layout_palette)
 )
 
 /**
@@ -867,9 +859,9 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var layout by remember {
         mutableStateOf(
-            prefs.getString("watermark_template", "classic_bar")
-                ?.takeIf { value -> watermarkStudioLayouts.any { it.first == value } }
-                ?: "classic_bar"
+            WatermarkLayoutType.preferenceValue(
+                WatermarkLayoutType.fromPreference(prefs.getString("watermark_template", "bar"))
+            )
         )
     }
     var appearance by remember {

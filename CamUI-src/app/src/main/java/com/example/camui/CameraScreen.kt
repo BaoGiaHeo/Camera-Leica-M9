@@ -7955,9 +7955,9 @@ private fun applyAutoFocus(camera: Camera, selection: String = "AF-S") {
         "AF-C" -> {
             val continuousMode = when {
                 CameraCharacteristics.CONTROL_AF_MODE_CONTINUOUS_PICTURE in modes ->
-                    Camera2CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
                 CameraCharacteristics.CONTROL_AF_MODE_CONTINUOUS_VIDEO in modes ->
-                    Camera2CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
                 else -> null
             }
             if (continuousMode == null) {

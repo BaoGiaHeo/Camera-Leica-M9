@@ -7,6 +7,8 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -47,6 +49,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +58,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
@@ -239,7 +243,21 @@ fun FujiIconGlyph(
     modifier: Modifier = Modifier,
     tint: Color = FujiSkin.ivory
 ) {
-    Canvas(modifier.size(22.dp)) {
+    val context = LocalContext.current
+    val reducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
+    val rotation = remember { Animatable(FujiIconRotationState.degrees.toFloat()) }
+    LaunchedEffect(FujiIconRotationState.degrees, reducedMotion) {
+        val target = shortestIconRotationTarget(rotation.value, FujiIconRotationState.degrees)
+        if (reducedMotion) {
+            rotation.snapTo(target)
+        } else {
+            rotation.animateTo(
+                target,
+                animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+    Canvas(modifier.graphicsLayer { rotationZ = rotation.value }.size(22.dp)) {
         val unit = min(size.width, size.height) / 24f
         val stroke = 1.6.dp.toPx()
         fun point(x: Float, y: Float) = Offset(x * unit, y * unit)
@@ -352,7 +370,6 @@ fun FujiTopKey(
     selected: Boolean = false,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
-    iconRotationDegrees: Float = 0f,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
@@ -405,8 +422,8 @@ fun FujiTopKey(
                         Text("Q", color = Color(0xFF202426), fontSize = 16.sp, fontWeight = FontWeight.Black, lineHeight = 17.sp)
                     }
                 } else {
-                    FujiIconGlyph(icon, Modifier.size(22.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color(0xE01B1B1B))
-                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color.White.copy(alpha = 0.70f))
+                    FujiIconGlyph(icon, Modifier.size(22.dp), Color(0xE01B1B1B))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp), Color.White.copy(alpha = 0.70f))
                 }
             }
         }

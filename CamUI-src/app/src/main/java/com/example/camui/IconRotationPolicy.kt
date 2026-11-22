@@ -1,6 +1,10 @@
 package com.example.camui
 
 import kotlin.math.abs
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 /**
  * Orientation-only presentation rotation. It never changes CameraX target
@@ -38,6 +42,6 @@ internal fun shortestIconRotationTarget(currentDegrees: Float, targetDegrees: In
 }
 
 internal object FujiIconRotationState {
-    var degrees by androidx.compose.runtime.mutableIntStateOf(0)
-    var enabled by androidx.compose.runtime.mutableStateOf(true)
+    var degrees by mutableIntStateOf(0)
+    var enabled by mutableStateOf(true)
 }

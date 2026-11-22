@@ -70,7 +70,7 @@ jobs:
           emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
           emulator-boot-timeout: 600
           script: |
-            script: bash .github/scripts/camui-emulator-smoke-test.sh
+            bash .github/scripts/camui-emulator-smoke-test.sh
 
       - name: Upload emulator inspection
         if: always()

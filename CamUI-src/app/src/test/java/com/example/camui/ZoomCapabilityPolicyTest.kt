@@ -101,6 +101,17 @@ class ZoomCapabilityPolicyTest {
     }
 
     @Test
+    fun shorterTelephotoStillSetsItsOwnOpticalMaximum() {
+        val assessment = assessOpticalZoom(listOf(24f, 36f), mainEquivalent35Mm = 24f)
+        assertTrue(assessment.hasOpticalTelephoto)
+        assertEquals(1.5f, assessment.opticalRatio!!, 0.0001f)
+        assertEquals(1.5f, selectableCameraZoomMax(10f, assessment), 0.0001f)
+        val plan = resolveZoomExecutionPlan(3f, 1f, 10f, assessment)
+        assertEquals(1.5f, plan.effectiveZoomRatio, 0.0001f)
+        assertEquals(1f, plan.digitalCropRatio, 0.0001f)
+    }
+
+    @Test
     fun rejectsInvalidLensValuesAndInvalidCameraMaximum() {
         val assessment = assessOpticalZoom(listOf(Float.NaN, -1f, 26f))
         assertFalse(assessment.hasOpticalTelephoto)
@@ -127,9 +138,9 @@ class ZoomCapabilityPolicyTest {
 
     @Test
     fun zoomBarUsesLogarithmicPosition() {
-        assertEquals(0f, logarithmicZoomPosition(0.6f, 0.6f, 100f), 0.0001f)
-        assertEquals(1f, logarithmicZoomPosition(100f, 0.6f, 100f), 0.0001f)
-        val midpoint = logarithmicZoomPosition( sqrtProduct(0.6f, 100f), 0.6f, 100f)
+        assertEquals(0f, logarithmicZoomPosition(0.6f, 0.6f, 10f), 0.0001f)
+        assertEquals(1f, logarithmicZoomPosition(10f, 0.6f, 10f), 0.0001f)
+        val midpoint = logarithmicZoomPosition( sqrtProduct(0.6f, 10f), 0.6f, 10f)
         assertEquals(0.5f, midpoint, 0.0001f)
     }
 

@@ -247,7 +247,10 @@ fun FujiIconGlyph(
     val reducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
     val rotation = remember { Animatable(FujiIconRotationState.degrees.toFloat()) }
     LaunchedEffect(FujiIconRotationState.degrees, reducedMotion) {
-        val target = shortestIconRotationTarget(rotation.value, FujiIconRotationState.degrees)
+        val target = shortestIconRotationTarget(
+            rotation.value,
+            if (FujiIconRotationState.enabled) FujiIconRotationState.degrees else 0
+        )
         if (reducedMotion) {
             rotation.snapTo(target)
         } else {

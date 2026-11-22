@@ -150,6 +150,9 @@ data class PixelOsdFrame(
     val centerAfScale: Int = 1,
     val manualFocusMode: Boolean = false,
     val showStatus: Boolean = true,
+    val resolutionText: String = "FHD",
+    val previewFps: Float? = null,
+    val previewFpsTarget: Float? = null,
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
     val batteryLowBlinkOn: Boolean = true,
@@ -462,18 +465,57 @@ class PixelOsdRenderer(context: Context) {
         fillPaint.alpha = 255
     }
 
+    private fun drawDashedBorderRect(
+        canvas: NativeCanvas,
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int,
+        color: Int,
+        dash: Int = 2,
+        gap: Int = 2
+    ) {
+        if (right <= left || bottom <= top) return
+        var x = left
+        while (x <= right) {
+            drawHLine(canvas, x, minOf(x + dash - 1, right), top, color, 230)
+            drawHLine(canvas, x, minOf(x + dash - 1, right), bottom, color, 230)
+            x += dash + gap
+        }
+        var y = top
+        while (y <= bottom) {
+            drawVLine(canvas, left, y, minOf(y + dash - 1, bottom), color, 230)
+            drawVLine(canvas, right, y, minOf(y + dash - 1, bottom), color, 230)
+            y += dash + gap
+        }
+    }
+
     private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val lowBattery = frame.batteryPercent in 0..100 &&
             isPixelBatteryLow(frame.batteryPercent) && !frame.batteryCharging
         layout.elements.filter { it.section == "status" }.forEach { element ->
             when (element.kind) {
                 PixelOsdElementKind.TEXT -> {
-                    val color = if (element.id == "battery-percent" && lowBattery && frame.batteryLowBlinkOn) {
-                        PixelOsdPalette.RED
-                    } else if (element.id == "status-af" && frame.focusLocked) {
-                        PixelOsdPalette.GREEN
-                    } else {
-                        PixelOsdPalette.WHITE
+                    val color = when {
+                        element.id == "battery-percent" && lowBattery && frame.batteryLowBlinkOn ->
+                            PixelOsdPalette.RED
+                        element.id == "status-af" && frame.focusLocked ->
+                            PixelOsdPalette.GREEN
+                        element.id == "status-fps" && frame.previewFps != null &&
+                            frame.previewFpsTarget != null && frame.previewFps < frame.previewFpsTarget * 0.5f ->
+                            PixelOsdPalette.RED
+                        element.id == "status-fps" && frame.previewFps != null &&
+                            frame.previewFpsTarget != null && frame.previewFps < frame.previewFpsTarget * 0.9f ->
+                            PixelOsdPalette.AMBER
+                        else -> PixelOsdPalette.WHITE
+                    }
+                    if (element.id == "status-resolution") {
+                        val scale = pixelScale.coerceAtLeast(1)
+                        val left = (element.bounds.left / scale).roundToInt() - 2
+                        val top = (element.bounds.top / scale).roundToInt() - 2
+                        val right = (element.bounds.right / scale).roundToInt() + 1
+                        val bottom = (element.bounds.bottom / scale).roundToInt() + 1
+                        drawDashedBorderRect(canvas, left, top, right, bottom, PixelOsdPalette.WHITE)
                     }
                     drawPixelOsdText(element, color)
                 }

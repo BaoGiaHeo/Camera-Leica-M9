@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -537,7 +538,6 @@ var nightShotMode by remember {
                     shutterSoundEnabled = it
                     prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
                 }
-                SettingsSwitch(
                 SettingsSwitch(
                     stringResource(R.string.sound_ui_title),
                     stringResource(R.string.sound_ui_description),

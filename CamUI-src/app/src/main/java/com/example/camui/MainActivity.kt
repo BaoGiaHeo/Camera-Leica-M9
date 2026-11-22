@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
+import android.Manifest
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
@@ -26,6 +27,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -212,6 +215,11 @@ class MainActivity : AppCompatActivity() {
         hideStatusBar()
         requestHighestSupportedRefreshRate()
         setContent {
+            val cameraPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                android.util.Log.i("FUJI_PERMISSION", "CAMERA granted=$granted")
+            }
             // Explicitly expose the hosting Activity's registry to every nested ComposeView.
             // This prevents rememberLauncherForActivityResult from seeing a null owner when
             // the camera screen is hosted through an embedded ComposeView composition.
@@ -340,6 +348,13 @@ class MainActivity : AppCompatActivity() {
                                 onComplete = {
                                     settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
                                     page = "camera"
+                                    if (androidx.core.content.ContextCompat.checkSelfPermission(
+                                            this@MainActivity,
+                                            Manifest.permission.CAMERA
+                                        ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                    }
                                 }
                             )
                             "camera" -> Spacer(Modifier.fillMaxSize())

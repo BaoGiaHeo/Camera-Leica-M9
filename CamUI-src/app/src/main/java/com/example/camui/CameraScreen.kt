@@ -7111,9 +7111,14 @@ fun CameraScreen(
                         onClick = { animateZoomTo((zoomSel + wZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
                         enabled = zoomStateForDial != null && if (wZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
-                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START"); zoomHoldDirection = wZoomDirection },
+                        onPressStart = {
+                            CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START")
+                            zoomHoldDirection = wZoomDirection
+                            zoomInteractionGeneration++
+                        },
                         onPressEnd = {
                             zoomHoldDirection = 0
+                            zoomSel = zoomRequestedTarget.floatValue
                             CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END key=W direction=${if (wZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
@@ -7124,9 +7129,14 @@ fun CameraScreen(
                         onClick = { animateZoomTo((zoomSel + tZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
                         enabled = zoomStateForDial != null && if (tZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
-                        onPressStart = { CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START"); zoomHoldDirection = tZoomDirection },
+                        onPressStart = {
+                            CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START")
+                            zoomHoldDirection = tZoomDirection
+                            zoomInteractionGeneration++
+                        },
                         onPressEnd = {
                             zoomHoldDirection = 0
+                            zoomSel = zoomRequestedTarget.floatValue
                             CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END key=T direction=${if (tZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")

@@ -61,6 +61,11 @@ class WatermarkDeviceNameTest {
     }
 
     @Test
+    fun missingMarketingManufacturerAndModelValuesAreHidden() {
+        assertEquals("", resolveWatermarkDeviceName(null, null, null, null, null))
+    }
+
+    @Test
     fun fallbackCombinesManufacturerAndNormalizedModel() {
         assertEquals(
             "Google Pixel 9 Pro",

@@ -5820,7 +5820,7 @@ fun CameraScreen(
                                         CameraLcdDisplayMode.STANDARD -> levelEnabled
                                         CameraLcdDisplayMode.CLEAN -> false
                                     },
-                                    horizonReading.errorDegrees = horizonReading.indicatorAngleDegrees,
+                                    horizonRollDegrees = horizonReading.indicatorAngleDegrees,
                                     horizonErrorDegrees = horizonReading.errorDegrees,
                                     horizonLevelAligned = horizonReading.aligned,
                                     showZebra = when (lcdDisplayMode) {

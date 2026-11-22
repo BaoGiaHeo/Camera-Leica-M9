@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.os.PowerManager
 import android.provider.MediaStore
 import android.view.OrientationEventListener
@@ -52,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
@@ -209,6 +211,16 @@ class MainActivity : AppCompatActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
+        // Draw the leatherette/top plate edge-to-edge; content insets are applied only
+        // to interactive controls, not to the full-bleed camera body surfaces.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.attributes = window.attributes.apply {
+            layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else {
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
         hideStatusBar()
         requestHighestSupportedRefreshRate()
         setContent {

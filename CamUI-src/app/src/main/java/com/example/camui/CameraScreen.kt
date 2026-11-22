@@ -824,19 +824,11 @@ fun CameraScreen(
     }
     var previewFpsMode by remember {
         mutableStateOf(
-            if (appPrefs.getBoolean("preview_fps_keep", false)) {
-                appPrefs.getString("preview_fps_mode", "60")
-                    ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
-            } else "60"
+            appPrefs.getString("preview_fps_mode", "60")
+                ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
         )
     }
     var previewFpsTarget by remember { mutableFloatStateOf(60f) }
-    LaunchedEffect(Unit) {
-        if (!appPrefs.getBoolean("preview_fps_keep", false)) {
-            appPrefs.edit().putString("preview_fps_mode", "60").apply()
-            previewFpsMode = "60"
-        }
-    }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
@@ -1216,7 +1208,6 @@ fun CameraScreen(
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
-    val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val rawCaptureMode = when (appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") {
         "raw_plus", "raw_dream" -> "raw_dream"
         "raw" -> "raw"
@@ -2283,41 +2274,7 @@ fun CameraScreen(
                             .build()
                     )
                 }
-                // Off/Low/Medium/High use only the active camera's ISP noise reduction.
-                // LunaDream uses multi-frame fusion; the camera ISP may still apply its standard noise reduction.
-                val availableNrModes = activeFacingId?.let { id ->
-                    runCatching {
-                        cameraManager.getCameraCharacteristics(id)
-                            .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
-                    }.getOrNull()
-                }.orEmpty()
-                val preferredNrModes = when (noiseReduction) {
-                    "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
-                    "Low" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL
-                    )
-                    "Medium" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                    )
-                    "High" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                    )
-                    else -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
-                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
-                    )
-                }
-                val effectiveNrMode = preferredNrModes.firstOrNull { it in availableNrModes }
-                if (effectiveNrMode != null && !hdrExtensionActive && !nightExtensionActive) {
-                    Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(
-                        CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
-                    )
-                }
+                // Do not override Camera2 NOISE_REDUCTION_MODE: leave ISP denoising to the device HAL.
                 if (!hdrExtensionActive && !nightExtensionActive &&
                     nightShotMode == "star_trails" && mode == "Photo"
                 ) {

@@ -204,11 +204,13 @@ private fun SettingsDetailPage(
     var keepPreviewFps by remember {
         mutableStateOf(prefs.getBoolean("preview_fps_keep", false))
     }
+    val supportedFpsModes = remember(context) { discoverSupportedPreviewFpsModes(context) }
+    val defaultFpsMode = remember(supportedFpsModes) { highestSupportedPreviewFpsMode(supportedFpsModes) }
     var previewFpsMode by remember {
         mutableStateOf(
             if (keepPreviewFps) {
-                prefs.getString("preview_fps_mode", "60")?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
-            } else "60"
+                prefs.getString("preview_fps_mode", defaultFpsMode)?.takeIf { it in supportedFpsModes } ?: defaultFpsMode
+            } else defaultFpsMode
         )
     }
 var nightShotMode by remember {
@@ -753,7 +755,7 @@ var nightShotMode by remember {
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf("60", "30", "24", "AUTO").forEach { option ->
+                    supportedFpsModes.forEach { option ->
                         FujiChip(
                             if (option == "AUTO") option else option + "FPS",
                             previewFpsMode == option,
@@ -773,8 +775,8 @@ var nightShotMode by remember {
                     keepPreviewFps = enabled
                     prefs.edit().putBoolean("preview_fps_keep", enabled).apply()
                     if (!enabled) {
-                        previewFpsMode = "60"
-                        prefs.edit().putString("preview_fps_mode", "60").apply()
+                        previewFpsMode = defaultFpsMode
+                        prefs.edit().putString("preview_fps_mode", defaultFpsMode).apply()
                     }
                 }
                 Spacer(Modifier.padding(5.dp))

@@ -158,6 +158,7 @@ data class PixelOsdFrame(
     val videoFormatText: String = "FHD",
     val fpsText: String = "--.--",
     val fpsTarget: Int = 60,
+    val fpsFallback: Boolean = false,
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
     val batteryLowBlinkOn: Boolean = true,
@@ -503,7 +504,7 @@ class PixelOsdRenderer(context: Context) {
                             when {
                                 measured == null -> PixelOsdPalette.WHITE
                                 measured < frame.fpsTarget.coerceAtLeast(1) * 0.5f -> PixelOsdPalette.RED
-                                measured < frame.fpsTarget.coerceAtLeast(1) * 0.9f -> PixelOsdPalette.AMBER
+                                frame.fpsFallback || measured < frame.fpsTarget.coerceAtLeast(1) * 0.9f -> PixelOsdPalette.AMBER
                                 else -> PixelOsdPalette.WHITE
                             }
                         }

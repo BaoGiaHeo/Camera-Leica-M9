@@ -213,6 +213,40 @@ internal object WatermarkRenderer {
         logo.draw(canvas)
     }
 
+    private fun drawLetterSpacedText(
+        canvas: Canvas,
+        text: String,
+        left: Float,
+        centerY: Float,
+        maxWidth: Float,
+        capHeightPx: Float,
+        typeface: Typeface,
+        color: Int,
+        capRatio: Float,
+        spacingFraction: Float
+    ) {
+        if (text.isBlank() || maxWidth <= 0f) return
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            this.typeface = typeface
+            this.color = color
+            textSize = (capHeightPx / capRatio.coerceIn(0.4f, 0.9f)).coerceAtLeast(1f)
+        }
+        val tracking = paint.textSize * spacingFraction.coerceAtLeast(0f)
+        val totalWidth = text.sumOf { paint.measureText(it.toString()).toDouble() }.toFloat() +
+            max(0, text.length - 1) * tracking
+        if (totalWidth > maxWidth) paint.textSize *= (maxWidth / totalWidth).coerceAtLeast(0.70f)
+        val cap = Rect()
+        paint.getTextBounds("H", 0, 1, cap)
+        val baseline = centerY - (cap.top + cap.bottom) * 0.5f
+        var x = left
+        text.forEachIndexed { index, char ->
+            val glyph = char.toString()
+            canvas.drawText(glyph, x, baseline, paint)
+            x += paint.measureText(glyph)
+            if (index < text.lastIndex) x += tracking
+        }
+    }
+
     private fun fitPaint(
         text: String,
         typeface: Typeface,
@@ -454,7 +488,7 @@ internal object WatermarkRenderer {
         val meta = geometry.metadataRect ?: return
         drawMeasuredText(
             canvas, line, meta.right, footer.centerY,
-            meta.width(), geometry.shortSide * 0.025f * settings.sizeScale,
+            meta.width, geometry.shortSide * 0.025f * settings.sizeScale,
             fonts.medium, if (isDark) 0xFFF0F0F0.toInt() else 0xFF2A2A2A.toInt(),
             fonts.mediumCapRatio, Paint.Align.RIGHT
         )
@@ -564,11 +598,10 @@ internal object WatermarkRenderer {
         val logo = geometry.logoRect ?: return
         drawLogo(context, canvas, logo, isDark)
         val s = geometry.shortSide
-        val title = metadata.title.takeIf { it.isNotBlank() }
-            ?: metadata.visibleLocation(settings)
-        if (title.isNotBlank()) {
+        val model = metadata.cameraName.takeIf { settings.fields.cameraName }.orEmpty()
+        if (model.isNotBlank()) {
             drawMeasuredText(
-                canvas, title, geometry.photoRect.left,
+                canvas, model, geometry.photoRect.left,
                 s * 0.205f * settings.sizeScale,
                 geometry.sourceWidth * 0.82f,
                 s * 0.024f * settings.sizeScale,
@@ -576,14 +609,26 @@ internal object WatermarkRenderer {
                 fonts.regularCapRatio, Paint.Align.LEFT
             )
         }
+        val title = metadata.title.takeIf { it.isNotBlank() }
+            ?: metadata.visibleLocation(settings)
+        val photoBottom = geometry.photoRect.bottom
+        if (title.isNotBlank()) {
+            drawMeasuredText(
+                canvas, title, geometry.photoRect.left,
+                photoBottom + s * 0.103f * settings.sizeScale,
+                geometry.sourceWidth * 0.92f,
+                s * 0.037f * settings.sizeScale,
+                fonts.regular, primary, fonts.regularCapRatio, Paint.Align.LEFT
+            )
+        }
         val dateText = metadata.date.takeIf { settings.fields.date }.orEmpty()
         if (dateText.isNotBlank()) {
-            drawMeasuredText(
-                canvas, dateText, geometry.photoRect.left,
-                geometry.photoRect.bottom + s * 0.103f * settings.sizeScale,
-                geometry.sourceWidth * 0.92f,
-                s * 0.017f * settings.sizeScale,
-                fonts.regular, secondary, fonts.regularCapRatio, Paint.Align.LEFT
+            drawLetterSpacedText(
+                canvas, context.getString(R.string.watermark_photographed_in, dateText.uppercase()),
+                geometry.photoRect.left, photoBottom + s * 0.178f * settings.sizeScale,
+                geometry.sourceWidth * 0.92f, s * 0.017f * settings.sizeScale,
+                fonts.regular, if (isDark) 0xFF9A9A9A.toInt() else 0xFF8C8C8C.toInt(),
+                fonts.regularCapRatio, spacingFraction = 0.22f
             )
         }
         val f = settings.fields
@@ -598,7 +643,7 @@ internal object WatermarkRenderer {
         if (specs.isNotBlank()) {
             drawMeasuredText(
                 canvas, specs, geometry.photoRect.left,
-                geometry.photoRect.bottom + s * 0.211f * settings.sizeScale,
+                photoBottom + s * 0.211f * settings.sizeScale,
                 geometry.sourceWidth * 0.92f,
                 s * 0.016f * settings.sizeScale,
                 fonts.regular, if (isDark) 0xFF9A9A9A.toInt() else 0xFF4A4A4A.toInt(),
@@ -611,7 +656,7 @@ internal object WatermarkRenderer {
         if (coordinates.isNotBlank()) {
             drawMeasuredText(
                 canvas, coordinates, geometry.photoRect.left,
-                geometry.photoRect.bottom + s * 0.239f * settings.sizeScale,
+                photoBottom + s * 0.239f * settings.sizeScale,
                 geometry.sourceWidth * 0.92f,
                 s * 0.016f * settings.sizeScale,
                 fonts.regular, if (isDark) 0xFF9A9A9A.toInt() else 0xFF4A4A4A.toInt(),

@@ -431,16 +431,31 @@ private fun preferredPhotoRawSize(
         }
     )
 }
-private suspend fun awaitDriveCountdownTick(context: Context, secondsRemaining: Int) {
+private suspend fun awaitDriveCountdownTick(
+    context: Context,
+    secondsRemaining: Int,
+    isCancelled: () -> Boolean
+): Boolean {
+    suspend fun waitCancelable(durationMs: Long): Boolean {
+        var remaining = durationMs
+        while (remaining > 0L) {
+            if (isCancelled()) return false
+            val slice = minOf(50L, remaining)
+            delay(slice)
+            remaining -= slice
+        }
+        return !isCancelled()
+    }
+
+    if (isCancelled()) return false
     val urgent = secondsRemaining <= 2
     FujiFeedback.driveCountdown(context, urgent)
+    if (!waitCancelable(if (urgent) 360L else 1_000L)) return false
     if (urgent) {
-        delay(360)
         FujiFeedback.driveCountdown(context, urgent = true)
-        delay(640)
-    } else {
-        delay(1_000)
+        return waitCancelable(640L)
     }
+    return true
 }
 
 @Composable
@@ -870,6 +885,7 @@ fun CameraScreen(
     }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var countdown by remember { mutableIntStateOf(0) }
+    var countdownCancelGeneration by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
@@ -3527,6 +3543,12 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        if (countdown > 0) {
+            countdownCancelGeneration++
+            countdown = 0
+            android.util.Log.i("FUJI_DRIVE", "COUNTDOWN_CANCEL source=shutter")
+            return
+        }
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
             (nightShotMode != "off" || lunaDreamMode == "luna20" || starTrailCaptureInProgress)
@@ -3604,6 +3626,7 @@ fun CameraScreen(
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             val useHdrBracket = hdrBracketMode
             scope.launch {
+                val countdownGenerationAtStart = countdownCancelGeneration
                 bracketCaptureActive = true
                 bracketCompletedFrames = 0
                 val bracketSavedUris = ArrayList<Uri>()
@@ -3615,7 +3638,14 @@ fun CameraScreen(
                     if (timerSec > 0) {
                         for (seconds in timerSec downTo 1) {
                             countdown = seconds
-                            awaitDriveCountdownTick(context, seconds)
+                            val completed = awaitDriveCountdownTick(context, seconds) {
+                                countdownCancelGeneration != countdownGenerationAtStart
+                            }
+                            if (!completed) {
+                                countdown = 0
+                                android.util.Log.i("FUJI_DRIVE", "COUNTDOWN_CANCELLED path=bracketing")
+                                return@launch
+                            }
                         }
                         countdown = 0
                     }
@@ -3740,6 +3770,7 @@ fun CameraScreen(
             ) return
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             scope.launch {
+                val countdownGenerationAtStart = countdownCancelGeneration
                 val activeCapture = imageCapture ?: return@launch
                 burstCaptureActive = true
                 burstStopRequested = false
@@ -3750,7 +3781,14 @@ fun CameraScreen(
                     if (timerSec > 0) {
                         for (seconds in timerSec downTo 1) {
                             countdown = seconds
-                            awaitDriveCountdownTick(context, seconds)
+                            val completed = awaitDriveCountdownTick(context, seconds) {
+                                countdownCancelGeneration != countdownGenerationAtStart
+                            }
+                            if (!completed) {
+                                countdown = 0
+                                android.util.Log.i("FUJI_DRIVE", "COUNTDOWN_CANCELLED path=burst")
+                                return@launch
+                            }
                         }
                         countdown = 0
                     }
@@ -3818,10 +3856,18 @@ fun CameraScreen(
             return
         }
         scope.launch {
+            val countdownGenerationAtStart = countdownCancelGeneration
             if (timerSec > 0) {
                 for (s in timerSec downTo 1) {
                     countdown = s
-                    awaitDriveCountdownTick(context, s)
+                    val completed = awaitDriveCountdownTick(context, s) {
+                        countdownCancelGeneration != countdownGenerationAtStart
+                    }
+                    if (!completed) {
+                        countdown = 0
+                        android.util.Log.i("FUJI_DRIVE", "COUNTDOWN_CANCELLED path=photo")
+                        return@launch
+                    }
                 }
                 countdown = 0
             }

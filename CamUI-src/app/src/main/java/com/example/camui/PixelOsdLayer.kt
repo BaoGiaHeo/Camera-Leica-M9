@@ -13,6 +13,7 @@ import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -207,6 +208,7 @@ data class PixelOsdFrame(
     val showProWhiteBalance: Boolean = true,
     val showZoomBar: Boolean = false,
     val zoomRatio: Float = 1f,
+    val zoomRatioState: State<Float>? = null,
     val zoomMinimumRatio: Float = 1f,
     val zoomMaximumRatio: Float = 2f,
     val zoomOpticalBoundaryRatio: Float = 1f,
@@ -1408,7 +1410,12 @@ fun PixelOsdLayer(
     Canvas(modifier) {
         val widthPx = size.width.roundToInt()
         val heightPx = size.height.roundToInt()
-        renderer.render(widthPx, heightPx, animatedFrame, maxRefreshHz)
+        // Snapshot read occurs in the draw phase: the zoom marker can move at
+        // display refresh without rebuilding the full composable tree.
+        val drawFrame = animatedFrame.copy(
+            zoomRatio = animatedFrame.zoomRatioState?.value ?: animatedFrame.zoomRatio
+        )
+        renderer.render(widthPx, heightPx, drawFrame, maxRefreshHz)
         drawContext.canvas.nativeCanvas.let { native ->
             renderer.drawScaled(native, widthPx, heightPx)
         }

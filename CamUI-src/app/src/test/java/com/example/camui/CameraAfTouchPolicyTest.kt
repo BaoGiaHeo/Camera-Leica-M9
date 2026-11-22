@@ -38,6 +38,13 @@ class CameraAfTouchPolicyTest {
     }
 
     @Test
+    fun manualTouchOverrideExpiresAfterThreeSeconds() {
+        assertEquals(4_000L, manualAfOverrideDeadline(1_000L))
+        assertEquals(1_000L, manualAfOverrideDeadline(1_000L, -50L))
+        assertEquals(1_250L, manualAfOverrideDeadline(1_000L, 250L))
+    }
+
+    @Test
     fun invalidPreviewDimensionsNeverHitReticle() {
         assertFalse(isTapInsideAfReticle(Offset(0.5f, 0.5f), Offset(0.5f, 0.5f), 0, 1080))
     }

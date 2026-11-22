@@ -227,4 +227,15 @@
     <string name="watermark_layout_dot_dark_description">Thanh tối, logo Fuji trắng và một chấm cạnh dòng thông số.</string>
     <string name="watermark_layout_split_description">Tên máy/ngày bên trái, thông số phơi sáng và logo bên phải.</string>
     <string name="watermark_layout_palette_description">Khung gần vuông với năm màu nổi bật trích từ ảnh.</string>
+    <string name="settings_screen_title">CÀI ĐẶT · MENU</string>
+    <string name="settings_menu_tabs">CÁC MỤC MENU</string>
+    <string name="settings_tab_assistive_tools">Công cụ hỗ trợ</string>
+    <string name="settings_tab_focus_lens">Lấy nét &amp; Ống kính</string>
+    <string name="settings_tab_capture_quality">Chụp ảnh &amp; Chất lượng</string>
+    <string name="settings_tab_photo_mode">Cài đặt chế độ ảnh</string>
+    <string name="settings_tab_nightshot">Chụp đêm</string>
+    <string name="settings_tab_display">Hiển thị / Giao diện</string>
+    <string name="settings_tab_sound">Âm thanh &amp; Rung</string>
+    <string name="settings_tab_language">Ngôn ngữ</string>
+    <string name="settings_tab_about">Giới thiệu</string>
 </resources>

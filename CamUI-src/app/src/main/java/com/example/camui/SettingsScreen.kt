@@ -751,6 +751,9 @@ var nightShotMode by remember {
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
+                if (supportedFpsModes.isEmpty()) {
+                    Text(stringResource(R.string.preview_fps_none), color = CamColors.Sub, fontSize = 11.sp)
+                }
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)

@@ -96,7 +96,7 @@ jobs:
         working-directory: CamUI
         run: gradle assembleDebug --stacktrace
 
-      - name: Verify APK contains both hash-pinned HDMP AI models
+      - name: Verify APK contains both hash-pinned LunaDream AI models
         working-directory: CamUI
         run: |
           python - <<'PY'
@@ -113,7 +113,7 @@ jobs:
           with zipfile.ZipFile(apks[0]) as apk:
               names = set(apk.namelist())
               missing = sorted(required - names)
-              assert not missing, f"APK missing HDMP AI assets: {missing}"
+              assert not missing, f"APK missing LunaDream AI assets: {missing}"
               for name in sorted(required):
                   info = apk.getinfo(name)
                   assert info.file_size > 0, f"Empty APK asset: {name}"
@@ -123,6 +123,6 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Fujifilm-CamerAwesome-HDMP-AI-debug
+          name: Fujifilm-CamerAwesome-LunaDream-AI-debug
           path: CamUI/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error

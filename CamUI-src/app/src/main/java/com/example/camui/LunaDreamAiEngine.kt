@@ -35,15 +35,15 @@ import kotlin.math.roundToInt
 import android.os.SystemClock
 
 /**
- * HDMP-owned AI coordinator.
+ * LunaDream-owned AI coordinator.
  *
  * NAFNet is used only as a conservative denoising/restoration assistant. It never writes to
- * MediaStore and never owns the final image. HDMP validates, blends, commits and then continues
- * with the deterministic HdmpEngine. The GAN-based Real-ESRGAN path is deliberately not invoked:
+ * MediaStore and never owns the final image. LunaDream validates, blends, commits and then continues
+ * with the deterministic LunaDreamEngine. The GAN-based Real-ESRGAN path is deliberately not invoked:
  * it can synthesize texture and conflicts with the no-independent-generation requirement.
  */
-internal object HdmpAiEngine {
-    private const val TAG = "FUJI_HDMP_AI"
+internal object LunaDreamAiEngine {
+    private const val TAG = "FUJI_LunaDream_AI"
     private const val TILE_SIZE = 256
     private const val HALO = 32
     private const val CORE_SIZE = TILE_SIZE - HALO * 2
@@ -55,7 +55,7 @@ internal object HdmpAiEngine {
     private const val MAX_OUTPUT_HEAP_FRACTION = 0.22
 
     private class UserRequestedFastException : RuntimeException(
-        "User requested a safe switch to HDMP AI 2 Fast"
+        "User requested a safe switch to LunaDream AI 2 Fast"
     )
 
     enum class Model {
@@ -159,15 +159,15 @@ internal object HdmpAiEngine {
         onProgress: (Model, Int) -> Unit = { _, _ -> }
     ): Result {
         val stamp = System.nanoTime().toString()
-        val original = File(context.cacheDir, "hdmp-ai-original-$stamp.jpg")
-        val rendered = File(context.cacheDir, "hdmp-ai-rendered-$stamp.jpg")
+        val original = File(context.cacheDir, "lunaDream-ai-original-$stamp.jpg")
+        val rendered = File(context.cacheDir, "lunaDream-ai-rendered-$stamp.jpg")
         return try {
             copyUriToFile(context, uri, original)
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(original.absolutePath, bounds)
             val width = bounds.outWidth
             val height = bounds.outHeight
-            require(width >= 3 && height >= 3) { "HDMP AI source dimensions are invalid" }
+            require(width >= 3 && height >= 3) { "LunaDream AI source dimensions are invalid" }
 
             val outputBytes = width.toLong() * height.toLong() * 2L
             val runtime = Runtime.getRuntime()
@@ -176,7 +176,7 @@ internal object HdmpAiEngine {
                 return Result(
                     Model.CLASSICAL_ONLY,
                     false,
-                    "Ảnh vượt giới hạn bộ nhớ an toàn của AI; HDMP cơ bản sẽ xử lý ảnh gốc."
+                    "Ảnh vượt giới hạn bộ nhớ an toàn của AI; LunaDream cơ bản sẽ xử lý ảnh gốc."
                 )
             }
 
@@ -211,10 +211,10 @@ internal object HdmpAiEngine {
             }
             val userRequestedFast = preferFast || shouldSwitchToFast()
             if (shouldStopForThermal() && primary && commitRendered(context, uri, original, rendered)) {
-                return Result(Model.NAFNET_WIDTH64, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 hoàn tất, phần còn lại giữ ảnh gốc.")
+                return Result(Model.NAFNET_WIDTH64, true, "Đã dừng theo nhiệt độ; đã lưu phần LunaDream AI 2 hoàn tất, phần còn lại giữ ảnh gốc.")
             }
             if (!userRequestedFast && primary && commitRendered(context, uri, original, rendered)) {
-                return Result(Model.NAFNET_WIDTH64, true, "HDMP AI 2 đã xử lý và được HDMP kiểm tra.")
+                return Result(Model.NAFNET_WIDTH64, true, "LunaDream AI 2 đã xử lý và được LunaDream kiểm tra.")
             }
             // Never reuse a partially rendered primary output. Fast always starts from original.
             rendered.delete()
@@ -237,16 +237,16 @@ internal object HdmpAiEngine {
                 onProgress = onProgress
             )
             if (shouldStopForThermal() && fallback && commitRendered(context, uri, original, rendered)) {
-                return Result(Model.NAFNETLIB_WIDTH32, true, "Đã dừng theo nhiệt độ; đã lưu phần HDMP AI 2 Fast hoàn tất, phần còn lại giữ ảnh gốc.")
+                return Result(Model.NAFNETLIB_WIDTH32, true, "Đã dừng theo nhiệt độ; đã lưu phần LunaDream AI 2 Fast hoàn tất, phần còn lại giữ ảnh gốc.")
             }
             if (fallback && commitRendered(context, uri, original, rendered)) {
                 return Result(
                     Model.NAFNETLIB_WIDTH32,
                     true,
                     if (userRequestedFast) {
-                        "HDMP AI 2 Fast được chọn và đã xử lý từ ảnh gốc; HDMP đã kiểm tra kết quả."
+                        "LunaDream AI 2 Fast được chọn và đã xử lý từ ảnh gốc; LunaDream đã kiểm tra kết quả."
                     } else {
-                        "HDMP AI 2 Fast dự phòng đã xử lý và được HDMP kiểm tra."
+                        "LunaDream AI 2 Fast dự phòng đã xử lý và được LunaDream kiểm tra."
                     }
                 )
             }
@@ -254,11 +254,11 @@ internal object HdmpAiEngine {
             Result(
                 Model.CLASSICAL_ONLY,
                 false,
-                "Hai model AI không khả dụng hoặc không hoàn tất; giữ ảnh gốc để HDMP cơ bản xử lý."
+                "Hai model AI không khả dụng hoặc không hoàn tất; giữ ảnh gốc để LunaDream cơ bản xử lý."
             )
         } catch (failure: Throwable) {
-            Log.e(TAG, "HDMP AI coordinator failed; deterministic HDMP fallback will be used", failure)
-            Result(Model.CLASSICAL_ONLY, false, "AI lỗi; chuyển an toàn sang HDMP cơ bản.")
+            Log.e(TAG, "LunaDream AI coordinator failed; deterministic LunaDream fallback will be used", failure)
+            Result(Model.CLASSICAL_ONLY, false, "AI lỗi; chuyển an toàn sang LunaDream cơ bản.")
         } finally {
             runCatching { original.delete() }
             runCatching { rendered.delete() }
@@ -352,7 +352,7 @@ internal object HdmpAiEngine {
                         }
                         FileOutputStream(destination).use { stream ->
                             check(outputBitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, stream)) {
-                                "HDMP AI partial output JPEG encoding failed"
+                                "LunaDream AI partial output JPEG encoding failed"
                             }
                             stream.flush()
                             stream.fd.sync()
@@ -477,16 +477,16 @@ internal object HdmpAiEngine {
 
             FileOutputStream(destination).use { stream ->
                 check(outputBitmap!!.compress(Bitmap.CompressFormat.JPEG, 97, stream)) {
-                    "HDMP AI output JPEG encoding failed"
+                    "LunaDream AI output JPEG encoding failed"
                 }
                 stream.flush()
                 stream.fd.sync()
             }
-            check(destination.exists() && destination.length() > 0L) { "HDMP AI output is empty" }
+            check(destination.exists() && destination.length() > 0L) { "LunaDream AI output is empty" }
             val checkBounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(destination.absolutePath, checkBounds)
             check(checkBounds.outWidth == width && checkBounds.outHeight == height) {
-                "HDMP AI output dimensions changed"
+                "LunaDream AI output dimensions changed"
             }
             writeExif(destination, readExif(source))
             Log.i(TAG, "${model} completed ${width} x ${height} in ${SystemClock.elapsedRealtime() - startedAt}ms")
@@ -566,7 +566,7 @@ internal object HdmpAiEngine {
         }.getOrNull() ?: return null
         if (expectedHash.length != 64) return null
 
-        val directory = File(context.noBackupFilesDir, "hdmp-ai-models")
+        val directory = File(context.noBackupFilesDir, "lunaDream-ai-models")
         if (!directory.exists() && !directory.mkdirs()) return null
         val destination = File(directory, spec.assetName)
         if (destination.exists() && destination.length() >= MODEL_MIN_BYTES &&
@@ -628,7 +628,7 @@ internal object HdmpAiEngine {
                 FileInputStream(rendered).use { input -> input.copyTo(destination) }
                 true
             } ?: false
-            check(written) { "MediaStore refused the HDMP AI output" }
+            check(written) { "MediaStore refused the LunaDream AI output" }
             context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
                 ExifInterface(descriptor.fileDescriptor).apply {
                     setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
@@ -648,7 +648,7 @@ internal object HdmpAiEngine {
                     FileInputStream(original).use { input -> input.copyTo(destination) }
                 } ?: error("Could not restore original photo after AI commit failure")
             }.onFailure { Log.e(TAG, "Original photo rollback failed", it) }
-            Log.e(TAG, "Could not commit HDMP AI output", failure)
+            Log.e(TAG, "Could not commit LunaDream AI output", failure)
             false
         }
     }
@@ -659,7 +659,7 @@ internal object HdmpAiEngine {
                 input.copyTo(output)
                 output.fd.sync()
             }
-        } ?: error("HDMP AI cannot read captured photo")
+        } ?: error("LunaDream AI cannot read captured photo")
         check(destination.exists() && destination.length() > 0L) { "Captured photo backup is empty" }
     }
 

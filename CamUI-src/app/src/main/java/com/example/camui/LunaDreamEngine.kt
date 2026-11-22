@@ -18,12 +18,12 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * HDMP is Fujifilm Mode's in-app, non-ML image-processing engine.
+ * LunaDream is Fujifilm Mode's in-app, non-ML image-processing engine.
  * Edge-aware denoising, adaptive high-pass detail recovery and luminance sharpening are
  * processed as bounded row tiles. Resolution interpolation is a separate final stage.
  */
-internal object HdmpEngine {
-    private const val TAG = "FUJI_HDMP_ENGINE"
+internal object LunaDreamEngine {
+    private const val TAG = "FUJI_LUNADREAM_ENGINE"
     private const val STRIPE_HEIGHT = 64
 
     fun process(
@@ -34,8 +34,8 @@ internal object HdmpEngine {
     ): Boolean {
         val workers = workerCount.coerceIn(1, 8)
         val stamp = System.currentTimeMillis().toString()
-        val processedFile = File(context.cacheDir, "hdmp-processed-$stamp.jpg")
-        val backupFile = File(context.cacheDir, "hdmp-original-$stamp.jpg")
+        val processedFile = File(context.cacheDir, "lunaDream-processed-$stamp.jpg")
+        val backupFile = File(context.cacheDir, "lunaDream-original-$stamp.jpg")
         var source: Bitmap? = null
         var output: Bitmap? = null
         var replacing = false
@@ -44,7 +44,7 @@ internal object HdmpEngine {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, bounds)
-            } ?: error("HDMP could not inspect source image")
+            } ?: error("LunaDream could not inspect source image")
             val sourcePixelCount = bounds.outWidth.toLong() * bounds.outHeight.toLong()
             val workingConfig = if (sourcePixelCount <= 16_000_000L) {
                 Bitmap.Config.ARGB_8888
@@ -58,11 +58,11 @@ internal object HdmpEngine {
                         inDither = workingConfig == Bitmap.Config.RGB_565
                     }
                 )
-            } ?: error("HDMP could not decode source image")
+            } ?: error("LunaDream could not decode source image")
             val src = source!!
             val width = src.width
             val height = src.height
-            require(width >= 3 && height >= 3) { "HDMP source is too small" }
+            require(width >= 3 && height >= 3) { "LunaDream source is too small" }
             output = Bitmap.createBitmap(width, height, src.config ?: Bitmap.Config.RGB_565)
             val dst = output!!
             val stripeCount = (height + STRIPE_HEIGHT - 1) / STRIPE_HEIGHT
@@ -177,7 +177,7 @@ internal object HdmpEngine {
 
             FileOutputStream(processedFile).use { stream ->
                 check(dst.compress(Bitmap.CompressFormat.JPEG, 96, stream)) {
-                    "HDMP JPEG encoding failed"
+                    "LunaDream JPEG encoding failed"
                 }
                 stream.flush()
                 stream.fd.sync()
@@ -188,13 +188,13 @@ internal object HdmpEngine {
                     input.copyTo(stream)
                     stream.fd.sync()
                 }
-            } ?: error("HDMP could not create an original-image backup")
+            } ?: error("LunaDream could not create an original-image backup")
             replacing = true
             val copied = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                 processedFile.inputStream().use { it.copyTo(destination) }
                 true
             } ?: false
-            check(copied) { "HDMP could not update MediaStore image" }
+            check(copied) { "LunaDream could not update MediaStore image" }
             context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
                 ExifInterface(descriptor.fileDescriptor).apply {
                     setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
@@ -213,9 +213,9 @@ internal object HdmpEngine {
             if (replacing && backupFile.exists()) runCatching {
                 context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                     backupFile.inputStream().use { it.copyTo(destination) }
-                } ?: error("HDMP rollback stream unavailable")
-            }.onFailure { Log.e(TAG, "Could not restore source after HDMP failure", it) }
-            Log.e(TAG, "HDMP processing skipped; original image retained when possible", failure)
+                } ?: error("LunaDream rollback stream unavailable")
+            }.onFailure { Log.e(TAG, "Could not restore source after LunaDream failure", it) }
+            Log.e(TAG, "LunaDream processing skipped; original image retained when possible", failure)
             false
         } finally {
             source?.let { if (!it.isRecycled) it.recycle() }

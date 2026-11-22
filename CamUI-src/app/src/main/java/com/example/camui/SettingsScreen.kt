@@ -66,7 +66,7 @@ private val settingItems = listOf(
     SettingItem("Appearance", "Custom shutter button"),
     SettingItem("Language", "System · English · Vietnamese · Japanese · Korean · Chinese"),
     SettingItem("Sao lưu & Khôi phục", "Camera · Zoom · Các tính năng đã bật"),
-    SettingItem("About", "Fujifilm Mode · HDMP Camera · Version 1.4.1")
+    SettingItem("About", "Fujifilm Mode · LunaDream Camera · Version 1.4.1")
 )
 
 @Composable
@@ -411,8 +411,8 @@ var nightShotMode by remember {
             "Photo Mode Setting" -> {
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
-                    "HDRbyHDMP",
-                    "Engine HDR phần mềm độc lập. Photo thường dùng profile xử lý 2x; khi bật HDMP FHD/UHD/UHD+ dùng profile 10x. Đây là mức xử lý nội bộ, không phải cam kết chất lượng tăng theo phép đo.",
+                    "HDRbyLunaDream",
+                    "Engine HDR phần mềm độc lập. Photo thường dùng profile xử lý 2x; khi bật LunaDream FHD/UHD/UHD+ dùng profile 10x. Đây là mức xử lý nội bộ, không phải cam kết chất lượng tăng theo phép đo.",
                     hdr
                 ) {
                     hdr = it
@@ -457,7 +457,7 @@ var nightShotMode by remember {
                 }
             }
             else -> {
-                Text("Fujifilm Mode · HDMP Camera", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("Fujifilm Mode · LunaDream Camera", color = CamColors.TextColor, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text("Người làm App: Baoaka06", color = CamColors.TextColor, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 18.dp))
                 Text("TikTok: @baoaka06", color = CamColors.Yellow, fontSize = 14.sp,

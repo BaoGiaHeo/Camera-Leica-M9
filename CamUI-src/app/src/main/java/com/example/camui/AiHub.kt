@@ -27,12 +27,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val HdmpYellow = Color(0xFFF5C518)
-private val HdmpMuted = Color(0xFFAAAAAA)
+private val LunaDreamYellow = Color(0xFFF5C518)
+private val LunaDreamMuted = Color(0xFFAAAAAA)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HdmpBottomSheet(
+fun LunaDreamBottomSheet(
     onDismiss: () -> Unit,
     uhdEnabled: Boolean,
     onUhdEnabledChange: (Boolean) -> Unit,
@@ -65,12 +65,12 @@ fun HdmpBottomSheet(
                 .padding(horizontal = 20.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("HDMP", color = HdmpYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("LunaDream", color = LunaDreamYellow, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "HDMP điều phối HDMP AI 2 và HDMP AI 2 Fast; HDMP kiểm tra và hoàn tất ảnh cuối.",
-                color = HdmpMuted, fontSize = 12.sp
+                "LunaDream điều phối LunaDream AI 2 và LunaDream AI 2 Fast; LunaDream kiểm tra và hoàn tất ảnh cuối.",
+                color = LunaDreamMuted, fontSize = 12.sp
             )
-            Text("Chế độ xử lý HDMP AI", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text("Chế độ xử lý LunaDream AI", color = LunaDreamYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf(
                     "quality" to "Chất lượng",
@@ -81,7 +81,7 @@ fun HdmpBottomSheet(
                     Box(
                         modifier = Modifier.weight(1f)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (selected) HdmpYellow else Color(0xFF292929))
+                            .background(if (selected) LunaDreamYellow else Color(0xFF292929))
                             .clickable { onRenderProfileChange(value) }
                             .padding(vertical = 11.dp, horizontal = 4.dp),
                         contentAlignment = Alignment.Center
@@ -97,25 +97,25 @@ fun HdmpBottomSheet(
             }
             Text(
                 when (renderProfile) {
-                    "quality" -> "Ưu tiên HDMP AI 2; số luồng vẫn tự giới hạn theo CPU, RAM và nhiệt độ."
-                    "speed" -> "Bắt đầu trực tiếp bằng HDMP AI 2 Fast để rút ngắn thời gian xử lý."
-                    else -> "Ưu tiên HDMP AI 2 với mức tải cân bằng; hệ thống tự điều chỉnh theo thiết bị."
+                    "quality" -> "Ưu tiên LunaDream AI 2; số luồng vẫn tự giới hạn theo CPU, RAM và nhiệt độ."
+                    "speed" -> "Bắt đầu trực tiếp bằng LunaDream AI 2 Fast để rút ngắn thời gian xử lý."
+                    else -> "Ưu tiên LunaDream AI 2 với mức tải cân bằng; hệ thống tự điều chỉnh theo thiết bị."
                 },
-                color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+                color = LunaDreamMuted, fontSize = 11.sp, lineHeight = 16.sp
             )
-            HdmpToggleRow(
+            LunaDreamToggleRow(
                 title = "UHD · 108MP",
                 enabled = uhdEnabled, onEnabledChange = onUhdEnabledChange,
                 status = if (uhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
-            HdmpToggleRow(
+            LunaDreamToggleRow(
                 title = "FHD · 60MP",
                 enabled = fhdEnabled, onEnabledChange = onFhdEnabledChange,
                 status = if (fhdEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
             )
             HorizontalDivider(color = Color(0xFF333333))
-            HdmpToggleRow(
+            LunaDreamToggleRow(
                 title = "UHD+ · 250MP",
                 enabled = uhdPlusEnabled, onEnabledChange = onUhdPlusEnabledChange,
                 status = if (uhdPlusEnabled) "ĐANG BẬT · TỰ ĐIỀU CHỈNH" else "TẮT"
@@ -130,18 +130,18 @@ fun HdmpBottomSheet(
                     Text("Night Shot", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         "Chạm lần lượt: 5s → 10s → 3s → Tắt. Mục tiêu 30 FPS: 5s/150 khung, 10s/300 khung, 3s/90 khung. Tự thu nhanh nhất camera cho phép rồi mới căn chỉnh và ghép; đầu ra tối đa 60MP.",
-                        color = HdmpMuted, fontSize = 11.sp, lineHeight = 15.sp
+                        color = LunaDreamMuted, fontSize = 11.sp, lineHeight = 15.sp
                     )
                     Text(
                         if (nightShotEnabled) "ĐANG BẬT · ${nightShotDurationSeconds}s" else "NIGHT SHOT · TẮT",
-                        color = if (nightShotEnabled) HdmpYellow else Color(0xFF888888),
+                        color = if (nightShotEnabled) LunaDreamYellow else Color(0xFF888888),
                         fontSize = 10.sp, fontWeight = FontWeight.Medium
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
                     if (nightShotEnabled) "${nightShotDurationSeconds}s" else "OFF",
-                    color = if (nightShotEnabled) HdmpYellow else Color(0xFFAAAAAA),
+                    color = if (nightShotEnabled) LunaDreamYellow else Color(0xFFAAAAAA),
                     fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
             }
@@ -150,10 +150,10 @@ fun HdmpBottomSheet(
                     .background(Color(0xFF202020), RoundedCornerShape(12.dp)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text("Cách phân bổ xử lý", color = HdmpYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Cách phân bổ xử lý", color = LunaDreamYellow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "FHD, UHD và UHD+ dùng pipeline HDMP với số luồng tự điều chỉnh theo CPU, RAM và trạng thái nhiệt. Night Shot có trần 60MP nhưng tự hạ độ phân giải nếu RAM không đủ.",
-                    color = HdmpMuted, fontSize = 11.sp, lineHeight = 16.sp
+                    "FHD, UHD và UHD+ dùng pipeline LunaDream với số luồng tự điều chỉnh theo CPU, RAM và trạng thái nhiệt. Night Shot có trần 60MP nhưng tự hạ độ phân giải nếu RAM không đủ.",
+                    color = LunaDreamMuted, fontSize = 11.sp, lineHeight = 16.sp
                 )
             }
         }
@@ -161,7 +161,7 @@ fun HdmpBottomSheet(
 }
 
 @Composable
-private fun HdmpToggleRow(
+private fun LunaDreamToggleRow(
     title: String,
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
@@ -170,7 +170,7 @@ private fun HdmpToggleRow(
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(status, color = if (enabled) HdmpYellow else Color(0xFF888888),
+            Text(status, color = if (enabled) LunaDreamYellow else Color(0xFF888888),
                 fontSize = 10.sp, fontWeight = FontWeight.Medium)
         }
         Spacer(Modifier.width(12.dp))
@@ -178,9 +178,9 @@ private fun HdmpToggleRow(
             checked = enabled,
             onCheckedChange = onEnabledChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(0xFF161616), checkedTrackColor = HdmpYellow,
+                checkedThumbColor = Color(0xFF161616), checkedTrackColor = LunaDreamYellow,
                 uncheckedThumbColor = Color(0xFFBDBDBD), uncheckedTrackColor = Color(0xFF444444),
-                checkedBorderColor = HdmpYellow, uncheckedBorderColor = Color(0xFF666666)
+                checkedBorderColor = LunaDreamYellow, uncheckedBorderColor = Color(0xFF666666)
             )
         )
     }

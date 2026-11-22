@@ -15,14 +15,14 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * HDRbyHDMP is a separate, device-independent software tone-mapping engine.
+ * HDRbyLunaDream is a separate, device-independent software tone-mapping engine.
  *
  * It uses the captured exposure only (not a bracketed multi-exposure stack). It can balance
  * recorded shadow/highlight values, but cannot recover detail clipped by the sensor. The 2x
  * and 10x profiles are internal processing-strength presets, not measured quality multipliers.
  */
-internal object HdrByHdmpEngine {
-    private const val TAG = "HDR_BY_HDMP"
+internal object HdrByLunaDreamEngine {
+    private const val TAG = "HDR_BY_LUNADREAM"
     private const val STRIPE_HEIGHT = 48
 
     fun process(
@@ -32,8 +32,8 @@ internal object HdrByHdmpEngine {
         onProgress: (Int) -> Unit = {}
     ): Boolean {
         val profile = if (qualityMultiplier >= 10) 1f else 0.32f
-        val temp = File(context.cacheDir, "hdrbyhdmp-${System.nanoTime()}.jpg")
-        val backup = File(context.cacheDir, "hdrbyhdmp-original-${System.nanoTime()}.jpg")
+        val temp = File(context.cacheDir, "hdrbylunaDream-${System.nanoTime()}.jpg")
+        val backup = File(context.cacheDir, "hdrbylunaDream-original-${System.nanoTime()}.jpg")
         var bitmap: Bitmap? = null
         var replaced = false
         return try {
@@ -43,7 +43,7 @@ internal object HdrByHdmpEngine {
                     input.copyTo(output)
                     output.fd.sync()
                 }
-            } ?: error("HDRbyHDMP cannot read source image")
+            } ?: error("HDRbyLunaDream cannot read source image")
 
             bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
                 BitmapFactory.decodeStream(
@@ -55,12 +55,12 @@ internal object HdrByHdmpEngine {
                         inDither = true
                     }
                 )
-            } ?: error("HDRbyHDMP cannot decode source image")
+            } ?: error("HDRbyLunaDream cannot decode source image")
 
             val frame = bitmap!!
             val width = frame.width
             val height = frame.height
-            require(width >= 3 && height >= 3) { "HDRbyHDMP source is too small" }
+            require(width >= 3 && height >= 3) { "HDRbyLunaDream source is too small" }
 
             var previous = IntArray(width)
             var current = IntArray(width)
@@ -129,7 +129,7 @@ internal object HdrByHdmpEngine {
 
             FileOutputStream(temp).use { stream ->
                 check(frame.compress(Bitmap.CompressFormat.JPEG, 98, stream)) {
-                    "HDRbyHDMP JPEG encode failed"
+                    "HDRbyLunaDream JPEG encode failed"
                 }
                 stream.flush()
                 stream.fd.sync()
@@ -140,7 +140,7 @@ internal object HdrByHdmpEngine {
                 temp.inputStream().use { it.copyTo(destination) }
                 true
             } ?: false
-            check(written) { "HDRbyHDMP cannot write processed image" }
+            check(written) { "HDRbyLunaDream cannot write processed image" }
             context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
                 ExifInterface(descriptor.fileDescriptor).apply {
                     setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
@@ -161,9 +161,9 @@ internal object HdrByHdmpEngine {
             if (replaced && backup.exists()) runCatching {
                 context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                     backup.inputStream().use { it.copyTo(destination) }
-                } ?: error("HDRbyHDMP rollback stream unavailable")
-            }.onFailure { Log.e(TAG, "HDRbyHDMP rollback failed", it) }
-            Log.e(TAG, "HDRbyHDMP failed; original image retained when possible", failure)
+                } ?: error("HDRbyLunaDream rollback stream unavailable")
+            }.onFailure { Log.e(TAG, "HDRbyLunaDream rollback failed", it) }
+            Log.e(TAG, "HDRbyLunaDream failed; original image retained when possible", failure)
             false
         } finally {
             bitmap?.let { if (!it.isRecycled) it.recycle() }

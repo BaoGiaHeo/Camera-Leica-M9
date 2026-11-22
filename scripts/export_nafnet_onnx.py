@@ -2,7 +2,7 @@
 """Export the NAFNet SIDD denoisers to fixed-size ONNX tiles for Android.
 
 The exported networks are denoisers (same-resolution residual restoration), not GAN upscalers.
-HDMP owns the final blend, validation and save. Real-ESRGAN is intentionally not exported.
+LunaDream owns the final blend, validation and save. Real-ESRGAN is intentionally not exported.
 """
 from __future__ import annotations
 

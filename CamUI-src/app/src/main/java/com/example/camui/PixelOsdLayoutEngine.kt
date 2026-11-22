@@ -198,6 +198,59 @@ internal object PixelOsdLayoutEngine {
                 t1
             )
 
+            // DRIVE occupies a dedicated row beneath FPS, never replacing exposure or AF data.
+            // CLEAN mode hides the whole status section; its large countdown overlay stays separate.
+            val driveTimerSeconds = frame.driveTimerSeconds.takeIf { it in setOf(2, 5, 10) }
+            val showDriveBurst = frame.driveBurstMode
+            if (driveTimerSeconds != null || showDriveBurst) {
+                val driveTop = (margin + t3 + labelValueGap + t1 + itemGap).toFloat()
+                var driveX = margin.toFloat()
+                if (driveTimerSeconds != null) {
+                    val iconWidth = addIcon(
+                        id = "drive-timer-icon",
+                        section = "status",
+                        sprite = "timer",
+                        left = driveX,
+                        top = driveTop,
+                        requestedHeight = t3
+                    )
+                    driveX += iconWidth + labelValueGap
+                    driveX += addText(
+                        "drive-timer",
+                        "status",
+                        "${driveTimerSeconds}s",
+                        driveX,
+                        driveTop,
+                        t3
+                    )
+                }
+                if (showDriveBurst) {
+                    if (driveX > margin) driveX += groupGap
+                    val iconWidth = addIcon(
+                        id = "drive-burst-icon",
+                        section = "status",
+                        sprite = "burst",
+                        left = driveX,
+                        top = driveTop,
+                        requestedHeight = t3
+                    )
+                    driveX += iconWidth + labelValueGap
+                    val burstLabel = if (frame.driveBurstActive) {
+                        "BURST L ${frame.driveBurstFrames.coerceIn(0, 25)}/25"
+                    } else {
+                        "BURST L"
+                    }
+                    addText(
+                        "drive-burst",
+                        "status",
+                        burstLabel,
+                        driveX,
+                        driveTop,
+                        t3
+                    )
+                }
+            }
+
             val afText = if (frame.focusLocked) "AF-L" else frame.afModeText.ifBlank { "AF" }.take(6)
             val afWidth = measureTextWidthPx(afText, t1).coerceAtLeast(1f)
             val batteryLabel = frame.batteryPercent.takeIf { it in 0..100 }?.let { it.toString() + "%" }.orEmpty()

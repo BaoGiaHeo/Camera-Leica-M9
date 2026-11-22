@@ -13,7 +13,7 @@ class ScreenProfileLayoutTest {
             android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor()
-        assertEquals(54.98f, compact.topPlateHeight.value, 0.1f)
+        assertEquals(68.85f, compact.topPlateHeight.value, 0.2f)
         assertTrue(compact.leftColumnWidth.value in 96f..132f)
         assertTrue(compact.rightColumnWidth.value in 150f..200f)
         assertTrue(compact.proControlHeight.value >= 56f)
@@ -27,10 +27,33 @@ class ScreenProfileLayoutTest {
             android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor(1600f, 900f)
-        assertEquals(68f, profile.topPlateHeight.value, 0.001f)
+        assertEquals(71.7f, profile.topPlateHeight.value, 0.2f)
         assertEquals(132f, profile.leftColumnWidth.value, 0.001f)
         assertEquals(200f, profile.rightColumnWidth.value, 0.001f)
         assertEquals(84f, profile.proControlHeight.value, 0.001f)
+    }
+
+    @Test
+    fun topPlateNeverUsesTheOldClipProneCompactHeightAcrossFontScales() {
+        val densities = listOf(280, 320, 420, 440, 480, 560)
+        val fontScales = listOf(0.85f, 1f, 1.3f)
+        densities.forEach { dpi ->
+            fontScales.forEach { fontScale ->
+                val density = dpi / 160f
+                val profile = ScreenProfile(
+                    2400, 1080, dpi, density, fontScale,
+                    2400f / density, 1080f / density,
+                    ScreenProfile.classifyAspect(2400f / density, 1080f / density),
+                    ScreenWindowSizeClass.COMPACT, 120f,
+                    android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
+                    android.graphics.Rect(), emptyList(), emptyList()
+                )
+                assertTrue(
+                    "Top plate too short for dpi=$dpi fontScale=$fontScale: ${profile.layoutFor().topPlateHeight}",
+                    profile.layoutFor().topPlateHeight.value >= 66f
+                )
+            }
+        }
     }
 
     @Test

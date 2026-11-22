@@ -191,6 +191,8 @@
     <string name="activation_battery_warning">PIN DƯỚI 20%</string>
     <string name="preview_fps_title">FPS XEM TRƯỚC</string>
     <string name="preview_fps_description">Chọn dải tốc độ khung hình xem trước. HUD hiển thị FPS đo từ camera.</string>
+    <string name="icon_rotation_title">XOAY BIỂU TƯỢNG</string>
+    <string name="icon_rotation_description">Xoay biểu tượng phím theo hướng cầm máy. Hướng ảnh chụp và vị trí watermark không thay đổi.</string>
     <string name="preview_fps_keep">Giữ lựa chọn FPS giữa các lần mở ứng dụng</string>
     <string name="activation_step_publisher">NHÀ PHÁT HÀNH</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>

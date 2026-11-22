@@ -1447,7 +1447,7 @@ fun CameraScreen(
                 assessment = assessment
             )
             zoomVisualRatio.floatValue = plan.effectiveZoomRatio
-                        digitalZoomCropScale.floatValue = plan.digitalCropRatio
+            digitalZoomCropScale.floatValue = plan.digitalCropRatio
             if (pendingZoom == null || pendingZoom?.isDone == true) {
                 val currentCameraRatio = active.cameraInfo.zoomState.value?.zoomRatio ?: state.zoomRatio
                 if (abs(currentCameraRatio - plan.cameraControlZoomRatio) > 0.002f) {
@@ -1528,8 +1528,7 @@ fun CameraScreen(
                     assessment = zoomAssessment
                 )
                 zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
-                zoomVisualRatio.floatValue = plan.effectiveZoomRatio
-                                digitalZoomCropScale.floatValue = plan.digitalCropRatio
+                // The independent vsync controller updates the drawn marker and preview crop.
                 tickCount++
             }
             if (SystemClock.elapsedRealtime() - holdStartedAtMs <= 3_000L) {
@@ -5359,7 +5358,7 @@ fun CameraScreen(
         val cameraMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
         val selectableMax = maxTotalSelectableZoom(cameraMaximum, assessment)
         val safeTarget = targetRatio.coerceIn(state.minZoomRatio, selectableMax)
-        val start = zoomRequestedTarget
+        val start = zoomRequestedTarget.floatValue
         if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
             zoomHapticMilestonesCrossed(start, safeTarget).forEach { milestone ->
                 localView.performHapticFeedback(

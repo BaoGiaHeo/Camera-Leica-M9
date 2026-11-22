@@ -345,6 +345,8 @@ fun FujiIconGlyph(
     }
 }
 
+val LocalFujiIconRotation = staticCompositionLocalOf { 0f }
+
 @Composable
 fun FujiTopKey(
     label: String,
@@ -356,6 +358,7 @@ fun FujiTopKey(
     onLongClick: (() -> Unit)? = null
 ) {
     val view = LocalView.current
+    val iconRotationDegrees = LocalFujiIconRotation.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val pressedOffset by animateDpAsState(if (pressed) 1.5.dp else 0.dp, tween(80), label = "fuji-key-press")
@@ -400,12 +403,12 @@ fun FujiTopKey(
                     drawCircle(Color.White.copy(alpha = 0.72f), size.minDimension * 0.43f, Offset(size.width * 0.38f, size.height * 0.33f), style = Stroke(0.7.dp.toPx()))
                 }
                 if (label.equals("Q", true)) {
-                    Box(Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)).border(1.dp, Color(0xFF32383A), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(24.dp).graphicsLayer { rotationZ = iconRotationDegrees }.clip(RoundedCornerShape(4.dp)).border(1.dp, Color(0xFF32383A), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
                         Text("Q", color = Color(0xFF202426), fontSize = 16.sp, fontWeight = FontWeight.Black, lineHeight = 17.sp)
                     }
                 } else {
-                    FujiIconGlyph(icon, Modifier.size(22.dp), Color(0xE01B1B1B))
-                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp), Color.White.copy(alpha = 0.70f))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color(0xE01B1B1B))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color.White.copy(alpha = 0.70f))
                 }
             }
         }

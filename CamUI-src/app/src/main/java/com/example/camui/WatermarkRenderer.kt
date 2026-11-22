@@ -34,16 +34,25 @@ internal object WatermarkRenderer {
     )
     private data class Fragment(val text: String, val typeface: Typeface, val color: Int, val capRatio: Float)
 
+    private val fontsLock = Any()
+    @Volatile
+    private var cachedFonts: Fonts? = null
+
     private fun loadFonts(context: Context): Fonts {
-        val regular = context.resources.getFont(R.font.saira_semicondensed_regular)
-        val medium = context.resources.getFont(R.font.saira_semicondensed_medium)
-        val semibold = context.resources.getFont(R.font.saira_semicondensed_semibold)
-        return Fonts(
-            regular, medium, semibold,
-            readCapRatio(context, R.font.saira_semicondensed_regular, regular),
-            readCapRatio(context, R.font.saira_semicondensed_medium, medium),
-            readCapRatio(context, R.font.saira_semicondensed_semibold, semibold)
-        )
+        cachedFonts?.let { return it }
+        return synchronized(fontsLock) {
+            cachedFonts ?: run {
+                val regular = context.resources.getFont(R.font.saira_semicondensed_regular)
+                val medium = context.resources.getFont(R.font.saira_semicondensed_medium)
+                val semibold = context.resources.getFont(R.font.saira_semicondensed_semibold)
+                Fonts(
+                    regular, medium, semibold,
+                    readCapRatio(context, R.font.saira_semicondensed_regular, regular),
+                    readCapRatio(context, R.font.saira_semicondensed_medium, medium),
+                    readCapRatio(context, R.font.saira_semicondensed_semibold, semibold)
+                ).also { cachedFonts = it }
+            }
+        }
     }
 
     private fun readCapRatio(context: Context, fontId: Int, typeface: Typeface): Float {

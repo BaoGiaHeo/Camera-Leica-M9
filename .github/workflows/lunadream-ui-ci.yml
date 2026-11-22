@@ -11,6 +11,7 @@ on:
     branches:
       - feature/lunadream-2.5.0dream
       - fix/2.5.0dream-af-label
+      - fuji-2.5.0-user-prompt-round1-2026-11-22
 
 permissions:
   contents: read

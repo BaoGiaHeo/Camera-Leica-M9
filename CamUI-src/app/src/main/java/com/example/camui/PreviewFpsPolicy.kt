@@ -71,6 +71,15 @@ internal fun selectPreviewFpsRange(
     if (exactFixed != null) {
         return PreviewFpsSelection(exactFixed, requested, false, "Exact fixed FPS range")
     }
+    val containingRange = ranges.firstOrNull { it.lower <= requested && it.upper >= requested }
+    if (containingRange != null) {
+        return PreviewFpsSelection(
+            range = containingRange,
+            targetFps = requested,
+            fellBack = false,
+            reason = "Advertised AE range contains requested $requested FPS"
+        )
+    }
 
     val cappedRanges = ranges.filter { it.upper <= requested }
     val selected = cappedRanges.maxWithOrNull(

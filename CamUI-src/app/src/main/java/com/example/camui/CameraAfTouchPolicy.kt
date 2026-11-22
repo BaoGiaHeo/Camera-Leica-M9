@@ -4,6 +4,11 @@ import androidx.compose.ui.geometry.Offset
 import kotlin.math.abs
 import kotlin.math.min
 
+internal fun manualAfOverrideDeadline(
+    nowElapsedRealtimeMs: Long,
+    durationMs: Long = 3_000L
+): Long = nowElapsedRealtimeMs + durationMs.coerceAtLeast(0L)
+
 internal enum class CameraAfRegionStrategy {
     AF_AND_AE_REGIONS,
     AF_REGION_ONLY,

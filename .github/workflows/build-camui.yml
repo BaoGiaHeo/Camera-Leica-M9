@@ -3,7 +3,7 @@ name: LunaDream 2.5.0dream landscape UI validation
 
 on:
   push:
-    branches: [main, "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream", "fuji-2.5.0-round1-spec"]
+    branches: [main, "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream", "fuji-2.5.0-round1-spec", "fuji-2.5.0-round1-stage"]
   workflow_dispatch:
 
 permissions:

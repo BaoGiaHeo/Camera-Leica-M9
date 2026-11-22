@@ -137,17 +137,25 @@ class WatermarkStudioContactSheetTest {
                     BitmapFactory.decodeStream(input)
                 }
                 requireNotNull(bitmap) { "Rendered output bitmap is null for $layoutId" }
-                assertTrue(
-                    "Watermark output must retain source width and include the full photo area for $layoutId: ${bitmap.width}x${bitmap.height}",
-                    bitmap.width == 640 && bitmap.height >= 360
-                )
-                // Supported styles may add a footer or frame outside the source photo.
-                // The renderer intentionally keeps the original 640x360 photo rectangle native-sized.
+                // Each renderer style has its own output canvas; the photo rectangle
+                // itself must remain native-sized and never be resampled by watermarking.
                 val expectedPhotoGeometry = WatermarkGeometry.build(
                     640,
                     360,
-                    WatermarkLayoutSettings(),
+                    WatermarkLayoutSettings(
+                        layout = WatermarkLayoutType.fromPreference(layoutId)
+                    ),
                     WatermarkPhotoMetadata()
+                )
+                assertEquals(
+                    "Unexpected watermark canvas width for $layoutId",
+                    expectedPhotoGeometry.canvasWidth,
+                    bitmap.width
+                )
+                assertEquals(
+                    "Unexpected watermark canvas height for $layoutId",
+                    expectedPhotoGeometry.canvasHeight,
+                    bitmap.height
                 )
                 assertEquals(640f, expectedPhotoGeometry.photoRect.width, 0.01f)
                 assertEquals(360f, expectedPhotoGeometry.photoRect.height, 0.01f)

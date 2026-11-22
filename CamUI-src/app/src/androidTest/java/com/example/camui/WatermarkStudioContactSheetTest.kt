@@ -22,8 +22,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Exercises the production watermark renderer for every Studio layout using a
- * deterministic 640x360 source photograph, then writes a 12-cell contact sheet
+ * Exercises the production watermark renderer for all eight layouts using a
+ * deterministic 640x360 source photograph, then writes an 8-cell contact sheet
  * to app-specific external storage for visual review from the CI artifact.
  */
 @RunWith(AndroidJUnit4::class)
@@ -57,7 +57,7 @@ class WatermarkStudioContactSheetTest {
     )
 
     @Test
-    fun rendersAllTwelveLayoutsAndExportsContactSheet() {
+    fun rendersAllEightLayoutsAndExportsContactSheet() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val resolver = context.contentResolver
         val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -102,7 +102,7 @@ class WatermarkStudioContactSheetTest {
             assertTrue("Could not save test watermark preferences", saved)
 
             val layouts = watermarkStudioLayouts
-            assertTrue("Expected exactly twelve Watermark Studio layouts", layouts.size == 12)
+            assertEquals("Expected eight production Watermark Studio layouts", 8, layouts.size)
             layouts.forEach { (layoutId, _) ->
                 prefs.edit().putString("watermark_template", layoutId).commit()
                 val outputUri = createJpegRow(context, "watermark-layout-$layoutId")
@@ -142,7 +142,7 @@ class WatermarkStudioContactSheetTest {
                     "Watermark output must retain source width and include the full photo area for $layoutId: ${bitmap.width}x${bitmap.height}",
                     bitmap.width == 640 && bitmap.height >= 360
                 )
-                // Layout A-E templates may add a footer or frame outside the source photo.
+                // The eight production templates may add footers/borders around the source photo.
                 // The renderer intentionally keeps the original 640x360 photo rectangle native-sized.
                 val expectedPhotoGeometry = WatermarkGeometry.build(
                     640,
@@ -158,8 +158,8 @@ class WatermarkStudioContactSheetTest {
             val cellWidth = 320
             val cellHeight = 200
             val sheet = Bitmap.createBitmap(
-                cellWidth * 3,
-                cellHeight * 4,
+                cellWidth * 4,
+                cellHeight * 2,
                 Bitmap.Config.ARGB_8888
             )
             try {
@@ -174,8 +174,8 @@ class WatermarkStudioContactSheetTest {
                     )
                 }
                 renderedBitmaps.forEachIndexed { index, (layoutId, bitmap) ->
-                    val column = index % 3
-                    val row = index / 3
+                    val column = index % 4
+                    val row = index / 4
                     val left = column * cellWidth
                     val top = row * cellHeight
                     val photoRect = RectF(
@@ -197,7 +197,7 @@ class WatermarkStudioContactSheetTest {
                         labelPaint
                     )
                 }
-                val contactSheet = File(outputDirectory, "watermark-studio-12-layouts.png")
+                val contactSheet = File(outputDirectory, "watermark-studio-8-layouts.png")
                 contactSheet.outputStream().use { output ->
                     assertTrue(
                         "Could not write watermark contact sheet",

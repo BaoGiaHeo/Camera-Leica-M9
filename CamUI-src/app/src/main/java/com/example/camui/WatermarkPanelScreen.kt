@@ -25,11 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -213,7 +209,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.watermark_enabled), color = ComposeColor.White, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.weight(1f))
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    FujiSwitch(checked = enabled, onCheckedChange = { enabled = it })
                     Text(
                         if (enabled) stringResource(R.string.watermark_status_on) else stringResource(R.string.watermark_status_off),
                         color = if (enabled) ComposeColor(0xFF55D58A) else FujiSkin.muted,
@@ -228,30 +224,25 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                 ) {
                     WatermarkLayoutType.values().forEach { item ->
                         val selected = layout == item
-                        Button(
+                        FujiChip(
+                            text = stringResource(item.watermarkLayoutString()),
+                            selected = selected,
                             onClick = { layout = item },
-                            modifier = Modifier.animateContentSize(tween(250)),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = stringResource(item.watermarkLayoutString()),
-                                fontSize = 9.sp,
-                                color = if (selected) ComposeColor.White else ComposeColor(0xFFD0D0D0)
-                            )
-                        }
+                            modifier = Modifier.animateContentSize(tween(250))
+                        )
                     }
                 }
                 if (layout == WatermarkLayoutType.CARD) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.watermark_story_916), color = ComposeColor.White, fontSize = 10.sp)
                         Spacer(Modifier.weight(1f))
-                        Switch(checked = story916, onCheckedChange = { story916 = it })
+                        FujiSwitch(checked = story916, onCheckedChange = { story916 = it })
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.watermark_invert), color = ComposeColor.White, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
-                    Switch(checked = invert, onCheckedChange = { invert = it })
+                    FujiSwitch(checked = invert, onCheckedChange = { invert = it })
                 }
                 Text(
                     stringResource(R.string.watermark_size_value, sizeStep),
@@ -259,11 +250,12 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                Slider(
+                FujiSlider(
                     value = sizeStep.toFloat(),
                     onValueChange = { sizeStep = it.toInt().coerceIn(-2, 2) },
                     valueRange = -2f..2f,
-                    steps = 3
+                    steps = 3,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Text(stringResource(R.string.watermark_fields), color = FujiSkin.muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -284,7 +276,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.watermark_location), color = ComposeColor.White, fontSize = 10.sp)
                         Spacer(Modifier.weight(1f))
-                        Switch(
+                        FujiSwitch(
                             checked = locationEnabled,
                             onCheckedChange = { locationEnabled = it }
                         )
@@ -305,7 +297,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.watermark_true_focal), color = ComposeColor.White, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
-                    Switch(checked = trueFocal, onCheckedChange = { trueFocal = it })
+                    FujiSwitch(checked = trueFocal, onCheckedChange = { trueFocal = it })
                 }
                 Text(stringResource(R.string.watermark_camera_name), color = ComposeColor.White, fontSize = 10.sp)
                 TextField(
@@ -332,7 +324,9 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     label = stringResource(R.string.watermark_save_both),
                     onClick = { saveMode = "both" }
                 )
-                Button(
+                FujiChip(
+                    text = stringResource(R.string.watermark_reset),
+                    selected = false,
                     onClick = {
                         enabled = true
                         layout = WatermarkLayoutType.BAR
@@ -347,9 +341,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                         story916 = false
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.watermark_reset))
-                }
+                )
             }
         }
     }
@@ -362,19 +354,13 @@ private fun WatermarkFieldRow(label: String, checked: Boolean, onChange: (Boolea
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = ComposeColor.White, fontSize = 9.sp, modifier = Modifier.weight(1f))
-        Checkbox(checked = checked, onCheckedChange = onChange)
+        FujiSwitch(checked = checked, onCheckedChange = onChange)
     }
 }
 
 @Composable
 private fun WatermarkChoice(selected: Boolean, label: String, onClick: () -> Unit) {
-    Button(onClick = onClick) {
-        Text(
-            label,
-            color = if (selected) ComposeColor.White else ComposeColor(0xFFCCCCCC),
-            fontSize = 9.sp
-        )
-    }
+    FujiChip(text = label, selected = selected, onClick = onClick)
 }
 
 private fun WatermarkLayoutType.watermarkLayoutString(): Int = when (this) {

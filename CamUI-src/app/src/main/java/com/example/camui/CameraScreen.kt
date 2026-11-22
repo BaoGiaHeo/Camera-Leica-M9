@@ -5651,6 +5651,7 @@ fun CameraScreen(
                                     fpsText = measuredPreviewFps.takeIf { it.isFinite() && it > 0f }
                                         ?.let { String.format(Locale.US, "%.2f", it) } ?: "--.--",
                                     fpsTarget = previewFpsTarget,
+                                    fpsFallback = previewFpsCapabilityFallback,
                                     showPixelTexture = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     showGrid = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,

@@ -306,7 +306,10 @@ internal object WatermarkGeometry {
             WatermarkLayoutType.PALETTE -> {
                 val side = s * 0.045f * scale
                 val top = s * 0.269f * scale
-                val bottom = s * 0.295f * scale
+                val paletteBelow = sourceHeight >= sourceWidth * 0.9f
+                // Portrait/square palettes sit beneath all four text rows and need a
+                // 32.2% short-side footer; landscape palettes remain inside the photo.
+                val bottom = s * (if (paletteBelow) 0.322f else 0.295f) * scale
                 val cw = sourceWidth + (side * 2f).roundToInt()
                 val ch = sourceHeight + top.roundToInt() + bottom.roundToInt()
                 val photo = WatermarkRect(
@@ -319,11 +322,12 @@ internal object WatermarkGeometry {
                 val logo = WatermarkRect(
                     photo.left, logoTop, photo.left + logoWidth, logoTop + logoHeight
                 )
-                val paletteBelow = sourceHeight >= sourceWidth * 0.9f
                 val paletteWidth = if (paletteBelow) sourceWidth.toFloat()
                     else min(s * 0.72f * scale, sourceWidth * 0.48f)
                 val paletteHeight = s * (if (paletteBelow) 0.045f else 0.057f) * scale
-                val paletteTop = photo.bottom + s * (if (paletteBelow) 0.25f else 0.075f) * scale
+                // Landscape swatches are 7.5% S above the photo bottom.
+                // Portrait/square swatches move below the text, after a 3% S clearance.
+                val paletteTop = photo.bottom + s * (if (paletteBelow) 0.277f else -0.075f) * scale
                 val paletteLeft = if (paletteBelow) photo.left else photo.right - paletteWidth
                 val paletteRect = WatermarkRect(
                     paletteLeft, paletteTop, paletteLeft + paletteWidth, paletteTop + paletteHeight

@@ -78,7 +78,16 @@ object NightShotProcessor {
         ExifInterface.TAG_FLASH
     )
 
-    enum class MergeMode { NIGHT_AVERAGE, LUNA_DREAM_1_5, LUNA_DREAM_2_0, MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
+    enum class MergeMode {
+        NIGHT_AVERAGE, LUNA_DREAM_1_5, LUNA_DREAM_2_0, LUNA_DREAM_2_5, LUNA_DREAM_3_0,
+        MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK
+    }
+
+    private fun isLunaDreamStackMode(mode: MergeMode): Boolean =
+        mode == MergeMode.LUNA_DREAM_1_5 ||
+            mode == MergeMode.LUNA_DREAM_2_0 ||
+            mode == MergeMode.LUNA_DREAM_2_5 ||
+            mode == MergeMode.LUNA_DREAM_3_0
 
     private data class GrayLevel(
         val width: Int,
@@ -317,7 +326,7 @@ object NightShotProcessor {
                 else -> "Frame ${invalidFrameIndex + 1} is missing or empty"
             }
             Log.e(TAG, "Merge rejected for $mode: $reason")
-            if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
+            if (isLunaDreamStackMode(mode)) {
                 LunaDreamDiagnostics.record(
                     context,
                     "MERGE_REJECTED",
@@ -331,13 +340,15 @@ object NightShotProcessor {
             MergeMode.STAR_TRAILS -> "star-"
             MergeMode.LUNA_DREAM_1_5 -> "luna15-"
             MergeMode.LUNA_DREAM_2_0 -> "luna-dream-"
+            MergeMode.LUNA_DREAM_2_5 -> "luna-dream-25-"
+            MergeMode.LUNA_DREAM_3_0 -> "luna-dream-30-"
             MergeMode.MILKY_WAY_STACK -> "milky-way-"
             MergeMode.HDR_BRACKET -> "hdr-"
             MergeMode.FOCUS_STACK -> "focus-"
             else -> "night-"
         }
         val tempOutput = File(context.cacheDir, "fuji-" + prefix + System.nanoTime() + ".jpg")
-        val isLunaDreamMerge = mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
+        val isLunaDreamMerge = isLunaDreamStackMode(mode)
         val mergeStartedAt = SystemClock.elapsedRealtime()
         var decodeMs = 0L
         var alignmentMs = 0L
@@ -360,7 +371,7 @@ object NightShotProcessor {
             )
         }
         val lunaFusionExecutor: ExecutorService? = if (
-            mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
+            isLunaDreamStackMode(mode)
         ) {
             Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
         } else null
@@ -448,7 +459,7 @@ object NightShotProcessor {
 
                     currentStage = "fuse frame ${frameIndex + 1}/${frames.size}"
                     val fusionStartedAt = SystemClock.elapsedRealtime()
-                    if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
+                    if (isLunaDreamStackMode(mode)) {
                         fuseLunaDreamFrameParallel(
                             base!!,
                             current,
@@ -619,22 +630,33 @@ object NightShotProcessor {
                     runCatching { onProgress?.invoke(stageProgress) }
                 }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
-            } else if (mode == MergeMode.LUNA_DREAM_2_0) {
-                // Preserve the LunaDream 2.0 build-9 finishing sequence exactly:
-                // strength-2 edge-aware denoise followed by the dedicated 2.0 detail pass.
+            } else if (
+                mode == MergeMode.LUNA_DREAM_2_0 ||
+                mode == MergeMode.LUNA_DREAM_2_5 ||
+                mode == MergeMode.LUNA_DREAM_3_0
+            ) {
+                // 2.0 retains the established sequence. 2.5/3.0 add an edge-coherent
+                // finish pass that only adjusts texture already present in captured pixels.
                 val detailStartedAt = SystemClock.elapsedRealtime()
                 applyLunaDreamNoiseReduction(
                     base!!,
                     strength = 2,
                     workers = lunaFusionExecutor
                 ) { stageProgress ->
-                    runCatching { onProgress?.invoke(90 + (stageProgress * 3 / 100)) }
+                    runCatching { onProgress?.invoke(90 + (stageProgress * 2 / 100)) }
                 }
                 applyLunaDream20DetailRecovery(
                     base!!,
                     workers = lunaFusionExecutor
                 ) { stageProgress ->
-                    runCatching { onProgress?.invoke(93 + (stageProgress * 2 / 100)) }
+                    runCatching { onProgress?.invoke(92 + (stageProgress / 2)) }
+                }
+                when (mode) {
+                    MergeMode.LUNA_DREAM_2_5 ->
+                        applyLunaDreamFineTextureRecovery(base!!, strength = 0.08f)
+                    MergeMode.LUNA_DREAM_3_0 ->
+                        applyLunaDreamFineTextureRecovery(base!!, strength = 0.12f)
+                    else -> Unit
                 }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             }
@@ -1959,6 +1981,71 @@ object NightShotProcessor {
                     currentRow.copyInto(nextRow)
                     currentLuma.copyInto(nextLuma)
                 }
+            }
+        }
+    }
+
+    /**
+     * Restrained micro-detail pass used by LunaDream 2.5/3.0. It only raises
+     * coherent local luminance edges already present in the merged frame. The
+     * correction is clamped by local neighbourhood range to avoid inventing texture.
+     */
+    private fun applyLunaDreamFineTextureRecovery(bitmap: Bitmap, strength: Float) {
+        val amount = strength.takeIf { it.isFinite() }?.coerceIn(0.04f, 0.14f) ?: 0.08f
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 3 || height < 3) return
+        var previousRow = IntArray(width)
+        var currentRow = IntArray(width)
+        var nextRow = IntArray(width)
+        val outputRow = IntArray(width)
+        fun luma(pixel: Int): Float =
+            (((pixel ushr 16) and 0xFF) * 0.2126f +
+                ((pixel ushr 8) and 0xFF) * 0.7152f +
+                (pixel and 0xFF) * 0.0722f)
+        bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
+        currentRow.copyInto(previousRow)
+        bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val center = currentRow[x]
+                val centerLuma = luma(center)
+                val leftLuma = luma(currentRow[(x - 1).coerceAtLeast(0)])
+                val rightLuma = luma(currentRow[(x + 1).coerceAtMost(width - 1)])
+                val upLuma = luma(previousRow[x])
+                val downLuma = luma(nextRow[x])
+                val crossMean = (leftLuma + rightLuma + upLuma + downLuma) * 0.25f
+                val upLeft = luma(previousRow[(x - 1).coerceAtLeast(0)])
+                val upRight = luma(previousRow[(x + 1).coerceAtMost(width - 1)])
+                val downLeft = luma(nextRow[(x - 1).coerceAtLeast(0)])
+                val downRight = luma(nextRow[(x + 1).coerceAtMost(width - 1)])
+                val diagonalMean = (upLeft + upRight + downLeft + downRight) * 0.25f
+                val edgeDelta = centerLuma - crossMean
+                val edgeMagnitude = kotlin.math.abs(edgeDelta)
+                val coherence = (1f - kotlin.math.abs(crossMean - diagonalMean) / 72f)
+                    .coerceIn(0.18f, 1f)
+                val correction = if (centerLuma in 16f..240f && edgeMagnitude in 2.5f..52f) {
+                    (edgeDelta * amount * coherence).coerceIn(-2.2f, 2.2f)
+                } else 0f
+                val localMin = minOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
+                val localMax = maxOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
+                val targetLuma = (centerLuma + correction)
+                    .coerceIn((localMin - 1.25f).coerceAtLeast(0f), (localMax + 1.25f).coerceAtMost(255f))
+                val gain = if (centerLuma > 1f) targetLuma / centerLuma else 1f
+                outputRow[x] = packRgb(
+                    (((center ushr 16) and 0xFF) * gain).roundToInt().coerceIn(0, 255),
+                    (((center ushr 8) and 0xFF) * gain).roundToInt().coerceIn(0, 255),
+                    ((center and 0xFF) * gain).roundToInt().coerceIn(0, 255)
+                )
+            }
+            bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+            if (y + 1 < height) {
+                val recycled = previousRow
+                previousRow = currentRow
+                currentRow = nextRow
+                nextRow = recycled
+                if (y + 2 < height) bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+                else currentRow.copyInto(nextRow)
             }
         }
     }

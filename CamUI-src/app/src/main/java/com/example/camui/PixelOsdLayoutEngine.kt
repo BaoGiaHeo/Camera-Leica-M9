@@ -194,47 +194,62 @@ internal object PixelOsdLayoutEngine {
                 t1
             )
 
-            val afText = if (frame.focusLocked) "AF-L" else frame.afModeText.ifBlank { "AF" }.take(6)
-            val afWidth = measureTextWidthPx(afText, t1).coerceAtLeast(1f)
-            val batteryLabel = frame.batteryPercent.takeIf { it in 0..100 }?.let { it.toString() + "%" }.orEmpty()
-            val batteryTextWidth = if (batteryLabel.isNotBlank()) measureTextWidthPx(batteryLabel, t1) else 0f
-            val batteryWidth = snapGrid(unit * 1.9f)
-            val batteryHeight = snapGrid(unit.toFloat())
-            val lockRows = PixelOsdSprites.get("lock")
-            val lockAspect = lockRows?.let { it.first().length.toFloat() / it.size.coerceAtLeast(1) } ?: 1f
-            val lockWidth = if (frame.focusLocked) snapGrid(t1 * lockAspect) else 0f
-            val lockHeight = snapGrid(t1.toFloat())
-            val total = afWidth +
-                (if (frame.focusLocked) itemGap + lockWidth else 0f) +
-                (if (batteryLabel.isNotBlank()) itemGap + batteryWidth + labelValueGap + batteryTextWidth else 0f)
+            val wbText = frame.whiteBalanceText.ifBlank { "AUTO" }.take(8)
+            val wbWidth = measureTextWidthPx(wbText, t1).coerceAtLeast(1f)
+            val sizeTileWidth = snapGrid(unit * 1.8f)
+            val tileHeight = snapGrid(unit * 1.8f)
+            val focusText = frame.focusStatusText.ifBlank { "F" }.take(1)
+            val batteryLabel = if (!frame.isPro) {
+                frame.batteryPercent.takeIf { it in 0..100 }?.let { "$it%" }.orEmpty()
+            } else ""
+            val batteryWidth = if (batteryLabel.isNotBlank()) snapGrid(unit * 1.9f) else 0f
+            val batteryLabelWidth = if (batteryLabel.isNotBlank()) {
+                measureTextWidthPx(batteryLabel, t3).coerceAtLeast(1f)
+            } else 0f
+            val total = wbWidth + itemGap + sizeTileWidth + itemGap + tileHeight +
+                if (batteryLabel.isNotBlank()) itemGap * 2 + batteryWidth + labelValueGap + batteryLabelWidth else 0f
             var x = widthPx - margin - total
             val top = margin.toFloat()
-            val afMeasuredWidth = addText("status-af", "status", afText, x, top, t1)
-            x += afMeasuredWidth
-            if (frame.focusLocked) {
-                x += itemGap
-                x += addIcon(
-                    id = "af-lock",
-                    section = "status",
-                    sprite = "lock",
-                    left = x,
-                    top = top + (t1 - lockHeight) / 2f,
-                    requestedHeight = lockHeight.roundToInt()
+            addText("status-wb", "status", wbText, x, top + (tileHeight - t1) * 0.5f, t1)
+            x += wbWidth + itemGap
+            val sizeTextWidth = measureTextWidthPx(frame.imageSizeText.take(1), t1).coerceAtLeast(1f)
+            addText(
+                "status-size", "status", frame.imageSizeText.take(1),
+                x + (sizeTileWidth - sizeTextWidth) * 0.5f,
+                top + (tileHeight - t1) * 0.5f,
+                t1
+            )
+            x += sizeTileWidth + itemGap
+            val focusWidth = measureTextWidthPx(focusText, t1).coerceAtLeast(1f)
+            addText(
+                "status-focus", "status", focusText,
+                x + (tileHeight - focusWidth) * 0.5f,
+                top + (tileHeight - t1) * 0.5f,
+                t1
+            )
+            if (frame.manualFocusMode) {
+                addText(
+                    "status-focus-mode", "status", "M",
+                    x + (tileHeight - measureTextWidthPx("M", t3)) * 0.5f,
+                    top + tileHeight - t3 - unit * 0.12f,
+                    t3
                 )
             }
+            x += tileHeight
             if (batteryLabel.isNotBlank()) {
                 x += itemGap
+                val batteryHeight = snapGrid(unit.toFloat())
                 addIcon(
                     id = "battery",
                     section = "status",
                     sprite = "battery",
                     left = x,
-                    top = top + (t1 - batteryHeight) / 2f,
+                    top = top + (tileHeight - batteryHeight) * 0.5f,
                     requestedHeight = batteryHeight.roundToInt(),
                     requestedWidth = batteryWidth.roundToInt()
                 )
                 x += batteryWidth + labelValueGap
-                addText("battery-percent", "status", batteryLabel, x, top, t1)
+                addText("battery-percent", "status", batteryLabel, x, top + tileHeight - t3, t3)
             }
         }
 
@@ -342,6 +357,85 @@ internal object PixelOsdLayoutEngine {
             }
         } else null
 
+        if (frame.isPro && frame.showStatus) {
+            val columnWidth = snapGrid(unit * 4.6f)
+            val right = (widthPx - margin).toFloat()
+            val left = right - columnWidth
+            val areaHeight = snapGrid(unit * 5.6f)
+            val areaTop = maxOf(heightPx * 0.18f, margin + tileHeight + unit.toFloat())
+            elements += PixelOsdLayoutElement(
+                id = "pro-area-outline",
+                section = "pro-column",
+                kind = PixelOsdElementKind.RULE,
+                bounds = PixelOsdLayoutBounds(left, areaTop, right, areaTop + areaHeight)
+            )
+            val areaIconHeight = snapGrid(unit * 2.4f)
+            addIcon(
+                "pro-area-icon", "pro-column", "area-finger",
+                left + (columnWidth - areaIconHeight) * 0.5f,
+                areaTop + unit * 0.55f,
+                areaIconHeight.roundToInt()
+            )
+            addText(
+                "pro-area-label", "pro-column", "AREA",
+                left + (columnWidth - measureTextWidthPx("AREA", t3)) * 0.5f,
+                areaTop + areaHeight - t3 - unit * 0.55f,
+                t3
+            )
+
+            val filmTop = areaTop + areaHeight + unit
+            val filmHeight = snapGrid(unit * 2.4f)
+            elements += PixelOsdLayoutElement(
+                id = "pro-film-outline",
+                section = "pro-column",
+                kind = PixelOsdElementKind.RULE,
+                bounds = PixelOsdLayoutBounds(left, filmTop, right, filmTop + filmHeight)
+            )
+            val filmText = frame.filmSimulationText.ifBlank { "ST" }.take(2).uppercase()
+            val filmWidth = measureTextWidthPx(filmText, t2).coerceAtLeast(1f)
+            addText(
+                "pro-film-code", "pro-column", filmText,
+                left + (columnWidth - filmWidth) * 0.5f,
+                filmTop + (filmHeight - t2) * 0.5f,
+                t2
+            )
+
+            val drTop = filmTop + filmHeight + unit
+            val drValue = frame.dynamicRangeText.removePrefix("DR").ifBlank { "100" }.take(3)
+            val drBoxWidth = snapGrid(unit * 3.6f)
+            val drLeft = right - drBoxWidth
+            addText("pro-dr-label", "pro-column", "DR", drLeft + unit * 0.15f, drTop, t3)
+            addText(
+                "pro-dr-value", "pro-column", drValue,
+                drLeft + unit * 0.15f,
+                drTop + t3 + unit * 0.12f,
+                t2
+            )
+            elements += PixelOsdLayoutElement(
+                id = "pro-dr-value-box",
+                section = "pro-column",
+                kind = PixelOsdElementKind.RULE,
+                bounds = PixelOsdLayoutBounds(drLeft, drTop + t3, right, drTop + t3 + t2 + unit * 0.25f)
+            )
+
+            if (frame.focusLocked) {
+                val lockTop = drTop + t3 + t2 + unit * 1.25f
+                val lockHeight = snapGrid(unit * 2f)
+                addIcon(
+                    "pro-lock-icon", "pro-column", "lock",
+                    left + (columnWidth - lockHeight) * 0.5f,
+                    lockTop,
+                    lockHeight.roundToInt()
+                )
+                addText(
+                    "pro-lock-label", "pro-column", "AF-L",
+                    left + (columnWidth - measureTextWidthPx("AF-L", t3)) * 0.5f,
+                    lockTop + lockHeight + unit * 0.15f,
+                    t3
+                )
+            }
+        }
+
         if (frame.isPro) {
             data class Part(
                 val id: String,
@@ -371,13 +465,7 @@ internal object PixelOsdLayoutEngine {
                 )
             }
             if (frame.showProFocus) {
-                groups += Group(
-                    "focus",
-                    listOf(
-                        Part("pro-af", text = frame.afModeText.take(6)),
-                        Part("focus", sprite = "focus-dot", beforeGap = itemGap)
-                    )
-                )
+                groups += Group("focus", listOf(Part("pro-af", text = frame.afModeText.take(6))))
             }
             if (frame.showProShutter) {
                 groups += Group(
@@ -402,6 +490,15 @@ internal object PixelOsdLayoutEngine {
                     listOf(
                         Part("pro-iso-label", text = "ISO", tier = t3),
                         Part("pro-iso-value", text = frame.isoText.removePrefix("ISO").ifBlank { "AUTO" }, beforeGap = labelValueGap)
+                    )
+                )
+            }
+            if (frame.batteryPercent in 0..100) {
+                groups += Group(
+                    "battery",
+                    listOf(
+                        Part("pro-battery", sprite = "battery"),
+                        Part("pro-battery-percent", text = frame.batteryPercent.toString() + "%", tier = t3, beforeGap = labelValueGap)
                     )
                 )
             }

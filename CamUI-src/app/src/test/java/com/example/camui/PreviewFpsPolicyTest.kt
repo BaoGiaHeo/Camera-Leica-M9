@@ -38,7 +38,7 @@ class PreviewFpsPolicyTest {
             listOf(PreviewFpsRange(15, 30), PreviewFpsRange(24, 60), PreviewFpsRange(30, 60))
         )
         assertEquals(PreviewFpsRange(24, 60), selection.range)
-        assertEquals(60, selection.targetFps)
+        assertEquals(null, selection.targetFps)
         assertFalse(selection.fellBack)
     }
 

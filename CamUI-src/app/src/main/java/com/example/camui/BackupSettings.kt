@@ -180,14 +180,14 @@ private fun restoreSettingsBackup(context: Context, backup: JSONObject) {
     // are not present in an older backup file.
     val settingsEditor = settings.edit()
     val contentsEditor = contents.edit()
-    decodePreferences(settingsJson, settingsEditor)
-    decodePreferences(contentsJson, contentsEditor)
+    decodePreferences(settingsJson, settingsEditor, context)
+    decodePreferences(contentsJson, contentsEditor, context)
     check(settingsEditor.commit()) { "Không ghi được cấu hình camera" }
     check(contentsEditor.commit()) { "Không ghi được danh sách nội dung" }
     LegacyColorAdjustmentCleanup.migrateOnce(context)
 }
 
-private fun decodePreferences(json: JSONObject, editor: SharedPreferences.Editor) {
+private fun decodePreferences(json: JSONObject, editor: SharedPreferences.Editor, context: Context) {
     val keys = json.keys()
     while (keys.hasNext()) {
         val key = keys.next()
@@ -201,7 +201,7 @@ private fun decodePreferences(json: JSONObject, editor: SharedPreferences.Editor
             "string" -> if (!item.isNull("value")) {
                 val stringValue = item.optString("value")
                 if (key == "app_language") {
-                    editor.putString(key, AppLanguageManager.normalizePreference(stringValue))
+                    editor.putString(key, AppLanguageManager.migrateLegacyPreference(stringValue, context))
                 } else {
                     editor.putString(key, stringValue)
                 }

@@ -111,6 +111,15 @@ internal object PixelOsdSprites {
         "meter-center" to arrayOf("........", "..WWWW..", "..W..W..", "..WWWW..", "........"),
         "meter-spot" to arrayOf(".........", "....W....", "....W....", ".WWWWW...", "....W....", "....W....", "........."),
         "af-area" to arrayOf("WW.....WW", "W.......W", ".........", ".........", "WW.....WW"),
+        "area-finger" to arrayOf(
+            "....W...",
+            "....W...",
+            "....W...",
+            "....WW..",
+            "WWWWWWW.",
+            ".W...W..",
+            "..W.W..."
+        ),
         "shutter" to arrayOf("..WWW..", ".W...W.", "W..W..W", "W.W.W.W", "W..W..W", ".W...W.", "..WWW.."),
         "ae-lock" to arrayOf(".WWWWW.", "W.....W", "W.WWW.W", "W.W.W.W", "W.WWW.W", "WWWWWWW"),
         "pin" to arrayOf("..WWW..", ".W...W.", "W.....W", "W.....W", ".W...W.", "..WWW..", "...W..."),
@@ -120,7 +129,7 @@ internal object PixelOsdSprites {
 
     internal val requiredSpriteNames = setOf(
         "memory-card", "battery", "battery-charge", "battery-low", "flash", "flash-off",
-        "face", "eye", "lock", "ae-lock", "af-area", "meter-matrix",
+                "face", "eye", "lock", "ae-lock", "af-area", "area-finger", "meter-matrix",
         "meter-center", "meter-spot", "shutter", "ev-scale", "dynamic-range",
         "white-balance", "level", "live", "timer", "burst", "heat-warning"
     )
@@ -155,6 +164,9 @@ data class PixelOsdFrame(
     val centerAfScale: Int = 1,
     val manualFocusMode: Boolean = false,
     val showStatus: Boolean = true,
+    val imageSizeText: String = "L",
+    val focusStatusText: String = "F",
+    val focusStatusCode: Int = 0,
     val videoFormatText: String = "FHD",
     val fpsText: String = "--.--",
     val fpsTarget: Int = 60,

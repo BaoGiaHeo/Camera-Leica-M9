@@ -477,6 +477,31 @@ fun CameraScreen(
         if (displayRotation == Surface.ROTATION_270) Surface.ROTATION_270 else Surface.ROTATION_90
     }
     var targetRotation by remember { mutableIntStateOf(initialLandscapeRotation) }
+    val iconOrientationTracker = remember { FujiIconOrientationTracker() }
+    var iconRotationTarget by remember { mutableIntStateOf(0) }
+    var iconRotationEnabled by remember {
+        mutableStateOf(appPrefs.getBoolean("icon_rotation_enabled", true))
+    }
+    var iconReduceMotion by remember {
+        mutableStateOf(appPrefs.getBoolean("reduce_motion_enabled", false))
+    }
+    val animatedIconRotation = rememberFujiIconRotation(
+        targetDegrees = iconRotationTarget,
+        enabled = iconRotationEnabled,
+        reduceMotion = iconReduceMotion
+    )
+    DisposableEffect(appPrefs) {
+        val iconPreferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
+            when (key) {
+                "icon_rotation_enabled" -> iconRotationEnabled =
+                    preferences?.getBoolean(key, true) ?: true
+                "reduce_motion_enabled" -> iconReduceMotion =
+                    preferences?.getBoolean(key, false) ?: false
+            }
+        }
+        appPrefs.registerOnSharedPreferenceChangeListener(iconPreferenceListener)
+        onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(iconPreferenceListener) }
+    }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
     // Activity orientation and CameraX capture geometry are both landscape-only.
     // A portrait sensor reading keeps the most recent landscape rotation.
@@ -484,8 +509,16 @@ fun CameraScreen(
     val uiIsLandscape = true
     DisposableEffect(context) {
         val orientationManager = SensorOrientationManager()
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager
         val orientationListener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
+                val iconQuadrant = iconOrientationTracker.update(orientation)
+                if (iconQuadrant != null) {
+                    val windowRotation = windowManager?.defaultDisplay?.rotation
+                        ?: android.view.Surface.ROTATION_0
+                    val nextIconRotation = iconRotationRelativeToWindow(iconQuadrant, windowRotation)
+                    if (iconRotationTarget != nextIconRotation) iconRotationTarget = nextIconRotation
+                }
                 val nextRotation = orientationManager.update(orientation) ?: return
                 if (targetRotation != nextRotation) targetRotation = nextRotation
             }
@@ -5169,6 +5202,9 @@ fun CameraScreen(
 
     val toolbarContent: @Composable (Modifier, Dp) -> Unit = { toolbarModifier, plateHeight ->
         FujiMetalTopPlate(toolbarModifier, height = plateHeight) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalFujiIconRotation provides animatedIconRotation
+            ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 1.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -5193,6 +5229,7 @@ fun CameraScreen(
                 FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
                 FujiTopKey(label = "AF", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
                 FujiTopKey(label = "Q", icon = "q", selected = showQuick, onClick = { showQuick = !showQuick })
+            }
             }
         }
     }

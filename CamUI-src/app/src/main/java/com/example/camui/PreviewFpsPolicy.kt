@@ -34,9 +34,11 @@ internal object PreviewFpsPolicy {
             if (covering != null) {
                 return PreviewFpsSelection(covering, null, covering.upper, false, "auto_24_60")
             }
-            val nearest = sorted.minByOrNull { range ->
-                distance(range.lower, 24) + distance(range.upper, 60)
-            }!!
+            // Preserve the highest available cadence, then prefer the widest
+            // low-light range so AE can lengthen preview exposure toward 24 fps.
+            val nearest = sorted.maxWithOrNull(
+                compareBy<PreviewFpsRange> { it.upper }.thenBy { -it.lower }
+            )!!
             return PreviewFpsSelection(nearest, null, nearest.upper, true, "auto_nearest_available")
         }
 
@@ -56,5 +58,4 @@ internal object PreviewFpsPolicy {
     private fun target(setting: String): Int? =
         if (setting == "auto") null else setting.toIntOrNull()?.takeIf { it in fixedTargets }
 
-    private fun distance(value: Int, target: Int): Int = kotlin.math.abs(value - target)
 }

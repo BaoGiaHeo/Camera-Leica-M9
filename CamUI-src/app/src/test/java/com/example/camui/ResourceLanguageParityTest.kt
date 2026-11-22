@@ -10,7 +10,7 @@ class ResourceLanguageParityTest {
         val file = File(relativePath)
         check(file.isFile) { "Android string resource file not found: ${file.absolutePath}" }
         val xml = file.readText(Charsets.UTF_8)
-        return Regex("""<string\s+name="([^"]+)"[^>]*>([\\s\\S]*?)</string>""")
+        return Regex("""<string\s+name="([^"]+)"[^>]*>([\s\S]*?)</string>""")
             .findAll(xml)
             .associate { match -> match.groupValues[1] to match.groupValues[2] }
     }
@@ -27,7 +27,7 @@ class ResourceLanguageParityTest {
         val english = stringValues("src/main/res/values/strings.xml")
         val vietnamese = stringValues("src/main/res/values-vi/strings.xml")
         fun placeholders(value: String): List<String> =
-            Regex("""%(?:\\d+\\$)?[sdif]""").findAll(value).map { it.value }.sorted().toList()
+            Regex("""%(?:\d+\$)?[sdif]""").findAll(value).map { it.value }.sorted().toList()
 
         english.keys.forEach { key ->
             assertEquals(

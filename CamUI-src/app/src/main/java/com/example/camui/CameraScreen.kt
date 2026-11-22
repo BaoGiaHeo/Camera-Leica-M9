@@ -5334,15 +5334,13 @@ fun CameraScreen(
                                                 active.cameraControl.startFocusAndMetering(action)
                                             }.getOrElse { failure ->
                                                 val triggerSent = triggerCamera2AfOnce(active)
-                                                val aeLockApplied = applyCameraAeLock(active, locked = true)
-                                                focusLocked = aeLockApplied
-                                                centerAfStatus = if (aeLockApplied) 1 else -1
-                                                if (!aeLockApplied) {
-                                                    manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
-                                                }
+                                                runCatching { applyCameraAeLock(active, locked = false) }
+                                                focusLocked = false
+                                                centerAfStatus = 0
                                                 android.util.Log.w(
                                                     "FUJI_AF",
-                                                    "AF_CAMERA2_FALLBACK triggerSent=$triggerSent aeLockApplied=$aeLockApplied",
+                                                    "AF_CAMERA2_FALLBACK triggerSent=$triggerSent " +
+                                                        "tapDoesNotLock=true aeLockRequested=false",
                                                     failure
                                                 )
                                                 scope.launch(Dispatchers.Main) {

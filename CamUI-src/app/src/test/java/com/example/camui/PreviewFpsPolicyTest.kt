@@ -46,12 +46,16 @@ class PreviewFpsPolicyTest {
     fun onlyAdvertisedAeRatesAndStreamDurationsAreOffered() {
         val ranges = listOf(PreviewFpsRange(15, 30), PreviewFpsRange(24, 60))
         assertEquals(
-            listOf("30", "24", "AUTO"),
+            listOf("30", "24"),
             supportedPreviewFpsModes(ranges, listOf(33_333_333L))
         )
         assertEquals(
             listOf("30", "24"),
             supportedPreviewFpsModes(ranges, listOf(33_333_333L, 41_666_666L))
+        )
+        assertEquals(
+            listOf("60", "30", "24", "AUTO"),
+            supportedPreviewFpsModes(ranges, listOf(16_666_666L))
         )
         assertEquals("30", highestSupportedPreviewFpsMode(listOf("30", "24")))
     }

@@ -997,6 +997,7 @@ fun CameraScreen(
     var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
     var manualColorTempEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_wb_enabled", false)) }
     var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2000, 10000)) }
+    var estimatedAutoKelvin by remember { mutableIntStateOf(0) }
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
@@ -2135,6 +2136,7 @@ fun CameraScreen(
                 }
                 var lastAfTraceAtMs = 0L
                 var lastEvTraceAtMs = 0L
+                var lastKelvinEstimateAtMs = 0L
                 if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
@@ -2143,6 +2145,29 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            if (!manualColorTempEnabled) {
+                                val kelvinNowMs = SystemClock.elapsedRealtime()
+                                if (kelvinNowMs - lastKelvinEstimateAtMs >= 500L) {
+                                    lastKelvinEstimateAtMs = kelvinNowMs
+                                    val estimate = activeCameraCharacteristics?.let { characteristics ->
+                                        KelvinEstimator.estimate(result, characteristics)
+                                    }
+                                    if (estimate != null) {
+                                        scope.launch(Dispatchers.Main.immediate) {
+                                            val previous = estimatedAutoKelvin
+                                            val smoothed = if (previous in 1_800..12_000) {
+                                                (previous * 0.75f + estimate * 0.25f).roundToInt()
+                                            } else estimate
+                                            estimatedAutoKelvin = ((smoothed / 50f).roundToInt() * 50)
+                                                .coerceIn(1_800, 12_000)
+                                            android.util.Log.d(
+                                                "FUJI_WB_KELVIN",
+                                                "cameraId=${activeCameraDetails?.id ?: "unknown"} raw=$estimate smoothed=$estimatedAutoKelvin source=Camera2.AWB"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                             val sensorTimestampNs = result.get(CaptureResult.SENSOR_TIMESTAMP)
                             if (sensorTimestampNs != null) {
                                 val measuredFps = previewFpsEstimator.add(
@@ -2793,6 +2818,7 @@ fun CameraScreen(
                 activeCameraCharacteristics = actualCameraId?.let { id ->
                     runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
                 }
+                estimatedAutoKelvin = 0
                 faceSensorToDisplayRotation = runCatching {
                     bound.cameraInfo.getSensorRotationDegrees(rotation)
                 }.getOrDefault(0)
@@ -6018,7 +6044,11 @@ fun CameraScreen(
                                     whiteBalanceText = toneText,
                                     filmSimulationText = activeFilter.takeIf { it != "None" }?.take(2)?.uppercase(Locale.US) ?: "",
                                     outputSizeLabel = if (lunaDreamMode == "luna20" || lunaDreamMode == "luna15") "L" else "M",
-                                    whiteBalanceKelvinText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
+                                    whiteBalanceKelvinText = if (manualColorTempEnabled) {
+                                        "${manualColorTemp}K"
+                                    } else {
+                                        estimatedAutoKelvin.takeIf { it in 1_800..12_000 }?.let { "${it}K" } ?: "AUTO"
+                                    },
                                     touchAfEnabled = touchAfEnabled,
                                     manualExposure = manualExposure,
                                     manualWhiteBalance = manualColorTempEnabled,

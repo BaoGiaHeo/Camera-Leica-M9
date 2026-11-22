@@ -10,6 +10,7 @@ on:
     branches:
       - feature/lunadream-2.5.0dream
       - fix/2.5.0dream-af-label
+      - fuji-2.5.0-round1-spec
     paths:
       - "CamUI-src/**"
       - ".github/workflows/build-lunadream-variants.yml"

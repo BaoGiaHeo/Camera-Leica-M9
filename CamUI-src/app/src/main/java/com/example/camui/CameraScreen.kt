@@ -878,11 +878,9 @@ fun CameraScreen(
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
     val digitalZoomCropScaleState = rememberUpdatedState(digitalZoomCropScale)
-    val zoomDisplayValue by animateFloatAsState(
-        targetValue = actualZoomRatio,
-        animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
-        label = "zoom OSD interpolation"
-    )
+    // The OSD follows the camera command target; CaptureResult is telemetry only.
+    // zoomSel is advanced by the existing frame-driven zoom controller.
+    val zoomDisplayValue = zoomSel
     var zoomButtonsSwapped by remember {
         mutableStateOf(appPrefs.getString("zoom_buttons_mode", "standard") == "swapped")
     }

@@ -52,6 +52,8 @@ fun QuickPanel(
     onContentManagement: () -> Unit,
     onSettings: () -> Unit,
     onDismiss: () -> Unit,
+    displayModeLabel: String = "STANDARD",
+    onDisplayMode: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showOther by remember { mutableStateOf(false) }
@@ -120,6 +122,12 @@ fun QuickPanel(
                         Modifier.weight(1f)
                     )
                 }
+                FujiListRow(
+                    stringResource(R.string.quick_display_title),
+                    displayModeLabel,
+                    onClick = onDisplayMode,
+                    description = "STANDARD · CLEAN · LEVEL+GRID"
+                )
                 Text("ASPECT RATIO", color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     aspectRatios.forEachIndexed { index, _ ->

@@ -251,6 +251,29 @@ internal object PixelOsdLayoutEngine {
                 x += batteryWidth + labelValueGap
                 addText("battery-percent", "status", batteryLabel, x, top + tileHeight - t3, t3)
             }
+            if (!frame.isPro && frame.focusLocked) {
+                val lockHeight = snapGrid(unit * 1.2f)
+                val lockRows = PixelOsdSprites.get("lock")
+                val lockWidth = lockRows?.let {
+                    snapGrid(lockHeight * it.first().length / it.size.coerceAtLeast(1).toFloat())
+                } ?: lockHeight
+                val lockLabelWidth = measureTextWidthPx("AF-L", t3).coerceAtLeast(1f)
+                val lockTotalWidth = lockWidth + itemGap * 0.5f + lockLabelWidth
+                val lockLeft = widthPx - margin - lockTotalWidth
+                val lockTop = margin + tileHeight + unit * 0.18f
+                addIcon(
+                    "status-lock-icon", "status", "lock",
+                    lockLeft,
+                    lockTop,
+                    lockHeight.roundToInt()
+                )
+                addText(
+                    "status-lock-label", "status", "AF-L",
+                    lockLeft + lockWidth + itemGap * 0.5f,
+                    lockTop + (lockHeight - t3) * 0.5f,
+                    t3
+                )
+            }
         }
 
         val histogram = if (frame.showHistogram && frame.histogram.isNotEmpty()) {

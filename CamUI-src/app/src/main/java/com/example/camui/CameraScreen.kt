@@ -890,8 +890,7 @@ fun CameraScreen(
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     val zoomVisualRatio = remember { mutableFloatStateOf(zoomSel) }
-    var zoomRequestedTarget by remember { mutableFloatStateOf(zoomSel) }
-    val zoomRequestedTargetState = rememberUpdatedState(zoomRequestedTarget)
+    val zoomRequestedTarget = remember { mutableFloatStateOf(zoomSel) }
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
     var measuredPreviewFps by remember { mutableFloatStateOf(Float.NaN) }
     LaunchedEffect(Unit) {
@@ -1422,13 +1421,12 @@ fun CameraScreen(
                 ((frameNs - previousFrameNs) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
             }
             previousFrameNs = frameNs
-            if (zoomHoldDirection != 0) continue
             val state = active.cameraInfo.zoomState.value ?: continue
             val minimum = state.minZoomRatio
             val cameraMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
             val assessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
             val maximum = maxTotalSelectableZoom(cameraMaximum, assessment).coerceAtLeast(minimum)
-            val target = zoomRequestedTargetState.value.coerceIn(minimum, maximum)
+            val target = zoomRequestedTarget.floatValue.coerceIn(minimum, maximum)
             val currentVisual = zoomVisualRatio.floatValue
             if (abs(target - currentVisual) <= 0.0012f) {
                 if (pendingZoom?.isDone == true) pendingZoom = null
@@ -1481,7 +1479,7 @@ fun CameraScreen(
         delay(FUJI_KEY_HOLD_THRESHOLD_MS)
         if (zoomHoldDirection != direction) return@LaunchedEffect
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
-        var targetZoom = zoomSel
+        var targetZoom = zoomRequestedTarget.floatValue
         var previousFrame = 0L
         val holdStartedAtMs = SystemClock.elapsedRealtime()
         var zoomFrameIndex = 0L
@@ -1528,9 +1526,10 @@ fun CameraScreen(
                     cameraReportedMaximum = cameraReportedMaximum,
                     assessment = zoomAssessment
                 )
-                zoomSel = plan.effectiveZoomRatio
-                zoomRequestedTarget = plan.effectiveZoomRatio
-                zoomInteractionGeneration++
+                zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
+                zoomVisualRatio.floatValue = plan.effectiveZoomRatio
+                actualZoomRatio = plan.effectiveZoomRatio
+                digitalZoomCropScale = plan.digitalCropRatio
                 tickCount++
             }
             if (SystemClock.elapsedRealtime() - holdStartedAtMs <= 3_000L) {
@@ -3003,7 +3002,7 @@ fun CameraScreen(
                 )
                 val restoredZoom = restoredPlan.effectiveZoomRatio
                 zoomSel = restoredZoom
-                zoomRequestedTarget = restoredZoom
+                zoomRequestedTarget.floatValue = restoredZoom
                 zoomVisualRatio.floatValue = restoredZoom
                 actualZoomRatio = restoredZoom
                 digitalZoomCropScale = restoredPlan.digitalCropRatio
@@ -5299,7 +5298,7 @@ fun CameraScreen(
             }
         }
         // Do not restart a tween or camera session: repeated taps accumulate on this target.
-        zoomRequestedTarget = safeTarget
+        zoomRequestedTarget.floatValue = safeTarget
         zoomSel = safeTarget
         zoomInteractionGeneration++
         appPrefs.edit().putFloat("camera_zoom_ratio", safeTarget).apply()
@@ -6783,7 +6782,7 @@ fun CameraScreen(
                                                 assessment = assessment
                                             )
                                             zoomSel = plan.effectiveZoomRatio
-                zoomRequestedTarget = plan.effectiveZoomRatio
+                zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
                                             actualZoomRatio = plan.effectiveZoomRatio
                                             digitalZoomCropScale = plan.digitalCropRatio
                                             zoomInteractionGeneration++
@@ -6806,7 +6805,7 @@ fun CameraScreen(
                                                 assessment = assessment
                                             )
                                             zoomSel = plan.effectiveZoomRatio
-                zoomRequestedTarget = plan.effectiveZoomRatio
+                zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
                                             actualZoomRatio = plan.effectiveZoomRatio
                                             digitalZoomCropScale = plan.digitalCropRatio
                                             camera?.let { active ->

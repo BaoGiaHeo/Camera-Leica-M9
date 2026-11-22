@@ -891,7 +891,7 @@ fun CameraScreen(
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     val zoomVisualRatio = remember { mutableFloatStateOf(zoomSel) }
     var zoomRequestedTarget by remember { mutableFloatStateOf(zoomSel) }
-    var zoomControllerGeneration by remember { mutableIntStateOf(0) }
+    val zoomRequestedTargetState = rememberUpdatedState(zoomRequestedTarget)
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
     var measuredPreviewFps by remember { mutableFloatStateOf(Float.NaN) }
     LaunchedEffect(Unit) {
@@ -961,7 +961,6 @@ fun CameraScreen(
         }
     }
     var zoomHoldDirection by remember { mutableIntStateOf(0) }
-    var zoomAnimationJob by remember { mutableStateOf<Job?>(null) }
     var lensTransitionVisible by remember { mutableStateOf(false) }
     var lensTransitionLabel by remember { mutableStateOf("") }
     var metering by remember { mutableIntStateOf(appPrefs.getInt("camera_metering_index", 0).coerceIn(0, 3)) }
@@ -1407,6 +1406,72 @@ fun CameraScreen(
         appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
     }
 
+    // One persistent vsync controller handles both tap targets and held W/T input.
+    // Taps only change zoomRequestedTarget; this loop interpolates once per display frame.
+    LaunchedEffect(camera, activeCameraDetails, activePhysicalCameraDetails, camera2Inventory) {
+        val active = camera ?: return@LaunchedEffect
+        var previousFrameNs = 0L
+        var pendingZoom: com.google.common.util.concurrent.ListenableFuture<*>? = null
+        var lastFrameLogAt = SystemClock.elapsedRealtime()
+        var frameCount = 0
+        while (true) {
+            val frameNs = withFrameNanos { it }
+            val dt = if (previousFrameNs == 0L) {
+                1f / 60f
+            } else {
+                ((frameNs - previousFrameNs) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
+            }
+            previousFrameNs = frameNs
+            if (zoomHoldDirection != 0) continue
+            val state = active.cameraInfo.zoomState.value ?: continue
+            val minimum = state.minZoomRatio
+            val cameraMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
+            val assessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
+            val maximum = maxTotalSelectableZoom(cameraMaximum, assessment).coerceAtLeast(minimum)
+            val target = zoomRequestedTargetState.value.coerceIn(minimum, maximum)
+            val currentVisual = zoomVisualRatio.floatValue
+            if (abs(target - currentVisual) <= 0.0012f) {
+                if (pendingZoom?.isDone == true) pendingZoom = null
+                continue
+            }
+            val nextVisual = advanceZoomTowardTarget(
+                current = currentVisual,
+                target = target,
+                deltaSeconds = dt,
+                responseHz = 15f
+            )
+            val plan = resolveZoomExecutionPlan(
+                requestedZoomRatio = nextVisual,
+                minimumCameraRatio = minimum,
+                cameraReportedMaximum = cameraMaximum,
+                assessment = assessment
+            )
+            zoomVisualRatio.floatValue = plan.effectiveZoomRatio
+            actualZoomRatio = plan.effectiveZoomRatio
+            digitalZoomCropScale = plan.digitalCropRatio
+            if (pendingZoom == null || pendingZoom?.isDone == true) {
+                val currentCameraRatio = active.cameraInfo.zoomState.value?.zoomRatio ?: state.zoomRatio
+                if (abs(currentCameraRatio - plan.cameraControlZoomRatio) > 0.002f) {
+                    pendingZoom = runCatching {
+                        active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
+                    }.onFailure {
+                        android.util.Log.w("FUJI_ZOOM", "Vsync camera command failed", it)
+                    }.getOrNull()
+                }
+            }
+            frameCount++
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastFrameLogAt >= 1_000L) {
+                android.util.Log.d(
+                    "FUJI_ZOOM_VSYNC",
+                    "fps=$frameCount target=$target draw=${zoomVisualRatio.floatValue} camera=${state.zoomRatio} pending=${pendingZoom?.isDone == false}"
+                )
+                frameCount = 0
+                lastFrameLogAt = now
+            }
+        }
+    }
+
     LaunchedEffect(zoomHoldDirection, camera, activeCameraDetails, activePhysicalCameraDetails, camera2Inventory) {
         val direction = zoomHoldDirection
         val active = camera
@@ -1465,12 +1530,7 @@ fun CameraScreen(
                 )
                 zoomSel = plan.effectiveZoomRatio
                 zoomRequestedTarget = plan.effectiveZoomRatio
-                actualZoomRatio = plan.effectiveZoomRatio
-                digitalZoomCropScale = plan.digitalCropRatio
                 zoomInteractionGeneration++
-                if (abs(state.zoomRatio - plan.cameraControlZoomRatio) > 0.002f) {
-                    lastZoomFuture = active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
-                }
                 tickCount++
             }
             if (SystemClock.elapsedRealtime() - holdStartedAtMs <= 3_000L) {
@@ -5215,14 +5275,11 @@ fun CameraScreen(
     fun animateZoomTo(targetRatio: Float) {
         val activeCamera = camera ?: return
         val state = activeCamera.cameraInfo.zoomState.value ?: return
-        val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
-        val cameraReportedMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
-        val selectableMax = maxTotalSelectableZoom(cameraReportedMaximum, zoomAssessment)
+        val assessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
+        val cameraMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
+        val selectableMax = maxTotalSelectableZoom(cameraMaximum, assessment)
         val safeTarget = targetRatio.coerceIn(state.minZoomRatio, selectableMax)
-        val start = zoomSel
-        val crossesLensBoundary = (start < 0.98f && safeTarget >= 0.98f) ||
-            (start >= 0.98f && safeTarget < 0.98f)
-        zoomAnimationJob?.cancel()
+        val start = zoomRequestedTarget
         if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
             zoomHapticMilestonesCrossed(start, safeTarget).forEach { milestone ->
                 localView.performHapticFeedback(
@@ -5231,7 +5288,9 @@ fun CameraScreen(
                 )
             }
         }
-        if (crossesLensBoundary) {
+        if ((start < 0.98f && safeTarget >= 0.98f) ||
+            (start >= 0.98f && safeTarget < 0.98f)
+        ) {
             lensTransitionLabel = if (safeTarget < 0.98f) "SIÊU RỘNG" else "CAM THƯỜNG"
             lensTransitionVisible = true
             scope.launch {
@@ -5239,30 +5298,11 @@ fun CameraScreen(
                 lensTransitionVisible = false
             }
         }
-        zoomAnimationJob = scope.launch {
-            val animatedZoom = Animatable(start)
-            animatedZoom.animateTo(
-                targetValue = safeTarget,
-                animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing)
-            ) {
-                val plan = resolveZoomExecutionPlan(
-                    requestedZoomRatio = value,
-                    minimumCameraRatio = state.minZoomRatio,
-                    cameraReportedMaximum = cameraReportedMaximum,
-                    assessment = zoomAssessment
-                )
-                val currentCameraRatio = activeCamera.cameraInfo.zoomState.value?.zoomRatio ?: state.zoomRatio
-                if (abs(currentCameraRatio - plan.cameraControlZoomRatio) > 0.002f) {
-                    activeCamera.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
-                }
-                zoomSel = plan.effectiveZoomRatio
-                zoomRequestedTarget = plan.effectiveZoomRatio
-                actualZoomRatio = plan.effectiveZoomRatio
-                digitalZoomCropScale = plan.digitalCropRatio
-                zoomInteractionGeneration++
-            }
-            appPrefs.edit().putFloat("camera_zoom_ratio", safeTarget).apply()
-        }
+        // Do not restart a tween or camera session: repeated taps accumulate on this target.
+        zoomRequestedTarget = safeTarget
+        zoomSel = safeTarget
+        zoomInteractionGeneration++
+        appPrefs.edit().putFloat("camera_zoom_ratio", safeTarget).apply()
     }
 
     val cameraInfo2 = camera?.cameraInfo?.let { runCatching { Camera2CameraInfo.from(it) }.getOrNull() }

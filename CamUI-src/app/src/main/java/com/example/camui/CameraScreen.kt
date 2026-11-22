@@ -477,13 +477,6 @@ fun CameraScreen(
         if (displayRotation == Surface.ROTATION_270) Surface.ROTATION_270 else Surface.ROTATION_90
     }
     var targetRotation by remember { mutableIntStateOf(initialLandscapeRotation) }
-    var iconRotationEnabled by remember {
-        mutableStateOf(
-            context.getSharedPreferences("fujifilm_settings", 0)
-                .getBoolean("icon_rotation_enabled", true)
-        )
-    }
-    var iconRotationDegrees by remember { mutableIntStateOf(0) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
     // Activity orientation and CameraX capture geometry are both landscape-only.
     // A portrait sensor reading keeps the most recent landscape rotation.
@@ -491,25 +484,11 @@ fun CameraScreen(
     val uiIsLandscape = true
     DisposableEffect(context) {
         val orientationManager = SensorOrientationManager()
-        var lastIconQuadrant: Int? = null
         val orientationListener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
                 val nextRotation = orientationManager.update(orientation)
                 if (nextRotation != null && targetRotation != nextRotation) {
                     targetRotation = nextRotation
-                }
-                val iconQuadrant = snapIconOrientationQuadrant(
-                    rawDegrees = orientation,
-                    previousQuadrant = lastIconQuadrant
-                )
-                if (iconQuadrant != null) {
-                    lastIconQuadrant = iconQuadrant
-                    val relativeRotation = relativeIconRotationDegrees(
-                        deviceQuadrantDegrees = iconQuadrant,
-                        displayRotation = localView.display?.rotation ?: targetRotation
-                    )
-                    iconRotationDegrees = relativeRotation
-                    FujiIconRotationState.degrees = relativeRotation
                 }
             }
         }
@@ -764,14 +743,6 @@ fun CameraScreen(
     var lcdDisplayMode by remember { mutableStateOf(CameraLcdDisplayMode.STANDARD) }
     val hudVisible = lcdDisplayMode != CameraLcdDisplayMode.CLEAN
     val dispReducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
-    val animatedIconRotationDegrees by animateFloatAsState(
-        targetValue = if (iconRotationEnabled) iconRotationDegrees.toFloat() else 0f,
-        animationSpec = tween(
-            durationMillis = if (dispReducedMotion) 0 else 250,
-            easing = FastOutSlowInEasing
-        ),
-        label = "viewfinder icon orientation"
-    )
     val dispOsdAlpha = remember { Animatable(1f) }
     var dispTransitionInProgress by remember { mutableStateOf(false) }
 
@@ -885,11 +856,6 @@ fun CameraScreen(
                 "zoom_bar_position" -> zoomBarPosition = preferences?.getString(key, "top_center")?.let { if (it == "top_left") "middle_left" else it } ?: "top_center"
                 "preview_fps_mode" -> previewFpsMode = preferences?.getString(key, "60")
                     ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
-                "icon_rotation_enabled" -> {
-                    iconRotationEnabled = preferences?.getBoolean(key, true) ?: true
-                    FujiIconRotationState.enabled = iconRotationEnabled
-                    if (!iconRotationEnabled) iconRotationDegrees = 0
-                }
             }
         }
         appPrefs.registerOnSharedPreferenceChangeListener(preferenceListener)
@@ -923,7 +889,7 @@ fun CameraScreen(
     // Ultra HDR is hidden from the UI. Keep the legacy camera path but start disabled.
     var ultraHdr by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { appPrefs.edit().putBoolean("ultra_hdr_enabled", false).apply() }
-    LaunchedEffect(Unit) { appPrefs.edit().remove("camera_stabilization_enabled").apply() }
+    LaunchedEffect(Unit) { appPrefs.edit().remove("camera_stabilization_enabled").remove("icon_rotation_enabled").apply() }
     var renderEngine by remember { mutableStateOf(appPrefs.getString("camera_render_engine", "Performance") ?: "Performance") }
     var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)?.takeUnless { it == "AUTO" }) }
     var proAfMode by remember {
@@ -6778,7 +6744,7 @@ fun CameraScreen(
                         image,
                         "Ảnh gần nhất",
                         Modifier.fillMaxSize().padding(2.dp)
-                            .graphicsLayer { rotationZ = animatedIconRotationDegrees },
+                            ,
                         contentScale = ContentScale.Crop
                     )
                 } else {

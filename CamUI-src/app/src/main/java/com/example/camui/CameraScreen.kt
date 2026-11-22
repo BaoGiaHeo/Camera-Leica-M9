@@ -3393,6 +3393,21 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        val requestedShutterNs = if (manualShutterEnabled) manualShutterNs else shutterNs
+        val longExposureRequested = requestedShutterNs > 1_000_000_000L
+        val restrictedByLowBattery = batteryPercent in 0..5 && !batteryCharging &&
+            !nightShotCaptureInProgress && !starTrailCaptureInProgress &&
+            (nightShotMode != "off" || lunaDreamMode == "luna20" || longExposureRequested)
+        if (restrictedByLowBattery) {
+            android.util.Log.w(
+                "FUJI_BATTERY_SAFETY",
+                "CAPTURE_BLOCKED level=$batteryPercent charging=$batteryCharging " +
+                    "nightShot=$nightShotMode lunaDream=$lunaDreamMode " +
+                    "shutterNs=$requestedShutterNs reason=critical_battery"
+            )
+            localizedToast(context, context.getString(R.string.capture_low_battery_blocked), Toast.LENGTH_LONG).show()
+            return
+        }
         val rawModeConflictsWithComputationalCapture = !nativeImageProcessingEnabled && (
             (mode == "Photo" && rawCaptureMode == "raw" &&
                 (nightShotMode != "off" || lunaDreamMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||

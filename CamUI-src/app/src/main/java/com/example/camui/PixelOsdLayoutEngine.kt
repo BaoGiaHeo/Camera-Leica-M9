@@ -253,23 +253,6 @@ internal object PixelOsdLayoutEngine {
             }
         }
 
-        if (frame.isPro && frame.showStatus) {
-            val rightItems = buildList {
-                if (frame.dynamicRangeText.isNotBlank()) add("pro-dr" to frame.dynamicRangeText.take(8))
-                if (frame.showProWhiteBalance && frame.whiteBalanceText.isNotBlank()) {
-                    add("pro-wb" to frame.whiteBalanceText.take(8))
-                }
-            }
-            val widths = rightItems.map { measureTextWidthPx(it.second, t2).coerceAtLeast(1f) }
-            val total = widths.sum() + groupGap * (rightItems.size - 1).coerceAtLeast(0)
-            var x = widthPx - margin - total
-            val top = margin + t1 + itemGap
-            rightItems.forEachIndexed { index, item ->
-                val w = addText(item.first, "pro-top", item.second, x, top.toFloat(), t2)
-                x += w + if (index < rightItems.lastIndex) groupGap else 0
-            }
-        }
-
         val histogram = if (frame.showHistogram && frame.histogram.isNotEmpty()) {
             PixelOsdLayoutBounds(
                 margin.toFloat(),
@@ -362,7 +345,7 @@ internal object PixelOsdLayoutEngine {
             val right = (widthPx - margin).toFloat()
             val left = right - columnWidth
             val areaHeight = snapGrid(unit * 5.6f)
-            val areaTop = maxOf(heightPx * 0.18f, margin + tileHeight + unit.toFloat())
+            val areaTop = maxOf(heightPx * 0.18f, margin + snapGrid(unit * 1.8f) + unit.toFloat())
             elements += PixelOsdLayoutElement(
                 id = "pro-area-outline",
                 section = "pro-column",

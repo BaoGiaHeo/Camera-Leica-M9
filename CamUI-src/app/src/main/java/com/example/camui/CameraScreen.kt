@@ -639,14 +639,15 @@ fun CameraScreen(
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     var batteryCharging by remember { mutableStateOf(false) }
+    var batteryAlertState by remember { mutableStateOf(BatteryAlertState()) }
     var batteryLowBlinkOn by remember { mutableStateOf(true) }
-    LaunchedEffect(batteryPercent, batteryCharging) {
-        if (isPixelBatteryBlinking(batteryPercent) && !batteryCharging) {
+    LaunchedEffect(batteryAlertState.blinking, batteryCharging) {
+        if (batteryAlertState.blinking && !batteryCharging) {
             while (true) {
                 batteryLowBlinkOn = true
-                delay(450L)
+                delay(500L)
                 batteryLowBlinkOn = false
-                delay(450L)
+                delay(500L)
             }
         } else {
             batteryLowBlinkOn = true
@@ -657,10 +658,25 @@ fun CameraScreen(
             val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
             val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-            batteryCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+            val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
+            batteryCharging = isCharging
             if (level >= 0 && scale > 0) {
-                batteryPercent = (level * 100f / scale).roundToInt().coerceIn(0, 100)
+                val nextPercent = (level * 100f / scale).roundToInt().coerceIn(0, 100)
+                batteryPercent = nextPercent
+                batteryAlertState = resolveBatteryAlertState(
+                    percent = nextPercent,
+                    charging = isCharging,
+                    previous = batteryAlertState
+                )
+                android.util.Log.d(
+                    "FUJI_BATTERY",
+                    "level=$nextPercent charging=$isCharging low=${batteryAlertState.low} " +
+                        "blink=${batteryAlertState.blinking} critical=${batteryAlertState.critical} " +
+                        "warning=${batteryAlertState.warning}"
+                )
+            } else {
+                batteryAlertState = BatteryAlertState()
             }
         }
         val batteryReceiver = object : BroadcastReceiver() {
@@ -5709,6 +5725,7 @@ fun CameraScreen(
                                     showStatus = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     batteryPercent = batteryPercent,
                                     batteryCharging = batteryCharging,
+                                    batteryAlertState = batteryAlertState,
                                     batteryLowBlinkOn = batteryLowBlinkOn,
                                     showEvScale = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     evIndex = evIndex,

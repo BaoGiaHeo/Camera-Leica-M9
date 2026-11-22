@@ -512,8 +512,8 @@ class PixelOsdRenderer(context: Context) {
         layout.elements.filter { it.section == "status" }.forEach { element ->
             when (element.kind) {
                 PixelOsdElementKind.TEXT -> {
-                    val color = when {
-                        element.id == "fps-value" -> {
+                    val color = when (element.id) {
+                        "fps-value" -> {
                             val measured = frame.fpsText.toFloatOrNull()
                             when {
                                 measured == null -> PixelOsdPalette.WHITE
@@ -522,20 +522,42 @@ class PixelOsdRenderer(context: Context) {
                                 else -> PixelOsdPalette.WHITE
                             }
                         }
-                        element.id == "battery-percent" && batteryAlertVisible ->
-                            PixelOsdPalette.RED
-                        element.id == "status-af" && frame.focusLocked -> PixelOsdPalette.GREEN
+                        "status-wb" -> if (frame.manualWhiteBalance) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE
+                        "status-size" -> PixelOsdPalette.BLACK
+                        "status-focus" -> when (frame.focusStatusCode) {
+                            1 -> PixelOsdPalette.GREEN
+                            -1 -> PixelOsdPalette.RED
+                            2 -> PixelOsdPalette.AMBER
+                            else -> PixelOsdPalette.WHITE
+                        }
+                        "status-focus-mode" -> PixelOsdPalette.AMBER
+                        "battery-percent" -> if (batteryAlertVisible) PixelOsdPalette.RED else PixelOsdPalette.WHITE
                         else -> PixelOsdPalette.WHITE
                     }
-                    if (element.id == "video-format") {
-                        val padding = (layout.unitPx * 0.18f / pixelScale).roundToInt().coerceAtLeast(1)
-                        drawDashedRect(
+                    when (element.id) {
+                        "video-format" -> {
+                            val padding = (layout.unitPx * 0.18f / pixelScale).roundToInt().coerceAtLeast(1)
+                            drawDashedRect(
+                                canvas,
+                                (element.bounds.left / pixelScale).roundToInt() - padding,
+                                (element.bounds.top / pixelScale).roundToInt() - padding,
+                                (element.bounds.right / pixelScale).roundToInt() + padding,
+                                (element.bounds.bottom / pixelScale).roundToInt() + padding,
+                                PixelOsdPalette.WHITE
+                            )
+                        }
+                        "status-size" -> drawStatusTile(canvas, element, layout, PixelOsdPalette.WHITE, filled = true)
+                        "status-focus" -> drawStatusTile(
                             canvas,
-                            (element.bounds.left / pixelScale).roundToInt() - padding,
-                            (element.bounds.top / pixelScale).roundToInt() - padding,
-                            (element.bounds.right / pixelScale).roundToInt() + padding,
-                            (element.bounds.bottom / pixelScale).roundToInt() + padding,
-                            PixelOsdPalette.WHITE
+                            element,
+                            layout,
+                            when (frame.focusStatusCode) {
+                                1 -> PixelOsdPalette.GREEN
+                                -1 -> PixelOsdPalette.RED
+                                2 -> PixelOsdPalette.AMBER
+                                else -> PixelOsdPalette.WHITE
+                            },
+                            filled = false
                         )
                     }
                     drawPixelOsdText(element, color)
@@ -552,15 +574,33 @@ class PixelOsdRenderer(context: Context) {
                             critical = frame.batteryAlertState.critical && batteryAlertVisible
                         )
                     } else {
-                        drawPixelOsdIcon(
-                            canvas,
-                            element,
-                            monochromeColor = if (element.id == "af-lock") PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
-                        )
+                        drawPixelOsdIcon(canvas, element)
                     }
                 }
                 PixelOsdElementKind.RULE -> Unit
             }
+        }
+    }
+
+    private fun drawStatusTile(
+        canvas: NativeCanvas,
+        element: PixelOsdLayoutElement,
+        layout: PixelOsdLayoutPlan,
+        color: Int,
+        filled: Boolean
+    ) {
+        val scale = pixelScale.coerceAtLeast(1)
+        val centerX = (element.bounds.left + element.bounds.right) * 0.5f / scale
+        val top = (element.bounds.top / scale).roundToInt()
+        val width = (layout.unitPx * 1.8f / scale).roundToInt().coerceAtLeast(4)
+        val height = (layout.unitPx * 1.8f / scale).roundToInt().coerceAtLeast(4)
+        val left = (centerX - width * 0.5f).roundToInt()
+        if (filled) {
+            fillPaint.color = color
+            fillPaint.alpha = 255
+            canvas.drawRect(left.toFloat(), top.toFloat(), (left + width).toFloat(), (top + height).toFloat(), fillPaint)
+        } else {
+            drawPixelOutlineRect(canvas, left, top, left + width, top + height, color, 255)
         }
     }
 
@@ -665,8 +705,10 @@ class PixelOsdRenderer(context: Context) {
 
     private fun drawProHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val selected = frame.selectedControl.uppercase()
+        val batteryAlertVisible = frame.batteryAlertState.low && !frame.batteryCharging &&
+            (!frame.batteryAlertState.blinking || frame.batteryLowBlinkOn)
         val elements = layout.elements.filter {
-            it.section == "pro-top" || it.section == "pro-bottom"
+            it.section == "pro-top" || it.section == "pro-bottom" || it.section == "pro-column"
         }
         elements.forEach { element ->
             if (element.kind == PixelOsdElementKind.TEXT) {
@@ -684,11 +726,11 @@ class PixelOsdRenderer(context: Context) {
                     (key == "TV" && selected == "SHUTTER") ||
                     (key == "F" && selected == "APERTURE")
                 val textColor = when {
+                    element.id == "pro-dr-value" && frame.dynamicRangeText.contains("400") -> PixelOsdPalette.AMBER
                     selectedThis -> PixelOsdPalette.BLUE
                     (key == "EV" && frame.manualExposure) ||
                         (key == "TV" && frame.manualShutter) ||
-                        (key == "ISO" && frame.manualIso) ||
-                        (key == "WB" && frame.manualWhiteBalance) -> PixelOsdPalette.AMBER
+                        (key == "ISO" && frame.manualIso) -> PixelOsdPalette.BLUE
                     else -> PixelOsdPalette.WHITE
                 }
                 if (selectedThis) {
@@ -703,17 +745,86 @@ class PixelOsdRenderer(context: Context) {
                         frame.selectedControlProgress
                     )
                 }
-                drawPixelOsdText(element, textColor)
+                if (element.id == "pro-mode") {
+                    val scale = pixelScale.coerceAtLeast(1)
+                    val width = (layout.unitPx * 2f / scale).roundToInt().coerceAtLeast(4)
+                    val height = (layout.t1CapHeightPx * 1.5f / scale).roundToInt().coerceAtLeast(4)
+                    val left = (element.bounds.left / scale).roundToInt() - (width - element.bounds.width / scale) .roundToInt() / 2
+                    val top = (element.bounds.top / scale).roundToInt() - (height - element.bounds.height / scale).roundToInt() / 2
+                    fillPaint.color = PixelOsdPalette.WHITE
+                    canvas.drawRect(left.toFloat(), top.toFloat(), (left + width).toFloat(), (top + height).toFloat(), fillPaint)
+                    drawPixelOsdText(element, PixelOsdPalette.BLACK)
+                } else {
+                    if (element.id == "pro-dr-value") {
+                        val scale = pixelScale.coerceAtLeast(1)
+                        val box = layout.elements.firstOrNull { it.id == "pro-dr-value-box" }?.bounds
+                        if (box != null) {
+                            val left = (box.left / scale).roundToInt()
+                            val top = (box.top / scale).roundToInt()
+                            val right = (box.right / scale).roundToInt()
+                            val bottom = (box.bottom / scale).roundToInt()
+                            fillPaint.color = if (frame.dynamicRangeText.contains("400")) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE
+                            canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), fillPaint)
+                        }
+                        drawPixelOsdText(element, PixelOsdPalette.BLACK)
+                    } else {
+                        drawPixelOsdText(element, textColor)
+                    }
+                }
             } else if (element.kind == PixelOsdElementKind.ICON) {
-                drawPixelOsdIcon(canvas, element)
+                if (element.id == "pro-battery") {
+                    drawBatteryIcon(
+                        canvas = canvas,
+                        bounds = element.bounds,
+                        percent = frame.batteryPercent,
+                        color = if (batteryAlertVisible) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
+                        unitPx = layout.unitPx,
+                        charging = frame.batteryCharging,
+                        critical = frame.batteryAlertState.critical && batteryAlertVisible
+                    )
+                } else {
+                    drawPixelOsdIcon(canvas, element)
+                }
             } else if (element.kind == PixelOsdElementKind.RULE) {
                 val scale = pixelScale.coerceAtLeast(1)
-                val x = (element.bounds.left / scale).roundToInt()
-                val top = (element.bounds.top / scale).roundToInt()
-                val bottom = (element.bounds.bottom / scale).roundToInt()
-                val thickness = (element.bounds.width / scale).roundToInt().coerceAtLeast(1)
-                for (offset in 0 until thickness) {
-                    drawVLine(canvas, x + offset, top, bottom, PixelOsdPalette.WHITE, 160)
+                when (element.id) {
+                    "pro-area-outline", "pro-film-outline" -> {
+                        drawPixelOutlineRect(
+                            canvas,
+                            (element.bounds.left / scale).roundToInt(),
+                            (element.bounds.top / scale).roundToInt(),
+                            (element.bounds.right / scale).roundToInt(),
+                            (element.bounds.bottom / scale).roundToInt(),
+                            PixelOsdPalette.WHITE,
+                            220
+                        )
+                        if (element.id == "pro-film-outline") {
+                            val left = (element.bounds.left / scale).roundToInt()
+                            val top = (element.bounds.top / scale).roundToInt()
+                            for (hole in 0..2) {
+                                val y = top + 1 + hole * 2
+                                drawPixel(canvas, left + 1, y, PixelOsdPalette.WHITE)
+                                drawPixel(canvas, (element.bounds.right / scale).roundToInt() - 1, y, PixelOsdPalette.WHITE)
+                            }
+                        }
+                    }
+                    "pro-dr-value-box" -> {
+                        val left = (element.bounds.left / scale).roundToInt()
+                        val top = (element.bounds.top / scale).roundToInt()
+                        val right = (element.bounds.right / scale).roundToInt()
+                        val bottom = (element.bounds.bottom / scale).roundToInt()
+                        fillPaint.color = if (frame.dynamicRangeText.contains("400")) PixelOsdPalette.AMBER else PixelOsdPalette.WHITE
+                        canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), fillPaint)
+                    }
+                    else -> {
+                        val x = (element.bounds.left / scale).roundToInt()
+                        val top = (element.bounds.top / scale).roundToInt()
+                        val bottom = (element.bounds.bottom / scale).roundToInt()
+                        val thickness = (element.bounds.width / scale).roundToInt().coerceAtLeast(1)
+                        for (offset in 0 until thickness) {
+                            drawVLine(canvas, x + offset, top, bottom, PixelOsdPalette.WHITE, 160)
+                        }
+                    }
                 }
             }
         }
@@ -743,6 +854,22 @@ class PixelOsdRenderer(context: Context) {
             val y = (centerY + sin(angle).toFloat() * radiusY).roundToInt()
             drawPixel(canvas, x, y, color, 220)
         }
+    }
+
+    private fun drawPixelOutlineRect(
+        canvas: NativeCanvas,
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int,
+        color: Int,
+        alpha: Int
+    ) {
+        if (right <= left || bottom <= top) return
+        drawHLine(canvas, left, right, top, color, alpha)
+        drawHLine(canvas, left, right, bottom, color, alpha)
+        drawVLine(canvas, left, top, bottom, color, alpha)
+        drawVLine(canvas, right, top, bottom, color, alpha)
     }
 
     private fun drawDashedRect(

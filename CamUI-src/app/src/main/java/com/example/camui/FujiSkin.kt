@@ -615,7 +615,7 @@ fun FujiScreenScaffold(
     showVersion: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
+    val kk7Font = FujiTypography.uiFontandroidx.compose.ui.platform.LocalContext.current)
     val cleanVersionName = BuildConfig.VERSION_NAME.replace(Regex("(?i)dream$"), "").trim()
     Column(
         modifier.fillMaxSize()
@@ -789,7 +789,7 @@ fun FujiTile(
     icon: String? = null,
     modifier: Modifier = Modifier
 ) {
-    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
+    val kk7Font = FujiTypography.uiFontandroidx.compose.ui.platform.LocalContext.current)
     Column(
         modifier.height(72.dp).clip(RoundedCornerShape(4.dp))
             .background(Color(0xFF101516))
@@ -814,7 +814,7 @@ fun FujiListRow(
     adjustable: Boolean = false,
     navigate: Boolean = true
 ) {
-    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
+    val kk7Font = FujiTypography.uiFontandroidx.compose.ui.platform.LocalContext.current)
     Column(
         modifier.fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = null)
@@ -846,7 +846,7 @@ fun FujiSearchField(
     modifier: Modifier = Modifier,
     placeholder: String = "Tìm..."
 ) {
-    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
+    val kk7Font = FujiTypography.uiFontandroidx.compose.ui.platform.LocalContext.current)
     val cursorTransition = rememberInfiniteTransition(label = "fuji-search-cursor")
     val cursorAlpha by cursorTransition.animateFloat(
         initialValue = 0.22f,
@@ -888,7 +888,7 @@ fun FujiDial(
     modifier: Modifier = Modifier,
     stepSize: Float = 22f
 ) {
-    val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
+    val kk7Font = FujiTypography.uiFontandroidx.compose.ui.platform.LocalContext.current)
     var rotation by remember { mutableFloatStateOf(0f) }
     val animatedRotation by animateFloatAsState(rotation, tween(90), label = "fuji-dial-rotation")
     val view = LocalView.current

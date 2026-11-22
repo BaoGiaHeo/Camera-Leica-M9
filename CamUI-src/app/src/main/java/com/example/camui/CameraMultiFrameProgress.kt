@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -31,8 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -111,7 +108,6 @@ internal fun FujiMultiFrameProgressPill(
     maxHeight: Dp
 ) {
     val context = LocalContext.current
-    val fontFamily = FujiTypography.composeFamily(context)
     val pulseTransition = rememberInfiniteTransition(label = "multi-frame-current-segment")
     val currentSegmentAlpha by pulseTransition.animateFloat(
         initialValue = 0.35f,
@@ -182,39 +178,32 @@ internal fun FujiMultiFrameProgressPill(
                         .border(1.dp, Color(0xFFE8442B), RoundedCornerShape(3.dp))
                         .padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
-                    Text(
+                    FujiCapHeightText(
                         text = state.modeLabel.uppercase(Locale.ROOT),
                         color = Color(0xFFE8442B),
-                        fontFamily = fontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 9.sp,
-                        maxLines = 1
+                        capHeightSp = 9f,
+                        bold = true
                     )
                 }
-                Text(
+                FujiCapHeightText(
                     text = stageText.uppercase(Locale.ROOT),
                     color = Color.White,
-                    fontFamily = fontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 9.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
+                    capHeightSp = 9f,
+                    bold = true,
                     modifier = Modifier.weight(1f)
                 )
                 if (state.queueCount > 0 && state.stage == MultiFrameStage.CAPTURE) {
-                    Text(
+                    FujiCapHeightText(
                         text = "Q" + state.queueCount.coerceAtMost(9),
                         color = Color(0xFFB9C7C7),
-                        fontFamily = fontFamily,
-                        fontSize = 8.sp
+                        capHeightSp = 8f
                     )
                 }
-                Text(
+                FujiCapHeightText(
                     text = safePercent.toString() + "%",
                     color = Color.White,
-                    fontFamily = fontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp
+                    capHeightSp = 10f,
+                    bold = true
                 )
             }
 
@@ -262,58 +251,47 @@ internal fun FujiMultiFrameProgressPill(
                                     .background(if (lit) Color(0xFF55D58A) else Color(0xFF53615F))
                             )
                         }
-                        Text(
+                        FujiCapHeightText(
                             stringResource(R.string.mf_hold_steady),
                             color = Color(0xFFD7E1DF),
-                            fontFamily = fontFamily,
-                            fontSize = 7.sp,
-                            maxLines = 1
+                            capHeightSp = 7f
                         )
                     } else {
-                        Text(
+                        FujiCapHeightText(
                             stringResource(R.string.mf_move_freely),
                             color = Color(0xFF55D58A),
-                            fontFamily = fontFamily,
-                            fontSize = 7.sp,
-                            maxLines = 1
+                            capHeightSp = 7f
                         )
                     }
                 }
 
-                Text(
+                FujiCapHeightText(
                     multiFrameElapsedLabel(state.elapsedSeconds),
                     color = Color(0xFFBAC6C4),
-                    fontFamily = fontFamily,
-                    fontSize = 7.sp
+                    capHeightSp = 7f
                 )
                 Spacer(Modifier.width(4.dp))
-                Text(
+                FujiCapHeightText(
                     "♨ " + temperatureText,
                     color = Color(multiFrameTemperatureColor(state.batteryTemperatureC)),
-                    fontFamily = fontFamily,
-                    fontSize = 7.sp,
-                    maxLines = 1
+                    capHeightSp = 7f
                 )
                 if (thermalLabel.isNotEmpty()) {
                     Spacer(Modifier.width(3.dp))
-                    Text(
+                    FujiCapHeightText(
                         thermalLabel.uppercase(Locale.ROOT),
                         color = Color(multiFrameThermalColor(state.thermalStatus)),
-                        fontFamily = fontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 7.sp,
-                        maxLines = 1
+                        capHeightSp = 7f,
+                        bold = true
                     )
                 }
                 state.errorCode?.takeIf { it.isNotBlank() }?.let { code ->
                     Spacer(Modifier.width(3.dp))
-                    Text(
+                    FujiCapHeightText(
                         code.take(8).uppercase(Locale.ROOT),
                         color = Color(0xFFFF4A3D),
-                        fontFamily = fontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 7.sp,
-                        maxLines = 1
+                        capHeightSp = 7f,
+                        bold = true
                     )
                 }
             }

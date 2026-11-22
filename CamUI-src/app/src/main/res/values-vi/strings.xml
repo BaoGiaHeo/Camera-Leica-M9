@@ -221,4 +221,14 @@
     <string name="grid_color_black">Đen</string>
     <string name="grid_color_auto">Tự động</string>
     <string name="grid_opacity_title">Độ trong suốt</string>
+    <string name="sound_master_volume">ÂM LƯỢNG CHÍNH · %1$d%%</string>
+    <string name="sound_master_enabled">ÂM ĐỘNG CƠ ZOOM VÀ NẤC XOAY</string>
+    <string name="sound_zoom_description">Âm servo và tiếng nấc khi thao tác W/T. Tự tắt khi điện thoại ở chế độ im lặng.</string>
+    <string name="sound_shutter_title">Âm thanh màn trập</string>
+    <string name="sound_shutter_description">Âm WAV màn trập cơ, dùng mức âm lượng chính.</string>
+    <string name="sound_ui_title">Âm thanh giao diện cơ học</string>
+    <string name="sound_ui_description">Tiếng nhấn nút và âm xác nhận.</string>
+    <string name="sound_haptic_title">Phản hồi rung</string>
+    <string name="sound_haptic_description">Rung nhẹ khi qua nấc zoom, gạt công tắc và nhấn nửa cò.</string>
+    <string name="sound_pcm_note">Phản hồi camera được tổng hợp ở dạng PCM16 mono 44,1 kHz, đỉnh -3 dBFS. Độ trễ thực tế phụ thuộc lịch trình âm thanh của thiết bị.</string>
 </resources>

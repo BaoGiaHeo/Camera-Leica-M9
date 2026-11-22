@@ -61,4 +61,19 @@ class CameraAfTouchPolicyTest {
             CameraAfRegionCapabilities(0, 0).strategy()
         )
     }
+
+    @Test
+    fun manualTouchSuppressesFaceFollowForThreeSecondsOnly() {
+        val until = afManualFaceOverrideUntil(10_000L)
+        assertEquals(13_000L, until)
+        assertTrue(isAfManualFaceOverrideActive(until, 10_001L))
+        assertTrue(isAfManualFaceOverrideActive(until, 12_999L))
+        assertFalse(isAfManualFaceOverrideActive(until, 13_000L))
+    }
+
+    @Test
+    fun longPressLockPolicyUsesFiveHundredMilliseconds() {
+        assertEquals(500L, AF_LONG_PRESS_LOCK_DURATION_MS)
+    }
+
 }

@@ -227,23 +227,3 @@ private fun ScaleKey(label: String, onClick: () -> Unit, wide: Boolean = false) 
         )
     }
 }
-
-private fun ScaleKey(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(width = 24.dp, height = 22.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(Color(0xFF15191A))
-            .border(1.dp, Color(0xFF596265), RoundedCornerShape(3.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            color = Color(0xFFF2F2F2),
-            fontFamily = FujiTypography.uiFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp
-        )
-    }
-}

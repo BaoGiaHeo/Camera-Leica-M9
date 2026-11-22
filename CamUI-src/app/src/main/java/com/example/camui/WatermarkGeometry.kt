@@ -234,8 +234,10 @@ internal object WatermarkGeometry {
             WatermarkLayoutType.DOT_DARK -> {
                 val border = s * 0.024f * scale
                 val footerHeight = s * 0.176f * scale
-                val cw = sourceWidth + (border * 2f).roundToInt()
-                val ch = sourceHeight + border.roundToInt() + footerHeight.roundToInt()
+                // Round each outer border independently to keep equal 2.4% margins.
+                val borderPx = border.roundToInt()
+                val cw = sourceWidth + borderPx * 2
+                val ch = sourceHeight + borderPx + footerHeight.roundToInt()
                 val photo = WatermarkRect(
                     border, border, border + sourceWidth, border + sourceHeight
                 )

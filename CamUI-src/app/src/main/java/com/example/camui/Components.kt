@@ -42,7 +42,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.fillMaxSize
@@ -143,6 +145,13 @@ fun CamTheme(content: @Composable () -> Unit) {
         ?: error("CamTheme must be hosted by an ActivityResultRegistryOwner.")
     val activeLanguage = AppLanguageManager.currentLanguage
     val context = AppLanguageManager.localizedContext(baseContext, activeLanguage)
+    val platformDensity = LocalDensity.current
+    val boundedDensity = remember(platformDensity.density, platformDensity.fontScale) {
+        Density(
+            density = platformDensity.density,
+            fontScale = platformDensity.fontScale.coerceIn(0.85f, 1.3f)
+        )
+    }
     val prefs = context.getSharedPreferences("fujifilm_settings", 0)
     val shutterHex = prefs.getString("shutter_button_color", "#FFFFFFFF")
     SideEffect {
@@ -183,6 +192,7 @@ fun CamTheme(content: @Composable () -> Unit) {
         CompositionLocalProvider(
             LocalContext provides context,
             LocalConfiguration provides context.resources.configuration,
+            LocalDensity provides boundedDensity,
             LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
             LocalTextStyle provides appTypography.bodyMedium
         ) {

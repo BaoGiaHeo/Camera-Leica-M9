@@ -202,7 +202,7 @@ internal object WatermarkGeometry {
                 val footer = WatermarkRect(0f, photo.bottom, cw.toFloat(), photo.bottom + footerHeight)
                 val logoWidth = s * 0.182f * scale
                 val logoHeight = logoWidth / 6.2f
-                val logoLeft = photo.left + s * 0.053f * scale
+                val logoLeft = s * 0.053f * scale
                 val logo = WatermarkRect(
                     logoLeft, footer.centerY - logoHeight / 2f,
                     logoLeft + logoWidth, footer.centerY + logoHeight / 2f

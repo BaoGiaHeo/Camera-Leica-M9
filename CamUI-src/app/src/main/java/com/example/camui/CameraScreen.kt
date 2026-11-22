@@ -6187,7 +6187,7 @@ fun CameraScreen(
                                     "EV" -> {
                                         val range = evRange
                                         if (range != null && range.upper > range.lower) {
-                                            FujiSlider(
+                                            FujiScaleRuler(
                                                 value = evIndex.toFloat().coerceIn(range.lower.toFloat(), range.upper.toFloat()),
                                                 onValueChange = {
                                                     manualIsoEnabled = false
@@ -6215,11 +6215,15 @@ fun CameraScreen(
                                                 if (manualSensorSupported && range != null && range.upper > range.lower) {
                                                     val lo = range.lower
                                                     val hi = range.upper.coerceAtMost(2400).coerceAtLeast(range.lower)
-                                                    FujiSlider(
+                                                    FujiScaleRuler(
                                                         modifier = Modifier.weight(1f),
-                                                        value = ((manualIso.coerceIn(lo, hi) - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0f, 1f),
+                                                        value = (kotlin.math.log2(manualIso.coerceIn(lo, hi).toFloat() / lo) / kotlin.math.log2(hi.toFloat() / lo).coerceAtLeast(0.001f)).coerceIn(0f, 1f),
+                                                         valueRange = 0f..1f,
+                                                         steps = (kotlin.math.log2(hi.toFloat() / lo) * 3f).roundToInt().minus(1).coerceAtLeast(0),
                                                         onValueChange = { f ->
-                                                            manualIso = (lo + f * (hi - lo)).roundToInt().coerceIn(lo, hi)
+                                                            val rawIso = lo * kotlin.math.pow(2.0, f.toDouble() * kotlin.math.log2(hi.toDouble() / lo)).toFloat()
+                                                             val oneThirdStop = (kotlin.math.log2(rawIso / lo) * 3f).roundToInt()
+                                                             manualIso = (lo * kotlin.math.pow(2.0, oneThirdStop / 3.0)).roundToInt().coerceIn(lo, hi)
                                                             manualIsoEnabled = true
                                                             manualExposure = true
                                                             camera?.let { active ->
@@ -6254,9 +6258,11 @@ fun CameraScreen(
                                                 if (manualSensorSupported && range != null && range.upper > range.lower) {
                                                     val lo = range.lower
                                                     val hi = range.upper.coerceAtMost(1_000_000_000L).coerceAtLeast(range.lower)
-                                                    FujiSlider(
+                                                    FujiScaleRuler(
                                                         modifier = Modifier.weight(1f),
                                                         value = shutterFraction(manualShutterNs.coerceAtMost(1_000_000_000L), lo, hi),
+                                                         valueRange = 0f..1f,
+                                                         steps = (kotlin.math.log2(hi.toDouble() / lo) * 3.0).roundToInt().minus(1).coerceAtLeast(0),
                                                         onValueChange = { f ->
                                                             manualShutterNs = shutterFromFraction(f, lo, hi).coerceAtMost(1_000_000_000L)
                                                             manualShutterEnabled = true
@@ -6290,9 +6296,11 @@ fun CameraScreen(
                                         Column(Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 if (maxFocus > 0f) {
-                                                    FujiSlider(
+                                                    FujiScaleRuler(
                                                         modifier = Modifier.weight(1f),
                                                         value = (manualFocus / maxFocus).coerceIn(0f, 1f),
+                                                         valueRange = 0f..1f,
+                                                         steps = 49,
                                                         onValueChange = { f ->
                                                             manualFocus = f * maxFocus
                                                             milkyWayInfinityFocusEnabled = false
@@ -6316,7 +6324,7 @@ fun CameraScreen(
                                         Column(Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text("Ấm", color = CamColors.Sub, fontSize = 9.sp)
-                                                FujiSlider(
+                                                FujiScaleRuler(
                                                     modifier = Modifier.weight(1f),
                                                     value = ((manualColorTemp - 2500) / 5500f).coerceIn(0f, 1f),
                                                     onValueChange = { fraction ->

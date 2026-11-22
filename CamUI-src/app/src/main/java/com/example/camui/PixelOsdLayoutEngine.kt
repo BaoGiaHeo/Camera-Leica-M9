@@ -186,6 +186,34 @@ internal object PixelOsdLayoutEngine {
                 "status-fps", "status", fpsText,
                 margin.toFloat(), (margin + t3 + labelValueGap).toFloat(), t1
             )
+            if (frame.showDriveHud && frame.driveModeText.isNotBlank()) {
+                val driveTop = margin + t3 + labelValueGap + t1 + itemGap
+                val isBurst = frame.driveModeText.startsWith("BURST", ignoreCase = true)
+                addIcon(
+                    id = "drive-icon", section = "status",
+                    sprite = if (isBurst) "burst" else "timer",
+                    left = margin.toFloat(), top = driveTop.toFloat(),
+                    requestedHeight = unit,
+                    requestedWidth = unit
+                )
+                addText(
+                    "drive-mode", "status",
+                    frame.driveModeText.take(14),
+                    (margin + unit + itemGap).toFloat(),
+                    driveTop + (unit - t3) / 2f,
+                    t3
+                )
+            }
+            if (frame.driveCountdown > 0) {
+                val countdownText = frame.driveCountdown.coerceAtMost(99).toString()
+                val countdownCapHeight = t1 * 4
+                addText(
+                    "drive-countdown", "status", countdownText,
+                    (widthPx - measureTextWidthPx(countdownText, countdownCapHeight)) / 2f,
+                    (heightPx - countdownCapHeight) / 2f,
+                    countdownCapHeight
+                )
+            }
             val wbLabel = frame.whiteBalanceText.ifBlank { "AUTO" }.take(8)
             val batteryLabel = if (!frame.isPro) {
                 frame.batteryPercent.takeIf { it in 0..100 }?.let { "$it%" }.orEmpty()

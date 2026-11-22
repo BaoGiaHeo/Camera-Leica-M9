@@ -60,17 +60,22 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private data class SettingItem(val icon: String, val title: String, val subtitle: String)
+private data class SettingItem(
+    val icon: String,
+    val title: String,
+    val subtitle: String,
+    val titleResource: Int
+)
 private val settingItems = listOf(
-    SettingItem("tab_01", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
-    SettingItem("tab_02", "Focus & Lens", "Camera ID · Lens · Sensor information"),
-    SettingItem("tab_03", "Capture & Quality", "Aspect ratio · Image quality · Save location"),
-    SettingItem("tab_04", "Photo Mode Setting", "HDR · Noise reduction · RAW"),
-    SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
-    SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
-    SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
-    SettingItem("tab_08", "Language", "ENGLISH · TIẾNG VIỆT"),
-    SettingItem("tab_09", "About", "FujiFilm Mode · 2.5.0Dream"),
+    SettingItem("tab_01", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram", R.string.settings_tab_assistive_tools),
+    SettingItem("tab_02", "Focus & Lens", "Camera ID · Lens · Sensor information", R.string.settings_tab_focus_lens),
+    SettingItem("tab_03", "Capture & Quality", "Aspect ratio · Image quality · Save location", R.string.settings_tab_capture_quality),
+    SettingItem("tab_04", "Photo Mode Setting", "HDR · Noise reduction · RAW", R.string.settings_tab_photo_mode),
+    SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails", R.string.settings_tab_nightshot),
+    SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout", R.string.settings_tab_display),
+    SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback", R.string.settings_tab_sound),
+    SettingItem("tab_08", "Language", "ENGLISH · TIẾNG VIỆT", R.string.settings_tab_language),
+    SettingItem("tab_09", "About", "FujiFilm Mode · 2.5.0Dream", R.string.settings_tab_about),
 )
 
 @Composable
@@ -103,17 +108,18 @@ fun SettingsScreen(
     val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
         localizedSettingItems + SettingItem(
             "tab_11",
-            stringResource(R.string.pixel_osd_preview_tab),
-            stringResource(R.string.pixel_osd_preview_description)
+            "Pixel OSD Preview",
+            "Pixel OSD preview and diagnostic tools",
+            R.string.pixel_osd_preview_tab
         )
     } else localizedSettingItems
     FujiScreenScaffold(
-        title = "SETTINGS · MENU", modifier = Modifier.fillMaxSize(),
+        title = stringResource(R.string.settings_screen_title), modifier = Modifier.fillMaxSize(),
         onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
     ) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                "MENU TABS",
+                stringResource(R.string.settings_menu_tabs),
                 color = FujiSkin.lcdGreen,
                 fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
@@ -126,7 +132,7 @@ fun SettingsScreen(
             ) {
                 visibleSettingItems.forEachIndexed { index, item ->
                     FujiChip(
-                        "%02d · %s".format(index + 1, item.title),
+                        "%02d · %s".format(index + 1, stringResource(item.titleResource)),
                         selectedCategory == item.title,
                         { selectedCategory = item.title }
                     )

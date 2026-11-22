@@ -75,11 +75,19 @@ internal object KelvinEstimator {
         return ((kelvin / 50f).roundToInt() * 50).coerceIn(1_800, 12_000)
     }
 
-    internal fun asShotNeutral(gains: RggbChannelVector): FloatArray? {
-        val red = gains.red.takeIf { it.isFinite() && it > 0f } ?: return null
-        val green = ((gains.greenEven + gains.greenOdd) * 0.5f)
+    internal fun asShotNeutral(gains: RggbChannelVector): FloatArray? =
+        asShotNeutral(gains.red, gains.greenEven, gains.greenOdd, gains.blue)
+
+    internal fun asShotNeutral(
+        redGain: Float,
+        greenEvenGain: Float,
+        greenOddGain: Float,
+        blueGain: Float
+    ): FloatArray? {
+        val red = redGain.takeIf { it.isFinite() && it > 0f } ?: return null
+        val green = ((greenEvenGain + greenOddGain) * 0.5f)
             .takeIf { it.isFinite() && it > 0f } ?: return null
-        val blue = gains.blue.takeIf { it.isFinite() && it > 0f } ?: return null
+        val blue = blueGain.takeIf { it.isFinite() && it > 0f } ?: return null
         return floatArrayOf(1f / red, 1f / green, 1f / blue)
     }
 

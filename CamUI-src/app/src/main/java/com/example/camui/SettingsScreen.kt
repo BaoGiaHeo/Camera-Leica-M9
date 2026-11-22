@@ -199,6 +199,16 @@ private fun SettingsDetailPage(
         )
     }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
+    var keepPreviewFps by remember {
+        mutableStateOf(prefs.getBoolean("preview_fps_keep", false))
+    }
+    var previewFpsMode by remember {
+        mutableStateOf(
+            if (keepPreviewFps) {
+                prefs.getString("preview_fps_mode", "60")?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
+            } else "60"
+        )
+    }
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
@@ -533,7 +543,7 @@ var nightShotMode by remember {
             }
             "Language" -> {
                 var selectedLanguage by remember {
-                    mutableStateOf(AppLanguageManager.normalizePreference(prefs.getString("app_language", "system")))
+                    mutableStateOf(AppLanguageManager.currentLanguage)
                 }
                 Text(stringResource(R.string.language_screen_title), color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
@@ -710,6 +720,46 @@ var nightShotMode by remember {
                 }
             }
             "Photo Mode Setting" -> {
+                Text(
+                    stringResource(R.string.preview_fps_title),
+                    color = CamColors.TextColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    stringResource(R.string.preview_fps_description),
+                    color = CamColors.Sub,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
+                )
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf("60", "30", "24", "AUTO").forEach { option ->
+                        FujiChip(
+                            if (option == "AUTO") option else option + "FPS",
+                            previewFpsMode == option,
+                            {
+                                previewFpsMode = option
+                                prefs.edit().putString("preview_fps_mode", option).apply()
+                            },
+                            Modifier.width(76.dp)
+                        )
+                    }
+                }
+                SettingsSwitch(
+                    stringResource(R.string.preview_fps_keep),
+                    stringResource(R.string.preview_fps_description),
+                    keepPreviewFps
+                ) { enabled ->
+                    keepPreviewFps = enabled
+                    prefs.edit().putBoolean("preview_fps_keep", enabled).apply()
+                    if (!enabled) {
+                        previewFpsMode = "60"
+                        prefs.edit().putString("preview_fps_mode", "60").apply()
+                    }
+                }
+                Spacer(Modifier.padding(5.dp))
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
                     "HDR Tone Mapping",

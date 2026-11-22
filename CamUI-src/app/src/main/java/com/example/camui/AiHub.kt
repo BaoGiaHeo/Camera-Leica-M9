@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,6 +104,28 @@ fun LunaDreamBottomSheet(
                             )
                         }
                     }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            LunaDreamModeRow(
+                                title = "LunaDream 2.5",
+                                subtitle = stringResource(R.string.lunadream_25_subtitle),
+                                selected = selectedMode == "luna25",
+                                intensity = 1.12f,
+                                phase = 0f,
+                                onCheckedChange = { onSelectedModeChange(if (it) "luna25" else "off") }
+                            )
+                        }
+                        Box(Modifier.weight(1f)) {
+                            LunaDreamModeRow(
+                                title = "LunaDream 3.0",
+                                subtitle = stringResource(R.string.lunadream_30_subtitle),
+                                selected = selectedMode == "luna30",
+                                intensity = 1.25f,
+                                phase = 0f,
+                                onCheckedChange = { onSelectedModeChange(if (it) "luna30" else "off") }
+                            )
+                        }
+                    }
                 } else {
                     LunaDreamModeRow(
                         title = "LunaDream 1.5",
@@ -119,6 +142,22 @@ fun LunaDreamBottomSheet(
                         intensity = 1f,
                         phase = 0f,
                         onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
+                    )
+                    LunaDreamModeRow(
+                        title = "LunaDream 2.5",
+                        subtitle = stringResource(R.string.lunadream_25_subtitle),
+                        selected = selectedMode == "luna25",
+                        intensity = 1.12f,
+                        phase = 0f,
+                        onCheckedChange = { onSelectedModeChange(if (it) "luna25" else "off") }
+                    )
+                    LunaDreamModeRow(
+                        title = "LunaDream 3.0",
+                        subtitle = stringResource(R.string.lunadream_30_subtitle),
+                        selected = selectedMode == "luna30",
+                        intensity = 1.25f,
+                        phase = 0f,
+                        onCheckedChange = { onSelectedModeChange(if (it) "luna30" else "off") }
                     )
                 }
                 Text(

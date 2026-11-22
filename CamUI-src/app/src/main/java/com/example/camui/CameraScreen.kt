@@ -196,6 +196,7 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.pow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -923,6 +924,9 @@ fun CameraScreen(
     var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
     var manualColorTempEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_wb_enabled", false)) }
     var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2000, 10000)) }
+    var whiteBalancePresetId by remember {
+        mutableStateOf(appPrefs.getString("pro_manual_wb_preset", "auto") ?: "auto")
+    }
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
@@ -6258,9 +6262,9 @@ fun CameraScreen(
                                                          valueRange = 0f..1f,
                                                          steps = (kotlin.math.log2(hi.toFloat() / lo) * 3f).roundToInt().minus(1).coerceAtLeast(0),
                                                         onValueChange = { f ->
-                                                            val rawIso = lo * kotlin.math.pow(2.0, f.toDouble() * kotlin.math.log2(hi.toDouble() / lo)).toFloat()
+                                                            val rawIso = lo * 2.0.pow(f.toDouble() * kotlin.math.log2(hi.toDouble() / lo)).toFloat()
                                                              val oneThirdStop = (kotlin.math.log2(rawIso / lo) * 3f).roundToInt()
-                                                             manualIso = (lo * kotlin.math.pow(2.0, oneThirdStop / 3.0)).roundToInt().coerceIn(lo, hi)
+                                                             manualIso = (lo * 2.0.pow(oneThirdStop / 3.0)).roundToInt().coerceIn(lo, hi)
                                                             manualIsoEnabled = true
                                                             manualExposure = true
                                                             camera?.let { active ->

@@ -8,10 +8,10 @@ import org.junit.Test
 class CameraLcdDisplayModeTest {
     @Test
     fun displayButtonCyclesInRequestedOrder() {
-        assertEquals(CameraLcdDisplayMode.FULL_INFO, CameraLcdDisplayMode.STANDARD.next())
-        assertEquals(CameraLcdDisplayMode.CLEAN, CameraLcdDisplayMode.FULL_INFO.next())
+        assertEquals(CameraLcdDisplayMode.CLEAN, CameraLcdDisplayMode.STANDARD.next())
         assertEquals(CameraLcdDisplayMode.LEVEL_GRID, CameraLcdDisplayMode.CLEAN.next())
         assertEquals(CameraLcdDisplayMode.STANDARD, CameraLcdDisplayMode.LEVEL_GRID.next())
+        assertEquals(CameraLcdDisplayMode.STANDARD, CameraLcdDisplayMode.FULL_INFO.next())
     }
 
     @Test

@@ -7108,7 +7108,7 @@ fun CameraScreen(
                 ) {
                     FujiKey(
                         "W",
-                        onClick = { animateZoomTo((zoomSel + wZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
+                        onClick = { animateZoomTo((zoomRequestedTarget.floatValue + wZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
                         enabled = zoomStateForDial != null && if (wZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
                         onPressStart = {
@@ -7126,7 +7126,7 @@ fun CameraScreen(
                     )
                     FujiKey(
                         "T",
-                        onClick = { animateZoomTo((zoomSel + tZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
+                        onClick = { animateZoomTo((zoomRequestedTarget.floatValue + tZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
                         modifier = Modifier.weight(1f),
                         enabled = zoomStateForDial != null && if (tZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
                         onPressStart = {

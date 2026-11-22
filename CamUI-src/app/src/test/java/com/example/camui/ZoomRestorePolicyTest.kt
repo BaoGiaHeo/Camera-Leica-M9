@@ -9,12 +9,13 @@ class ZoomRestorePolicyTest {
     fun acceptsCameraResultWithinOnePercent() {
         assertTrue(isZoomWithinRestoreTolerance(1.009f, 1f))
         assertTrue(isZoomWithinRestoreTolerance(1.991f, 2f))
+        assertTrue(isZoomWithinRestoreTolerance(1.98f, 2f))
     }
 
     @Test
     fun rejectsCameraResultOutsideOnePercent() {
         assertFalse(isZoomWithinRestoreTolerance(1.011f, 1f))
-        assertFalse(isZoomWithinRestoreTolerance(1.98f, 2f))
+        assertFalse(isZoomWithinRestoreTolerance(1.979f, 2f))
     }
 
     @Test

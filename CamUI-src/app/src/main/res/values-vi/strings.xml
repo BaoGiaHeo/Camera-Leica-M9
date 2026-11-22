@@ -185,7 +185,6 @@
     <string name="activation_storage_description">Ảnh và video được lưu trong Pictures/FujifilmMode. Android quản lý quyền truy cập tệp; mức tiêu thụ pin phụ thuộc độ phân giải, tốc độ khung hình và chế độ xử lý.</string>
     <string name="activation_storage_continue">Chạm vào khung này hoặc đợi 2,5 giây để tiếp tục.</string>
     <string name="activation_step_publisher">NHÀ PHÁT HÀNH</string>
-    <string name="activation_publisher">@baoaka06 trên TikTok</string>
     <string name="activation_publisher_note">Cảm ơn bạn đã sử dụng FujiFilm Mode.</string>
     <string name="activation_back">QUAY LẠI</string>
     <string name="activation_continue">TIẾP TỤC</string>
@@ -199,4 +198,11 @@
     <string name="preview_fps_auto">TỰ ĐỘNG</string>
     <string name="preview_fps_keep_title">Giữ FPS xem trước giữa các lần mở app</string>
     <string name="preview_fps_keep_description">Khi tắt, FPS xem trước trở về 60 FPS mỗi lần mở ứng dụng.</string>
+    <string name="activation_storage_used">Đã dùng %1$s</string>
+    <string name="activation_storage_free">Còn trống %1$s</string>
+    <string name="activation_storage_total">Tổng %1$s</string>
+    <string name="activation_battery_level">Pin %1$d%%</string>
+    <string name="activation_warning_storage">BỘ NHỚ TRỐNG THẤP</string>
+    <string name="activation_warning_battery">PIN YẾU</string>
+    <string name="activation_publisher">@baoaka06 on TikTok</string>
 </resources>

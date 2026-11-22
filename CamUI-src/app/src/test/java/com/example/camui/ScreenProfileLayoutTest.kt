@@ -9,7 +9,7 @@ class ScreenProfileLayoutTest {
     fun layoutMetricsUseWindowDpAndClampToTouchSafeRanges() {
         val compact = ScreenProfile(
             2400, 1080, 440, 2.75f, 1f, 872.7f, 392.7f,
-            ScreenAspectClass.TWENTY_NINE, ScreenWindowSizeClass.COMPACT, 120f,
+            ScreenAspectClass.TWENTY_NINE, ScreenWindowSizeClass.EXPANDED, 120f,
             android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor()
@@ -23,7 +23,7 @@ class ScreenProfileLayoutTest {
     fun largeWindowValuesAreClamped() {
         val profile = ScreenProfile(
             3200, 1440, 560, 3.5f, 1.3f, 914.2f, 411.4f,
-            ScreenAspectClass.TWENTY_NINE, ScreenWindowSizeClass.COMPACT, 144f,
+            ScreenAspectClass.TWENTY_NINE, ScreenWindowSizeClass.EXPANDED, 144f,
             android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor(1600f, 900f)
@@ -31,6 +31,13 @@ class ScreenProfileLayoutTest {
         assertEquals(132f, profile.leftColumnWidth.value, 0.001f)
         assertEquals(200f, profile.rightColumnWidth.value, 0.001f)
         assertEquals(84f, profile.proControlHeight.value, 0.001f)
+    }
+
+    @Test
+    fun landscapeWindowSizeClassUsesAvailableWidth() {
+        assertEquals(ScreenWindowSizeClass.EXPANDED, ScreenProfile.classifyWindowSize(872.7f))
+        assertEquals(ScreenWindowSizeClass.MEDIUM, ScreenProfile.classifyWindowSize(700f))
+        assertEquals(ScreenWindowSizeClass.COMPACT, ScreenProfile.classifyWindowSize(599f))
     }
 
     @Test

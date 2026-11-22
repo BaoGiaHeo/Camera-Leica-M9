@@ -36,7 +36,7 @@ internal object CameraSoundEngine {
 
     private fun allowed(context: Context): Boolean {
         val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        if (masterVolume <= 0f || !prefs.getBoolean("dial_click_enabled", true)) return false
+        if (masterVolume <= 0f) return false
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         return audioManager?.ringerMode != AudioManager.RINGER_MODE_SILENT
     }

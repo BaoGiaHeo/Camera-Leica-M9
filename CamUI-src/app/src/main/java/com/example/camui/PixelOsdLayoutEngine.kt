@@ -225,10 +225,11 @@ internal object PixelOsdLayoutEngine {
             val rightX = (widthPx - margin - columnWidth).coerceAtLeast(margin.toFloat())
             var y = maxOf(heightPx * 0.18f, (margin + t1 + itemGap).toFloat())
             val areaHeight = (unit * 2.4f).roundToInt()
+            val areaIconWidth = areaHeight * 10f / 13f
             addIcon(
-                id = "pro-area-icon", section = "pro-right", sprite = "af-area",
-                left = rightX, top = y, requestedHeight = areaHeight,
-                requestedWidth = columnWidth.roundToInt()
+                id = "pro-area-icon", section = "pro-right", sprite = "area-finger",
+                left = rightX + (columnWidth - areaIconWidth) / 2f,
+                top = y, requestedHeight = areaHeight
             )
             y += unit * 2.5f
             val areaLabelWidth = measureTextWidthPx("AREA", t3)
@@ -237,7 +238,7 @@ internal object PixelOsdLayoutEngine {
                 rightX + (columnWidth - areaLabelWidth) / 2f, y, t3
             )
             y += unit * 1.35f
-            val kelvin = frame.whiteBalanceKelvinText.ifBlank { "----K" }.take(8)
+            val kelvin = frame.whiteBalanceKelvinText.ifBlank { "AUTO" }.take(8)
             addText("pro-kelvin", "pro-right", kelvin, rightX, y, t1)
             y += t1 + itemGap
             val film = frame.filmSimulationText.ifBlank { "ST" }.take(2)

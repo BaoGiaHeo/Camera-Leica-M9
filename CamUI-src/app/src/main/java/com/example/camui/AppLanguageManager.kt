@@ -44,7 +44,7 @@ object AppLanguageManager {
         return normalizePreference(preference)
     }
 
-    private fun migratedPreference(value: String?, context: Context): String {
+    fun migrateLegacyPreference(value: String?, context: Context): String {
         return if (value?.trim()?.lowercase() == "system" || value.isNullOrBlank()) {
             resolveLanguage("system", systemLanguageTag(context))
         } else {
@@ -57,7 +57,7 @@ object AppLanguageManager {
         val preferences = context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val stored = preferences.getString(LANGUAGE_KEY, "system")
-        val normalized = migratedPreference(stored, context)
+        val normalized = migrateLegacyPreference(stored, context)
         if (stored != normalized) {
             preferences.edit().putString(LANGUAGE_KEY, normalized).apply()
         }
@@ -84,7 +84,7 @@ object AppLanguageManager {
     fun refreshSystemLanguage(context: Context) {
         val preferences = context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val stored = migratedPreference(preferences.getString(LANGUAGE_KEY, "system"), context)
+        val stored = migrateLegacyPreference(preferences.getString(LANGUAGE_KEY, "system"), context)
         if (preferences.getString(LANGUAGE_KEY, null) != stored) {
             preferences.edit().putString(LANGUAGE_KEY, stored).apply()
         }

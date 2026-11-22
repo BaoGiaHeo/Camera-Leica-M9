@@ -51,7 +51,7 @@ class WatermarkGeometryTest {
         assertEquals(1421, geometry.canvasHeight)
         assertEquals(141f, geometry.footerRect!!.height, 0.6f)
         assertEquals(192f, geometry.logoRect!!.width, 1.0f)
-        assertEquals(1.5f, geometry.logoRect!!.height, 1.5f)
+        assertEquals(31f, geometry.logoRect!!.height, 1.0f)
     }
 
     @Test

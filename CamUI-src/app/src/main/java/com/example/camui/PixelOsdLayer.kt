@@ -370,21 +370,27 @@ class PixelOsdRenderer(context: Context) {
             val halfHeight = normalizedSize?.y?.let { (it * height * 0.5f).roundToInt() }?.coerceIn(14, height / 3)
                 ?: 17
             val color = if (frame.faceFocused) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
-            drawCornerFrame(canvas, cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight, color, 5)
+            val stroke = afReticleStrokeWidth(layout.unitPx, pixelScale)
+            drawCornerFrame(
+                canvas, cx - halfWidth, cy - halfHeight, cx + halfWidth, cy + halfHeight,
+                color, maxOf(5, (minOf(halfWidth, halfHeight) * 0.38f).roundToInt()), stroke
+            )
             // Only display the eye marker when Camera2 or ML Kit supplied a real landmark.
             // A separate fine eye reticle is drawn at the selected primary eye only.
             frame.eyeCenter?.let { eye ->
                 val eyeX = (eye.x * width).roundToInt()
                 val eyeY = (eye.y * height).roundToInt()
                 val eyeColor = if (frame.faceFocused) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+                val eyeHalf = eyeReticleHalfSize(layout.unitPx, pixelScale)
                 drawCornerFrame(
                     canvas,
-                    eyeX - 4,
-                    eyeY - 3,
-                    eyeX + 4,
-                    eyeY + 3,
+                    eyeX - eyeHalf,
+                    eyeY - eyeHalf,
+                    eyeX + eyeHalf,
+                    eyeY + eyeHalf,
                     eyeColor,
-                    2
+                    maxOf(3, (eyeHalf * 0.55f).roundToInt()),
+                    stroke
                 )
             }
         }
@@ -398,11 +404,8 @@ class PixelOsdRenderer(context: Context) {
         ) {
             val cx = (manualAfPoint.x * width).roundToInt()
             val cy = (manualAfPoint.y * height).roundToInt()
-            val half = when (frame.centerAfScale) {
-                0 -> 7
-                2 -> 15
-                else -> 10
-            }
+            val half = centerAfReticleHalfSize(height)
+            val stroke = afReticleStrokeWidth(layout.unitPx, pixelScale)
             val color = when (frame.centerAfStatus) {
                 1 -> PixelOsdPalette.GREEN
                 -1 -> PixelOsdPalette.RED
@@ -421,12 +424,13 @@ class PixelOsdRenderer(context: Context) {
                     cx + magnifiedHalf,
                     cy + magnifiedHalf,
                     PixelOsdPalette.BLUE,
-                    7
+                    7,
+                    stroke
                 )
                 drawHLine(canvas, cx - 4, cx + 4, cy, PixelOsdPalette.WHITE, 150)
                 drawVLine(canvas, cx, cy - 4, cy + 4, PixelOsdPalette.WHITE, 150)
             } else {
-                drawCornerFrame(canvas, cx - half, cy - half, cx + half, cy + half, color, 4)
+                drawCornerFrame(canvas, cx - half, cy - half, cx + half, cy + half, color, 4, stroke)
                 if (frame.centerAfStatus == 1) drawSprite(canvas, "focus-dot", cx - 2, cy - 2)
             }
         }
@@ -793,7 +797,10 @@ class PixelOsdRenderer(context: Context) {
                         gap = 2
                     )
                 }
-                if (element.id == "pro-dr-value") {
+                if (element.id == "pro-battery-percent" && frame.batteryPercent in 0 until 20) {
+                    if (frame.batteryBlinking && !frame.batteryLowBlinkOn) return@forEach
+                    drawPixelOsdText(element, PixelOsdPalette.RED)
+                } else if (element.id == "pro-dr-value") {
                     val scale = pixelScale.coerceAtLeast(1)
                     val left = (element.bounds.left / scale).roundToInt() - 1
                     val top = (element.bounds.top / scale).roundToInt() - 1
@@ -813,6 +820,15 @@ class PixelOsdRenderer(context: Context) {
                 val right = (element.bounds.right / scale).roundToInt()
                 val bottom = (element.bounds.bottom / scale).roundToInt()
                 when (element.id) {
+                    "pro-battery" -> drawBatteryIcon(
+                        canvas,
+                        element.bounds,
+                        frame.batteryPercent,
+                        if (frame.batteryPercent in 0 until 20) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
+                        layout.unitPx,
+                        frame.batteryCharging,
+                        frame.batteryCrossed
+                    )
                     "pro-area-icon" -> {
                         drawHLine(canvas, left, right, top, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
                         drawHLine(canvas, left, right, bottom, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
@@ -869,16 +885,29 @@ class PixelOsdRenderer(context: Context) {
         right: Int,
         bottom: Int,
         color: Int,
-        length: Int
+        length: Int,
+        thickness: Int = 1
     ) {
-        drawHLine(canvas, left, left + length, top, color)
-        drawVLine(canvas, left, top, top + length, color)
-        drawHLine(canvas, right - length, right, top, color)
-        drawVLine(canvas, right, top, top + length, color)
-        drawHLine(canvas, left, left + length, bottom, color)
-        drawVLine(canvas, left, bottom - length, bottom, color)
-        drawHLine(canvas, right - length, right, bottom, color)
-        drawVLine(canvas, right, bottom - length, bottom, color)
+        val stroke = thickness.coerceAtLeast(1)
+        fun edges(offset: Int, paintColor: Int) {
+            val l = left - offset
+            val t = top - offset
+            val r = right + offset
+            val b = bottom + offset
+            for (line in 0 until stroke) {
+                drawHLine(canvas, l, l + length, t + line, paintColor)
+                drawVLine(canvas, l + line, t, t + length, paintColor)
+                drawHLine(canvas, r - length, r, t + line, paintColor)
+                drawVLine(canvas, r - line, t, t + length, paintColor)
+                drawHLine(canvas, l, l + length, b - line, paintColor)
+                drawVLine(canvas, l + line, b - length, b, paintColor)
+                drawHLine(canvas, r - length, r, b - line, paintColor)
+                drawVLine(canvas, r - line, b - length, b, paintColor)
+            }
+        }
+        // A one-logic-pixel black halo remains readable against bright scenes.
+        edges(1, 0xCC000000.toInt())
+        edges(0, color)
     }
 
     private fun drawSprite(canvas: NativeCanvas, name: String, left: Int, top: Int) {

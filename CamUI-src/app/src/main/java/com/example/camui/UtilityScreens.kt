@@ -2872,7 +2872,6 @@ fun applyCameraWatermark(
         useTrueFocalLength = preferences.getBoolean("watermark_use_true_focal", false),
         customCameraName = customName,
         saveMode = preferences.getString("watermark_save_mode", "watermarked") ?: "watermarked",
-        storyNineSixteen = preferences.getBoolean("watermark_story_916", false)
     )
     val metadata = WatermarkPhotoMetadata(
         cameraName = cameraName,

@@ -6907,16 +6907,8 @@ fun CameraScreen(
                                                 assessment = assessment
                                             )
                                             zoomSel = plan.effectiveZoomRatio
-                zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
-                                                                                        digitalZoomCropScale.floatValue = plan.digitalCropRatio
+                                            zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
                                             zoomInteractionGeneration++
-                                            camera?.let { active ->
-                                                runCatching {
-                                                    active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
-                                                }.onFailure {
-                                                    android.util.Log.w("FUJI_PRO_FL", "Zoom request clamped to camera range", it)
-                                                }
-                                            }
                                             appPrefs.edit().putFloat("camera_zoom_ratio", plan.effectiveZoomRatio).apply()
                                         },
                                         onBack = { proSel = null },
@@ -6929,11 +6921,8 @@ fun CameraScreen(
                                                 assessment = assessment
                                             )
                                             zoomSel = plan.effectiveZoomRatio
-                zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
-                                                                                        digitalZoomCropScale.floatValue = plan.digitalCropRatio
-                                            camera?.let { active ->
-                                                runCatching { active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio) }
-                                            }
+                                            zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
+                                            zoomInteractionGeneration++
                                             appPrefs.edit().putFloat("camera_zoom_ratio", plan.effectiveZoomRatio).apply()
                                         }
                                     )

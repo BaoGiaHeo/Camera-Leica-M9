@@ -7332,12 +7332,15 @@ fun CameraScreen(
                 onToolbox = { showQuick = false; onOpenToolbox() },
                 onWatermarkPanel = { showQuick = false; onOpenWatermarkPanel() },
                 watermarkEnabled = appPrefs.getBoolean("watermark_enabled", true),
-                watermarkLayoutLabel = when (appPrefs.getString("watermark_template", "classic_bar")) {
-                    "caption" -> "CAPTION"
-                    "card" -> "CARD"
-                    "gallery" -> "GALLERY"
-                    "black" -> "BLACK"
-                    else -> "BAR"
+                watermarkLayoutLabel = when (WatermarkLayoutType.fromPreference(appPrefs.getString("watermark_template", "bar"))) {
+                    WatermarkLayoutType.BAR -> stringResource(R.string.watermark_layout_bar)
+                    WatermarkLayoutType.CAPTION -> stringResource(R.string.watermark_layout_caption)
+                    WatermarkLayoutType.GALLERY -> stringResource(R.string.watermark_layout_gallery)
+                    WatermarkLayoutType.BLACK -> stringResource(R.string.watermark_layout_black)
+                    WatermarkLayoutType.DOT_LIGHT -> stringResource(R.string.watermark_layout_dot_light)
+                    WatermarkLayoutType.DOT_DARK -> stringResource(R.string.watermark_layout_dot_dark)
+                    WatermarkLayoutType.SPLIT -> stringResource(R.string.watermark_layout_split)
+                    WatermarkLayoutType.PALETTE -> stringResource(R.string.watermark_layout_palette)
                 },
                 onContentManagement = { showQuick = false; onOpenContentManagement() },
                 onSettings = { showQuick = false; onOpenSettings() },

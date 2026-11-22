@@ -91,9 +91,11 @@ internal data class ScreenProfile(
             val widthDp = bounds.width() / density
             val heightDp = bounds.height() / density
             val aspect = classifyAspect(widthDp, heightDp)
+            // This camera UI is locked to landscape: use available window width
+            // rather than the short side, which incorrectly classified phones as COMPACT.
             val sizeClass = when {
-                minOf(widthDp, heightDp) < 600f -> ScreenWindowSizeClass.COMPACT
-                minOf(widthDp, heightDp) < 840f -> ScreenWindowSizeClass.MEDIUM
+                widthDp < 600f -> ScreenWindowSizeClass.COMPACT
+                widthDp < 840f -> ScreenWindowSizeClass.MEDIUM
                 else -> ScreenWindowSizeClass.EXPANDED
             }
             val rootView = activity.window.decorView

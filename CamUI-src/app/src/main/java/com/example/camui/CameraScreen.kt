@@ -624,29 +624,44 @@ fun CameraScreen(
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
             .getBoolean("viewfinder_level_enabled", false))
     }
-    var horizonRollDegrees by remember { mutableFloatStateOf(0f) }
-    DisposableEffect(sensorManager, levelSensor, levelEnabled) {
-        if (sensorManager == null || levelSensor == null || !levelEnabled) {
+    val horizonEstimator = remember(levelSensor) { HorizonLevelEstimator() }
+    var horizonReading by remember { mutableStateOf(HorizonLevelReading.HIDDEN) }
+    DisposableEffect(sensorManager, levelSensor, horizonEstimator) {
+        if (sensorManager == null || levelSensor == null) {
             onDispose { }
         } else {
             val rotationMatrix = FloatArray(9)
-            val orientationAngles = FloatArray(3)
+            val gravity = FloatArray(3)
             val listener = object : SensorEventListener {
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
                 override fun onSensorChanged(event: SensorEvent?) {
                     val values = event ?: return
-                    val rollDegrees = if (values.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
+                    if (values.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
                         SensorManager.getRotationMatrixFromVector(rotationMatrix, values.values)
-                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
-                        Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
+                        // R maps device axes into world axes; R transpose times world gravity
+                        // produces a unit gravity vector in device coordinates.
+                        gravity[0] = rotationMatrix[6]
+                        gravity[1] = rotationMatrix[7]
+                        gravity[2] = rotationMatrix[8]
                     } else {
-                        Math.toDegrees(kotlin.math.atan2(
-                            values.values[0].toDouble(),
-                            values.values[1].toDouble()
-                        )).toFloat()
+                        gravity[0] = values.values.getOrElse(0) { 0f }
+                        gravity[1] = values.values.getOrElse(1) { 0f }
+                        gravity[2] = values.values.getOrElse(2) { 0f }
                     }
-                    horizonRollDegrees = ((rollDegrees + 180f) % 360f) - 180f
+                    val reading = horizonEstimator.update(
+                        gravityDeviceX = gravity[0],
+                        gravityDeviceY = gravity[1],
+                        gravityDeviceZ = gravity[2],
+                        displayRotation = localView.display?.rotation ?: 1,
+                        timestampNanos = values.timestamp
+                    )
+                    horizonReading = reading
+                    android.util.Log.v(
+                        "FUJI_LEVEL",
+                        "visible=${reading.visible} error=${"%.2f".format(Locale.US, reading.errorDegrees)} " +
+                            "aligned=${reading.aligned} gz=${"%.3f".format(Locale.US, reading.gravityZRatio)}"
+                    )
                 }
             }
             sensorManager.registerListener(listener, levelSensor, SensorManager.SENSOR_DELAY_UI)
@@ -5744,13 +5759,15 @@ fun CameraScreen(
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()
                                         else -> emptyList()
                                     },
-                                    showLevel = when (lcdDisplayMode) {
+                                    showLevel = horizonReading.visible && when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
                                         CameraLcdDisplayMode.LEVEL_GRID -> true
                                         CameraLcdDisplayMode.STANDARD -> levelEnabled
                                         CameraLcdDisplayMode.CLEAN -> false
                                     },
-                                    horizonRollDegrees = horizonRollDegrees,
+                                    horizonRollDegrees = horizonReading.indicatorAngleDegrees,
+                                    horizonErrorDegrees = horizonReading.errorDegrees,
+                                    horizonLevelAligned = horizonReading.aligned,
                                     showZebra = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO -> true
                                         CameraLcdDisplayMode.STANDARD -> zebraEnabled

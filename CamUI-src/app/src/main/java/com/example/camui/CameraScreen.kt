@@ -4880,10 +4880,6 @@ fun CameraScreen(
                                         "LunaDream 2.0 · fallback LunaDream 1.5 · reason: " + (lunaDreamFailureReason ?: "unknown")
                                     captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · ghép " + lunaDreamCapturedFrameCount + "/5 khung"
                                     captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG gốc + JPEG ghép " + lunaDreamCapturedFrameCount + "/8 khung bằng LunaDream 2.0"
-                                    captureUseLunaDream30 && lunaDreamApplied -> "LunaDream 3.0 · ghép đa khung và phục hồi vi chi tiết"
-                                    captureUseLunaDream25 && lunaDreamApplied -> "LunaDream 2.5 · ghép đa khung và phục hồi chi tiết thích ứng"
-                                    captureUseLunaDream30 && lunaDreamApplied -> "LunaDream 3.0 · ghép đa khung và phục hồi vi chi tiết"
-                                    captureUseLunaDream25 && lunaDreamApplied -> "LunaDream 2.5 · ghép đa khung và phục hồi chi tiết thích ứng"
                                     captureUseLunaDream30 && lunaDreamApplied -> "LunaDream 3.0 · ghép 8 khung và phục hồi vi chi tiết"
                                     captureUseLunaDream25 && lunaDreamApplied -> "LunaDream 2.5 · ghép 8 khung và phục hồi chi tiết thích ứng"
                                     captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép 8 khung và phục hồi chi tiết"
@@ -5010,7 +5006,9 @@ fun CameraScreen(
                                     val lunaDreamStatusSuffix = when {
                                         captureUseLunaDream15 && lunaDreamApplied -> " LunaDream 1.5 đã ghép " + lunaDreamCapturedFrameCount + " khung hình."
                                         captureUseRawDream20 && lunaDreamApplied -> " RawDream 2.0 giữ DNG cảm biến gốc và ghép " + lunaDreamCapturedFrameCount + " JPEG bằng thuật toán LunaDream 2.0."
-                                        captureUseLunaDream20 && lunaDreamApplied -> " LunaDream 2.0 đã ghép và phục hồi chi tiết đa khung."
+                                        captureUseLunaDream30 && lunaDreamApplied -> " LunaDream 3.0 đã ghép 8 khung và phục hồi vi chi tiết."
+                                        captureUseLunaDream25 && lunaDreamApplied -> " LunaDream 2.5 đã ghép 8 khung và phục hồi chi tiết thích ứng."
+                                        captureUseLunaDream20 && lunaDreamApplied -> " LunaDream 2.0 đã ghép 8 khung và phục hồi chi tiết đa khung."
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""
                                     }

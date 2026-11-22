@@ -3271,8 +3271,18 @@ fun CameraScreen(
             val frames = mutableListOf<File>()
             var outputUri: Uri? = null
             var stoppedForStorage = false
+            var stoppedForBattery = false
             try {
                 while (!starTrailStopRequested) {
+                    if (batteryPercent <= 5 && !batteryCharging) {
+                        stoppedForBattery = true
+                        starTrailStopRequested = true
+                        android.util.Log.w(
+                            "FUJI_BATTERY_SAFETY",
+                            "STAR_TRAILS_AUTO_STOP level=$batteryPercent frames=${frames.size}; preserving partial stack"
+                        )
+                        break
+                    }
                     // Keep recording until the second shutter press. Stop early only to protect
                     // the device from filling its cache partition during a very long session.
                     if (context.cacheDir.usableSpace < 256L * 1024L * 1024L) {
@@ -3301,6 +3311,13 @@ fun CameraScreen(
                     localizedToast(
                         context,
                         "Star Trails tự dừng để bảo vệ bộ nhớ tạm. Đang ghép các khung đã ghi.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                if (stoppedForBattery) {
+                    localizedToast(
+                        context,
+                        "Pin xuống 5% hoặc thấp hơn. Star Trails đã tự dừng và sẽ ghép các khung đã ghi.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -4040,6 +4057,7 @@ fun CameraScreen(
                                             // The device's actual sensor/ISP throughput remains authoritative.
                                             var consecutiveCaptureFailures = 0
                                             var stoppedForStorage = false
+                                            var stoppedForBattery = false
                                             var stopSubmitting = false
                                             var nextFrameNumber = stackedFrames.size + 1
                                             val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, Boolean>>>()
@@ -4053,10 +4071,24 @@ fun CameraScreen(
                                             }
 
                                             while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
+                                                if (captureUseNightShot && batteryPercent <= 5 && !batteryCharging) {
+                                                    stoppedForBattery = true
+                                                    stopSubmitting = true
+                                                    android.util.Log.w(
+                                                        "FUJI_BATTERY_SAFETY",
+                                                        "NIGHTSHOT_AUTO_STOP level=$batteryPercent " +
+                                                            "validFrames=${stackedFrames.size} pending=${pendingCaptures.size}"
+                                                    )
+                                                }
                                                 while (!stopSubmitting &&
                                                     pendingCaptures.size < maxInFlightCaptures &&
                                                     stackedFrames.size + pendingCaptures.size < maxFrames
                                                 ) {
+                                                    if (captureUseNightShot && batteryPercent <= 5 && !batteryCharging) {
+                                                        stoppedForBattery = true
+                                                        stopSubmitting = true
+                                                        break
+                                                    }
                                                     if ((captureUseNightShot || captureUseMilkyWayStack) &&
                                                         context.cacheDir.usableSpace < 256L * 1024L * 1024L
                                                     ) {
@@ -4149,6 +4181,19 @@ fun CameraScreen(
                                             if (stoppedForStorage) {
                                                 android.util.Log.w("FUJI_NIGHTSHOT", "Stopped early to protect free cache storage; processing " + stackedFrames.size + " frames")
                                             }
+                                            if (stoppedForBattery) {
+                                                android.util.Log.w(
+                                                    "FUJI_NIGHTSHOT",
+                                                    "Stopped at critical battery; processing partial stack " + stackedFrames.size
+                                                )
+                                                withContext(Dispatchers.Main) {
+                                                    localizedToast(
+                                                        context,
+                                                        "Pin xuống 5% hoặc thấp hơn. NightShot đã dừng và lưu các khung hiện có.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
                                             if (captureUseNightShot && stackedFrames.size < maxFrames) {
                                                 android.util.Log.w(
                                                     "FUJI_NIGHTSHOT",
@@ -4160,6 +4205,7 @@ fun CameraScreen(
                                             // enough to complete a valid multi-frame result when the
                                             // camera HAL rejects a late request. 2.0 keeps its prior rule.
                                             val minimumFramesRequired = when {
+                                                captureUseNightShot && stoppedForBattery -> minOf(2, maxFrames)
                                                 captureUseNightShot -> maxFrames
                                                 captureUseLunaDream15 -> 3
                                                 else -> 2

@@ -7517,7 +7517,7 @@ private fun FilterLookDialog(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
-    val dialogMaxHeight = (configuration.screenHeightDp * if (isLandscape) 0.94f else 0.84f).dp
+    val dialogMaxHeight = (configuration.screenHeightDp * if (isLandscape) 0.86f else 0.84f).dp
     val previewHeight = if (isLandscape) 112.dp else 150.dp
     val scope = rememberCoroutineScope()
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
@@ -7604,23 +7604,16 @@ private fun FilterLookDialog(
                 maxDimension = 480,
             )
             Text(
-                if (showingOriginal) "ẢNH GỐC · THẢ ĐỂ XEM LỌC" else "GIỮ ĐỂ XEM ẢNH GỐC",
+                if (showingOriginal) stringResource(R.string.filter_preview_show_original)
+                else stringResource(R.string.filter_preview_hold_original),
                 color = Color.White,
+                fontFamily = FujiTypography.uiFont,
                 fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopStart)
-                    .background(Color(0xBB050708)).padding(horizontal = 7.dp, vertical = 5.dp)
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.BottomStart)
+                    .background(Color(0xA6050708)).padding(horizontal = 7.dp, vertical = 5.dp)
             )
-            if (activeFilter != "None") {
-                Text(
-                    activeFilterName,
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.BottomStart)
-                        .background(Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 5.dp)
-                )
-            }
         }
     }
     val searchPane: @Composable (Modifier) -> Unit = { paneModifier ->
@@ -7633,7 +7626,8 @@ private fun FilterLookDialog(
     }
     val categoryPane: @Composable (Modifier) -> Unit = { paneModifier ->
         Row(
-            paneModifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 7.dp, bottom = 8.dp),
+            paneModifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                .padding(start = 2.dp, end = 16.dp, top = 7.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             lookCategories.forEach { category ->
@@ -7661,7 +7655,7 @@ private fun FilterLookDialog(
                                 .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
                                 .animaTClickable { onSelectFilter(preset) }.padding(6.dp)
                         ) {
-                            Box(Modifier.fillMaxWidth().height(76.dp).clip(RoundedCornerShape(2.dp))
+                            Box(Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(2.dp))
                                 .background(Color(0xFF070909))
                                 .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
                                 Row(
@@ -7703,11 +7697,16 @@ private fun FilterLookDialog(
                                 maxLines = 1,
                                 modifier = Modifier.padding(top = 5.dp)
                             )
+                            val groupId = allLookEntries.firstOrNull { it.second == preset }?.first
+                            val group = lookCategories.firstOrNull { it.id == groupId }
+                            val groupLabel = group?.labelResource?.let { stringResource(it) }
+                                ?: group?.customLabel.orEmpty()
                             Text(
-                                "FUJIFILM LOOK",
+                                groupLabel,
                                 color = FujiSkin.lcdGreen,
-                                fontSize = 6.sp,
-                                letterSpacing = 0.75.sp,
+                                fontFamily = FujiTypography.uiFont,
+                                fontSize = 7.sp,
+                                maxLines = 1,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
@@ -7721,8 +7720,8 @@ private fun FilterLookDialog(
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         FujiPanel(
             title = stringResource(R.string.film_filters_title),
-            modifier = Modifier.fillMaxWidth(0.97f)
-                .then(if (isLandscape) Modifier.fillMaxHeight(0.94f) else Modifier.heightIn(max = dialogMaxHeight)),
+            modifier = Modifier.fillMaxWidth(if (isLandscape) 0.94f else 0.97f)
+                .then(if (isLandscape) Modifier.fillMaxHeight(0.86f) else Modifier.heightIn(max = dialogMaxHeight)),
             onBack = onDismiss
         ) {
             if (isLandscape) {
@@ -7731,7 +7730,7 @@ private fun FilterLookDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Column(
-                        Modifier.weight(0.88f).fillMaxHeight(),
+                        Modifier.weight(0.5625f).fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Column(
@@ -7753,7 +7752,7 @@ private fun FilterLookDialog(
                         }
                     }
                     Column(
-                        Modifier.weight(1.12f).fillMaxHeight(),
+                        Modifier.weight(1f).fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         searchPane(Modifier)
@@ -7761,7 +7760,7 @@ private fun FilterLookDialog(
                         Text(
                             stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
                             color = FujiSkin.lcdGreen,
-                            fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
+                            fontFamily = FujiTypography.uiFont,
                             fontSize = 9.sp
                         )
                         presetGrid(Modifier.weight(1f).fillMaxWidth())

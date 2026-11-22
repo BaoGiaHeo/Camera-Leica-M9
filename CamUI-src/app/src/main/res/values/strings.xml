@@ -209,4 +209,11 @@
     <string name="camera_no_signal">NO SIGNAL</string>
     <string name="camera_no_signal_permission">Grant Camera permission to start the viewfinder. Tap to request permission.</string>
     <string name="capture_low_battery_blocked">Battery is 5%% or lower. NightShot, LunaDream 2.0 and long exposures are unavailable until the device is charged.</string>
+    <string name="wb_preset_auto">AUTO</string>
+    <string name="wb_preset_daylight">DAYLIGHT</string>
+    <string name="wb_preset_cloudy">CLOUDY</string>
+    <string name="wb_preset_shade">SHADE</string>
+    <string name="wb_preset_tungsten">TUNGSTEN</string>
+    <string name="wb_preset_fluorescent">FLUORESCENT</string>
+    <string name="wb_auto">Automatic white balance</string>
 </resources>

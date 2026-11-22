@@ -18,14 +18,14 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/** HDMP algorithmic resampling; output pixel count is capped at the requested target. */
+/** LunaDream algorithmic resampling; output pixel count is capped at the requested target. */
 object PhotoOutputResolution {
- private const val TAG = "FUJI_HDMP_RESAMPLE"
+ private const val TAG = "FUJI_LunaDream_RESAMPLE"
  fun interpolateToMp(context: Context, uri: Uri, targetPixels: Long): Boolean {
   require(targetPixels in 10_000_000L..250_000_000L) { "Unsupported output pixel target" }
   val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
-  val temp = File(context.cacheDir, "fuji-hdmp-$stamp.jpg")
-  val backup = File(context.cacheDir, "fuji-hdmp-original-$stamp.jpg")
+  val temp = File(context.cacheDir, "fuji-lunaDream-$stamp.jpg")
+  val backup = File(context.cacheDir, "fuji-lunaDream-original-$stamp.jpg")
   var source: Bitmap? = null
   var output: Bitmap? = null
   var replacing = false
@@ -88,7 +88,7 @@ object PhotoOutputResolution {
      backup.inputStream().use { it.copyTo(dest) }
     } ?: error("Rollback failed")
    }.onFailure { Log.e(TAG, "Original restore failed", it) }
-   Log.e(TAG, "HDMP interpolation skipped; keep source", failure)
+   Log.e(TAG, "LunaDream interpolation skipped; keep source", failure)
    false
   } finally {
    source?.let { if (!it.isRecycled) it.recycle() }

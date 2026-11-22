@@ -267,8 +267,8 @@ internal object PixelOsdLayoutEngine {
         val evTop = heightPx * 0.19f
         val evBottom = heightPx * 0.81f
         val evStep = frame.evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
-        val minStops = (frame.evMinimumIndex * evStep).coerceAtLeast(-3f)
-        val maxStops = (frame.evMaximumIndex * evStep).coerceAtMost(3f)
+        val minStops = (frame.evMinimumIndex * evStep).coerceAtLeast(-5f)
+        val maxStops = (frame.evMaximumIndex * evStep).coerceAtMost(5f)
         val span = (maxStops - minStops).coerceAtLeast(1f / 3f)
         val labels = ArrayList<Pair<String, Float>>()
         var tick = kotlin.math.ceil(minStops * 3f).toInt()

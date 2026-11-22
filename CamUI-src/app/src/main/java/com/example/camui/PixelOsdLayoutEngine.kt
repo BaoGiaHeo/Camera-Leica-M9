@@ -207,16 +207,6 @@ internal object PixelOsdLayoutEngine {
                     t3
                 )
             }
-            if (frame.driveCountdown > 0) {
-                val countdownText = frame.driveCountdown.coerceAtMost(99).toString()
-                val countdownCapHeight = t1 * 4
-                addText(
-                    "drive-countdown", "status", countdownText,
-                    (widthPx - measureTextWidthPx(countdownText, countdownCapHeight)) / 2f,
-                    (heightPx - countdownCapHeight) / 2f,
-                    countdownCapHeight
-                )
-            }
             val wbLabel = frame.whiteBalanceText.ifBlank { "AUTO" }.take(8)
             val batteryLabel = if (!frame.isPro) {
                 frame.batteryPercent.takeIf { it in 0..100 }?.let { "$it%" }.orEmpty()
@@ -249,6 +239,18 @@ internal object PixelOsdLayoutEngine {
                 x += batteryWidth + labelValueGap
                 addText("battery-percent", "status", batteryLabel, x, top, t1)
             }
+        }
+
+        // The timer overlay is independent of CLEAN mode's hidden status HUD.
+        if (frame.driveCountdown > 0) {
+            val countdownText = frame.driveCountdown.coerceAtMost(99).toString()
+            val countdownCapHeight = t1 * 4
+            addText(
+                "drive-countdown", "status", countdownText,
+                (widthPx - measureTextWidthPx(countdownText, countdownCapHeight)) / 2f,
+                (heightPx - countdownCapHeight) / 2f,
+                countdownCapHeight
+            )
         }
 
         if (frame.isPro && frame.showStatus) {

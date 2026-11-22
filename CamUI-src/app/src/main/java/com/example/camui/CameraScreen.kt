@@ -2230,7 +2230,23 @@ fun CameraScreen(
                         "minFrameDurationNs=$previewMinFrameDurationNs ranges=$advertisedPreviewFpsRanges " +
                         "supported=$supportedFpsModes requested=$requestedFpsMode"
                 )
-                val fpsSelection = selectPreviewFpsRange(requestedFpsMode, advertisedPreviewFpsRanges)
+                val effectiveFpsMode = when {
+                    requestedFpsMode.equals("AUTO", ignoreCase = true) -> "AUTO"
+                    requestedFpsMode in supportedFpsModes -> requestedFpsMode
+                    else -> {
+                        val requestedValue = requestedFpsMode.toIntOrNull() ?: 60
+                        val fixedOptions = supportedFpsModes
+                            .filter { it != "AUTO" }
+                            .mapNotNull { it.toIntOrNull() }
+                            .sorted()
+                        (fixedOptions.filter { it <= requestedValue }.lastOrNull()
+                            ?: fixedOptions.lastOrNull())?.toString() ?: "AUTO"
+                    }
+                }
+                val fpsSelection = selectPreviewFpsRange(effectiveFpsMode, advertisedPreviewFpsRanges)
+                appPrefs.edit()
+                    .putString("preview_fps_effective", effectiveFpsMode)
+                    .apply()
                 fpsSelection.range?.let { selectedRange ->
                     Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
                         CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,

@@ -4,7 +4,7 @@ import android.app.Activity
 import android.graphics.Rect
 import android.os.Build
 import android.util.DisplayMetrics
-import android.view.WindowInsets
+import android.view.RoundedCorner
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +55,7 @@ internal data class ScreenProfile(
     val roundedCornerRadiiPx: List<Int>,
     val foldingFeatureBounds: Rect? = null,
     val foldingFeatureSeparating: Boolean = false,
-    val foldingFeatureOrientation: Int? = null
+    val foldingFeatureOrientation: String? = null
 ) {
     fun layoutFor(widthDp: Float = this.widthDp, heightDp: Float = this.heightDp): ScreenLayoutMetrics {
         val safeWidth = widthDp.takeIf { it.isFinite() && it > 0f } ?: this.widthDp
@@ -71,7 +71,7 @@ internal data class ScreenProfile(
     fun diagnosticLine(): String =
         "window=${windowWidthPx}x${windowHeightPx}px/${widthDp}x${heightDp}dp " +
             "densityDpi=$densityDpi density=$density fontScale=$fontScale aspect=$aspectClass " +
-            "sizeClass=$windowSizeClass refreshRate=$refreshRateHzHz " +
+            "sizeClass=$windowSizeClass refreshRate=${refreshRateHz}Hz " +
             "systemBars=$systemBarInsets cutout=$cutoutInsets gestures=$mandatoryGestureInsets " +
             "tappable=$tappableElementInsets rounded=$roundedCornerRadiiPx " +
             "fold=${foldingFeatureBounds ?: "none"} separating=$foldingFeatureSeparating"
@@ -110,10 +110,10 @@ internal data class ScreenProfile(
             val cutoutRects = insets?.displayCutout?.boundingRects?.map(::Rect).orEmpty()
             val rounded = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && nativeInsets != null) {
                 listOf(
-                    WindowInsets.ROUND_CORNER_POSITION_TOP_LEFT,
-                    WindowInsets.ROUND_CORNER_POSITION_TOP_RIGHT,
-                    WindowInsets.ROUND_CORNER_POSITION_BOTTOM_RIGHT,
-                    WindowInsets.ROUND_CORNER_POSITION_BOTTOM_LEFT
+                    RoundedCorner.POSITION_TOP_LEFT,
+                    RoundedCorner.POSITION_TOP_RIGHT,
+                    RoundedCorner.POSITION_BOTTOM_RIGHT,
+                    RoundedCorner.POSITION_BOTTOM_LEFT
                 ).map { position -> nativeInsets.getRoundedCorner(position)?.radius ?: 0 }
             } else emptyList()
             val refreshRate = runCatching {
@@ -192,7 +192,7 @@ internal fun rememberScreenProfile(): ScreenProfile {
                     profile = latest.copy(
                         foldingFeatureBounds = feature?.bounds?.let(::Rect),
                         foldingFeatureSeparating = feature?.isSeparating == true,
-                        foldingFeatureOrientation = feature?.orientation
+                        foldingFeatureOrientation = feature?.orientation?.name
                     )
                     android.util.Log.i("FUJI_SCREEN_PROFILE", "FOLDING ${profile?.diagnosticLine()}")
                 }

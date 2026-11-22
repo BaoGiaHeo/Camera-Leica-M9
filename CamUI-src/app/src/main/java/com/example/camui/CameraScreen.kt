@@ -5820,7 +5820,7 @@ fun CameraScreen(
                                         CameraLcdDisplayMode.STANDARD -> levelEnabled
                                         CameraLcdDisplayMode.CLEAN -> false
                                     },
-                                    horizonRollDegrees = horizonReading.indicatorAngleDegrees,
+                                    horizonReading.errorDegrees = horizonReading.indicatorAngleDegrees,
                                     horizonErrorDegrees = horizonReading.errorDegrees,
                                     horizonLevelAligned = horizonReading.aligned,
                                     showZebra = when (lcdDisplayMode) {
@@ -6197,8 +6197,8 @@ fun CameraScreen(
                                 val hasError = listOf("fail", "lỗi", "không thể", "incomplete")
                                     .any(labelLower::contains)
                                 val stability = when {
-                                    kotlin.math.abs(horizonRollDegrees) <= 0.5f -> 3
-                                    kotlin.math.abs(horizonRollDegrees) <= 1.5f -> 2
+                                    kotlin.math.abs(horizonReading.errorDegrees) <= 0.5f -> 3
+                                    kotlin.math.abs(horizonReading.errorDegrees) <= 1.5f -> 2
                                     else -> 1
                                 }
                                 FujiMultiFrameProgressPill(

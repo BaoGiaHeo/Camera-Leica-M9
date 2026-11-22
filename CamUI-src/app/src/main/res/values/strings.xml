@@ -233,4 +233,14 @@
     <string name="sound_pcm_note">Camera feedback is synthesized as 44.1 kHz mono PCM16 with a -3 dBFS peak. Actual latency depends on device audio scheduling.</string>
 
     <string name="preview_fps_none">No supported preview frame rates were reported by the rear camera.</string>
+    <string name="mf_mode_ld25">LD 2.5</string>
+    <string name="mf_mode_ld30">LD 3.0</string>
+    <string name="lunadream_15_title">LunaDream 1.5</string>
+    <string name="lunadream_15_subtitle">50 MP target · 5-frame fusion · speed-oriented</string>
+    <string name="lunadream_20_title">LunaDream 2.0</string>
+    <string name="lunadream_20_subtitle">150 MP target · 8-frame Lucas–Kanade fusion</string>
+    <string name="lunadream_25_title">LunaDream 2.5</string>
+    <string name="lunadream_25_subtitle">150 MP target · 8-frame fusion · adaptive detail finish</string>
+    <string name="lunadream_30_title">LunaDream 3.0</string>
+    <string name="lunadream_30_subtitle">200 MP target · 8-frame fusion · stronger bounded micro-detail</string>
 </resources>

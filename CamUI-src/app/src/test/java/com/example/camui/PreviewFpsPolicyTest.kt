@@ -44,6 +44,14 @@ class PreviewFpsPolicyTest {
     }
 
     @Test
+    fun firstInstallDefaultUsesHighestActuallySupportedRate() {
+        assertEquals("60", defaultPreviewFpsMode(listOf(PreviewFpsRange(15, 60))))
+        assertEquals("30", defaultPreviewFpsMode(listOf(PreviewFpsRange(15, 30))))
+        assertEquals("24", defaultPreviewFpsMode(listOf(PreviewFpsRange(24, 24))))
+        assertEquals("AUTO", defaultPreviewFpsMode(emptyList()))
+    }
+
+    @Test
     fun settingsOnlyExposeFpsValuesContainedInAdvertisedRanges() {
         assertEquals(
             linkedSetOf("60", "30", "24", "AUTO"),

@@ -62,7 +62,7 @@ private val settingItems = listOf(
     SettingItem("tab_01", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
     SettingItem("tab_02", "Focus & Lens", "Camera ID · Lens · Sensor information"),
     SettingItem("tab_03", "Capture & Quality", "Aspect ratio · Image quality · Save location"),
-    SettingItem("tab_04", "Photo Mode Setting", "HDR · Noise reduction · RAW"),
+    SettingItem("tab_04", "Photo Mode Setting", "HDR · RAW"),
     SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),
@@ -97,13 +97,6 @@ fun SettingsScreen(
             item
         }
     }
-    val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
-        localizedSettingItems + SettingItem(
-            "tab_11",
-            stringResource(R.string.pixel_osd_preview_tab),
-            stringResource(R.string.pixel_osd_preview_description)
-        )
-    } else localizedSettingItems
     FujiScreenScaffold(
         title = "SETTINGS · MENU", modifier = Modifier.fillMaxSize(),
         onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
@@ -121,7 +114,7 @@ fun SettingsScreen(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                visibleSettingItems.forEachIndexed { index, item ->
+                localizedSettingItems.forEachIndexed { index, item ->
                     FujiChip(
                         "%02d · %s".format(index + 1, item.title),
                         selectedCategory == item.title,
@@ -188,7 +181,6 @@ private fun SettingsDetailPage(
         )
     }
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
-    var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
     var rawCaptureMode by remember {
         mutableStateOf(
             when (prefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") {
@@ -199,14 +191,9 @@ private fun SettingsDetailPage(
         )
     }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
-    var keepPreviewFps by remember {
-        mutableStateOf(prefs.getBoolean("preview_fps_keep", false))
-    }
     var previewFpsMode by remember {
         mutableStateOf(
-            if (keepPreviewFps) {
-                prefs.getString("preview_fps_mode", "60")?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
-            } else "60"
+            prefs.getString("preview_fps_mode", "60")?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
         )
     }
     var iconRotationEnabled by remember {
@@ -262,9 +249,6 @@ var nightShotMode by remember {
                 .padding(horizontal = if (isLandscape) 22.dp else 12.dp, vertical = 10.dp)
         ) {
         when (title) {
-            stringResource(R.string.pixel_osd_preview_tab) -> {
-                PixelOsdPreview()
-            }
             "Assistive Tools" -> {
                 Text("Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
@@ -758,18 +742,6 @@ var nightShotMode by remember {
                         )
                     }
                 }
-                SettingsSwitch(
-                    stringResource(R.string.preview_fps_keep),
-                    stringResource(R.string.preview_fps_description),
-                    keepPreviewFps
-                ) { enabled ->
-                    keepPreviewFps = enabled
-                    prefs.edit().putBoolean("preview_fps_keep", enabled).apply()
-                    if (!enabled) {
-                        previewFpsMode = "60"
-                        prefs.edit().putString("preview_fps_mode", "60").apply()
-                    }
-                }
                 Spacer(Modifier.padding(5.dp))
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
@@ -799,22 +771,6 @@ var nightShotMode by remember {
                             rawCaptureMode = value
                             prefs.edit().putString("raw_capture_mode", value).apply()
                         }, Modifier.width(92.dp))
-                    }
-                }
-                Spacer(Modifier.padding(5.dp))
-                Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2); không có xử lý AI sau chụp. Ultra HDR giữ nguyên dữ liệu JPEG_R.",
-                    color = CamColors.Sub, fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
-                )
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("Off", "Low", "Medium", "High").forEach { option ->
-                        FujiChip(option, noiseReduction == option, {
-                            noiseReduction = option
-                            prefs.edit().putString("noise_reduction", option).apply()
-                        }, Modifier.width(75.dp))
                     }
                 }
             }

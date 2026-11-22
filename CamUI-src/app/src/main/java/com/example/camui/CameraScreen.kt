@@ -5108,7 +5108,7 @@ fun CameraScreen(
                                             }
                                             // Tapping elsewhere replaces the previous AF/AE lock.
                                             invalidatePendingFocusLock(active)
-                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 3_000L
+                                            manualAfOverrideUntilMs = manualAfOverrideDeadline(SystemClock.elapsedRealtime())
                                             android.util.Log.d(
                                                 "FUJI_AF_OSD",
                                                 "manualTapOverride=true faceBoxPresent=${faceTrackCenter != null} " +
@@ -5316,7 +5316,7 @@ fun CameraScreen(
                                             centerAfPoint = tapPoint
                                             preferredFaceCenter = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
                                             centerAfStatus = 0
-                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 3_000L
+                                            manualAfOverrideUntilMs = manualAfOverrideDeadline(SystemClock.elapsedRealtime())
 
                                             val cameraPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
                                             val pointSize = CameraAfAreaSize.fromPreference(

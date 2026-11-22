@@ -26,6 +26,17 @@ class PixelOsdStatusTest {
     }
 
     @Test
+    fun lowBatteryStatesMatchTheSpecifiedThresholds() {
+        assertEquals(false, isPixelBatteryBlinking(10))
+        assertEquals(true, isPixelBatteryBlinking(9))
+        assertEquals(true, isPixelBatteryBlinking(1))
+        assertEquals(true, isPixelBatteryCritical(5))
+        assertEquals(false, isPixelBatteryCritical(6))
+        assertEquals(true, isPixelBatteryLowWarning(1))
+        assertEquals(false, isPixelBatteryLowWarning(2))
+    }
+
+    @Test
     fun evAccentTransitionsFromNeutralWhiteToAmber() {
         assertEquals(0xFFF2F2F2.toInt(), pixelEvAccentColor(0f, 1f / 3f))
         assertEquals(0xFFFFB300.toInt(), pixelEvAccentColor(3f, 1f / 3f))

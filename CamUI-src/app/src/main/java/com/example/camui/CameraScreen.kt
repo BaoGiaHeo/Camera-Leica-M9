@@ -833,9 +833,14 @@ fun CameraScreen(
     }
     var previewFpsTarget by remember { mutableFloatStateOf(60f) }
     LaunchedEffect(Unit) {
-        if (!appPrefs.getBoolean("preview_fps_keep", false)) {
-            appPrefs.edit().putString("preview_fps_mode", "60").apply()
-            previewFpsMode = "60"
+        val supportedModes = discoverSupportedPreviewFpsModes(context)
+        val defaultMode = highestSupportedPreviewFpsMode(supportedModes)
+        val keepSelection = appPrefs.getBoolean("preview_fps_keep", false)
+        val stored = appPrefs.getString("preview_fps_mode", defaultMode)
+        val selected = if (keepSelection && stored in supportedModes) stored ?: defaultMode else defaultMode
+        previewFpsMode = selected
+        if (!keepSelection || stored !in supportedModes) {
+            appPrefs.edit().putString("preview_fps_mode", selected).apply()
         }
     }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }

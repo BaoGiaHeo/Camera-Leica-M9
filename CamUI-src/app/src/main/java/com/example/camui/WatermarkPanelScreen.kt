@@ -2,9 +2,6 @@ package com.example.camui
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -412,30 +409,5 @@ private fun WatermarkLayoutType.watermarkLayoutString(): Int = when (this) {
 }
 
 private suspend fun loadWatermarkPreviewPhoto(context: Context): Bitmap = withContext(Dispatchers.IO) {
-    // A deterministic clean source is used intentionally: never re-read the latest
-    // gallery JPEG, which may already contain a watermark and would render twice.
-    val bitmap = Bitmap.createBitmap(960, 640, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    paint.shader = android.graphics.LinearGradient(
-        0f, 0f, 960f, 640f,
-        intArrayOf(
-            Color.rgb(39, 78, 111),
-            Color.rgb(139, 151, 145),
-            Color.rgb(226, 194, 145)
-        ),
-        null,
-        android.graphics.Shader.TileMode.CLAMP
-    )
-    canvas.drawRect(0f, 0f, 960f, 640f, paint)
-    paint.shader = null
-    paint.color = Color.rgb(36, 57, 54)
-    canvas.drawOval(590f, 110f, 925f, 520f, paint)
-    paint.color = Color.rgb(57, 79, 66)
-    canvas.drawOval(385f, 230f, 800f, 665f, paint)
-    paint.color = Color.rgb(205, 179, 137)
-    canvas.drawRect(0f, 475f, 960f, 640f, paint)
-    paint.color = Color.rgb(231, 213, 178)
-    canvas.drawRect(72f, 410f, 438f, 438f, paint)
-    bitmap
+    WatermarkPreviewSample.create()
 }

@@ -158,7 +158,7 @@ internal object ProcessingModeController {
         val active = state.activePrimaryMode()
         if (active == ProcessingPrimaryMode.NONE || active == target) return false
         if (target == ProcessingPrimaryMode.NONE) return false
-        // LunaDream 1.5 and 2.0 are alternatives within the same exclusive group.
+        // LunaDream 1.5, 2.0, 2.5 and 3.0 are mutually exclusive variants.
         return active != target
     }
 

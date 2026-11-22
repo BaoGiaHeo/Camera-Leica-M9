@@ -43,6 +43,7 @@ import android.view.HapticFeedbackConstants
 import android.view.OrientationEventListener
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.camera2.interop.Camera2CameraControl
@@ -5748,6 +5749,9 @@ fun CameraScreen(
                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
                                     showPixelTexture = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
+                                    gridMode = appPrefs.getString("grid_overlay_mode", if (showGrid) "3x3" else "off") ?: if (showGrid) "3x3" else "off",
+                                    gridColor = appPrefs.getString("grid_overlay_color", "auto") ?: "auto",
+                                    gridOpacity = appPrefs.getInt("grid_overlay_opacity", 50),
                                     showGrid = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
                                         CameraLcdDisplayMode.LEVEL_GRID -> true
@@ -5853,10 +5857,14 @@ fun CameraScreen(
                                     ),
                                     whiteBalanceText = toneText,
                                     filmSimulationText = activeFilter.takeIf { it != "None" }?.take(2)?.uppercase(Locale.US) ?: "",
+                                    outputSizeLabel = if (lunaDreamMode == "luna20" || lunaDreamMode == "luna15") "L" else "M",
+                                    whiteBalanceKelvinText = if (manualColorTempEnabled) "${manualColorTemp}K" else "----K",
+                                    touchAfEnabled = touchAfEnabled,
                                     manualExposure = manualExposure,
                                     manualWhiteBalance = manualColorTempEnabled,
                                     manualIso = manualIsoEnabled,
                                     manualShutter = manualShutterEnabled,
+                                    adjustmentPanelVisible = proSel != null && mode == "Pro",
                                     selectedControl = when (proSel?.uppercase(Locale.US)) {
                                          "TV" -> "TV"
                                          "TONE" -> "WB"
@@ -6998,7 +7006,7 @@ fun CameraScreen(
                             Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
                         }
                 ) {
-                    toolbarContent(Modifier.fillMaxSize(), topPlateHeight)
+                    toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)), topPlateHeight)
                     if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.13f)))
                 }
                 Row(

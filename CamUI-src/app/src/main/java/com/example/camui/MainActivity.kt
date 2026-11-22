@@ -68,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         AppLanguageManager.refreshSystemLanguage(this)
+        android.util.Log.i("FUJI_SCREEN_PROFILE", ScreenProfile.read(this).diagnosticLine())
         hideStatusBar()
     }
 
@@ -195,6 +196,7 @@ class MainActivity : AppCompatActivity() {
             frameMetricsDiagnostics = CameraFrameMetricsDiagnostics.attach(window)
         }
         LegacyColorAdjustmentCleanup.migrateOnce(this)
+        android.util.Log.i("FUJI_SCREEN_PROFILE", ScreenProfile.read(this).diagnosticLine())
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         val showInitialActivation = shouldShowFirstActivation(settingsPrefs)
         AppLanguageManager.initialize(this)

@@ -34,6 +34,7 @@ android {
         }
         create("developer") {
             initWith(getByName("debug"))
+            applicationIdSuffix = ""
             versionNameSuffix = ""
             buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "true")
         }

@@ -485,6 +485,63 @@ class PixelOsdRenderer(context: Context) {
         fillPaint.alpha = 255
     }
 
+    private fun drawGrid(canvas: NativeCanvas, frame: PixelOsdFrame) {
+        val mode = frame.gridMode.lowercase()
+        if (mode == "off") return
+        val width = logicWidth
+        val height = logicHeight
+        val white = PixelOsdPalette.WHITE
+        val black = android.graphics.Color.BLACK
+        val sampledMean = frame.histogram.takeIf { it.isNotEmpty() }?.let { bins ->
+            val total = bins.sum().coerceAtLeast(1)
+            bins.mapIndexed { index, value -> index.toFloat() * value.coerceAtLeast(0) }
+                .sum() / total.toFloat()
+        } ?: 127f
+        val color = when (frame.gridColor.lowercase()) {
+            "black" -> black
+            "white" -> white
+            else -> if (sampledMean >= 31.5f) black else white
+        }
+        val inverse = if (color == white) black else white
+        val alpha = (frame.gridOpacity.coerceIn(30, 70) * 2.55f).roundToInt()
+        fun h(y: Int) {
+            val row = y.coerceIn(0, height - 1)
+            drawHLine(canvas, 0, width - 1, row - 1, inverse, 90)
+            drawHLine(canvas, 0, width - 1, row, color, alpha)
+        }
+        fun v(x: Int) {
+            val col = x.coerceIn(0, width - 1)
+            drawVLine(canvas, col - 1, 0, height - 1, inverse, 90)
+            drawVLine(canvas, col, 0, height - 1, color, alpha)
+        }
+        when (mode) {
+            "3x3", "thirds" -> {
+                h(height / 3); h(height * 2 / 3)
+                v(width / 3); v(width * 2 / 3)
+            }
+            "4x4" -> {
+                for (index in 1..3) { h(height * index / 4); v(width * index / 4) }
+            }
+            "diagonal", "3x3-diagonal" -> {
+                h(height / 3); h(height * 2 / 3)
+                v(width / 3); v(width * 2 / 3)
+                drawLine(canvas, 0, 0, width - 1, height - 1, color)
+                drawLine(canvas, width - 1, 0, 0, height - 1, color)
+            }
+            "golden", "golden-ratio" -> {
+                h((height * 0.382f).roundToInt()); h((height * 0.618f).roundToInt())
+                v((width * 0.382f).roundToInt()); v((width * 0.618f).roundToInt())
+            }
+            "crosshair", "center" -> { h(height / 2); v(width / 2) }
+            "square", "1:1" -> {
+                val side = minOf(width, height)
+                val left = (width - side) / 2
+                val top = (height - side) / 2
+                h(top); h(top + side - 1); v(left); v(left + side - 1)
+            }
+        }
+    }
+
     private fun drawDashedBorderRect(
         canvas: NativeCanvas,
         left: Int,
@@ -518,7 +575,14 @@ class PixelOsdRenderer(context: Context) {
                 PixelOsdElementKind.TEXT -> {
                     val color = when {
                         element.id == "battery-percent" && lowBattery -> PixelOsdPalette.RED
-                        element.id == "status-af" && frame.focusLocked -> PixelOsdPalette.GREEN
+                        element.id == "status-focus" && frame.manualFocusMode -> PixelOsdPalette.AMBER
+                        element.id == "status-focus" && frame.centerAfStatus == 1 -> PixelOsdPalette.GREEN
+                        element.id == "status-focus" && frame.centerAfStatus == -1 -> PixelOsdPalette.RED
+                        element.id == "status-wb" && frame.manualWhiteBalance -> PixelOsdPalette.BLUE
+                        element.id == "pro-area" && frame.touchAfEnabled -> PixelOsdPalette.BLUE
+                        element.id == "pro-kelvin" && frame.manualWhiteBalance -> PixelOsdPalette.BLUE
+                        element.id == "pro-lock" -> PixelOsdPalette.AMBER
+                        element.id == "pro-dr-value" && frame.dynamicRangeText.contains("400", ignoreCase = true) -> PixelOsdPalette.AMBER
                         element.id == "status-fps" && frame.previewFps != null &&
                             frame.previewFpsTarget != null && frame.previewFps < frame.previewFpsTarget * 0.5f ->
                             PixelOsdPalette.RED
@@ -526,6 +590,24 @@ class PixelOsdRenderer(context: Context) {
                             frame.previewFpsTarget != null && frame.previewFps < frame.previewFpsTarget * 0.9f ->
                             PixelOsdPalette.AMBER
                         else -> PixelOsdPalette.WHITE
+                    }
+                    if (element.id == "status-focus") {
+                        val scale = pixelScale.coerceAtLeast(1)
+                        val left = (element.bounds.left / scale).roundToInt() - 2
+                        val top = (element.bounds.top / scale).roundToInt() - 2
+                        val right = (element.bounds.right / scale).roundToInt() + 1
+                        val bottom = (element.bounds.bottom / scale).roundToInt() + 1
+                        drawDashedBorderRect(canvas, left, top, right, bottom, color)
+                    }
+                    if (element.id == "status-size") {
+                        val scale = pixelScale.coerceAtLeast(1)
+                        val left = (element.bounds.left / scale).roundToInt() - 1
+                        val top = (element.bounds.top / scale).roundToInt() - 1
+                        val right = (element.bounds.right / scale).roundToInt() + 1
+                        val bottom = (element.bounds.bottom / scale).roundToInt() + 1
+                        fillPaint.color = PixelOsdPalette.WHITE
+                        fillPaint.alpha = 255
+                        canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), fillPaint)
                     }
                     if (element.id == "status-resolution") {
                         val scale = pixelScale.coerceAtLeast(1)
@@ -536,7 +618,10 @@ class PixelOsdRenderer(context: Context) {
                         drawDashedBorderRect(canvas, left, top, right, bottom, PixelOsdPalette.WHITE)
                     }
                     if (element.id == "battery-percent" && !batteryBlinkVisible) return@forEach
-                    drawPixelOsdText(element, color)
+                    drawPixelOsdText(
+                        element,
+                        if (element.id == "status-size") android.graphics.Color.BLACK else color
+                    )
                 }
                 PixelOsdElementKind.ICON -> {
                     if (element.id == "battery") {

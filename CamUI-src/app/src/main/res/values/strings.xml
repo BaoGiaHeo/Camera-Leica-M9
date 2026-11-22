@@ -185,7 +185,6 @@
     <string name="activation_storage_description">Photos and videos are saved in Pictures/FujifilmMode. Android manages media access; battery use depends on camera resolution, frame rate and processing mode.</string>
     <string name="activation_storage_continue">Tap this panel or wait 2.5 seconds to continue.</string>
     <string name="activation_step_publisher">PUBLISHER</string>
-    <string name="activation_publisher">@baoaka06 on TikTok</string>
     <string name="activation_publisher_note">Thank you for using FujiFilm Mode.</string>
     <string name="activation_back">BACK</string>
     <string name="activation_continue">CONTINUE</string>
@@ -199,4 +198,11 @@
     <string name="preview_fps_auto">AUTO</string>
     <string name="preview_fps_keep_title">Keep preview FPS between launches</string>
     <string name="preview_fps_keep_description">When off, preview FPS returns to 60 FPS whenever the app is opened.</string>
+    <string name="activation_storage_used">Used %1$s</string>
+    <string name="activation_storage_free">Free %1$s</string>
+    <string name="activation_storage_total">Total %1$s</string>
+    <string name="activation_battery_level">Battery %1$d%%</string>
+    <string name="activation_warning_storage">LOW STORAGE</string>
+    <string name="activation_warning_battery">LOW BATTERY</string>
+    <string name="activation_publisher">@baoaka06 on TikTok</string>
 </resources>

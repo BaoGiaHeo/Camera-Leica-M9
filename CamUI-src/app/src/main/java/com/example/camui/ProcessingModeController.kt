@@ -14,6 +14,8 @@ internal enum class ProcessingPrimaryMode {
 internal enum class ProcessingModeLockReason {
     LUNA_DREAM_15,
     LUNA_DREAM_20,
+    LUNA_DREAM_25,
+    LUNA_DREAM_30,
     NIGHT_SHOT,
     HDR_TONE_MAPPING,
     NATIVE_PROCESSING

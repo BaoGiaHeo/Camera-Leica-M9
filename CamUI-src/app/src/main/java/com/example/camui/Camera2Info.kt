@@ -232,15 +232,15 @@ object Camera2Info {
 
     /**
      * Generates quick zoom stops from the active logical camera's exposed physical lenses.
-     * Ratios are derived from 35mm-equivalent focal lengths, then constrained by CameraX's
-     * actual zoom range. The 2x quick stop is retained only when the device supports it.
+     * Ratios are derived from 35mm-equivalent focal lengths and constrained by the
+     * caller's optical/API maximum. A telephoto stop must not be truncated at 2x.
      */
     fun opticalZoomStops(
         logical: CamDetails?,
         physical: List<CamDetails>,
         minZoom: Float,
         maxZoom: Float,
-        quickMaxZoom: Float = 2f
+        quickMaxZoom: Float = maxZoom
     ): List<Float> {
         val min = minZoom.takeIf { it.isFinite() && it > 0f } ?: 1f
         val max = minOf(

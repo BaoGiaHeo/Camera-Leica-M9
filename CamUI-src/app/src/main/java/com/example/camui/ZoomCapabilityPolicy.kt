@@ -3,6 +3,7 @@ package com.example.camui
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.hypot
+import kotlin.math.floor
 
 internal data class EquivalentFocalRange35Mm(
     val shortest: Float?,
@@ -48,10 +49,7 @@ internal data class ZoomExecutionPlan(
 internal fun maxTotalSelectableZoom(
     cameraReportedMaximum: Float,
     assessment: OpticalZoomAssessment
-): Float {
-    val reported = cameraReportedMaximum.takeIf { it.isFinite() && it >= 1f } ?: 1f
-    return if (assessment.hasOpticalTelephoto) 100f else minOf(2f, reported.coerceAtLeast(2f))
-}
+): Float = selectableCameraZoomMax(cameraReportedMaximum, assessment)
 
 /**
  * Splits the requested total ratio into CameraX-controlled zoom and an additional
@@ -64,16 +62,17 @@ internal fun resolveZoomExecutionPlan(
     assessment: OpticalZoomAssessment
 ): ZoomExecutionPlan {
     val minimum = minimumCameraRatio.takeIf { it.isFinite() && it > 0f } ?: 1f
-    val cameraMaximum = selectableCameraZoomMax(cameraReportedMaximum, assessment)
-        .coerceAtLeast(minimum)
     val totalMaximum = maxTotalSelectableZoom(cameraReportedMaximum, assessment)
         .coerceAtLeast(minimum)
     val requested = requestedZoomRatio
         .takeIf { it.isFinite() && it > 0f }
         ?.coerceIn(minimum, totalMaximum)
         ?: minimum
-    val cameraRatio = requested.coerceAtMost(cameraMaximum).coerceAtLeast(minimum)
-    val digitalCrop = (requested / cameraRatio).coerceAtLeast(1f)
+    // Never request a camera ratio outside its public HAL range and never add a
+    // digital crop segment beyond the disclosed optical zoom maximum.
+    val cameraRatio = requested.coerceAtMost(totalMaximum).coerceAtLeast(minimum)
+    val cameraMaximum = totalMaximum
+    val digitalCrop = 1f
     return ZoomExecutionPlan(
         effectiveZoomRatio = requested,
         cameraControlZoomRatio = cameraRatio,
@@ -115,8 +114,15 @@ internal fun selectableCameraZoomMax(
     assessment: OpticalZoomAssessment
 ): Float {
     val reported = cameraReportedMax.takeIf { it.isFinite() && it >= 1f } ?: 1f
-    val productLimit = if (assessment.hasOpticalTelephoto) 50f else 2f
-    return minOf(reported, productLimit).coerceAtLeast(1f)
+    val opticalMaximum = if (assessment.hasOpticalTelephoto) {
+        val ratio = assessment.opticalRatio
+            ?.takeIf { it.isFinite() && it >= 1f }
+            ?: 1f
+        floor(ratio * 10f) / 10f
+    } else {
+        2f
+    }
+    return minOf(reported, opticalMaximum).coerceAtLeast(1f)
 }
 
 internal fun logarithmicZoomPosition(

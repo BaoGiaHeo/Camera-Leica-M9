@@ -3,8 +3,7 @@
     <string name="app_name">FujiFilm Mode</string>
     <string name="language_screen_title">Ngôn ngữ</string>
     <string name="language_select_description">Chọn ngôn ngữ hiển thị. Thay đổi được áp dụng ngay.</string>
-    <string name="language_system">SYSTEM</string>
-    <string name="language_english">ENGLISH</string>
+<string name="language_english">ENGLISH</string>
     <string name="language_vietnamese">TIẾNG VIỆT</string>
     <string name="pixel_osd_preview_tab">XEM THỬ OSD</string>
     <string name="pixel_osd_preview_description">Kính ngắm Pro / Photo giả lập</string>

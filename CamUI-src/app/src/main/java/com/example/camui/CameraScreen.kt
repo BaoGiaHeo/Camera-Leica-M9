@@ -4124,6 +4124,28 @@ fun CameraScreen(
                 mode == "Photo" && rawCaptureMode == "raw_dream"
             val lunaDreamSelected = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Photo" && (lunaDreamMode != "off" || captureUseRawDream20)
+            val captureUseLunaDream25 = lunaDreamSelected && lunaDreamMode == "luna25"
+            val captureUseLunaDream30 = lunaDreamSelected && lunaDreamMode == "luna30"
+            if (captureUseLunaDream25 || captureUseLunaDream30) {
+                val tier = if (captureUseLunaDream25) LunaDreamTier.LUNA_2_5 else LunaDreamTier.LUNA_3_0
+                val survey = activeCameraSensorSurvey
+                val spec = requireNotNull(LunaDreamModelPolicy.spec(tier))
+                LunaDreamDiagnostics.record(
+                    context,
+                    "CAPTURE_BLOCKED_ENGINE_NOT_VALIDATED",
+                    "tier=$tier; target=${spec.targetPixels}; frames=${spec.minimumFrames}..${spec.maximumFrames}; " +
+                        "cameraId=${survey?.cameraId ?: "unknown"}; strategy=${survey?.strategy() ?: "unknown"}; " +
+                        "sensorPixels=${survey?.normalPixelCount ?: 0}; maxPixels=${survey?.maximumPixelCount ?: 0}; " +
+                        "reason=multi-frame SR/tiled encoder path has not passed benchmark and output readback"
+                )
+                val message = if (captureUseLunaDream25) {
+                    context.getString(R.string.lunadream_25_not_ready)
+                } else {
+                    context.getString(R.string.lunadream_30_not_ready)
+                }
+                localizedToast(context, message, Toast.LENGTH_LONG).show()
+                return@launch
+            }
             val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
@@ -4154,7 +4176,10 @@ fun CameraScreen(
                         captureUseRawDream20 -> "RawDream 2.0"
                         captureUseLunaDream15 -> "LunaDream 1.5"
                         else -> "LunaDream 2.0"
-                    }) + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
+                    }) + "; zoom=${zoomSel}; rawMode=${rawCaptureMode}; ultraHdr=${captureIsUltraHdr}; " +
+                        "sensorStrategy=${activeCameraSensorSurvey?.strategy() ?: "unknown"}; " +
+                        "sensorPixels=${activeCameraSensorSurvey?.normalPixelCount ?: 0}; " +
+                        "maxPixels=${activeCameraSensorSurvey?.maximumPixelCount ?: 0}"
                 )
             }
             val captureUseNightShot = !nativeImageProcessingEnabled && !livePhotoEnabled &&

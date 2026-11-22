@@ -39,6 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -213,8 +215,17 @@ class MainActivity : AppCompatActivity() {
             // Explicitly expose the hosting Activity's registry to every nested ComposeView.
             // This prevents rememberLauncherForActivityResult from seeing a null owner when
             // the camera screen is hosted through an embedded ComposeView composition.
+            val selectedLanguage = AppLanguageManager.currentLanguage
+            val localizedContext = remember(selectedLanguage) {
+                AppLanguageManager.localizedContext(this@MainActivity, selectedLanguage)
+            }
+            val localizedConfiguration = remember(selectedLanguage) {
+                Configuration(localizedContext.resources.configuration)
+            }
             CompositionLocalProvider(
-                LocalActivityResultRegistryOwner provides this@MainActivity
+                LocalActivityResultRegistryOwner provides this@MainActivity,
+                LocalContext provides localizedContext,
+                LocalConfiguration provides localizedConfiguration
             ) {
             CamTheme {
                 var page by remember { mutableStateOf(if (showInitialActivation) "activation" else "camera") }

@@ -209,10 +209,9 @@ object Camera2Info {
     }
 
     /**
-     * Returns the maximum zoom CameraX can actually accept. Devices without a
-     * disclosed telephoto are hard-capped at 2x; telephoto devices are capped
-     * at 50x and additionally constrained by the active CameraX zoom range.
-     * Digital zoom beyond this value requires a separate crop pipeline.
+     * Returns the active CameraX/Camera2 upper bound. The final user-selectable
+     * maximum is also capped by the physical 35mm-equivalent optical lens ratio;
+     * devices without a disclosed telephoto are limited to 2x.
      */
     fun cameraReportedZoomMax(logical: CamDetails?, cameraXMaxZoom: Float): Float {
         val cameraXMaximum = cameraXMaxZoom.takeIf { it.isFinite() && it >= 1f } ?: 1f

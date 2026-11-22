@@ -18,22 +18,29 @@ class HorizonLevelPolicyTest {
         )
     }
 
+    private fun errorAt(thetaDegrees: Float, rotation: Int = 0): Float {
+        val gravity = gravityAt(thetaDegrees)
+        return HorizonLevelPolicy.errorDegrees(
+            gravity[0], gravity[1], gravity[2], rotation
+        ) ?: error("Expected a visible level for ${thetaDegrees} degrees")
+    }
+
     @Test
     fun reportsErrorFromNearestNinetyDegreeAxis() {
         assertEquals(0f, HorizonLevelPolicy.errorDegrees(0f, 9.80665f, 0f, 0)!!, 0.001f)
-        assertEquals(0.4f, HorizonLevelPolicy.errorDegrees(*gravityAt(0.4f), displayRotation = 0)!!, 0.01f)
-        assertEquals(4.7f, HorizonLevelPolicy.errorDegrees(*gravityAt(4.7f), displayRotation = 0)!!, 0.01f)
-        assertEquals(20f, HorizonLevelPolicy.errorDegrees(*gravityAt(20f), displayRotation = 0)!!, 0.01f)
-        assertEquals(44.9f, HorizonLevelPolicy.errorDegrees(*gravityAt(44.9f), displayRotation = 0)!!, 0.02f)
-        assertEquals(-44f, HorizonLevelPolicy.errorDegrees(*gravityAt(46f), displayRotation = 0)!!, 0.02f)
+        assertEquals(0.4f, errorAt(0.4f), 0.01f)
+        assertEquals(4.7f, errorAt(4.7f), 0.01f)
+        assertEquals(20f, errorAt(20f), 0.01f)
+        assertEquals(44.9f, errorAt(44.9f), 0.02f)
+        assertEquals(-44f, errorAt(46f), 0.02f)
     }
 
     @Test
     fun remapsAllDisplayOrientationsWithoutChangingErrorMagnitude() {
-        val original = HorizonLevelPolicy.errorDegrees(*gravityAt(12f), displayRotation = 0)!!
-        val rotated90 = HorizonLevelPolicy.errorDegrees(*gravityAt(12f), displayRotation = 1)!!
-        val rotated180 = HorizonLevelPolicy.errorDegrees(*gravityAt(12f), displayRotation = 2)!!
-        val rotated270 = HorizonLevelPolicy.errorDegrees(*gravityAt(12f), displayRotation = 3)!!
+        val original = errorAt(12f)
+        val rotated90 = errorAt(12f, 1)
+        val rotated180 = errorAt(12f, 2)
+        val rotated270 = errorAt(12f, 3)
         assertEquals(original, rotated90, 0.02f)
         assertEquals(original, rotated180, 0.02f)
         assertEquals(original, rotated270, 0.02f)

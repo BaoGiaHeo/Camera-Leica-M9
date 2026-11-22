@@ -5187,7 +5187,6 @@ fun CameraScreen(
                 }, onLongClick = {
                     if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
                 })
-                FujiTopKey(label = "FILM", icon = "film", selected = filterDialogVisible || activeFilter != "None", onClick = { filterDialogVisible = true })
                 FujiTopKey(label = "ADJ", icon = "sliders", selected = false, onClick = onOpenToolbox)
                 FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
                 FujiTopKey(label = "AF", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
@@ -6876,11 +6875,6 @@ fun CameraScreen(
                     })
             }
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
-            FujiKey(
-                "DISP · ${stringResource(lcdDisplayMode.labelResource)}",
-                onClick = { cycleDispDisplayMode() },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
-            )
         }
     }
 
@@ -7009,6 +7003,8 @@ fun CameraScreen(
                 onMetering = { metering = (metering + 1) % meteringModes.size },
                 renderEngine = renderEngine,
                 onRenderEngine = { renderEngine = if (renderEngine == "Performance") "Compatible" else "Performance" },
+                displayModeLabel = stringResource(lcdDisplayMode.labelResource),
+                onDisplayMode = { cycleDispDisplayMode() },
                 livePhotoEnabled = livePhotoEnabled,
                 onLivePhotoChanged = { enabled ->
                     livePhotoEnabled = enabled

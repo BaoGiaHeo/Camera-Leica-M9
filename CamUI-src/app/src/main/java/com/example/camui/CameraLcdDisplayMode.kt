@@ -9,8 +9,10 @@ enum class CameraLcdDisplayMode(val labelResource: Int) {
     fun showsProHud(isProMode: Boolean): Boolean =
         isProMode && this != CLEAN && this != LEVEL_GRID
 
-    fun next(): CameraLcdDisplayMode {
-        val modes = entries
-        return modes[(ordinal + 1) % modes.size]
+    fun next(): CameraLcdDisplayMode = when (this) {
+        STANDARD -> CLEAN
+        CLEAN -> LEVEL_GRID
+        LEVEL_GRID -> STANDARD
+        FULL_INFO -> STANDARD
     }
 }

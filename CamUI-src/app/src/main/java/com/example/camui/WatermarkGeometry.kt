@@ -3,20 +3,20 @@ package com.example.camui
 import kotlin.math.roundToInt
 
 internal enum class WatermarkLayoutType(val id: String) {
-    BAR("A"), CAPTION("B"), GALLERY("C"), BLACK("D"),
-    DOT_LIGHT("E"), DOT_DARK("F"), SPLIT("G"), PALETTE("H");
+    BAR("A"), CAPTION("B"), GALLERY("D"), BLACK("E"),
+    DOT_LIGHT("F"), DOT_DARK("G"), SPLIT("H"), PALETTE("I");
 
     companion object {
         fun fromPreference(value: String?): WatermarkLayoutType = when (value?.lowercase()) {
             "caption", "b" -> CAPTION
             // Migration: the retired CARD layout now opens the closest supported
             // light footer design without discarding the user's watermark choice.
-            "card", "c", "dot", "dot_light", "dot-light", "e" -> DOT_LIGHT
+            "card", "c", "dot", "dot_light", "dot-light", "f" -> DOT_LIGHT
             "gallery", "d" -> GALLERY
-            "black", "d2" -> BLACK
-            "dot_dark", "dot-dark", "f" -> DOT_DARK
-            "split", "g" -> SPLIT
-            "palette", "h" -> PALETTE
+            "black", "e" -> BLACK
+            "dot_dark", "dot-dark", "g" -> DOT_DARK
+            "split", "h" -> SPLIT
+            "palette", "i" -> PALETTE
             else -> BAR
         }
 

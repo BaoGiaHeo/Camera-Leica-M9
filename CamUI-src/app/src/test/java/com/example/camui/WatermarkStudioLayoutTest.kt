@@ -23,9 +23,9 @@ class WatermarkStudioLayoutTest {
     }
 
     @Test
-    fun dateStampAndLcdOdsAreTheOnlyNamedLegacyFontLayouts() {
-        val deliberateOdsFontLayout = "lcd_osd"
-        assertTrue(watermarkStudioLayouts.any { it.first == deliberateOdsFontLayout })
+    fun allWatermarkStylesUseTheSharedSairaFooterFontContract() {
+        assertTrue(watermarkStudioLayouts.none { it.first == "lcd_osd" })
         assertTrue(watermarkStudioLayouts.none { it.first == "classic_bar_kk7" })
+        assertTrue(watermarkStudioLayouts.none { it.first.contains("card", ignoreCase = true) })
     }
 }

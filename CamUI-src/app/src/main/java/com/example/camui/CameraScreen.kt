@@ -5401,13 +5401,13 @@ fun CameraScreen(
                                                 val focusSuccess = runCatching {
                                                     future.get().isFocusSuccessful
                                                 }.getOrDefault(false)
-                                                val aeLockApplied = if (focusSuccess && maxAeRegions > 0) {
+                                                val aeLockApplied = if (focusSuccess) {
                                                     applyCameraAeLock(active, locked = true)
                                                 } else {
                                                     false
                                                 }
-                                                focusLocked = focusSuccess &&
-                                                    (maxAeRegions <= 0 || aeLockApplied)
+                                                // AF-L is shown only after both focus and the actual AE lock succeed.
+                                                focusLocked = focusSuccess && aeLockApplied
                                                 centerAfStatus = if (focusSuccess) 1 else -1
                                                 android.util.Log.i(
                                                     "FUJI_AF",

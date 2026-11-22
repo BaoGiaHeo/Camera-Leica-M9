@@ -18,6 +18,8 @@
     <string name="zoom_direction_out">OUT</string>
     <string name="film_filters_title">FILM FILTERS</string>
     <string name="filter_preview_original">Preview · Original photo</string>
+    <string name="filter_preview_hold_original">HOLD FOR ORIGINAL</string>
+    <string name="filter_preview_show_original">ORIGINAL · RELEASE TO FILTER</string>
     <string name="filter_preview_name">Preview · %1$s</string>
     <string name="filter_search_placeholder">Search filters...</string>
     <string name="filter_count">%1$d / %2$d FILTERS</string>

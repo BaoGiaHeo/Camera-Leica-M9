@@ -190,6 +190,12 @@
     <string name="activation_storage_warning">BỘ NHỚ TRỐNG DƯỚI 1 GB</string>
     <string name="activation_battery_warning">PIN DƯỚI 20%</string>
     <string name="battery_processing_blocked">Pin còn 5% hoặc thấp hơn. Hãy sạc trước khi dùng NightShot hoặc LunaDream 2.0.</string>
+    <string name="processing_lock_luna15">Không dùng cùng LunaDream 1.5.</string>
+    <string name="processing_lock_luna20">Không dùng cùng LunaDream 2.0.</string>
+    <string name="processing_lock_night">Không dùng cùng NightShot.</string>
+    <string name="processing_lock_hdr">Không dùng cùng HDR Tone Mapping.</string>
+    <string name="processing_lock_native">Không dùng cùng xử lý ảnh gốc thiết bị.</string>
+    <string name="processing_lock_live_photo">Live Photo không dùng được với chế độ xử lý này.</string>
     <string name="preview_fps_title">FPS XEM TRƯỚC</string>
     <string name="preview_fps_description">Chọn dải tốc độ khung hình xem trước. HUD hiển thị FPS đo từ camera.</string>
     <string name="icon_rotation_title">XOAY BIỂU TƯỢNG</string>

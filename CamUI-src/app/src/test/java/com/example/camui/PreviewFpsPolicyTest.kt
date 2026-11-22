@@ -76,6 +76,17 @@ class PreviewFpsPolicyTest {
     }
 
     @Test
+    fun targetInsideVariableAeRangeUsesThatRangeAndRequestedTarget() {
+        val selection = selectPreviewFpsRange(
+            "30",
+            listOf(PreviewFpsRange(24, 60))
+        )
+        assertEquals(PreviewFpsRange(24, 60), selection.range)
+        assertEquals(30, selection.targetFps)
+        assertFalse(selection.fellBack)
+    }
+
+    @Test
     fun fixedModeFallsBackToHighestAdvertisedRateNotAboveTarget() {
         val selection = selectPreviewFpsRange(
             "60",

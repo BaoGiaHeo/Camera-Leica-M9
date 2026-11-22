@@ -923,7 +923,7 @@ fun CameraScreen(
     var manualIsoEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_iso_enabled", false)) }
     var manualShutterEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_shutter_enabled", false)) }
     var manualColorTempEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_wb_enabled", false)) }
-    var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2000, 10000)) }
+    var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2500, 10000)) }
     var whiteBalancePresetId by remember {
         mutableStateOf(appPrefs.getString("pro_manual_wb_preset", "auto") ?: "auto")
     }
@@ -1282,7 +1282,7 @@ fun CameraScreen(
         mode, front, flash, timerSec, ultraHdr, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
-        manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
+        manualColorTemp, whiteBalancePresetId, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
         milkyWayStackEnabled
     ) {
         appPrefs.edit()
@@ -1302,6 +1302,7 @@ fun CameraScreen(
             .putBoolean("pro_manual_shutter_enabled", manualShutterEnabled)
             .putBoolean("pro_manual_wb_enabled", manualColorTempEnabled)
             .putInt("pro_manual_wb_kelvin", manualColorTemp)
+            .putString("pro_manual_wb_preset", whiteBalancePresetId)
             .putInt("pro_manual_iso", manualIso)
             .putLong("pro_manual_shutter_ns", manualShutterNs)
             .putFloat("pro_manual_focus", manualFocus)

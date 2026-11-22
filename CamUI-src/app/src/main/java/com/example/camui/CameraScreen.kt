@@ -1112,6 +1112,8 @@ fun CameraScreen(
     }
     // EV is a command value. Do not overwrite it with delayed per-frame Camera2 results.
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
+    val evIndexState = rememberUpdatedState(evIndex)
+    var evLastCommandAtMs by remember { mutableLongStateOf(0L) }
     val evDisplayIndex by animateFloatAsState(
         targetValue = evIndex.toFloat(),
         animationSpec = spring(dampingRatio = 0.82f, stiffness = if (performanceMode) 720f else 520f),
@@ -1326,8 +1328,10 @@ fun CameraScreen(
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
-        milkyWayStackEnabled
+        milkyWayStackEnabled, activeCameraDetails?.id
     ) {
+        evLastCommandAtMs = SystemClock.elapsedRealtime()
+        val evCameraPreferenceKey = activeCameraDetails?.id ?: if (front) "front" else "back"
         appPrefs.edit()
             .putString("camera_mode", mode)
             .putBoolean("camera_front_facing", front)
@@ -1351,6 +1355,7 @@ fun CameraScreen(
             .putBoolean("milky_way_stack_enabled", milkyWayStackEnabled)
             .putString("pro_selected_control", proSel)
             .putInt("pro_ev_index", evIndex)
+            .putInt("pro_ev_index_${evCameraPreferenceKey}", evIndex)
             .apply()
     }
     // NightShot must use normal auto exposure: lock EV at zero and do not expose
@@ -2033,6 +2038,31 @@ fun CameraScreen(
                     else -> null
                 }
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
+                val previewCameraCharacteristics = activeFacingId?.let { id ->
+                    runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
+                }
+                val previewEvRange = previewCameraCharacteristics
+                    ?.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+                val previewEvKey = activeFacingId ?: if (front) "front" else "back"
+                val savedPreviewEv = appPrefs.getInt(
+                    "pro_ev_index_${previewEvKey}",
+                    appPrefs.getInt("pro_ev_index", 0)
+                )
+                val initialPreviewEv = if (mode == "Photo" && nightShotMode != "off") {
+                    0
+                } else {
+                    previewEvRange?.let { savedPreviewEv.coerceIn(it.lower, it.upper) } ?: 0
+                }
+                if (previewEvRange != null) {
+                    Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,
+                        initialPreviewEv
+                    )
+                }
+                android.util.Log.i(
+                    "FUJI_EV_RESTORE",
+                    "PREVIEW_REQUEST cameraId=${activeFacingId ?: "unknown"} saved=$savedPreviewEv applied=$initialPreviewEv range=$previewEvRange"
+                )
                 val advertisedPreviewFpsRanges = activeFacingId?.let { id ->
                     runCatching {
                         cameraManager.getCameraCharacteristics(id)
@@ -2078,6 +2108,7 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                 }
                 var lastAfTraceAtMs = 0L
+                var lastEvTraceAtMs = 0L
                 if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
@@ -2100,6 +2131,33 @@ fun CameraScreen(
                                             "sensorTimestampNs=" + sensorTimestampNs +
                                                 " fps=" + String.format(java.util.Locale.US, "%.2f", measuredFps)
                                         )
+                                    }
+                                }
+                            }
+                            val reportedEv = result.get(CaptureResult.CONTROL_AE_EXPOSURE_COMPENSATION)
+                            val requestedEv = evIndexState.value
+                            if (reportedEv != null) {
+                                val evNow = SystemClock.elapsedRealtime()
+                                if (evNow - lastEvTraceAtMs >= 500L) {
+                                    lastEvTraceAtMs = evNow
+                                    android.util.Log.d(
+                                        "FUJI_EV_RESTORE",
+                                        "CAPTURE_RESULT cameraId=${activeFacingId ?: "unknown"} requested=$requestedEv reported=$reportedEv"
+                                    )
+                                }
+                                if (reportedEv != requestedEv && evNow - evLastCommandAtMs >= 500L) {
+                                    scope.launch(Dispatchers.Main.immediate) {
+                                        if (evIndex == requestedEv && reportedEv != evIndex) {
+                                            evIndex = reportedEv
+                                            appPrefs.edit()
+                                                .putInt("pro_ev_index", reportedEv)
+                                                .putInt("pro_ev_index_${activeFacingId ?: if (front) "front" else "back"}", reportedEv)
+                                                .apply()
+                                            android.util.Log.w(
+                                                "FUJI_EV_RESTORE",
+                                                "UI_SYNC_TO_RESULT requested=$requestedEv actual=$reportedEv"
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -2770,7 +2828,27 @@ fun CameraScreen(
                 )
                 boundCameraRotation = rotation
                 boundCameraLandscape = isLandscape
-                evIndex = appPrefs.getInt("pro_ev_index", 0)
+                val boundEvRange = bound.cameraInfo.exposureState.exposureCompensationRange
+                val savedBoundEv = appPrefs.getInt(
+                    "pro_ev_index_${actualCameraId ?: if (front) "front" else "back"}",
+                    appPrefs.getInt("pro_ev_index", 0)
+                )
+                val restoredEv = if (mode == "Photo" && nightShotMode != "off") {
+                    0
+                } else {
+                    savedBoundEv.coerceIn(boundEvRange.lower, boundEvRange.upper)
+                }
+                evIndex = restoredEv
+                evLastCommandAtMs = SystemClock.elapsedRealtime()
+                runCatching {
+                    bound.cameraControl.setExposureCompensationIndex(restoredEv)
+                }.onFailure {
+                    android.util.Log.w("FUJI_EV_RESTORE", "Could not reapply EV=$restoredEv cameraId=$actualCameraId", it)
+                }
+                android.util.Log.i(
+                    "FUJI_EV_RESTORE",
+                    "BOUND cameraId=$actualCameraId stored=$savedBoundEv applied=$restoredEv range=$boundEvRange"
+                )
                 val zoomStateOnBind = bound.cameraInfo.zoomState.value
                 val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
                 val cameraXZoomMaximum = zoomStateOnBind?.maxZoomRatio ?: 1f

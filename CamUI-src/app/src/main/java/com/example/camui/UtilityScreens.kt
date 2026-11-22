@@ -1943,24 +1943,39 @@ private fun readBoundedLutBytes(input: InputStream, maxBytes: Int): ByteArray {
 
 private fun catalogLutCategory(path: String): String {
     val parts = path.replace('\\', '/').split('/').filter { it.isNotBlank() }
+    val normalizedParts = parts.map { it.lowercase().replace('_', ' ').replace('-', ' ').trim() }
+    val normalizedPath = normalizedParts.joinToString("/")
     val folder = parts.firstOrNull {
         it.matches(Regex("\\d{2}_[A-Za-z0-9_-]+"))
     }?.substringAfter('_')?.replace('_', ' ')
     if (folder != null) return "Canon · $folder"
-    if (path.contains("Panasonic-Standard", true)) return "RAW/Log · Panasonic adapter"
+
+    val logInput = listOf("v log", "vlog", "s log", " slog", "n log", "n log",
+        "f log", "flog", "logc", "cineon", "log").any { token ->
+        normalizedPath.contains(token)
+    }
+    if (normalizedParts.any { it in setOf("cinema", "cinema log", "log") }) {
+        return "Cinema / Log"
+    }
+    if (normalizedParts.any { it in setOf("panasonic", "lumix", "panasonic lumix") }) {
+        return "Panasonic Lumix"
+    }
+    if (normalizedParts.any { it in setOf("hald", "hald clut", "haldclut", "hald clut png") }) {
+        return "Hald CLUT"
+    }
+    if (normalizedParts.any { it == "sony" || it == "cinealta" || it == "venice" }) {
+        return if (logInput) "Cinema / Log" else "Sony"
+    }
+    if (normalizedParts.any { it == "fujifilm" || it == "fuji" }) return "Fujifilm"
+    if (normalizedParts.any { it == "leica" }) return "Leica"
+
     val brand = parts.firstOrNull {
-        it.equals("Fujifilm", true) || it.equals("Kodak", true) ||
-            it.equals("Leica", true) || it.equals("Hasselblad", true) ||
+        it.equals("Kodak", true) || it.equals("Hasselblad", true) ||
             it.equals("Nikon", true) || it.equals("Arri", true) ||
             it.equals("RED", true) || it.equals("Cineon", true)
     }
-    if (brand != null) {
-        val logInput = path.contains("V-Log", true) || path.contains("VLog", true) ||
-            path.contains("N-Log", true) || path.contains("FLog", true) ||
-            path.contains("LogC", true) || path.contains("Cineon", true)
-        return if (logInput) "RAW/Log · $brand" else brand
-    }
-    return "LUT nhập"
+    if (brand != null) return if (logInput) "Cinema / Log" else brand
+    return "Other"
 }
 
 private fun scanLutZip(

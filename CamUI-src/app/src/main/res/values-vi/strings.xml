@@ -43,6 +43,12 @@
     <string name="filter_preview_hold_original">GIỮ ĐỂ XEM ẢNH GỐC</string>
     <string name="filter_preview_show_original">ẢNH GỐC · THẢ ĐỂ XEM LỌC</string>
     <string name="filter_preview_name">Xem trước · %1$s</string>
+
+    <string name="common_on">BẬT</string>
+    <string name="common_off">TẮT</string>
+    <string name="filter_import_success">Đã nhập %1$d LUT. Vào Content Manager để thêm vào bộ lọc.</string>
+    <string name="filter_import_failure">Nhập LUT thất bại: %1$s</string>
+    <string name="filter_import_unknown_error">Không rõ lỗi</string>
     <string name="filter_search_placeholder">Tìm bộ lọc...</string>
     <string name="filter_count">%1$d / %2$d BỘ LỌC</string>
     <string name="filter_hold_original">GIỮ ĐỂ XEM ẢNH GỐC</string>

@@ -100,13 +100,22 @@ class PhotoOutputGeometryTest {
     }
 
     @Test
-    fun lunaDreamTargetsStillReachTheirRequestedMegapixelBudgets() {
+    fun lunaDreamOutputTargetsReachTheRequestedMegapixelBudgets() {
         val luna15 = PhotoOutputGeometry.calculate(4000, 3000, 50_000_000L, 4f / 3f)
-        val luna20 = PhotoOutputGeometry.calculate(4000, 3000, 108_000_000L, 4f / 3f)
+        val luna20 = PhotoOutputGeometry.calculate(4000, 3000, 150_000_000L, 4f / 3f)
+        val luna25 = PhotoOutputGeometry.calculate(4000, 3000, 150_000_000L, 4f / 3f)
+        val luna30 = PhotoOutputGeometry.calculate(4000, 3000, 200_000_000L, 4f / 3f)
+
         assertTrue(luna15.outputPixels <= 50_000_000L)
         assertTrue(luna15.outputPixels >= 49_750_000L)
-        assertTrue(luna20.outputPixels <= 108_000_000L)
-        assertTrue(luna20.outputPixels >= 107_460_000L)
+        assertTrue(luna20.outputPixels <= 150_000_000L)
+        assertTrue(luna20.outputPixels >= 149_250_000L)
+        assertTrue(luna25.outputPixels <= 150_000_000L)
+        assertTrue(luna25.outputPixels >= 149_250_000L)
+        assertTrue(luna30.outputPixels <= 200_000_000L)
+        assertTrue(luna30.outputPixels >= 199_000_000L)
+        assertEquals(luna20.outputPixels, luna25.outputPixels)
+        assertTrue(luna30.outputPixels > luna20.outputPixels)
     }
 
     @Test

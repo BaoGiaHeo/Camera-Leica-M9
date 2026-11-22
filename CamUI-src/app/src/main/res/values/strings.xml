@@ -208,4 +208,17 @@
     <string name="activation_continue">CONTINUE</string>
     <string name="activation_ok">OK</string>
     <string name="activation_reopen">VIEW ACTIVATION INTRO</string>
+    <string name="grid_overlay_title">Grid</string>
+    <string name="grid_mode_off">Off</string>
+    <string name="grid_mode_thirds">3×3</string>
+    <string name="grid_mode_four_by_four">4×4</string>
+    <string name="grid_mode_diagonal">3×3 + diagonals</string>
+    <string name="grid_mode_golden">Golden ratio</string>
+    <string name="grid_mode_crosshair">Centre cross</string>
+    <string name="grid_mode_square">1:1 square</string>
+    <string name="grid_color_title">Grid colour</string>
+    <string name="grid_color_white">White</string>
+    <string name="grid_color_black">Black</string>
+    <string name="grid_color_auto">Auto</string>
+    <string name="grid_opacity_title">Opacity</string>
 </resources>

@@ -196,9 +196,12 @@ internal object PixelOsdLayoutEngine {
                     requestedHeight = unit,
                     requestedWidth = unit
                 )
+                val driveLabel = if (isBurst && frame.driveFrameCount > 0) {
+                    "${frame.driveModeText} ${frame.driveFrameCount.coerceAtMost(99)}"
+                } else frame.driveModeText
                 addText(
                     "drive-mode", "status",
-                    frame.driveModeText.take(14),
+                    driveLabel.take(18),
                     (margin + unit + itemGap).toFloat(),
                     driveTop + (unit - t3) / 2f,
                     t3

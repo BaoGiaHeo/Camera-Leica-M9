@@ -119,7 +119,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         sourceBitmap = loadWatermarkPreviewPhoto(context)
     }
-    LaunchedEffect(sourceBitmap, settings, customModel) {
+    LaunchedEffect(sourceBitmap, settings, customModel, title, author) {
         val source = sourceBitmap ?: return@LaunchedEffect
         val metadata = previewMetadata.copy(
             cameraName = customModel.trim().ifBlank { previewMetadata.cameraName }

@@ -223,7 +223,7 @@ internal object PixelOsdLayoutEngine {
         if (frame.isPro && frame.showStatus) {
             val columnWidth = unit * 4.6f
             val rightX = (widthPx - margin - columnWidth).coerceAtLeast(margin.toFloat())
-            var y = maxOf(heightPx * 0.18f, margin + t1 + itemGap)
+            var y = maxOf(heightPx * 0.18f, (margin + t1 + itemGap).toFloat())
             val areaHeight = (unit * 2.4f).roundToInt()
             addIcon(
                 id = "pro-area-icon", section = "pro-right", sprite = "af-area",
@@ -262,7 +262,7 @@ internal object PixelOsdLayoutEngine {
             val bottomClearance = if (frame.isPro) {
                 margin + t1 * 1.4f + unit * 1.8f
             } else margin
-            val bottom = heightPx - bottomClearance
+            val bottom = heightPx.toFloat() - bottomClearance
             PixelOsdLayoutBounds(
                 (widthPx - margin - histogramWidth).coerceAtLeast(margin.toFloat()),
                 (bottom - histogramHeight).coerceAtLeast(margin.toFloat()),
@@ -303,7 +303,7 @@ internal object PixelOsdLayoutEngine {
             addText(
                 "level-angle", "level", angle,
                 (widthPx - width) / 2f,
-                (heightPx * 0.5f + unit * 1.7f).coerceAtMost(heightPx - margin - t3),
+                (heightPx * 0.5f + unit * 1.7f).coerceAtMost((heightPx - margin - t3).toFloat()),
                 t3
             )
         }
@@ -447,7 +447,7 @@ internal object PixelOsdLayoutEngine {
             val proBatteryWidth = if (batteryLabel.isNotBlank()) {
                 unit * 1.9f + labelValueGap + measureTextWidthPx(batteryLabel, t3).coerceAtLeast(1f) + itemGap
             } else 0f
-            val available = (widthPx - margin * 2 - proBatteryWidth).coerceAtLeast(1).toFloat()
+            val available = (widthPx - margin * 2 - proBatteryWidth).coerceAtLeast(1f)
             val fitScale = if (totalWidth(1f) <= available) 1f
                 else (available / totalWidth(1f)).coerceIn(0.72f, 1f)
             var x = margin.toFloat()

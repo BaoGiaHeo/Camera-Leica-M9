@@ -46,4 +46,4 @@ internal fun shouldDrawCenterAfReticle(
     centerAfPointAvailable: Boolean,
     faceBoxVisible: Boolean,
     manualOverrideActive: Boolean
-): Boolean = centerAfPointAvailable && (!faceBoxVisible || manualOverrideActive)
+): Boolean = centerAfPointAvailable

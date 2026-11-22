@@ -6054,168 +6054,258 @@ fun CameraScreen(
         Column(controlsModifier) {
                         val selected = proSel
                         if (selected != null && mode == "Pro") {
-                            Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(selected, color = FujiSkin.orange, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.width(42.dp), fontSize = 12.sp)
-                                when (selected) {
-                                    "EV" -> {
-                                        val range = evRange
-                                        if (range != null && range.upper > range.lower) {
-                                            FujiSlider(
-                                                value = evIndex.toFloat().coerceIn(range.lower.toFloat(), range.upper.toFloat()),
-                                                onValueChange = {
-                                                    manualIsoEnabled = false
-                                                    manualShutterEnabled = false
-                                                    manualExposure = false
-                                                    val value = it.roundToInt()
-                                                    evIndex = value
-                                                    camera?.let { c ->
-                                                        runCatching {
-                                                            applyAutoExposure(c)
-                                                            c.cameraControl.setExposureCompensationIndex(value)
-                                                        }
+                            when (selected) {
+                                "EV" -> {
+                                    val range = evRange
+                                    if (range != null && range.upper > range.lower) {
+                                        val span = (range.upper - range.lower).coerceAtLeast(1)
+                                        FujiScale(
+                                            label = "EV",
+                                            valueText = evText,
+                                            position = ((evIndex - range.lower).toFloat() / span).coerceIn(0f, 1f),
+                                            auto = false,
+                                            lowLabel = "%.1f".format(Locale.US, range.lower * evStep),
+                                            highLabel = "+%.1f".format(Locale.US, range.upper * evStep),
+                                            stepFraction = 1f / span,
+                                            onPositionChange = { fraction ->
+                                                val value = (range.lower + fraction * span).roundToInt()
+                                                evIndex = value
+                                                camera?.let { active ->
+                                                    runCatching {
+                                                        applyAutoExposure(active)
+                                                        active.cameraControl.setExposureCompensationIndex(value)
                                                     }
-                                                },
-                                                valueRange = range.lower.toFloat()..range.upper.toFloat(),
-                                                steps = (range.upper - range.lower - 1).coerceAtLeast(0),
-
-                                            )
-                                        } else Text("EV không được hỗ trợ", color = CamColors.Sub, fontSize = 11.sp)
-                                    }
-                                    "ISO" -> {
-                                        val range = isoRange
-                                        Column(Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (manualSensorSupported && range != null && range.upper > range.lower) {
-                                                    val lo = range.lower
-                                                    val hi = range.upper.coerceAtMost(2400).coerceAtLeast(range.lower)
-                                                    FujiSlider(
-                                                        modifier = Modifier.weight(1f),
-                                                        value = ((manualIso.coerceIn(lo, hi) - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0f, 1f),
-                                                        onValueChange = { f ->
-                                                            manualIso = (lo + f * (hi - lo)).roundToInt().coerceIn(lo, hi)
-                                                            manualIsoEnabled = true
-                                                            manualExposure = true
-                                                            camera?.let { active ->
-                                                                runCatching { applyCameraExposureState(active, true, manualShutterEnabled, manualIso, manualShutterNs, iso, shutterNs) }
-                                                            }
-                                                        },
-                                                        onValueChangeFinished = {  },
-
-                                                    )
-                                                } else Spacer(Modifier.weight(1f))
-                                                Text("AUTO", color = if (manualIsoEnabled) CamColors.Sub else FujiSkin.orange,
-                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
-                                                        val keepManualShutter = manualShutterEnabled
-                                                        manualIsoEnabled = false
-                                                        manualExposure = keepManualShutter
-                                                        camera?.let { active ->
-                                                            runCatching {
-                                                                applyCameraExposureState(active, false, keepManualShutter, manualIso, manualShutterNs, iso, shutterNs)
-                                                            }
-                                                        }
-
-                                                    })
+                                                }
+                                            },
+                                            onAuto = {
+                                                evIndex = 0
+                                                camera?.let { active ->
+                                                    runCatching {
+                                                        applyAutoExposure(active)
+                                                        active.cameraControl.setExposureCompensationIndex(0)
+                                                    }
+                                                }
                                             }
-                                            Text(if (manualIsoEnabled) "ISO $manualIso" else "ISO Auto",
-                                                color = CamColors.Sub, fontSize = 9.sp)
-                                        }
+                                        )
+                                    } else {
+                                        Text(
+                                            "EV không được hỗ trợ",
+                                            color = CamColors.Sub,
+                                            fontSize = 11.sp,
+                                            fontFamily = FujiTypography.uiFont
+                                        )
                                     }
-                                    "Tv" -> {
-                                        val range = shutterRange
-                                        Column(Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (manualSensorSupported && range != null && range.upper > range.lower) {
-                                                    val lo = range.lower
-                                                    val hi = range.upper.coerceAtMost(1_000_000_000L).coerceAtLeast(range.lower)
-                                                    FujiSlider(
-                                                        modifier = Modifier.weight(1f),
-                                                        value = shutterFraction(manualShutterNs.coerceAtMost(1_000_000_000L), lo, hi),
-                                                        onValueChange = { f ->
-                                                            manualShutterNs = shutterFromFraction(f, lo, hi).coerceAtMost(1_000_000_000L)
-                                                            manualShutterEnabled = true
-                                                            manualExposure = true
-                                                            camera?.let { active ->
-                                                                runCatching { applyCameraExposureState(active, manualIsoEnabled, true, manualIso, manualShutterNs, iso, shutterNs) }
-                                                            }
-                                                        },
-                                                        onValueChangeFinished = {  },
+                                }
 
-                                                    )
-                                                } else Spacer(Modifier.weight(1f))
-                                                Text("AUTO", color = if (manualShutterEnabled) CamColors.Sub else FujiSkin.orange,
-                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
-                                                        val keepManualIso = manualIsoEnabled
-                                                        manualShutterEnabled = false
-                                                        manualExposure = keepManualIso
-                                                        camera?.let { active ->
-                                                            runCatching {
-                                                                applyCameraExposureState(active, keepManualIso, false, manualIso, manualShutterNs, iso, shutterNs)
-                                                            }
-                                                        }
-
-                                                    })
+                                "ISO" -> {
+                                    val range = isoRange
+                                    if (manualSensorSupported && range != null && range.upper >= range.lower) {
+                                        val lo = range.lower.coerceAtLeast(1)
+                                        val hi = range.upper.coerceAtMost(2400).coerceAtLeast(lo)
+                                        val logSpan = if (hi > lo) ln(hi.toDouble() / lo) else 0.0
+                                        val steps = if (logSpan > 0.0) {
+                                            (logSpan / ln(2.0) * 3.0).roundToInt().coerceAtLeast(1)
+                                        } else 1
+                                        val isoPosition = if (logSpan > 0.0) {
+                                            (ln(manualIso.coerceIn(lo, hi).toDouble() / lo) / logSpan).toFloat()
+                                        } else 0.5f
+                                        FujiScale(
+                                            label = "ISO",
+                                            valueText = if (manualIsoEnabled) manualIso.toString() else iso.toString(),
+                                            position = isoPosition,
+                                            auto = !manualIsoEnabled,
+                                            lowLabel = lo.toString(),
+                                            highLabel = hi.toString(),
+                                            stepFraction = 1f / steps,
+                                            onPositionChange = { fraction ->
+                                                val thirdStops = (ln(hi.toDouble() / lo) *
+                                                    fraction.coerceIn(0f, 1f) / ln(2.0) * 3.0).roundToInt()
+                                                manualIso = (lo * exp(ln(2.0) * thirdStops / 3.0))
+                                                    .roundToInt().coerceIn(lo, hi)
+                                                manualIsoEnabled = true
+                                                manualExposure = true
+                                                camera?.let { active ->
+                                                    runCatching {
+                                                        applyCameraExposureState(
+                                                            active,
+                                                            true,
+                                                            manualShutterEnabled,
+                                                            manualIso,
+                                                            manualShutterNs,
+                                                            iso,
+                                                            shutterNs
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onAuto = {
+                                                val keepManualShutter = manualShutterEnabled
+                                                manualIsoEnabled = false
+                                                manualExposure = keepManualShutter
+                                                camera?.let { active ->
+                                                    runCatching {
+                                                        applyCameraExposureState(
+                                                            active,
+                                                            false,
+                                                            keepManualShutter,
+                                                            manualIso,
+                                                            manualShutterNs,
+                                                            iso,
+                                                            shutterNs
+                                                        )
+                                                    }
+                                                }
                                             }
-                                            Text(if (manualShutterEnabled) shutterText else "Shutter Auto",
-                                                color = CamColors.Sub, fontSize = 9.sp)
-                                        }
+                                        )
+                                    } else {
+                                        Text(
+                                            "ISO thủ công không được hỗ trợ",
+                                            color = CamColors.Sub,
+                                            fontSize = 11.sp,
+                                            fontFamily = FujiTypography.uiFont
+                                        )
                                     }
-                                    "AF" -> {
-                                        Column(Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (maxFocus > 0f) {
-                                                    FujiSlider(
-                                                        modifier = Modifier.weight(1f),
-                                                        value = (manualFocus / maxFocus).coerceIn(0f, 1f),
-                                                        onValueChange = { f ->
-                                                            manualFocus = f * maxFocus
-                                                            milkyWayInfinityFocusEnabled = false
-                                                            invalidatePendingFocusLock(camera)
-                                                            camera?.let { runCatching { applyManualFocus(it, manualFocus) } }
-                                                        },
+                                }
 
-                                                    )
-                                                } else Text("AF tự động", color = CamColors.Sub, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                                                Text("AUTO", color = FujiSkin.orange, fontSize = 10.sp,
-                                                    modifier = Modifier.padding(start = 8.dp).animaTClickable {
-                                                        manualFocus = 0f
-                                                        milkyWayInfinityFocusEnabled = false
-                                                        invalidatePendingFocusLock(camera)
-                                                        camera?.let { runCatching { applyAutoFocus(it) } }
-                                                    })
+                                "Tv" -> {
+                                    val range = shutterRange
+                                    if (manualSensorSupported && range != null && range.upper > range.lower) {
+                                        val lo = range.lower
+                                        val hi = range.upper.coerceAtMost(1_000_000_000L).coerceAtLeast(lo)
+                                        val fraction = shutterFraction(
+                                            manualShutterNs.coerceIn(lo, hi),
+                                            lo,
+                                            hi
+                                        )
+                                        val steps = (ln(hi.toDouble() / lo.toDouble()) / ln(2.0) * 3.0)
+                                            .roundToInt().coerceAtLeast(1)
+                                        FujiScale(
+                                            label = "Tv",
+                                            valueText = if (manualShutterEnabled) shutterText else shutterText,
+                                            position = fraction,
+                                            auto = !manualShutterEnabled,
+                                            lowLabel = shutterTimeLabel(lo),
+                                            highLabel = shutterTimeLabel(hi),
+                                            stepFraction = 1f / steps,
+                                            onPositionChange = { next ->
+                                                manualShutterNs = shutterFromFraction(next, lo, hi)
+                                                    .coerceIn(lo, hi)
+                                                manualShutterEnabled = true
+                                                manualExposure = true
+                                                camera?.let { active ->
+                                                    runCatching {
+                                                        applyCameraExposureState(
+                                                            active,
+                                                            manualIsoEnabled,
+                                                            true,
+                                                            manualIso,
+                                                            manualShutterNs,
+                                                            iso,
+                                                            shutterNs
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onAuto = {
+                                                val keepManualIso = manualIsoEnabled
+                                                manualShutterEnabled = false
+                                                manualExposure = keepManualIso
+                                                camera?.let { active ->
+                                                    runCatching {
+                                                        applyCameraExposureState(
+                                                            active,
+                                                            keepManualIso,
+                                                            false,
+                                                            manualIso,
+                                                            manualShutterNs,
+                                                            iso,
+                                                            shutterNs
+                                                        )
+                                                    }
+                                                }
                                             }
-                                            Text(afText, color = CamColors.Sub, fontSize = 9.sp)
-                                        }
+                                        )
+                                    } else {
+                                        Text(
+                                            "Tv thủ công không được hỗ trợ",
+                                            color = CamColors.Sub,
+                                            fontSize = 11.sp,
+                                            fontFamily = FujiTypography.uiFont
+                                        )
                                     }
-                                    "Tone" -> {
-                                        Column(Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Ấm", color = CamColors.Sub, fontSize = 9.sp)
-                                                FujiSlider(
-                                                    modifier = Modifier.weight(1f),
-                                                    value = ((manualColorTemp - 2500) / 5500f).coerceIn(0f, 1f),
-                                                    onValueChange = { fraction ->
-                                                        manualColorTemp = (2500 + fraction * 5500).roundToInt()
-                                                        manualColorTempEnabled = true
-                                                        camera?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
-                                                    },
+                                }
 
-                                                )
-                                                Text("Lạnh", color = CamColors.Sub, fontSize = 9.sp)
-                                                Text("AUTO", color = if (manualColorTempEnabled) CamColors.Sub else FujiSkin.orange,
-                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
-                                                        manualColorTempEnabled = false
-                                                        camera?.let { runCatching { applyAutoWhiteBalance(it) } }
-                                                    })
+                                "AF" -> {
+                                    if (maxFocus > 0f) {
+                                        FujiScale(
+                                            label = "AF",
+                                            valueText = if (manualFocus > 0f) {
+                                                "%.1fD".format(Locale.US, manualFocus)
+                                            } else {
+                                                afText
+                                            },
+                                            position = if (maxFocus > 0f) {
+                                                (manualFocus / maxFocus).coerceIn(0f, 1f)
+                                            } else 0f,
+                                            auto = manualFocus <= 0f,
+                                            lowLabel = "MACRO",
+                                            highLabel = "∞",
+                                            stepFraction = 0.01f,
+                                            onPositionChange = { fraction ->
+                                                manualFocus = fraction * maxFocus
+                                                milkyWayInfinityFocusEnabled = false
+                                                invalidatePendingFocusLock(camera)
+                                                camera?.let { active ->
+                                                    runCatching { applyManualFocus(active, manualFocus) }
+                                                }
+                                            },
+                                            onAuto = {
+                                                manualFocus = 0f
+                                                milkyWayInfinityFocusEnabled = false
+                                                invalidatePendingFocusLock(camera)
+                                                camera?.let { active -> runCatching { applyAutoFocus(active) } }
                                             }
-                                            Text(if (manualColorTempEnabled) "Tông màu $manualColorTemp K" else "Tông màu tự động",
-                                                color = CamColors.Sub, fontSize = 9.sp)
-                                        }
+                                        )
+                                    } else {
+                                        Text(
+                                            "AF thủ công không được hỗ trợ",
+                                            color = CamColors.Sub,
+                                            fontSize = 11.sp,
+                                            fontFamily = FujiTypography.uiFont
+                                        )
                                     }
+                                }
+
+                                "Tone" -> {
+                                    val minKelvin = 2500
+                                    val maxKelvin = 10000
+                                    FujiScale(
+                                        label = "WB",
+                                        valueText = if (manualColorTempEnabled) "${manualColorTemp}K" else toneText,
+                                        position = ((manualColorTemp - minKelvin).toFloat() /
+                                            (maxKelvin - minKelvin)).coerceIn(0f, 1f),
+                                        auto = !manualColorTempEnabled,
+                                        lowLabel = "2500K",
+                                        highLabel = "10000K",
+                                        stepFraction = 100f / (maxKelvin - minKelvin),
+                                        onPositionChange = { fraction ->
+                                            manualColorTemp = (
+                                                minKelvin + (fraction * (maxKelvin - minKelvin) / 100f).roundToInt() * 100
+                                            ).coerceIn(minKelvin, maxKelvin)
+                                            manualColorTempEnabled = true
+                                            camera?.let { active ->
+                                                runCatching { applyManualWhiteBalance(active, manualColorTemp) }
+                                            }
+                                        },
+                                        onAuto = {
+                                            manualColorTempEnabled = false
+                                            camera?.let { active -> runCatching { applyAutoWhiteBalance(active) } }
+                                        }
+                                    )
                                 }
                             }
                         }
-            
+
                         if (mode == "Pro") {
                             val proItems = listOf(
                                 Triple("EV", evText, "EV"),

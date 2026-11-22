@@ -511,9 +511,7 @@ object NightShotProcessor {
                                     ) {
                                         oldRow[x] = packRgb(max(ar, br), max(ag, bg), max(ab, bb))
                                     }
-                                } else if (mode == MergeMode.LUNA_DREAM_1_5 ||
-                                    mode == MergeMode.LUNA_DREAM_2_0
-                                ) {
+                                } else if (isLunaDreamStackMode(mode)) {
                                     // Both LunaDream modes use motion-aware temporal fusion. 1.5
                                     // uses five exposures and global translation; 2.0 keeps its
                                     // existing eight-frame Lucas-Kanade path.

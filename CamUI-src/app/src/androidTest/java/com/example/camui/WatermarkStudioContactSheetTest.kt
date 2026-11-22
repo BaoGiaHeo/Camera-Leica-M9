@@ -22,7 +22,7 @@ import org.junit.runner.RunWith
 
 /**
  * Exercises the production watermark renderer for every supported Studio style using a
- * deterministic 640x360 source photograph, then writes a 12-cell contact sheet
+ * deterministic 640x360 source photograph, then writes an eight-cell contact sheet
  * to app-specific external storage for visual review from the CI artifact.
  */
 @RunWith(AndroidJUnit4::class)

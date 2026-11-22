@@ -21,15 +21,19 @@ internal data class PixelOsdFontMetrics(
     companion object {
         private const val TAG = "FUJI_OSD_METRICS"
 
-        fun load(context: Context, typeface: Typeface): PixelOsdFontMetrics {
+        fun load(
+            context: Context,
+            typeface: Typeface,
+            fontResourceId: Int = R.font.vcr_osd_mono_kk7
+        ): PixelOsdFontMetrics {
             val parsed = runCatching {
-                val bytes = context.resources.openRawResource(R.font.vcr_osd_mono_kk7).use { it.readBytes() }
+                val bytes = context.resources.openRawResource(fontResourceId).use { it.readBytes() }
                 parseTrueType(bytes)
             }.getOrNull()
             if (parsed != null) {
                 Log.i(
                     TAG,
-                    "FONT_OS2 unitsPerEm=" + parsed.unitsPerEm +
+                    "FONT_OS2 resource=" + fontResourceId + " unitsPerEm=" + parsed.unitsPerEm +
                         " sCapHeight=" + parsed.capHeightUnits +
                         " capRatio=" + (parsed.capHeightUnits.toFloat() / parsed.unitsPerEm)
                 )

@@ -888,6 +888,8 @@ fun CameraScreen(
     var countdownCancelGeneration by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
+    var zoomRequestedTarget by remember { mutableFloatStateOf(zoomSel) }
+    var zoomControllerGeneration by remember { mutableIntStateOf(0) }
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
     var measuredPreviewFps by remember { mutableFloatStateOf(Float.NaN) }
     LaunchedEffect(Unit) {
@@ -1460,6 +1462,7 @@ fun CameraScreen(
                     assessment = zoomAssessment
                 )
                 zoomSel = plan.effectiveZoomRatio
+                zoomRequestedTarget = plan.effectiveZoomRatio
                 actualZoomRatio = plan.effectiveZoomRatio
                 digitalZoomCropScale = plan.digitalCropRatio
                 zoomInteractionGeneration++
@@ -2938,6 +2941,7 @@ fun CameraScreen(
                 )
                 val restoredZoom = restoredPlan.effectiveZoomRatio
                 zoomSel = restoredZoom
+                zoomRequestedTarget = restoredZoom
                 actualZoomRatio = restoredZoom
                 digitalZoomCropScale = restoredPlan.digitalCropRatio
                 zoomFromCaptureResult = Float.NaN
@@ -5249,6 +5253,7 @@ fun CameraScreen(
                     activeCamera.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
                 }
                 zoomSel = plan.effectiveZoomRatio
+                zoomRequestedTarget = plan.effectiveZoomRatio
                 actualZoomRatio = plan.effectiveZoomRatio
                 digitalZoomCropScale = plan.digitalCropRatio
                 zoomInteractionGeneration++
@@ -6734,6 +6739,7 @@ fun CameraScreen(
                                                 assessment = assessment
                                             )
                                             zoomSel = plan.effectiveZoomRatio
+                zoomRequestedTarget = plan.effectiveZoomRatio
                                             actualZoomRatio = plan.effectiveZoomRatio
                                             digitalZoomCropScale = plan.digitalCropRatio
                                             zoomInteractionGeneration++
@@ -6756,6 +6762,7 @@ fun CameraScreen(
                                                 assessment = assessment
                                             )
                                             zoomSel = plan.effectiveZoomRatio
+                zoomRequestedTarget = plan.effectiveZoomRatio
                                             actualZoomRatio = plan.effectiveZoomRatio
                                             digitalZoomCropScale = plan.digitalCropRatio
                                             camera?.let { active ->

@@ -90,16 +90,7 @@ internal data class ScreenProfile(
             val density = densityMetrics.density.takeIf { it > 0f } ?: 1f
             val widthDp = bounds.width() / density
             val heightDp = bounds.height() / density
-            val ratio = maxOf(widthDp, heightDp) / minOf(widthDp, heightDp).coerceAtLeast(1f)
-            val aspect = when {
-                ratio < 1.35f -> ScreenAspectClass.NEAR_SQUARE
-                kotlin.math.abs(ratio - 1.6f) < 0.08f -> ScreenAspectClass.SIXTEEN_TEN
-                kotlin.math.abs(ratio - 1.78f) < 0.08f -> ScreenAspectClass.SIXTEEN_NINE
-                kotlin.math.abs(ratio - 2.0f) < 0.10f -> ScreenAspectClass.EIGHTEEN_NINE
-                kotlin.math.abs(ratio - 2.2f) < 0.12f -> ScreenAspectClass.TWENTY_TWO_TEN
-                kotlin.math.abs(ratio - 2.22f) < 0.10f -> ScreenAspectClass.TWENTY_NINE
-                else -> ScreenAspectClass.OTHER
-            }
+            val aspect = classifyAspect(widthDp, heightDp)
             val sizeClass = when {
                 minOf(widthDp, heightDp) < 600f -> ScreenWindowSizeClass.COMPACT
                 minOf(widthDp, heightDp) < 840f -> ScreenWindowSizeClass.MEDIUM
@@ -160,8 +151,8 @@ internal data class ScreenProfile(
                 kotlin.math.abs(ratio - 1.6f) < 0.08f -> ScreenAspectClass.SIXTEEN_TEN
                 kotlin.math.abs(ratio - 1.78f) < 0.08f -> ScreenAspectClass.SIXTEEN_NINE
                 kotlin.math.abs(ratio - 2.0f) < 0.10f -> ScreenAspectClass.EIGHTEEN_NINE
-                kotlin.math.abs(ratio - 2.2f) < 0.12f -> ScreenAspectClass.TWENTY_TWO_TEN
-                kotlin.math.abs(ratio - 2.22f) < 0.10f -> ScreenAspectClass.TWENTY_NINE
+                kotlin.math.abs(ratio - 2.22f) < 0.008f -> ScreenAspectClass.TWENTY_NINE
+                kotlin.math.abs(ratio - 2.2f) < 0.008f -> ScreenAspectClass.TWENTY_TWO_TEN
                 else -> ScreenAspectClass.OTHER
             }
         }

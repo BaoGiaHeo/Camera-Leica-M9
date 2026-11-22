@@ -7207,6 +7207,12 @@ fun CameraScreen(
                             .windowInsetsPadding(
                                 WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
                             )
+                            .windowInsetsPadding(
+                                WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal)
+                            )
+                            .windowInsetsPadding(
+                                WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal)
+                            )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {
                                 Log.d("LUNA_LAYOUT", "LEFT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
@@ -7252,6 +7258,12 @@ fun CameraScreen(
                         Modifier.width(rightColumnWidth).fillMaxHeight()
                             .windowInsetsPadding(
                                 WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
+                            )
+                            .windowInsetsPadding(
+                                WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal)
+                            )
+                            .windowInsetsPadding(
+                                WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal)
                             )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {

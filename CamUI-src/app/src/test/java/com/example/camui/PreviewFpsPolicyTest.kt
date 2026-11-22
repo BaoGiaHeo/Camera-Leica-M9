@@ -16,8 +16,9 @@ class PreviewFpsPolicyTest {
         )
         assertEquals(PreviewFpsRange(60, 60), selectPreviewFpsRange("60", ranges).range)
         assertEquals(PreviewFpsRange(30, 30), selectPreviewFpsRange("30", ranges).range)
-        assertTrue(selectPreviewFpsRange("24", ranges).range != null)
-        assertTrue(selectPreviewFpsRange("24", ranges).fellBack)
+        assertEquals(PreviewFpsRange(15, 30), selectPreviewFpsRange("24", ranges).range)
+        assertEquals(24, selectPreviewFpsRange("24", ranges).targetFps)
+        assertFalse(selectPreviewFpsRange("24", ranges).fellBack)
     }
 
     @Test
@@ -40,6 +41,21 @@ class PreviewFpsPolicyTest {
         assertEquals(PreviewFpsRange(24, 60), selection.range)
         assertEquals(60, selection.targetFps)
         assertFalse(selection.fellBack)
+    }
+
+    @Test
+    fun settingsOnlyExposeFpsValuesContainedInAdvertisedRanges() {
+        assertEquals(
+            linkedSetOf("60", "30", "24", "AUTO"),
+            supportedPreviewFpsModes(
+                listOf(PreviewFpsRange(15, 30), PreviewFpsRange(24, 60))
+            )
+        )
+        assertEquals(
+            linkedSetOf("30", "24", "AUTO"),
+            supportedPreviewFpsModes(listOf(PreviewFpsRange(15, 30)))
+        )
+        assertEquals(emptySet<String>(), supportedPreviewFpsModes(emptyList()))
     }
 
     @Test

@@ -47,3 +47,12 @@ internal fun shouldDrawCenterAfReticle(
     faceBoxVisible: Boolean,
     manualOverrideActive: Boolean
 ): Boolean = centerAfPointAvailable
+
+internal fun centerAfReticleHalfSize(logicHeightPx: Int): Int =
+    (logicHeightPx.coerceAtLeast(1) * 0.06f).roundToInt().coerceAtLeast(1)
+
+internal fun afReticleStrokeWidth(unitPx: Int, pixelScale: Int): Int =
+    (unitPx.coerceAtLeast(1) * 0.2f / pixelScale.coerceAtLeast(1)).roundToInt().coerceAtLeast(1)
+
+internal fun eyeReticleHalfSize(unitPx: Int, pixelScale: Int): Int =
+    (unitPx.coerceAtLeast(1) * 1.75f / pixelScale.coerceAtLeast(1)).roundToInt().coerceAtLeast(2)

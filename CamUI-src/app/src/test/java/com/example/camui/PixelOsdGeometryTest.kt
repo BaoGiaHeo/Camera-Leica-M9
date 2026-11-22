@@ -152,7 +152,7 @@ class PixelOsdGeometryTest {
             faceBoxVisible = true,
             manualOverrideActive = true
         ))
-        assertFalse(shouldDrawCenterAfReticle(
+        assertTrue(shouldDrawCenterAfReticle(
             centerAfPointAvailable = true,
             faceBoxVisible = true,
             manualOverrideActive = false
@@ -166,6 +166,11 @@ class PixelOsdGeometryTest {
             centerAfPointAvailable = false,
             faceBoxVisible = false,
             manualOverrideActive = true
+        ))
+        assertTrue(shouldDrawCenterAfReticle(
+            centerAfPointAvailable = true,
+            faceBoxVisible = false,
+            manualOverrideActive = false
         ))
     }
 

@@ -170,6 +170,6 @@ private fun nearestAxisDeltaDegrees(current: Float, previous: Float): Float {
 }
 
 private fun wrapNearestAxisError(degrees: Float): Float {
-    val wrapped = ((degrees + 45f) % 90f + 90f) % 90f - 45f
-    return if (wrapped == -45f && degrees > 0f) 45f else wrapped
+    // The interval is half-open by design: [-45°, 45°).
+    return ((degrees + 45f) % 90f + 90f) % 90f - 45f
 }

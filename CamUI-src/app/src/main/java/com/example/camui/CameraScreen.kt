@@ -637,14 +637,15 @@ fun CameraScreen(
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     var batteryCharging by remember { mutableStateOf(false) }
+    var batteryWarningState by remember { mutableStateOf(BatteryWarningState()) }
     var batteryLowBlinkOn by remember { mutableStateOf(true) }
-    LaunchedEffect(batteryPercent, batteryCharging) {
-        if (isPixelBatteryLow(batteryPercent) && !batteryCharging) {
+    LaunchedEffect(batteryWarningState.blinking, batteryWarningState.showLowNotice) {
+        if (batteryWarningState.blinking || batteryWarningState.showLowNotice) {
             while (true) {
                 batteryLowBlinkOn = true
-                delay(450L)
+                delay(500L)
                 batteryLowBlinkOn = false
-                delay(450L)
+                delay(500L)
             }
         } else {
             batteryLowBlinkOn = true
@@ -659,6 +660,13 @@ fun CameraScreen(
                 status == BatteryManager.BATTERY_STATUS_FULL
             if (level >= 0 && scale > 0) {
                 batteryPercent = (level * 100f / scale).roundToInt().coerceIn(0, 100)
+                batteryWarningState = updateBatteryWarningState(
+                    previous = batteryWarningState,
+                    batteryPercent = batteryPercent,
+                    charging = batteryCharging
+                )
+            } else if (batteryCharging) {
+                batteryWarningState = BatteryWarningState()
             }
         }
         val batteryReceiver = object : BroadcastReceiver() {
@@ -5664,6 +5672,10 @@ fun CameraScreen(
                                     batteryPercent = batteryPercent,
                                     batteryCharging = batteryCharging,
                                     batteryLowBlinkOn = batteryLowBlinkOn,
+                                    batteryLowRed = batteryWarningState.lowRed,
+                                    batteryBlinking = batteryWarningState.blinking,
+                                    batteryCrossed = batteryWarningState.crossed,
+                                    showBatteryLowNotice = batteryWarningState.showLowNotice,
                                     showEvScale = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     evIndex = evIndex,
                                     evMinimumIndex = evRange?.lower ?: -9,

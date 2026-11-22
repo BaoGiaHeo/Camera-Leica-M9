@@ -619,7 +619,8 @@ fun CameraScreen(
         context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     }
     val levelSensor = remember(sensorManager) {
-        sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
+            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
             ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     }
     var levelEnabled by remember {
@@ -627,32 +628,53 @@ fun CameraScreen(
             .getBoolean("viewfinder_level_enabled", true))
     }
     var horizonRollDegrees by remember { mutableFloatStateOf(0f) }
+    var horizonLevelVisible by remember { mutableStateOf(false) }
     DisposableEffect(sensorManager, levelSensor, levelEnabled) {
         if (sensorManager == null || levelSensor == null || !levelEnabled) {
+            horizonLevelVisible = false
             onDispose { }
         } else {
             val rotationMatrix = FloatArray(9)
-            val orientationAngles = FloatArray(3)
+            val filter = OneEuroLevelFilter()
             val listener = object : SensorEventListener {
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
                 override fun onSensorChanged(event: SensorEvent?) {
                     val values = event ?: return
-                    val rollDegrees = if (values.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
-                        SensorManager.getRotationMatrixFromVector(rotationMatrix, values.values)
-                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
-                        Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
-                    } else {
-                        Math.toDegrees(kotlin.math.atan2(
-                            values.values[0].toDouble(),
-                            values.values[1].toDouble()
-                        )).toFloat()
+                    val gravity = when (values.sensor.type) {
+                        Sensor.TYPE_ROTATION_VECTOR -> {
+                            SensorManager.getRotationMatrixFromVector(rotationMatrix, values.values)
+                            floatArrayOf(
+                                rotationMatrix[6] * SensorManager.GRAVITY_EARTH,
+                                rotationMatrix[7] * SensorManager.GRAVITY_EARTH,
+                                rotationMatrix[8] * SensorManager.GRAVITY_EARTH
+                            )
+                        }
+                        else -> floatArrayOf(
+                            values.values.getOrElse(0) { 0f },
+                            values.values.getOrElse(1) { 0f },
+                            values.values.getOrElse(2) { 0f }
+                        )
                     }
-                    horizonRollDegrees = ((rollDegrees + 180f) % 360f) - 180f
+                    val displayRotation = localView.display?.rotation ?: android.view.Surface.ROTATION_0
+                    val error = HorizonLevelPolicy.errorDegrees(
+                        gravity[0], gravity[1], gravity[2], displayRotation
+                    )
+                    if (error == null) {
+                        horizonLevelVisible = false
+                        horizonRollDegrees = 0f
+                    } else {
+                        horizonRollDegrees = filter.filter(error, values.timestamp)
+                        horizonLevelVisible = true
+                    }
                 }
             }
             sensorManager.registerListener(listener, levelSensor, SensorManager.SENSOR_DELAY_UI)
-            onDispose { sensorManager.unregisterListener(listener) }
+            onDispose {
+                sensorManager.unregisterListener(listener)
+                filter.reset()
+                horizonLevelVisible = false
+            }
         }
     }
     var zebraEnabled by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getBoolean("viewfinder_zebra_enabled", false)) }
@@ -5772,7 +5794,7 @@ fun CameraScreen(
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()
                                         else -> emptyList()
                                     },
-                                    showLevel = when (lcdDisplayMode) {
+                                    showLevel = horizonLevelVisible && when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
                                         CameraLcdDisplayMode.LEVEL_GRID -> true
                                         CameraLcdDisplayMode.STANDARD -> levelEnabled

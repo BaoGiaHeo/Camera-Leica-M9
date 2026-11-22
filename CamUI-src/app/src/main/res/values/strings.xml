@@ -3,7 +3,6 @@
     <string name="app_name">FujiFilm Mode</string>
     <string name="language_screen_title">Language</string>
     <string name="language_select_description">Choose the display language. Changes apply immediately.</string>
-    <string name="language_system">SYSTEM</string>
     <string name="language_english">ENGLISH</string>
     <string name="language_vietnamese">TIẾNG VIỆT</string>
     <string name="pixel_osd_preview_tab">OSD PREVIEW</string>
@@ -56,7 +55,6 @@
     <string name="zoom_bar_position_label">Zoom bar position</string>
     <string name="zoom_bar_position_top_center">TOP-CENTER</string>
     <string name="zoom_bar_position_middle_left">MIDDLE-LEFT</string>
-    <string name="focus_locked">FOCUS LOCKED</string>
     <string name="zoom_bar_description">The bar stays visible in Standard, Full Info and Level + Grid. In Clean mode it fades 1.5 seconds after zooming.</string>
     <string name="digital_zoom_processing">Applying GPU Lanczos digital crop</string>
     <string name="digital_zoom_success">DIGITAL zoom: Lanczos crop applied and XMP written. Detail quality is lower than optical zoom.</string>

@@ -770,6 +770,10 @@ class PixelOsdRenderer(context: Context) {
                     (key == "F" && selected == "APERTURE")
                 val textColor = when {
                     selectedThis -> PixelOsdPalette.BLUE
+                    element.id == "pro-area" && frame.touchAfEnabled -> PixelOsdPalette.BLUE
+                    element.id == "pro-kelvin" && frame.manualWhiteBalance -> PixelOsdPalette.BLUE
+                    element.id == "pro-lock" -> PixelOsdPalette.AMBER
+                    element.id == "pro-dr-value" && frame.dynamicRangeText.contains("400", ignoreCase = true) -> PixelOsdPalette.AMBER
                     (key == "EV" && frame.manualExposure) ||
                         (key == "TV" && frame.manualShutter) ||
                         (key == "ISO" && frame.manualIso) ||
@@ -789,9 +793,36 @@ class PixelOsdRenderer(context: Context) {
                         gap = 2
                     )
                 }
-                drawPixelOsdText(element, textColor)
+                if (element.id == "pro-dr-value") {
+                    val scale = pixelScale.coerceAtLeast(1)
+                    val left = (element.bounds.left / scale).roundToInt() - 1
+                    val top = (element.bounds.top / scale).roundToInt() - 1
+                    val right = (element.bounds.right / scale).roundToInt() + 1
+                    val bottom = (element.bounds.bottom / scale).roundToInt() + 1
+                    fillPaint.color = PixelOsdPalette.WHITE
+                    fillPaint.alpha = 255
+                    canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), fillPaint)
+                    drawPixelOsdText(element, android.graphics.Color.BLACK)
+                } else {
+                    drawPixelOsdText(element, textColor)
+                }
             } else if (element.kind == PixelOsdElementKind.ICON) {
-                drawPixelOsdIcon(canvas, element)
+                val scale = pixelScale.coerceAtLeast(1)
+                val left = (element.bounds.left / scale).roundToInt()
+                val top = (element.bounds.top / scale).roundToInt()
+                val right = (element.bounds.right / scale).roundToInt()
+                val bottom = (element.bounds.bottom / scale).roundToInt()
+                when (element.id) {
+                    "pro-area-icon" -> {
+                        drawHLine(canvas, left, right, top, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
+                        drawHLine(canvas, left, right, bottom, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
+                        drawVLine(canvas, left, top, bottom, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
+                        drawVLine(canvas, right, top, bottom, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE, 230)
+                        drawPixelOsdIcon(canvas, element, if (frame.touchAfEnabled) PixelOsdPalette.BLUE else PixelOsdPalette.WHITE)
+                    }
+                    "pro-lock-icon" -> drawPixelOsdIcon(canvas, element, PixelOsdPalette.AMBER)
+                    else -> drawPixelOsdIcon(canvas, element)
+                }
             } else if (element.kind == PixelOsdElementKind.RULE) {
                 val scale = pixelScale.coerceAtLeast(1)
                 val x = (element.bounds.left / scale).roundToInt()

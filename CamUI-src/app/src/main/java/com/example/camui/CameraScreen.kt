@@ -1304,6 +1304,9 @@ fun CameraScreen(
     var hdrEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_enabled", appPrefs.getBoolean("hdr_coming_soon", false)))
     }
+    LaunchedEffect(hdrEnabled) {
+        appPrefs.edit().putBoolean("hdr_enabled", hdrEnabled).apply()
+    }
     var preserveUltraHdrOutput by remember { mutableStateOf(false) }
     var softwareHdrFallback by remember { mutableStateOf(false) }
     var nightShotMode by remember {
@@ -5550,6 +5553,50 @@ fun CameraScreen(
                                                         "point=${tapPoint.x},${tapPoint.y}"
                                                 )
                                                 return@detectTapGestures
+                                            }
+                                            if (mode == "Pro") {
+                                                val density = localView.resources.displayMetrics.density
+                                                val osdTarget = ProOsdTapTargets.resolve(
+                                                    xPx = offset.x,
+                                                    yPx = offset.y,
+                                                    widthPx = size.width,
+                                                    heightPx = size.height,
+                                                    minimumTargetPx = 48f * density
+                                                )
+                                                if (osdTarget != null) {
+                                                    when (osdTarget) {
+                                                        ProOsdTapTarget.AREA -> {
+                                                            touchAfEnabled = !touchAfEnabled
+                                                            if (!touchAfEnabled) {
+                                                                centerAfPoint = Offset(0.5f, 0.5f)
+                                                                preferredFaceCenter = null
+                                                                invalidatePendingFocusLock(active)
+                                                                centerAfStatus = 0
+                                                            }
+                                                            android.util.Log.i(
+                                                                "FUJI_AF_TOUCH",
+                                                                "AREA_TAP enabled=$touchAfEnabled touchTarget=48dp"
+                                                            )
+                                                        }
+                                                        ProOsdTapTarget.WB -> {
+                                                            proSel = "Tone"
+                                                            android.util.Log.i("FUJI_PRO_OSD", "WB_TAP openPanel=true")
+                                                        }
+                                                        ProOsdTapTarget.FILM -> {
+                                                            proSel = null
+                                                            filterDialogVisible = true
+                                                            android.util.Log.i("FUJI_PRO_OSD", "ST_TAP openFilterPanel=true")
+                                                        }
+                                                        ProOsdTapTarget.DYNAMIC_RANGE -> {
+                                                            hdrEnabled = !hdrEnabled
+                                                            android.util.Log.i(
+                                                                "FUJI_PRO_OSD",
+                                                                "DR_TAP hdrToneMapping=$hdrEnabled"
+                                                            )
+                                                        }
+                                                    }
+                                                    return@detectTapGestures
+                                                }
                                             }
                                             if (mode != "Pro" || !touchAfEnabled) {
                                                 android.util.Log.d("FUJI_AF_TOUCH", "TOUCH_AF_IGNORED mode=$mode enabled=$touchAfEnabled tap=${tapPoint.x},${tapPoint.y}")

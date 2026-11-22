@@ -597,6 +597,63 @@ fun localizedToast(context: Context, value: String, duration: Int): Toast {
  * Central localized Text wrapper for the camera UI. A selected app language is read
  * from preferences; AppCompat applies the same locale to the activity/resources.
  */
+private val LocalCameraLcdScope = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+@Composable
+fun UiText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontSize: TextUnit = TextUnit.Unspecified,
+    fontWeight: FontWeight? = null,
+    maxLines: Int = Int.MAX_VALUE
+) {
+    Text(
+        text = text,
+        modifier = modifier,
+        color = color,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        maxLines = maxLines
+    )
+}
+
+/** Scope guard for KK7 Compose labels that live inside the camera LCD. */
+@Composable
+fun LcdScope(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalCameraLcdScope provides true) {
+        content()
+    }
+}
+
+/** KK7-only Compose OSD label. Ordinary application chrome must use UiText/Text. */
+@Composable
+fun OsdText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    fontSize: TextUnit = 12.sp,
+    fontWeight: FontWeight? = null,
+    maxLines: Int = 1
+) {
+    check(LocalCameraLcdScope.current) {
+        "OsdText must be placed inside LcdScope; use UiText for application UI."
+    }
+    val context = LocalContext.current
+    val localized = localizedUiText(context, text, AppLanguageManager.currentLanguage)
+    val fontFamily = FujiTypography.composeFamily(context)
+    val annotated = FujiTypography.withMissingGlyphFallback(localized)
+    MaterialText(
+        text = annotated,
+        modifier = modifier,
+        color = color,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        fontFamily = fontFamily,
+        maxLines = maxLines
+    )
+}
+
 @Composable
 fun Text(
     text: String,

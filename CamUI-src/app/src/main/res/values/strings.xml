@@ -227,4 +227,15 @@
     <string name="watermark_layout_dot_dark_description">Dark footer, white Fuji logo and one dot beside the exposure line.</string>
     <string name="watermark_layout_split_description">Camera/date on the left, exposure data and Fuji logo on the right.</string>
     <string name="watermark_layout_palette_description">Near-square frame with five dominant colors extracted from the photo.</string>
+    <string name="settings_screen_title">SETTINGS · MENU</string>
+    <string name="settings_menu_tabs">MENU TABS</string>
+    <string name="settings_tab_assistive_tools">Assistive Tools</string>
+    <string name="settings_tab_focus_lens">Focus &amp; Lens</string>
+    <string name="settings_tab_capture_quality">Capture &amp; Quality</string>
+    <string name="settings_tab_photo_mode">Photo Mode Setting</string>
+    <string name="settings_tab_nightshot">NightShotMode</string>
+    <string name="settings_tab_display">Display / Appearance</string>
+    <string name="settings_tab_sound">Sound &amp; Haptic</string>
+    <string name="settings_tab_language">Language</string>
+    <string name="settings_tab_about">About</string>
 </resources>

@@ -7680,9 +7680,27 @@ private fun applyAutoWhiteBalance(camera: Camera) {
     Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
+private fun applyWhiteBalancePreset(camera: Camera, awbMode: Int) {
+    val safeMode = awbMode.takeIf {
+        it in setOf(
+            CaptureRequest.CONTROL_AWB_MODE_DAYLIGHT,
+            CaptureRequest.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT,
+            CaptureRequest.CONTROL_AWB_MODE_SHADE,
+            CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT,
+            CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT
+        )
+    } ?: CaptureRequest.CONTROL_AWB_MODE_AUTO
+    val options = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, safeMode)
+        .build()
+    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+}
+
 private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
-    // Approximate correlated color temperature with Camera2 sensor color-correction gains.
-    val warmth = ((6500f - kelvin.coerceIn(2500, 8000)) / 4000f).coerceIn(-0.85f, 1f)
+    // Kelvin mode uses public Camera2 color-correction gains. This is an approximation,
+    // not a calibrated CCT conversion; the selected target remains visible in the HUD.
+    val warmth = ((6500f - kelvin.coerceIn(2500, 10000)) / 4000f).coerceIn(-0.875f, 1f)
     val redGain = (1f + warmth * 0.42f).coerceIn(0.65f, 2.0f)
     val blueGain = (1f - warmth * 0.38f).coerceIn(0.65f, 2.0f)
     val gains = RggbChannelVector(redGain, 1f, 1f, blueGain)

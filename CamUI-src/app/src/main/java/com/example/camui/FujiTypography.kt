@@ -47,10 +47,23 @@ object FujiTypography {
      * through composeFamily()/androidTypeface(); watermark typography is rendered
      * by WatermarkRenderer and is intentionally kept independent.
      */
+    val osdFont: FontFamily by lazy {
+        FontFamily(Font(R.font.vcr_osd_mono_kk7, FontWeight.Normal))
+    }
+
     val uiFont: FontFamily by lazy {
         FontFamily(
             Font(R.font.saira_semicondensed_semibold, FontWeight.SemiBold),
             Font(R.font.saira_semicondensed_bold, FontWeight.Bold)
+        )
+    }
+
+    // WatermarkRenderer continues to use these same three Saira faces and weights.
+    val watermarkFont: FontFamily by lazy {
+        FontFamily(
+            Font(R.font.saira_semicondensed_regular, FontWeight.Normal),
+            Font(R.font.saira_semicondensed_medium, FontWeight.Medium),
+            Font(R.font.saira_semicondensed_semibold, FontWeight.SemiBold)
         )
     }
 
@@ -188,13 +201,8 @@ object FujiTypography {
         }
     }
 
-    fun composeFamily(context: Context): FontFamily {
-        cachedFontFamily?.let { return it }
-        val typeface = androidTypeface(context)
-        return synchronized(lock) {
-            cachedFontFamily ?: FontFamily(typeface).also { cachedFontFamily = it }
-        }
-    }
+    @Suppress("UNUSED_PARAMETER")
+    fun composeFamily(context: Context): FontFamily = uiFont
 
     private fun shareTechComposeFamily(): FontFamily {
         cachedShareTechFontFamily?.let { return it }

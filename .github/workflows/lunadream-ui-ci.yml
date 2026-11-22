@@ -141,6 +141,9 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/CameraAfAreaSize.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraAfTouchPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
+            CamUI-src/app/src/main/java/com/example/camui/HorizonLevelPolicy.kt \
+            CamUI-src/app/src/main/java/com/example/camui/KelvinEstimator.kt \
+            CamUI-src/app/src/main/java/com/example/camui/ZoomSmoothingPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraExposureRequestPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraFrameMetricsDiagnostics.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraControlProgress.kt \
@@ -178,6 +181,9 @@ jobs:
             CamUI-src/app/src/main/res/values-vi/strings.xml \
             CamUI-src/app/src/main/res/values/themes.xml \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfLabelContractTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/HorizonLevelPolicyTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/KelvinEstimatorTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/ZoomSmoothingPolicyTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraMultiFrameProgressTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfAreaSizeTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/CameraAfTouchPolicyTest.kt \

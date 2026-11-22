@@ -51,6 +51,9 @@ jobs:
             echo "Obsolete colour-panel references remain in the repository."
             exit 1
           fi
+      - name: Test offline LUT ingest tooling
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
+
       - name: Compile and run unit tests
         run: gradle -p CamUI-src :app:testDeveloperUnitTest :app:assembleDeveloper --stacktrace
 
@@ -120,6 +123,8 @@ jobs:
             .github/workflows/build-camui.yml \
             .github/workflows/build-lunadream-variants.yml \
             .github/workflows/lunadream-ui-ci.yml \
+            tools/lut_ingest.py \
+            tools/test_lut_ingest.py \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkRenderer.kt \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkPanelScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/HorizonLevelPolicy.kt \
@@ -141,10 +146,6 @@ jobs:
             CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-NOTICE.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-OFL.txt \
-            CamUI-src/app/src/main/assets/fonts/vcr_osd_mono_kk7.ttf.gz \
-            CamUI-src/app/src/main/assets/fonts/watermark_jost_variable.ttf.b64 \
-            CamUI-src/app/src/main/assets/fonts/watermark_inter_variable.ttf.b64 \
-            CamUI-src/app/src/main/assets/fonts/watermark_ibm_plex_mono_regular.ttf.b64 \
             CamUI-src/app/src/main/assets/fonts/JOST-OFL.txt \
             CamUI-src/app/src/main/assets/fonts/INTER-OFL.txt \
             CamUI-src/app/src/main/assets/fonts/IBM-PLEX-MONO-OFL.txt \
@@ -185,7 +186,6 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkGpsFormatter.kt \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkMetadataPolicy.kt \
-            CamUI-src/app/src/main/res/font/share_tech_mono.ttf \
             CamUI-src/app/src/main/res/values/strings.xml \
             CamUI-src/app/src/main/res/values-vi/strings.xml \
             CamUI-src/app/src/main/res/values/themes.xml \

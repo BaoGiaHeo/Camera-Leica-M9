@@ -189,6 +189,7 @@
     <string name="activation_battery_value">PIN %1$s</string>
     <string name="activation_storage_warning">BỘ NHỚ TRỐNG DƯỚI 1 GB</string>
     <string name="activation_battery_warning">PIN DƯỚI 20%</string>
+    <string name="battery_processing_blocked">Pin còn 5% hoặc thấp hơn. Hãy sạc trước khi dùng NightShot hoặc LunaDream 2.0.</string>
     <string name="preview_fps_title">FPS XEM TRƯỚC</string>
     <string name="preview_fps_description">Chọn dải tốc độ khung hình xem trước. HUD hiển thị FPS đo từ camera.</string>
     <string name="icon_rotation_title">XOAY BIỂU TƯỢNG</string>

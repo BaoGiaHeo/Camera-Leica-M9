@@ -170,20 +170,25 @@ internal object WatermarkRenderer {
         metadata: WatermarkPhotoMetadata
     ) {
         val fonts = loadFonts(context)
-        val isDark = if (settings.layout == WatermarkLayoutType.BLACK) !settings.invert else settings.invert
+        val isDark = when (settings.layout) {
+            WatermarkLayoutType.BLACK -> !settings.invert
+            WatermarkLayoutType.DOT_DARK -> !settings.invert
+            WatermarkLayoutType.DOT_LIGHT -> settings.invert
+            else -> settings.invert
+        }
         val primary = if (isDark) WHITE else BLACK
         val secondary = if (isDark) 0xFF9A9A9A.toInt() else GREY
-
-        if (geometry.layout == WatermarkLayoutType.CARD) drawCardBackground(canvas, source, geometry, isDark)
-        else canvas.drawColor(if (isDark) Color.BLACK else Color.WHITE)
-
+        canvas.drawColor(if (isDark) Color.BLACK else Color.WHITE)
         drawSourceAtNativeSize(canvas, source, geometry.photoRect)
         when (geometry.layout) {
             WatermarkLayoutType.BAR -> drawBar(context, canvas, geometry, settings, metadata, fonts, primary, secondary)
             WatermarkLayoutType.CAPTION -> drawCaption(canvas, geometry, settings, metadata, fonts)
-            WatermarkLayoutType.CARD -> drawCard(context, canvas, geometry, settings, metadata, fonts)
             WatermarkLayoutType.GALLERY -> drawGallery(context, canvas, geometry, settings, metadata, fonts)
             WatermarkLayoutType.BLACK -> drawBlack(context, canvas, geometry, settings, metadata, fonts)
+            WatermarkLayoutType.DOT_LIGHT,
+            WatermarkLayoutType.DOT_DARK -> drawDot(context, canvas, geometry, settings, metadata, fonts, isDark, primary, secondary)
+            WatermarkLayoutType.SPLIT -> drawSplit(context, canvas, geometry, settings, metadata, fonts, isDark, primary, secondary)
+            WatermarkLayoutType.PALETTE -> drawPalette(context, canvas, source, geometry, settings, metadata, fonts, isDark, primary, secondary)
         }
     }
 
@@ -197,46 +202,6 @@ internal object WatermarkRenderer {
             RectF(rect.left, rect.top, rect.right, rect.bottom),
             Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         )
-    }
-
-    private fun drawCardBackground(canvas: Canvas, source: Bitmap, geometry: WatermarkLayoutGeometry, isDark: Boolean) {
-        canvas.drawColor(if (isDark) Color.BLACK else Color.WHITE)
-        val smallWidth = (geometry.canvasWidth / 18).coerceAtLeast(32)
-        val smallHeight = (geometry.canvasHeight / 18).coerceAtLeast(32)
-        val small = Bitmap.createScaledBitmap(source, smallWidth, smallHeight, true)
-        try {
-            val matrix = ColorMatrix().apply {
-                setSaturation(1.15f)
-                postConcat(ColorMatrix(floatArrayOf(
-                    0.92f, 0f, 0f, 0f, 0f,
-                    0f, 0.92f, 0f, 0f, 0f,
-                    0f, 0f, 0.92f, 0f, 0f,
-                    0f, 0f, 0f, 1f, 0f
-                )))
-            }
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-                colorFilter = ColorMatrixColorFilter(matrix)
-            }
-            canvas.drawBitmap(
-                small, null,
-                RectF(0f, 0f, geometry.canvasWidth.toFloat(), geometry.canvasHeight.toFloat()),
-                paint
-            )
-            canvas.drawRect(
-                0f, 0f, geometry.canvasWidth.toFloat(), geometry.canvasHeight.toFloat(),
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (isDark) 0x99000000.toInt() else 0x14FFFFFF }
-            )
-        } finally {
-            if (!small.isRecycled) small.recycle()
-        }
-        geometry.cardRect?.let { card ->
-            canvas.drawRoundRect(
-                RectF(card.left, card.top, card.right, card.bottom),
-                geometry.shortSide * 0.012f,
-                geometry.shortSide * 0.012f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (isDark) Color.BLACK else Color.WHITE }
-            )
-        }
     }
 
     private fun drawLogo(context: Context, canvas: Canvas, rect: WatermarkRect, white: Boolean) {
@@ -417,36 +382,6 @@ internal object WatermarkRenderer {
         }
     }
 
-    private fun drawCard(
-        context: Context, canvas: Canvas, geometry: WatermarkLayoutGeometry,
-        settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts
-    ) {
-        val meta = geometry.metadataRect ?: return
-        drawLogo(context, canvas, geometry.logoRect ?: return, settings.invert)
-        val s = geometry.shortSide
-        val f = settings.fields
-        val line = listOf(
-            metadata.focal(settings).takeIf { f.focalLength }.orEmpty(),
-            metadata.aperture.takeIf { f.aperture }.orEmpty(),
-            metadata.shutter.takeIf { f.shutter }.orEmpty(),
-            metadata.iso.removePrefix("ISO").trim().let { if (f.iso && it.isNotBlank()) "ISO " + it else "" }
-        ).filter { it.isNotBlank() }.joinToString(" ")
-        val cap = s * 0.032f * settings.sizeScale
-        val right = meta.right - s * 0.049f
-        val linePaint = fitPaint(line, fonts.medium, 0xFF3C3C3C.toInt(), cap, s * 0.52f, fonts.mediumCapRatio, Paint.Align.RIGHT)
-        if (linePaint != null) {
-            val capRect = Rect()
-            linePaint.getTextBounds("H", 0, 1, capRect)
-            val centerY = meta.top + meta.height * 0.62f
-            val baseline = centerY - (capRect.top + capRect.bottom) * 0.5f
-            val lineWidth = linePaint.measureText(line)
-            val dotSize = s * 0.03f
-            val dotX = right - lineWidth - s * 0.033f - dotSize * 0.5f
-            canvas.drawCircle(dotX, centerY, dotSize * 0.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF19B88F.toInt() })
-            canvas.drawText(line, right, baseline, linePaint)
-        }
-    }
-
     private fun drawGallery(
         context: Context, canvas: Canvas, geometry: WatermarkLayoutGeometry,
         settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts
@@ -475,6 +410,305 @@ internal object WatermarkRenderer {
                 fonts.regular, secondary, fonts.regularCapRatio
             )
         }
+    }
+
+    private fun drawDot(
+        context: Context,
+        canvas: Canvas,
+        geometry: WatermarkLayoutGeometry,
+        settings: WatermarkLayoutSettings,
+        metadata: WatermarkPhotoMetadata,
+        fonts: Fonts,
+        isDark: Boolean,
+        primary: Int,
+        secondary: Int
+    ) {
+        val footer = geometry.footerRect ?: return
+        canvas.drawRect(
+            RectF(footer.left, footer.top, footer.right, footer.bottom),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (isDark) 0xFF0F0F12.toInt() else Color.WHITE }
+        )
+        drawLogo(context, canvas, geometry.logoRect ?: return, isDark)
+        val dot = geometry.badgeRect
+        if (dot != null) {
+            canvas.drawCircle(
+                dot.centerX, dot.centerY, dot.width * 0.5f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = if (isDark) 0xFFF5F5F5.toInt() else 0xFF36B38A.toInt()
+                }
+            )
+        }
+        val focal = metadata.focal(settings)
+        val specs = listOf(
+            focal.takeIf { settings.fields.focalLength }.orEmpty(),
+            metadata.aperture.takeIf { settings.fields.aperture }.orEmpty(),
+            metadata.shutter.takeIf { settings.fields.shutter }.orEmpty(),
+            metadata.iso.takeIf { settings.fields.iso }?.let { value ->
+                "ISO " + value.removePrefix("ISO").trim()
+            }.orEmpty()
+        ).filter { it.isNotBlank() }.joinToString(" ")
+        val line = listOf(
+            specs,
+            metadata.lensName.takeIf { settings.fields.lens }.orEmpty()
+        ).filter { it.isNotBlank() }.joinToString("  ")
+        val meta = geometry.metadataRect ?: return
+        drawMeasuredText(
+            canvas, line, meta.right, footer.centerY,
+            meta.width(), geometry.shortSide * 0.025f * settings.sizeScale,
+            fonts.medium, if (isDark) 0xFFF0F0F0.toInt() else 0xFF2A2A2A.toInt(),
+            fonts.mediumCapRatio, Paint.Align.RIGHT
+        )
+    }
+
+    private fun drawSplit(
+        context: Context,
+        canvas: Canvas,
+        geometry: WatermarkLayoutGeometry,
+        settings: WatermarkLayoutSettings,
+        metadata: WatermarkPhotoMetadata,
+        fonts: Fonts,
+        isDark: Boolean,
+        primary: Int,
+        secondary: Int
+    ) {
+        val footer = geometry.footerRect ?: return
+        canvas.drawRect(
+            RectF(footer.left, footer.top, footer.right, footer.bottom),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (isDark) 0xFF0F0F12.toInt() else Color.WHITE }
+        )
+        val s = geometry.shortSide
+        val left = s * 0.044f * settings.sizeScale
+        val model = metadata.cameraName.takeIf { settings.fields.cameraName }.orEmpty()
+        val dateTime = listOf(
+            metadata.date.takeIf { settings.fields.date }.orEmpty(),
+            metadata.time.takeIf { settings.fields.time }.orEmpty()
+        ).filter { it.isNotBlank() }.joinToString(" ")
+        val leftCenterY = footer.top + footer.height * 0.5f
+        if (model.isNotBlank()) {
+            drawMeasuredText(
+                canvas, model, left, leftCenterY - s * 0.015f * settings.sizeScale,
+                footer.width * 0.34f, s * 0.019f * settings.sizeScale,
+                fonts.semibold, primary, fonts.semiboldCapRatio, Paint.Align.LEFT
+            )
+        }
+        if (dateTime.isNotBlank()) {
+            drawMeasuredText(
+                canvas, dateTime, left, leftCenterY + s * 0.014f * settings.sizeScale,
+                footer.width * 0.34f, s * 0.014f * settings.sizeScale,
+                fonts.regular, secondary, fonts.regularCapRatio, Paint.Align.LEFT
+            )
+        }
+        val logo = geometry.logoRect
+        if (logo == null) return
+        drawLogo(context, canvas, logo, isDark)
+        val dividerX = logo.right + s * 0.022f * settings.sizeScale
+        val specsRect = geometry.metadataRect ?: return
+        val specsLeft = dividerX + s * 0.022f * settings.sizeScale
+        val line1 = buildSplitSpecs(metadata, settings)
+        val line2 = metadata.author.takeIf { it.isNotBlank() }
+            ?: metadata.visibleLocation(settings)
+        val middleY = footer.centerY
+        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (isDark) 0xFF777777.toInt() else 0xFFD6D6D6.toInt()
+            strokeWidth = max(1f, s * 0.0012f * settings.sizeScale)
+        }
+        canvas.drawLine(
+            dividerX, middleY - s * 0.025f * settings.sizeScale,
+            dividerX, middleY + s * 0.025f * settings.sizeScale,
+            dividerPaint
+        )
+        if (line1.isNotBlank()) {
+            drawMeasuredText(
+                canvas, line1, specsLeft, middleY - s * 0.009f * settings.sizeScale,
+                max(1f, specsRect.right - specsLeft), s * 0.019f * settings.sizeScale,
+                fonts.semibold, primary, fonts.semiboldCapRatio, Paint.Align.LEFT
+            )
+        }
+        if (line2.isNotBlank()) {
+            drawMeasuredText(
+                canvas, line2, specsLeft, middleY + s * 0.018f * settings.sizeScale,
+                max(1f, specsRect.right - specsLeft), s * 0.014f * settings.sizeScale,
+                fonts.regular, secondary, fonts.regularCapRatio, Paint.Align.LEFT
+            )
+        }
+    }
+
+    private fun buildSplitSpecs(
+        metadata: WatermarkPhotoMetadata,
+        settings: WatermarkLayoutSettings
+    ): String = listOf(
+        metadata.focal(settings).takeIf { settings.fields.focalLength }.orEmpty(),
+        metadata.aperture.takeIf { settings.fields.aperture }.orEmpty(),
+        metadata.shutter.removeSuffix("s").takeIf { settings.fields.shutter }.orEmpty(),
+        metadata.iso.removePrefix("ISO").trim().takeIf { settings.fields.iso && it.isNotBlank() }
+            ?.let { "ISO$it" }.orEmpty()
+    ).filter { it.isNotBlank() }.joinToString(" ")
+
+    private fun drawPalette(
+        context: Context,
+        canvas: Canvas,
+        source: Bitmap,
+        geometry: WatermarkLayoutGeometry,
+        settings: WatermarkLayoutSettings,
+        metadata: WatermarkPhotoMetadata,
+        fonts: Fonts,
+        isDark: Boolean,
+        primary: Int,
+        secondary: Int
+    ) {
+        val footer = geometry.footerRect ?: return
+        canvas.drawRect(
+            RectF(footer.left, footer.top, footer.right, footer.bottom),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (isDark) 0xFF0F0F12.toInt() else Color.WHITE }
+        )
+        val logo = geometry.logoRect ?: return
+        drawLogo(context, canvas, logo, isDark)
+        val s = geometry.shortSide
+        val title = metadata.title.takeIf { it.isNotBlank() }
+            ?: metadata.visibleLocation(settings)
+        if (title.isNotBlank()) {
+            drawMeasuredText(
+                canvas, title, geometry.photoRect.left,
+                s * 0.205f * settings.sizeScale,
+                geometry.sourceWidth * 0.82f,
+                s * 0.024f * settings.sizeScale,
+                fonts.regular, if (isDark) 0xFF9A9A9A.toInt() else 0xFF7E7E7E.toInt(),
+                fonts.regularCapRatio, Paint.Align.LEFT
+            )
+        }
+        val dateText = metadata.date.takeIf { settings.fields.date }.orEmpty()
+        if (dateText.isNotBlank()) {
+            drawMeasuredText(
+                canvas, dateText, geometry.photoRect.left,
+                geometry.photoRect.bottom + s * 0.103f * settings.sizeScale,
+                geometry.sourceWidth * 0.92f,
+                s * 0.017f * settings.sizeScale,
+                fonts.regular, secondary, fonts.regularCapRatio, Paint.Align.LEFT
+            )
+        }
+        val f = settings.fields
+        val focal = metadata.focal(settings)
+        val specs = listOf(
+            focal.takeIf { f.focalLength }.orEmpty(),
+            metadata.aperture.takeIf { f.aperture }.orEmpty(),
+            metadata.shutter.removeSuffix("s").takeIf { f.shutter }.orEmpty(),
+            metadata.iso.removePrefix("ISO").trim().takeIf { f.iso && it.isNotBlank() }
+                ?.let { "ISO$it" }.orEmpty()
+        ).filter { it.isNotBlank() }.joinToString("   ")
+        if (specs.isNotBlank()) {
+            drawMeasuredText(
+                canvas, specs, geometry.photoRect.left,
+                geometry.photoRect.bottom + s * 0.211f * settings.sizeScale,
+                geometry.sourceWidth * 0.92f,
+                s * 0.016f * settings.sizeScale,
+                fonts.regular, if (isDark) 0xFF9A9A9A.toInt() else 0xFF4A4A4A.toInt(),
+                fonts.regularCapRatio, Paint.Align.LEFT
+            )
+        }
+        val coordinates = metadata.coordinates.takeIf {
+            settings.locationEnabled && settings.fields.location && it.isNotBlank()
+        }.orEmpty()
+        if (coordinates.isNotBlank()) {
+            drawMeasuredText(
+                canvas, coordinates, geometry.photoRect.left,
+                geometry.photoRect.bottom + s * 0.239f * settings.sizeScale,
+                geometry.sourceWidth * 0.92f,
+                s * 0.016f * settings.sizeScale,
+                fonts.regular, if (isDark) 0xFF9A9A9A.toInt() else 0xFF4A4A4A.toInt(),
+                fonts.regularCapRatio, Paint.Align.LEFT
+            )
+        }
+        geometry.paletteRect?.let { rect ->
+            val colors = extractPaletteColors(source, 5)
+            val swatchWidth = rect.width / 5f
+            colors.forEachIndexed { index, color ->
+                val left = rect.left + index * swatchWidth
+                canvas.drawRect(
+                    left, rect.top, if (index == 4) rect.right else left + swatchWidth, rect.bottom,
+                    Paint().apply { this.color = color }
+                )
+            }
+        }
+    }
+
+    private fun extractPaletteColors(bitmap: Bitmap, count: Int): List<Int> {
+        val sampleW = min(128, bitmap.width).coerceAtLeast(1)
+        val sampleH = min(128, bitmap.height).coerceAtLeast(1)
+        val pixels = IntArray(sampleW * sampleH)
+        val sample = Bitmap.createScaledBitmap(bitmap, sampleW, sampleH, true)
+        try {
+            sample.getPixels(pixels, 0, sampleW, 0, 0, sampleW, sampleH)
+        } finally {
+            if (sample !== bitmap && !sample.isRecycled) sample.recycle()
+        }
+        val labs = pixels.map(::rgbToOklab).filter { it[0] > 0.08f && it[0] < 0.96f }
+            .ifEmpty { pixels.map(::rgbToOklab) }
+        if (labs.isEmpty()) return List(count) { Color.GRAY }
+        val sorted = labs.sortedBy { it[0] }
+        var centroids = List(count) { index ->
+            sorted[(index * (sorted.size - 1) / (count - 1).coerceAtLeast(1))]
+        }.map { it.copyOf() }
+        repeat(8) {
+            val sums = Array(count) { FloatArray(3) }
+            val totals = IntArray(count)
+            labs.forEach { lab ->
+                var best = 0
+                var distance = Float.MAX_VALUE
+                centroids.forEachIndexed { index, center ->
+                    val d0 = lab[0] - center[0]
+                    val d1 = lab[1] - center[1]
+                    val d2 = lab[2] - center[2]
+                    val d = d0 * d0 + d1 * d1 + d2 * d2
+                    if (d < distance) { distance = d; best = index }
+                }
+                for (axis in 0..2) sums[best][axis] += lab[axis]
+                totals[best]++
+            }
+            centroids = centroids.mapIndexed { index, old ->
+                if (totals[index] == 0) old else FloatArray(3) { axis -> sums[index][axis] / totals[index] }
+            }
+        }
+        return centroids.sortedBy { it[0] }.map(::oklabToRgb)
+    }
+
+    private fun rgbToOklab(color: Int): FloatArray {
+        fun linear(v: Int): Float {
+            val s = v / 255f
+            return if (s <= 0.04045f) s / 12.92f else ((s + 0.055f) / 1.055f).toDouble().let { Math.pow(it, 2.4).toFloat() }
+        }
+        val r = linear(Color.red(color))
+        val g = linear(Color.green(color))
+        val b = linear(Color.blue(color))
+        val l = 0.41222147f * r + 0.53633254f * g + 0.05144599f * b
+        val m = 0.21190350f * r + 0.68069955f * g + 0.10739696f * b
+        val s = 0.08830246f * r + 0.28171884f * g + 0.62997870f * b
+        val lRoot = Math.cbrt(l.toDouble()).toFloat()
+        val mRoot = Math.cbrt(m.toDouble()).toFloat()
+        val sRoot = Math.cbrt(s.toDouble()).toFloat()
+        return floatArrayOf(
+            0.21045426f * lRoot + 0.79361779f * mRoot - 0.00407205f * sRoot,
+            1.97799850f * lRoot - 2.42859221f * mRoot + 0.45059371f * sRoot,
+            0.02590404f * lRoot + 0.78277177f * mRoot - 0.80867577f * sRoot
+        )
+    }
+
+    private fun oklabToRgb(lab: FloatArray): Int {
+        val lRoot = lab[0] + 0.39633778f * lab[1] + 0.21580376f * lab[2]
+        val mRoot = lab[0] - 0.10556135f * lab[1] - 0.06385417f * lab[2]
+        val sRoot = lab[0] - 0.08948418f * lab[1] - 1.29148555f * lab[2]
+        val l = lRoot * lRoot * lRoot
+        val m = mRoot * mRoot * mRoot
+        val s = sRoot * sRoot * sRoot
+        val r = 4.07674166f * l - 3.30771159f * m + 0.23096993f * s
+        val g = -1.26843800f * l + 2.60975740f * m - 0.34131940f * s
+        val b = -0.00419609f * l - 0.70341861f * m + 1.70761470f * s
+        fun encoded(v: Float): Int {
+            val clamped = v.coerceIn(0f, 1f)
+            val srgb = if (clamped <= 0.0031308f) clamped * 12.92f
+                else 1.055f * clamped.toDouble().let { Math.pow(it, 1.0 / 2.4).toFloat() } - 0.055f
+            return (srgb * 255f).roundToInt().coerceIn(0, 255)
+        }
+        return Color.rgb(encoded(r), encoded(g), encoded(b))
     }
 
     private fun splitFilterBadgeName(name: String): List<String> {
@@ -544,7 +778,8 @@ internal object WatermarkRenderer {
             drawMeasuredText(
                 canvas, filter, logoCenterX, footer.centerY + s * 0.022f * settings.sizeScale,
                 logoWidth * 1.65f, s * 0.014f * settings.sizeScale,
-                fonts.regular, 0xFF9A9A9A.toInt(), fonts.regularCapRatio
+                fonts.regular, if (settings.invert) 0xFF6E6E6E.toInt() else 0xFF9A9A9A.toInt(),
+                fonts.regularCapRatio
             )
         }
         val f = settings.fields

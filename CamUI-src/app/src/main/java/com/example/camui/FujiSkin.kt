@@ -47,6 +47,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -359,6 +360,7 @@ fun FujiTopKey(
 ) {
     val view = LocalView.current
     val iconRotationDegrees = LocalFujiIconRotation.current
+    val iconRotationDegrees = LocalFujiIconRotation.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val pressedOffset by animateDpAsState(if (pressed) 1.5.dp else 0.dp, tween(80), label = "fuji-key-press")
@@ -407,8 +409,8 @@ fun FujiTopKey(
                         Text("Q", color = Color(0xFF202426), fontSize = 16.sp, fontWeight = FontWeight.Black, lineHeight = 17.sp)
                     }
                 } else {
-                    FujiIconGlyph(icon, Modifier.size(22.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color(0xE01B1B1B))
-                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color.White.copy(alpha = 0.70f))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).graphicsLayer { rotationZ = iconRotationDegrees }.graphicsLayer { rotationZ = iconRotationDegrees }, Color(0xE01B1B1B))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp).graphicsLayer { rotationZ = iconRotationDegrees }.graphicsLayer { rotationZ = iconRotationDegrees }, Color.White.copy(alpha = 0.70f))
                 }
             }
         }

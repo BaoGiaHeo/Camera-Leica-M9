@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.graphics.Point
+import android.graphics.SurfaceTexture
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.media.AudioAttributes
@@ -900,8 +901,8 @@ fun CameraScreen(
     // Preview FPS is persistent by default; the first-install default is 60 FPS.
     var previewFpsMode by remember {
         mutableStateOf(
-            appPrefs.getString("preview_fps_mode", "60")
-                ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
+            appPrefs.getString("preview_fps_mode", null)
+                ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "AUTO"
         )
     }
     var previewFpsTarget by remember { mutableFloatStateOf(60f) }
@@ -2171,7 +2172,65 @@ fun CameraScreen(
                         android.util.Log.w("FUJI_PREVIEW_FPS", "Could not read Camera2 AE FPS ranges", it)
                     }.getOrDefault(emptyList())
                 }.orEmpty()
-                val fpsSelection = selectPreviewFpsRange(previewFpsMode, advertisedPreviewFpsRanges)
+                val previewSizeAndDuration = activeFacingId?.let { id ->
+                    runCatching {
+                        val characteristics = cameraManager.getCameraCharacteristics(id)
+                        val streamMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                        val sizes = streamMap?.getOutputSizes(SurfaceTexture::class.java).orEmpty()
+                        val targetWidth = previewView.width.takeIf { it > 0 } ?: 1280
+                        val targetHeight = previewView.height.takeIf { it > 0 } ?: 720
+                        val targetAspect = targetWidth.toFloat() / targetHeight.coerceAtLeast(1)
+                        val selectedSize = sizes
+                            .filter { it.width <= targetWidth * 2 && it.height <= targetHeight * 2 }
+                            .minByOrNull { size ->
+                                val aspectError = kotlin.math.abs(
+                                    size.width.toFloat() / size.height.coerceAtLeast(1) - targetAspect
+                                )
+                                val scaleError = kotlin.math.abs(
+                                    size.width.toFloat() * size.height -
+                                        targetWidth.toFloat() * targetHeight
+                                ) / (targetWidth.toFloat() * targetHeight).coerceAtLeast(1f)
+                                aspectError * 4f + scaleError
+                            }
+                            ?: sizes.minByOrNull { size ->
+                                kotlin.math.abs(size.width.toFloat() / size.height.coerceAtLeast(1) - targetAspect)
+                            }
+                        val durationNs = selectedSize?.let { streamMap?.getOutputMinFrameDuration(SurfaceTexture::class.java, it) }
+                        selectedSize to durationNs
+                    }.onFailure {
+                        android.util.Log.w("FUJI_PREVIEW_FPS", "Could not query SurfaceTexture preview duration cameraId=$id", it)
+                    }.getOrNull()
+                }
+                val previewMinFrameDurationNs = previewSizeAndDuration?.second
+                val supportedFpsModes = supportedPreviewFpsOptions(
+                    advertisedPreviewFpsRanges,
+                    previewMinFrameDurationNs
+                )
+                appPrefs.edit()
+                    .putStringSet("preview_fps_supported", supportedFpsModes)
+                    .apply()
+                val fpsAlreadyInitialized = appPrefs.getBoolean("preview_fps_initialized", false)
+                val requestedFpsMode = if (fpsAlreadyInitialized) {
+                    previewFpsMode
+                } else {
+                    listOf("60", "30", "24", "AUTO").firstOrNull { it in supportedFpsModes } ?: "AUTO"
+                }
+                if (!fpsAlreadyInitialized || requestedFpsMode != previewFpsMode) {
+                    appPrefs.edit()
+                        .putBoolean("preview_fps_initialized", true)
+                        .putString("preview_fps_mode", requestedFpsMode)
+                        .apply()
+                    scope.launch(Dispatchers.Main.immediate) {
+                        previewFpsMode = requestedFpsMode
+                    }
+                }
+                android.util.Log.i(
+                    "FUJI_PREVIEW_FPS",
+                    "cameraId=${activeFacingId ?: "unknown"} previewSize=${previewSizeAndDuration?.first} " +
+                        "minFrameDurationNs=$previewMinFrameDurationNs ranges=$advertisedPreviewFpsRanges " +
+                        "supported=$supportedFpsModes requested=$requestedFpsMode"
+                )
+                val fpsSelection = selectPreviewFpsRange(requestedFpsMode, advertisedPreviewFpsRanges)
                 fpsSelection.range?.let { selectedRange ->
                     Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
                         CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,

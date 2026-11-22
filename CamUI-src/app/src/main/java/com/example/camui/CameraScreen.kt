@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.graphics.Point
+import android.graphics.SurfaceTexture
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.media.AudioAttributes
@@ -36,6 +37,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Rational
+import android.util.Range
 import android.util.Log
 import android.util.Size
 import android.view.Surface
@@ -690,6 +692,26 @@ fun CameraScreen(
     }
 
     val appPrefs = remember { context.getSharedPreferences("fujifilm_settings", 0) }
+    var previewFpsSetting by remember {
+        mutableStateOf(PreviewFpsPolicy.normalizeSetting(appPrefs.getString("preview_fps", "60")))
+    }
+    var previewFpsTarget by remember { mutableIntStateOf(60) }
+    var previewFpsCapabilityFallback by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!appPrefs.getBoolean("preview_fps_keep_across_launch", false)) {
+            appPrefs.edit().putString("preview_fps", "60").apply()
+            previewFpsSetting = "60"
+        }
+    }
+    DisposableEffect(appPrefs) {
+        val fpsPreferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
+            if (key == "preview_fps") {
+                previewFpsSetting = PreviewFpsPolicy.normalizeSetting(preferences?.getString(key, "60"))
+            }
+        }
+        appPrefs.registerOnSharedPreferenceChangeListener(fpsPreferenceListener)
+        onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(fpsPreferenceListener) }
+    }
     var livePhotoEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("live_photo_enabled", false))
     }
@@ -1555,7 +1577,7 @@ fun CameraScreen(
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
         nativeImageProcessingEnabled, livePhotoEnabled, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
-        starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode
+        starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode, previewFpsSetting
     ) {
         if (!hasCam) return@LaunchedEffect
         if (!isProcessing && previewFreezeEffect == "off" &&
@@ -1913,7 +1935,63 @@ fun CameraScreen(
                         CaptureRequest.SHADING_MODE_FAST
                     else -> null
                 }
+                val availablePreviewFpsRanges = activeCameraCharacteristics
+                    ?.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                    .orEmpty()
+                    .mapNotNull { range ->
+                        runCatching { PreviewFpsRange(range.lower, range.upper) }.getOrNull()
+                    }
+                val streamConfigurationMap = activeCameraCharacteristics
+                    ?.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                val previewSizes = runCatching {
+                    streamConfigurationMap?.getOutputSizes(SurfaceTexture::class.java)?.toList().orEmpty()
+                }.getOrDefault(emptyList())
+                val matchedPreviewSize = if (previewView.width > 0 && previewView.height > 0) {
+                    previewSizes.minByOrNull { size ->
+                        kotlin.math.abs(size.width.toFloat() / size.height - previewView.width.toFloat() / previewView.height)
+                    }
+                } else null
+                val minimumPreviewFrameDurationNs = matchedPreviewSize?.let { size ->
+                    runCatching {
+                        streamConfigurationMap?.getOutputMinFrameDuration(SurfaceTexture::class.java, size)
+                    }.getOrNull()
+                }?.takeIf { it > 0L }
+                val streamMaximumFps = minimumPreviewFrameDurationNs?.let {
+                    (1_000_000_000L / it).toInt().coerceAtLeast(1)
+                }
+                val fpsRangesForStream = if (streamMaximumFps != null) {
+                    availablePreviewFpsRanges.filter { it.upper <= streamMaximumFps }
+                        .ifEmpty { availablePreviewFpsRanges }
+                } else {
+                    availablePreviewFpsRanges
+                }
+                val fpsSelection = PreviewFpsPolicy.select(previewFpsSetting, fpsRangesForStream)
+                val fpsSelectionLimitedByStream = streamMaximumFps != null &&
+                    (fpsSelection.effectiveMaximumFps ?: 60) > streamMaximumFps
+                val selectedFpsRange = fpsSelection.range
+                previewFpsTarget = fpsSelection.effectiveMaximumFps ?: 60
+                previewFpsCapabilityFallback = fpsSelection.fellBack || fpsSelectionLimitedByStream
+                android.util.Log.i(
+                    "FUJI_PREVIEW_FPS",
+                    "setting=$previewFpsSetting selectedRange=${selectedFpsRange?.let { "${it.lower}..${it.upper}" } ?: "unsupported"} " +
+                        "effectiveTarget=${previewFpsTarget} streamMax=${streamMaximumFps ?: "unknown"} " +
+                        "previewView=${previewView.width}x${previewView.height} " +
+                        "matchedSize=${matchedPreviewSize?.let { "${it.width}x${it.height}" } ?: "unknown"} " +
+                        "minimumFrameDurationNs=${minimumPreviewFrameDurationNs ?: "unknown"} " +
+                        "fellBack=${previewFpsCapabilityFallback} reason=${fpsSelection.reason}"
+                )
                 val previewBuilder = Preview.Builder().setTargetRotation(rotation)
+                selectedFpsRange?.let { selected ->
+                    val androidRange = Range(selected.lower, selected.upper)
+                    runCatching {
+                        previewBuilder.setTargetFrameRate(androidRange)
+                        Camera2Interop.Extender(previewBuilder)
+                            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, androidRange)
+                    }.onFailure {
+                        Log.w("FUJI_PREVIEW_FPS", "Could not apply target FPS range=${selected.lower}..${selected.upper}", it)
+                        previewFpsCapabilityFallback = true
+                    }
+                }
                 if (distortionCorrectionMode != null &&
                     distortionModes.contains(distortionCorrectionMode)
                 ) {
@@ -5557,7 +5635,7 @@ fun CameraScreen(
                                     videoFormatText = "FHD",
                                     fpsText = measuredPreviewFps.takeIf { it.isFinite() && it > 0f }
                                         ?.let { String.format(Locale.US, "%.2f", it) } ?: "--.--",
-                                    fpsTarget = 60,
+                                    fpsTarget = previewFpsTarget,
                                     showPixelTexture = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     showGrid = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,

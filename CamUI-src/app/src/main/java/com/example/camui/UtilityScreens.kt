@@ -332,7 +332,10 @@ fun ToolboxScreen(
     var retroLcdEnabled by remember { mutableStateOf(prefs.getBoolean("lcd_texture_overlay_enabled", false)) }
     var zebraEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_zebra_enabled", false)) }
     var rgbHistogramEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_rgb_histogram_enabled", false)) }
-    var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", false)) }
+    var levelEnabled by remember { mutableStateOf(prefs.getBoolean("viewfinder_level_enabled", true)) }
+    var gridOverlayMode by remember { mutableStateOf(prefs.getString("grid_overlay_mode", if (showGrid) "3x3" else "off") ?: "off") }
+    var gridOverlayColor by remember { mutableStateOf(prefs.getString("grid_overlay_color", "auto") ?: "auto") }
+    var gridOverlayOpacity by remember { mutableIntStateOf(prefs.getInt("grid_overlay_opacity", 50).coerceIn(30, 70)) }
     var proHudShowEv by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_ev", true)) }
     var proHudShowShutter by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_shutter", true)) }
     var proHudShowIso by remember { mutableStateOf(prefs.getBoolean("pro_hud_show_iso", true)) }
@@ -464,7 +467,74 @@ fun ToolboxScreen(
             proHudShowWhiteBalance = it
             prefs.edit().putBoolean("pro_hud_show_white_balance", it).apply()
         }
-        ToolToggle("Grid Lines", "Thirds composition guide", "tab_01", showGrid, onShowGrid)
+        Text(stringResource(R.string.grid_overlay_title), color = CamColors.Sub, fontSize = 12.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 5.dp))
+        val gridModes = listOf(
+            "off" to R.string.grid_mode_off,
+            "3x3" to R.string.grid_mode_thirds,
+            "4x4" to R.string.grid_mode_four_by_four,
+            "diagonal" to R.string.grid_mode_diagonal,
+            "golden" to R.string.grid_mode_golden,
+            "crosshair" to R.string.grid_mode_crosshair,
+            "square" to R.string.grid_mode_square
+        )
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            gridModes.forEach { (modeId, labelId) ->
+                FujiChip(
+                    stringResource(labelId),
+                    gridOverlayMode == modeId,
+                    {
+                        gridOverlayMode = modeId
+                        val enabled = modeId != "off"
+                        prefs.edit().putString("grid_overlay_mode", modeId)
+                            .putBoolean("viewfinder_grid_enabled", enabled).apply()
+                        onShowGrid(enabled)
+                    }
+                )
+            }
+        }
+        Text(stringResource(R.string.grid_color_title), color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 7.dp, bottom = 4.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            listOf(
+                "white" to R.string.grid_color_white,
+                "black" to R.string.grid_color_black,
+                "auto" to R.string.grid_color_auto
+            ).forEach { (colorId, labelId) ->
+                FujiChip(
+                    stringResource(labelId),
+                    gridOverlayColor == colorId,
+                    {
+                        gridOverlayColor = colorId
+                        prefs.edit().putString("grid_overlay_color", colorId).apply()
+                    }
+                )
+            }
+        }
+        Text(stringResource(R.string.grid_opacity_title), color = CamColors.Sub, fontSize = 11.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 7.dp, bottom = 4.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            listOf(30, 50, 70).forEach { opacity ->
+                FujiChip(
+                    "$opacity%",
+                    gridOverlayOpacity == opacity,
+                    {
+                        gridOverlayOpacity = opacity
+                        prefs.edit().putInt("grid_overlay_opacity", opacity).apply()
+                    },
+                    Modifier.weight(1f)
+                )
+            }
+        }
         ToolToggle("Histogram", "Live luminance histogram", "histogram", showHist, onShowHist)
         ToolToggle("RGB Histogram", "Biểu đồ phân bố kênh đỏ, lục và lam từ khung preview.", "histogram", rgbHistogramEnabled) {
             rgbHistogramEnabled = it

@@ -106,6 +106,12 @@ internal object PixelOsdSprites {
         "meter-center" to arrayOf("........", "..WWWW..", "..W..W..", "..WWWW..", "........"),
         "meter-spot" to arrayOf(".........", "....W....", "....W....", ".WWWWW...", "....W....", "....W....", "........."),
         "af-area" to arrayOf("WW.....WW", "W.......W", ".........", ".........", "WW.....WW"),
+        "area-finger" to arrayOf(
+            "....WW....", "....WW....", "....WW....", "....WWWW..",
+            "....WWWW..", "....WWWW..", "WWWWWWWW..", "WWWWWWWWWW",
+            ".WWWWWWWW.", "..WWWWWW..", "..WW..WW..", "..WW..WW..",
+            "..WW..WW.."
+        ),
         "shutter" to arrayOf("..WWW..", ".W...W.", "W..W..W", "W.W.W.W", "W..W..W", ".W...W.", "..WWW.."),
         "ae-lock" to arrayOf(".WWWWW.", "W.....W", "W.WWW.W", "W.W.W.W", "W.WWW.W", "WWWWWWW"),
         "pin" to arrayOf("..WWW..", ".W...W.", "W.....W", "W.....W", ".W...W.", "..WWW..", "...W..."),
@@ -117,7 +123,7 @@ internal object PixelOsdSprites {
         "memory-card", "battery", "battery-charge", "battery-low", "flash", "flash-off",
         "face", "eye", "lock", "ae-lock", "focus-dot", "af-area", "meter-matrix",
         "meter-center", "meter-spot", "shutter", "ev-scale", "dynamic-range",
-        "white-balance", "level", "live", "timer", "burst", "heat-warning"
+        "white-balance", "level", "live", "timer", "burst", "heat-warning", "area-finger"
     )
 
     fun get(name: String): Array<String>? = sprites[name]

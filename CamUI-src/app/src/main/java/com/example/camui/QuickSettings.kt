@@ -37,6 +37,8 @@ fun QuickPanel(
     onUltraHdr: () -> Unit,
     metering: String,
     onMetering: () -> Unit,
+    displayModeLabel: String,
+    onDisplayMode: () -> Unit,
     renderEngine: String,
     onRenderEngine: () -> Unit,
     livePhotoEnabled: Boolean,
@@ -159,6 +161,14 @@ fun QuickPanel(
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    FujiTile(
+                        stringResource(R.string.quick_display_title),
+                        displayModeLabel,
+                        false,
+                        onDisplayMode,
+                        icon = "display",
+                        modifier = Modifier.weight(1f)
+                    )
                     FujiTile(
                         "WATERMARK",
                         if (watermarkEnabled) "ON · " + watermarkLayoutLabel.uppercase() else "OFF",

@@ -105,7 +105,8 @@ internal object ProcessingModeController {
                 lunaDreamMode = "luna15",
                 nightShotMode = "off",
                 hdrToneMappingEnabled = false,
-                nativeProcessingEnabled = false
+                nativeProcessingEnabled = false,
+                livePhotoEnabled = false
             )
             ProcessingPrimaryMode.LUNA_DREAM_20 -> current.copy(
                 lunaDreamMode = "luna20",

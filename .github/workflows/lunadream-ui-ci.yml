@@ -128,6 +128,8 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/WatermarkRenderer.kt \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkPanelScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/HorizonLevelPolicy.kt \
+            CamUI-src/app/src/main/java/com/example/camui/WhiteBalanceCctPolicy.kt \
+            CamUI-src/app/src/test/java/com/example/camui/WhiteBalanceCctPolicyTest.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayoutEngine.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \

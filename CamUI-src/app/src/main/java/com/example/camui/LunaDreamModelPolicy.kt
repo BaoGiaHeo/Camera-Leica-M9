@@ -16,12 +16,6 @@ internal enum class LunaDreamTier(val preferenceId: String) {
     }
 }
 
-internal enum class LunaDreamSourceStrategy {
-    A_NATIVE_MAX_RESOLUTION_DETAIL,
-    B_COMPUTATIONAL_MULTI_FRAME_SUPER_RESOLUTION,
-    C_LIMITED_SENSOR_UPSCALE
-}
-
 internal data class LunaDreamModelSpec(
     val tier: LunaDreamTier,
     val targetPixels: Long,
@@ -41,30 +35,6 @@ internal data class LunaDreamModelSpec(
     }
 }
 
-internal data class LunaDreamSensorCapability(
-    val normalPixelArrayWidth: Int,
-    val normalPixelArrayHeight: Int,
-    val maximumResolutionWidth: Int,
-    val maximumResolutionHeight: Int,
-    val maximumResolutionStreamAvailable: Boolean,
-    val ultraHighResolutionCapability: Boolean
-) {
-    val normalSensorPixels: Long
-        get() = normalPixelArrayWidth.toLong() * normalPixelArrayHeight.toLong()
-
-    val maximumResolutionPixels: Long
-        get() = maximumResolutionWidth.toLong() * maximumResolutionHeight.toLong()
-
-    fun strategy(): LunaDreamSourceStrategy = when {
-        maximumResolutionStreamAvailable &&
-            ultraHighResolutionCapability &&
-            maximumResolutionPixels >= 190_000_000L ->
-            LunaDreamSourceStrategy.A_NATIVE_MAX_RESOLUTION_DETAIL
-        normalSensorPixels >= 40_000_000L ->
-            LunaDreamSourceStrategy.B_COMPUTATIONAL_MULTI_FRAME_SUPER_RESOLUTION
-        else -> LunaDreamSourceStrategy.C_LIMITED_SENSOR_UPSCALE
-    }
-}
 
 /**
  * Nominal output dimensions are a pixel-count contract only. A larger JPEG does

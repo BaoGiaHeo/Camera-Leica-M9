@@ -1851,6 +1851,28 @@ fun CameraScreen(
                         if (front) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
                 }
             }.getOrNull()
+            // Read the public Camera2 sensor/maximum-resolution metadata before selecting
+            // a multi-frame source strategy. Also inspect logical cameras' advertised physical IDs.
+            val sensorSurvey = CameraSensorSurvey.inspectAvailable(cameraManager)
+            sensorSurvey.forEach { capability ->
+                android.util.Log.i("FUJI_SENSOR_SURVEY", capability.diagnosticLine())
+            }
+            val activeSensorCapability = sensorSurvey.firstOrNull { it.cameraId == activeFacingId }
+            if (activeSensorCapability != null) {
+                android.util.Log.i(
+                    "FUJI_LUNADREAM_SOURCE",
+                    "cameraId=$activeFacingId strategy=${activeSensorCapability.strategy()} " +
+                        "normalPixels=${activeSensorCapability.normalPixelCount} " +
+                        "maximumPixels=${activeSensorCapability.maximumPixelCount} " +
+                        "maxJpeg=${activeSensorCapability.maximumResolutionJpegSizes.maxOfOrNull { it.width.toLong() * it.height.toLong() } ?: 0L} " +
+                        "maxRaw=${activeSensorCapability.maximumResolutionRawSizes.maxOfOrNull { it.width.toLong() * it.height.toLong() } ?: 0L}"
+                )
+            } else {
+                android.util.Log.w(
+                    "FUJI_LUNADREAM_SOURCE",
+                    "No Camera2 metadata for active cameraId=${activeFacingId ?: "unknown"}; do not assume native 200MP"
+                )
+            }
             val selectedCameraInfo = provider.availableCameraInfos.firstOrNull { info ->
                 runCatching { Camera2CameraInfo.from(info).cameraId == activeFacingId }.getOrDefault(false)
             }

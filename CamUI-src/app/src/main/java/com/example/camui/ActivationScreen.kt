@@ -403,9 +403,6 @@ private fun ActivationBatteryIcon(percent: Int, charging: Boolean, warning: Bool
             )
         }
     }
-    if (charging) {
-        Text("⚡", color = color, fontSize = 12.sp)
-    }
 }
 
 private fun readActivationStorage(): ActivationStorageSnapshot = runCatching {

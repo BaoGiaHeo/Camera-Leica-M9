@@ -837,6 +837,7 @@ fun CameraScreen(
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
+    BackHandler(enabled = showQuick) { showQuick = false }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
     var measuredPreviewFps by remember { mutableFloatStateOf(Float.NaN) }
@@ -844,21 +845,14 @@ fun CameraScreen(
         previewFpsEstimator.reset()
         measuredPreviewFps = Float.NaN
     }
+    // Preview FPS is persistent by default; the first-install default is 60 FPS.
     var previewFpsMode by remember {
         mutableStateOf(
-            if (appPrefs.getBoolean("preview_fps_keep", false)) {
-                appPrefs.getString("preview_fps_mode", "60")
-                    ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
-            } else "60"
+            appPrefs.getString("preview_fps_mode", "60")
+                ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
         )
     }
     var previewFpsTarget by remember { mutableFloatStateOf(60f) }
-    LaunchedEffect(Unit) {
-        if (!appPrefs.getBoolean("preview_fps_keep", false)) {
-            appPrefs.edit().putString("preview_fps_mode", "60").apply()
-            previewFpsMode = "60"
-        }
-    }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
@@ -1245,7 +1239,6 @@ fun CameraScreen(
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
-    val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val rawCaptureMode = when (appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") {
         "raw_plus", "raw_dream" -> "raw_dream"
         "raw" -> "raw"
@@ -2309,41 +2302,6 @@ fun CameraScreen(
                         ResolutionSelector.Builder()
                             .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
                             .build()
-                    )
-                }
-                // Off/Low/Medium/High use only the active camera's ISP noise reduction.
-                // LunaDream uses multi-frame fusion; the camera ISP may still apply its standard noise reduction.
-                val availableNrModes = activeFacingId?.let { id ->
-                    runCatching {
-                        cameraManager.getCameraCharacteristics(id)
-                            .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
-                    }.getOrNull()
-                }.orEmpty()
-                val preferredNrModes = when (noiseReduction) {
-                    "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
-                    "Low" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL
-                    )
-                    "Medium" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                    )
-                    "High" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                    )
-                    else -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
-                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
-                    )
-                }
-                val effectiveNrMode = preferredNrModes.firstOrNull { it in availableNrModes }
-                if (effectiveNrMode != null && !hdrExtensionActive && !nightExtensionActive) {
-                    Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(
-                        CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
                     )
                 }
                 if (!hdrExtensionActive && !nightExtensionActive &&
@@ -5240,7 +5198,9 @@ fun CameraScreen(
     val toolbarContent: @Composable (Modifier, Dp) -> Unit = { toolbarModifier, plateHeight ->
         FujiMetalTopPlate(toolbarModifier, height = plateHeight) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 1.dp),
+                Modifier.fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                    .padding(horizontal = 32.dp, vertical = 1.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -5258,7 +5218,6 @@ fun CameraScreen(
                 }, onLongClick = {
                     if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
                 })
-                FujiTopKey(label = "FILM", icon = "film", selected = filterDialogVisible || activeFilter != "None", onClick = { filterDialogVisible = true })
                 FujiTopKey(label = "ADJ", icon = "sliders", selected = false, onClick = onOpenToolbox)
                 FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
                 FujiTopKey(label = "AF", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
@@ -5878,7 +5837,7 @@ fun CameraScreen(
                                     whiteBalanceText = toneText,
                                     filmSimulationText = activeFilter.takeIf { it != "None" }?.take(2)?.uppercase(Locale.US) ?: "",
                                     outputSizeLabel = if (lunaDreamMode == "luna20" || lunaDreamMode == "luna15") "L" else "M",
-                                    whiteBalanceKelvinText = if (manualColorTempEnabled) "${manualColorTemp}K" else "----K",
+                                    whiteBalanceKelvinText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
                                     touchAfEnabled = touchAfEnabled,
                                     manualExposure = manualExposure,
                                     manualWhiteBalance = manualColorTempEnabled,
@@ -6986,16 +6945,6 @@ fun CameraScreen(
                     })
             }
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
-            FujiKey(
-                "DISP/BACK · ${stringResource(lcdDisplayMode.labelResource)}",
-                onClick = {
-                    if (proSel != null && mode == "Pro") {
-                        android.util.Log.i("FUJI_PRO_SCALE", "BACK source=DISP selected=$proSel")
-                        proSel = null
-                    } else cycleDispDisplayMode()
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
-            )
         }
     }
 
@@ -7026,9 +6975,7 @@ fun CameraScreen(
                             Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
                         }
                 ) {
-                    toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(
-                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                            ), topPlateHeight)
+                    toolbarContent(Modifier.fillMaxSize(), topPlateHeight)
                     if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.13f)))
                 }
                 Row(
@@ -7038,15 +6985,16 @@ fun CameraScreen(
                 ) {
                     Box(
                         Modifier.width(leftColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(
-                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                            )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {
                                 Log.d("LUNA_LAYOUT", "LEFT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
                             }
                     ) {
-                        leftPanelContent(Modifier.fillMaxSize())
+                        leftPanelContent(
+                            Modifier.fillMaxSize().windowInsetsPadding(
+                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
+                            )
+                        )
                         if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Blue.copy(alpha = 0.17f)))
                     }
                     Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -7084,15 +7032,16 @@ fun CameraScreen(
                     }
                     Box(
                         Modifier.width(rightColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(
-                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                            )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {
                                 Log.d("LUNA_LAYOUT", "RIGHT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
                             }
                     ) {
-                        rightPanelContent(Modifier.fillMaxSize())
+                        rightPanelContent(
+                            Modifier.fillMaxSize().windowInsetsPadding(
+                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
+                            )
+                        )
                         if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color(0xFF9B59B6).copy(alpha = 0.18f)))
                     }
                 }
@@ -7169,6 +7118,8 @@ fun CameraScreen(
                 },
                 onToolbox = { showQuick = false; onOpenToolbox() },
                 onWatermarkPanel = { showQuick = false; onOpenWatermarkPanel() },
+                displayModeLabel = stringResource(lcdDisplayMode.labelResource),
+                onDisplayMode = { cycleDispDisplayMode() },
                 watermarkEnabled = appPrefs.getBoolean("watermark_enabled", true),
                 watermarkLayoutLabel = when (appPrefs.getString("watermark_template", "classic_bar")) {
                     "caption" -> "CAPTION"

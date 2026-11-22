@@ -6320,29 +6320,84 @@ fun CameraScreen(
                                             }
                                         }
                                     }
-                                    "Tone" -> {
-                                        Column(Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Ấm", color = CamColors.Sub, fontSize = 9.sp)
-                                                FujiScaleRuler(
-                                                    modifier = Modifier.weight(1f),
-                                                    value = ((manualColorTemp - 2500) / 5500f).coerceIn(0f, 1f),
-                                                    onValueChange = { fraction ->
-                                                        manualColorTemp = (2500 + fraction * 5500).roundToInt()
-                                                        manualColorTempEnabled = true
-                                                        camera?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
-                                                    },
-
-                                                )
-                                                Text("Lạnh", color = CamColors.Sub, fontSize = 9.sp)
-                                                Text("AUTO", color = if (manualColorTempEnabled) CamColors.Sub else FujiSkin.orange,
-                                                    fontSize = 10.sp, modifier = Modifier.padding(start = 8.dp).animaTClickable {
-                                                        manualColorTempEnabled = false
-                                                        camera?.let { runCatching { applyAutoWhiteBalance(it) } }
-                                                    })
+                                    "WB" -> {
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Row(
+                                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                MiniChip(stringResource(R.string.wb_preset_auto), whiteBalancePresetId == "auto") {
+                                                    whiteBalancePresetId = "auto"
+                                                    manualColorTempEnabled = false
+                                                    camera?.let { runCatching { applyAutoWhiteBalance(it) } }
+                                                }
+                                                MiniChip(stringResource(R.string.wb_preset_daylight), whiteBalancePresetId == "daylight") {
+                                                    whiteBalancePresetId = "daylight"
+                                                    manualColorTempEnabled = false
+                                                    camera?.let { runCatching { applyWhiteBalancePreset(it, CaptureRequest.CONTROL_AWB_MODE_DAYLIGHT) } }
+                                                }
+                                                MiniChip(stringResource(R.string.wb_preset_cloudy), whiteBalancePresetId == "cloudy") {
+                                                    whiteBalancePresetId = "cloudy"
+                                                    manualColorTempEnabled = false
+                                                    camera?.let { runCatching { applyWhiteBalancePreset(it, CaptureRequest.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT) } }
+                                                }
+                                                MiniChip(stringResource(R.string.wb_preset_shade), whiteBalancePresetId == "shade") {
+                                                    whiteBalancePresetId = "shade"
+                                                    manualColorTempEnabled = false
+                                                    camera?.let { runCatching { applyWhiteBalancePreset(it, CaptureRequest.CONTROL_AWB_MODE_SHADE) } }
+                                                }
+                                                MiniChip(stringResource(R.string.wb_preset_tungsten), whiteBalancePresetId == "tungsten") {
+                                                    whiteBalancePresetId = "tungsten"
+                                                    manualColorTempEnabled = false
+                                                    camera?.let { runCatching { applyWhiteBalancePreset(it, CaptureRequest.CONTROL_AWB_MODE_INCANDESCENT) } }
+                                                }
+                                                MiniChip(stringResource(R.string.wb_preset_fluorescent), whiteBalancePresetId == "fluorescent") {
+                                                    whiteBalancePresetId = "fluorescent"
+                                                    manualColorTempEnabled = false
+                                                    camera?.let { runCatching { applyWhiteBalancePreset(it, CaptureRequest.CONTROL_AWB_MODE_FLUORESCENT) } }
+                                                }
                                             }
-                                            Text(if (manualColorTempEnabled) "Tông màu $manualColorTemp K" else "Tông màu tự động",
-                                                color = CamColors.Sub, fontSize = 9.sp)
+                                            FujiScaleRuler(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                value = manualColorTemp.toFloat().coerceIn(2500f, 10000f),
+                                                valueRange = 2500f..10000f,
+                                                steps = 74,
+                                                onValueChange = { kelvin ->
+                                                    manualColorTemp = (kelvin / 100f).roundToInt() * 100
+                                                    manualColorTempEnabled = true
+                                                    whiteBalancePresetId = "kelvin"
+                                                    camera?.let { runCatching { applyManualWhiteBalance(it, manualColorTemp) } }
+                                                }
+                                            )
+                                            Text(
+                                                if (manualColorTempEnabled) "$manualColorTemp K" else stringResource(R.string.wb_auto),
+                                                color = CamColors.Sub,
+                                                fontSize = 9.sp
+                                            )
+                                        }
+                                    }
+                                    "FL" -> {
+                                        val zoomState = camera?.cameraInfo?.zoomState?.value
+                                        val minimum = zoomState?.minZoomRatio ?: 1f
+                                        val maximum = maxTotalSelectableZoom(
+                                            Camera2Info.cameraReportedZoomMax(activeCameraDetails, zoomState?.maxZoomRatio ?: 1f),
+                                            Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
+                                        ).coerceAtLeast(minimum)
+                                        val baseFocalMm = activeCameraDetails?.eq35Mm ?: 26f
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            FujiScaleRuler(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                value = zoomSel.coerceIn(minimum, maximum),
+                                                valueRange = minimum..maximum,
+                                                steps = 40,
+                                                onValueChange = { animateZoomTo(it) }
+                                            )
+                                            Text(
+                                                String.format(Locale.US, "%.0fmm", baseFocalMm * zoomSel),
+                                                color = FujiSkin.lcdGreen,
+                                                fontSize = 9.sp
+                                            )
                                         }
                                     }
                                 }
@@ -6355,8 +6410,8 @@ fun CameraScreen(
                                 Triple("Tv", shutterText, "Tv"),
                                 Triple("ISO", isoText, "ISO"),
                                 Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else afText, "AF"),
-                                Triple("Tone", toneText, "WB"),
-                                Triple("AUTO", "AUTO", "RESET")
+                                Triple("WB", if (manualColorTempEnabled) toneText else whiteBalancePresetId.uppercase(Locale.US), "WB"),
+                                Triple("FL", String.format(Locale.US, "%.0fmm", (activeCameraDetails?.eq35Mm ?: 26f) * zoomSel), "FL")
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 proItems.forEach { (key, value, label) ->
@@ -6365,7 +6420,9 @@ fun CameraScreen(
                                         Modifier.weight(1f).clip(RoundedCornerShape(2.dp)).background(Color(0xFF080C0D))
                                             .border(0.8.dp, if (active) FujiSkin.orange else Color(0xFF354247), RoundedCornerShape(2.dp))
                                             .animaTClickable {
-                                                if (key == "AUTO") {
+                                                if (key == "FL") {
+                                                    proSel = if (active) null else key
+                                                } else if (key == "AUTO") {
                                                     manualExposure = false
                                                     manualIsoEnabled = false
                                                     manualShutterEnabled = false

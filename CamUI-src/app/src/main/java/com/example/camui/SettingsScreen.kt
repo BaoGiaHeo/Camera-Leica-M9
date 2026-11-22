@@ -209,6 +209,9 @@ private fun SettingsDetailPage(
             } else "60"
         )
     }
+    var iconRotationEnabled by remember {
+        mutableStateOf(prefs.getBoolean("icon_rotation_enabled", true))
+    }
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
@@ -375,6 +378,14 @@ var nightShotMode by remember {
                     description = "Lưu hoặc nạp lại các thiết lập camera")
             }
             "Display / Appearance", "Appearance" -> {
+                SettingsSwitch(
+                    stringResource(R.string.icon_rotation_title),
+                    stringResource(R.string.icon_rotation_description),
+                    iconRotationEnabled
+                ) { enabled ->
+                    iconRotationEnabled = enabled
+                    prefs.edit().putBoolean("icon_rotation_enabled", enabled).apply()
+                }
                 Text(
                     stringResource(R.string.zoom_controls_section),
                     color = FujiSkin.lcdGreen,

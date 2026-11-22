@@ -161,6 +161,7 @@ data class PixelOsdFrame(
     val fpsFallback: Boolean = false,
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
+    val batteryAlertState: BatteryAlertState = BatteryAlertState(),
     val batteryLowBlinkOn: Boolean = true,
     val showEvScale: Boolean = true,
     val evIndex: Int = 0,
@@ -448,7 +449,7 @@ class PixelOsdRenderer(context: Context) {
             )
             drawSprite(canvas, "level", cx - 4, cy - 3)
         }
-        if (isPixelBatteryLowWarning(frame.batteryPercent) &&
+        if (frame.batteryAlertState.warning &&
             !frame.batteryCharging && frame.batteryLowBlinkOn
         ) {
             val bannerHeight = (layout.t1CapHeightPx * 2.5f / pixelScale).roundToInt().coerceAtLeast(8)
@@ -493,8 +494,9 @@ class PixelOsdRenderer(context: Context) {
     }
 
     private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
-        val lowBattery = frame.batteryPercent in 0..100 &&
-            isPixelBatteryLow(frame.batteryPercent) && !frame.batteryCharging
+        val lowBattery = frame.batteryAlertState.low && !frame.batteryCharging
+        val batteryAlertVisible = lowBattery &&
+            (!frame.batteryAlertState.blinking || frame.batteryLowBlinkOn)
         layout.elements.filter { it.section == "status" }.forEach { element ->
             when (element.kind) {
                 PixelOsdElementKind.TEXT -> {
@@ -508,8 +510,7 @@ class PixelOsdRenderer(context: Context) {
                                 else -> PixelOsdPalette.WHITE
                             }
                         }
-                        element.id == "battery-percent" && lowBattery &&
-                            (frame.batteryPercent >= 10 || frame.batteryLowBlinkOn) ->
+                        element.id == "battery-percent" && batteryAlertVisible ->
                             PixelOsdPalette.RED
                         element.id == "status-af" && frame.focusLocked -> PixelOsdPalette.GREEN
                         else -> PixelOsdPalette.WHITE
@@ -533,11 +534,10 @@ class PixelOsdRenderer(context: Context) {
                             canvas = canvas,
                             bounds = element.bounds,
                             percent = frame.batteryPercent,
-                            color = if (lowBattery &&
-                                (frame.batteryPercent >= 10 || frame.batteryLowBlinkOn)
-                            ) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
+                            color = if (batteryAlertVisible) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
                             unitPx = layout.unitPx,
-                            charging = frame.batteryCharging
+                            charging = frame.batteryCharging,
+                            critical = frame.batteryAlertState.critical && batteryAlertVisible
                         )
                     } else {
                         drawPixelOsdIcon(
@@ -1019,7 +1019,8 @@ class PixelOsdRenderer(context: Context) {
         percent: Int,
         color: Int,
         unitPx: Int,
-        charging: Boolean
+        charging: Boolean,
+        critical: Boolean
     ) {
         val scale = pixelScale.coerceAtLeast(1)
         val left = (bounds.left / scale).roundToInt()
@@ -1059,7 +1060,7 @@ class PixelOsdRenderer(context: Context) {
                     top + ((height - bolt.size) / 2).coerceAtLeast(0)
                 )
             }
-        } else if (isPixelBatteryCritical(percent) && color == PixelOsdPalette.RED) {
+        } else if (critical && color == PixelOsdPalette.RED) {
             drawLine(canvas, left, top + height - 1, left + width - 1, top, PixelOsdPalette.RED)
         }
     }

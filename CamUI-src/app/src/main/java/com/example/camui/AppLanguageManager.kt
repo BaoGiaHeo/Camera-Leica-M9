@@ -106,7 +106,7 @@ object AppLanguageManager {
         if (initialized) return currentLanguage
         val preferences = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val stored = preferences.getString(LANGUAGE_KEY, "system")
-        val resolved = migratedPreference(stored, context)
+        val resolved = migrateLegacyPreference(stored, context)
         if (stored != resolved) preferences.edit().putString(LANGUAGE_KEY, resolved).apply()
         return resolved
     }

@@ -6038,10 +6038,15 @@ fun CameraScreen(
                             )
                             if (mode == "Pro" && proSel != null) {
                                 val selectedPanel = proAdjustmentContent
+                                val adjustmentRows = if (proSel == "AF" && proAfMode == "MF") 10.8f else if (proSel == "AF") 4.6f else 6f
+                                val adjustmentMinimum = if (proSel == "AF" && proAfMode == "MF") 88.dp else 48.dp
+                                val adjustmentHeight = (frameHeight / 48f * adjustmentRows)
+                                    .coerceAtLeast(adjustmentMinimum)
+                                    .coerceAtMost(frameHeight * 0.45f)
                                 Box(
                                     Modifier.align(Alignment.BottomCenter)
                                         .fillMaxWidth()
-                                        .height((frameHeight / 48f * 6f).coerceAtLeast(52.dp))
+                                        .height(adjustmentHeight)
                                         .background(Color(0xE00B0B0B))
                                         .border(1.dp, Color(0xFF737B7D), RoundedCornerShape(6.dp))
                                         .padding(horizontal = 5.dp, vertical = 2.dp)
@@ -6513,10 +6518,14 @@ fun CameraScreen(
                                 }
 
                                 "AF" -> {
-                                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    Column(
+                                        Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
                                         Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             listOf("AF-S", "AF-C", "MF").forEach { modeOption ->
                                                 FujiChip(
@@ -6526,62 +6535,72 @@ fun CameraScreen(
                                                     Modifier.weight(1f)
                                                 )
                                             }
+                                            FujiChip(
+                                                "TOUCH AF",
+                                                touchAfEnabled,
+                                                {
+                                                    touchAfEnabled = !touchAfEnabled
+                                                    if (touchAfEnabled.not()) {
+                                                        centerAfPoint = Offset(0.5f, 0.5f)
+                                                        preferredFaceCenter = null
+                                                        invalidatePendingFocusLock(camera)
+                                                        centerAfStatus = 0
+                                                    }
+                                                    android.util.Log.i("FUJI_AF_TOUCH", "TOUCH_AF enabled=$touchAfEnabled")
+                                                },
+                                                Modifier.weight(1.2f)
+                                            )
                                         }
-                                        FujiChip(
-                                            "TOUCH AF",
-                                            touchAfEnabled,
-                                            {
-                                                touchAfEnabled = !touchAfEnabled
-                                                if (touchAfEnabled.not()) {
-                                                    centerAfPoint = Offset(0.5f, 0.5f)
-                                                    preferredFaceCenter = null
-                                                    invalidatePendingFocusLock(camera)
-                                                    centerAfStatus = 0
-                                                }
-                                                android.util.Log.i("FUJI_AF_TOUCH", "TOUCH_AF enabled=$touchAfEnabled")
-                                            },
-                                            Modifier.fillMaxWidth()
-                                        )
                                         if (proAfMode == "MF" && maxFocus > 0f &&
                                             availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
                                         ) {
-                                            FujiScale(
-                                                label = "AF",
-                                                valueText = if (manualFocus > 0f) {
-                                                    "%.1fD".format(Locale.US, manualFocus)
-                                                } else "∞",
-                                                position = (manualFocus / maxFocus).coerceIn(0f, 1f),
-                                                auto = false,
-                                                lowLabel = "MACRO",
-                                                highLabel = "∞",
-                                                stepFraction = 0.01f,
-                                                onPositionChange = { fraction ->
-                                                    manualFocus = fraction * maxFocus
-                                                    milkyWayInfinityFocusEnabled = false
-                                                    invalidatePendingFocusLock(camera)
-                                                    camera?.let { active ->
-                                                        runCatching { applyManualFocus(active, manualFocus) }
-                                                    }
-                                                },
-                                                onBack = { proSel = null },
-                                        onAuto = {
-                                                    manualFocus = 0f
-                                                    milkyWayInfinityFocusEnabled = false
-                                                    selectProAfMode("AF-S")
-                                                }
-                                            )
+                                            Row(
+                                                Modifier.fillMaxWidth().weight(1f),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                FujiScale(
+                                                    label = "AF",
+                                                    valueText = if (manualFocus > 0f) {
+                                                        "%.2fm".format(Locale.US, 1f / manualFocus.coerceAtLeast(0.001f))
+                                                    } else "∞",
+                                                    position = (manualFocus / maxFocus).coerceIn(0f, 1f),
+                                                    auto = false,
+                                                    lowLabel = "MACRO",
+                                                    highLabel = "∞",
+                                                    stepFraction = 0.01f,
+                                                    onPositionChange = { fraction ->
+                                                        manualFocus = fraction * maxFocus
+                                                        milkyWayInfinityFocusEnabled = false
+                                                        invalidatePendingFocusLock(camera)
+                                                        camera?.let { active ->
+                                                            runCatching { applyManualFocus(active, manualFocus) }
+                                                        }
+                                                    },
+                                                    onBack = { proSel = null },
+                                                    onAuto = {
+                                                        manualFocus = 0f
+                                                        milkyWayInfinityFocusEnabled = false
+                                                        selectProAfMode("AF-S")
+                                                    },
+                                                    showAutoControl = false,
+                                                    keyWidth = 40.dp,
+                                                    keyHeight = 40.dp,
+                                                    backKeyWidth = 48.dp,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                FujiChip(
+                                                    "PEAK",
+                                                    focusPeaking,
+                                                    { onFocusPeaking(!focusPeaking) },
+                                                    Modifier.widthIn(min = 48.dp)
+                                                )
+                                            }
                                         } else if (proAfMode == "MF") {
                                             Text(
                                                 localizedUiText(context, "Lấy nét thủ công không được hỗ trợ trên ống kính này."),
                                                 color = CamColors.Sub,
                                                 fontSize = 11.sp,
-                                                fontFamily = FujiTypography.uiFont
-                                            )
-                                        } else {
-                                            Text(
-                                                if (proAfMode == "AF-C") localizedUiText(context, "Lấy nét liên tục") else localizedUiText(context, "Lấy nét đơn"),
-                                                color = CamColors.Sub,
-                                                fontSize = 10.sp,
                                                 fontFamily = FujiTypography.uiFont
                                             )
                                         }

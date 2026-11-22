@@ -5972,7 +5972,7 @@ fun CameraScreen(
                                         burstMode -> "BURST L"
                                         else -> ""
                                     },
-                                    driveFrameCount = burstCompletedFrames,
+                                    driveFrameCount = burstCompletedFrames.takeIf { burstCaptureActive } ?: 0,
                                     driveCountdown = countdown,
                                     batteryPercent = batteryPercent,
                                     batteryCharging = batteryCharging,

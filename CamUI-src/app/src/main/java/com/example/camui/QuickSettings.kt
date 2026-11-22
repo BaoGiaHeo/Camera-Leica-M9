@@ -72,7 +72,7 @@ fun QuickPanel(
             if (showOther) {
                 FujiListRow(
                     stringResource(R.string.quick_native_processing_title),
-                    if (nativeImageProcessingEnabled) "ON" else "OFF",
+                    stringResource(if (nativeImageProcessingEnabled) R.string.common_on else R.string.common_off),
                     onClick = { onNativeImageProcessingChanged(!nativeImageProcessingEnabled) },
                     description = stringResource(R.string.quick_native_processing_description)
                 )
@@ -170,7 +170,9 @@ fun QuickPanel(
                     )
                     FujiTile(
                         stringResource(R.string.quick_watermark),
-                        if (watermarkEnabled) "ON · " + watermarkLayoutLabel.uppercase() else "OFF",
+                        if (watermarkEnabled) {
+                            stringResource(R.string.common_on) + " · " + watermarkLayoutLabel.uppercase()
+                        } else stringResource(R.string.common_off),
                         true,
                         onWatermarkPanel,
                         icon = "image",

@@ -64,11 +64,13 @@ internal fun discoverSupportedPreviewFpsModes(context: Context): List<String> {
             characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
                 ?.forEach { ranges += PreviewFpsRange(it.lower, it.upper) }
             val streamMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            streamMap?.getOutputSizes(SurfaceTexture::class.java).orEmpty().forEach { size ->
-                val duration = runCatching {
-                    streamMap.getOutputMinFrameDuration(SurfaceTexture::class.java, size)
-                }.getOrDefault(0L)
-                durations += duration
+            if (streamMap != null) {
+                streamMap.getOutputSizes(SurfaceTexture::class.java).orEmpty().forEach { size ->
+                    val duration = runCatching {
+                        streamMap.getOutputMinFrameDuration(SurfaceTexture::class.java, size)
+                    }.getOrDefault(0L)
+                    durations += duration
+                }
             }
         }
     }

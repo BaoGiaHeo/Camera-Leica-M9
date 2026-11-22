@@ -38,14 +38,19 @@ internal data class CameraResolutionCapability(
     val normalPixelCount: Long get() = pixelArrayWidth.toLong() * pixelArrayHeight.toLong()
     val maximumPixelCount: Long get() = maximumPixelArrayWidth.toLong() * maximumPixelArrayHeight.toLong()
 
-    fun strategy(): LunaDreamSourceStrategy = LunaDreamSensorCapability(
-        normalPixelArrayWidth = pixelArrayWidth,
-        normalPixelArrayHeight = pixelArrayHeight,
-        maximumResolutionWidth = maximumPixelArrayWidth,
-        maximumResolutionHeight = maximumPixelArrayHeight,
-        maximumResolutionStreamAvailable = maximumResolutionStreamAvailable,
-        ultraHighResolutionCapability = ultraHighResolutionCapability
-    ).strategy()
+    fun strategy(): LunaDreamSourceStrategy {
+        val maximumStreamPixels = (maximumResolutionJpegSizes + maximumResolutionRawSizes)
+            .maxOfOrNull { it.width.toLong() * it.height.toLong() } ?: 0L
+        return LunaDreamSensorCapability(
+            normalPixelArrayWidth = pixelArrayWidth,
+            normalPixelArrayHeight = pixelArrayHeight,
+            maximumResolutionWidth = maximumPixelArrayWidth,
+            maximumResolutionHeight = maximumPixelArrayHeight,
+            maximumResolutionStreamAvailable = maximumResolutionStreamAvailable &&
+                maximumStreamPixels >= 190_000_000L,
+            ultraHighResolutionCapability = ultraHighResolutionCapability
+        ).strategy()
+    }
 
     fun diagnosticLine(): String = buildString {
         append("cameraId=").append(cameraId)

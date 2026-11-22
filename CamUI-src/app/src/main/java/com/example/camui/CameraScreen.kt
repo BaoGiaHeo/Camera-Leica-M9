@@ -5966,8 +5966,9 @@ fun CameraScreen(
                             // Histogram, battery, and AF state are rendered in the low-resolution pixel LCD layer.
                             if (!hasCam) {
                                 Text(
-                                    "NO SIGNAL\nCần cấp quyền Camera (chạm để cấp)",
-                                    color = Color.White, textAlign = TextAlign.Center,
+                                    stringResource(R.string.camera_no_signal_permission),
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center,
                                     modifier = Modifier.align(Alignment.Center)
                                         .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
                                 )
@@ -6664,7 +6665,7 @@ fun CameraScreen(
                             previewContent(Modifier.fillMaxSize())
                             if (!hasCam) {
                                 Text(
-                                    localizedUiText(context, "NO SIGNAL"),
+                                    stringResource(R.string.camera_no_signal),
                                     color = Color(0xFFE8442B),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,

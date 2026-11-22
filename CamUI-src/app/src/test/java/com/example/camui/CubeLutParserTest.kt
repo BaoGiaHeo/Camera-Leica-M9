@@ -32,6 +32,37 @@ class CubeLutParserTest {
     }
 
     @Test
+    fun usesTetrahedralInterpolationAcrossAllSixFractionOrderings() {
+        val text = buildString {
+            appendLine("LUT_3D_SIZE 2")
+            for (red in 0..1) {
+                for (green in 0..1) {
+                    for (blue in 0..1) {
+                        val value = if (red == 1 && green == 1 && blue == 1) 1 else 0
+                        appendLine("$value $value $value")
+                    }
+                }
+            }
+        }
+        val lut = requireNotNull(parseCubeLutText(text))
+        val samples = listOf(
+            Triple(0.8f, 0.6f, 0.2f),
+            Triple(0.8f, 0.2f, 0.6f),
+            Triple(0.6f, 0.8f, 0.2f),
+            Triple(0.2f, 0.8f, 0.6f),
+            Triple(0.2f, 0.6f, 0.8f),
+            Triple(0.6f, 0.2f, 0.8f)
+        )
+        samples.forEach { input ->
+            val expected = minOf(input.first, input.second, input.third)
+            val result = lut.sample(input.first, input.second, input.third)
+            assertEquals(expected, result.first, 0.0001f)
+            assertEquals(expected, result.second, 0.0001f)
+            assertEquals(expected, result.third, 0.0001f)
+        }
+    }
+
+    @Test
     fun acceptsOneDimensionalCubeWithoutThreeDimensionalHeader() {
         val text = """
             TITLE "One dimensional identity"

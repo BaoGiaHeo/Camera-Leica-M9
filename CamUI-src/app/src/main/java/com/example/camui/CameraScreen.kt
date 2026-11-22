@@ -5604,18 +5604,22 @@ fun CameraScreen(
                                     },
                                     faceCenter = faceTrackCenter.takeIf {
                                         faceTrackingEnabled &&
+                                            !manualAfReticleOverrideActive &&
                                             manualFocus <= 0f &&
                                             !milkyWayInfinityFocusEnabled &&
                                             lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                             lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID
                                     },
                                     faceSize = faceTrackSize.takeIf {
-                                        manualFocus <= 0f && !milkyWayInfinityFocusEnabled
+                                        !manualAfReticleOverrideActive &&
+                                            manualFocus <= 0f && !milkyWayInfinityFocusEnabled
                                     },
                                     eyeCenter = faceEyeCenter.takeIf {
-                                        manualFocus <= 0f && !milkyWayInfinityFocusEnabled
+                                        !manualAfReticleOverrideActive &&
+                                            manualFocus <= 0f && !milkyWayInfinityFocusEnabled
                                     },
                                     faceFocused = centerAfStatus == 1 &&
+                                        !manualAfReticleOverrideActive &&
                                         manualFocus <= 0f && !milkyWayInfinityFocusEnabled,
                                     focusLocked = focusLocked && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                         lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
@@ -6168,7 +6172,7 @@ fun CameraScreen(
                                                         camera?.let { runCatching { applyAutoFocus(it) } }
                                                     })
                                             }
-                                            Text(if (focusLocked) stringResource(R.string.focus_locked) else afText, color = CamColors.Sub, fontSize = 9.sp)
+                                            Text(afText, color = CamColors.Sub, fontSize = 9.sp)
                                         }
                                     }
                                     "Tone" -> {

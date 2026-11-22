@@ -37,7 +37,7 @@ class PreviewFpsEstimatorTest {
         assertNull(estimator.add(0L, 0L))
         repeat(10) { index -> estimator.add(1_000_000L + index * 10_000_000L, index * 10L) }
         assertNull(estimator.add(5_000_000L, 200L))
-        repeat(29) { index ->
+        repeat(28) { index ->
             assertNull(estimator.add(15_000_000L + index * 10_000_000L, 210L + index * 10L))
         }
         assertEquals(100f, estimator.add(295_000_000L, 500L)!!, 0.1f)

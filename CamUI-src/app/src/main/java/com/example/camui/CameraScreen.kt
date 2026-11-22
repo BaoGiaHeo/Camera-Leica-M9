@@ -859,7 +859,6 @@ fun CameraScreen(
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
-    BackHandler(enabled = showQuick) { showQuick = false }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
     var measuredPreviewFps by remember { mutableFloatStateOf(Float.NaN) }
@@ -950,9 +949,13 @@ fun CameraScreen(
     val proAfModeState = rememberUpdatedState(proAfMode)
     var touchAfEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_touch_af_enabled", false)) }
     LaunchedEffect(touchAfEnabled) { appPrefs.edit().putBoolean("pro_touch_af_enabled", touchAfEnabled).apply() }
-    BackHandler(enabled = proSel != null && mode == "Pro") {
-        android.util.Log.i("FUJI_PRO_SCALE", "BACK source=system selected=$proSel")
-        proSel = null
+    BackHandler(enabled = showQuick || (proSel != null && mode == "Pro")) {
+        if (showQuick) {
+            showQuick = false
+        } else {
+            android.util.Log.i("FUJI_PRO_SCALE", "BACK source=system selected=$proSel")
+            proSel = null
+        }
     }
     var proAdjustmentContent: (@Composable (Modifier) -> Unit)? = null
     var focusLocked by remember { mutableStateOf(false) }
@@ -1919,8 +1922,9 @@ fun CameraScreen(
                     val movedEnough = previousTarget == null ||
                         kotlin.math.abs(previousTarget.x - focusTargetCamera.x) +
                         kotlin.math.abs(previousTarget.y - focusTargetCamera.y) > 0.025f
-                    if (movedEnough && now - lastFaceAfAtMs >= 200L &&
-                        !focusLockedState.value && manualFocusState.value <= 0f && proAfModeState.value != "MF"
+                    if (movedEnough && now - lastFaceAfAtMs >= 1_500L &&
+                        !focusLockedState.value && manualFocusState.value <= 0f &&
+                        proAfModeState.value == "AF-C"
                     ) {
                         lastFaceAfAtMs = now
                         lastFaceAfTarget = focusTargetCamera
@@ -5521,13 +5525,10 @@ fun CameraScreen(
                                             }, mainExecutor)
                                         },
                                         onLongPress = { offset ->
-                                            if (mode != "Pro" || !touchAfEnabled) return@detectTapGestures
+                                            // Hold is an AF-L/AE-L gesture in both Photo and Pro.
+                                            // It always locks at the fixed centre reticle; touch AF is a separate tap path.
                                             val active = camera ?: return@detectTapGestures
-                                            val tapPoint = normalizedAfTapPoint(
-                                                Offset(offset.x, offset.y),
-                                                size.width,
-                                                size.height
-                                            )
+                                            val tapPoint = Offset(0.5f, 0.5f)
                                             val previewWidth = previewView.width
                                             val previewHeight = previewView.height
                                             if (previewWidth <= 0 || previewHeight <= 0) {
@@ -5600,14 +5601,16 @@ fun CameraScreen(
                                                 val focusSuccess = runCatching {
                                                     future.get().isFocusSuccessful
                                                 }.getOrDefault(false)
+                                                val afLockApplied = focusSuccess && applyCameraAfLock(active)
                                                 val aeLockApplied = focusSuccess && applyCameraAeLock(active, locked = true)
-                                                focusLocked = focusSuccess
-                                                centerAfStatus = if (focusSuccess) 1 else -1
+                                                focusLocked = focusSuccess && afLockApplied
+                                                centerAfStatus = if (focusLocked) 1 else -1
                                                 android.util.Log.i(
                                                     "FUJI_AF",
                                                     "AF_LONG_PRESS_RESULT focusSuccess=" + focusSuccess +
+                                                        " afLockApplied=" + afLockApplied +
                                                         " aeLockApplied=" + aeLockApplied +
-                                                        " AF_LOCK=" + focusSuccess + " AE_LOCK=" + aeLockApplied +
+                                                        " AF_LOCK=" + focusLocked + " AE_LOCK=" + aeLockApplied +
                                                         " point=" + tapPoint.x + "," + tapPoint.y
                                                 )
                                                 if (!focusSuccess) {
@@ -7766,6 +7769,35 @@ private fun applyCameraExposureState(
 }
 
 /**
+ * Switches a successful one-shot AF operation to AUTO so the lens stays fixed
+ * instead of immediately returning to continuous focus hunting.
+ */
+private fun applyCameraAfLock(camera: Camera): Boolean {
+    val modes = runCatching {
+        Camera2CameraInfo.from(camera.cameraInfo)
+            .getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+    }.getOrNull()?.toSet().orEmpty()
+    if (CameraCharacteristics.CONTROL_AF_MODE_AUTO !in modes) {
+        android.util.Log.w(
+            "FUJI_AF",
+            "CONTROL_AF_MODE_AUTO unavailable; AF motor lock cannot be guaranteed cameraId=${runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }.getOrNull()}"
+        )
+        return false
+    }
+    return runCatching {
+        val options = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
+            .build()
+        Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+        android.util.Log.i("FUJI_AF", "AF_MODE=AUTO applied after focus; focus-hunting paused")
+        true
+    }.onFailure {
+        android.util.Log.w("FUJI_AF", "Could not hold AF motor in AUTO mode", it)
+    }.getOrDefault(false)
+}
+
+/**
  * CameraX FocusMeteringAction retains the AF region; this applies the matching Camera2
  * AE lock explicitly after focus succeeds. Unsupported AE-lock devices are not reported
  * as having completed a full AF/AE lock.
@@ -7824,11 +7856,27 @@ private fun applyManualFocus(camera: Camera, diopters: Float) {
 }
 
 private fun applyAutoFocus(camera: Camera) {
-    val options = CaptureRequestOptions.Builder()
-        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-        .build()
-    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+    val modes = runCatching {
+        Camera2CameraInfo.from(camera.cameraInfo)
+            .getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+    }.getOrNull()?.toSet().orEmpty()
+    when {
+        CameraCharacteristics.CONTROL_AF_MODE_AUTO in modes -> {
+            triggerCamera2AfOnce(camera)
+        }
+        CameraCharacteristics.CONTROL_AF_MODE_CONTINUOUS_PICTURE in modes -> {
+            val options = CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                .setCaptureRequestOption(
+                    CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+                )
+                .build()
+            Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+            android.util.Log.w("FUJI_AF", "AUTO unsupported; CONTINUOUS_PICTURE fallback cameraId=${runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }.getOrNull()}")
+        }
+        else -> android.util.Log.w("FUJI_AF", "No usable autofocus mode cameraId=${runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }.getOrNull()}")
+    }
 }
 
 /**
@@ -7840,12 +7888,18 @@ private fun triggerCamera2AfOnce(camera: Camera): Boolean = runCatching {
         Camera2CameraInfo.from(camera.cameraInfo).cameraId
     }.getOrDefault("unknown")
     val control = Camera2CameraControl.from(camera.cameraControl)
+    val availableModes = runCatching {
+        Camera2CameraInfo.from(camera.cameraInfo)
+            .getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+    }.getOrNull()?.toSet().orEmpty()
+    val oneShotMode = if (CameraCharacteristics.CONTROL_AF_MODE_AUTO in availableModes) {
+        CaptureRequest.CONTROL_AF_MODE_AUTO
+    } else {
+        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+    }
     val start = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-        .setCaptureRequestOption(
-            CaptureRequest.CONTROL_AF_MODE,
-            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
-        )
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, oneShotMode)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START)
         .build()
     control.addCaptureRequestOptions(start)
@@ -7863,7 +7917,7 @@ private fun triggerCamera2AfOnce(camera: Camera): Boolean = runCatching {
             android.util.Log.w("FUJI_AF", "Could not reset CONTROL_AF_TRIGGER cameraId=$cameraId", it)
         }
     }, 120L)
-    android.util.Log.i("FUJI_AF", "CONTROL_AF_TRIGGER=START cameraId=$cameraId source=Camera2Fallback")
+    android.util.Log.i("FUJI_AF", "CONTROL_AF_TRIGGER=START cameraId=$cameraId source=Camera2Fallback mode=$oneShotMode")
     true
 }.onFailure {
     android.util.Log.w("FUJI_AF", "CONTROL_AF_TRIGGER_START failed", it)

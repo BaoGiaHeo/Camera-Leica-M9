@@ -2,6 +2,9 @@ name: Manual FujiFilm Mode Release APK (Developer diagnostics)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fuji-2.5.0-spec-implementation
 
 permissions:
   contents: read

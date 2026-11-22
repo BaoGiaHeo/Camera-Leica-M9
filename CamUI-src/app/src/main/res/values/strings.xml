@@ -206,4 +206,6 @@
     <string name="activation_warning_battery">LOW BATTERY</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>
     <string name="activation_title">FUJIFILM MODE</string>
+    <string name="camera_no_signal">NO SIGNAL</string>
+    <string name="camera_no_signal_permission">Grant Camera permission to start the viewfinder. Tap to request permission.</string>
 </resources>

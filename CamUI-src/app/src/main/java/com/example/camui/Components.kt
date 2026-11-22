@@ -34,6 +34,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +46,45 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.fillMaxSize
+
+/**
+ * Text helper used by camera chrome, menu controls and labels. It measures the
+ * actual laid-out text and reduces the requested type size by up to 20% before
+ * allowing the final ellipsis. LCD pixel OSD is intentionally drawn elsewhere.
+ */
+@Composable
+fun AutoFitText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontSize: TextUnit = 12.sp,
+    minScale: Float = 0.8f,
+    fontWeight: FontWeight? = null,
+    fontFamily: FontFamily? = FujiTypography.uiFont,
+    letterSpacing: TextUnit = TextUnit.Unspecified,
+    textAlign: TextAlign? = null,
+    maxLines: Int = 1
+) {
+    var scale by remember(text, fontSize, minScale, maxLines) { mutableStateOf(1f) }
+    MaterialText(
+        text = text,
+        modifier = modifier,
+        color = color,
+        fontSize = fontSize * scale,
+        fontWeight = fontWeight,
+        fontFamily = fontFamily,
+        letterSpacing = letterSpacing,
+        textAlign = textAlign,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { result ->
+            if ((result.didOverflowWidth || result.didOverflowHeight) && scale > minScale.coerceIn(0.8f, 1f)) {
+                val next = (scale - 0.04f).coerceAtLeast(minScale.coerceIn(0.8f, 1f))
+                if (next < scale) scale = next
+            }
+        }
+    )
+}
 
 private tailrec fun Context.findActivityResultRegistryOwner(): ActivityResultRegistryOwner? {
     return (this as? ActivityResultRegistryOwner)

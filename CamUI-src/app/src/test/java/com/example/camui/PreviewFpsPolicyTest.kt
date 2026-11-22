@@ -26,8 +26,8 @@ class PreviewFpsPolicyTest {
             "60",
             listOf(PreviewFpsRange(15, 30), PreviewFpsRange(24, 48))
         )
-        assertEquals(PreviewFpsRange(24, 48), selection.range)
-        assertEquals(48, selection.targetFps)
+        assertEquals(PreviewFpsRange(15, 30), selection.range)
+        assertEquals(30, selection.targetFps)
         assertTrue(selection.fellBack)
     }
 
@@ -40,6 +40,20 @@ class PreviewFpsPolicyTest {
         assertEquals(PreviewFpsRange(24, 60), selection.range)
         assertEquals(60, selection.targetFps)
         assertFalse(selection.fellBack)
+    }
+
+    @Test
+    fun onlyAdvertisedAeRatesAndStreamDurationsAreOffered() {
+        val ranges = listOf(PreviewFpsRange(15, 30), PreviewFpsRange(24, 60))
+        assertEquals(
+            listOf("30", "24", "AUTO"),
+            supportedPreviewFpsModes(ranges, listOf(33_333_333L))
+        )
+        assertEquals(
+            listOf("30", "24"),
+            supportedPreviewFpsModes(ranges, listOf(33_333_333L, 41_666_666L))
+        )
+        assertEquals("30", highestSupportedPreviewFpsMode(listOf("30", "24")))
     }
 
     @Test

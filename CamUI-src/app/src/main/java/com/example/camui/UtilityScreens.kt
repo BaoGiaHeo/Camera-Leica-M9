@@ -1941,7 +1941,7 @@ private fun readBoundedLutBytes(input: InputStream, maxBytes: Int): ByteArray {
     return output.toByteArray()
 }
 
-private fun catalogLutCategory(path: String): String {
+internal fun catalogLutCategory(path: String): String {
     val parts = path.replace('\\', '/').split('/').filter { it.isNotBlank() }
     val normalizedParts = parts.map { it.lowercase().replace('_', ' ').replace('-', ' ').trim() }
     val normalizedPath = normalizedParts.joinToString("/")
@@ -1954,6 +1954,7 @@ private fun catalogLutCategory(path: String): String {
         "f log", "flog", "logc", "cineon", "log").any { token ->
         normalizedPath.contains(token)
     }
+    if (logInput) return "Cinema / Log"
     if (normalizedParts.any { it in setOf("cinema", "cinema log", "log") }) {
         return "Cinema / Log"
     }

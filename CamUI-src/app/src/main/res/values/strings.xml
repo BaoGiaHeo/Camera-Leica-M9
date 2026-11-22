@@ -188,6 +188,11 @@
     <string name="watermark_invert">INVERT</string>
     <string name="watermark_size_value">SIZE %1$d</string>
     <string name="watermark_size_label">SIZE</string>
+    <string name="watermark_title_label">TITLE</string>
+    <string name="watermark_title_hint">Optional photo title</string>
+    <string name="watermark_author_label">AUTHOR</string>
+    <string name="watermark_author_hint">Photographer name</string>
+    <string name="watermark_photographed_in">PHOTOGRAPHED IN : %1$s</string>
     <string name="watermark_fields">METADATA FIELDS</string>
     <string name="watermark_field_model">Camera model</string>
     <string name="watermark_field_date">Date</string>

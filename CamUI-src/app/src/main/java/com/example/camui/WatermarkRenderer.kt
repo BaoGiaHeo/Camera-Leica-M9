@@ -246,7 +246,8 @@ internal object WatermarkRenderer {
         capHeightPx: Float,
         maxWidth: Float,
         capRatio: Float,
-        align: Paint.Align = Paint.Align.LEFT
+        align: Paint.Align = Paint.Align.LEFT,
+        minimumScale: Float = 0.85f
     ): Paint? {
         if (text.isBlank() || maxWidth <= 0f) return null
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
@@ -255,7 +256,7 @@ internal object WatermarkRenderer {
             textAlign = align
             textSize = (capHeightPx / capRatio.coerceIn(0.4f, 0.9f)).coerceAtLeast(1f)
         }
-        val minimum = paint.textSize * 0.85f
+        val minimum = paint.textSize * minimumScale.coerceIn(0.5f, 0.95f)
         while (paint.measureText(text) > maxWidth && paint.textSize > minimum + 0.25f) {
             paint.textSize = (paint.textSize * 0.97f).coerceAtLeast(minimum)
         }
@@ -272,9 +273,12 @@ internal object WatermarkRenderer {
         typeface: Typeface,
         color: Int,
         capRatio: Float,
-        align: Paint.Align = Paint.Align.CENTER
+        align: Paint.Align = Paint.Align.CENTER,
+        minimumScale: Float = 0.85f
     ): Boolean {
-        val paint = fitPaint(text, typeface, color, capHeightPx, maxWidth, capRatio, align) ?: return false
+        val paint = fitPaint(
+            text, typeface, color, capHeightPx, maxWidth, capRatio, align, minimumScale
+        ) ?: return false
         val cap = Rect()
         paint.getTextBounds("H", 0, 1, cap)
         val baseline = centerY - (cap.top + cap.bottom) * 0.5f
@@ -457,6 +461,29 @@ internal object WatermarkRenderer {
         }
     }
 
+    private fun splitWatermarkFilterBadge(filterName: String): List<String> {
+        val words = filterName.trim().replace(Regex("\\s+"), " ")
+            .split(' ').filter { it.isNotBlank() }
+        if (words.isEmpty()) return emptyList()
+        if (words.size == 1) return listOf(words.first().uppercase(java.util.Locale.US))
+
+        var bestSplit = 1
+        var bestDifference = Int.MAX_VALUE
+        for (split in 1 until words.size) {
+            val first = words.take(split).joinToString(" ")
+            val second = words.drop(split).joinToString(" ")
+            val difference = kotlin.math.abs(first.length - second.length)
+            if (difference < bestDifference) {
+                bestDifference = difference
+                bestSplit = split
+            }
+        }
+        return listOf(
+            words.take(bestSplit).joinToString(" ").uppercase(java.util.Locale.US),
+            words.drop(bestSplit).joinToString(" ").uppercase(java.util.Locale.US)
+        )
+    }
+
     private fun drawBlack(
         context: Context, canvas: Canvas, geometry: WatermarkLayoutGeometry,
         settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts
@@ -476,13 +503,15 @@ internal object WatermarkRenderer {
                 s * 0.006f, s * 0.006f,
                 Paint(Paint.ANTI_ALIAS_FLAG).apply { color = badgeColour }
             )
-            val badgeLines = metadata.filterBadge.ifBlank { "CLASSIC\nNEG." }.split('\n').take(2)
+            // Derive the badge from the active look; do not use a fixed CLASSIC NEG. fallback.
+            val badgeLines = splitWatermarkFilterBadge(filter)
             badgeLines.forEachIndexed { index, line ->
                 drawMeasuredText(
                     canvas, line, badge.centerX,
                     badge.centerY + (index - (badgeLines.size - 1) / 2f) * s * 0.018f,
                     badge.width * 0.88f, s * 0.013f * settings.sizeScale,
-                    fonts.semibold, Color.WHITE, fonts.semiboldCapRatio
+                    fonts.semibold, Color.WHITE, fonts.semiboldCapRatio,
+                    minimumScale = 0.70f
                 )
             }
         }

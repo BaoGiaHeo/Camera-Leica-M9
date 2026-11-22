@@ -186,6 +186,10 @@
     <string name="activation_step_storage">STORAGE &amp; BATTERY</string>
     <string name="activation_storage_description">Photos and videos are saved in Pictures/FujifilmMode. Android manages media access; battery use depends on camera resolution, frame rate and processing mode.</string>
     <string name="activation_storage_continue">Tap this panel or wait 2.5 seconds to continue.</string>
+    <string name="activation_storage_stats">USED %1$s  ·  FREE %2$s  ·  TOTAL %3$s</string>
+    <string name="activation_battery_value">BATTERY %1$s</string>
+    <string name="activation_storage_warning">LOW STORAGE · LESS THAN 1 GB FREE</string>
+    <string name="activation_battery_warning">LOW BATTERY · BELOW 20%</string>
     <string name="activation_step_publisher">PUBLISHER</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>
     <string name="activation_publisher_note">Thank you for using FujiFilm Mode.</string>

@@ -555,8 +555,7 @@ fun FujiKey(
         Text(
             label.uppercase(),
             modifier = Modifier
-                .offset(y = y)
-                ,
+                .offset(y = y),
             color = if (enabled) Color(0xFFE8ECE9) else Color(0xFF858B8D),
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,

@@ -231,4 +231,6 @@
     <string name="sound_haptic_title">Haptic feedback</string>
     <string name="sound_haptic_description">Short vibration on zoom detents, switches and half-press.</string>
     <string name="sound_pcm_note">Camera feedback is synthesized as 44.1 kHz mono PCM16 with a -3 dBFS peak. Actual latency depends on device audio scheduling.</string>
+
+    <string name="preview_fps_none">No supported preview frame rates were reported by the rear camera.</string>
 </resources>

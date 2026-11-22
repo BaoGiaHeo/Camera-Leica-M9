@@ -85,7 +85,7 @@ internal fun FujiScale(
         verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(21.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -116,21 +116,27 @@ internal fun FujiScale(
                 onPositionChange(advanceFujiScalePosition(safePosition, safeStep))
             })
             Box(
-                modifier = Modifier
-                    .size(width = 22.dp, height = 20.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(if (auto) Color(0xFF352411) else Color(0xFF15191A))
-                    .border(1.dp, if (auto) Color(0xFFFFB300) else Color(0xFF596265), RoundedCornerShape(3.dp))
-                    .clickable(onClick = onAuto),
+                modifier = Modifier.size(48.dp).clickable(onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onAuto()
+                }),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "A",
-                    color = if (auto) Color(0xFFFFB300) else Color(0xFFF2F2F2),
-                    fontFamily = FujiTypography.uiFont,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp
-                )
+                Box(
+                    Modifier.size(width = 22.dp, height = 20.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (auto) Color(0xFF352411) else Color(0xFF15191A))
+                        .border(1.dp, if (auto) Color(0xFFFFB300) else Color(0xFF596265), RoundedCornerShape(3.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "A",
+                        color = if (auto) Color(0xFFFFB300) else Color(0xFFF2F2F2),
+                        fontFamily = FujiTypography.uiFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                }
             }
             ScaleKey("BACK", onClick = onBack, wide = true)
         }
@@ -138,7 +144,7 @@ internal fun FujiScale(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(23.dp)
+                .height(48.dp)
                 .pointerInput(safeStep) {
                     var dragPosition = latestPosition.value
                     detectDragGestures(
@@ -160,7 +166,7 @@ internal fun FujiScale(
                     )
                 }
         ) {
-            Canvas(Modifier.fillMaxWidth().height(23.dp)) {
+            Canvas(Modifier.fillMaxWidth().height(23.dp).align(Alignment.Center)) {
                 val centerX = size.width * 0.5f
                 val detents = (safePosition / safeStep).takeIf { it.isFinite() } ?: 0f
                 val whole = kotlin.math.floor(detents).toInt()
@@ -210,20 +216,23 @@ internal fun FujiScale(
 @Composable
 private fun ScaleKey(label: String, onClick: () -> Unit, wide: Boolean = false) {
     Box(
-        modifier = Modifier
-            .size(width = if (wide) 42.dp else 22.dp, height = 20.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(Color(0xFF15191A))
-            .border(1.dp, Color(0xFF596265), RoundedCornerShape(3.dp))
-            .clickable(onClick = onClick),
+        modifier = Modifier.size(48.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            label,
-            color = Color(0xFFF2F2F2),
-            fontFamily = FujiTypography.uiFont,
-            fontWeight = FontWeight.Bold,
-            fontSize = if (wide) 8.sp else 11.sp
-        )
+        Box(
+            Modifier.size(width = if (wide) 42.dp else 22.dp, height = 20.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0xFF15191A))
+                .border(1.dp, Color(0xFF596265), RoundedCornerShape(3.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                label,
+                color = Color(0xFFF2F2F2),
+                fontFamily = FujiTypography.uiFont,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (wide) 8.sp else 11.sp
+            )
+        }
     }
 }

@@ -2,11 +2,9 @@ package com.example.camui
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.provider.MediaStore
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -120,7 +118,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
     )
 
     LaunchedEffect(Unit) {
-        sourceBitmap = loadWatermarkPreviewPhoto(context)
+        sourceBitmap = createWatermarkPreviewSample()
     }
     LaunchedEffect(sourceBitmap, settings, customModel) {
         val source = sourceBitmap ?: return@LaunchedEffect
@@ -387,39 +385,86 @@ private fun WatermarkLayoutType.watermarkLayoutString(): Int = when (this) {
     WatermarkLayoutType.BLACK -> R.string.watermark_layout_black
 }
 
-private suspend fun loadWatermarkPreviewPhoto(context: Context): Bitmap = withContext(Dispatchers.IO) {
-    val uri = runCatching {
-        context.contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.Images.Media._ID),
-            null,
-            null,
-            MediaStore.Images.Media.DATE_ADDED + " DESC"
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
-                android.content.ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-            } else null
-        }
-    }.getOrNull()
-    val latest = uri?.let {
-        runCatching {
-            context.contentResolver.openInputStream(it)?.use { stream ->
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                stream.mark(Int.MAX_VALUE)
-                BitmapFactory.decodeStream(stream, null, bounds)
-                val maxSide = maxOf(bounds.outWidth, bounds.outHeight)
-                var sample = 1
-                while (maxSide / sample > 1600) sample *= 2
-                val options = BitmapFactory.Options().apply {
-                    inSampleSize = sample
-                    inPreferredConfig = Bitmap.Config.RGB_565
-                }
-                context.contentResolver.openInputStream(it)?.use { input -> BitmapFactory.decodeStream(input, null, options) }
-            }
-        }.getOrNull()
+/**
+ * A clean, generated preview source. Never load the newest MediaStore image here:
+ * that item may already contain a watermark and would be stamped a second time.
+ */
+private fun createWatermarkPreviewSample(): Bitmap {
+    val width = 1600
+    val height = 1000
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    paint.shader = android.graphics.LinearGradient(
+        0f, 0f, 0f, height.toFloat(),
+        intArrayOf(
+            Color.rgb(93, 144, 170),
+            Color.rgb(190, 198, 183),
+            Color.rgb(226, 205, 158)
+        ),
+        floatArrayOf(0f, 0.58f, 1f),
+        android.graphics.Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+    paint.shader = null
+
+    paint.color = Color.rgb(245, 211, 143)
+    canvas.drawCircle(width * 0.76f, height * 0.28f, height * 0.075f, paint)
+
+    val farRidge = android.graphics.Path().apply {
+        moveTo(0f, height * 0.66f)
+        lineTo(width * 0.18f, height * 0.37f)
+        lineTo(width * 0.34f, height * 0.59f)
+        lineTo(width * 0.51f, height * 0.31f)
+        lineTo(width * 0.74f, height * 0.64f)
+        lineTo(width.toFloat(), height * 0.40f)
+        lineTo(width.toFloat(), height.toFloat())
+        lineTo(0f, height.toFloat())
+        close()
     }
-    latest ?: Bitmap.createBitmap(960, 640, Bitmap.Config.RGB_565).also { bitmap ->
-        Canvas(bitmap).drawColor(Color.rgb(118, 118, 118))
+    paint.color = Color.rgb(79, 105, 100)
+    canvas.drawPath(farRidge, paint)
+
+    val nearRidge = android.graphics.Path().apply {
+        moveTo(0f, height * 0.76f)
+        lineTo(width * 0.22f, height * 0.56f)
+        lineTo(width * 0.41f, height * 0.73f)
+        lineTo(width * 0.65f, height * 0.51f)
+        lineTo(width.toFloat(), height * 0.72f)
+        lineTo(width.toFloat(), height.toFloat())
+        lineTo(0f, height.toFloat())
+        close()
     }
+    paint.color = Color.rgb(42, 69, 66)
+    canvas.drawPath(nearRidge, paint)
+
+    paint.color = Color.rgb(76, 126, 132)
+    canvas.drawRect(0f, height * 0.78f, width.toFloat(), height.toFloat(), paint)
+    paint.color = Color.rgb(166, 185, 170)
+    paint.strokeWidth = 3f
+    for (index in 0 until 18) {
+        val y = height * (0.81f + index * 0.009f)
+        val inset = (index % 4) * 24f
+        canvas.drawLine(
+            width * 0.12f + inset,
+            y,
+            width * 0.88f - inset,
+            y + 2f,
+            paint
+        )
+    }
+
+    paint.color = Color.rgb(30, 48, 43)
+    for (index in 0 until 7) {
+        val x = width * (0.04f + index * 0.045f)
+        val treeBase = height * (0.73f + (index % 3) * 0.025f)
+        paint.strokeWidth = 9f
+        canvas.drawLine(x, treeBase - height * 0.10f, x, treeBase, paint)
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(x, treeBase - height * 0.12f, height * 0.045f, paint)
+        canvas.drawCircle(x - height * 0.027f, treeBase - height * 0.085f, height * 0.035f, paint)
+        canvas.drawCircle(x + height * 0.029f, treeBase - height * 0.088f, height * 0.033f, paint)
+    }
+    return bitmap
 }

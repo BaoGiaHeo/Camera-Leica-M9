@@ -70,6 +70,55 @@ class PixelOsdGeometryTest {
     }
 
     @Test
+    fun topCenterZoomBarUsesTheSpecifiedHorizontalFootprint() {
+        val plan = PixelOsdLayoutEngine.create(
+            frame = PixelOsdFrame(showZoomBar = true, zoomBarPosition = "top_center"),
+            widthPx = 2400,
+            heightPx = 1080,
+            pixelScale = 2,
+            measureTextWidthPx = { text, capHeight -> text.length * capHeight * 0.55f }
+        )
+        val track = requireNotNull(plan.zoomTrackBounds)
+        val wide = requireNotNull(plan.elements.firstOrNull { it.id == "zoom-w" })
+        val tele = requireNotNull(plan.elements.firstOrNull { it.id == "zoom-t" })
+
+        assertEquals(2400f * 0.18f, track.width, 0.01f)
+        assertEquals(plan.unitPx * 0.9f, track.height, 0.01f)
+        assertEquals(1200f, (track.left + track.right) / 2f, 0.01f)
+        assertTrue(wide.bounds.right <= track.left)
+        assertTrue(tele.bounds.left >= track.right)
+    }
+
+    @Test
+    fun zoomBarAnchorsRemainStableAcrossPixelScalesAndLandscapeLcdSizes() {
+        val sizes = listOf(2400 to 1080, 2640 to 1200, 1920 to 1080)
+        val scales = listOf(2, 3, 4)
+        sizes.forEach { (width, height) ->
+            scales.forEach { scale ->
+                val top = PixelOsdLayoutEngine.create(
+                    frame = PixelOsdFrame(showZoomBar = true, zoomBarPosition = "top_center"),
+                    widthPx = width,
+                    heightPx = height,
+                    pixelScale = scale,
+                    measureTextWidthPx = { text, capHeight -> text.length * capHeight * 0.55f }
+                ).zoomTrackBounds!!
+                assertEquals(width / 2f, (top.left + top.right) / 2f, 1f)
+                assertEquals(width * 0.18f, top.width, 1f)
+
+                val left = PixelOsdLayoutEngine.create(
+                    frame = PixelOsdFrame(showZoomBar = true, zoomBarPosition = "middle_left"),
+                    widthPx = width,
+                    heightPx = height,
+                    pixelScale = scale,
+                    measureTextWidthPx = { text, capHeight -> text.length * capHeight * 0.55f }
+                ).zoomTrackBounds!!
+                assertEquals(height / 2f, (left.top + left.bottom) / 2f, 1f)
+                assertEquals(height * 0.30f, left.height, 1f)
+            }
+        }
+    }
+
+    @Test
     fun manualTouchOverrideKeepsAfReticleVisibleOverFaceBox() {
         assertTrue(shouldDrawCenterAfReticle(
             centerAfPointAvailable = true,

@@ -42,6 +42,7 @@ internal const val PIXEL_OSD_REFLECTION_ALPHA = 3
 
 private object PixelOsdPalette {
     const val WHITE = 0xFFF2F2F2.toInt()
+    const val BLACK = 0xFF0B0B0B.toInt()
     const val GREEN = 0xFF5CFF7A.toInt()
     const val RED = 0xFFFF4A3D.toInt()
     const val AMBER = 0xFFFFB300.toInt()
@@ -727,6 +728,7 @@ class PixelOsdRenderer(context: Context) {
                     (key == "F" && selected == "APERTURE")
                 val textColor = when {
                     element.id == "pro-dr-value" && frame.dynamicRangeText.contains("400") -> PixelOsdPalette.AMBER
+                    element.id == "pro-battery-percent" && batteryAlertVisible -> PixelOsdPalette.RED
                     selectedThis -> PixelOsdPalette.BLUE
                     (key == "EV" && frame.manualExposure) ||
                         (key == "TV" && frame.manualShutter) ||

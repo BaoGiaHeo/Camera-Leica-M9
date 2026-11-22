@@ -208,4 +208,17 @@
     <string name="activation_continue">TIẾP TỤC</string>
     <string name="activation_ok">OK</string>
     <string name="activation_reopen">XEM LẠI GIỚI THIỆU</string>
+    <string name="grid_overlay_title">Lưới</string>
+    <string name="grid_mode_off">Tắt</string>
+    <string name="grid_mode_thirds">3×3</string>
+    <string name="grid_mode_four_by_four">4×4</string>
+    <string name="grid_mode_diagonal">3×3 + đường chéo</string>
+    <string name="grid_mode_golden">Tỉ lệ vàng</string>
+    <string name="grid_mode_crosshair">Chữ thập giữa</string>
+    <string name="grid_mode_square">Khung vuông 1:1</string>
+    <string name="grid_color_title">Màu lưới</string>
+    <string name="grid_color_white">Trắng</string>
+    <string name="grid_color_black">Đen</string>
+    <string name="grid_color_auto">Tự động</string>
+    <string name="grid_opacity_title">Độ trong suốt</string>
 </resources>

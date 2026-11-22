@@ -352,6 +352,7 @@ fun FujiTopKey(
     selected: Boolean = false,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    iconRotationDegrees: Float = 0f,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
@@ -404,8 +405,8 @@ fun FujiTopKey(
                         Text("Q", color = Color(0xFF202426), fontSize = 16.sp, fontWeight = FontWeight.Black, lineHeight = 17.sp)
                     }
                 } else {
-                    FujiIconGlyph(icon, Modifier.size(22.dp), Color(0xE01B1B1B))
-                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp), Color.White.copy(alpha = 0.70f))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color(0xE01B1B1B))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color.White.copy(alpha = 0.70f))
                 }
             }
         }

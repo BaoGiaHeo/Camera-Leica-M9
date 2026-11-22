@@ -639,7 +639,7 @@ fun CameraScreen(
     var batteryCharging by remember { mutableStateOf(false) }
     var batteryLowBlinkOn by remember { mutableStateOf(true) }
     LaunchedEffect(batteryPercent, batteryCharging) {
-        if (isPixelBatteryLow(batteryPercent) && !batteryCharging) {
+        if (isPixelBatteryBlinking(batteryPercent) && !batteryCharging) {
             while (true) {
                 batteryLowBlinkOn = true
                 delay(450L)

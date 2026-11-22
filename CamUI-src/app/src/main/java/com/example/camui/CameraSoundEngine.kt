@@ -111,7 +111,7 @@ internal object CameraSoundEngine {
         }.onFailure { Log.w(TAG, "AudioTrack release failed", it) }
     }
 
-    private fun registerTrack(track: AudioTrack) {
+    private fun registerTrack(track: AudioTrack, releaseOnMarker: Boolean = true) {
         synchronized(lock) {
             while (activeTracks.size >= MAX_ACTIVE_TRACKS) {
                 val oldest = activeTracks.removeFirst()
@@ -119,11 +119,13 @@ internal object CameraSoundEngine {
             }
             activeTracks.addLast(track)
         }
-        track.setNotificationMarkerPosition(track.bufferSizeInFrames.coerceAtLeast(1))
-        track.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
-            override fun onMarkerReached(audioTrack: AudioTrack) = releaseTrack(audioTrack)
-            override fun onPeriodicNotification(audioTrack: AudioTrack) = Unit
-        }, Handler(Looper.getMainLooper()))
+        if (releaseOnMarker) {
+            track.setNotificationMarkerPosition(track.bufferSizeInFrames.coerceAtLeast(1))
+            track.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
+                override fun onMarkerReached(audioTrack: AudioTrack) = releaseTrack(audioTrack)
+                override fun onPeriodicNotification(audioTrack: AudioTrack) = Unit
+            }, Handler(Looper.getMainLooper()))
+        }
     }
 
     fun play(context: Context, sound: Sound) {
@@ -152,7 +154,7 @@ internal object CameraSoundEngine {
             val frequency = if (direction > 0) 118.0 else 96.0
             val samples = pcm(180, frequency, frequency * 1.48, 8, 8, loop = true)
             val track = createTrack(context, samples)
-            registerTrack(track)
+            registerTrack(track, releaseOnMarker = false)
             synchronized(lock) { motorTrack = track }
             track.setLoopPoints(0, samples.size - 1, -1)
             track.play()
@@ -164,7 +166,7 @@ internal object CameraSoundEngine {
         val speed = normalizedSpeed.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
         val track = synchronized(lock) { motorTrack } ?: return
         val playbackRate = (SAMPLE_RATE * (0.90f + speed * 0.55f)).roundToInt()
-        runCatching { track.playbackRate = playbackRate }
+        runCatching { track.setPlaybackRate(playbackRate) }
     }
 
     fun stopZoomMotor() {

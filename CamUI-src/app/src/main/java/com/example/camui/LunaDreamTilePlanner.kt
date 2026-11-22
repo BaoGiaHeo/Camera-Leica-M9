@@ -133,9 +133,10 @@ internal class LunaDreamOutputMapper(
         if (mirrorHorizontally) u = 1f - u
         val (rotatedU, rotatedV) = when (((clockwiseRotationDegrees % 360) + 360) % 360) {
             0 -> u to v
-            90 -> v to (1f - u)
+            // Inverse mapping from rotated output canvas back to source crop.
+            90 -> (1f - v) to u
             180 -> (1f - u) to (1f - v)
-            270 -> (1f - v) to u
+            270 -> v to (1f - u)
             else -> error("Unsupported right-angle rotation")
         }
         return (

@@ -191,4 +191,12 @@
     <string name="activation_continue">CONTINUE</string>
     <string name="activation_ok">OK</string>
     <string name="activation_reopen">VIEW ACTIVATION INTRO</string>
+    <string name="preview_fps_title">PREVIEW FPS</string>
+    <string name="preview_fps_description">Sets the camera preview frame-rate range. Capture exposure is controlled separately.</string>
+    <string name="preview_fps_60">60 FPS</string>
+    <string name="preview_fps_30">30 FPS</string>
+    <string name="preview_fps_24">24 FPS</string>
+    <string name="preview_fps_auto">AUTO</string>
+    <string name="preview_fps_keep_title">Keep preview FPS between launches</string>
+    <string name="preview_fps_keep_description">When off, preview FPS returns to 60 FPS whenever the app is opened.</string>
 </resources>

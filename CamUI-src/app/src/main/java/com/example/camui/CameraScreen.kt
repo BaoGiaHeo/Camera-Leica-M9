@@ -903,7 +903,12 @@ fun CameraScreen(
     LaunchedEffect(Unit) { appPrefs.edit().putBoolean("ultra_hdr_enabled", false).apply() }
     LaunchedEffect(Unit) { appPrefs.edit().remove("camera_stabilization_enabled").apply() }
     var renderEngine by remember { mutableStateOf(appPrefs.getString("camera_render_engine", "Performance") ?: "Performance") }
-    var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)) }
+    var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)?.takeUnless { it == "AUTO" }) }
+    var proAfMode by remember {
+        mutableStateOf(
+            appPrefs.getString("pro_af_mode", "AF-S")?.takeIf { it in setOf("AF-S", "AF-C", "MF") } ?: "AF-S"
+        )
+    }
     var focusLocked by remember { mutableStateOf(false) }
     var focusLockRequestGeneration by remember { mutableIntStateOf(0) }
     fun invalidatePendingFocusLock(activeCamera: Camera? = null) {
@@ -5102,6 +5107,41 @@ fun CameraScreen(
     ) else null
     val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
     val availableAfModes = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+    fun selectProAfMode(nextMode: String) {
+        val safeMode = nextMode.takeIf { it in setOf("AF-S", "AF-C", "MF") } ?: "AF-S"
+        val mapped = camera2AfModeForProSelection(safeMode, availableAfModes)
+        if (mapped == null) {
+            android.util.Log.w(
+                "FUJI_PRO_AF",
+                "Unsupported AF mode=$safeMode cameraId=${cameraInfo2?.cameraId} available=${availableAfModes?.contentToString()}"
+            )
+            localizedToast(
+                context,
+                localizedUiText(context, "Chế độ lấy nét này không được camera hỗ trợ."),
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        proAfMode = safeMode
+        appPrefs.edit().putString("pro_af_mode", safeMode).apply()
+        if (safeMode != "MF") {
+            manualFocus = 0f
+            milkyWayInfinityFocusEnabled = false
+            invalidatePendingFocusLock(camera)
+        }
+        camera?.let { active ->
+            runCatching {
+                val options = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, mapped)
+                    .build()
+                Camera2CameraControl.from(active.cameraControl).addCaptureRequestOptions(options)
+            }.onFailure {
+                android.util.Log.w("FUJI_PRO_AF", "Could not apply AF mode=$safeMode", it)
+            }
+        }
+        android.util.Log.i("FUJI_PRO_AF", "AF mode=$safeMode camera2Mode=$mapped")
+    }
     val manualInfinityFocusSupported = maxFocus >= 8f &&
         availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
@@ -5115,7 +5155,16 @@ fun CameraScreen(
         if (seconds >= 0.5) "%.1f\"".format(Locale.US, seconds)
         else "1/${(1.0 / seconds).roundToInt()}"
     } else "AUTO"
-    val afText = if (focusLocked) "LOCK" else if (milkyWayInfinityFocusEnabled) "∞" else if (manualFocus > 0f) "%.1f D".format(Locale.US, manualFocus) else "AF"
+    val afText = when {
+        focusLocked -> "AF-L"
+        proAfMode == "MF" || manualFocus > 0f || milkyWayInfinityFocusEnabled -> "MF"
+        proAfMode == "AF-C" -> "AF-C"
+        mode == "Pro" -> "AF-S"
+        else -> if (faceTrackingMode == "face" || faceTrackingMode == "face_eye") "AF-C" else "AF-S"
+    }
+    val mainEquivalentFocal = activeCameraDetails?.eq35Mm?.takeIf { it.isFinite() && it > 0f }
+        ?: activePhysicalCameraDetails.mapNotNull { it.eq35Mm }.filter { it.isFinite() && it > 0f }.minOrNull()
+    val focalLengthText = mainEquivalentFocal?.let { "${(it * zoomSel).roundToInt()}mm" } ?: "--mm"
     val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO"
 
     // Milky Way setup advice is derived from the active camera's public Camera2 metadata
@@ -6309,44 +6358,126 @@ fun CameraScreen(
                                 }
 
                                 "AF" -> {
-                                    if (maxFocus > 0f) {
-                                        FujiScale(
-                                            label = "AF",
-                                            valueText = if (manualFocus > 0f) {
-                                                "%.1fD".format(Locale.US, manualFocus)
-                                            } else {
-                                                afText
-                                            },
-                                            position = if (maxFocus > 0f) {
-                                                (manualFocus / maxFocus).coerceIn(0f, 1f)
-                                            } else 0f,
-                                            auto = manualFocus <= 0f,
-                                            lowLabel = "MACRO",
-                                            highLabel = "∞",
-                                            stepFraction = 0.01f,
-                                            onPositionChange = { fraction ->
-                                                manualFocus = fraction * maxFocus
-                                                milkyWayInfinityFocusEnabled = false
-                                                invalidatePendingFocusLock(camera)
-                                                camera?.let { active ->
-                                                    runCatching { applyManualFocus(active, manualFocus) }
-                                                }
-                                            },
-                                            onAuto = {
-                                                manualFocus = 0f
-                                                milkyWayInfinityFocusEnabled = false
-                                                invalidatePendingFocusLock(camera)
-                                                camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf("AF-S", "AF-C", "MF").forEach { modeOption ->
+                                                FujiChip(
+                                                    modeOption,
+                                                    proAfMode == modeOption,
+                                                    { selectProAfMode(modeOption) },
+                                                    Modifier.weight(1f)
+                                                )
                                             }
-                                        )
-                                    } else {
-                                        Text(
-                                            "AF thủ công không được hỗ trợ",
-                                            color = CamColors.Sub,
-                                            fontSize = 11.sp,
-                                            fontFamily = FujiTypography.uiFont
-                                        )
+                                        }
+                                        if (proAfMode == "MF" && maxFocus > 0f &&
+                                            availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
+                                        ) {
+                                            FujiScale(
+                                                label = "AF",
+                                                valueText = if (manualFocus > 0f) {
+                                                    "%.1fD".format(Locale.US, manualFocus)
+                                                } else "∞",
+                                                position = (manualFocus / maxFocus).coerceIn(0f, 1f),
+                                                auto = false,
+                                                lowLabel = "MACRO",
+                                                highLabel = "∞",
+                                                stepFraction = 0.01f,
+                                                onPositionChange = { fraction ->
+                                                    manualFocus = fraction * maxFocus
+                                                    milkyWayInfinityFocusEnabled = false
+                                                    invalidatePendingFocusLock(camera)
+                                                    camera?.let { active ->
+                                                        runCatching { applyManualFocus(active, manualFocus) }
+                                                    }
+                                                },
+                                                onAuto = {
+                                                    manualFocus = 0f
+                                                    milkyWayInfinityFocusEnabled = false
+                                                    selectProAfMode("AF-S")
+                                                }
+                                            )
+                                        } else if (proAfMode == "MF") {
+                                            Text(
+                                                localizedUiText(context, "Lấy nét thủ công không được hỗ trợ trên ống kính này."),
+                                                color = CamColors.Sub,
+                                                fontSize = 11.sp,
+                                                fontFamily = FujiTypography.uiFont
+                                            )
+                                        } else {
+                                            Text(
+                                                if (proAfMode == "AF-C") localizedUiText(context, "Lấy nét liên tục") else localizedUiText(context, "Lấy nét đơn"),
+                                                color = CamColors.Sub,
+                                                fontSize = 10.sp,
+                                                fontFamily = FujiTypography.uiFont
+                                            )
+                                        }
                                     }
+                                }
+
+                                "FL" -> {
+                                    val zoomState = camera?.cameraInfo?.zoomState?.value
+                                    val minimumZoom = zoomState?.minZoomRatio ?: 1f
+                                    val cameraReportedMaximum = zoomState?.let { state ->
+                                        Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
+                                    } ?: 2f
+                                    val assessment = Camera2Info.opticalZoomAssessment(
+                                        activeCameraDetails,
+                                        activePhysicalCameraDetails,
+                                        camera2Inventory
+                                    )
+                                    val maximumZoom = maxTotalSelectableZoom(cameraReportedMaximum, assessment)
+                                        .coerceAtLeast(minimumZoom)
+                                    FujiScale(
+                                        label = "FL",
+                                        valueText = focalLengthText,
+                                        position = logarithmicZoomPosition(zoomSel, minimumZoom, maximumZoom),
+                                        auto = false,
+                                        lowLabel = mainEquivalentFocal?.let { "${(it * minimumZoom).roundToInt()}mm" } ?: "--mm",
+                                        highLabel = mainEquivalentFocal?.let { "${(it * maximumZoom).roundToInt()}mm" } ?: "--mm",
+                                        stepFraction = 0.01f,
+                                        onPositionChange = { fraction ->
+                                            val requested = minimumZoom * exp(
+                                                ln(maximumZoom / minimumZoom) * fraction.coerceIn(0f, 1f)
+                                            )
+                                            val plan = resolveZoomExecutionPlan(
+                                                requestedZoomRatio = requested,
+                                                minimumCameraRatio = minimumZoom,
+                                                cameraReportedMaximum = cameraReportedMaximum,
+                                                assessment = assessment
+                                            )
+                                            zoomSel = plan.effectiveZoomRatio
+                                            actualZoomRatio = plan.effectiveZoomRatio
+                                            digitalZoomCropScale = plan.digitalCropRatio
+                                            zoomInteractionGeneration++
+                                            camera?.let { active ->
+                                                runCatching {
+                                                    active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
+                                                }.onFailure {
+                                                    android.util.Log.w("FUJI_PRO_FL", "Zoom request clamped to camera range", it)
+                                                }
+                                            }
+                                            appPrefs.edit().putFloat("camera_zoom_ratio", plan.effectiveZoomRatio).apply()
+                                        },
+                                        onAuto = {
+                                            val requested = 1f.coerceIn(minimumZoom, maximumZoom)
+                                            val plan = resolveZoomExecutionPlan(
+                                                requestedZoomRatio = requested,
+                                                minimumCameraRatio = minimumZoom,
+                                                cameraReportedMaximum = cameraReportedMaximum,
+                                                assessment = assessment
+                                            )
+                                            zoomSel = plan.effectiveZoomRatio
+                                            actualZoomRatio = plan.effectiveZoomRatio
+                                            digitalZoomCropScale = plan.digitalCropRatio
+                                            camera?.let { active ->
+                                                runCatching { active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio) }
+                                            }
+                                            appPrefs.edit().putFloat("camera_zoom_ratio", plan.effectiveZoomRatio).apply()
+                                        }
+                                    )
                                 }
 
                                 "Tone" -> {
@@ -6384,9 +6515,9 @@ fun CameraScreen(
                                 Triple("EV", evText, "EV"),
                                 Triple("Tv", shutterText, "Tv"),
                                 Triple("ISO", isoText, "ISO"),
-                                Triple("AF", if (manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else afText, "AF"),
+                                Triple("AF", if (proAfMode == "MF" && manualFocus > 0f) "%.1fD".format(Locale.US, manualFocus) else afText, "AF"),
                                 Triple("Tone", toneText, "WB"),
-                                Triple("AUTO", "AUTO", "RESET")
+                                Triple("FL", focalLengthText, "FL")
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 proItems.forEach { (key, value, label) ->

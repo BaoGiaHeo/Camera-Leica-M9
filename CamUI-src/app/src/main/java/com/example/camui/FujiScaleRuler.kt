@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -49,6 +51,7 @@ internal fun FujiScaleRuler(
     val span = (valueRange.endInclusive - valueRange.start).takeIf { it > 0f } ?: 1f
     val fractionsPerStep = if (steps > 0) (steps + 1).toFloat() else 20f
     val currentFraction = ((value - valueRange.start) / span).coerceIn(0f, 1f)
+    val latestFraction = rememberUpdatedState(currentFraction)
     val tickCount = (fractionsPerStep.roundToInt()).coerceIn(4, 120)
     val panelShape = RoundedCornerShape(6.dp)
 
@@ -71,7 +74,7 @@ internal fun FujiScaleRuler(
                 },
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Text("−", color = Color(0xFFE6E8E7), fontSize = androidx.compose.ui.unit.TextUnit.Unspecified)
+            androidx.compose.material3.Text("−", color = Color(0xFFE6E8E7), fontSize = 14.sp)
         }
         Canvas(
             Modifier.weight(1f).fillMaxHeight()
@@ -84,7 +87,7 @@ internal fun FujiScaleRuler(
                         change.consume()
                         val sensitivity = if (steps > 0) (steps + 1).toFloat() else 20f
                         val deltaFraction = -dragAmount.x / size.width.coerceAtLeast(1) * (sensitivity / 5f)
-                        val raw = ((value - valueRange.start) / span + deltaFraction).coerceIn(0f, 1f)
+                        val raw = (latestFraction.value + deltaFraction).coerceIn(0f, 1f)
                         val snapped = if (steps > 0) {
                             (raw * (steps + 1)).roundToInt().toFloat() / (steps + 1)
                         } else raw
@@ -95,23 +98,7 @@ internal fun FujiScaleRuler(
                         }
                     }
                 }
-                .pointerInput(valueRange, steps, enabled) {
-                    if (!enabled) return@pointerInput
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: continue
-                            if (change.pressed && change.changedToDownIgnoreConsumed()) {
-                                val fraction = (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                                val centered = currentFraction + (0.5f - fraction) * 0.4f
-                                val snapped = if (steps > 0) {
-                                    (centered.coerceIn(0f, 1f) * (steps + 1)).roundToInt().toFloat() / (steps + 1)
-                                } else centered.coerceIn(0f, 1f)
-                                onValueChange(valueRange.start + span * snapped)
-                            }
-                        }
-                    }
-                }
+
         ) {
             val centerY = size.height * 0.56f
             val centerX = size.width * 0.5f
@@ -169,7 +156,7 @@ internal fun FujiScaleRuler(
                 },
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Text("+", color = Color(0xFFE6E8E7), fontSize = 16.dp.value.sp)
+            androidx.compose.material3.Text("+", color = Color(0xFFE6E8E7), fontSize = 16.sp)
         }
     }
 }

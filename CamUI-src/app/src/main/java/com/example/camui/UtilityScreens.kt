@@ -1783,11 +1783,38 @@ internal data class CubeLut(
         val b1 = (b0 + 1).coerceAtMost(size - 1)
 
         fun channel(c: Int): Float {
-            val c00 = mix(value(r0, g0, b0, c), value(r0, g0, b1, c), bt)
-            val c01 = mix(value(r0, g1, b0, c), value(r0, g1, b1, c), bt)
-            val c10 = mix(value(r1, g0, b0, c), value(r1, g0, b1, c), bt)
-            val c11 = mix(value(r1, g1, b0, c), value(r1, g1, b1, c), bt)
-            return mix(mix(c00, c01, gt), mix(c10, c11, gt), rt).coerceIn(0f, 1f)
+            val c000 = value(r0, g0, b0, c)
+            val c100 = value(r1, g0, b0, c)
+            val c010 = value(r0, g1, b0, c)
+            val c001 = value(r0, g0, b1, c)
+            val c110 = value(r1, g1, b0, c)
+            val c101 = value(r1, g0, b1, c)
+            val c011 = value(r0, g1, b1, c)
+            val c111 = value(r1, g1, b1, c)
+
+            // Tetrahedral interpolation selects one of six tetrahedra according to
+            // the ordering of the fractional R/G/B coordinates.
+            val result = when {
+                rt >= gt && gt >= bt ->
+                    c000 + rt * (c100 - c000) +
+                        gt * (c110 - c100) + bt * (c111 - c110)
+                rt >= bt && bt >= gt ->
+                    c000 + rt * (c100 - c000) +
+                        bt * (c101 - c100) + gt * (c111 - c101)
+                bt >= rt && rt >= gt ->
+                    c000 + bt * (c001 - c000) +
+                        rt * (c101 - c001) + gt * (c111 - c101)
+                gt >= bt && bt >= rt ->
+                    c000 + gt * (c010 - c000) +
+                        bt * (c011 - c010) + rt * (c111 - c011)
+                gt >= rt && rt >= bt ->
+                    c000 + gt * (c010 - c000) +
+                        rt * (c110 - c010) + bt * (c111 - c110)
+                else ->
+                    c000 + bt * (c001 - c000) +
+                        gt * (c011 - c001) + rt * (c111 - c011)
+            }
+            return result.coerceIn(0f, 1f)
         }
         return Triple(channel(0), channel(1), channel(2))
     }

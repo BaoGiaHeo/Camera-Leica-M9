@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text as MaterialText
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.LaunchedEffect
@@ -239,6 +240,7 @@ var nightShotMode by remember {
     var hapticFeedbackEnabled by remember { mutableStateOf(prefs.getBoolean("haptic_feedback_enabled", true)) }
     var dialClickEnabled by remember { mutableStateOf(prefs.getBoolean("dial_click_enabled", true)) }
     var interfaceSoundEnabled by remember { mutableStateOf(prefs.getBoolean("ui_sound_enabled", true)) }
+    var soundMasterVolume by remember { mutableIntStateOf(prefs.getInt("sound_master_volume", 85).coerceIn(0, 100)) }
     val shutterImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
@@ -493,6 +495,31 @@ var nightShotMode by remember {
             }
             "Sound & Haptic" -> {
                 Text(
+                    stringResource(R.string.sound_master_volume, soundMasterVolume),
+                    color = CamColors.TextColor,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp
+                )
+                Slider(
+                    value = soundMasterVolume.toFloat(),
+                    onValueChange = {
+                        soundMasterVolume = it.roundToInt().coerceIn(0, 100)
+                        prefs.edit().putInt("sound_master_volume", soundMasterVolume).apply()
+                        CameraSoundEngine.configure(context, soundMasterVolume)
+                    },
+                    valueRange = 0f..100f,
+                    steps = 19
+                )
+                SettingsSwitch(
+                    stringResource(R.string.sound_master_enabled),
+                    stringResource(R.string.sound_zoom_description),
+                    dialClickEnabled
+                ) {
+                    dialClickEnabled = it
+                    prefs.edit().putBoolean("dial_click_enabled", it).apply()
+                    if (!it) CameraSoundEngine.stopZoomMotor()
+                }
+                Text(
                     "MECHANICAL FEEDBACK",
                     color = FujiSkin.lcdGreen,
                     fontWeight = FontWeight.Bold,
@@ -500,39 +527,32 @@ var nightShotMode by remember {
                     letterSpacing = 1.sp
                 )
                 SettingsSwitch(
-                    "Shutter sound",
-                    "Âm thanh màn trập của ảnh chụp.",
+                    stringResource(R.string.sound_shutter_title),
+                    stringResource(R.string.sound_shutter_description),
                     shutterSoundEnabled
                 ) {
                     shutterSoundEnabled = it
                     prefs.edit().putBoolean("shutter_sound_enabled", it).apply()
                 }
                 SettingsSwitch(
-                    "Dial detent clicks",
-                    "Click nhẹ theo từng nấc của vòng zoom và command dial.",
-                    dialClickEnabled
-                ) {
-                    dialClickEnabled = it
-                    prefs.edit().putBoolean("dial_click_enabled", it).apply()
-                }
                 SettingsSwitch(
-                    "UI mechanical sounds",
-                    "Tick phím, clack công tắc và tiếng xác nhận panel.",
+                    stringResource(R.string.sound_ui_title),
+                    stringResource(R.string.sound_ui_description),
                     interfaceSoundEnabled
                 ) {
                     interfaceSoundEnabled = it
                     prefs.edit().putBoolean("ui_sound_enabled", it).apply()
                 }
                 SettingsSwitch(
-                    "Haptic feedback",
-                    "Rung nhẹ khi xoay núm, gạt công tắc và nhấn nửa cò.",
+                    stringResource(R.string.sound_haptic_title),
+                    stringResource(R.string.sound_haptic_description),
                     hapticFeedbackEnabled
                 ) {
                     hapticFeedbackEnabled = it
                     prefs.edit().putBoolean("haptic_feedback_enabled", it).apply()
                 }
                 Text(
-                    "Màn trập cơ dùng WAV riêng 210 ms; tiếng phím và detent được tạo tổng hợp, có thể tắt riêng.",
+                    stringResource(R.string.sound_pcm_note),
                     color = FujiSkin.muted,
                     fontSize = 9.sp,
                     modifier = Modifier.padding(top = 8.dp)

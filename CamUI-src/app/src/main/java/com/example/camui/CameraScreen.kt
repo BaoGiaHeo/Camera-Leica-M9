@@ -7825,13 +7825,16 @@ private fun FilterLookDialog(
                     activeLutIds = activeCustomCameraLutIds(context)
                     Toast.makeText(
                         context,
-                        "Đã nhập " + imported.size + " LUT. Vào Content Manager để Add LUT vào bộ lọc.",
+                        context.getString(R.string.filter_import_success, imported.size),
                         Toast.LENGTH_LONG
                     ).show()
                 } catch (failure: Throwable) {
                     Toast.makeText(
                         context,
-                        "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
+                        context.getString(
+                            R.string.filter_import_failure,
+                            failure.message ?: context.getString(R.string.filter_import_unknown_error)
+                        ),
                         Toast.LENGTH_LONG
                     ).show()
                 } finally {
@@ -7941,7 +7944,7 @@ private fun FilterLookDialog(
                                 .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
                                 .animaTClickable { onSelectFilter(preset) }.padding(6.dp)
                         ) {
-                            Box(Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(2.dp))
+                            Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(2.dp))
                                 .background(Color(0xFF070909))
                                 .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
                                 Row(
@@ -8063,7 +8066,12 @@ private fun FilterLookDialog(
                 previewPane(Modifier.fillMaxWidth().height(140.dp))
                 searchPane(Modifier)
                 categoryPane(Modifier)
-                Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
+                Text(
+                    stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
+                    color = FujiSkin.lcdGreen,
+                    fontFamily = FujiTypography.uiFont,
+                    fontSize = 9.sp
+                )
                 presetGrid(Modifier.weight(1f))
             }
         }

@@ -575,7 +575,11 @@ class PixelOsdRenderer(context: Context) {
                             critical = frame.batteryAlertState.critical && batteryAlertVisible
                         )
                     } else {
-                        drawPixelOsdIcon(canvas, element)
+                        drawPixelOsdIcon(
+                            canvas,
+                            element,
+                            monochromeColor = if (element.id == "status-lock-icon") PixelOsdPalette.AMBER else PixelOsdPalette.WHITE
+                        )
                     }
                 }
                 PixelOsdElementKind.RULE -> Unit
@@ -727,6 +731,7 @@ class PixelOsdRenderer(context: Context) {
                     (key == "TV" && selected == "SHUTTER") ||
                     (key == "F" && selected == "APERTURE")
                 val textColor = when {
+                    element.id == "pro-lock-label" -> PixelOsdPalette.AMBER
                     element.id == "pro-dr-value" && frame.dynamicRangeText.contains("400") -> PixelOsdPalette.AMBER
                     element.id == "pro-battery-percent" && batteryAlertVisible -> PixelOsdPalette.RED
                     selectedThis -> PixelOsdPalette.BLUE
@@ -785,7 +790,11 @@ class PixelOsdRenderer(context: Context) {
                         critical = frame.batteryAlertState.critical && batteryAlertVisible
                     )
                 } else {
-                    drawPixelOsdIcon(canvas, element)
+                    drawPixelOsdIcon(
+                        canvas,
+                        element,
+                        monochromeColor = if (element.id == "pro-lock-icon") PixelOsdPalette.AMBER else PixelOsdPalette.WHITE
+                    )
                 }
             } else if (element.kind == PixelOsdElementKind.RULE) {
                 val scale = pixelScale.coerceAtLeast(1)

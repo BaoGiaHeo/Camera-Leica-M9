@@ -6,38 +6,29 @@ import org.junit.Test
 
 class WatermarkStudioLayoutTest {
     @Test
-    fun studioExposesExactlyTheTwelveRequestedLayoutsInTheRequestedOrder() {
+    fun studioExposesExactlyTheEightProductionWatermarkLayoutsInOrder() {
         assertEquals(
-            listOf(
-                "classic_bar",
-                "center_stack",
-                "data_card",
-                "film_strip",
-                "polaroid",
-                "minimal_overlay",
-                "corner_stamp",
-                "glass_card",
-                "blur_frame",
-                "lcd_osd",
-                "viewfinder",
-                "exposure_dial"
-            ),
+            listOf("bar", "caption", "gallery", "black", "dot_light", "dot_dark", "split", "palette"),
             watermarkStudioLayouts.map { it.first }
         )
-        assertEquals(12, watermarkStudioLayouts.size)
+        assertEquals(8, watermarkStudioLayouts.size)
+        assertEquals(
+            WatermarkLayoutType.values().map { WatermarkLayoutType.preferenceValue(it) },
+            watermarkStudioLayouts.map { it.first }
+        )
     }
 
     @Test
-    fun everyStudioLayoutHasAVisibleNonEmptyLabel() {
+    fun everyProductionLayoutHasAVisibleNonEmptyLabel() {
         assertTrue(watermarkStudioLayouts.all { (id, title) ->
             id.isNotBlank() && title.isNotBlank()
         })
     }
 
     @Test
-    fun dateStampAndLcdOdsAreTheOnlyNamedLegacyFontLayouts() {
-        val deliberateOdsFontLayout = "lcd_osd"
-        assertTrue(watermarkStudioLayouts.any { it.first == deliberateOdsFontLayout })
-        assertTrue(watermarkStudioLayouts.none { it.first == "classic_bar_kk7" })
+    fun retiredCardLayoutDoesNotRemainInTheStudioCatalog() {
+        assertTrue(watermarkStudioLayouts.none { it.first.contains("card", ignoreCase = true) })
+        assertTrue(WatermarkLayoutType.values().none { it.name == "CARD" })
+        assertEquals(WatermarkLayoutType.DOT_LIGHT, WatermarkLayoutType.fromPreference("card"))
     }
 }

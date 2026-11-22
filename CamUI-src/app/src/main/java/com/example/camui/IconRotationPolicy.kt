@@ -39,4 +39,5 @@ internal fun shortestIconRotationTarget(currentDegrees: Float, targetDegrees: In
 
 internal object FujiIconRotationState {
     var degrees by androidx.compose.runtime.mutableIntStateOf(0)
+    var enabled by androidx.compose.runtime.mutableStateOf(true)
 }

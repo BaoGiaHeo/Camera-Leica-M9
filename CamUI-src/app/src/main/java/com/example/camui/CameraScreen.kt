@@ -2005,7 +2005,18 @@ fun CameraScreen(
                         android.util.Log.w("FUJI_PREVIEW_FPS", "Could not read Camera2 AE FPS ranges", it)
                     }.getOrDefault(emptyList())
                 }.orEmpty()
-                val fpsSelection = selectPreviewFpsRange(previewFpsMode, advertisedPreviewFpsRanges)
+                val hasStoredFpsChoice = appPrefs.contains("preview_fps_mode")
+                val requestedFpsMode = if (hasStoredFpsChoice) {
+                    previewFpsMode
+                } else {
+                    defaultPreviewFpsMode(advertisedPreviewFpsRanges).also { defaultMode ->
+                        appPrefs.edit().putString("preview_fps_mode", defaultMode).apply()
+                        scope.launch(Dispatchers.Main.immediate) {
+                            previewFpsMode = defaultMode
+                        }
+                    }
+                }
+                val fpsSelection = selectPreviewFpsRange(requestedFpsMode, advertisedPreviewFpsRanges)
                 val supportedFpsModes = supportedPreviewFpsModes(advertisedPreviewFpsRanges)
                 fpsSelection.range?.let { selectedRange ->
                     Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(

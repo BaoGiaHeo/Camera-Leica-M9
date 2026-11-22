@@ -121,6 +121,7 @@ jobs:
             .github/workflows/build-lunadream-variants.yml \
             .github/workflows/lunadream-ui-ci.yml \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkRenderer.kt \
+            CamUI-src/app/src/main/java/com/example/camui/WatermarkPanelScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/HorizonLevelPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayoutEngine.kt \

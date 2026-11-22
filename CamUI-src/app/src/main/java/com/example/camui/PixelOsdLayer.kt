@@ -156,6 +156,10 @@ data class PixelOsdFrame(
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
     val batteryLowBlinkOn: Boolean = true,
+    val batteryLowRed: Boolean = false,
+    val batteryBlinking: Boolean = false,
+    val batteryCrossed: Boolean = false,
+    val showBatteryLowNotice: Boolean = false,
     val showEvScale: Boolean = true,
     val evIndex: Int = 0,
     val evDisplayIndex: Float = evIndex.toFloat(),
@@ -442,6 +446,9 @@ class PixelOsdRenderer(context: Context) {
             )
             drawSprite(canvas, "level", cx - 4, cy - 3)
         }
+        if (frame.showBatteryLowNotice && !frame.batteryCharging) {
+            drawBatteryLowNotice(frame)
+        }
     }
 
     private fun drawPixelTexture(canvas: NativeCanvas) {
@@ -491,16 +498,14 @@ class PixelOsdRenderer(context: Context) {
     }
 
     private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
-        val lowBattery = frame.batteryPercent in 0..100 &&
-            isPixelBatteryLow(frame.batteryPercent) && !frame.batteryCharging
+        val lowBattery = frame.batteryLowRed && !frame.batteryCharging
+        val batteryBlinkVisible = !frame.batteryBlinking || frame.batteryLowBlinkOn
         layout.elements.filter { it.section == "status" }.forEach { element ->
             when (element.kind) {
                 PixelOsdElementKind.TEXT -> {
                     val color = when {
-                        element.id == "battery-percent" && lowBattery && frame.batteryLowBlinkOn ->
-                            PixelOsdPalette.RED
-                        element.id == "status-af" && frame.focusLocked ->
-                            PixelOsdPalette.GREEN
+                        element.id == "battery-percent" && lowBattery -> PixelOsdPalette.RED
+                        element.id == "status-af" && frame.focusLocked -> PixelOsdPalette.GREEN
                         element.id == "status-fps" && frame.previewFps != null &&
                             frame.previewFpsTarget != null && frame.previewFps < frame.previewFpsTarget * 0.5f ->
                             PixelOsdPalette.RED
@@ -517,18 +522,22 @@ class PixelOsdRenderer(context: Context) {
                         val bottom = (element.bounds.bottom / scale).roundToInt() + 1
                         drawDashedBorderRect(canvas, left, top, right, bottom, PixelOsdPalette.WHITE)
                     }
+                    if (element.id == "battery-percent" && !batteryBlinkVisible) return@forEach
                     drawPixelOsdText(element, color)
                 }
                 PixelOsdElementKind.ICON -> {
                     if (element.id == "battery") {
-                        drawBatteryIcon(
-                            canvas = canvas,
-                            bounds = element.bounds,
-                            percent = frame.batteryPercent,
-                            color = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
-                            unitPx = layout.unitPx,
-                            charging = frame.batteryCharging
-                        )
+                        if (batteryBlinkVisible) {
+                            drawBatteryIcon(
+                                canvas = canvas,
+                                bounds = element.bounds,
+                                percent = frame.batteryPercent,
+                                color = if (lowBattery) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
+                                unitPx = layout.unitPx,
+                                charging = frame.batteryCharging,
+                                crossed = frame.batteryCrossed && !frame.batteryCharging
+                            )
+                        }
                     } else {
                         drawPixelOsdIcon(
                             canvas,
@@ -975,13 +984,49 @@ class PixelOsdRenderer(context: Context) {
         }
     }
 
+    private fun drawBatteryLowNotice(frame: PixelOsdFrame) {
+        val target = textNativeCanvas ?: return
+        val capHeight = ((currentLayout?.t1CapHeightPx ?: 18) * 2).coerceAtLeast(1)
+        val text = "BATTERY LOW"
+        ensureTextFonts()
+        val textWidth = measurePixelTextWidthPx(text, capHeight)
+        val paddingX = (currentLayout?.unitPx ?: 18) * 0.9f
+        val paddingY = (currentLayout?.unitPx ?: 18) * 0.55f
+        val boxWidth = textWidth + paddingX * 2f
+        val boxHeight = capHeight + paddingY * 2f
+        val left = (textWidthPx - boxWidth) * 0.5f
+        val top = (textHeightPx - boxHeight) * 0.5f
+        fillPaint.color = android.graphics.Color.BLACK
+        fillPaint.alpha = 205
+        target.drawRoundRect(
+            left,
+            top,
+            left + boxWidth,
+            top + boxHeight,
+            (currentLayout?.unitPx ?: 18) * 0.15f,
+            (currentLayout?.unitPx ?: 18) * 0.15f,
+            fillPaint
+        )
+        fillPaint.alpha = 255
+        if (frame.batteryLowBlinkOn) {
+            drawPixelTextPhysical(
+                text = text,
+                leftPx = (textWidthPx - textWidth) * 0.5f,
+                topPx = top + paddingY,
+                capHeightPx = capHeight,
+                color = PixelOsdPalette.RED
+            )
+        }
+    }
+
     private fun drawBatteryIcon(
         canvas: NativeCanvas,
         bounds: PixelOsdLayoutBounds,
         percent: Int,
         color: Int,
         unitPx: Int,
-        charging: Boolean
+        charging: Boolean,
+        crossed: Boolean
     ) {
         val scale = pixelScale.coerceAtLeast(1)
         val left = (bounds.left / scale).roundToInt()
@@ -1009,6 +1054,18 @@ class PixelOsdRenderer(context: Context) {
                 for (y in innerTop..innerBottom) {
                     drawPixel(canvas, x, y, color)
                 }
+            }
+        }
+        if (crossed) {
+            for (offset in -1..1) {
+                drawLine(
+                    canvas,
+                    left + thickness + 1,
+                    top + height - thickness - 2 + offset,
+                    left + width - thickness - 2,
+                    top + thickness + 1 + offset,
+                    color
+                )
             }
         }
         if (charging) {

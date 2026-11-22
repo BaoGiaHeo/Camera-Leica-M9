@@ -3678,24 +3678,22 @@ fun CameraScreen(
                             if (unfilteredPreview != null) {
                                 withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                             }
-                            val look = runCatching { applyCameraLook(context, starUri) }.getOrDefault(false)
-                            val stamped = runCatching {
-                                applyCameraWatermark(
-                                    context,
-                                    starUri,
-                                    focal,
-                                    aperture,
-                                    if (manualSensorSupported) "%.1fs".format(
-                                        Locale.US, effectiveExposureNs / 1_000_000_000.0
-                                    ) else "AUTO",
-                                    if (manualSensorSupported) effectiveIso.toString() else "AUTO",
-                                    preservePhotoAspectRatio = true
-                                )
-                            }.getOrDefault(false)
-                            val metadata = runCatching {
-                                finalizeCapturedImageMetadata(context, starUri)
-                            }.getOrDefault(false)
-                            listOf(look, stamped, metadata)
+                            val finalized = finalizeAndSave(
+                                context = context,
+                                uri = starUri,
+                                focal = focal,
+                                aperture = aperture,
+                                shutter = if (manualSensorSupported) "%.1fs".format(
+                                    Locale.US, effectiveExposureNs / 1_000_000_000.0
+                                ) else "AUTO",
+                                iso = if (manualSensorSupported) effectiveIso.toString() else "AUTO",
+                                route = "STAR_TRAILS"
+                            )
+                            listOf(
+                                finalized.lookApplied,
+                                finalized.watermarkApplied || finalized.watermarkSkippedForGainMap,
+                                finalized.metadataPublished
+                            )
                         }
                         val previewThumb = withContext(Dispatchers.IO) {
                             runCatching {
@@ -4923,8 +4921,6 @@ fun CameraScreen(
                                 if (unfilteredPreview != null) {
                                     withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                                 }
-                                val lookApplied = if (captureIsUltraHdr) false else
-                                    runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
                                 val outputResolutionResult = if (
@@ -5040,7 +5036,7 @@ fun CameraScreen(
                                     processingEtaSeconds = -1
                                 }
                                 val watermarkRoute = when {
-                                    captureIsUltraHdr -> "ULTRA_HDR_SKIPPED_GAINMAP_PRESERVATION"
+                                    captureIsUltraHdr -> "ULTRA_HDR_GAIN_MAP_PRESERVED"
                                     captureUseLunaDream && !lunaDreamApplied -> "LUNADREAM_FALLBACK_JPEG"
                                     captureUseLunaDream15 -> "LUNADREAM_1_5"
                                     captureUseRawDream20 -> "RAW_DREAM_2_0"
@@ -5048,25 +5044,34 @@ fun CameraScreen(
                                     captureUseNightShot -> "NIGHTSHOT"
                                     else -> "PHOTO_PRO"
                                 }
-                                val watermarkStartedAt = SystemClock.elapsedRealtime()
-                                val stamped = if (captureIsUltraHdr) false else runCatching {
-                                    applyCameraWatermark(
-                                        context, saved, focal, aperture, shutterLabel,
-                                        if (actualIso > 0) actualIso.toString() else "AUTO",
+                                withContext(Dispatchers.Main) {
+                                    processingProgress = maxOf(processingProgress, 90)
+                                    processingLabel = "Đang hoàn tất LUT, watermark và metadata"
+                                    processingEtaSeconds = -1
+                                }
+                                val finalization = withContext(Dispatchers.IO) {
+                                    finalizeAndSave(
+                                        context = context,
+                                        uri = saved,
+                                        focal = focal,
+                                        aperture = aperture,
+                                        shutter = shutterLabel,
+                                        iso = if (actualIso > 0) actualIso.toString() else "AUTO",
+                                        route = watermarkRoute,
+                                        ultraHdr = captureIsUltraHdr,
                                         preservePhotoAspectRatio = true
                                     )
-                                }.onFailure {
+                                }
+                                val lookApplied = finalization.lookApplied
+                                val stamped = finalization.watermarkApplied
+                                val metadataPublished = finalization.metadataPublished
+                                if (!finalization.success) {
                                     android.util.Log.e(
-                                        "FUJI_WATERMARK",
-                                        "FINALIZE_FAILURE route=$watermarkRoute uri=$saved",
-                                        it
+                                        "FUJI_FINALIZE",
+                                        "FINALIZE_INCOMPLETE route=$watermarkRoute reason=" +
+                                            (finalization.failureReason ?: "unknown")
                                     )
-                                }.getOrDefault(false)
-                                android.util.Log.i(
-                                    "FUJI_WATERMARK",
-                                    "FINALIZE route=$watermarkRoute applied=$stamped durationMs=" +
-                                        (SystemClock.elapsedRealtime() - watermarkStartedAt)
-                                )
+                                }
 
                                 if (captureUseLunaDream && !lunaDreamApplied) {
                                     val reason = lunaDreamFailureReason
@@ -5094,10 +5099,6 @@ fun CameraScreen(
                                     }
                                 }
 
-                                val metadataPublished = runCatching {
-                                    if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
-                                    else finalizeCapturedImageMetadata(context, saved)
-                                }.getOrDefault(false)
                                 val digitalXmpPublished = if (digitalZoomApplied) {
                                     DigitalZoomXmpWriter.writeDigitalZoom(
                                         context = context,

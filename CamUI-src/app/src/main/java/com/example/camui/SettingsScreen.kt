@@ -193,8 +193,14 @@ private fun SettingsDetailPage(
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
     var previewFpsMode by remember {
         mutableStateOf(
-            prefs.getString("preview_fps_mode", "60")?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
+            prefs.getString("preview_fps_mode", "AUTO")?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "AUTO"
         )
+    }
+    var previewFpsEffectiveMode by remember {
+        mutableStateOf(prefs.getString("preview_fps_effective", null) ?: previewFpsMode)
+    }
+    val previewFpsSupportedModes = remember {
+        prefs.getStringSet("preview_fps_supported", setOf("AUTO"))?.toSet().orEmpty()
     }
     var iconRotationEnabled by remember {
         mutableStateOf(prefs.getBoolean("icon_rotation_enabled", true))
@@ -726,20 +732,28 @@ var nightShotMode by remember {
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf("60", "30", "24", "AUTO").forEach { option ->
-                        FujiChip(
-                            if (option == "AUTO") option else option + "FPS",
-                            previewFpsMode == option,
-                            {
-                                previewFpsMode = option
-                                prefs.edit().putString("preview_fps_mode", option).apply()
-                            },
-                            Modifier.width(76.dp)
-                        )
+                if (previewFpsSupportedModes.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("60", "30", "24", "AUTO")
+                            .filter { it in previewFpsSupportedModes }
+                            .forEach { option ->
+                                FujiChip(
+                                    if (option == "AUTO") option else option + "FPS",
+                                    previewFpsEffectiveMode == option,
+                                    {
+                                        previewFpsMode = option
+                                        previewFpsEffectiveMode = option
+                                        prefs.edit()
+                                            .putString("preview_fps_mode", option)
+                                            .putString("preview_fps_effective", option)
+                                            .apply()
+                                    },
+                                    Modifier.width(76.dp)
+                                )
+                            }
                     }
                 }
                 Spacer(Modifier.padding(5.dp))

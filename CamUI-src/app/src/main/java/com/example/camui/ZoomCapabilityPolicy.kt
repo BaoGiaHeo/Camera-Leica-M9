@@ -50,7 +50,15 @@ internal fun maxTotalSelectableZoom(
     assessment: OpticalZoomAssessment
 ): Float {
     val reported = cameraReportedMaximum.takeIf { it.isFinite() && it >= 1f } ?: 1f
-    return if (assessment.hasOpticalTelephoto) 100f else minOf(2f, reported.coerceAtLeast(2f))
+    val opticalMaximum = assessment.opticalRatio
+        ?.takeIf { assessment.hasOpticalTelephoto && it.isFinite() && it >= 1f }
+    return if (opticalMaximum != null) {
+        minOf(opticalMaximum, reported)
+    } else {
+        // Without an independently verified rear telephoto, preserve the product's
+        // 2x ceiling even when the HAL advertises a larger digital ratio.
+        minOf(2f, reported.coerceAtLeast(2f))
+    }
 }
 
 /**
@@ -95,27 +103,34 @@ internal fun assessOpticalZoom(
         ?.takeIf { it.isFinite() && it > 0f }
         ?: safeLenses.minByOrNull { abs(it - 26f) }
     val longest = safeLenses.maxOrNull()
-    val ratio = if (main != null && longest != null && main > 0f) longest / main else null
+    val rawRatio = if (main != null && longest != null && main > 0f) longest / main else null
     val threshold = opticalThreshold.takeIf { it.isFinite() && it > 1f } ?: 1.8f
+    val hasTelephoto = rawRatio != null && rawRatio >= threshold
+    // The requested product boundary is floored to one decimal, never rounded up.
+    val opticalRatio = rawRatio
+        ?.takeIf { it.isFinite() && it > 0f }
+        ?.let { kotlin.math.floor(it * 10f) / 10f }
     return OpticalZoomAssessment(
         mainEquivalent35Mm = main,
         longestEquivalent35Mm = longest,
-        opticalRatio = ratio,
-        hasOpticalTelephoto = ratio != null && ratio >= threshold
+        opticalRatio = opticalRatio,
+        hasOpticalTelephoto = hasTelephoto
     )
 }
 
 /**
  * CameraX accepts only ratios inside the active camera's advertised range.
- * This function returns the camera-controlled range; any zoom above it needs
- * a separate digital crop path and must not be sent to CameraControl.setZoomRatio.
+ * On a verified telephoto device the optical boundary is also the hard product
+ * limit; on a device without telephoto, total selection remains capped at 2x.
  */
 internal fun selectableCameraZoomMax(
     cameraReportedMax: Float,
     assessment: OpticalZoomAssessment
 ): Float {
     val reported = cameraReportedMax.takeIf { it.isFinite() && it >= 1f } ?: 1f
-    val productLimit = if (assessment.hasOpticalTelephoto) 50f else 2f
+    val opticalMaximum = assessment.opticalRatio
+        ?.takeIf { assessment.hasOpticalTelephoto && it.isFinite() && it >= 1f }
+    val productLimit = opticalMaximum ?: 2f
     return minOf(reported, productLimit).coerceAtLeast(1f)
 }
 
@@ -160,8 +175,8 @@ internal fun advanceLogarithmicZoomRatio(
 
 /**
  * Returns the final physical-lens focal-length boundary expressed as a ratio
- * against the main rear camera. It is distinct from the HAL/camera-control
- * maximum, after which the renderer must use its additional GPU crop path.
+ * against the main rear camera. Camera API upper bounds are applied separately
+ * by maxTotalSelectableZoom().
  */
 internal fun opticalZoomBoundaryRatio(
     assessment: OpticalZoomAssessment,

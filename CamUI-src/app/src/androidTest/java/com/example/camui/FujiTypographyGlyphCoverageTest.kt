@@ -30,6 +30,21 @@ class FujiTypographyGlyphCoverageTest {
     }
 
     @Test
+    fun reportsSairaUiCoverageAndPerGlyphVietnameseFallback() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val report = FujiTypography.uiGlyphCoverage(context)
+        Log.i(
+            "FujiTypographyTest",
+            "UI=Saira Semi Condensed SemiBold tested=${report.testedGlyphs}; " +
+                "Saira missing=${report.missingFromSaira.joinToString("")}; " +
+                "unresolved=${report.missingAfterFallback.joinToString("")}"
+        )
+        assertTrue("Saira UI glyph test did not run", report.testedGlyphs > 0)
+        assertTrue("UI fallback leaves glyphs unresolved: ${report.missingAfterFallback}", report.missingAfterFallback.isEmpty())
+        assertTrue("UI font did not resolve to Saira", FujiTypography.composeFamily(context) === FujiTypography.uiFont)
+    }
+
+    @Test
     fun kk7BitmapRenderingDiffersFromSystemDefault() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val kk7 = FujiTypography.androidTypeface(context)

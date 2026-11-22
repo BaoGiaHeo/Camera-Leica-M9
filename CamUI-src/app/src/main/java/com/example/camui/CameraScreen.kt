@@ -5578,25 +5578,15 @@ fun CameraScreen(
                                 .border(3.dp, Color(0xFF050607), RoundedCornerShape(6.dp))
                                 .border(1.dp, FujiSkin.silver.copy(alpha = 0.60f), RoundedCornerShape(6.dp))
                                 .graphicsLayer { alpha = previewOrientationAlpha.value }
-                                .pointerInput(camera, mode) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            val down = event.changes.firstOrNull {
-                                                it.pressed && !it.previousPressed
-                                            }
-                                            if (down != null) {
-                                                android.util.Log.d(
-                                                    "FUJI_AF_TOUCH",
-                                                    "TOUCH_DISPATCH pass=Initial received=true " +
-                                                        "screenPx=${down.position.x},${down.position.y}"
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
                                 .pointerInput(camera, metering, mode) {
                                     detectTapGestures(
+                                        onPress = { offset ->
+                                            android.util.Log.d(
+                                                "FUJI_AF_TOUCH",
+                                                "TOUCH_DISPATCH state=DOWN received=true screenPx=${offset.x},${offset.y}"
+                                            )
+                                            tryAwaitRelease()
+                                        },
                                         onTap = { offset ->
                                             if (lcdDisplayMode == CameraLcdDisplayMode.CLEAN) {
                                                 lcdDisplayMode = CameraLcdDisplayMode.STANDARD

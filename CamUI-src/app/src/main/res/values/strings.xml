@@ -10,6 +10,10 @@
     <string name="display_mode_clean">CLEAN</string>
     <string name="display_mode_level_grid">LEVEL + GRID</string>
     <string name="quick_display_title">DISPLAY</string>
+    <string name="lunadream_25_subtitle">150MP target · 6–10 frames · processing engine not yet validated</string>
+    <string name="lunadream_30_subtitle">200MP target · 12–16 frames · processing engine not yet validated</string>
+    <string name="lunadream_25_not_ready">LunaDream 2.5 is visible for configuration, but its multi-frame super-resolution engine has not passed processing and output verification yet. No photo was captured.</string>
+    <string name="lunadream_30_not_ready">LunaDream 3.0 is visible for configuration, but its 200MP tiled processing and JPEG writer have not passed verification yet. No photo was captured.</string>
 
     <string name="quick_menu_title">Q MENU</string>
     <string name="quick_other_device_options">OTHER · DEVICE OPTIONS</string>

@@ -823,23 +823,25 @@ fun CameraScreen(
         previewFpsEstimator.reset()
         measuredPreviewFps = Float.NaN
     }
+    val supportedPreviewFpsModes = remember(context) { discoverSupportedPreviewFpsModes(context) }
+    val defaultPreviewFpsMode = remember(supportedPreviewFpsModes) {
+        highestSupportedPreviewFpsMode(supportedPreviewFpsModes)
+    }
     var previewFpsMode by remember {
         mutableStateOf(
             if (appPrefs.getBoolean("preview_fps_keep", false)) {
-                appPrefs.getString("preview_fps_mode", "60")
-                    ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
-            } else "60"
+                appPrefs.getString("preview_fps_mode", defaultPreviewFpsMode)
+                    ?.takeIf { it in supportedPreviewFpsModes } ?: defaultPreviewFpsMode
+            } else defaultPreviewFpsMode
         )
     }
-    var previewFpsTarget by remember { mutableFloatStateOf(60f) }
-    LaunchedEffect(Unit) {
-        val supportedModes = discoverSupportedPreviewFpsModes(context)
-        val defaultMode = highestSupportedPreviewFpsMode(supportedModes)
+    var previewFpsTarget by remember { mutableFloatStateOf(Float.NaN) }
+    LaunchedEffect(supportedPreviewFpsModes, defaultPreviewFpsMode) {
         val keepSelection = appPrefs.getBoolean("preview_fps_keep", false)
-        val stored = appPrefs.getString("preview_fps_mode", defaultMode)
-        val selected = if (keepSelection && stored in supportedModes) stored ?: defaultMode else defaultMode
+        val stored = appPrefs.getString("preview_fps_mode", defaultPreviewFpsMode)
+        val selected = if (keepSelection && stored in supportedPreviewFpsModes) stored ?: defaultPreviewFpsMode else defaultPreviewFpsMode
         previewFpsMode = selected
-        if (!keepSelection || stored !in supportedModes) {
+        if (!keepSelection || stored !in supportedPreviewFpsModes) {
             appPrefs.edit().putString("preview_fps_mode", selected).apply()
         }
     }
@@ -867,8 +869,8 @@ fun CameraScreen(
             when (key) {
                 "zoom_buttons_mode" -> zoomButtonsSwapped = preferences?.getString(key, "standard") == "swapped"
                 "zoom_bar_position" -> zoomBarPosition = preferences?.getString(key, "top_center")?.let { if (it == "top_left") "middle_left" else it } ?: "top_center"
-                "preview_fps_mode" -> previewFpsMode = preferences?.getString(key, "60")
-                    ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
+                "preview_fps_mode" -> previewFpsMode = preferences?.getString(key, defaultPreviewFpsMode)
+                    ?.takeIf { it in supportedPreviewFpsModes } ?: defaultPreviewFpsMode
             }
         }
         appPrefs.registerOnSharedPreferenceChangeListener(preferenceListener)

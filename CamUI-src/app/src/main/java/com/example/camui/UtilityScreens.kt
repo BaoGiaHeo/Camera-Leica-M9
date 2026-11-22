@@ -789,67 +789,55 @@ private val watermarkStudioLayoutResources = listOf(
  * modified; the temporary row is deleted after the preview bitmap has been decoded.
  */
 private suspend fun renderWatermarkStudioPreview(context: Context): ImageBitmap? = withContext(Dispatchers.IO) {
-    val resolver = context.contentResolver
-    val sourceUri = runCatching {
-        resolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.Images.Media._ID),
-            "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.MIME_TYPE} = ? AND ${MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE ?",
-            arrayOf(
-                "Pictures/FujifilmMode/%",
-                "image/jpeg",
-                "Pictures/FujifilmMode/.WatermarkStudio/%"
-            ),
-            "${MediaStore.Images.Media.DATE_ADDED} DESC"
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                ContentUris.withAppendedId(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    cursor.getLong(0)
-                )
-            } else null
-        }
-    }.getOrNull() ?: return@withContext null
-
-    val previewUri = runCatching {
-        resolver.insert(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, ".wmstudio_preview_${UUID.randomUUID()}.jpg")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/.WatermarkStudio/")
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            }
-        )
-    }.getOrNull() ?: return@withContext null
-
+    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val fields = WatermarkFieldVisibility(
+        cameraName = prefs.getBoolean("watermark_field_name", prefs.getBoolean("watermark_show_camera_name", true)),
+        lens = prefs.getBoolean("watermark_field_lens", prefs.getBoolean("watermark_show_lens", true)),
+        focalLength = prefs.getBoolean("watermark_field_focal", prefs.getBoolean("watermark_show_focal", true)),
+        aperture = prefs.getBoolean("watermark_field_aperture", prefs.getBoolean("watermark_show_aperture", true)),
+        shutter = prefs.getBoolean("watermark_field_shutter", prefs.getBoolean("watermark_show_shutter", true)),
+        iso = prefs.getBoolean("watermark_field_iso", prefs.getBoolean("watermark_show_iso", true)),
+        date = prefs.getBoolean("watermark_field_date", prefs.getBoolean("watermark_show_time", true)),
+        time = prefs.getBoolean("watermark_field_clock", false),
+        location = prefs.getBoolean("watermark_field_location", prefs.getBoolean("watermark_show_location", true)),
+        filter = prefs.getBoolean("watermark_field_filter", prefs.getBoolean("watermark_show_filter", true))
+    )
+    val settings = WatermarkLayoutSettings(
+        layout = WatermarkLayoutType.fromPreference(prefs.getString("watermark_template", "bar")),
+        sizeStep = prefs.getInt("watermark_size_step", 0).coerceIn(-2, 2),
+        invert = prefs.getBoolean("watermark_invert", false),
+        fields = fields,
+        locationEnabled = prefs.getBoolean("watermark_location_enabled", true),
+        locationMode = prefs.getString("watermark_location_mode", "PLACE") ?: "PLACE",
+        useTrueFocalLength = prefs.getBoolean("watermark_use_true_focal", false),
+        customCameraName = prefs.getString("watermark_custom_model", "") ?: "",
+        saveMode = prefs.getString("watermark_save_mode", "watermarked") ?: "watermarked"
+    )
+    val sample = WatermarkPreviewSample.create()
     try {
-        val copied = runCatching {
-            resolver.openInputStream(sourceUri)?.use { input ->
-                resolver.openOutputStream(previewUri, "wt")?.use { output ->
-                    input.copyTo(output)
-                    true
-                } ?: false
-            } ?: false
-        }.getOrDefault(false)
-        if (!copied) return@withContext null
-
-        val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        if (prefs.getBoolean("watermark_enabled", true)) {
-            applyCameraWatermark(context, previewUri, "", "", "", "", preservePhotoAspectRatio = true)
-        }
-        resolver.update(
-            previewUri,
-            ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
-            null,
-            null
+        val metadata = WatermarkPhotoMetadata(
+            cameraName = settings.customCameraName.trim().ifBlank { "X-T5" },
+            lensName = "XF 23mm F2",
+            focal35mm = "35mm",
+            trueFocalLength = "23mm",
+            aperture = "f/2.0",
+            shutter = "1/125s",
+            iso = "ISO 400",
+            date = "2025.06.10",
+            time = "17:10:00",
+            location = prefs.getString("watermark_custom_location", "Winnipeg") ?: "Winnipeg",
+            coordinates = "49°53′00″N 97°08′00″W",
+            filterName = "PROVIA",
+            filterCategory = "Fujifilm",
+            title = prefs.getString("watermark_title", "")?.trim().orEmpty(),
+            author = prefs.getString("watermark_author", "")?.trim().orEmpty()
         )
-        decodeUprightBitmap(context, previewUri, maxDimension = 1600)?.asImageBitmap()
+        WatermarkRenderer.renderPreview(context, sample, settings, metadata, 1600).asImageBitmap()
     } catch (failure: Throwable) {
-        android.util.Log.w("FUJI_WATERMARK_STUDIO", "Could not render temporary watermark preview", failure)
+        android.util.Log.w("FUJI_WATERMARK_STUDIO", "Could not render clean sample preview", failure)
         null
     } finally {
-        runCatching { resolver.delete(previewUri, null, null) }
+        if (!sample.isRecycled) sample.recycle()
     }
 }
 

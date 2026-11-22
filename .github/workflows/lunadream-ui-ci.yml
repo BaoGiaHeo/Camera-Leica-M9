@@ -213,7 +213,8 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/ZoomHapticMilestonesTest.kt \
             CamUI-src/i18n_whitelist.txt \
             GLOSSARY.md \
-            CamUI-src/app/src/test/java/com/example/camui/LutCategoryTest.kt
+            CamUI-src/app/src/test/java/com/example/camui/LutCategoryTest.kt \
+            CamUI-src/app/src/test/java/com/example/camui/CubeLutParserTest.kt
 
       - name: Upload complete source files
         if: always() && !cancelled()

@@ -52,8 +52,9 @@ internal fun maxTotalSelectableZoom(
 ): Float = selectableCameraZoomMax(cameraReportedMaximum, assessment)
 
 /**
- * Splits the requested total ratio into CameraX-controlled zoom and an additional
- * preview/photo crop. The digital crop is deliberately never sent to CameraX.
+ * Clamps the requested zoom to the disclosed optical maximum and the active
+ * CameraX/Camera2 maximum. The legacy crop ratio remains exactly 1 so no digital
+ * zoom extension is applied by preview or capture processing.
  */
 internal fun resolveZoomExecutionPlan(
     requestedZoomRatio: Float,
@@ -85,7 +86,7 @@ internal fun resolveZoomExecutionPlan(
 internal fun assessOpticalZoom(
     equivalentFocalLengths35Mm: List<Float>,
     mainEquivalent35Mm: Float? = null,
-    opticalThreshold: Float = 1.8f
+    opticalThreshold: Float = 1.05f
 ): OpticalZoomAssessment {
     val safeLenses = equivalentFocalLengths35Mm
         .filter { it.isFinite() && it > 0f }
@@ -106,8 +107,8 @@ internal fun assessOpticalZoom(
 
 /**
  * CameraX accepts only ratios inside the active camera's advertised range.
- * This function returns the camera-controlled range; any zoom above it needs
- * a separate digital crop path and must not be sent to CameraControl.setZoomRatio.
+ * This function returns the lower of that public range and the physical optical
+ * ratio. No digital zoom segment is available above this maximum.
  */
 internal fun selectableCameraZoomMax(
     cameraReportedMax: Float,

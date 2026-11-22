@@ -7028,7 +7028,6 @@ fun CameraScreen(
                 ) {
                     toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(
                                 WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                                    .union(WindowInsets.systemGestures.only(WindowInsetsSides.Horizontal))
                             ), topPlateHeight)
                     if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.13f)))
                 }
@@ -7041,7 +7040,6 @@ fun CameraScreen(
                         Modifier.width(leftColumnWidth).fillMaxHeight()
                             .windowInsetsPadding(
                                 WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                                    .union(WindowInsets.systemGestures.only(WindowInsetsSides.Horizontal))
                             )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {
@@ -7088,7 +7086,6 @@ fun CameraScreen(
                         Modifier.width(rightColumnWidth).fillMaxHeight()
                             .windowInsetsPadding(
                                 WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                                    .union(WindowInsets.systemGestures.only(WindowInsetsSides.Horizontal))
                             )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {

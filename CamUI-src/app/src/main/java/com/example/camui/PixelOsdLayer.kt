@@ -1161,7 +1161,7 @@ fun PixelOsdLayer(
         animationSpec = tween(durationMillis = when {
             reducedMotion -> 0
             performanceMode -> 80
-            else -> 120
+            else -> 100
         }),
         label = "center AF display interpolation"
     )

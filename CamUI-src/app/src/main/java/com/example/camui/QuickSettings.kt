@@ -58,7 +58,7 @@ fun QuickPanel(
 ) {
     var showOther by remember { mutableStateOf(false) }
     FujiPanel(
-        title = if (showOther) "OTHER · DEVICE OPTIONS" else "Q MENU",
+        title = if (showOther) stringResource(R.string.quick_other_device_options) else stringResource(R.string.quick_menu_title),
         modifier = modifier
             .widthIn(max = if (deviceLandscape) 560.dp else 620.dp)
             .fillMaxWidth()
@@ -71,10 +71,10 @@ fun QuickPanel(
         ) {
             if (showOther) {
                 FujiListRow(
-                    "Xử lý ảnh gốc thiết bị",
+                    stringResource(R.string.quick_native_processing_title),
                     if (nativeImageProcessingEnabled) "ON" else "OFF",
                     onClick = { onNativeImageProcessingChanged(!nativeImageProcessingEnabled) },
-                    description = "Ưu tiên ISP/OEM AUTO-HDR; sau chụp tiếp tục tối ưu dải sáng và chi tiết trên JPEG."
+                    description = stringResource(R.string.quick_native_processing_description)
                 )
                 Row(
                     Modifier.fillMaxWidth(),
@@ -82,7 +82,7 @@ fun QuickPanel(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        if (nativeImageProcessingEnabled) "ĐANG BẬT · ISP/OEM" else "ĐANG TẮT · LUNADREAM CÓ THỂ DÙNG",
+                        stringResource(if (nativeImageProcessingEnabled) R.string.quick_native_status_on else R.string.quick_native_status_off),
                         color = FujiSkin.lcdGreen,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold
@@ -122,7 +122,7 @@ fun QuickPanel(
                         Modifier.weight(1f)
                     )
                 }
-                Text("ASPECT RATIO", color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(stringResource(R.string.quick_aspect_ratio), color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     aspectRatios.forEachIndexed { index, _ ->
                         FujiChip(
@@ -139,10 +139,9 @@ fun QuickPanel(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("LIVE PHOTO", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text(stringResource(R.string.quick_live_photo_title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                         Text(
-                            if (livePhotoEnabled) "Đang bật · ảnh + clip chuyển động"
-                            else "Đang tắt · ảnh tĩnh thông thường",
+                            stringResource(if (livePhotoEnabled) R.string.quick_live_photo_on else R.string.quick_live_photo_off),
                             color = FujiSkin.muted,
                             fontSize = 8.sp
                         )
@@ -152,11 +151,11 @@ fun QuickPanel(
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FujiTile(
-                        "Render Engine", renderEngine, true, onRenderEngine,
+                        stringResource(R.string.quick_render_engine), renderEngine, true, onRenderEngine,
                         modifier = Modifier.weight(1f)
                     )
                     FujiTile(
-                        "Metering", metering, false, onMetering,
+                        stringResource(R.string.quick_metering), metering, false, onMetering,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -170,7 +169,7 @@ fun QuickPanel(
                         modifier = Modifier.weight(1f)
                     )
                     FujiTile(
-                        "WATERMARK",
+                        stringResource(R.string.quick_watermark),
                         if (watermarkEnabled) "ON · " + watermarkLayoutLabel.uppercase() else "OFF",
                         true,
                         onWatermarkPanel,
@@ -178,16 +177,16 @@ fun QuickPanel(
                         modifier = Modifier.weight(1f)
                     )
                     FujiTile(
-                        "Toolbox", "Assistive tools", false, onToolbox,
+                        stringResource(R.string.quick_toolbox), stringResource(R.string.quick_toolbox_subtitle), false, onToolbox,
                         icon = "tab_08", modifier = Modifier.weight(1f)
                     )
                     FujiTile(
-                        "Contents", "LUT", false, onContentManagement,
+                        stringResource(R.string.quick_contents), stringResource(R.string.quick_contents_subtitle), false, onContentManagement,
                         icon = "sliders", modifier = Modifier.weight(1f)
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    FujiTile("Other", "Device options", false, { showOther = true },
+                    FujiTile(stringResource(R.string.quick_other), stringResource(R.string.quick_other_subtitle), false, { showOther = true },
                         icon = "more", modifier = Modifier.weight(1f))
                 }
                 Row(
@@ -198,9 +197,9 @@ fun QuickPanel(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("MENU/OK  >  SETTINGS", color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.quick_settings_footer), color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "SETTINGS  ›",
+                        stringResource(R.string.quick_settings_action),
                         color = Color.White,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,

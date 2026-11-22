@@ -94,3 +94,10 @@ internal fun supportedPreviewFpsModes(
     result += "AUTO"
     return result
 }
+
+internal fun defaultPreviewFpsMode(
+    supportedRanges: List<PreviewFpsRange>
+): String {
+    val supported = supportedPreviewFpsModes(supportedRanges)
+    return listOf("60", "30", "24").firstOrNull { it in supported } ?: "AUTO"
+}

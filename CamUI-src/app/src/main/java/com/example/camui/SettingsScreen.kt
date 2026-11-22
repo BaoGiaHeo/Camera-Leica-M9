@@ -209,9 +209,6 @@ private fun SettingsDetailPage(
             } else "60"
         )
     }
-    var iconRotationEnabled by remember {
-        mutableStateOf(prefs.getBoolean("icon_rotation_enabled", true))
-    }
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
@@ -266,12 +263,9 @@ var nightShotMode by remember {
                 PixelOsdPreview()
             }
             "Assistive Tools" -> {
-                Text("Các công cụ này điều khiển trực tiếp lớp phủ trên kính ngắm.",
+                Text("Viewfinder overlays are configured in Toolbox.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
-                SettingsSwitch("Grid Lines", "Thirds composition guide", showGrid, onShowGrid)
-                SettingsSwitch("Histogram", "Live luminance histogram", showHist, onShowHist)
-                SettingsSwitch("Focus Peaking", "Highlight high-contrast focus edges", focusPeaking, onFocusPeaking)
-                FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "EV display · Shutter display · ISO display · HUD")
+                FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "Grid · Level · Histogram · Focus peaking · HUD")
                 FujiListRow("Contents Management", "OPEN", onClick = onOpenContentsManagement, description = "LUT Manager")
             }
             "Focus & Lens" -> {
@@ -378,14 +372,6 @@ var nightShotMode by remember {
                     description = "Lưu hoặc nạp lại các thiết lập camera")
             }
             "Display / Appearance", "Appearance" -> {
-                SettingsSwitch(
-                    stringResource(R.string.icon_rotation_title),
-                    stringResource(R.string.icon_rotation_description),
-                    iconRotationEnabled
-                ) { enabled ->
-                    iconRotationEnabled = enabled
-                    prefs.edit().putBoolean("icon_rotation_enabled", enabled).apply()
-                }
                 Text(
                     stringResource(R.string.zoom_controls_section),
                     color = FujiSkin.lcdGreen,

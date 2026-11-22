@@ -16,6 +16,25 @@ internal data class PreviewFpsSelection(
     val reason: String
 )
 
+/**
+ * Only expose fixed FPS modes explicitly advertised by the active Camera2
+ * camera and whose preview stream can sustain the requested frame interval.
+ * AUTO remains available when the HAL advertises at least one AE range.
+ */
+internal fun supportedPreviewFpsOptions(
+    supportedRanges: List<PreviewFpsRange>,
+    previewMinFrameDurationNs: Long?
+): Set<String> {
+    if (supportedRanges.isEmpty()) return emptySet()
+    val exactModes = listOf(60, 30, 24).filter { fps ->
+        val exactRange = supportedRanges.any { it.lower == fps && it.upper == fps }
+        val duration = previewMinFrameDurationNs ?: 0L
+        val frameBudget = 1_000_000_000L / fps
+        exactRange && (duration <= 0L || duration <= frameBudget)
+    }.map(Int::toString)
+    return (exactModes + "AUTO").toSet()
+}
+
 internal fun selectPreviewFpsRange(
     mode: String,
     supportedRanges: List<PreviewFpsRange>

@@ -905,10 +905,8 @@ fun CameraScreen(
         )
     }
     var previewFpsTarget by remember { mutableFloatStateOf(60f) }
-    var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
-    var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
-    val digitalZoomCropScaleState = rememberUpdatedState(digitalZoomCropScale)
+    val digitalZoomCropScale = remember { mutableFloatStateOf(1f) }
     // The OSD follows the camera command target; CaptureResult is telemetry only.
     // zoomSel is advanced by the existing frame-driven zoom controller.
     val zoomDisplayValue = zoomSel
@@ -1445,8 +1443,7 @@ fun CameraScreen(
                 assessment = assessment
             )
             zoomVisualRatio.floatValue = plan.effectiveZoomRatio
-            actualZoomRatio = plan.effectiveZoomRatio
-            digitalZoomCropScale = plan.digitalCropRatio
+                        digitalZoomCropScale.floatValue = plan.digitalCropRatio
             if (pendingZoom == null || pendingZoom?.isDone == true) {
                 val currentCameraRatio = active.cameraInfo.zoomState.value?.zoomRatio ?: state.zoomRatio
                 if (abs(currentCameraRatio - plan.cameraControlZoomRatio) > 0.002f) {
@@ -1528,8 +1525,7 @@ fun CameraScreen(
                 )
                 zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
                 zoomVisualRatio.floatValue = plan.effectiveZoomRatio
-                actualZoomRatio = plan.effectiveZoomRatio
-                digitalZoomCropScale = plan.digitalCropRatio
+                                digitalZoomCropScale.floatValue = plan.digitalCropRatio
                 tickCount++
             }
             if (SystemClock.elapsedRealtime() - holdStartedAtMs <= 3_000L) {
@@ -1650,29 +1646,37 @@ fun CameraScreen(
     DisposableEffect(previewView, digitalZoomPreviewEffect) {
         onDispose { digitalZoomPreviewEffect.clear(previewView) }
     }
-    LaunchedEffect(previewView, digitalZoomCropScale, digitalZoomPreviewEffect) {
-        val safeDigitalScale = digitalZoomCropScale.takeIf { it.isFinite() && it >= 1f } ?: 1f
-        previewView.clipToOutline = true
-        previewView.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
-        val renderMethod = digitalZoomPreviewEffect.apply(previewView, safeDigitalScale)
-        val matrixValues = FloatArray(9)
-        previewView.matrix.getValues(matrixValues)
-        previewTransformText = String.format(
-            Locale.US,
-            "render=%s view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f] digitalCrop=%.4f",
-            renderMethod,
-            previewView.width,
-            previewView.height,
-            previewView.scaleX,
-            previewView.scaleY,
-            previewView.translationX,
-            previewView.translationY,
-            matrixValues[0], matrixValues[1], matrixValues[2],
-            matrixValues[3], matrixValues[4], matrixValues[5],
-            matrixValues[6], matrixValues[7], matrixValues[8],
-            safeDigitalScale
-        )
-        android.util.Log.d("FUJI_ZOOM_PREVIEW_TRANSFORM", previewTransformText)
+    LaunchedEffect(previewView, digitalZoomPreviewEffect) {
+        var lastAppliedScale = Float.NaN
+        while (true) {
+            val requestedScale = digitalZoomCropScale.floatValue
+            val safeDigitalScale = requestedScale.takeIf { it.isFinite() && it >= 1f } ?: 1f
+            if (!lastAppliedScale.isFinite() || abs(safeDigitalScale - lastAppliedScale) >= 0.0005f) {
+                previewView.clipToOutline = true
+                previewView.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+                val renderMethod = digitalZoomPreviewEffect.apply(previewView, safeDigitalScale)
+                val matrixValues = FloatArray(9)
+                previewView.matrix.getValues(matrixValues)
+                previewTransformText = String.format(
+                    Locale.US,
+                    "render=%s view=%dx%d scale=(%.4f,%.4f) translation=(%.2f,%.2f) matrix=[%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f] digitalCrop=%.4f",
+                    renderMethod,
+                    previewView.width,
+                    previewView.height,
+                    previewView.scaleX,
+                    previewView.scaleY,
+                    previewView.translationX,
+                    previewView.translationY,
+                    matrixValues[0], matrixValues[1], matrixValues[2],
+                    matrixValues[3], matrixValues[4], matrixValues[5],
+                    matrixValues[6], matrixValues[7], matrixValues[8],
+                    safeDigitalScale
+                )
+                android.util.Log.d("FUJI_ZOOM_PREVIEW_TRANSFORM", previewTransformText)
+                lastAppliedScale = safeDigitalScale
+            }
+            withFrameNanos { }
+        }
     }
     var previewStreamState by remember(previewView) {
         mutableStateOf(
@@ -1977,7 +1981,7 @@ fun CameraScreen(
                 ) {
                     // Tracking continuity and face selection remain in camera-normalized space.
                     // Only the overlay is transformed to match the additional digital crop.
-                    val digitalCropScale = digitalZoomCropScaleState.value
+                    val digitalCropScale = digitalZoomCropScale.floatValue
                     val smoothed = faceTrackSmoother.onFaceDetected(
                         center, size, eyeCenter, trackingId, now
                     ) ?: return
@@ -3004,8 +3008,7 @@ fun CameraScreen(
                 zoomSel = restoredZoom
                 zoomRequestedTarget.floatValue = restoredZoom
                 zoomVisualRatio.floatValue = restoredZoom
-                actualZoomRatio = restoredZoom
-                digitalZoomCropScale = restoredPlan.digitalCropRatio
+                                digitalZoomCropScale.floatValue = restoredPlan.digitalCropRatio
                 zoomFromCaptureResult = Float.NaN
                 runCatching { bound.cameraControl.setZoomRatio(restoredPlan.cameraControlZoomRatio) }
                 val capabilities = runCatching {
@@ -5585,7 +5588,7 @@ fun CameraScreen(
                                                 }
                                             }
                                             centerAfPoint = tapPoint
-                                            preferredFaceCenter = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
+                                            preferredFaceCenter = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale.floatValue)
                                             centerAfStatus = 0
                                             val focusRequestId = focusLockRequestGeneration
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
@@ -5596,7 +5599,7 @@ fun CameraScreen(
                                             val afPointSize = CameraAfAreaSize.fromPreference(
                                                 appPrefs.getString("af_area_size", "m")
                                             ).focusPointSize
-                                            val cameraTapPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
+                                            val cameraTapPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale.floatValue)
                                             val point = previewView.meteringPointFactory.createPoint(
                                                 cameraTapPoint.x * previewView.width,
                                                 cameraTapPoint.y * previewView.height,
@@ -5607,7 +5610,7 @@ fun CameraScreen(
                                                 "tapScreenPx=${offset.x},${offset.y} " +
                                                     "normalized=${tapPoint.x},${tapPoint.y} " +
                                                     "cameraNormalized=${cameraTapPoint.x},${cameraTapPoint.y} " +
-                                                    "digitalCrop=$digitalZoomCropScale " +
+                                                    "digitalCrop=${digitalZoomCropScale.floatValue} " +
                                                     "meteringPoint=${point.x},${point.y} size=$afPointSize"
                                             )
                                             val camera2Info = runCatching {
@@ -5758,11 +5761,11 @@ fun CameraScreen(
 
                                             invalidatePendingFocusLock(active)
                                             centerAfPoint = tapPoint
-                                            preferredFaceCenter = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
+                                            preferredFaceCenter = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale.floatValue)
                                             centerAfStatus = 0
                                             manualAfOverrideUntilMs = manualAfOverrideDeadline(SystemClock.elapsedRealtime())
 
-                                            val cameraPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
+                                            val cameraPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale.floatValue)
                                             val pointSize = CameraAfAreaSize.fromPreference(
                                                 appPrefs.getString("af_area_size", "m")
                                             ).focusPointSize
@@ -5851,7 +5854,7 @@ fun CameraScreen(
                                             val aeUnlocked = applyCameraAeLock(active, locked = false)
                                             val center = Offset(0.5f, 0.5f)
                                             centerAfPoint = center
-                                            preferredFaceCenter = digitalPreviewPointToCamera(center, digitalZoomCropScale)
+                                            preferredFaceCenter = digitalPreviewPointToCamera(center, digitalZoomCropScale.floatValue)
                                             centerAfStatus = 0
                                             focusLocked = false
                                             manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
@@ -5910,7 +5913,7 @@ fun CameraScreen(
                                         previewBoundsText = "${origin.x.roundToInt()},${origin.y.roundToInt()},${(origin.x + coordinates.size.width).roundToInt()},${(origin.y + coordinates.size.height).roundToInt()}"
                                         val renderMethod = digitalZoomPreviewEffect.apply(
                                             previewView,
-                                            digitalZoomCropScale.takeIf { it.isFinite() && it >= 1f } ?: 1f
+                                            digitalZoomCropScale.floatValue.takeIf { it.isFinite() && it >= 1f } ?: 1f
                                         )
                                         val matrixValues = FloatArray(9)
                                         previewView.matrix.getValues(matrixValues)
@@ -6783,8 +6786,7 @@ fun CameraScreen(
                                             )
                                             zoomSel = plan.effectiveZoomRatio
                 zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
-                                            actualZoomRatio = plan.effectiveZoomRatio
-                                            digitalZoomCropScale = plan.digitalCropRatio
+                                                                                        digitalZoomCropScale.floatValue = plan.digitalCropRatio
                                             zoomInteractionGeneration++
                                             camera?.let { active ->
                                                 runCatching {
@@ -6806,8 +6808,7 @@ fun CameraScreen(
                                             )
                                             zoomSel = plan.effectiveZoomRatio
                 zoomRequestedTarget.floatValue = plan.effectiveZoomRatio
-                                            actualZoomRatio = plan.effectiveZoomRatio
-                                            digitalZoomCropScale = plan.digitalCropRatio
+                                                                                        digitalZoomCropScale.floatValue = plan.digitalCropRatio
                                             camera?.let { active ->
                                                 runCatching { active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio) }
                                             }

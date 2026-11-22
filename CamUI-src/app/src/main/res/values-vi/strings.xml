@@ -185,7 +185,6 @@
     <string name="watermark_status_on">BẬT</string>
     <string name="watermark_status_off">TẮT</string>
     <string name="watermark_layout">BỐ CỤC</string>
-    <string name="watermark_story_916">KHUNG STORY 9:16</string>
     <string name="watermark_invert">ĐẢO MÀU</string>
     <string name="watermark_size_value">KÍCH THƯỚC %1$d</string>
     <string name="watermark_size_label">CỠ</string>
@@ -207,9 +206,12 @@
     <string name="watermark_reset">ĐẶT LẠI</string>
     <string name="watermark_layout_bar">THANH</string>
     <string name="watermark_layout_caption">CHÚ THÍCH</string>
-    <string name="watermark_layout_card">THẺ</string>
     <string name="watermark_layout_gallery">TRIỂN LÃM</string>
     <string name="watermark_layout_black">VIỀN ĐEN</string>
+    <string name="watermark_layout_dot_light">CHẤM SÁNG</string>
+    <string name="watermark_layout_dot_dark">CHẤM TỐI</string>
+    <string name="watermark_layout_split">CHIA ĐÔI</string>
+    <string name="watermark_layout_palette">BẢNG MÀU</string>
     <string name="activation_step_language">CHỌN NGÔN NGỮ</string>
     <string name="activation_language_description">Chọn ngôn ngữ hiển thị trong FujiFilm Mode.</string>
     <string name="activation_step_storage">LƯU TRỮ &amp; PIN</string>

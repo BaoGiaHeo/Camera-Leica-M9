@@ -47,6 +47,22 @@ internal fun selectPreviewFpsRange(
         return PreviewFpsSelection(exactFixed, requested, false, "Exact fixed FPS range")
     }
 
+    // Variable AE ranges can support a requested target even without a fixed range.
+    val containingRanges = ranges.filter { it.lower <= requested && it.upper >= requested }
+    val containing = containingRanges.minWithOrNull(
+        compareBy<PreviewFpsRange> { it.upper - it.lower }
+            .thenBy { kotlin.math.abs(it.upper - requested) }
+            .thenBy { it.lower }
+    )
+    if (containing != null) {
+        return PreviewFpsSelection(
+            range = containing,
+            targetFps = requested,
+            fellBack = false,
+            reason = "Requested FPS is contained in an advertised AE range"
+        )
+    }
+
     val cappedRanges = ranges.filter { it.upper <= requested }
     val selected = cappedRanges.maxWithOrNull(
         compareBy<PreviewFpsRange> { it.upper }.thenBy { it.lower }
@@ -62,4 +78,19 @@ internal fun selectPreviewFpsRange(
             else "Requested " + requested + " FPS unavailable; selected advertised range " +
                 selected.lower + ".." + selected.upper
     )
+}
+
+internal fun supportedPreviewFpsModes(
+    supportedRanges: List<PreviewFpsRange>
+): Set<String> {
+    val ranges = supportedRanges.distinct()
+    if (ranges.isEmpty()) return emptySet()
+    val result = linkedSetOf<String>()
+    for (requested in listOf(60, 30, 24)) {
+        if (ranges.any { it.lower <= requested && it.upper >= requested }) {
+            result += requested.toString()
+        }
+    }
+    result += "AUTO"
+    return result
 }

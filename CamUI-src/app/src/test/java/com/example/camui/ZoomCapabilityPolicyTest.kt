@@ -8,26 +8,23 @@ import org.junit.Test
 
 class ZoomCapabilityPolicyTest {
     @Test
-    fun telephotoCameraSplitsCameraZoomAtFiftyAndDigitalZoomToOneHundred() {
+    fun tenTimesTelephotoStopsAtTheOpticalBoundaryWithoutDigitalCrop() {
         val assessment = assessOpticalZoom(listOf(26f, 260f), mainEquivalent35Mm = 26f)
-        val atCameraLimit = resolveZoomExecutionPlan(50f, 0.6f, 60f, assessment)
-        assertEquals(50f, atCameraLimit.cameraControlZoomRatio, 0.0001f)
-        assertEquals(1f, atCameraLimit.digitalCropRatio, 0.0001f)
-        assertEquals(100f, atCameraLimit.totalSelectableMaximum, 0.0001f)
-
-        val atTotalLimit = resolveZoomExecutionPlan(100f, 0.6f, 60f, assessment)
-        assertEquals(50f, atTotalLimit.cameraControlZoomRatio, 0.0001f)
-        assertEquals(2f, atTotalLimit.digitalCropRatio, 0.0001f)
-        assertEquals(100f, atTotalLimit.effectiveZoomRatio, 0.0001f)
+        val plan = resolveZoomExecutionPlan(100f, 0.6f, 60f, assessment)
+        assertEquals(10f, plan.cameraControlZoomRatio, 0.0001f)
+        assertEquals(1f, plan.digitalCropRatio, 0.0001f)
+        assertEquals(10f, plan.totalSelectableMaximum, 0.0001f)
+        assertEquals(10f, plan.effectiveZoomRatio, 0.0001f)
     }
 
     @Test
-    fun telephotoCameraWithLowerHalMaximumUsesDigitalCropAboveHalLimit() {
-        val assessment = assessOpticalZoom(listOf(26f, 78f), mainEquivalent35Mm = 26f)
-        val plan = resolveZoomExecutionPlan(40f, 1f, 12f, assessment)
-        assertEquals(12f, plan.cameraControlZoomRatio, 0.0001f)
-        assertEquals(40f / 12f, plan.digitalCropRatio, 0.0001f)
-        assertEquals(100f, plan.totalSelectableMaximum, 0.0001f)
+    fun telephotoMaximumIsClampedByTheActiveCameraApiUpperBound() {
+        val assessment = assessOpticalZoom(listOf(26f, 130f), mainEquivalent35Mm = 26f)
+        val plan = resolveZoomExecutionPlan(40f, 1f, 4f, assessment)
+        assertEquals(4f, plan.cameraControlZoomRatio, 0.0001f)
+        assertEquals(1f, plan.digitalCropRatio, 0.0001f)
+        assertEquals(4f, plan.totalSelectableMaximum, 0.0001f)
+        assertEquals(4f, plan.effectiveZoomRatio, 0.0001f)
     }
 
     @Test
@@ -91,12 +88,31 @@ class ZoomCapabilityPolicyTest {
     }
 
     @Test
-    fun tenTimesPeriscopeUsesCameraReportedMaximumUpToFiftyTimes() {
+    fun periscopeUsesTheTenTimesOpticalBoundaryEvenWhenHalAdvertisesMore() {
         val assessment = assessOpticalZoom(listOf(26f, 260f), mainEquivalent35Mm = 26f)
         assertTrue(assessment.hasOpticalTelephoto)
         assertEquals(10f, assessment.opticalRatio!!, 0.0001f)
-        assertEquals(50f, selectableCameraZoomMax(80f, assessment), 0.0001f)
-        assertEquals(24f, selectableCameraZoomMax(24f, assessment), 0.0001f)
+        assertEquals(10f, selectableCameraZoomMax(80f, assessment), 0.0001f)
+        assertEquals(10f, maxTotalSelectableZoom(80f, assessment), 0.0001f)
+        assertEquals(4f, maxTotalSelectableZoom(4f, assessment), 0.0001f)
+    }
+
+    @Test
+    fun fiveTimesPeriscopeUsesFiveTimesAsTheHardMaximum() {
+        val assessment = assessOpticalZoom(listOf(24f, 120f), mainEquivalent35Mm = 24f)
+        assertTrue(assessment.hasOpticalTelephoto)
+        assertEquals(5f, assessment.opticalRatio!!, 0.0001f)
+        val plan = resolveZoomExecutionPlan(8f, 0.6f, 20f, assessment)
+        assertEquals(5f, plan.totalSelectableMaximum, 0.0001f)
+        assertEquals(5f, plan.cameraControlZoomRatio, 0.0001f)
+        assertEquals(1f, plan.digitalCropRatio, 0.0001f)
+    }
+
+    @Test
+    fun opticalBoundaryIsFlooredToOneDecimalAndNeverRoundedUp() {
+        val assessment = assessOpticalZoom(listOf(24f, 119.9f), mainEquivalent35Mm = 24f)
+        assertEquals(4.9f, assessment.opticalRatio!!, 0.0001f)
+        assertEquals(4.9f, maxTotalSelectableZoom(10f, assessment), 0.0001f)
     }
 
     @Test
@@ -145,14 +161,14 @@ class ZoomCapabilityPolicyTest {
     }
 
     @Test
-    fun telephotoZoomOutFromOneHundredTimesCompletesTheFullRangeInAboutSixPointFiveSeconds() {
-        var current = 100f
+    fun opticalZoomOutFromTenTimesCompletesTheSelectedRange() {
+        var current = 10f
         repeat(130) {
             val next = advanceLogarithmicZoomRatio(
                 currentZoom = current,
                 direction = -1,
                 minimumRatio = 0.6f,
-                maximumRatio = 100f,
+                maximumRatio = 10f,
                 deltaSeconds = 0.05f,
                 traversalSeconds = 6.5f
             )
@@ -166,15 +182,15 @@ class ZoomCapabilityPolicyTest {
     fun zoomHoldIsMonotonicAndStopsAtItsRequestedLimits() {
         var zoomIn = 1f
         repeat(200) {
-            val next = advanceLogarithmicZoomRatio(zoomIn, 1, 0.6f, 50f, 0.05f, 6.5f)
+            val next = advanceLogarithmicZoomRatio(zoomIn, 1, 0.6f, 10f, 0.05f, 6.5f)
             assertTrue(next >= zoomIn)
             zoomIn = next
         }
-        assertEquals(50f, zoomIn, 0.0001f)
+        assertEquals(10f, zoomIn, 0.0001f)
 
         var zoomOut = 1f
         repeat(200) {
-            val next = advanceLogarithmicZoomRatio(zoomOut, -1, 0.6f, 50f, 0.05f, 6.5f)
+            val next = advanceLogarithmicZoomRatio(zoomOut, -1, 0.6f, 10f, 0.05f, 6.5f)
             assertTrue(next <= zoomOut)
             zoomOut = next
         }

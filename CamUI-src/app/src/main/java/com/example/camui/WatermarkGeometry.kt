@@ -8,15 +8,15 @@ internal enum class WatermarkLayoutType(val id: String) {
 
     companion object {
         fun fromPreference(value: String?): WatermarkLayoutType = when (value?.lowercase()) {
-            "caption", "b" -> CAPTION
-            // Migration: the retired CARD layout now opens the closest supported
-            // light footer design without discarding the user's watermark choice.
-            "card", "c", "dot", "dot_light", "dot-light", "f" -> DOT_LIGHT
-            "gallery", "d" -> GALLERY
-            "black", "e" -> BLACK
-            "dot_dark", "dot-dark", "g" -> DOT_DARK
-            "split", "h" -> SPLIT
+            "caption", "b", "center_stack", "minimal_overlay" -> CAPTION
+            "gallery", "d", "film_strip", "polaroid" -> GALLERY
+            "black", "e", "lcd_osd" -> BLACK
+            // Legacy CARD and glass/data-card presets migrate to DOT LIGHT.
+            "card", "c", "data_card", "glass_card", "dot", "dot_light", "dot-light", "f" -> DOT_LIGHT
+            "dot_dark", "dot-dark", "viewfinder", "g" -> DOT_DARK
+            "split", "h", "exposure_dial" -> SPLIT
             "palette", "i" -> PALETTE
+            "classic_bar", "corner_stamp" -> BAR
             else -> BAR
         }
 

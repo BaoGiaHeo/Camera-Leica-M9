@@ -4974,13 +4974,34 @@ fun CameraScreen(
                                     processingLabel = "Đang đóng watermark ở độ phân giải cuối"
                                     processingEtaSeconds = -1
                                 }
-                                val stamped = if (captureIsUltraHdr || (captureUseLunaDream && !lunaDreamApplied)) false else runCatching {
+                                val watermarkRoute = when {
+                                    captureIsUltraHdr -> "ULTRA_HDR_SKIPPED_GAINMAP_PRESERVATION"
+                                    captureUseLunaDream && !lunaDreamApplied -> "LUNADREAM_FALLBACK_JPEG"
+                                    captureUseLunaDream15 -> "LUNADREAM_1_5"
+                                    captureUseRawDream20 -> "RAW_DREAM_2_0"
+                                    captureUseLunaDream20 -> "LUNADREAM_2_0"
+                                    captureUseNightShot -> "NIGHTSHOT"
+                                    else -> "PHOTO_PRO"
+                                }
+                                val watermarkStartedAt = SystemClock.elapsedRealtime()
+                                val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
                                         preservePhotoAspectRatio = true
                                     )
+                                }.onFailure {
+                                    android.util.Log.e(
+                                        "FUJI_WATERMARK",
+                                        "FINALIZE_FAILURE route=$watermarkRoute uri=$saved",
+                                        it
+                                    )
                                 }.getOrDefault(false)
+                                android.util.Log.i(
+                                    "FUJI_WATERMARK",
+                                    "FINALIZE route=$watermarkRoute applied=$stamped durationMs=" +
+                                        (SystemClock.elapsedRealtime() - watermarkStartedAt)
+                                )
 
                                 if (captureUseLunaDream && !lunaDreamApplied) {
                                     val reason = lunaDreamFailureReason

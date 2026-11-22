@@ -186,8 +186,12 @@
     <string name="activation_step_storage">LƯU TRỮ &amp; PIN</string>
     <string name="activation_storage_description">Ảnh và video được lưu trong Pictures/FujifilmMode. Android quản lý quyền truy cập tệp; mức tiêu thụ pin phụ thuộc độ phân giải, tốc độ khung hình và chế độ xử lý.</string>
     <string name="activation_storage_continue">Chạm vào khung này hoặc đợi 2,5 giây để tiếp tục.</string>
+    <string name="activation_storage_stats">ĐÃ DÙNG %1$s  ·  CÒN TRỐNG %2$s  ·  TỔNG %3$s</string>
+    <string name="activation_battery_value">PIN %1$s</string>
+    <string name="activation_storage_warning">BỘ NHỚ TRỐNG DƯỚI 1 GB</string>
+    <string name="activation_battery_warning">PIN DƯỚI 20%</string>
     <string name="activation_step_publisher">NHÀ PHÁT HÀNH</string>
-    <string name="activation_publisher">@baoaka06 trên TikTok</string>
+    <string name="activation_publisher">@baoaka06 on TikTok</string>
     <string name="activation_publisher_note">Cảm ơn bạn đã sử dụng FujiFilm Mode.</string>
     <string name="activation_back">QUAY LẠI</string>
     <string name="activation_continue">TIẾP TỤC</string>

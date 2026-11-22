@@ -49,6 +49,28 @@ class PreviewFpsPolicyTest {
     }
 
     @Test
+    fun fixedFpsModeIsAvailableWhenAnyAdvertisedAeRangeContainsIt() {
+        val options = supportedPreviewFpsOptions(
+            listOf(PreviewFpsRange(15, 30)),
+            previewMinFrameDurationNs = 16_000_000L
+        )
+        assertEquals(setOf("30", "24", "AUTO"), options)
+    }
+
+    @Test
+    fun autoIsHiddenWhenCameraOnlyAdvertisesFixedRanges() {
+        val options = supportedPreviewFpsOptions(
+            listOf(
+                PreviewFpsRange(24, 24),
+                PreviewFpsRange(30, 30),
+                PreviewFpsRange(60, 60)
+            ),
+            previewMinFrameDurationNs = 10_000_000L
+        )
+        assertEquals(setOf("60", "30", "24"), options)
+    }
+
+    @Test
     fun emptyFpsCapabilitiesExposeNoOptions() {
         assertTrue(supportedPreviewFpsOptions(emptyList(), null).isEmpty())
     }

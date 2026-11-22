@@ -193,7 +193,6 @@
     <string name="watermark_field_date">Date</string>
     <string name="watermark_field_time">Time</string>
     <string name="watermark_field_location">Location</string>
-    <string name="watermark_location_na">Location is not available in CARD layout</string>
     <string name="watermark_location">Show location</string>
     <string name="watermark_location_place">PLACE</string>
     <string name="watermark_location_coords">COORDS</string>
@@ -212,6 +211,11 @@
     <string name="watermark_layout_dot_dark">DOT DARK</string>
     <string name="watermark_layout_split">SPLIT</string>
     <string name="watermark_layout_palette">PALETTE</string>
+    <string name="watermark_title_label">Photo title</string>
+    <string name="watermark_title_hint">Optional photo title</string>
+    <string name="watermark_author_label">Author</string>
+    <string name="watermark_author_hint">Optional author name</string>
+    <string name="watermark_photographed_in">PHOTOGRAPHED IN : %1$s</string>
     <string name="activation_step_language">SELECT LANGUAGE</string>
     <string name="activation_language_description">Choose the language used by FujiFilm Mode.</string>
     <string name="activation_step_storage">STORAGE &amp; BATTERY</string>

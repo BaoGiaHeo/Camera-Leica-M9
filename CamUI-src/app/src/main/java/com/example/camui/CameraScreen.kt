@@ -624,7 +624,7 @@ fun CameraScreen(
     }
     var levelEnabled by remember {
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
-            .getBoolean("viewfinder_level_enabled", false))
+            .getBoolean("viewfinder_level_enabled", true))
     }
     var horizonRollDegrees by remember { mutableFloatStateOf(0f) }
     DisposableEffect(sensorManager, levelSensor, levelEnabled) {

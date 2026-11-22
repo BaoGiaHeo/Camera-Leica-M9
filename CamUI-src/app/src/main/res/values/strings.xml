@@ -55,7 +55,7 @@
     <string name="zoom_bar_position_label">Zoom bar position</string>
     <string name="zoom_bar_position_top_center">TOP-CENTER</string>
     <string name="zoom_bar_position_middle_left">MIDDLE-LEFT</string>
-    <string name="zoom_bar_description">The bar stays visible in Standard, Full Info and Level + Grid. In Clean mode it fades 1.5 seconds after zooming.</string>
+    <string name="zoom_bar_description">Shows only while zooming. It fades 1.2 seconds after the last zoom change.</string>
     <string name="digital_zoom_processing">Applying GPU Lanczos digital crop</string>
     <string name="digital_zoom_success">DIGITAL zoom: Lanczos crop applied and XMP written. Detail quality is lower than optical zoom.</string>
     <string name="digital_zoom_xmp_failed">DIGITAL zoom crop applied, but XMP metadata could not be written.</string>

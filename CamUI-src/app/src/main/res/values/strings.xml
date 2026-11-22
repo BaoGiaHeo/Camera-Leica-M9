@@ -5,12 +5,11 @@
     <string name="language_select_description">Choose the display language. Changes apply immediately.</string>
 <string name="language_english">ENGLISH</string>
     <string name="language_vietnamese">TIẾNG VIỆT</string>
-    <string name="pixel_osd_preview_tab">OSD PREVIEW</string>
-    <string name="pixel_osd_preview_description">Pro / Photo dummy viewfinder</string>
     <string name="display_mode_standard">STANDARD</string>
     <string name="display_mode_full_info">FULL INFO</string>
     <string name="display_mode_clean">CLEAN</string>
     <string name="display_mode_level_grid">LEVEL + GRID</string>
+    <string name="quick_display_title">DISPLAY</string>
     <string name="retro_lcd_texture_title">Retro LCD texture</string>
     <string name="retro_lcd_texture_description">Optional viewfinder scanlines. This display effect never changes saved photos.</string>
     <string name="fujifilm_mode_version">FUJIFILM MODE %1$s</string>
@@ -200,7 +199,6 @@
     <string name="preview_fps_description">Set the preview stream frame-rate range. The HUD reports measured camera FPS.</string>
     <string name="icon_rotation_title">ICON ROTATION</string>
     <string name="icon_rotation_description">Rotate viewfinder control icons to match handset orientation. Capture and watermark geometry remain unchanged.</string>
-    <string name="preview_fps_keep">Keep FPS selection between launches</string>
     <string name="activation_step_publisher">PUBLISHER</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>
     <string name="activation_publisher_note">Thank you for using FujiFilm Mode.</string>

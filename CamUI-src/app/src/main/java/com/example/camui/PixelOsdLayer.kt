@@ -93,7 +93,6 @@ internal object PixelOsdSprites {
         "face" to arrayOf(".WWWWW.", "W.....W", "W.W.W.W", "W.....W", "W.W.W.W", "W..W..W", ".WWWWW."),
         "eye" to arrayOf(".WWWWW.", "W.....W", "W..W..W", ".WWWWW."),
         "lock" to arrayOf(".WWWWW.", "W.....W", "W.WWW.W", "W.W.W.W", "W.WWW.W", "WWWWWWW"),
-        "focus-dot" to arrayOf("..G..", ".GGG.", "GGGGG", ".GGG.", "..G.."),
         "histogram" to arrayOf("......W", "...W..W", ".W.W.WW", "WWWWWWW"),
         "level" to arrayOf("W.......W", ".W.....W.", "..W...W..", "...W.W...", "....G...."),
         "wide" to arrayOf("W.....W", ".W...W.", "..W.W..", "...W..."),
@@ -121,7 +120,7 @@ internal object PixelOsdSprites {
 
     internal val requiredSpriteNames = setOf(
         "memory-card", "battery", "battery-charge", "battery-low", "flash", "flash-off",
-        "face", "eye", "lock", "ae-lock", "focus-dot", "af-area", "meter-matrix",
+        "face", "eye", "lock", "ae-lock", "af-area", "meter-matrix",
         "meter-center", "meter-spot", "shutter", "ev-scale", "dynamic-range",
         "white-balance", "level", "live", "timer", "burst", "heat-warning"
     )
@@ -372,14 +371,15 @@ class PixelOsdRenderer(context: Context) {
                 val eyeX = (eye.x * width).roundToInt()
                 val eyeY = (eye.y * height).roundToInt()
                 val eyeColor = if (frame.faceFocused) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+                val eyeHalf = (layout.unitPx * 1.75f / pixelScale).roundToInt().coerceAtLeast(2)
                 drawCornerFrame(
                     canvas,
-                    eyeX - 4,
-                    eyeY - 3,
-                    eyeX + 4,
-                    eyeY + 3,
+                    eyeX - eyeHalf,
+                    eyeY - eyeHalf,
+                    eyeX + eyeHalf,
+                    eyeY + eyeHalf,
                     eyeColor,
-                    2
+                    (eyeHalf * 0.24f).roundToInt().coerceAtLeast(2)
                 )
             }
         }
@@ -394,9 +394,9 @@ class PixelOsdRenderer(context: Context) {
             val cx = (manualAfPoint.x * width).roundToInt()
             val cy = (manualAfPoint.y * height).roundToInt()
             val half = when (frame.centerAfScale) {
-                0 -> 7
-                2 -> 15
-                else -> 10
+                0 -> (height * 0.04f).roundToInt().coerceAtLeast(2)
+                2 -> (height * 0.09f).roundToInt().coerceAtLeast(2)
+                else -> (height * 0.06f).roundToInt().coerceAtLeast(2)
             }
             val color = when (frame.centerAfStatus) {
                 1 -> PixelOsdPalette.GREEN
@@ -422,7 +422,6 @@ class PixelOsdRenderer(context: Context) {
                 drawVLine(canvas, cx, cy - 4, cy + 4, PixelOsdPalette.WHITE, 150)
             } else {
                 drawCornerFrame(canvas, cx - half, cy - half, cx + half, cy + half, color, 4)
-                if (frame.centerAfStatus == 1) drawSprite(canvas, "focus-dot", cx - 2, cy - 2)
             }
         }
 
@@ -433,7 +432,7 @@ class PixelOsdRenderer(context: Context) {
         if (frame.showZoomBar) drawZoomBar(canvas, frame, layout)
         if (frame.showLevel) {
             val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
-            val halfSpan = (width * 0.12f).roundToInt().coerceAtLeast(8)
+            val halfSpan = (width * 0.5f - layout.safeMarginPx).roundToInt().coerceAtLeast(8)
             val cx = width / 2
             val cy = height / 2
             val dx = cos(radians).toFloat() * halfSpan
@@ -558,8 +557,8 @@ class PixelOsdRenderer(context: Context) {
         val top = (layout.evTop / scale).roundToInt().coerceIn(0, logicHeight - 1)
         val bottom = (layout.evBottom / scale).roundToInt().coerceIn(top + 1, logicHeight - 1)
         val step = frame.evStepStops.takeIf { it.isFinite() && it > 0f } ?: (1f / 3f)
-        val minStops = (frame.evMinimumIndex * step).coerceAtLeast(-3f)
-        val maxStops = (frame.evMaximumIndex * step).coerceAtMost(3f)
+        val minStops = (frame.evMinimumIndex * step).coerceAtLeast(-5f)
+        val maxStops = (frame.evMaximumIndex * step).coerceAtMost(5f)
         val span = (maxStops - minStops).coerceAtLeast(1f / 3f)
         val tickThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
         for (offset in 0 until tickThickness) {

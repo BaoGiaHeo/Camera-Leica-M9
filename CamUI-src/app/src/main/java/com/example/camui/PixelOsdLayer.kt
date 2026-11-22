@@ -54,6 +54,12 @@ internal fun pixelBatteryCellCount(percent: Int): Int =
 
 internal fun isPixelBatteryLow(percent: Int): Boolean = percent in 0 until 20
 
+internal fun isPixelBatteryBlinking(percent: Int): Boolean = percent in 0 until 10
+
+internal fun isPixelBatteryCritical(percent: Int): Boolean = percent in 0..5
+
+internal fun isPixelBatteryLowWarning(percent: Int): Boolean = percent in 0..1
+
 internal fun pixelEvAccentColor(
     evIndex: Float,
     evStepStops: Float,
@@ -150,6 +156,9 @@ data class PixelOsdFrame(
     val centerAfScale: Int = 1,
     val manualFocusMode: Boolean = false,
     val showStatus: Boolean = true,
+    val videoFormatText: String = "FHD",
+    val fpsText: String = "--.--",
+    val fpsTarget: Int = 60,
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
     val batteryLowBlinkOn: Boolean = true,
@@ -439,6 +448,27 @@ class PixelOsdRenderer(context: Context) {
             )
             drawSprite(canvas, "level", cx - 4, cy - 3)
         }
+        if (isPixelBatteryLowWarning(frame.batteryPercent) &&
+            !frame.batteryCharging && frame.batteryLowBlinkOn
+        ) {
+            val bannerHeight = (layout.t1CapHeightPx * 2.5f / pixelScale).roundToInt().coerceAtLeast(8)
+            val top = (logicHeight - bannerHeight) / 2
+            fillPaint.color = android.graphics.Color.BLACK
+            fillPaint.alpha = 204
+            canvas.drawRect(0f, top.toFloat(), logicWidth.toFloat(), (top + bannerHeight).toFloat(), fillPaint)
+            fillPaint.alpha = 255
+            val warning = "BATTERY LOW"
+            val capHeight = (layout.t1CapHeightPx * 2).coerceAtLeast(1)
+            val width = measurePixelTextWidthPx(warning, capHeight)
+            drawPixelTextPhysical(
+                text = warning,
+                leftPx = (textWidthPx - width) * 0.5f,
+                topPx = (textHeightPx - capHeight) * 0.5f,
+                capHeightPx = capHeight,
+                color = PixelOsdPalette.RED,
+                alpha = 1f
+            )
+        }
     }
 
     private fun drawPixelTexture(canvas: NativeCanvas) {
@@ -468,12 +498,32 @@ class PixelOsdRenderer(context: Context) {
         layout.elements.filter { it.section == "status" }.forEach { element ->
             when (element.kind) {
                 PixelOsdElementKind.TEXT -> {
-                    val color = if (element.id == "battery-percent" && lowBattery && frame.batteryLowBlinkOn) {
-                        PixelOsdPalette.RED
-                    } else if (element.id == "status-af" && frame.focusLocked) {
-                        PixelOsdPalette.GREEN
-                    } else {
-                        PixelOsdPalette.WHITE
+                    val color = when {
+                        element.id == "fps-value" -> {
+                            val measured = frame.fpsText.toFloatOrNull()
+                            when {
+                                measured == null -> PixelOsdPalette.WHITE
+                                measured < frame.fpsTarget.coerceAtLeast(1) * 0.5f -> PixelOsdPalette.RED
+                                measured < frame.fpsTarget.coerceAtLeast(1) * 0.9f -> PixelOsdPalette.AMBER
+                                else -> PixelOsdPalette.WHITE
+                            }
+                        }
+                        element.id == "battery-percent" && lowBattery &&
+                            (frame.batteryPercent >= 10 || frame.batteryLowBlinkOn) ->
+                            PixelOsdPalette.RED
+                        element.id == "status-af" && frame.focusLocked -> PixelOsdPalette.GREEN
+                        else -> PixelOsdPalette.WHITE
+                    }
+                    if (element.id == "video-format") {
+                        val padding = (layout.unitPx * 0.18f / pixelScale).roundToInt().coerceAtLeast(1)
+                        drawDashedRect(
+                            canvas,
+                            (element.bounds.left / pixelScale).roundToInt() - padding,
+                            (element.bounds.top / pixelScale).roundToInt() - padding,
+                            (element.bounds.right / pixelScale).roundToInt() + padding,
+                            (element.bounds.bottom / pixelScale).roundToInt() + padding,
+                            PixelOsdPalette.WHITE
+                        )
                     }
                     drawPixelOsdText(element, color)
                 }
@@ -483,7 +533,9 @@ class PixelOsdRenderer(context: Context) {
                             canvas = canvas,
                             bounds = element.bounds,
                             percent = frame.batteryPercent,
-                            color = if (lowBattery && frame.batteryLowBlinkOn) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
+                            color = if (lowBattery &&
+                                (frame.batteryPercent >= 10 || frame.batteryLowBlinkOn)
+                            ) PixelOsdPalette.RED else PixelOsdPalette.WHITE,
                             unitPx = layout.unitPx,
                             charging = frame.batteryCharging
                         )
@@ -678,6 +730,31 @@ class PixelOsdRenderer(context: Context) {
             val x = (centerX + cos(angle).toFloat() * radiusX).roundToInt()
             val y = (centerY + sin(angle).toFloat() * radiusY).roundToInt()
             drawPixel(canvas, x, y, color, 220)
+        }
+    }
+
+    private fun drawDashedRect(
+        canvas: NativeCanvas,
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int,
+        color: Int
+    ) {
+        if (right <= left || bottom <= top) return
+        var x = left
+        while (x <= right) {
+            val end = (x + 1).coerceAtMost(right)
+            drawHLine(canvas, x, end, top, color, 255)
+            drawHLine(canvas, x, end, bottom, color, 255)
+            x += 4
+        }
+        var y = top
+        while (y <= bottom) {
+            val end = (y + 1).coerceAtMost(bottom)
+            drawVLine(canvas, left, y, end, color, 255)
+            drawVLine(canvas, right, y, end, color, 255)
+            y += 4
         }
     }
 
@@ -1039,6 +1116,8 @@ class PixelOsdRenderer(context: Context) {
                     top + ((height - bolt.size) / 2).coerceAtLeast(0)
                 )
             }
+        } else if (isPixelBatteryCritical(percent) && color == PixelOsdPalette.RED) {
+            drawLine(canvas, left, top + height - 1, left + width - 1, top, PixelOsdPalette.RED)
         }
     }
 

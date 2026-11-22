@@ -2,7 +2,7 @@ name: FujiFilm Mode 2.5.0 · all three rounds
 
 on:
   push:
-    branches: ["fuji-2.5.0-all-3-rounds-package-mode"]
+    branches: ["fuji-2.5.0-all-3-rounds-package-mode", "fuji-2.5.0-all-3-rounds-final"]
   workflow_dispatch:
 
 permissions:

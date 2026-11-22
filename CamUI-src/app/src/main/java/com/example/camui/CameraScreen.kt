@@ -293,6 +293,17 @@ private fun playSystemShutterFallback() {
 }
 
 private fun playConfiguredShutterSound(context: Context) {
+    val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    if (!preferences.getBoolean("shutter_sound_enabled", true)) {
+        android.util.Log.d("LUNADREAM_SHUTTER", "SKIP shutter sound disabled by user")
+        return
+    }
+    val master = preferences.getInt("sound_master_volume", 85).coerceIn(0, 100) / 100f
+    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+    if (master <= 0f || audioManager?.ringerMode == android.media.AudioManager.RINGER_MODE_SILENT) {
+        android.util.Log.d("LUNADREAM_SHUTTER", "SKIP master volume is zero or device is silent")
+        return
+    }
     val attributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -308,13 +319,6 @@ private fun playConfiguredShutterSound(context: Context) {
     if (player == null) {
         android.util.Log.w("LUNADREAM_SHUTTER", "Bundled shutter WAV could not be opened; using system fallback")
         playSystemShutterFallback()
-        return
-    }
-    val master = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        .getInt("sound_master_volume", 85).coerceIn(0, 100) / 100f
-    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
-    if (master <= 0f || audioManager?.ringerMode == android.media.AudioManager.RINGER_MODE_SILENT) {
-        player.release()
         return
     }
     player.setVolume(master, master)

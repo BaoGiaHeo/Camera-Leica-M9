@@ -190,6 +190,12 @@
     <string name="activation_storage_warning">LOW STORAGE · LESS THAN 1 GB FREE</string>
     <string name="activation_battery_warning">LOW BATTERY · BELOW 20%</string>
     <string name="battery_processing_blocked">Battery is at 5% or below. Charge the device before using NightShot or LunaDream 2.0.</string>
+    <string name="processing_lock_luna15">Unavailable while LunaDream 1.5 is active.</string>
+    <string name="processing_lock_luna20">Unavailable while LunaDream 2.0 is active.</string>
+    <string name="processing_lock_night">Unavailable with NightShot.</string>
+    <string name="processing_lock_hdr">Unavailable with HDR Tone Mapping.</string>
+    <string name="processing_lock_native">Unavailable with Native Processing.</string>
+    <string name="processing_lock_live_photo">Live Photo is unavailable with this processing mode.</string>
     <string name="preview_fps_title">PREVIEW FPS</string>
     <string name="preview_fps_description">Set the preview stream frame-rate range. The HUD reports measured camera FPS.</string>
     <string name="icon_rotation_title">ICON ROTATION</string>

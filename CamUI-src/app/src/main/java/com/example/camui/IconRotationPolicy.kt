@@ -29,3 +29,14 @@ internal fun relativeIconRotationDegrees(
     val display = (((displayRotation.coerceIn(0, 3) * 90) % 360) + 360) % 360
     return (device - display + 360) % 360
 }
+
+internal fun shortestIconRotationTarget(currentDegrees: Float, targetDegrees: Int): Float {
+    val current = currentDegrees.takeIf { it.isFinite() } ?: 0f
+    val target = ((targetDegrees % 360) + 360) % 360
+    val turns = kotlin.math.round((current - target) / 360f)
+    return target + turns * 360f
+}
+
+internal object FujiIconRotationState {
+    var degrees by androidx.compose.runtime.mutableIntStateOf(0)
+}

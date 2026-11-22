@@ -27,7 +27,7 @@ internal fun resolveWatermarkDeviceName(
     val modelKey = safeModel?.filter(Char::isLetterOrDigit)?.lowercase(Locale.ROOT)
     modelKey?.let(knownDeviceMarketingNames::get)?.let { return it }
 
-    if (safeModel == null) return safeManufacturer ?: "Camera"
+    if (safeModel == null) return safeManufacturer.orEmpty()
     val modelWithoutManufacturer = if (
         safeManufacturer != null && safeModel.startsWith(safeManufacturer, ignoreCase = true)
     ) {
@@ -37,7 +37,7 @@ internal fun resolveWatermarkDeviceName(
     }
     return listOfNotNull(safeManufacturer, modelWithoutManufacturer.takeIf { it.isNotBlank() })
         .joinToString(" ")
-        .ifBlank { "Camera" }
+        .trim()
 }
 
 private fun String?.cleanWatermarkName(): String? =

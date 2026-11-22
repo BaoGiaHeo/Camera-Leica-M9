@@ -21,6 +21,39 @@ class PreviewFpsPolicyTest {
     }
 
     @Test
+    fun settingsOnlyExposeExactAdvertisedModesAndAuto() {
+        val options = supportedPreviewFpsOptions(
+            listOf(
+                PreviewFpsRange(15, 30),
+                PreviewFpsRange(24, 60),
+                PreviewFpsRange(24, 24),
+                PreviewFpsRange(30, 30),
+                PreviewFpsRange(60, 60)
+            ),
+            previewMinFrameDurationNs = 12_000_000L
+        )
+        assertEquals(setOf("60", "30", "24", "AUTO"), options)
+    }
+
+    @Test
+    fun previewFrameDurationCanHideAnAdvertisedButUnsustainableMode() {
+        val options = supportedPreviewFpsOptions(
+            listOf(
+                PreviewFpsRange(24, 24),
+                PreviewFpsRange(30, 30),
+                PreviewFpsRange(60, 60)
+            ),
+            previewMinFrameDurationNs = 20_000_000L
+        )
+        assertEquals(setOf("30", "24", "AUTO"), options)
+    }
+
+    @Test
+    fun emptyFpsCapabilitiesExposeNoOptions() {
+        assertTrue(supportedPreviewFpsOptions(emptyList(), null).isEmpty())
+    }
+
+    @Test
     fun fixedModeFallsBackToHighestAdvertisedRateNotAboveTarget() {
         val selection = selectPreviewFpsRange(
             "60",

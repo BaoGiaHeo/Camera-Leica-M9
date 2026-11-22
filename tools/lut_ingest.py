@@ -54,6 +54,12 @@ class Lut:
     values: array.array
     red_fastest: bool
     title: str = ""
+    domain_min: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    domain_max: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    one_d_size: int = 0
+    one_d_values: array.array | None = None
+    one_d_domain_min: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    one_d_domain_max: tuple[float, float, float] = (1.0, 1.0, 1.0)
 
     def _index(self, r: int, g: int, b: int, channel: int) -> int:
         if self.red_fastest:
@@ -67,12 +73,29 @@ class Lut:
         return a + (b - a) * t
 
     def sample(self, red: float, green: float, blue: float) -> tuple[float, float, float]:
-        coords = (red, green, blue)
+        coords = [red, green, blue]
+        if self.one_d_size >= 2 and self.one_d_values is not None:
+            mapped: list[float] = []
+            for channel, value in enumerate(coords):
+                lo_domain = self.one_d_domain_min[channel]
+                hi_domain = self.one_d_domain_max[channel]
+                span = max(1e-8, hi_domain - lo_domain)
+                position = min(1.0, max(0.0, (value - lo_domain) / span)) * (self.one_d_size - 1)
+                low = min(self.one_d_size - 1, max(0, int(position)))
+                high = min(self.one_d_size - 1, low + 1)
+                fraction = position - low
+                a = self.one_d_values[low * 3 + channel]
+                b = self.one_d_values[high * 3 + channel]
+                mapped.append(min(1.0, max(0.0, self._mix(a, b, fraction))))
+            coords = mapped
+
         low: list[int] = []
         high: list[int] = []
         fraction: list[float] = []
-        for value in coords:
-            position = min(1.0, max(0.0, value)) * (self.size - 1)
+        for channel, value in enumerate(coords):
+            span = max(1e-8, self.domain_max[channel] - self.domain_min[channel])
+            normalized = min(1.0, max(0.0, (value - self.domain_min[channel]) / span))
+            position = normalized * (self.size - 1)
             lo = min(self.size - 1, max(0, int(position)))
             low.append(lo)
             high.append(min(self.size - 1, lo + 1))
@@ -81,7 +104,6 @@ class Lut:
         r0, g0, b0 = low
         r1, g1, b1 = high
         rt, gt, bt = fraction
-
         output: list[float] = []
         for channel in range(3):
             c00 = self._mix(self.values[self._index(r0, g0, b0, channel)],
@@ -99,41 +121,91 @@ class Lut:
 
 def parse_cube(path: Path) -> Lut:
     text = path.read_text(encoding="utf-8-sig")
-    size = 0
+    size3d = 0
+    size1d = 0
     title = path.stem
+    domain_min = [0.0, 0.0, 0.0]
+    domain_max = [1.0, 1.0, 1.0]
+    one_d_domain_min = [0.0, 0.0, 0.0]
+    one_d_domain_max = [1.0, 1.0, 1.0]
     data = array.array("f")
+
     for raw in text.splitlines():
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
-        if line.startswith("TITLE"):
+        parts = line.split()
+        directive = parts[0]
+        if directive == "TITLE":
             match = re.search(r'"([^"]*)"', line)
             if match:
                 title = match.group(1)
             continue
-        if line.startswith(("DOMAIN_MIN", "DOMAIN_MAX", "LUT_1D_SIZE")):
-            continue
-        if line.startswith("LUT_3D_SIZE"):
-            parts = line.split()
+        if directive in ("LUT_1D_SIZE", "LUT_3D_SIZE"):
             if len(parts) != 2:
-                raise ValueError("LUT_3D_SIZE must contain one integer")
-            size = int(parts[1])
-            if size < 2 or size > 129:
-                raise ValueError("LUT_3D_SIZE must be between 2 and 129")
+                raise ValueError(f"{directive} must contain one integer")
+            value = int(parts[1])
+            if directive == "LUT_1D_SIZE":
+                size1d = value
+                if not 2 <= size1d <= 65536:
+                    raise ValueError("LUT_1D_SIZE must be between 2 and 65536")
+            else:
+                size3d = value
+                if not 2 <= size3d <= 129:
+                    raise ValueError("LUT_3D_SIZE must be between 2 and 129")
             continue
-        parts = line.split()
+        if directive in ("DOMAIN_MIN", "DOMAIN_MAX", "LUT_1D_INPUT_RANGE"):
+            if len(parts) not in (3, 4):
+                raise ValueError(f"{directive} requires two or three components")
+            values = [float(value) for value in parts[1:]]
+            if len(values) == 2:
+                values = values * 3
+            if not all(math.isfinite(value) for value in values):
+                raise ValueError(f"{directive} contains a non-finite component")
+            if directive == "DOMAIN_MIN":
+                domain_min = values
+            elif directive == "DOMAIN_MAX":
+                domain_max = values
+            else:
+                one_d_domain_min = values
+                one_d_domain_max = [float(parts[2])] * 3
+            continue
+        if directive.isalpha() or directive.startswith("_"):
+            # Ignore standard informational directives such as 3D_INPUT_RANGE.
+            continue
         if len(parts) != 3:
             raise ValueError(f"invalid .cube row: {raw[:80]}")
         values = tuple(float(part) for part in parts)
         if not all(math.isfinite(value) for value in values):
             raise ValueError("non-finite value in .cube")
         data.extend(values)
-    if size < 2:
+
+    if size3d < 2:
         raise ValueError("only 3D .cube files are accepted by this ingest tool")
-    expected = size * size * size * 3
-    if len(data) != expected:
-        raise ValueError(f".cube row count mismatch: expected {expected // 3}, got {len(data) // 3}")
-    return Lut(size=size, values=data, red_fastest=False, title=title)
+    expected1d = size1d * 3
+    expected3d = size3d * size3d * size3d * 3
+    expected_total = expected1d + expected3d
+    if len(data) != expected_total:
+        raise ValueError(
+            f".cube row count mismatch: expected {expected_total // 3}, got {len(data) // 3}"
+        )
+    if any(not math.isfinite(lo) or not math.isfinite(hi) or hi <= lo
+           for lo, hi in zip(domain_min, domain_max)):
+        raise ValueError("DOMAIN_MIN/MAX must be finite increasing ranges")
+    one_d_values = array.array("f", data[:expected1d]) if size1d else None
+    three_d_values = array.array("f", data[expected1d:])
+    return Lut(
+        size=size3d,
+        values=three_d_values,
+        red_fastest=False,
+        title=title,
+        domain_min=tuple(domain_min),
+        domain_max=tuple(domain_max),
+        one_d_size=size1d,
+        one_d_values=one_d_values,
+        one_d_domain_min=tuple(one_d_domain_min),
+        one_d_domain_max=tuple(one_d_domain_max),
+    )
 
 
 def parse_vlt(path: Path) -> Lut:
@@ -208,6 +280,8 @@ def decode_png_rgb(path: Path) -> tuple[int, int, int, array.array]:
 
     if width <= 0 or height <= 0:
         raise ValueError("PNG has no valid IHDR")
+    if width > 4096 or height > 4096 or width != height:
+        raise ValueError("HaldCLUT PNG dimensions must be square and no larger than 4096x4096")
     if bit_depth not in (8, 16):
         raise ValueError("HaldCLUT PNG must be 8-bit or 16-bit")
     if color_type not in (2, 6):
@@ -219,9 +293,13 @@ def decode_png_rgb(path: Path) -> tuple[int, int, int, array.array]:
     bytes_per_sample = bit_depth // 8
     bytes_per_pixel = channels * bytes_per_sample
     row_bytes = width * bytes_per_pixel
-    raw = zlib.decompress(bytes(compressed))
-    if len(raw) != height * (row_bytes + 1):
-        raise ValueError("PNG decompressed byte count does not match dimensions")
+    expected_raw_bytes = height * (row_bytes + 1)
+    if expected_raw_bytes > 256 * 1024 * 1024:
+        raise ValueError("HaldCLUT PNG expands beyond the 256 MiB safety limit")
+    inflater = zlib.decompressobj()
+    raw = inflater.decompress(bytes(compressed), expected_raw_bytes + 1)
+    if len(raw) != expected_raw_bytes or not inflater.eof or inflater.unconsumed_tail:
+        raise ValueError("PNG decompressed byte count does not match dimensions or exceeds the safety limit")
 
     maximum = 255 if bit_depth == 8 else 65535
     samples = array.array("f")

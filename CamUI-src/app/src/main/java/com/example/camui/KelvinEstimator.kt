@@ -50,10 +50,10 @@ internal object KelvinEstimator {
                 ?: forward
         }
         val reference1 = illuminantKelvin(
-            characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1)
+            characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1)?.toInt()
         )
         val reference2 = illuminantKelvin(
-            characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)
+            characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)?.toInt()
         )
 
         val xyz = when {

@@ -65,7 +65,7 @@ internal object CameraParamsStore {
     fun load(
         preferences: Map<String, Any?>,
         cameraId: String,
-        fallback: CameraParamsSnapshot = legacySnapshot(preferences)
+        fallback: CameraParamsSnapshot = legacySnapshot(preferences, cameraId)
     ): CameraParamsSnapshot {
         val prefix = keyPrefix(cameraId)
         fun value(field: String) = preferences[prefix + field]
@@ -94,14 +94,20 @@ internal object CameraParamsStore {
     }
 
     /** Legacy global keys are read only as a migration fallback for first use of a camera. */
-    fun legacySnapshot(preferences: Map<String, Any?>): CameraParamsSnapshot {
+    fun legacySnapshot(
+        preferences: Map<String, Any?>,
+        cameraId: String? = null
+    ): CameraParamsSnapshot {
         fun int(key: String, default: Int) = (preferences[key] as? Number)?.toInt() ?: default
         fun long(key: String, default: Long) = (preferences[key] as? Number)?.toLong() ?: default
         fun float(key: String, default: Float) = (preferences[key] as? Number)?.toFloat() ?: default
         fun bool(key: String, default: Boolean) = preferences[key] as? Boolean ?: default
         fun string(key: String, default: String) = preferences[key] as? String ?: default
         return CameraParamsSnapshot(
-            evIndex = int("pro_ev_index", 0),
+            evIndex = int(
+                cameraId?.let { "pro_ev_index_$it" } ?: "pro_ev_index",
+                int("pro_ev_index", 0)
+            ),
             manualExposure = bool("pro_manual_exposure_enabled", false),
             manualIsoEnabled = bool("pro_manual_iso_enabled", false),
             manualShutterEnabled = bool("pro_manual_shutter_enabled", false),

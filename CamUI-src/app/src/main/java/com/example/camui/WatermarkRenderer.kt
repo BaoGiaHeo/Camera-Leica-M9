@@ -529,7 +529,7 @@ internal object WatermarkRenderer {
             context, canvas,
             WatermarkRect(logoCenterX - logoWidth / 2f, logoCenterY - logoHeight / 2f,
                 logoCenterX + logoWidth / 2f, logoCenterY + logoHeight / 2f),
-            true
+            !settings.invert
         )
         if (filter != null) {
             drawMeasuredText(

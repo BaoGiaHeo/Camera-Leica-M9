@@ -3410,6 +3410,17 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        val needsCriticalBatteryProtection = !batteryCharging &&
+            batteryPercent in 0..5 &&
+            (nightShotMode != "off" || lunaDreamMode == "luna20" || starTrailCaptureInProgress)
+        if (needsCriticalBatteryProtection) {
+            localizedToast(
+                context,
+                AppLanguageManager.localizedContext(context).getString(R.string.battery_processing_blocked),
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         val rawModeConflictsWithComputationalCapture = !nativeImageProcessingEnabled && (
             (mode == "Photo" && rawCaptureMode == "raw" &&
                 (nightShotMode != "off" || lunaDreamMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||

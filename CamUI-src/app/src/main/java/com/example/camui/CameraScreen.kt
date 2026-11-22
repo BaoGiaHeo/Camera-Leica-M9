@@ -7026,7 +7026,10 @@ fun CameraScreen(
                             Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
                         }
                 ) {
-                    toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)), topPlateHeight)
+                    toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(
+                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
+                                    .union(WindowInsets.systemGestures.only(WindowInsetsSides.Horizontal))
+                            ), topPlateHeight)
                     if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.13f)))
                 }
                 Row(
@@ -7036,7 +7039,10 @@ fun CameraScreen(
                 ) {
                     Box(
                         Modifier.width(leftColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .windowInsetsPadding(
+                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
+                                    .union(WindowInsets.systemGestures.only(WindowInsetsSides.Horizontal))
+                            )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {
                                 Log.d("LUNA_LAYOUT", "LEFT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
@@ -7080,7 +7086,10 @@ fun CameraScreen(
                     }
                     Box(
                         Modifier.width(rightColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .windowInsetsPadding(
+                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
+                                    .union(WindowInsets.systemGestures.only(WindowInsetsSides.Horizontal))
+                            )
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged {
                                 Log.d("LUNA_LAYOUT", "RIGHT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")

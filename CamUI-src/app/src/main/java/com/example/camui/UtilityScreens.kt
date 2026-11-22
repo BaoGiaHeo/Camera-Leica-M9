@@ -2896,6 +2896,11 @@ fun applyCameraWatermark(
         filterBadge = filterBadge
     )
 
+    val watermarkStartedAt = android.os.SystemClock.elapsedRealtime()
+    var watermarkDecodeMs = 0L
+    var watermarkRenderMs = 0L
+    var watermarkEncodeMs = 0L
+    var watermarkExifMs = 0L
     return runCatching {
         val estimatedPixels = bounds.outWidth.toLong() * bounds.outHeight.toLong()
         val estimatedBytes = estimatedPixels * 4L
@@ -2911,8 +2916,10 @@ fun applyCameraWatermark(
                 ?: error("Original backup could not be saved; source image has not been overwritten")
         } else null
 
+        val decodeStartedAt = android.os.SystemClock.elapsedRealtime()
         val sourceBitmap = decodeWatermarkPixelBitmap(context, uri)
             ?: error("Could not decode original photo for watermark")
+        watermarkDecodeMs = android.os.SystemClock.elapsedRealtime() - decodeStartedAt
         var outputBitmap: Bitmap? = null
         try {
             val hadGainMap = android.os.Build.VERSION.SDK_INT >= 34 &&
@@ -2923,14 +2930,20 @@ fun applyCameraWatermark(
                     "ULTRA_HDR_GAINMAP_NOT_PRESERVED: output is standard JPEG SDR; original backup=" + (originalCopy != null)
                 )
             }
+            val renderStartedAt = android.os.SystemClock.elapsedRealtime()
             outputBitmap = WatermarkRenderer.render(context, sourceBitmap, settings, metadata)
+            watermarkRenderMs = android.os.SystemClock.elapsedRealtime() - renderStartedAt
             val outWidth = outputBitmap.width
             val outHeight = outputBitmap.height
+            val encodeStartedAt = android.os.SystemClock.elapsedRealtime()
             val written = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
                 outputBitmap.compress(Bitmap.CompressFormat.JPEG, 96, output)
             } ?: false
+            watermarkEncodeMs = android.os.SystemClock.elapsedRealtime() - encodeStartedAt
             check(written) { "Could not write watermarked JPEG" }
+            val exifStartedAt = android.os.SystemClock.elapsedRealtime()
             val exifRestored = restoreImageExifAttributes(context, uri, sourceExif, outWidth, outHeight)
+            watermarkExifMs = android.os.SystemClock.elapsedRealtime() - exifStartedAt
             check(exifRestored) { "Could not restore source EXIF and GPS after watermark rendering" }
             setMediaStoreOrientationUpright(context, uri)
             android.util.Log.i(
@@ -2940,7 +2953,12 @@ fun applyCameraWatermark(
                     " output=" + outWidth + "x" + outHeight +
                     " ratio=" + outWidth + ":" + outHeight +
                     " saveMode=" + settings.saveMode +
-                    " GPS_EXIF_PRESERVED=" + sourceExif.containsKey(ExifInterface.TAG_GPS_LATITUDE)
+                    " GPS_EXIF_PRESERVED=" + sourceExif.containsKey(ExifInterface.TAG_GPS_LATITUDE) +
+                    " decodeMs=" + watermarkDecodeMs +
+                    " renderMs=" + watermarkRenderMs +
+                    " encodeMs=" + watermarkEncodeMs +
+                    " exifMs=" + watermarkExifMs +
+                    " totalMs=" + (android.os.SystemClock.elapsedRealtime() - watermarkStartedAt)
             )
             true
         } finally {
@@ -2948,7 +2966,13 @@ fun applyCameraWatermark(
             sourceBitmap.takeIf { !it.isRecycled }?.recycle()
         }
     }.onFailure {
-        android.util.Log.e("FUJI_WATERMARK", "Saira A-E watermark rendering failed", it)
+        android.util.Log.e(
+            "FUJI_WATERMARK",
+            "FINALIZE_FAILED decodeMs=$watermarkDecodeMs renderMs=$watermarkRenderMs " +
+                "encodeMs=$watermarkEncodeMs exifMs=$watermarkExifMs " +
+                "totalMs=" + (android.os.SystemClock.elapsedRealtime() - watermarkStartedAt),
+            it
+        )
     }.getOrDefault(false)
 }
 

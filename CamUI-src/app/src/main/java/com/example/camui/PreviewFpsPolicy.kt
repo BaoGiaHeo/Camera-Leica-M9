@@ -1,5 +1,10 @@
 package com.example.camui
 
+import android.content.Context
+import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+
 internal data class PreviewFpsRange(
     val lower: Int,
     val upper: Int
@@ -16,6 +21,60 @@ internal data class PreviewFpsSelection(
     val reason: String
 )
 
+internal fun supportedPreviewFpsModes(
+    supportedRanges: List<PreviewFpsRange>,
+    streamFrameDurationsNs: List<Long>
+): List<String> {
+    val ranges = supportedRanges.distinct()
+    if (ranges.isEmpty()) return emptyList()
+    val knownDurations = streamFrameDurationsNs.filter { it > 0L }
+
+    fun streamCanReach(fps: Int): Boolean {
+        if (knownDurations.isEmpty()) return true
+        val requiredDuration = 1_000_000_000L / fps
+        return knownDurations.any { it <= requiredDuration }
+    }
+
+    fun aeCanReach(fps: Int): Boolean = ranges.any { it.lower <= fps && it.upper >= fps }
+
+    return buildList {
+        if (aeCanReach(60) && streamCanReach(60)) add("60")
+        if (aeCanReach(30) && streamCanReach(30)) add("30")
+        if (aeCanReach(24) && streamCanReach(24)) add("24")
+        if (ranges.any { it.lower <= 24 && it.upper >= 60 } && streamCanReach(60)) add("AUTO")
+    }
+}
+
+internal fun highestSupportedPreviewFpsMode(modes: List<String>): String =
+    listOf("60", "30", "24", "AUTO").firstOrNull { it in modes } ?: "AUTO"
+
+/** Reads actual rear-camera AE ranges and SurfaceTexture stream durations. */
+internal fun discoverSupportedPreviewFpsModes(context: Context): List<String> {
+    val manager = context.applicationContext.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+        ?: return emptyList()
+    val ranges = mutableListOf<PreviewFpsRange>()
+    val durations = mutableListOf<Long>()
+    val ids = runCatching { manager.cameraIdList.toList() }.getOrDefault(emptyList())
+    ids.forEach { id ->
+        runCatching {
+            val characteristics = manager.getCameraCharacteristics(id)
+            if (characteristics.get(CameraCharacteristics.LENS_FACING) != CameraCharacteristics.LENS_FACING_BACK) {
+                return@runCatching
+            }
+            characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                ?.forEach { ranges += PreviewFpsRange(it.lower, it.upper) }
+            val streamMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            streamMap?.getOutputSizes(SurfaceTexture::class.java).orEmpty().forEach { size ->
+                val duration = runCatching {
+                    streamMap.getOutputMinFrameDuration(SurfaceTexture::class.java, size)
+                }.getOrDefault(0L)
+                durations += duration
+            }
+        }
+    }
+    return supportedPreviewFpsModes(ranges, durations)
+}
+
 internal fun selectPreviewFpsRange(
     mode: String,
     supportedRanges: List<PreviewFpsRange>
@@ -29,15 +88,15 @@ internal fun selectPreviewFpsRange(
 
     if (mode.equals("AUTO", ignoreCase = true)) {
         val autoRange = ranges.firstOrNull { it.lower <= 24 && it.upper >= 60 }
-            ?: ranges.minByOrNull {
-                kotlin.math.abs(it.lower - 24) + kotlin.math.abs(it.upper - 60)
-            }
-        val spansTarget = autoRange != null && autoRange.lower <= 24 && autoRange.upper >= 60
+            ?: return PreviewFpsSelection(
+                ranges.maxByOrNull { it.upper }, null, true,
+                "Camera2 did not expose a variable range covering 24..60 FPS"
+            )
         return PreviewFpsSelection(
             range = autoRange,
-            targetFps = autoRange?.upper,
-            fellBack = !spansTarget,
-            reason = if (spansTarget) "AE range covers 24..60 FPS" else "Nearest advertised AE range used"
+            targetFps = null,
+            fellBack = false,
+            reason = "AE range allows automatic adaptation from 24 to 60 FPS"
         )
     }
 
@@ -47,18 +106,24 @@ internal fun selectPreviewFpsRange(
         return PreviewFpsSelection(exactFixed, requested, false, "Exact fixed FPS range")
     }
 
+    val containing = ranges.filter { it.lower <= requested && it.upper >= requested }
+        .minByOrNull { it.upper - it.lower }
+    if (containing != null) {
+        return PreviewFpsSelection(
+            containing, requested, true,
+            "Requested FPS is available inside an advertised variable AE range"
+        )
+    }
+
     val cappedRanges = ranges.filter { it.upper <= requested }
     val selected = cappedRanges.maxWithOrNull(
         compareBy<PreviewFpsRange> { it.upper }.thenBy { it.lower }
-    ) ?: ranges.minByOrNull {
-        kotlin.math.abs(it.upper - requested) + if (it.lower > requested) 10_000 else 0
-    }
-    val target = selected?.upper
+    )
     return PreviewFpsSelection(
         range = selected,
-        targetFps = target,
-        fellBack = selected == null || target != requested || selected.lower != requested,
-        reason = if (selected == null) "No usable AE FPS range"
+        targetFps = selected?.upper,
+        fellBack = true,
+        reason = if (selected == null) "No advertised AE range supports this target"
             else "Requested " + requested + " FPS unavailable; selected advertised range " +
                 selected.lower + ".." + selected.upper
     )

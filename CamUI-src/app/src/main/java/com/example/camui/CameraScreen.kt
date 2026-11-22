@@ -847,6 +847,10 @@ fun CameraScreen(
     }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
+    var zoomRestoreExpectedCameraRatio by remember { mutableFloatStateOf(Float.NaN) }
+    var zoomRestoreBindGeneration by remember { mutableIntStateOf(-1) }
+    var zoomRestoreInteractionGeneration by remember { mutableIntStateOf(-1) }
+    var zoomRestorePending by remember { mutableStateOf(false) }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
     val digitalZoomCropScaleState = rememberUpdatedState(digitalZoomCropScale)
     val zoomDisplayValue by animateFloatAsState(
@@ -1332,6 +1336,73 @@ fun CameraScreen(
     LaunchedEffect(zoomSel) {
         delay(250)
         appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
+    }
+
+    LaunchedEffect(camera, cameraBindGeneration, zoomRestoreBindGeneration, zoomRestorePending) {
+        val active = camera ?: return@LaunchedEffect
+        if (!zoomRestorePending || zoomRestoreBindGeneration != cameraBindGeneration) return@LaunchedEffect
+        val expected = zoomRestoreExpectedCameraRatio
+        val userGeneration = zoomRestoreInteractionGeneration
+        val startedAt = SystemClock.elapsedRealtime()
+        var acknowledged = false
+        while (SystemClock.elapsedRealtime() - startedAt < 500L) {
+            if (camera !== active || zoomInteractionGeneration != userGeneration) break
+            val observed = zoomFromCaptureResult
+            if (isZoomWithinRestoreTolerance(observed, expected)) {
+                acknowledged = true
+                break
+            }
+            delay(16L)
+        }
+        if (camera === active && zoomRestoreBindGeneration == cameraBindGeneration) {
+            val observed = zoomFromCaptureResult
+            if (zoomInteractionGeneration == userGeneration) {
+                if (acknowledged) {
+                    android.util.Log.i(
+                        "FUJI_ZOOM_RESTORE",
+                        "ACK cameraId=${activeCameraDetails?.id ?: "unknown"} expected=$expected actual=$observed elapsedMs=${SystemClock.elapsedRealtime() - startedAt}"
+                    )
+                } else if (observed.isFinite()) {
+                    android.util.Log.w(
+                        "FUJI_ZOOM_RESTORE",
+                        "TIMEOUT cameraId=${activeCameraDetails?.id ?: "unknown"} expected=$expected actual=$observed elapsedMs=${SystemClock.elapsedRealtime() - startedAt}"
+                    )
+                    if (digitalZoomCropScale <= 1.001f && kotlin.math.abs(observed - zoomSel) > 0.05f) {
+                        zoomSel = observed
+                        actualZoomRatio = observed
+                        appPrefs.edit().putFloat("camera_zoom_ratio", observed).apply()
+                        android.util.Log.w("FUJI_ZOOM_SYNC", "RESTORE_TIMEOUT_SYNC actual=$observed")
+                    }
+                } else {
+                    android.util.Log.w(
+                        "FUJI_ZOOM_RESTORE",
+                        "TIMEOUT_NO_CAPTURE_RESULT cameraId=${activeCameraDetails?.id ?: "unknown"} expected=$expected"
+                    )
+                }
+            } else {
+                android.util.Log.d("FUJI_ZOOM_RESTORE", "SKIP userInteractionChanged generation=$zoomInteractionGeneration")
+            }
+            zoomRestorePending = false
+        }
+    }
+
+    LaunchedEffect(zoomFromCaptureResult, cameraBindGeneration) {
+        val observed = zoomFromCaptureResult
+        if (!observed.isFinite() || camera == null || zoomRestorePending) return@LaunchedEffect
+        if (zoomHoldDirection != 0 || zoomAnimationJob?.isActive == true || digitalZoomCropScale > 1.001f) {
+            return@LaunchedEffect
+        }
+        val drift = kotlin.math.abs(observed - zoomSel)
+        if (drift > 0.05f) {
+            val previous = zoomSel
+            zoomSel = observed
+            actualZoomRatio = observed
+            appPrefs.edit().putFloat("camera_zoom_ratio", observed).apply()
+            android.util.Log.w(
+                "FUJI_ZOOM_SYNC",
+                "CAPTURE_RESULT_DRIFT previous=$previous observed=$observed delta=$drift cameraBindGeneration=$cameraBindGeneration"
+            )
+        }
     }
 
     DisposableEffect(Unit) {
@@ -2017,7 +2088,34 @@ fun CameraScreen(
                         android.util.Log.w("FUJI_PREVIEW_FPS", "Could not read Camera2 AE FPS ranges", it)
                     }.getOrDefault(emptyList())
                 }.orEmpty()
-                val fpsSelection = selectPreviewFpsRange(previewFpsMode, advertisedPreviewFpsRanges)
+                val activeStreamDurations = activeFacingId?.let { id ->
+                    runCatching {
+                        val streamMap = cameraManager.getCameraCharacteristics(id)
+                            .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                        streamMap?.getOutputSizes(android.graphics.SurfaceTexture::class.java)
+                            .orEmpty()
+                            .mapNotNull { size ->
+                                streamMap?.let {
+                                    runCatching {
+                                        it.getOutputMinFrameDuration(android.graphics.SurfaceTexture::class.java, size)
+                                    }.getOrNull()
+                                }
+                            }
+                    }.getOrDefault(emptyList())
+                }.orEmpty()
+                val activeCameraFpsModes = supportedPreviewFpsModes(advertisedPreviewFpsRanges, activeStreamDurations)
+                val activePreviewFpsMode = if (previewFpsMode in activeCameraFpsModes) {
+                    previewFpsMode
+                } else {
+                    highestSupportedPreviewFpsMode(activeCameraFpsModes)
+                }
+                if (activePreviewFpsMode != previewFpsMode) {
+                    scope.launch(Dispatchers.Main.immediate) {
+                        previewFpsMode = activePreviewFpsMode
+                        appPrefs.edit().putString("preview_fps_mode", activePreviewFpsMode).apply()
+                    }
+                }
+                val fpsSelection = selectPreviewFpsRange(activePreviewFpsMode, advertisedPreviewFpsRanges)
                 fpsSelection.range?.let { selectedRange ->
                     Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
                         CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
@@ -2028,7 +2126,7 @@ fun CameraScreen(
                     previewFpsTarget = fpsSelection.targetFps?.toFloat() ?: Float.NaN
                     android.util.Log.i(
                         "FUJI_PREVIEW_FPS",
-                        "mode=" + previewFpsMode +
+                        "mode=" + activePreviewFpsMode +
                             " selected=" + (fpsSelection.range?.let { it.lower.toString() + ".." + it.upper } ?: "none") +
                             " target=" + (fpsSelection.targetFps?.toString() ?: "none") +
                             " fallback=" + fpsSelection.fellBack +
@@ -2820,6 +2918,10 @@ fun CameraScreen(
                 actualZoomRatio = restoredZoom
                 digitalZoomCropScale = restoredPlan.digitalCropRatio
                 zoomFromCaptureResult = Float.NaN
+                zoomRestoreExpectedCameraRatio = restoredPlan.cameraControlZoomRatio
+                zoomRestoreBindGeneration = bindGeneration
+                zoomRestoreInteractionGeneration = zoomInteractionGeneration
+                zoomRestorePending = true
                 runCatching { bound.cameraControl.setZoomRatio(restoredPlan.cameraControlZoomRatio) }
                 val capabilities = runCatching {
                     Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(

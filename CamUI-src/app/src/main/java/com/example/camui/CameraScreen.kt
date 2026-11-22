@@ -431,6 +431,18 @@ private fun preferredPhotoRawSize(
         }
     )
 }
+private suspend fun awaitDriveCountdownTick(context: Context, secondsRemaining: Int) {
+    val urgent = secondsRemaining <= 2
+    FujiFeedback.driveCountdown(context, urgent)
+    if (urgent) {
+        delay(360)
+        FujiFeedback.driveCountdown(context, urgent = true)
+        delay(640)
+    } else {
+        delay(1_000)
+    }
+}
+
 @Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,
@@ -3603,7 +3615,7 @@ fun CameraScreen(
                     if (timerSec > 0) {
                         for (seconds in timerSec downTo 1) {
                             countdown = seconds
-                            delay(1000)
+                            awaitDriveCountdownTick(context, seconds)
                         }
                         countdown = 0
                     }
@@ -3738,7 +3750,7 @@ fun CameraScreen(
                     if (timerSec > 0) {
                         for (seconds in timerSec downTo 1) {
                             countdown = seconds
-                            delay(1000)
+                            awaitDriveCountdownTick(context, seconds)
                         }
                         countdown = 0
                     }
@@ -3809,7 +3821,7 @@ fun CameraScreen(
             if (timerSec > 0) {
                 for (s in timerSec downTo 1) {
                     countdown = s
-                    delay(1000)
+                    awaitDriveCountdownTick(context, s)
                 }
                 countdown = 0
             }

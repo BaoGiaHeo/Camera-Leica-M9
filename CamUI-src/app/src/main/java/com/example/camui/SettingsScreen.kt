@@ -199,6 +199,12 @@ private fun SettingsDetailPage(
         )
     }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
+    var previewFps by remember {
+        mutableStateOf(PreviewFpsPolicy.normalizeSetting(prefs.getString("preview_fps", "60")))
+    }
+    var keepPreviewFps by remember {
+        mutableStateOf(prefs.getBoolean("preview_fps_keep_across_launch", false))
+    }
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
@@ -710,6 +716,43 @@ var nightShotMode by remember {
                 }
             }
             "Photo Mode Setting" -> {
+                Text(stringResource(R.string.preview_fps_title), color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(R.string.preview_fps_description),
+                    color = CamColors.Sub,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
+                )
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    listOf(
+                        "60" to R.string.preview_fps_60,
+                        "30" to R.string.preview_fps_30,
+                        "24" to R.string.preview_fps_24,
+                        "auto" to R.string.preview_fps_auto
+                    ).forEach { (value, label) ->
+                        FujiChip(
+                            stringResource(label),
+                            previewFps == value,
+                            {
+                                previewFps = value
+                                prefs.edit().putString("preview_fps", value).apply()
+                            },
+                            Modifier.width(78.dp)
+                        )
+                    }
+                }
+                SettingsSwitch(
+                    stringResource(R.string.preview_fps_keep_title),
+                    stringResource(R.string.preview_fps_keep_description),
+                    keepPreviewFps
+                ) {
+                    keepPreviewFps = it
+                    prefs.edit().putBoolean("preview_fps_keep_across_launch", it).apply()
+                }
+                Spacer(Modifier.padding(5.dp))
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
                     "HDR Tone Mapping",

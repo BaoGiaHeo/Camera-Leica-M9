@@ -231,10 +231,16 @@ internal object WatermarkRenderer {
             this.color = color
             textSize = (capHeightPx / capRatio.coerceIn(0.4f, 0.9f)).coerceAtLeast(1f)
         }
-        val tracking = paint.textSize * spacingFraction.coerceAtLeast(0f)
-        val totalWidth = text.sumOf { paint.measureText(it.toString()).toDouble() }.toFloat() +
+        var tracking = paint.textSize * spacingFraction.coerceAtLeast(0f)
+        var totalWidth = text.sumOf { paint.measureText(it.toString()).toDouble() }.toFloat() +
             max(0, text.length - 1) * tracking
-        if (totalWidth > maxWidth) paint.textSize *= (maxWidth / totalWidth).coerceAtLeast(0.70f)
+        if (totalWidth > maxWidth) {
+            paint.textSize *= (maxWidth / totalWidth).coerceAtLeast(0.70f)
+            tracking = paint.textSize * spacingFraction.coerceAtLeast(0f)
+            totalWidth = text.sumOf { paint.measureText(it.toString()).toDouble() }.toFloat() +
+                max(0, text.length - 1) * tracking
+        }
+        if (totalWidth > maxWidth + 0.5f) return
         val cap = Rect()
         paint.getTextBounds("H", 0, 1, cap)
         val baseline = centerY - (cap.top + cap.bottom) * 0.5f
@@ -481,10 +487,7 @@ internal object WatermarkRenderer {
                 "ISO " + value.removePrefix("ISO").trim()
             }.orEmpty()
         ).filter { it.isNotBlank() }.joinToString(" ")
-        val line = listOf(
-            specs,
-            metadata.lensName.takeIf { settings.fields.lens }.orEmpty()
-        ).filter { it.isNotBlank() }.joinToString("  ")
+        val line = specs
         val meta = geometry.metadataRect ?: return
         drawMeasuredText(
             canvas, line, meta.right, footer.centerY,

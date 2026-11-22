@@ -5108,7 +5108,7 @@ fun CameraScreen(
                                             }
                                             // Tapping elsewhere replaces the previous AF/AE lock.
                                             invalidatePendingFocusLock(active)
-                                            manualAfOverrideUntilMs = Long.MAX_VALUE
+                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 3_000L
                                             android.util.Log.d(
                                                 "FUJI_AF_OSD",
                                                 "manualTapOverride=true faceBoxPresent=${faceTrackCenter != null} " +
@@ -5276,26 +5276,16 @@ fun CameraScreen(
                                                 val focusSuccess = runCatching {
                                                     focusFuture.get().isFocusSuccessful
                                                 }.getOrDefault(false)
-                                                val aeLockApplied = if (focusSuccess) {
-                                                    applyCameraAeLock(active, locked = true)
-                                                } else {
-                                                    applyCameraAeLock(active, locked = false)
-                                                    false
-                                                }
-                                                focusLocked = focusSuccess && aeLockApplied
-                                                centerAfStatus = if (focusLocked) 1 else -1
-                                                if (focusLocked) {
-                                                    android.util.Log.i(
-                                                        "FUJI_AF",
-                                                        "AF_STATE=FOCUSED AF_LOCK=true AE_LOCK=true request=$focusRequestId"
-                                                    )
-                                                } else {
-                                                    manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
-                                                    android.util.Log.w(
-                                                        "FUJI_AF",
-                                                        "AF_STATE=NOT_FOCUSED focusSuccess=$focusSuccess " +
-                                                            "aeLockApplied=$aeLockApplied request=$focusRequestId"
-                                                    )
+                                                // A normal tap selects and focuses the AF point; it does not lock AF/AE.
+                                                // AF-L/AE-L is reserved for the 500 ms long-press gesture below.
+                                                focusLocked = false
+                                                centerAfStatus = if (focusSuccess) 1 else -1
+                                                android.util.Log.i(
+                                                    "FUJI_AF",
+                                                    "AF_STATE=" + (if (focusSuccess) "FOCUSED" else "NOT_FOCUSED") +
+                                                        " AF_LOCK=false AE_LOCK=false request=$focusRequestId"
+                                                )
+                                                if (!focusSuccess) {
                                                     scope.launch(Dispatchers.Main) {
                                                         withFrameNanos { }
                                                         withFrameNanos { }
@@ -5304,6 +5294,106 @@ fun CameraScreen(
                                                         ) {
                                                             centerAfStatus = 0
                                                         }
+                                                    }
+                                                }
+                                            }, mainExecutor)
+                                        },
+                                        onLongPress = { offset ->
+                                            val active = camera ?: return@detectTapGestures
+                                            val tapPoint = normalizedAfTapPoint(
+                                                Offset(offset.x, offset.y),
+                                                size.width,
+                                                size.height
+                                            )
+                                            val previewWidth = previewView.width
+                                            val previewHeight = previewView.height
+                                            if (previewWidth <= 0 || previewHeight <= 0) {
+                                                android.util.Log.w("FUJI_AF", "AF_LONG_PRESS rejected: preview has no size")
+                                                return@detectTapGestures
+                                            }
+
+                                            invalidatePendingFocusLock(active)
+                                            centerAfPoint = tapPoint
+                                            preferredFaceCenter = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
+                                            centerAfStatus = 0
+                                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 3_000L
+
+                                            val cameraPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
+                                            val pointSize = CameraAfAreaSize.fromPreference(
+                                                appPrefs.getString("af_area_size", "m")
+                                            ).focusPointSize
+                                            val meteringPoint = previewView.meteringPointFactory.createPoint(
+                                                cameraPoint.x * previewWidth,
+                                                cameraPoint.y * previewHeight,
+                                                pointSize
+                                            )
+                                            val camera2Info = runCatching {
+                                                Camera2CameraInfo.from(active.cameraInfo)
+                                            }.getOrNull()
+                                            val maxAfRegions = camera2Info?.getCameraCharacteristic(
+                                                CameraCharacteristics.CONTROL_MAX_REGIONS_AF
+                                            ) ?: 0
+                                            val maxAeRegions = camera2Info?.getCameraCharacteristic(
+                                                CameraCharacteristics.CONTROL_MAX_REGIONS_AE
+                                            ) ?: 0
+                                            val flags = (if (maxAfRegions > 0) FocusMeteringAction.FLAG_AF else 0) or
+                                                (if (maxAeRegions > 0) FocusMeteringAction.FLAG_AE else 0)
+                                            val requestId = focusLockRequestGeneration
+                                            android.util.Log.i(
+                                                "FUJI_AF",
+                                                "AF_LONG_PRESS screenPx=" + offset.x + "," + offset.y +
+                                                    " normalized=" + tapPoint.x + "," + tapPoint.y +
+                                                    " cameraNormalized=" + cameraPoint.x + "," + cameraPoint.y +
+                                                    " maxAF=" + maxAfRegions + " maxAE=" + maxAeRegions + " flags=" + flags
+                                            )
+
+                                            if (maxAfRegions <= 0) {
+                                                val triggerSent = triggerCamera2AfOnce(active)
+                                                if (maxAeRegions <= 0) {
+                                                    focusLocked = triggerSent
+                                                    centerAfStatus = if (triggerSent) 1 else -1
+                                                    android.util.Log.i(
+                                                        "FUJI_AF",
+                                                        "AF_LONG_PRESS sensorTrigger=" + triggerSent + " AE_LOCK_UNAVAILABLE=true"
+                                                    )
+                                                    return@detectTapGestures
+                                                }
+                                            }
+                                            val action = FocusMeteringAction.Builder(meteringPoint, flags)
+                                                .disableAutoCancel()
+                                                .build()
+                                            val future = runCatching {
+                                                active.cameraControl.startFocusAndMetering(action)
+                                            }.getOrNull()
+                                            if (future == null) {
+                                                centerAfStatus = -1
+                                                android.util.Log.w("FUJI_AF", "AF_LONG_PRESS metering request rejected")
+                                                return@detectTapGestures
+                                            }
+                                            future.addListener({
+                                                if (focusLockRequestGeneration != requestId || camera !== active) {
+                                                    return@addListener
+                                                }
+                                                val focusSuccess = runCatching {
+                                                    future.get().isFocusSuccessful
+                                                }.getOrDefault(false)
+                                                val aeLockApplied = focusSuccess && applyCameraAeLock(active, locked = true)
+                                                focusLocked = focusSuccess
+                                                centerAfStatus = if (focusSuccess) 1 else -1
+                                                android.util.Log.i(
+                                                    "FUJI_AF",
+                                                    "AF_LONG_PRESS_RESULT focusSuccess=" + focusSuccess +
+                                                        " aeLockApplied=" + aeLockApplied +
+                                                        " AF_LOCK=" + focusSuccess + " AE_LOCK=" + aeLockApplied +
+                                                        " point=" + tapPoint.x + "," + tapPoint.y
+                                                )
+                                                if (!focusSuccess) {
+                                                    scope.launch(Dispatchers.Main) {
+                                                        withFrameNanos { }
+                                                        withFrameNanos { }
+                                                        if (focusLockRequestGeneration == requestId &&
+                                                            centerAfStatus == -1 && !focusLocked
+                                                        ) centerAfStatus = 0
                                                     }
                                                 }
                                             }, mainExecutor)

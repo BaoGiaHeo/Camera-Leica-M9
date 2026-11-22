@@ -15,7 +15,11 @@ class ProcessingModeLunaDreamVersionsTest {
         )
         modes.forEach { (primary, stored) ->
             val enabled = ProcessingModeController.transition(
-                ProcessingModeSnapshot(nightShotMode = "night", hdrToneMappingEnabled = true),
+                ProcessingModeSnapshot(
+                    nightShotMode = "night",
+                    hdrToneMappingEnabled = true,
+                    livePhotoEnabled = true
+                ),
                 primary,
                 enabled = true
             )
@@ -24,6 +28,7 @@ class ProcessingModeLunaDreamVersionsTest {
             assertTrue(!enabled.hdrToneMappingEnabled)
             assertEquals(primary, enabled.activePrimaryMode())
             assertTrue(ProcessingModeController.livePhotoLocked(enabled))
+            assertEquals(false, enabled.livePhotoEnabled)
             val disabled = ProcessingModeController.transition(enabled, primary, enabled = false)
             assertEquals("off", disabled.lunaDreamMode)
         }

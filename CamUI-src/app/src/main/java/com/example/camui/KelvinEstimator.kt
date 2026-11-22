@@ -5,7 +5,6 @@ import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.params.ColorSpaceTransform
 import android.hardware.camera2.params.RggbChannelVector
-import android.util.Rational
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -28,12 +27,24 @@ internal object KelvinEstimator {
     ): Int? {
         val gains = result.get(CaptureResult.COLOR_CORRECTION_GAINS) ?: return null
         val neutral = asShotNeutral(gains) ?: return null
-        val matrix1 = toMatrix(
+        val forward1 = toMatrix(
             characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX1)
         )
-        val matrix2 = toMatrix(
+        val forward2 = toMatrix(
             characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX2)
         )
+        val calibration1 = toMatrix(
+            characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM1)
+        )
+        val calibration2 = toMatrix(
+            characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM2)
+        )
+        val matrix1 = forward1?.let { forward ->
+            calibration1?.let { multiply(forward, it) } ?: forward
+        }
+        val matrix2 = forward2?.let { forward ->
+            calibration2?.let { multiply(forward, it) } ?: forward
+        }
         val reference1 = illuminantKelvin(
             characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1)
         )
@@ -52,7 +63,12 @@ internal object KelvinEstimator {
             }
             matrix1 != null -> multiply(matrix1, neutral)
             matrix2 != null -> multiply(matrix2, neutral)
-            else -> multiply(SRGB_TO_XYZ, neutral)
+            else -> {
+                val colorCorrection = toMatrix(result.get(CaptureResult.COLOR_CORRECTION_TRANSFORM))
+                    ?: return null
+                val correctedRgb = multiply(colorCorrection, neutral)
+                multiply(SRGB_TO_XYZ, correctedRgb)
+            }
         }
         val kelvin = cctFromXyz(xyz) ?: return null
         if (!kelvin.isFinite() || kelvin !in MIN_KELVIN..MAX_KELVIN) return null
@@ -73,7 +89,7 @@ internal object KelvinEstimator {
         if (!sum.isFinite() || sum <= 0f) return null
         val x = xyz[0] / sum
         val y = xyz[1] / sum
-        val denominator = 0.1858f - y
+        val denominator = y - 0.1858f
         if (abs(denominator) < 1e-5f) return null
         val n = (x - 0.3320f) / denominator
         val cct = -449f * n.pow(3) + 3_525f * n.pow(2) - 6_823.3f * n + 5_520.33f
@@ -82,12 +98,10 @@ internal object KelvinEstimator {
 
     private fun toMatrix(transform: ColorSpaceTransform?): Array<FloatArray>? {
         transform ?: return null
-        val elements = Array(9) { Rational.ZERO }
         return runCatching {
-            transform.copyElements(elements)
             Array(3) { row ->
                 FloatArray(3) { column ->
-                    elements[row * 3 + column].toFloat()
+                    transform.getElement(column, row).toFloat()
                 }
             }.takeIf { matrix ->
                 matrix.all { row -> row.all { it.isFinite() } }
@@ -134,6 +148,17 @@ internal object KelvinEstimator {
                 matrix[row][1] * vector[1] +
                 matrix[row][2] * vector[2]
         }
+
+    private fun multiply(
+        left: Array<FloatArray>,
+        right: Array<FloatArray>
+    ): Array<FloatArray> = Array(3) { row ->
+        FloatArray(3) { column ->
+            (0..2).sumOf { index ->
+                (left[row][index] * right[index][column]).toDouble()
+            }.toFloat()
+        }
+    }
 
     private val SRGB_TO_XYZ = arrayOf(
         floatArrayOf(0.4124564f, 0.3575761f, 0.1804375f),

@@ -43,8 +43,9 @@ internal object WhiteBalanceCctPolicy {
         ) return null
 
         val n = (chromaticityX - 0.3320) / denominator
-        val kelvin = -449.0 * n * n * n +
-            3525.0 * n * n -
+        // McCamy's approximation uses positive cubic, quadratic and linear coefficients.
+        val kelvin = 449.0 * n * n * n +
+            3525.0 * n * n +
             6823.3 * n +
             5520.33
         if (!kelvin.isFinite() || kelvin !in 1800.0..25000.0) return null

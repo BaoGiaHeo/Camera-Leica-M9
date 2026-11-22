@@ -162,6 +162,10 @@ data class PixelOsdFrame(
     val resolutionText: String = "FHD",
     val previewFps: Float? = null,
     val previewFpsTarget: Float? = null,
+    val showDriveHud: Boolean = false,
+    val driveModeText: String = "",
+    val driveFrameCount: Int = 0,
+    val driveCountdown: Int = 0,
     val batteryPercent: Int = -1,
     val batteryCharging: Boolean = false,
     val batteryLowBlinkOn: Boolean = true,
@@ -592,6 +596,7 @@ class PixelOsdRenderer(context: Context) {
                         element.id == "pro-area" && frame.touchAfEnabled -> PixelOsdPalette.BLUE
                         element.id == "pro-kelvin" && frame.manualWhiteBalance -> PixelOsdPalette.BLUE
                         element.id == "pro-lock" -> PixelOsdPalette.AMBER
+                        element.id == "drive-mode" || element.id == "drive-countdown" -> PixelOsdPalette.AMBER
                         element.id == "pro-dr-value" && frame.dynamicRangeText.contains("400", ignoreCase = true) -> PixelOsdPalette.AMBER
                         element.id == "status-fps" && frame.previewFps != null &&
                             frame.previewFpsTarget != null && frame.previewFps < frame.previewFpsTarget * 0.5f ->
@@ -650,7 +655,11 @@ class PixelOsdRenderer(context: Context) {
                         drawPixelOsdIcon(
                             canvas,
                             element,
-                            monochromeColor = if (element.id == "af-lock") PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+                            monochromeColor = when (element.id) {
+                                "af-lock" -> PixelOsdPalette.GREEN
+                                "drive-icon" -> PixelOsdPalette.AMBER
+                                else -> PixelOsdPalette.WHITE
+                            }
                         )
                     }
                 }

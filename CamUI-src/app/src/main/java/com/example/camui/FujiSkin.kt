@@ -409,7 +409,7 @@ fun FujiTopKey(
                     }
                 } else {
                     FujiIconGlyph(icon, Modifier.size(22.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color(0xE01B1B1B))
-                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp).graphicsLayer { rotationZ = iconRotationDegrees }.graphicsLayer { rotationZ = iconRotationDegrees }, Color.White.copy(alpha = 0.70f))
+                    FujiIconGlyph(icon, Modifier.size(22.dp).offset(0.6.dp, 0.6.dp).graphicsLayer { rotationZ = iconRotationDegrees }, Color.White.copy(alpha = 0.70f))
                 }
             }
         }

@@ -31,6 +31,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -110,8 +112,7 @@ internal fun FujiMultiFrameProgressPill(
     maxWidth: Dp,
     maxHeight: Dp
 ) {
-    val context = LocalContext.current
-    val fontFamily = FujiTypography.composeFamily(context)
+    val fontFamily = FujiTypography.uiFont
     val pulseTransition = rememberInfiniteTransition(label = "multi-frame-current-segment")
     val currentSegmentAlpha by pulseTransition.animateFloat(
         initialValue = 0.35f,
@@ -180,7 +181,8 @@ internal fun FujiMultiFrameProgressPill(
                     modifier = Modifier
                         .clip(RoundedCornerShape(3.dp))
                         .border(1.dp, Color(0xFFE8442B), RoundedCornerShape(3.dp))
-                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = state.modeLabel.uppercase(Locale.ROOT),
@@ -188,7 +190,9 @@ internal fun FujiMultiFrameProgressPill(
                         fontFamily = fontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 9.sp,
-                        maxLines = 1
+                        lineHeight = 9.sp,
+                        maxLines = 1,
+                        style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false))
                     )
                 }
                 Text(

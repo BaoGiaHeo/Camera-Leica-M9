@@ -62,3 +62,15 @@ internal fun isTapInsideAfReticle(
     val dyPx = abs(tapPoint.y - currentPoint.y) * previewHeightPx
     return dxPx <= halfSide && dyPx <= halfSide
 }
+
+
+internal const val AF_MANUAL_FACE_OVERRIDE_DURATION_MS = 3_000L
+internal const val AF_LONG_PRESS_LOCK_DURATION_MS = 500L
+
+internal fun afManualFaceOverrideUntil(nowElapsedRealtimeMs: Long): Long =
+    (nowElapsedRealtimeMs.coerceAtLeast(0L) + AF_MANUAL_FACE_OVERRIDE_DURATION_MS)
+
+internal fun isAfManualFaceOverrideActive(
+    overrideUntilElapsedRealtimeMs: Long,
+    nowElapsedRealtimeMs: Long
+): Boolean = overrideUntilElapsedRealtimeMs > nowElapsedRealtimeMs

@@ -176,6 +176,28 @@ internal object PixelOsdLayoutEngine {
         }
 
         if (frame.showStatus) {
+            val resolutionText = frame.resolutionText.ifBlank { "FHD" }.take(4)
+            addText(
+                "status-resolution",
+                "status",
+                resolutionText,
+                margin + 3f,
+                margin + 2f,
+                t3
+            )
+            val fpsText = frame.previewFps
+                ?.takeIf { it.isFinite() && it > 0f }
+                ?.let { String.format(java.util.Locale.US, "%.2f", it) }
+                ?: "--.--"
+            addText(
+                "status-fps",
+                "status",
+                fpsText,
+                margin.toFloat(),
+                margin + t3 + labelValueGap,
+                t1
+            )
+
             val afText = if (frame.focusLocked) "AF-L" else frame.afModeText.ifBlank { "AF" }.take(6)
             val afWidth = measureTextWidthPx(afText, t1).coerceAtLeast(1f)
             val batteryLabel = frame.batteryPercent.takeIf { it in 0..100 }?.let { it.toString() + "%" }.orEmpty()
@@ -240,7 +262,7 @@ internal object PixelOsdLayoutEngine {
         val histogram = if (frame.showHistogram && frame.histogram.isNotEmpty()) {
             PixelOsdLayoutBounds(
                 margin.toFloat(),
-                margin.toFloat(),
+                margin + t1 + t3 + itemGap * 2f,
                 margin + widthPx * 0.14f,
                 margin + heightPx * 0.075f
             )

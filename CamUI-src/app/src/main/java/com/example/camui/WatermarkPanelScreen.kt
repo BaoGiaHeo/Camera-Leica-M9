@@ -86,7 +86,6 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
     var trueFocal by remember { mutableStateOf(prefs.getBoolean("watermark_use_true_focal", false)) }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
     var saveMode by remember { mutableStateOf(prefs.getString("watermark_save_mode", "watermarked") ?: "watermarked") }
-    var story916 by remember { mutableStateOf(prefs.getBoolean("watermark_story_916", false)) }
     var sourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
@@ -99,8 +98,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
         locationMode = locationMode,
         useTrueFocalLength = trueFocal,
         customCameraName = customModel,
-        saveMode = saveMode,
-        storyNineSixteen = story916
+        saveMode = saveMode
     )
     val previewMetadata = WatermarkPhotoMetadata(
         cameraName = customModel.trim().ifBlank { "X-T5" },
@@ -155,7 +153,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
             .putBoolean("watermark_use_true_focal", trueFocal)
             .putString("watermark_custom_model", customModel)
             .putString("watermark_save_mode", saveMode)
-            .putBoolean("watermark_story_916", story916)
+            .remove("watermark_story_916")
             .apply()
     }
     DisposableEffect(Unit) {
@@ -243,13 +241,6 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-                if (layout == WatermarkLayoutType.CARD) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.watermark_story_916), color = ComposeColor.White, fontSize = 10.sp)
-                        Spacer(Modifier.weight(1f))
-                        Switch(checked = story916, onCheckedChange = { story916 = it })
-                    }
-                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.watermark_invert), color = ComposeColor.White, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
@@ -280,29 +271,22 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     WatermarkFieldRow(stringResource(R.string.watermark_field_location), fields.location) { fields = fields.copy(location = it) }
                     WatermarkFieldRow(stringResource(R.string.watermark_field_filter), fields.filter) { fields = fields.copy(filter = it) }
                 }
-                if (layout == WatermarkLayoutType.CARD) {
-                    Text(stringResource(R.string.watermark_location_na), color = FujiSkin.muted, fontSize = 9.sp)
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.watermark_location), color = ComposeColor.White, fontSize = 10.sp)
-                        Spacer(Modifier.weight(1f))
-                        Switch(
-                            checked = locationEnabled,
-                            onCheckedChange = { locationEnabled = it }
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        WatermarkChoice(
-                            selected = locationMode == "PLACE",
-                            label = stringResource(R.string.watermark_location_place),
-                            onClick = { locationMode = "PLACE" }
-                        )
-                        WatermarkChoice(
-                            selected = locationMode == "COORDS",
-                            label = stringResource(R.string.watermark_location_coords),
-                            onClick = { locationMode = "COORDS" }
-                        )
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.watermark_location), color = ComposeColor.White, fontSize = 10.sp)
+                    Spacer(Modifier.weight(1f))
+                    Switch(checked = locationEnabled, onCheckedChange = { locationEnabled = it })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    WatermarkChoice(
+                        selected = locationMode == "PLACE",
+                        label = stringResource(R.string.watermark_location_place),
+                        onClick = { locationMode = "PLACE" }
+                    )
+                    WatermarkChoice(
+                        selected = locationMode == "COORDS",
+                        label = stringResource(R.string.watermark_location_coords),
+                        onClick = { locationMode = "COORDS" }
+                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.watermark_true_focal), color = ComposeColor.White, fontSize = 10.sp)
@@ -346,7 +330,6 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                         trueFocal = false
                         customModel = ""
                         saveMode = "watermarked"
-                        story916 = false
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -382,9 +365,12 @@ private fun WatermarkChoice(selected: Boolean, label: String, onClick: () -> Uni
 private fun WatermarkLayoutType.watermarkLayoutString(): Int = when (this) {
     WatermarkLayoutType.BAR -> R.string.watermark_layout_bar
     WatermarkLayoutType.CAPTION -> R.string.watermark_layout_caption
-    WatermarkLayoutType.CARD -> R.string.watermark_layout_card
     WatermarkLayoutType.GALLERY -> R.string.watermark_layout_gallery
     WatermarkLayoutType.BLACK -> R.string.watermark_layout_black
+    WatermarkLayoutType.DOT_LIGHT -> R.string.watermark_layout_dot_light
+    WatermarkLayoutType.DOT_DARK -> R.string.watermark_layout_dot_dark
+    WatermarkLayoutType.SPLIT -> R.string.watermark_layout_split
+    WatermarkLayoutType.PALETTE -> R.string.watermark_layout_palette
 }
 
 private suspend fun loadWatermarkPreviewPhoto(context: Context): Bitmap = withContext(Dispatchers.IO) {

@@ -26,13 +26,19 @@ internal fun supportedPreviewFpsOptions(
     previewMinFrameDurationNs: Long?
 ): Set<String> {
     if (supportedRanges.isEmpty()) return emptySet()
-    val exactModes = listOf(60, 30, 24).filter { fps ->
-        val exactRange = supportedRanges.any { it.lower == fps && it.upper == fps }
+    val fixedModes = listOf(60, 30, 24).filter { fps ->
+        val containingRange = supportedRanges.any { it.lower <= fps && it.upper >= fps }
         val duration = previewMinFrameDurationNs ?: 0L
         val frameBudget = 1_000_000_000L / fps
-        exactRange && (duration <= 0L || duration <= frameBudget)
+        containingRange && (duration <= 0L || duration <= frameBudget)
     }.map(Int::toString)
-    return (exactModes + "AUTO").toSet()
+
+    // AUTO is meaningful only when AE can vary exposure time across a useful
+    // interval; do not expose it for cameras that report fixed-only ranges.
+    val hasBroadAeRange = supportedRanges.any { range ->
+        range.upper > range.lower && range.upper - range.lower >= 15
+    }
+    return (fixedModes + if (hasBroadAeRange) listOf("AUTO") else emptyList()).toSet()
 }
 
 internal fun selectPreviewFpsRange(

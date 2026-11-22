@@ -130,6 +130,7 @@ internal object CameraSoundEngine {
 
     fun play(context: Context, sound: Sound) {
         val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        configure(context, prefs.getInt("sound_master_volume", 85))
         val enabled = when (sound) {
             Sound.UI_CLICK, Sound.CONFIRM -> prefs.getBoolean("ui_sound_enabled", true)
             Sound.ZOOM_TICK -> prefs.getBoolean("dial_click_enabled", true)
@@ -148,6 +149,8 @@ internal object CameraSoundEngine {
     }
 
     fun startZoomMotor(context: Context, direction: Int) {
+        val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        configure(context, prefs.getInt("sound_master_volume", 85))
         if (!allowed(context) || direction == 0) return
         stopZoomMotor()
         runCatching {

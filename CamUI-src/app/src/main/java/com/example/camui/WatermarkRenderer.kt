@@ -361,14 +361,18 @@ internal object WatermarkRenderer {
         val centerX = geometry.canvasWidth * 0.5f
         val s = geometry.shortSide
         val location = metadata.visibleLocation(settings)
+        val primaryText = if (settings.invert) 0xFFF2F2F2.toInt() else 0xFF111111.toInt()
+        val secondaryText = if (settings.invert) 0xFF9A9A9A.toInt() else 0xFF6E6E6E.toInt()
         drawRichLine(
             canvas,
             listOf(
-                Fragment("Shot on ", fonts.regular, 0xFF6E6E6E.toInt(), fonts.regularCapRatio),
+                Fragment("Shot on ", fonts.regular, secondaryText, fonts.regularCapRatio),
                 Fragment(
-                    metadata.cameraName + " FUJIFILM",
-                    fonts.semibold, 0xFF161616.toInt(), fonts.semiboldCapRatio
-                )
+                    metadata.cameraName.takeIf { settings.fields.cameraName }.orEmpty(),
+                    fonts.semibold, primaryText, fonts.semiboldCapRatio
+                ),
+                Fragment(" | ", fonts.regular, secondaryText, fonts.regularCapRatio),
+                Fragment("FUJIFILM", fonts.semibold, primaryText, fonts.semiboldCapRatio)
             ),
             centerX, footerTop + s * 0.078f, geometry.canvasWidth * 0.90f, s * 0.025f * settings.sizeScale
         )
@@ -430,13 +434,15 @@ internal object WatermarkRenderer {
         val photo = geometry.photoRect
         drawLogo(context, canvas, geometry.logoRect ?: return, settings.invert)
         val s = geometry.shortSide
+        val primaryText = if (settings.invert) 0xFFF2F2F2.toInt() else 0xFF111111.toInt()
+        val secondaryText = if (settings.invert) 0xFF9A9A9A.toInt() else 0xFF6E6E6E.toInt()
         drawRichLine(
             canvas,
             listOf(
-                Fragment("Shot on ", fonts.regular, 0xFF4A4A4A.toInt(), fonts.regularCapRatio),
-                Fragment(metadata.cameraName, fonts.semibold, 0xFF111111.toInt(), fonts.semiboldCapRatio),
-                Fragment(" | ", fonts.regular, 0xFF9A9A9A.toInt(), fonts.regularCapRatio),
-                Fragment(if (settings.fields.date) metadata.date else "", fonts.regular, 0xFF4A4A4A.toInt(), fonts.regularCapRatio)
+                Fragment("Shot on ", fonts.regular, secondaryText, fonts.regularCapRatio),
+                Fragment(metadata.cameraName, fonts.semibold, primaryText, fonts.semiboldCapRatio),
+                Fragment(" | ", fonts.regular, secondaryText, fonts.regularCapRatio),
+                Fragment(if (settings.fields.date) metadata.date else "", fonts.regular, secondaryText, fonts.regularCapRatio)
             ),
             geometry.canvasWidth * 0.5f, photo.bottom + s * 0.14f * settings.sizeScale,
             geometry.canvasWidth * 0.88f, s * 0.021f * settings.sizeScale

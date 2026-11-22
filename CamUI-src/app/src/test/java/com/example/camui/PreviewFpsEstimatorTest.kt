@@ -27,8 +27,8 @@ class PreviewFpsEstimatorTest {
         }
         assertEquals(50f, first!!, 0.01f)
 
-        assertNull(estimator.add(30 * 20_000_000L + 1L, 499L))
-        assertEquals(50f, estimator.add(31 * 20_000_000L + 1L, 500L)!!, 0.01f)
+        assertNull(estimator.add(30 * 20_000_000L + 1L, 600L))
+        assertEquals(50f, estimator.add(31 * 20_000_000L + 1L, 1_080L)!!, 0.01f)
     }
 
     @Test
@@ -37,8 +37,8 @@ class PreviewFpsEstimatorTest {
         assertNull(estimator.add(0L, 0L))
         repeat(10) { index -> estimator.add(1_000_000L + index * 10_000_000L, index * 10L) }
         assertNull(estimator.add(5_000_000L, 200L))
-        repeat(28) { index ->
-            assertNull(estimator.add(6_000_000L + index * 10_000_000L, 210L + index * 10L))
+        repeat(29) { index ->
+            assertNull(estimator.add(15_000_000L + index * 10_000_000L, 210L + index * 10L))
         }
         assertEquals(100f, estimator.add(295_000_000L, 500L)!!, 0.1f)
     }

@@ -84,9 +84,8 @@ object FujiTypography {
 
     fun withUiMissingGlyphFallback(context: Context, value: String): AnnotatedString {
         val primary = Paint().apply { typeface = uiTypeface(context) }
-        val fallbackPaint = Paint().apply {
-            typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
-        }
+        val fallbackTypeface = shareTechTypeface(context)
+        val fallbackPaint = Paint().apply { typeface = fallbackTypeface }
         val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
         val fallbackFamily = shareTechComposeFamily()
         return buildAnnotatedString {
@@ -113,6 +112,13 @@ object FujiTypography {
     data class GlyphCoverageReport(
         val testedGlyphs: Int,
         val missingFromKk7: List<String>,
+        val missingAfterFallback: List<String>,
+        val missingAfterSystemFallback: List<String>
+    )
+
+    data class UiGlyphCoverageReport(
+        val testedGlyphs: Int,
+        val missingFromSaira: List<String>,
         val missingAfterFallback: List<String>,
         val missingAfterSystemFallback: List<String>
     )
@@ -167,6 +173,16 @@ object FujiTypography {
 
     fun glyphCoverage(context: Context): GlyphCoverageReport =
         computeGlyphCoverage(androidTypeface(context), shareTechTypeface(context))
+
+    fun uiGlyphCoverage(context: Context): UiGlyphCoverageReport {
+        val coverage = computeGlyphCoverage(uiTypeface(context), shareTechTypeface(context))
+        return UiGlyphCoverageReport(
+            testedGlyphs = coverage.testedGlyphs,
+            missingFromSaira = coverage.missingFromKk7,
+            missingAfterFallback = coverage.missingAfterFallback,
+            missingAfterSystemFallback = coverage.missingAfterSystemFallback
+        )
+    }
 
     /**
      * Selects Share Tech Mono for each code point missing from KK7. Combining

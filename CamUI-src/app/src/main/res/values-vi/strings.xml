@@ -216,4 +216,8 @@
     <string name="wb_preset_tungsten">ĐÈN SỢI ĐỐT</string>
     <string name="wb_preset_fluorescent">HUỲNH QUANG</string>
     <string name="wb_auto">Cân bằng trắng tự động</string>
+    <string name="display_icon_rotation_title">XOAY BIỂU TƯỢNG</string>
+    <string name="display_icon_rotation_description">Xoay biểu tượng theo hướng cầm máy. Bố cục camera vẫn luôn nằm ngang.</string>
+    <string name="display_reduce_motion_title">GIẢM CHUYỂN ĐỘNG</string>
+    <string name="display_reduce_motion_description">Đổi hướng biểu tượng tức thì, không chạy hiệu ứng.</string>
 </resources>

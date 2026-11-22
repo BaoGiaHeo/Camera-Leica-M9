@@ -205,4 +205,5 @@
     <string name="activation_warning_storage">LOW STORAGE</string>
     <string name="activation_warning_battery">LOW BATTERY</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>
+    <string name="activation_title">FUJIFILM MODE</string>
 </resources>

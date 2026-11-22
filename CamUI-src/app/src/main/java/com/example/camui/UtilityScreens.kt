@@ -2957,6 +2957,129 @@ fun applyCameraWatermark(
     }.getOrDefault(false)
 }
 
+internal data class CaptureFinalizeResult(
+    val route: String,
+    val lookRequested: Boolean,
+    val lookApplied: Boolean,
+    val watermarkRequested: Boolean,
+    val watermarkApplied: Boolean,
+    val watermarkSkippedForGainMap: Boolean,
+    val metadataPublished: Boolean,
+    val totalMs: Long,
+    val failureReason: String? = null
+) {
+    val success: Boolean
+        get() = metadataPublished && (watermarkSkippedForGainMap || !watermarkRequested || watermarkApplied)
+}
+
+/**
+ * Single post-capture finalization entry for Photo, Pro, NightShot, LunaDream and Star Trails.
+ * Order: look/LUT -> watermark -> upright EXIF + MediaStore publish. Ultra HDR is the
+ * intentional exception: preserve the original JPEG_R gain map and only publish metadata.
+ */
+fun finalizeAndSave(
+    context: Context,
+    uri: Uri,
+    focal: String,
+    aperture: String,
+    shutter: String,
+    iso: String,
+    route: String,
+    ultraHdr: Boolean = false,
+    preservePhotoAspectRatio: Boolean = true
+): CaptureFinalizeResult {
+    val startedAt = android.os.SystemClock.elapsedRealtime()
+    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val preset = prefs.getString("selected_filter", "None")?.trim().orEmpty()
+    val normalizedPreset = preset.lowercase(Locale.ROOT)
+    val customAdjustments =
+        kotlin.math.abs(prefs.getFloat("film_custom_highlight", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_shadow", 0f)) > 0.001f ||
+        prefs.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
+        prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
+        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+    val lookRequested = customAdjustments ||
+        (normalizedPreset.isNotBlank() && normalizedPreset !in setOf("none", "std", "standard"))
+    val watermarkRequested = prefs.getBoolean("watermark_enabled", true)
+
+    if (ultraHdr) {
+        val published = publishUltraHdrCapture(context, uri)
+        val result = CaptureFinalizeResult(
+            route = route, lookRequested = false, lookApplied = false,
+            watermarkRequested = watermarkRequested, watermarkApplied = false,
+            watermarkSkippedForGainMap = true, metadataPublished = published,
+            totalMs = android.os.SystemClock.elapsedRealtime() - startedAt,
+            failureReason = if (published) null else "Ultra HDR metadata publish failed"
+        )
+        android.util.Log.i(
+            "FUJI_FINALIZE",
+            "route=$route ultraHdr=true gainMapPreserved=true published=$published totalMs=${result.totalMs}"
+        )
+        return result
+    }
+
+    var lookApplied = false
+    var watermarkApplied = false
+    var metadataPublished = false
+    var failureReason: String? = null
+
+    val lookStartedAt = android.os.SystemClock.elapsedRealtime()
+    if (lookRequested) {
+        lookApplied = runCatching { applyCameraLook(context, uri) }
+            .onFailure {
+                failureReason = "Film look failed: ${it.javaClass.simpleName}: ${it.message}"
+                android.util.Log.e("FUJI_FINALIZE", "LOOK_FAILED route=$route uri=$uri", it)
+            }.getOrDefault(false)
+        if (!lookApplied && failureReason == null) {
+            failureReason = "Film look was requested but the LUT/customizer did not produce an output"
+            android.util.Log.e("FUJI_FINALIZE", "LOOK_NOT_APPLIED route=$route preset=$preset")
+        }
+    }
+    val lookMs = android.os.SystemClock.elapsedRealtime() - lookStartedAt
+
+    val watermarkStartedAt = android.os.SystemClock.elapsedRealtime()
+    if (watermarkRequested) {
+        watermarkApplied = runCatching {
+            applyCameraWatermark(
+                context = context, uri = uri, focal = focal, aperture = aperture,
+                shutter = shutter, iso = iso, preservePhotoAspectRatio = preservePhotoAspectRatio
+            )
+        }.onFailure {
+            failureReason = failureReason ?: "Watermark failed: ${it.javaClass.simpleName}: ${it.message}"
+            android.util.Log.e("FUJI_FINALIZE", "WATERMARK_FAILED route=$route uri=$uri", it)
+        }.getOrDefault(false)
+        if (!watermarkApplied && failureReason == null) {
+            failureReason = "Watermark is enabled but could not be written"
+        }
+    }
+    val watermarkMs = android.os.SystemClock.elapsedRealtime() - watermarkStartedAt
+
+    val metadataStartedAt = android.os.SystemClock.elapsedRealtime()
+    metadataPublished = runCatching { finalizeCapturedImageMetadata(context, uri) }
+        .onFailure {
+            failureReason = failureReason ?: "Metadata publish failed: ${it.javaClass.simpleName}: ${it.message}"
+            android.util.Log.e("FUJI_FINALIZE", "METADATA_FAILED route=$route uri=$uri", it)
+        }.getOrDefault(false)
+    val metadataMs = android.os.SystemClock.elapsedRealtime() - metadataStartedAt
+
+    val result = CaptureFinalizeResult(
+        route = route, lookRequested = lookRequested, lookApplied = lookApplied,
+        watermarkRequested = watermarkRequested, watermarkApplied = watermarkApplied,
+        watermarkSkippedForGainMap = false, metadataPublished = metadataPublished,
+        totalMs = android.os.SystemClock.elapsedRealtime() - startedAt,
+        failureReason = failureReason
+    )
+    android.util.Log.i(
+        "FUJI_FINALIZE",
+        "route=$route lookRequested=$lookRequested lookApplied=$lookApplied lookMs=$lookMs " +
+            "watermarkRequested=$watermarkRequested watermarkApplied=$watermarkApplied watermarkMs=$watermarkMs " +
+            "metadataPublished=$metadataPublished metadataMs=$metadataMs totalMs=${result.totalMs} " +
+            "success=${result.success} reason=${result.failureReason ?: "none"}"
+    )
+    return result
+}
 private fun sampleBitmapColor(bitmap: Bitmap, rect: RectF): Int {
     val left = rect.left.toInt().coerceIn(0, bitmap.width - 1)
     val top = rect.top.toInt().coerceIn(0, bitmap.height - 1)

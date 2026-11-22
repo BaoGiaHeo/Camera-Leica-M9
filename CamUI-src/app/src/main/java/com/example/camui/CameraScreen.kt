@@ -6504,7 +6504,13 @@ fun CameraScreen(
             ) {
                 val image = thumb
                 if (image != null) {
-                    Image(image, "Ảnh gần nhất", Modifier.fillMaxSize().padding(2.dp), contentScale = ContentScale.Crop)
+                    Image(
+                        image,
+                        "Ảnh gần nhất",
+                        Modifier.fillMaxSize().padding(2.dp)
+                            .graphicsLayer { rotationZ = animatedIconRotationDegrees },
+                        contentScale = ContentScale.Crop
+                    )
                 } else {
                     FujiIconGlyph("film", Modifier.size(24.dp), FujiSkin.lcdGreen)
                 }

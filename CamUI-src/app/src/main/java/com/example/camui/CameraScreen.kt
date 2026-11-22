@@ -909,6 +909,7 @@ fun CameraScreen(
             appPrefs.getString("pro_af_mode", "AF-S")?.takeIf { it in setOf("AF-S", "AF-C", "MF") } ?: "AF-S"
         )
     }
+    val proAfModeState = rememberUpdatedState(proAfMode)
     var focusLocked by remember { mutableStateOf(false) }
     var focusLockRequestGeneration by remember { mutableIntStateOf(0) }
     fun invalidatePendingFocusLock(activeCamera: Camera? = null) {
@@ -1875,7 +1876,7 @@ fun CameraScreen(
                         kotlin.math.abs(previousTarget.x - focusTargetCamera.x) +
                         kotlin.math.abs(previousTarget.y - focusTargetCamera.y) > 0.025f
                     if (movedEnough && now - lastFaceAfAtMs >= 200L &&
-                        !focusLockedState.value && manualFocusState.value <= 0f
+                        !focusLockedState.value && manualFocusState.value <= 0f && proAfModeState.value != "MF"
                     ) {
                         lastFaceAfAtMs = now
                         lastFaceAfTarget = focusTargetCamera

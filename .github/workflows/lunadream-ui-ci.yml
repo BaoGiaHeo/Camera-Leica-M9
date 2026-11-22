@@ -140,8 +140,7 @@ jobs:
             CamUI-src/app/src/androidTest/java/com/example/camui/DigitalZoomPreviewEffectTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkTypographyAssetTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/PixelOsdGoldenRenderingTest.kt \
-             CamUI-src/app/src/androidTest/java/com/example/camui/CameraPreviewProcessingEffectGoldenTest.kt \
-            CamUI-src/app/src/androidTest/java/com/example/camui/PixelOsdLayoutTest.kt \
+            CamUI-src/app/src/androidTest/java/com/example/camui/CameraPreviewProcessingEffectGoldenTest.kt \
             CamUI-src/app/src/androidTest/java/com/example/camui/WatermarkStudioContactSheetTest.kt \
             CamUI-src/app/src/main/assets/fonts/KK7-LICENSE-REVIEW.txt \
             CamUI-src/app/src/main/assets/fonts/ShareTechMono-NOTICE.txt \
@@ -153,7 +152,6 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/BackupSettings.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraAfAreaSize.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraAfTouchPolicy.kt \
-            CamUI-src/app/src/main/java/com/example/camui/CameraScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraExposureRequestPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraFrameMetricsDiagnostics.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraControlProgress.kt \
@@ -165,7 +163,6 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/CameraLcdDisplayMode.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraLookCatalog.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdGeometry.kt \
-            CamUI-src/app/src/main/java/com/example/camui/Components.kt \
             CamUI-src/app/src/main/java/com/example/camui/FaceTrackSmoother.kt \
             CamUI-src/app/src/main/java/com/example/camui/FaceDetectionFrameLimiter.kt \
             CamUI-src/app/src/main/java/com/example/camui/PrimaryEyeSelector.kt \
@@ -177,12 +174,9 @@ jobs:
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdInvalidation.kt \
             CamUI-src/app/src/main/java/com/example/camui/ZoomCapabilityPolicy.kt \
             CamUI-src/app/src/main/java/com/example/camui/PixelOsdFontMetrics.kt \
-            CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayoutEngine.kt \
-            CamUI-src/app/src/main/java/com/example/camui/PixelOsdLayer.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraPreviewProcessingEffect.kt \
             CamUI-src/app/src/main/java/com/example/camui/CameraMultiFrameProgress.kt \
             CamUI-src/app/src/main/java/com/example/camui/QuickSettings.kt \
-            CamUI-src/app/src/main/java/com/example/camui/SettingsScreen.kt \
             CamUI-src/app/src/main/java/com/example/camui/UtilityScreens.kt \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkGpsFormatter.kt \
             CamUI-src/app/src/main/java/com/example/camui/WatermarkMetadataPolicy.kt \
@@ -218,7 +212,8 @@ jobs:
             CamUI-src/app/src/test/java/com/example/camui/PixelOsdSpriteCoverageTest.kt \
             CamUI-src/app/src/test/java/com/example/camui/ZoomHapticMilestonesTest.kt \
             CamUI-src/i18n_whitelist.txt \
-            GLOSSARY.md
+            GLOSSARY.md \
+            CamUI-src/app/src/test/java/com/example/camui/LutCategoryTest.kt
 
       - name: Upload complete source files
         if: always() && !cancelled()

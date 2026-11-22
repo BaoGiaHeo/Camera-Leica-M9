@@ -1929,7 +1929,7 @@ fun CameraScreen(
                         kotlin.math.abs(previousTarget.y - focusTargetCamera.y) > 0.025f
                     if (movedEnough && now - lastFaceAfAtMs >= 1_500L &&
                         !focusLockedState.value && manualFocusState.value <= 0f &&
-                        proAfModeState.value == "AF-C"
+                        mode == "Pro" && proAfModeState.value == "AF-C"
                     ) {
                         lastFaceAfAtMs = now
                         lastFaceAfTarget = focusTargetCamera
@@ -3657,7 +3657,7 @@ fun CameraScreen(
                         runCatching { activeCamera.cameraControl.setExposureCompensationIndex(originalEv) }
                     }
                     if (focusRestoreRequired) {
-                        runCatching { applyAutoFocus(activeCamera) }
+                        runCatching { applyAutoFocus(activeCamera, if (mode == "Pro") proAfMode else "AF-S") }
                         manualFocus = 0f
                         milkyWayInfinityFocusEnabled = false
                     }
@@ -5235,9 +5235,10 @@ fun CameraScreen(
     }
     val manualInfinityFocusSupported = maxFocus >= 8f &&
         availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
-    LaunchedEffect(camera, proAfMode, availableAfModes?.contentToString()) {
+    LaunchedEffect(camera, proAfMode, mode, availableAfModes?.contentToString()) {
         val active = camera
-        val mapped = camera2AfModeForProSelection(proAfMode, availableAfModes)
+        val selectedAfMode = if (mode == "Pro") proAfMode else "AF-S"
+        val mapped = camera2AfModeForProSelection(selectedAfMode, availableAfModes)
         if (active != null && mapped != null) {
             runCatching {
                 val options = CaptureRequestOptions.Builder()
@@ -5245,9 +5246,21 @@ fun CameraScreen(
                     .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, mapped)
                     .build()
                 Camera2CameraControl.from(active.cameraControl).addCaptureRequestOptions(options)
+                if (selectedAfMode == "AF-S" && manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
+                    triggerCamera2AfOnce(active)
+                }
+                android.util.Log.i(
+                    "FUJI_AF",
+                    "SESSION_MODE=$selectedAfMode camera2Mode=$mapped mode=$mode"
+                )
             }.onFailure {
-                android.util.Log.w("FUJI_PRO_AF", "Could not restore persisted AF mode=$proAfMode", it)
+                android.util.Log.w("FUJI_PRO_AF", "Could not restore AF mode=$selectedAfMode", it)
             }
+        } else {
+            android.util.Log.w(
+                "FUJI_PRO_AF",
+                "Requested AF mode unsupported selected=$selectedAfMode available=${availableAfModes?.contentToString()}"
+            )
         }
     }
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
@@ -5449,7 +5462,7 @@ fun CameraScreen(
                                             if (manualFocus > 0f || milkyWayInfinityFocusEnabled) {
                                                 manualFocus = 0f
                                                 milkyWayInfinityFocusEnabled = false
-                                                runCatching { applyAutoFocus(active) }
+                                                runCatching { applyAutoFocus(active, if (mode == "Pro") proAfMode else "AF-S") }
                                             }
                                             val afPointSize = CameraAfAreaSize.fromPreference(
                                                 appPrefs.getString("af_area_size", "m")
@@ -5488,7 +5501,7 @@ fun CameraScreen(
                                                     "meteringPoint=${point.x},${point.y}"
                                             )
                                             if (maxAfRegions <= 0) {
-                                                applyAutoFocus(active)
+                                                applyAutoFocus(active, if (mode == "Pro") proAfMode else "AF-S")
                                                 val triggerSent = triggerCamera2AfOnce(active)
                                                 if (maxAeRegions > 0) {
                                                     val aeAction = FocusMeteringAction.Builder(
@@ -5713,7 +5726,7 @@ fun CameraScreen(
                                             centerAfStatus = 0
                                             focusLocked = false
                                             manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
-                                            applyAutoFocus(active)
+                                            applyAutoFocus(active, if (mode == "Pro") proAfMode else "AF-S")
                                             val previewWidth = previewView.width
                                             val previewHeight = previewView.height
                                             val cameraInfo = runCatching {
@@ -6179,7 +6192,7 @@ fun CameraScreen(
                                                     if (active != null) {
                                                         if (milkyWayInfinityFocusEnabled) {
                                                             milkyWayInfinityFocusEnabled = false
-                                                            runCatching { applyAutoFocus(active) }
+                                                            runCatching { applyAutoFocus(active, if (mode == "Pro") proAfMode else "AF-S") }
                                                             localizedToast(context, "Đã trở về AF tự động.", Toast.LENGTH_SHORT).show()
                                                         } else {
                                                             val applied = runCatching { applyManualFocus(active, 0f) }.isSuccess
@@ -6705,7 +6718,7 @@ fun CameraScreen(
                                                             Camera2CameraControl.from(c.cameraControl).clearCaptureRequestOptions()
                                                             applyAutoExposure(c)
                                                             c.cameraControl.setExposureCompensationIndex(0)
-                                                            applyAutoFocus(c)
+                                                            applyAutoFocus(c, if (mode == "Pro") proAfMode else "AF-S")
                                                             applyAutoWhiteBalance(c)
                                                         }
                                                     }
@@ -6727,7 +6740,7 @@ fun CameraScreen(
                                                         manualFocus = 0f
                                                         milkyWayInfinityFocusEnabled = false
                                                         invalidatePendingFocusLock(camera)
-                                                        camera?.let { runCatching { applyAutoFocus(it) } }
+                                                        camera?.let { runCatching { applyAutoFocus(it, if (mode == "Pro") proAfMode else "AF-S") } }
                                                     }
                                                     proSel = if (active) null else key
                                                 }
@@ -7933,27 +7946,50 @@ private fun applyManualFocus(camera: Camera, diopters: Float) {
     Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
-private fun applyAutoFocus(camera: Camera) {
+private fun applyAutoFocus(camera: Camera, selection: String = "AF-S") {
     val modes = runCatching {
         Camera2CameraInfo.from(camera.cameraInfo)
             .getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
     }.getOrNull()?.toSet().orEmpty()
-    when {
-        CameraCharacteristics.CONTROL_AF_MODE_AUTO in modes -> {
-            triggerCamera2AfOnce(camera)
+    when (selection.uppercase()) {
+        "AF-C" -> {
+            val continuousMode = when {
+                CameraCharacteristics.CONTROL_AF_MODE_CONTINUOUS_PICTURE in modes ->
+                    Camera2CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+                CameraCharacteristics.CONTROL_AF_MODE_CONTINUOUS_VIDEO in modes ->
+                    Camera2CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
+                else -> null
+            }
+            if (continuousMode == null) {
+                android.util.Log.w("FUJI_AF", "AF-C unavailable; keeping current AF mode")
+            } else {
+                val options = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, continuousMode)
+                    .build()
+                Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+                android.util.Log.i("FUJI_AF", "AF-C continuous mode=$continuousMode")
+            }
         }
-        CameraCharacteristics.CONTROL_AF_MODE_CONTINUOUS_PICTURE in modes -> {
-            val options = CaptureRequestOptions.Builder()
-                .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                .setCaptureRequestOption(
-                    CaptureRequest.CONTROL_AF_MODE,
-                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+        "MF" -> Unit
+        else -> {
+            if (CameraCharacteristics.CONTROL_AF_MODE_AUTO in modes) {
+                triggerCamera2AfOnce(camera)
+            } else {
+                val options = CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                    .setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AF_MODE,
+                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+                    )
+                    .build()
+                Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+                android.util.Log.w(
+                    "FUJI_AF",
+                    "AF-S AUTO unsupported; CONTINUOUS_PICTURE fallback cameraId=${runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }.getOrNull()}"
                 )
-                .build()
-            Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
-            android.util.Log.w("FUJI_AF", "AUTO unsupported; CONTINUOUS_PICTURE fallback cameraId=${runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }.getOrNull()}")
+            }
         }
-        else -> android.util.Log.w("FUJI_AF", "No usable autofocus mode cameraId=${runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }.getOrNull()}")
     }
 }
 

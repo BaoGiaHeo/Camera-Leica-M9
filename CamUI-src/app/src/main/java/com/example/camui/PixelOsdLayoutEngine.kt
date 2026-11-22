@@ -176,6 +176,24 @@ internal object PixelOsdLayoutEngine {
         }
 
         if (frame.showStatus) {
+            val formatText = frame.videoFormatText.ifBlank { "FHD" }.take(4)
+            val formatCapHeight = t3
+            val formatWidth = measureTextWidthPx(formatText, formatCapHeight).coerceAtLeast(1f)
+            val formatBoxWidth = maxOf(unit * 2.9f, formatWidth + unit * 0.7f)
+            val formatBoxHeight = t3 + unit * 0.36f
+            addText(
+                "video-format", "status", formatText,
+                margin + (formatBoxWidth - formatWidth) * 0.5f,
+                margin + (formatBoxHeight - formatCapHeight) * 0.5f,
+                formatCapHeight
+            )
+            addText(
+                "fps-value", "status", frame.fpsText.ifBlank { "--.--" }.take(8),
+                margin.toFloat(),
+                margin + formatBoxHeight + unit * 0.3f,
+                t1
+            )
+
             val afText = if (frame.focusLocked) "AF-L" else frame.afModeText.ifBlank { "AF" }.take(6)
             val afWidth = measureTextWidthPx(afText, t1).coerceAtLeast(1f)
             val batteryLabel = frame.batteryPercent.takeIf { it in 0..100 }?.let { it.toString() + "%" }.orEmpty()
@@ -240,9 +258,9 @@ internal object PixelOsdLayoutEngine {
         val histogram = if (frame.showHistogram && frame.histogram.isNotEmpty()) {
             PixelOsdLayoutBounds(
                 margin.toFloat(),
-                margin.toFloat(),
+                margin + unit * 2.9f,
                 margin + widthPx * 0.14f,
-                margin + heightPx * 0.075f
+                margin + unit * 2.9f + heightPx * 0.075f
             )
         } else null
 

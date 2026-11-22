@@ -1034,6 +1034,8 @@ fun CameraScreen(
             ) {
                 "luna15" -> "luna15"
                 "luna20", "luna" -> "luna20"
+                "luna25" -> "luna25"
+                "luna30" -> "luna30"
                 else -> "off"
             }
         )
@@ -1154,6 +1156,7 @@ fun CameraScreen(
     var focusDiopter by remember { mutableFloatStateOf(0f) }
     var camera2Inventory by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
+    var activeCameraSensorSurvey by remember { mutableStateOf<CameraResolutionCapability?>(null) }
     var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activePhysicalCameraId by remember { mutableStateOf<String?>(null) }
     var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
@@ -1817,6 +1820,7 @@ fun CameraScreen(
         imageCapture = null
         videoCaptureUseCase = null
         activeCameraDetails = null
+        activeCameraSensorSurvey = null
         activePhysicalCameraDetails = emptyList()
         nightExtensionActive = false
         captureSetupReady = false
@@ -2960,6 +2964,12 @@ fun CameraScreen(
                     Camera2CameraInfo.from(bound.cameraInfo)
                 }.getOrNull()
                 val actualCameraId = actualCamera2Info?.cameraId
+                activeCameraSensorSurvey = actualCameraId?.let { id ->
+                    CameraSensorSurvey.inspect(cameraManager, id)
+                }
+                activeCameraSensorSurvey?.let { survey ->
+                    android.util.Log.i("FUJI_SENSOR_SURVEY", survey.diagnosticLine())
+                }
                 activeCameraCharacteristics = actualCameraId?.let { id ->
                     runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
                 }

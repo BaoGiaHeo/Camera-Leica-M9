@@ -216,4 +216,8 @@
     <string name="wb_preset_tungsten">TUNGSTEN</string>
     <string name="wb_preset_fluorescent">FLUORESCENT</string>
     <string name="wb_auto">Automatic white balance</string>
+    <string name="display_icon_rotation_title">ICON ROTATION</string>
+    <string name="display_icon_rotation_description">Rotate controls with the physical handset orientation. The camera layout stays landscape.</string>
+    <string name="display_reduce_motion_title">REDUCE MOTION</string>
+    <string name="display_reduce_motion_description">Apply icon orientation immediately without animation.</string>
 </resources>

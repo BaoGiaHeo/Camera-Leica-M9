@@ -12,6 +12,7 @@ on:
       - fix/2.5.0dream-af-label
       - fuji-2.5.0-round1-spec
       - fuji-2.5.0-round1-stage
+      - fuji-2.5.0-full-work
     paths:
       - "CamUI-src/**"
       - ".github/workflows/build-lunadream-variants.yml"

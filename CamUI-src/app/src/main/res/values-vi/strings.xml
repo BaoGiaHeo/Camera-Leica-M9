@@ -206,4 +206,6 @@
     <string name="activation_warning_battery">PIN YẾU</string>
     <string name="activation_publisher">@baoaka06 on TikTok</string>
     <string name="activation_title">FUJIFILM MODE</string>
+    <string name="camera_no_signal">NO SIGNAL</string>
+    <string name="camera_no_signal_permission">Cấp quyền Camera để bật khung ngắm. Chạm để yêu cầu quyền.</string>
 </resources>

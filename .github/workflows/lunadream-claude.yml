@@ -1,4 +1,4 @@
-name: HDMP - Claude sua code va build APK
+name: LunaDream - Claude sua code va build APK
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     branches-ignore:
       - 'claude/**'
     paths:
-      - '.github/workflows/hdmp-claude.yml'
+      - '.github/workflows/lunaDream-claude.yml'
 
 permissions:
   contents: write
@@ -16,11 +16,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: hdmp-claude
+  group: lunaDream-claude
   cancel-in-progress: false
 
 jobs:
-  hdmp:
+  lunaDream:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -65,7 +65,7 @@ jobs:
           echo "dir=$ROOT" >> "$GITHUB_OUTPUT"
 
       - name: Tao nhanh moi
-        run: git switch -c "claude/hdmp-uhd-fhd-${{ github.run_number }}"
+        run: git switch -c "claude/lunaDream-uhd-fhd-${{ github.run_number }}"
 
       - name: Claude Code sua code theo yeu cau
         uses: anthropics/claude-code-action@v1
@@ -90,7 +90,7 @@ jobs:
                - Ghi chú trong code: đặt 8 = dùng hết lõi; đặt 3 = về như cũ.
             2) UHD: chụp liên tiếp (burst) 10 khung 12.5MP, căn chỉnh rồi gộp thành 1 ảnh 211MP, tăng chi tiết, giảm nhiễu, xử lý nhanh.
             3) FHD: chụp liên tiếp 5 khung 12.5MP, gộp thành 1 ảnh 108MP, xử lý nhanh và không lỗi.
-            4) Tạo module HDMP (mới, đặt tên rõ ràng, tách riêng khỏi PhotoProcessor). Đầu vào: danh sách khung, chế độ UHD|FHD, số nhân. Đầu ra: 1 ảnh đã gộp, tuỳ chọn xoá phông AI. Pipeline: căn chỉnh (Lucas-Kanade thập ảnh hoặc tương đương) -> gộp khung -> upscale -> xoá phông. PhotoProcessor chỉ gọi HDMP. Phần tính toán nặng có thể viết C++ (NDK/CMake) nếu giúp nhanh hơn và build vẫn xanh.
+            4) Tạo module LunaDream (mới, đặt tên rõ ràng, tách riêng khỏi PhotoProcessor). Đầu vào: danh sách khung, chế độ UHD|FHD, số nhân. Đầu ra: 1 ảnh đã gộp, tuỳ chọn xoá phông AI. Pipeline: căn chỉnh (Lucas-Kanade thập ảnh hoặc tương đương) -> gộp khung -> upscale -> xoá phông. PhotoProcessor chỉ gọi LunaDream. Phần tính toán nặng có thể viết C++ (NDK/CMake) nếu giúp nhanh hơn và build vẫn xanh.
             5) Bộ nhớ: không giữ bitmap ARGB nguyên khổ (211MP khoảng 844MB, 108MP khoảng 432MB). Xử lý theo từng mảnh (tile), mỗi luồng một mảnh. Ghi file theo từng dải (ví dụ encoder JPEG native theo scanline) hoặc cách an toàn khác. Bắt OutOfMemoryError: nếu thiếu RAM thì tự hạ độ phân giải an toàn thay vì crash và ghi log rõ ràng.
             6) Night mode: mỗi lần chạm đổi theo vòng 5s -> 10s -> 3s -> tắt. Khoảng thời gian là cửa sổ thu khung hình cho UHD/FHD. Hết giờ thì tự xử lý gộp khung rồi tự tắt night mode.
             7) Xoá phông AI chiều sâu: chạy model ở độ phân giải thấp (khoảng 512px), phóng mặt nạ lên full-res, làm mịn viền bằng guided filter, làm mờ theo từng mảnh. Không chạy AI trực tiếp trên ảnh 211MP. Nếu repo chưa có file model thì tạo giao diện (interface) và bản dự phòng cổ điển, ghi rõ chỗ cần thả model vào.
@@ -102,14 +102,14 @@ jobs:
             - Không commit file build (thư mục build, .gradle, .apk, .cxx).
 
             KẾT THÚC
-            - Ghi file HDMP-CHANGES.txt ở gốc repo bằng tiếng Việt: đã sửa/tạo file nào, cách chỉnh UHD_Cores/FHD_Cores, phần nào chưa làm được hoặc còn hạn chế (nói thật).
+            - Ghi file LunaDream-CHANGES.txt ở gốc repo bằng tiếng Việt: đã sửa/tạo file nào, cách chỉnh UHD_Cores/FHD_Cores, phần nào chưa làm được hoặc còn hạn chế (nói thật).
 
       - name: Gom thay doi cua Claude
         if: always()
         run: |
           git add -A -- . ':(exclude,glob)**/build/**' ':(exclude,glob)**/.gradle/**' ':(exclude,glob)**/*.apk' ':(exclude,glob)**/.cxx/**' ':(exclude,glob)**/local.properties' || true
           git diff --cached --stat || true
-          git diff --cached > "$RUNNER_TEMP/hdmp-changes.patch" || true
+          git diff --cached > "$RUNNER_TEMP/lunaDream-changes.patch" || true
 
       - name: Build app-debug.apk
         run: "${{ runner.temp }}/ci-build.sh"
@@ -117,7 +117,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: HDMP-app-debug
+          name: LunaDream-app-debug
           path: '**/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
 
@@ -125,10 +125,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HDMP-changes
+          name: LunaDream-changes
           path: |
-            ${{ runner.temp }}/hdmp-changes.patch
-            HDMP-CHANGES.txt
+            ${{ runner.temp }}/lunaDream-changes.patch
+            LunaDream-CHANGES.txt
           if-no-files-found: ignore
 
       - name: Commit, push va mo PR
@@ -141,11 +141,11 @@ jobs:
             echo "Khong co thay doi de commit."
             exit 0
           fi
-          git commit -m "HDMP: UHD 211MP / FHD 108MP gop khung, night mode 5-10-3s, ra soat AI"
+          git commit -m "LunaDream: UHD 211MP / FHD 108MP gop khung, night mode 5-10-3s, ra soat AI"
           git config --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git push -u origin HEAD
           BRANCH=$(git branch --show-current)
-          if [ -f HDMP-CHANGES.txt ]; then BODY=(--body-file HDMP-CHANGES.txt); else BODY=(--body "HDMP: xem ban va trong artifact HDMP-changes"); fi
-          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" --title "HDMP: UHD 211MP / FHD 108MP, night mode, xoa phong AI" "${BODY[@]}" \
+          if [ -f LunaDream-CHANGES.txt ]; then BODY=(--body-file LunaDream-CHANGES.txt); else BODY=(--body "LunaDream: xem ban va trong artifact LunaDream-changes"); fi
+          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" --title "LunaDream: UHD 211MP / FHD 108MP, night mode, xoa phong AI" "${BODY[@]}" \
             || echo "::warning::Khong tu mo duoc PR (co the do cai dat repo). Nhanh $BRANCH da duoc push, hay mo PR thu cong."

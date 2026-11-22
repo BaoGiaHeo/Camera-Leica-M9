@@ -34,7 +34,7 @@ class PreviewFpsTrackerTest {
         assertNull(tracker.addSensorTimestamp(99L))
         assertNull(tracker.addSensorTimestamp(200L))
         assertEquals(2, tracker.sampleCount())
-        assertEquals(2_000_000_000f / 2f, tracker.addSensorTimestamp(1_000_100L)!!, 1_000_000f)
+        assertEquals(2_000f, tracker.addSensorTimestamp(1_000_100L)!!, 0.001f)
     }
 
     @Test

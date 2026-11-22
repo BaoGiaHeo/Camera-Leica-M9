@@ -16,14 +16,16 @@ internal enum class WatermarkLayoutType(val id: String) {
     companion object {
         fun fromPreference(value: String?): WatermarkLayoutType = when (value?.trim()?.lowercase()) {
             "caption", "b" -> CAPTION
-            "gallery", "c", "d" -> GALLERY
-            "black", "d-black" -> BLACK
+            "gallery", "c-gallery" -> GALLERY
+            "black", "e-black" -> BLACK
             "dot_light", "dot-light", "dotlight", "e" -> DOT_LIGHT
             "dot_dark", "dot-dark", "dotdark", "f" -> DOT_DARK
             "split", "g" -> SPLIT
             "palette", "h" -> PALETTE
+            // Legacy BAR/CAPTION/GALLERY/BLACK stable aliases are preserved.
+            "d" -> BLACK
             // Backward compatibility: the retired CARD preset migrates to DOT LIGHT.
-            "card", "c-card" -> DOT_LIGHT
+            "card", "c", "c-card" -> DOT_LIGHT
             else -> BAR
         }
 

@@ -45,12 +45,6 @@ internal object PreviewFpsPolicy {
         if (exact != null) {
             return PreviewFpsSelection(exact, requested, requested, false, "exact_fixed")
         }
-        val containing = sorted
-            .filter { it.lower <= requested && it.upper >= requested }
-            .minByOrNull { it.upper - it.lower }
-        if (containing != null) {
-            return PreviewFpsSelection(containing, requested, minOf(requested, containing.upper), false, "range_contains_target")
-        }
         val below = sorted.filter { it.upper <= requested }.maxByOrNull { it.upper }
         if (below != null) {
             return PreviewFpsSelection(below, requested, below.upper, true, "highest_supported_below_target")

@@ -710,7 +710,9 @@ fun FujiSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    onLabel: String = stringResource(R.string.watermark_status_on),
+    offLabel: String = stringResource(R.string.watermark_status_off)
 ) {
     val view = LocalView.current
     val knobX by animateDpAsState(
@@ -748,7 +750,7 @@ fun FujiSwitch(
         }
         Box(Modifier.size(5.dp).clip(CircleShape).background(if (checked) FujiSkin.orange else Color(0xFF34383A)))
         Text(
-            if (checked) "ON" else "OFF",
+            if (checked) onLabel else offLabel,
             color = if (checked) FujiSkin.lcdGreen else FujiSkin.muted,
             fontSize = 7.sp,
             fontWeight = FontWeight.Bold,

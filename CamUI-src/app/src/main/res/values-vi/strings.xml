@@ -231,4 +231,6 @@
     <string name="sound_haptic_title">Phản hồi rung</string>
     <string name="sound_haptic_description">Rung nhẹ khi qua nấc zoom, gạt công tắc và nhấn nửa cò.</string>
     <string name="sound_pcm_note">Phản hồi camera được tổng hợp ở dạng PCM16 mono 44,1 kHz, đỉnh -3 dBFS. Độ trễ thực tế phụ thuộc lịch trình âm thanh của thiết bị.</string>
+
+    <string name="preview_fps_none">Camera sau không công bố tốc độ khung hình xem trước được hỗ trợ.</string>
 </resources>

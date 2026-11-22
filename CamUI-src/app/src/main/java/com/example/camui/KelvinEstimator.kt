@@ -39,11 +39,15 @@ internal object KelvinEstimator {
         val calibration2 = toMatrix(
             characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM2)
         )
+        // CalibrationTransform maps reference sensor RGB -> this physical sensor.
+        // Invert it before applying the ForwardMatrix (sensor RGB -> XYZ D50).
         val matrix1 = forward1?.let { forward ->
-            calibration1?.let { multiply(forward, it) } ?: forward
+            calibration1?.let { inverse(it)?.let { inverseCalibration -> multiply(forward, inverseCalibration) } }
+                ?: forward
         }
         val matrix2 = forward2?.let { forward ->
-            calibration2?.let { multiply(forward, it) } ?: forward
+            calibration2?.let { inverse(it)?.let { inverseCalibration -> multiply(forward, inverseCalibration) } }
+                ?: forward
         }
         val reference1 = illuminantKelvin(
             characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1)
@@ -166,6 +170,27 @@ internal object KelvinEstimator {
                 (left[row][index] * right[index][column]).toDouble()
             }.toFloat()
         }
+    }
+
+    private fun inverse(matrix: Array<FloatArray>): Array<FloatArray>? {
+        val a = matrix[0][0]
+        val b = matrix[0][1]
+        val c = matrix[0][2]
+        val d = matrix[1][0]
+        val e = matrix[1][1]
+        val f = matrix[1][2]
+        val g = matrix[2][0]
+        val h = matrix[2][1]
+        val i = matrix[2][2]
+        val determinant = a * (e * i - f * h) -
+            b * (d * i - f * g) + c * (d * h - e * g)
+        if (!determinant.isFinite() || abs(determinant) < 1e-6f) return null
+        val scale = 1f / determinant
+        return arrayOf(
+            floatArrayOf(e * i - f * h, c * h - b * i, b * f - c * e),
+            floatArrayOf(f * g - d * i, a * i - c * g, c * d - a * f),
+            floatArrayOf(d * h - e * g, b * g - a * h, a * e - b * d)
+        ).map { row -> FloatArray(3) { column -> row[column] * scale } }.toTypedArray()
     }
 
     private val SRGB_TO_XYZ = arrayOf(

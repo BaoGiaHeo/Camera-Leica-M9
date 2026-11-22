@@ -777,6 +777,12 @@ fun CameraScreen(
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
+    val previewFpsEstimator = remember { PreviewFpsEstimator() }
+    var measuredPreviewFps by remember { mutableFloatStateOf(Float.NaN) }
+    LaunchedEffect(Unit) {
+        previewFpsEstimator.reset()
+        measuredPreviewFps = Float.NaN
+    }
     var actualZoomRatio by remember { mutableFloatStateOf(zoomSel) }
     var zoomFromCaptureResult by remember { mutableFloatStateOf(Float.NaN) }
     var digitalZoomCropScale by remember { mutableFloatStateOf(1f) }
@@ -1937,6 +1943,23 @@ fun CameraScreen(
                             result: TotalCaptureResult
                         ) {
                             val live = Camera2Info.readLive(result, activeCameraCharacteristics)
+                            val sensorTimestampNs = result.get(CaptureResult.SENSOR_TIMESTAMP)
+                            if (sensorTimestampNs != null) {
+                                val measuredFps = previewFpsEstimator.add(
+                                    sensorTimestampNs,
+                                    SystemClock.elapsedRealtime()
+                                )
+                                if (measuredFps != null) {
+                                    scope.launch(Dispatchers.Main.immediate) {
+                                        measuredPreviewFps = measuredFps
+                                        android.util.Log.d(
+                                            "FUJI_PREVIEW_FPS",
+                                            "sensorTimestampNs=" + sensorTimestampNs +
+                                                " fps=" + String.format(java.util.Locale.US, "%.2f", measuredFps)
+                                        )
+                                    }
+                                }
+                            }
                             val afRegions = request.get(CaptureRequest.CONTROL_AF_REGIONS).orEmpty()
                             val afState = result.get(CaptureResult.CONTROL_AF_STATE)
                             val afNowMs = SystemClock.elapsedRealtime()
@@ -5581,6 +5604,12 @@ fun CameraScreen(
                                     },
                                     zebraPoints = zebraPoints,
                                     showStatus = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
+                                    resolutionText = when (lunaDreamMode) {
+                                        "luna20" -> "UHD"
+                                        "luna15" -> "FHD+"
+                                        else -> "FHD"
+                                    },
+                                    previewFps = measuredPreviewFps.takeIf { it.isFinite() && it > 0f },
                                     batteryPercent = batteryPercent,
                                     batteryCharging = batteryCharging,
                                     batteryLowBlinkOn = batteryLowBlinkOn,

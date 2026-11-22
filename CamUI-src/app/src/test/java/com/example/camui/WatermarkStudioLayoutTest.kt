@@ -6,25 +6,13 @@ import org.junit.Test
 
 class WatermarkStudioLayoutTest {
     @Test
-    fun studioExposesExactlyTheTwelveRequestedLayoutsInTheRequestedOrder() {
+    fun studioExposesExactlyEightSupportedWatermarkStyles() {
         assertEquals(
-            listOf(
-                "classic_bar",
-                "center_stack",
-                "data_card",
-                "film_strip",
-                "polaroid",
-                "minimal_overlay",
-                "corner_stamp",
-                "glass_card",
-                "blur_frame",
-                "lcd_osd",
-                "viewfinder",
-                "exposure_dial"
-            ),
+            listOf("bar", "caption", "gallery", "black", "dot_light", "dot_dark", "split", "palette"),
             watermarkStudioLayouts.map { it.first }
         )
-        assertEquals(12, watermarkStudioLayouts.size)
+        assertEquals(8, watermarkStudioLayouts.size)
+        assertTrue(watermarkStudioLayouts.none { it.first.contains("card", ignoreCase = true) })
     }
 
     @Test

@@ -34,7 +34,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * The manifest opts this Activity into handling orientation/size changes. Keeping the
      * Activity and its Compose composition alive prevents rememberCoroutineScope work in
-     * CameraScreen (including an active HDMP render) from being cancelled by rotation.
+     * CameraScreen (including an active LunaDream render) from being cancelled by rotation.
      */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)

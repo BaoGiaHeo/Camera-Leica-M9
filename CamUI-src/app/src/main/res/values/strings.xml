@@ -10,6 +10,27 @@
     <string name="display_mode_clean">CLEAN</string>
     <string name="display_mode_level_grid">LEVEL + GRID</string>
     <string name="quick_display_title">DISPLAY</string>
+
+    <string name="quick_other_device_options">OTHER · DEVICE OPTIONS</string>
+    <string name="quick_native_processing_title">DEVICE IMAGE PROCESSING</string>
+    <string name="quick_native_processing_description">Prefer OEM ISP Auto HDR and device image processing.</string>
+    <string name="quick_native_status_on">ON · ISP/OEM</string>
+    <string name="quick_native_status_off">OFF · LUNADREAM AVAILABLE</string>
+    <string name="quick_aspect_ratio">ASPECT RATIO</string>
+    <string name="quick_live_photo_title">LIVE PHOTO</string>
+    <string name="quick_live_photo_on">ON · PHOTO + MOTION CLIP</string>
+    <string name="quick_live_photo_off">OFF · STILL PHOTO</string>
+    <string name="quick_render_engine">RENDER ENGINE</string>
+    <string name="quick_metering">METERING</string>
+    <string name="quick_watermark">WATERMARK</string>
+    <string name="quick_toolbox">TOOLBOX</string>
+    <string name="quick_toolbox_subtitle">ASSISTIVE TOOLS</string>
+    <string name="quick_contents">CONTENTS</string>
+    <string name="quick_contents_subtitle">LUT</string>
+    <string name="quick_other">OTHER</string>
+    <string name="quick_other_subtitle">DEVICE OPTIONS</string>
+    <string name="quick_settings_footer">MENU/OK  &gt;  SETTINGS</string>
+    <string name="quick_settings_action">SETTINGS  ›</string>
     <string name="retro_lcd_texture_title">Retro LCD texture</string>
     <string name="retro_lcd_texture_description">Optional viewfinder scanlines. This display effect never changes saved photos.</string>
     <string name="fujifilm_mode_version">FUJIFILM MODE %1$s</string>

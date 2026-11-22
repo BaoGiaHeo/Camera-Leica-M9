@@ -5736,6 +5736,7 @@ fun CameraScreen(
                                         faceTrackingEnabled &&
                                             !manualAfReticleOverrideActive &&
                                             manualFocus <= 0f &&
+                                            !(mode == "Pro" && proAfMode == "MF") &&
                                             !milkyWayInfinityFocusEnabled &&
                                             lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                             lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID
@@ -5764,7 +5765,8 @@ fun CameraScreen(
                                     centerAfScale = CameraAfAreaSize.fromPreference(
                                         appPrefs.getString("af_area_size", "m")
                                     ).pixelScale,
-                                    manualFocusMode = manualFocus > 0f || milkyWayInfinityFocusEnabled,
+                                    manualFocusMode = (mode == "Pro" && proAfMode == "MF") ||
+                                        manualFocus > 0f || milkyWayInfinityFocusEnabled,
                                     focusPoints = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO -> peakPoints
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()
@@ -5807,10 +5809,12 @@ fun CameraScreen(
                                     showHistogram = showHist && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     histogram = hist.toList(),
                                     isPro = lcdDisplayMode.showsProHud(mode == "Pro"),
-                                    afModeText = when {
-                                        manualFocus > 0f || milkyWayInfinityFocusEnabled -> "MF"
-                                        faceTrackingMode == "face_eye" || faceTrackingMode == "face" -> "AF-C"
-                                        else -> "AF-S"
+                                    afModeText = if (mode == "Pro") {
+                                        proAfMode
+                                    } else if (faceTrackingMode == "face_eye" || faceTrackingMode == "face") {
+                                        "AF-C"
+                                    } else {
+                                        "AF-S"
                                     },
                                     meteringText = when (metering) { 1 -> "M"; 2 -> "S"; else -> "C" },
                                     shutterText = shutterText,

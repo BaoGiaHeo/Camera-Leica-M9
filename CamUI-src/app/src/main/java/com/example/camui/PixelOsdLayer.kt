@@ -133,6 +133,9 @@ internal object PixelOsdSprites {
  */
 data class PixelOsdFrame(
     val showGrid: Boolean = false,
+    val gridMode: String = "3x3",
+    val gridColor: String = "auto",
+    val gridOpacity: Int = 50,
     val showPixelTexture: Boolean = true,
     val faceCenter: Offset? = null,
     val faceSize: Offset? = null,
@@ -177,12 +180,16 @@ data class PixelOsdFrame(
     val dynamicRangeText: String = "DR100",
     val whiteBalanceText: String = "AUTO",
     val filmSimulationText: String = "",
+    val outputSizeLabel: String = "L",
+    val whiteBalanceKelvinText: String = "",
+    val touchAfEnabled: Boolean = false,
     val manualExposure: Boolean = false,
     val manualWhiteBalance: Boolean = false,
     val manualIso: Boolean = false,
     val manualShutter: Boolean = false,
     val selectedControl: String = "",
     val selectedControlProgress: Float = 0.5f,
+    val adjustmentPanelVisible: Boolean = false,
     val showProEv: Boolean = true,
     val showProShutter: Boolean = true,
     val showProIso: Boolean = true,
@@ -223,6 +230,7 @@ class PixelOsdRenderer(context: Context) {
     private var lastLayoutDiagnostic: String? = null
     private val systemFallbackTypeface = FujiTypography.systemMonoTypeface()
     private var lastRenderUptimeMillis = 0L
+    private var levelBalanced = true
 
     private val fillPaint = Paint().apply {
         isAntiAlias = false
@@ -286,6 +294,12 @@ class PixelOsdRenderer(context: Context) {
         }
         if (lastFrame == frame) return
 
+        if (frame.showLevel) {
+            val absoluteRoll = kotlin.math.abs(frame.horizonRollDegrees)
+            if (absoluteRoll <= 0.5f) levelBalanced = true
+            else if (absoluteRoll >= 0.9f) levelBalanced = false
+        }
+
         val canvas = nativeCanvas ?: return
         val highResolutionTextCanvas = textNativeCanvas ?: return
         canvas.drawColor(android.graphics.Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
@@ -333,14 +347,7 @@ class PixelOsdRenderer(context: Context) {
         val width = logicWidth
         val height = logicHeight
         if (frame.showPixelTexture) drawPixelTexture(canvas)
-        if (frame.showGrid) {
-            for (index in 1..2) {
-                val x = (width * index / 3f).roundToInt()
-                val y = (height * index / 3f).roundToInt()
-                drawHLine(canvas, 0, width - 1, y, PixelOsdPalette.WHITE, 1)
-                drawVLine(canvas, x, 0, height - 1, PixelOsdPalette.WHITE, 1)
-            }
-        }
+        if (frame.showGrid) drawGrid(canvas, frame)
 
         frame.zebraPoints.takeIf { frame.showZebra }?.forEach { point ->
             val x = (point.x * width).roundToInt()
@@ -431,20 +438,26 @@ class PixelOsdRenderer(context: Context) {
         if (frame.showZoomBar) drawZoomBar(canvas, frame, layout)
         if (frame.showLevel) {
             val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
-            val halfSpan = (width * 0.12f).roundToInt().coerceAtLeast(8)
+            val halfSpan = (width * 0.19f).roundToInt().coerceAtLeast(8)
             val cx = width / 2
             val cy = height / 2
-            val dx = cos(radians).toFloat() * halfSpan
-            val dy = sin(radians).toFloat() * halfSpan
+            val drawRadians = if (levelBalanced) 0.0 else -radians
+            val dx = cos(drawRadians).toFloat() * halfSpan
+            val dy = sin(drawRadians).toFloat() * halfSpan
             drawLine(
                 canvas,
                 (cx - dx).roundToInt(),
                 (cy - dy).roundToInt(),
                 (cx + dx).roundToInt(),
                 (cy + dy).roundToInt(),
-                if (kotlin.math.abs(frame.horizonRollDegrees) < 1.2f) PixelOsdPalette.GREEN else PixelOsdPalette.AMBER
+                if (levelBalanced) PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
             )
             drawSprite(canvas, "level", cx - 4, cy - 3)
+            if (!levelBalanced) {
+                layout.elements.firstOrNull { it.id == "level-angle" }?.let { angle ->
+                    drawPixelOsdText(angle, PixelOsdPalette.WHITE)
+                }
+            }
         }
         if (frame.showBatteryLowNotice && !frame.batteryCharging) {
             drawBatteryLowNotice(frame)
@@ -653,7 +666,7 @@ class PixelOsdRenderer(context: Context) {
     private fun drawProHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val selected = frame.selectedControl.uppercase()
         val elements = layout.elements.filter {
-            it.section == "pro-top" || it.section == "pro-bottom"
+            it.section == "pro-top" || it.section == "pro-bottom" || it.section == "pro-right"
         }
         elements.forEach { element ->
             if (element.kind == PixelOsdElementKind.TEXT) {
@@ -675,19 +688,20 @@ class PixelOsdRenderer(context: Context) {
                     (key == "EV" && frame.manualExposure) ||
                         (key == "TV" && frame.manualShutter) ||
                         (key == "ISO" && frame.manualIso) ||
-                        (key == "WB" && frame.manualWhiteBalance) -> PixelOsdPalette.AMBER
+                        (key == "WB" && frame.manualWhiteBalance) -> PixelOsdPalette.BLUE
                     else -> PixelOsdPalette.WHITE
                 }
                 if (selectedThis) {
                     val scale = pixelScale.coerceAtLeast(1)
-                    drawPixelSelectionArc(
+                    drawDashedBorderRect(
                         canvas,
                         (element.bounds.left / scale).roundToInt() - 2,
                         (element.bounds.top / scale).roundToInt() - 2,
                         (element.bounds.right / scale).roundToInt() + 1,
                         (element.bounds.bottom / scale).roundToInt() + 2,
                         PixelOsdPalette.BLUE,
-                        frame.selectedControlProgress
+                        dash = 2,
+                        gap = 2
                     )
                 }
                 drawPixelOsdText(element, textColor)

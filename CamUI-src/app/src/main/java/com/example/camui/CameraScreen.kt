@@ -445,7 +445,8 @@ fun CameraScreen(
     ratioIdx: Int,
     onRatio: (Int) -> Unit,
     performanceMode: Boolean = false,
-    onOpenWatermarkPanel: () -> Unit = {}
+    onOpenWatermarkPanel: () -> Unit = {},
+    onSupportedPreviewFpsModes: (Set<String>) -> Unit = {}
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -2005,6 +2006,7 @@ fun CameraScreen(
                     }.getOrDefault(emptyList())
                 }.orEmpty()
                 val fpsSelection = selectPreviewFpsRange(previewFpsMode, advertisedPreviewFpsRanges)
+                val supportedFpsModes = supportedPreviewFpsModes(advertisedPreviewFpsRanges)
                 fpsSelection.range?.let { selectedRange ->
                     Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
                         CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
@@ -2013,6 +2015,7 @@ fun CameraScreen(
                 }
                 scope.launch(Dispatchers.Main.immediate) {
                     previewFpsTarget = fpsSelection.targetFps?.toFloat() ?: Float.NaN
+                    onSupportedPreviewFpsModes(supportedFpsModes)
                     android.util.Log.i(
                         "FUJI_PREVIEW_FPS",
                         "mode=" + previewFpsMode +

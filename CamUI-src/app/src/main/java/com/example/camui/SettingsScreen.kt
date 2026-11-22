@@ -218,6 +218,12 @@ var nightShotMode by remember {
         mutableStateOf(prefs.getBoolean("milky_way_stack_enabled", false))
     }
     var lcdTextureEnabled by remember { mutableStateOf(prefs.getBoolean("lcd_texture_overlay_enabled", false)) }
+    var iconRotationEnabled by remember {
+        mutableStateOf(prefs.getBoolean("icon_rotation_enabled", true))
+    }
+    var reduceMotionEnabled by remember {
+        mutableStateOf(prefs.getBoolean("reduce_motion_enabled", false))
+    }
     var simpleUiMode by remember { mutableStateOf(prefs.getBoolean("simple_ui_mode_enabled", false)) }
     var leftHandedLayout by remember { mutableStateOf(prefs.getBoolean("left_handed_layout_enabled", false)) }
     var zoomButtonsMode by remember {
@@ -426,6 +432,22 @@ var nightShotMode by remember {
                             prefs.edit().putString("osd_pixel_mode", value).apply()
                         })
                     }
+                }
+                SettingsSwitch(
+                    stringResource(R.string.display_icon_rotation_title),
+                    stringResource(R.string.display_icon_rotation_description),
+                    iconRotationEnabled
+                ) {
+                    iconRotationEnabled = it
+                    prefs.edit().putBoolean("icon_rotation_enabled", it).apply()
+                }
+                SettingsSwitch(
+                    stringResource(R.string.display_reduce_motion_title),
+                    stringResource(R.string.display_reduce_motion_description),
+                    reduceMotionEnabled
+                ) {
+                    reduceMotionEnabled = it
+                    prefs.edit().putBoolean("reduce_motion_enabled", it).apply()
                 }
                 SettingsSwitch(
                     "LCD texture",

@@ -164,6 +164,11 @@ data class PixelOsdFrame(
     val batteryBlinking: Boolean = false,
     val batteryCrossed: Boolean = false,
     val showBatteryLowNotice: Boolean = false,
+    /** 0 hides the DRIVE timer status; supported values are 2, 5 and 10 seconds. */
+    val driveTimerSeconds: Int = 0,
+    val driveBurstMode: Boolean = false,
+    val driveBurstActive: Boolean = false,
+    val driveBurstFrames: Int = 0,
     val showEvScale: Boolean = true,
     val evIndex: Int = 0,
     val evDisplayIndex: Float = evIndex.toFloat(),
@@ -561,6 +566,7 @@ class PixelOsdRenderer(context: Context) {
             when (element.kind) {
                 PixelOsdElementKind.TEXT -> {
                     val color = when {
+                        element.id.startsWith("drive-") -> PixelOsdPalette.AMBER
                         element.id == "battery-percent" && lowBattery -> PixelOsdPalette.RED
                         element.id == "status-af" && frame.focusLocked -> PixelOsdPalette.GREEN
                         element.id == "status-fps" && frame.previewFps != null &&
@@ -599,7 +605,11 @@ class PixelOsdRenderer(context: Context) {
                         drawPixelOsdIcon(
                             canvas,
                             element,
-                            monochromeColor = if (element.id == "af-lock") PixelOsdPalette.GREEN else PixelOsdPalette.WHITE
+                            monochromeColor = when {
+                                element.id.startsWith("drive-") -> PixelOsdPalette.AMBER
+                                element.id == "af-lock" -> PixelOsdPalette.GREEN
+                                else -> PixelOsdPalette.WHITE
+                            }
                         )
                     }
                 }

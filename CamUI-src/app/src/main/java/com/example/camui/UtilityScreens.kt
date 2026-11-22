@@ -2871,8 +2871,7 @@ fun applyCameraWatermark(
         locationMode = preferences.getString("watermark_location_mode", "PLACE") ?: "PLACE",
         useTrueFocalLength = preferences.getBoolean("watermark_use_true_focal", false),
         customCameraName = customName,
-        saveMode = preferences.getString("watermark_save_mode", "watermarked") ?: "watermarked",
-        storyNineSixteen = preferences.getBoolean("watermark_story_916", false)
+        saveMode = preferences.getString("watermark_save_mode", "watermarked") ?: "watermarked"
     )
     val metadata = WatermarkPhotoMetadata(
         cameraName = cameraName,
@@ -2893,7 +2892,9 @@ fun applyCameraWatermark(
         coordinates = location.second,
         filterName = filterName,
         filterCategory = filterCategory,
-        filterBadge = filterBadge
+        filterBadge = filterBadge,
+        title = preferences.getString("watermark_title", "")?.trim().orEmpty(),
+        author = preferences.getString("watermark_author", "")?.trim().orEmpty()
     )
 
     val watermarkStartedAt = android.os.SystemClock.elapsedRealtime()

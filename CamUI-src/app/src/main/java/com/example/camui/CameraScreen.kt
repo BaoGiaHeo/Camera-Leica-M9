@@ -502,14 +502,12 @@ fun CameraScreen(
                 )
                 if (iconQuadrant != null) {
                     lastIconQuadrant = iconQuadrant
-                    iconRotationDegrees = if (iconRotationEnabled) {
-                        relativeIconRotationDegrees(
-                            deviceQuadrantDegrees = iconQuadrant,
-                            displayRotation = localView.display?.rotation ?: targetRotation
-                        )
-                    } else {
-                        0
-                    }
+                    val relativeRotation = relativeIconRotationDegrees(
+                        deviceQuadrantDegrees = iconQuadrant,
+                        displayRotation = localView.display?.rotation ?: targetRotation
+                    )
+                    iconRotationDegrees = relativeRotation
+                    FujiIconRotationState.degrees = relativeRotation
                 }
             }
         }
@@ -867,6 +865,7 @@ fun CameraScreen(
                     ?.takeIf { it in setOf("60", "30", "24", "AUTO") } ?: "60"
                 "icon_rotation_enabled" -> {
                     iconRotationEnabled = preferences?.getBoolean(key, true) ?: true
+                    FujiIconRotationState.enabled = iconRotationEnabled
                     if (!iconRotationEnabled) iconRotationDegrees = 0
                 }
             }

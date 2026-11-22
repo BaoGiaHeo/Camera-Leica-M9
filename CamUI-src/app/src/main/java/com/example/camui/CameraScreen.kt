@@ -723,6 +723,26 @@ fun CameraScreen(
     }
 
     val appPrefs = remember { context.getSharedPreferences("fujifilm_settings", 0) }
+    var gridOverlayMode by remember {
+        mutableStateOf(appPrefs.getString("grid_overlay_mode", if (showGrid) "3x3" else "off") ?: "off")
+    }
+    var gridOverlayColor by remember {
+        mutableStateOf(appPrefs.getString("grid_overlay_color", "auto") ?: "auto")
+    }
+    var gridOverlayOpacity by remember {
+        mutableIntStateOf(appPrefs.getInt("grid_overlay_opacity", 50).coerceIn(30, 70))
+    }
+    DisposableEffect(appPrefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { preferences, key ->
+            when (key) {
+                "grid_overlay_mode" -> gridOverlayMode = preferences?.getString("grid_overlay_mode", "off") ?: "off"
+                "grid_overlay_color" -> gridOverlayColor = preferences?.getString("grid_overlay_color", "auto") ?: "auto"
+                "grid_overlay_opacity" -> gridOverlayOpacity = (preferences?.getInt("grid_overlay_opacity", 50) ?: 50).coerceIn(30, 70)
+            }
+        }
+        appPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var livePhotoEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("live_photo_enabled", false))
     }
@@ -5749,9 +5769,9 @@ fun CameraScreen(
                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
                                     showPixelTexture = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
-                                    gridMode = appPrefs.getString("grid_overlay_mode", if (showGrid) "3x3" else "off") ?: if (showGrid) "3x3" else "off",
-                                    gridColor = appPrefs.getString("grid_overlay_color", "auto") ?: "auto",
-                                    gridOpacity = appPrefs.getInt("grid_overlay_opacity", 50),
+                                    gridMode = gridOverlayMode,
+                                    gridColor = gridOverlayColor,
+                                    gridOpacity = gridOverlayOpacity,
                                     showGrid = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
                                         CameraLcdDisplayMode.LEVEL_GRID -> true

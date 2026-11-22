@@ -194,7 +194,7 @@ internal object PixelOsdLayoutEngine {
                 "status",
                 fpsText,
                 margin.toFloat(),
-                margin + t3 + labelValueGap,
+                (margin + t3 + labelValueGap).toFloat(),
                 t1
             )
 

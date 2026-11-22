@@ -10,6 +10,27 @@
     <string name="display_mode_clean">TỐI GIẢN</string>
     <string name="display_mode_level_grid">CÂN BẰNG + LƯỚI</string>
     <string name="quick_display_title">HIỂN THỊ</string>
+
+    <string name="quick_other_device_options">KHÁC · TÙY CHỌN THIẾT BỊ</string>
+    <string name="quick_native_processing_title">XỬ LÝ ẢNH GỐC THIẾT BỊ</string>
+    <string name="quick_native_processing_description">Ưu tiên ISP và HDR tự động của nhà sản xuất.</string>
+    <string name="quick_native_status_on">BẬT · ISP/OEM</string>
+    <string name="quick_native_status_off">TẮT · CÓ THỂ DÙNG LUNADREAM</string>
+    <string name="quick_aspect_ratio">TỈ LỆ KHUNG HÌNH</string>
+    <string name="quick_live_photo_title">LIVE PHOTO</string>
+    <string name="quick_live_photo_on">BẬT · ẢNH + CLIP CHUYỂN ĐỘNG</string>
+    <string name="quick_live_photo_off">TẮT · ẢNH TĨNH</string>
+    <string name="quick_render_engine">BỘ MÁY KẾT XUẤT</string>
+    <string name="quick_metering">ĐO SÁNG</string>
+    <string name="quick_watermark">ĐÓNG DẤU ẢNH</string>
+    <string name="quick_toolbox">CÔNG CỤ</string>
+    <string name="quick_toolbox_subtitle">CÔNG CỤ HỖ TRỢ</string>
+    <string name="quick_contents">NỘI DUNG</string>
+    <string name="quick_contents_subtitle">LUT</string>
+    <string name="quick_other">KHÁC</string>
+    <string name="quick_other_subtitle">TÙY CHỌN THIẾT BỊ</string>
+    <string name="quick_settings_footer">MENU/OK  &gt;  CÀI ĐẶT</string>
+    <string name="quick_settings_action">CÀI ĐẶT  ›</string>
     <string name="retro_lcd_texture_title">Hiệu ứng LCD cổ điển</string>
     <string name="retro_lcd_texture_description">Tùy chọn đường quét trên kính ngắm. Hiệu ứng chỉ hiển thị, không thay đổi ảnh đã lưu.</string>
     <string name="fujifilm_mode_version">FUJIFILM MODE %1$s</string>

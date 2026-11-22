@@ -5909,6 +5909,15 @@ fun CameraScreen(
                                     },
                                     previewFps = measuredPreviewFps.takeIf { it.isFinite() && it > 0f },
                                     previewFpsTarget = previewFpsTarget.takeIf { it.isFinite() && it > 0f },
+                                    showDriveHud = lcdDisplayMode == CameraLcdDisplayMode.STANDARD ||
+                                        lcdDisplayMode == CameraLcdDisplayMode.LEVEL_GRID,
+                                    driveModeText = when {
+                                        timerSec > 0 -> "${timerSec}s"
+                                        burstMode -> "BURST L"
+                                        else -> ""
+                                    },
+                                    driveFrameCount = burstCompletedFrames,
+                                    driveCountdown = countdown,
                                     batteryPercent = batteryPercent,
                                     batteryCharging = batteryCharging,
                                     batteryLowBlinkOn = batteryLowBlinkOn,

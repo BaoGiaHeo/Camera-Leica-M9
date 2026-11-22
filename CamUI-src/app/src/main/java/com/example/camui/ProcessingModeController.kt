@@ -4,6 +4,8 @@ internal enum class ProcessingPrimaryMode {
     NONE,
     LUNA_DREAM_15,
     LUNA_DREAM_20,
+    LUNA_DREAM_25,
+    LUNA_DREAM_30,
     NIGHT_SHOT,
     HDR_TONE_MAPPING,
     NATIVE_PROCESSING
@@ -28,6 +30,8 @@ internal data class ProcessingModeSnapshot(
         nativeProcessingEnabled -> ProcessingPrimaryMode.NATIVE_PROCESSING
         hdrToneMappingEnabled -> ProcessingPrimaryMode.HDR_TONE_MAPPING
         nightShotMode != "off" -> ProcessingPrimaryMode.NIGHT_SHOT
+        lunaDreamMode == "luna30" -> ProcessingPrimaryMode.LUNA_DREAM_30
+        lunaDreamMode == "luna25" -> ProcessingPrimaryMode.LUNA_DREAM_25
         lunaDreamMode == "luna20" -> ProcessingPrimaryMode.LUNA_DREAM_20
         lunaDreamMode == "luna15" -> ProcessingPrimaryMode.LUNA_DREAM_15
         else -> ProcessingPrimaryMode.NONE
@@ -78,7 +82,9 @@ internal object ProcessingModeController {
         if (!enabled) {
             return when (requested) {
                 ProcessingPrimaryMode.LUNA_DREAM_15,
-                ProcessingPrimaryMode.LUNA_DREAM_20 -> current.copy(lunaDreamMode = "off")
+                ProcessingPrimaryMode.LUNA_DREAM_20,
+                ProcessingPrimaryMode.LUNA_DREAM_25,
+                ProcessingPrimaryMode.LUNA_DREAM_30 -> current.copy(lunaDreamMode = "off")
                 ProcessingPrimaryMode.NIGHT_SHOT -> current.copy(nightShotMode = "off")
                 ProcessingPrimaryMode.HDR_TONE_MAPPING -> current.copy(hdrToneMappingEnabled = false)
                 ProcessingPrimaryMode.NATIVE_PROCESSING -> current.copy(nativeProcessingEnabled = false)
@@ -101,6 +107,20 @@ internal object ProcessingModeController {
             )
             ProcessingPrimaryMode.LUNA_DREAM_20 -> current.copy(
                 lunaDreamMode = "luna20",
+                nightShotMode = "off",
+                hdrToneMappingEnabled = false,
+                nativeProcessingEnabled = false,
+                livePhotoEnabled = false
+            )
+            ProcessingPrimaryMode.LUNA_DREAM_25 -> current.copy(
+                lunaDreamMode = "luna25",
+                nightShotMode = "off",
+                hdrToneMappingEnabled = false,
+                nativeProcessingEnabled = false,
+                livePhotoEnabled = false
+            )
+            ProcessingPrimaryMode.LUNA_DREAM_30 -> current.copy(
+                lunaDreamMode = "luna30",
                 nightShotMode = "off",
                 hdrToneMappingEnabled = false,
                 nativeProcessingEnabled = false,
@@ -148,6 +168,8 @@ internal object ProcessingModeController {
         return when (state.activePrimaryMode()) {
             ProcessingPrimaryMode.LUNA_DREAM_15 -> ProcessingModeLockReason.LUNA_DREAM_15
             ProcessingPrimaryMode.LUNA_DREAM_20 -> ProcessingModeLockReason.LUNA_DREAM_20
+            ProcessingPrimaryMode.LUNA_DREAM_25 -> ProcessingModeLockReason.LUNA_DREAM_25
+            ProcessingPrimaryMode.LUNA_DREAM_30 -> ProcessingModeLockReason.LUNA_DREAM_30
             ProcessingPrimaryMode.NIGHT_SHOT -> ProcessingModeLockReason.NIGHT_SHOT
             ProcessingPrimaryMode.HDR_TONE_MAPPING -> ProcessingModeLockReason.HDR_TONE_MAPPING
             ProcessingPrimaryMode.NATIVE_PROCESSING -> ProcessingModeLockReason.NATIVE_PROCESSING
@@ -157,6 +179,6 @@ internal object ProcessingModeController {
 
     fun livePhotoLocked(state: ProcessingModeSnapshot): Boolean =
         state.nativeProcessingEnabled ||
-            state.lunaDreamMode == "luna20" ||
+            state.lunaDreamMode != "off" ||
             state.nightShotMode != "off"
 }

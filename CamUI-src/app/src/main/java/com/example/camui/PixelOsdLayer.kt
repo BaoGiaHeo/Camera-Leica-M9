@@ -445,7 +445,7 @@ class PixelOsdRenderer(context: Context) {
             }
         }
 
-        if (frame.showStatus) drawStatusHud(canvas, frame, layout)
+        drawStatusHud(canvas, frame, layout)
         if (frame.showEvScale) drawEvScale(canvas, frame, layout)
         layout.histogramBounds?.let { drawHistogram(canvas, frame.histogram, it) }
         if (frame.isPro) drawProHud(canvas, frame, layout)
@@ -584,7 +584,9 @@ class PixelOsdRenderer(context: Context) {
     private fun drawStatusHud(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
         val lowBattery = frame.batteryLowRed && !frame.batteryCharging
         val batteryBlinkVisible = !frame.batteryBlinking || frame.batteryLowBlinkOn
-        layout.elements.filter { it.section == "status" }.forEach { element ->
+        layout.elements.filter {
+            it.section == "status" && (frame.showStatus || it.id == "drive-countdown")
+        }.forEach { element ->
             when (element.kind) {
                 PixelOsdElementKind.TEXT -> {
                     val color = when {

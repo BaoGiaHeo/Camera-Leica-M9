@@ -2,11 +2,9 @@ package com.example.camui
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.provider.MediaStore
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -27,11 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -56,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 @Composable
 fun WatermarkPanelScreen(onBack: () -> Unit) {
@@ -215,7 +210,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.watermark_enabled), color = ComposeColor.White, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.weight(1f))
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    FujiSwitch(checked = enabled, onCheckedChange = { enabled = it })
                     Text(
                         if (enabled) stringResource(R.string.watermark_status_on) else stringResource(R.string.watermark_status_off),
                         color = if (enabled) ComposeColor(0xFF55D58A) else FujiSkin.muted,
@@ -229,31 +224,25 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     WatermarkLayoutType.values().forEach { item ->
-                        val selected = layout == item
-                        Button(
+                        FujiChip(
+                            text = stringResource(item.watermarkLayoutString()),
+                            selected = layout == item,
                             onClick = { layout = item },
-                            modifier = Modifier.animateContentSize(tween(250)),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = stringResource(item.watermarkLayoutString()),
-                                fontSize = 9.sp,
-                                color = if (selected) ComposeColor.White else ComposeColor(0xFFD0D0D0)
-                            )
-                        }
+                            modifier = Modifier.animateContentSize(tween(250))
+                        )
                     }
                 }
                 if (layout == WatermarkLayoutType.CARD) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.watermark_story_916), color = ComposeColor.White, fontSize = 10.sp)
                         Spacer(Modifier.weight(1f))
-                        Switch(checked = story916, onCheckedChange = { story916 = it })
+                        FujiSwitch(checked = story916, onCheckedChange = { story916 = it })
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.watermark_invert), color = ComposeColor.White, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
-                    Switch(checked = invert, onCheckedChange = { invert = it })
+                    FujiSwitch(checked = invert, onCheckedChange = { invert = it })
                 }
                 Text(
                     stringResource(R.string.watermark_size_value, sizeStep),
@@ -261,11 +250,23 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                Slider(
-                    value = sizeStep.toFloat(),
-                    onValueChange = { sizeStep = it.toInt().coerceIn(-2, 2) },
-                    valueRange = -2f..2f,
-                    steps = 3
+                FujiScale(
+                    label = stringResource(R.string.watermark_size_label),
+                    valueText = stringResource(R.string.watermark_size_value, sizeStep),
+                    position = (sizeStep + 2) / 4f,
+                    auto = false,
+                    lowLabel = "-2",
+                    highLabel = "+2",
+                    stepFraction = 0.25f,
+                    onPositionChange = { position ->
+                        sizeStep = ((position * 4f).roundToInt() - 2).coerceIn(-2, 2)
+                    },
+                    onAuto = {},
+                    onBack = {},
+                    showAutoControl = false,
+                    showNudgeControls = false,
+                    showBackControl = false,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Text(stringResource(R.string.watermark_fields), color = FujiSkin.muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -286,7 +287,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.watermark_location), color = ComposeColor.White, fontSize = 10.sp)
                         Spacer(Modifier.weight(1f))
-                        Switch(
+                        FujiSwitch(
                             checked = locationEnabled,
                             onCheckedChange = { locationEnabled = it }
                         )
@@ -307,7 +308,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.watermark_true_focal), color = ComposeColor.White, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
-                    Switch(checked = trueFocal, onCheckedChange = { trueFocal = it })
+                    FujiSwitch(checked = trueFocal, onCheckedChange = { trueFocal = it })
                 }
                 Text(stringResource(R.string.watermark_camera_name), color = ComposeColor.White, fontSize = 10.sp)
                 TextField(
@@ -334,7 +335,9 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     label = stringResource(R.string.watermark_save_both),
                     onClick = { saveMode = "both" }
                 )
-                Button(
+                FujiChip(
+                    text = stringResource(R.string.watermark_reset),
+                    selected = false,
                     onClick = {
                         enabled = true
                         layout = WatermarkLayoutType.BAR
@@ -349,9 +352,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                         story916 = false
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.watermark_reset))
-                }
+                )
             }
         }
     }
@@ -363,20 +364,18 @@ private fun WatermarkFieldRow(label: String, checked: Boolean, onChange: (Boolea
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = ComposeColor.White, fontSize = 9.sp, modifier = Modifier.weight(1f))
-        Checkbox(checked = checked, onCheckedChange = onChange)
+        AutoFitText(label, color = ComposeColor.White, fontSize = 9.sp, modifier = Modifier.weight(1f))
+        FujiSwitch(checked = checked, onCheckedChange = onChange)
     }
 }
 
 @Composable
 private fun WatermarkChoice(selected: Boolean, label: String, onClick: () -> Unit) {
-    Button(onClick = onClick) {
-        Text(
-            label,
-            color = if (selected) ComposeColor.White else ComposeColor(0xFFCCCCCC),
-            fontSize = 9.sp
-        )
-    }
+    FujiChip(
+        text = label,
+        selected = selected,
+        onClick = onClick
+    )
 }
 
 private fun WatermarkLayoutType.watermarkLayoutString(): Int = when (this) {
@@ -388,7 +387,33 @@ private fun WatermarkLayoutType.watermarkLayoutString(): Int = when (this) {
 }
 
 private suspend fun loadWatermarkPreviewPhoto(context: Context): Bitmap = withContext(Dispatchers.IO) {
-    val uri = runCatching {
+    // A deterministic clean source is used intentionally: never re-read the latest
+    // gallery JPEG, which may already contain a watermark and would render twice.
+    val bitmap = Bitmap.createBitmap(960, 640, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    paint.shader = android.graphics.LinearGradient(
+        0f, 0f, 960f, 640f,
+        intArrayOf(
+            Color.rgb(39, 78, 111),
+            Color.rgb(139, 151, 145),
+            Color.rgb(226, 194, 145)
+        ),
+        null,
+        android.graphics.Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, 960f, 640f, paint)
+    paint.shader = null
+    paint.color = Color.rgb(36, 57, 54)
+    canvas.drawOval(590f, 110f, 925f, 520f, paint)
+    paint.color = Color.rgb(57, 79, 66)
+    canvas.drawOval(385f, 230f, 800f, 665f, paint)
+    paint.color = Color.rgb(205, 179, 137)
+    canvas.drawRect(0f, 475f, 960f, 640f, paint)
+    paint.color = Color.rgb(231, 213, 178)
+    canvas.drawRect(72f, 410f, 438f, 438f, paint)
+    bitmap
+}
         context.contentResolver.query(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             arrayOf(MediaStore.Images.Media._ID),
@@ -419,7 +444,31 @@ private suspend fun loadWatermarkPreviewPhoto(context: Context): Bitmap = withCo
             }
         }.getOrNull()
     }
-    latest ?: Bitmap.createBitmap(960, 640, Bitmap.Config.RGB_565).also { bitmap ->
-        Canvas(bitmap).drawColor(Color.rgb(118, 118, 118))
-    }
+private suspend fun loadWatermarkPreviewPhoto(context: Context): Bitmap = withContext(Dispatchers.IO) {
+    // A deterministic clean source is used intentionally: never re-read the latest
+    // gallery JPEG, which may already contain a watermark and would render twice.
+    val bitmap = Bitmap.createBitmap(960, 640, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    paint.shader = android.graphics.LinearGradient(
+        0f, 0f, 960f, 640f,
+        intArrayOf(
+            Color.rgb(39, 78, 111),
+            Color.rgb(139, 151, 145),
+            Color.rgb(226, 194, 145)
+        ),
+        null,
+        android.graphics.Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, 960f, 640f, paint)
+    paint.shader = null
+    paint.color = Color.rgb(36, 57, 54)
+    canvas.drawOval(590f, 110f, 925f, 520f, paint)
+    paint.color = Color.rgb(57, 79, 66)
+    canvas.drawOval(385f, 230f, 800f, 665f, paint)
+    paint.color = Color.rgb(205, 179, 137)
+    canvas.drawRect(0f, 475f, 960f, 640f, paint)
+    paint.color = Color.rgb(231, 213, 178)
+    canvas.drawRect(72f, 410f, 438f, 438f, paint)
+    bitmap
 }

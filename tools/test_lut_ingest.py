@@ -64,6 +64,27 @@ class LutIngestTests(unittest.TestCase):
             self.assertAlmostEqual(0.5, result[1], places=5)
             self.assertAlmostEqual(0.75, result[2], places=5)
 
+    def test_combined_one_and_three_dimensional_cube_is_applied_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "combined.cube"
+            rows = [
+                'TITLE "combined identity"',
+                "LUT_1D_SIZE 2",
+                "LUT_1D_INPUT_RANGE 0 1",
+                "0.1 0.2 0.3",
+                "0.9 0.8 0.7",
+                "LUT_3D_SIZE 2",
+            ]
+            rows += [
+                "%.6f %.6f %.6f" % row
+                for row in identity_values(2, red_fastest=False)
+            ]
+            path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            result = parse_cube(path).sample(0.5, 0.25, 0.75)
+            self.assertAlmostEqual(0.5, result[0], places=5)
+            self.assertAlmostEqual(0.35, result[1], places=5)
+            self.assertAlmostEqual(0.6, result[2], places=5)
+
     def test_panasonic_vlt_r_fastest_grid_is_parsed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "identity.vlt"

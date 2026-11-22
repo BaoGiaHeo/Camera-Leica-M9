@@ -25,10 +25,13 @@ class CameraAfLabelContractTest {
         assertTrue("OSD layout engine is missing", layoutSource.isFile)
         val layoutText = layoutSource.readText()
         assertTrue(
-            "The pixel LCD must draw AF/AF-L instead of an instructional prompt.",
-            layoutText.contains("if (frame.focusLocked) \"AF-L\" else frame.afModeText.ifBlank { \"AF\" }.take(6)") &&
-                pixelText.contains("element.id == \"status-af\" && frame.focusLocked") &&
-                pixelText.contains("PixelOsdPalette.GREEN")
+            "The Pro right column must show AF-L only while AF/AE lock is active.",
+            layoutText.contains("addText(\"pro-lock\", \"pro-right\", \"AF-L\"") &&
+                pixelText.contains("element.id == \"pro-lock\" -> PixelOsdPalette.AMBER")
+        )
+        assertTrue(
+            "The focus status must use the green state after successful autofocus.",
+            pixelText.contains("element.id == \"status-focus\" && frame.centerAfStatus == 1 -> PixelOsdPalette.GREEN")
         )
     }
 

@@ -1163,6 +1163,7 @@ fun CameraScreen(
     var activeCameraDetails by remember { mutableStateOf<CamDetails?>(null) }
     var activePhysicalCameraDetails by remember { mutableStateOf(emptyList<CamDetails>()) }
     var activePhysicalCameraId by remember { mutableStateOf<String?>(null) }
+    var activeParamsCameraId by remember { mutableStateOf<String?>(null) }
     var manualExposure by remember { mutableStateOf(appPrefs.getBoolean("pro_manual_exposure_enabled", false)) }
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
@@ -1366,6 +1367,7 @@ fun CameraScreen(
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
+        proAfMode, touchAfEnabled, focusLocked, zoomSel, activeParamsCameraId,
         milkyWayStackEnabled, activeCameraDetails?.id
     ) {
         evLastCommandAtMs = SystemClock.elapsedRealtime()
@@ -1395,6 +1397,36 @@ fun CameraScreen(
             .putInt("pro_ev_index", evIndex)
             .putInt("pro_ev_index_${evCameraPreferenceKey}", evIndex)
             .apply()
+        activeParamsCameraId?.let { cameraId ->
+            val snapshot = CameraParamsSnapshot(
+                evIndex = evIndex,
+                manualExposure = manualExposure,
+                manualIsoEnabled = manualIsoEnabled,
+                manualShutterEnabled = manualShutterEnabled,
+                manualIso = manualIso,
+                manualShutterNs = manualShutterNs,
+                manualWhiteBalanceEnabled = manualColorTempEnabled,
+                whiteBalanceKelvin = manualColorTemp,
+                afMode = proAfMode,
+                manualFocusDiopters = manualFocus,
+                zoomRatio = zoomSel,
+                meteringIndex = metering,
+                touchAfEnabled = touchAfEnabled,
+                afLocked = focusLocked
+            )
+            val storeEditor = appPrefs.edit()
+            CameraParamsStore.toPreferenceEntries(cameraId, snapshot).forEach { (key, value) ->
+                when (value) {
+                    is Boolean -> storeEditor.putBoolean(key, value)
+                    is Int -> storeEditor.putInt(key, value)
+                    is Long -> storeEditor.putLong(key, value)
+                    is Float -> storeEditor.putFloat(key, value)
+                    is String -> storeEditor.putString(key, value)
+                }
+            }
+            storeEditor.apply()
+            android.util.Log.d("FUJI_PARAMS_STORE", "SAVE cameraId=$cameraId ev=$evIndex af=$proAfMode zoom=$zoomSel")
+        }
     }
     // NightShot must use normal auto exposure: lock EV at zero and do not expose
     // the regular EV slider while either NightShot capture mode is selected.
@@ -1857,6 +1889,39 @@ fun CameraScreen(
             val selectedCameraInfo = provider.availableCameraInfos.firstOrNull { info ->
                 runCatching { Camera2CameraInfo.from(info).cameraId == activeFacingId }.getOrDefault(false)
             }
+            val paramsCameraId = activeFacingId ?: if (front) "front" else "back"
+            val savedParamsMap = appPrefs.all.mapValues { it.value }
+            val paramsSnapshot = CameraParamsStore.load(savedParamsMap, paramsCameraId)
+            if (activeParamsCameraId != paramsCameraId) {
+                manualExposure = paramsSnapshot.manualExposure
+                manualIsoEnabled = paramsSnapshot.manualIsoEnabled
+                manualShutterEnabled = paramsSnapshot.manualShutterEnabled
+                manualIso = paramsSnapshot.manualIso
+                manualShutterNs = paramsSnapshot.manualShutterNs
+                manualColorTempEnabled = paramsSnapshot.manualWhiteBalanceEnabled
+                manualColorTemp = paramsSnapshot.whiteBalanceKelvin
+                proAfMode = paramsSnapshot.afMode
+                manualFocus = paramsSnapshot.manualFocusDiopters
+                zoomSel = paramsSnapshot.zoomRatio
+                zoomRequestedTarget.floatValue = paramsSnapshot.zoomRatio
+                zoomVisualRatio.floatValue = paramsSnapshot.zoomRatio
+                evIndex = paramsSnapshot.evIndex
+                metering = paramsSnapshot.meteringIndex
+                touchAfEnabled = paramsSnapshot.touchAfEnabled
+                focusLocked = paramsSnapshot.afLocked
+                milkyWayInfinityFocusEnabled = false
+                activeParamsCameraId = paramsCameraId
+                android.util.Log.i(
+                    "FUJI_PARAMS_RESTORE",
+                    "LOAD cameraId=$paramsCameraId ev=${paramsSnapshot.evIndex} " +
+                        "iso=${paramsSnapshot.manualIso}/${paramsSnapshot.manualIsoEnabled} " +
+                        "tvNs=${paramsSnapshot.manualShutterNs}/${paramsSnapshot.manualShutterEnabled} " +
+                        "wbK=${paramsSnapshot.whiteBalanceKelvin}/${paramsSnapshot.manualWhiteBalanceEnabled} " +
+                        "af=${paramsSnapshot.afMode} focusD=${paramsSnapshot.manualFocusDiopters} " +
+                        "zoom=${paramsSnapshot.zoomRatio} metering=${paramsSnapshot.meteringIndex} " +
+                        "touchAf=${paramsSnapshot.touchAfEnabled} afLock=${paramsSnapshot.afLocked}"
+                )
+            }
             val rawSupportedFormats = selectedCameraInfo?.let { cameraInfo ->
                 runCatching {
                     ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
@@ -2149,10 +2214,7 @@ fun CameraScreen(
                 val previewEvRange = previewCameraCharacteristics
                     ?.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
                 val previewEvKey = activeFacingId ?: if (front) "front" else "back"
-                val savedPreviewEv = appPrefs.getInt(
-                    "pro_ev_index_${previewEvKey}",
-                    appPrefs.getInt("pro_ev_index", 0)
-                )
+                val savedPreviewEv = paramsSnapshot.evIndex
                 val initialPreviewEv = if (mode == "Photo" && nightShotMode != "off") {
                     0
                 } else {
@@ -2164,6 +2226,134 @@ fun CameraScreen(
                         initialPreviewEv
                     )
                 }
+                val previewCapabilities = previewCameraCharacteristics
+                    ?.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)?.toSet().orEmpty()
+                val previewManualSensorSupported =
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR in previewCapabilities
+                if (previewManualSensorSupported && (manualIsoEnabled || manualShutterEnabled)) {
+                    val initialExposure = resolveCameraExposureRequestState(
+                        manualIsoEnabled,
+                        manualShutterEnabled,
+                        manualIso,
+                        manualShutterNs,
+                        iso,
+                        shutterNs
+                    )
+                    val exposureExtender = Camera2Interop.Extender(previewBuilder)
+                    exposureExtender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AE_MODE,
+                        CaptureRequest.CONTROL_AE_MODE_OFF
+                    )
+                    initialExposure.sensorSensitivityIso?.let {
+                        exposureExtender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, it)
+                    }
+                    initialExposure.sensorExposureTimeNs?.let {
+                        exposureExtender.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, it)
+                    }
+                    initialExposure.sensorFrameDurationNs?.let {
+                        exposureExtender.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, it)
+                    }
+                    android.util.Log.i(
+                        "FUJI_PARAMS_RESTORE",
+                        "FIRST_REQUEST_MANUAL cameraId=$paramsCameraId iso=${initialExposure.sensorSensitivityIso} " +
+                            "tvNs=${initialExposure.sensorExposureTimeNs}"
+                    )
+                }
+                val previewAwbModes = previewCameraCharacteristics
+                    ?.get(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)?.toSet().orEmpty()
+                val previewRequestExtender = Camera2Interop.Extender(previewBuilder)
+                if (manualColorTempEnabled &&
+                    CameraCharacteristics.CONTROL_AWB_MODE_OFF in previewAwbModes
+                ) {
+                    previewRequestExtender
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF)
+                        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_FAST)
+                        .setCaptureRequestOption(
+                            CaptureRequest.COLOR_CORRECTION_GAINS,
+                            manualWhiteBalanceGains(manualColorTemp)
+                        )
+                    android.util.Log.i(
+                        "FUJI_PARAMS_RESTORE",
+                        "FIRST_REQUEST_WB_MANUAL cameraId=$paramsCameraId kelvin=$manualColorTemp"
+                    )
+                } else if (CameraCharacteristics.CONTROL_AWB_MODE_AUTO in previewAwbModes) {
+                    previewRequestExtender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AWB_MODE,
+                        CaptureRequest.CONTROL_AWB_MODE_AUTO
+                    )
+                }
+                val availablePreviewAfModes = previewCameraCharacteristics
+                    ?.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+                val initialAfSelection = if (mode == "Pro") proAfMode else "AF-S"
+                val initialCamera2AfMode = camera2AfModeForProSelection(
+                    initialAfSelection,
+                    availablePreviewAfModes
+                )
+                if (initialCamera2AfMode != null) {
+                    previewRequestExtender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AF_MODE,
+                        initialCamera2AfMode
+                    )
+                }
+                if (manualFocus > 0f &&
+                    CameraCharacteristics.CONTROL_AF_MODE_OFF in (availablePreviewAfModes?.toSet().orEmpty())
+                ) {
+                    previewRequestExtender
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+                        .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, manualFocus)
+                }
+                // Restore the camera's optical zoom on the Preview request itself, before
+                // CameraX binds and exposes the first frame. Software crop remains separate.
+                val previewCamera2Details = discoveredCamera2.firstOrNull {
+                    it.id == activeFacingId && it.parentId == null
+                }
+                val previewPhysicalDetails = discoveredCamera2.filter { it.parentId == activeFacingId }
+                val previewZoomState = selectedCameraInfo?.zoomState?.value
+                val previewZoomAssessment = Camera2Info.opticalZoomAssessment(
+                    previewCamera2Details,
+                    previewPhysicalDetails,
+                    discoveredCamera2
+                )
+                val previewZoomMaximum = Camera2Info.cameraReportedZoomMax(
+                    previewCamera2Details,
+                    previewZoomState?.maxZoomRatio ?: 1f
+                )
+                val initialZoomPlan = resolveZoomExecutionPlan(
+                    requestedZoomRatio = paramsSnapshot.zoomRatio,
+                    minimumCameraRatio = previewZoomState?.minZoomRatio ?: 1f,
+                    cameraReportedMaximum = previewZoomMaximum,
+                    assessment = previewZoomAssessment
+                )
+                zoomSel = initialZoomPlan.effectiveZoomRatio
+                zoomRequestedTarget.floatValue = initialZoomPlan.effectiveZoomRatio
+                zoomVisualRatio.floatValue = initialZoomPlan.effectiveZoomRatio
+                digitalZoomCropScale.floatValue = initialZoomPlan.digitalCropRatio
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    previewRequestExtender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_ZOOM_RATIO,
+                        initialZoomPlan.cameraControlZoomRatio
+                    )
+                } else {
+                    val activeArray = previewCameraCharacteristics
+                        ?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE)
+                    if (activeArray != null && initialZoomPlan.cameraControlZoomRatio > 1f) {
+                        val cropWidth = (activeArray.width() / initialZoomPlan.cameraControlZoomRatio)
+                            .roundToInt().coerceAtLeast(1)
+                        val cropHeight = (activeArray.height() / initialZoomPlan.cameraControlZoomRatio)
+                            .roundToInt().coerceAtLeast(1)
+                        val left = activeArray.centerX() - cropWidth / 2
+                        val top = activeArray.centerY() - cropHeight / 2
+                        previewRequestExtender.setCaptureRequestOption(
+                            CaptureRequest.SCALER_CROP_REGION,
+                            android.graphics.Rect(left, top, left + cropWidth, top + cropHeight)
+                        )
+                    }
+                }
+                android.util.Log.i(
+                    "FUJI_PARAMS_RESTORE",
+                    "FIRST_REQUEST_ZOOM cameraId=$paramsCameraId requested=${paramsSnapshot.zoomRatio} " +
+                        "optical=${initialZoomPlan.cameraControlZoomRatio} digital=${initialZoomPlan.digitalCropRatio}"
+                )
                 android.util.Log.i(
                     "FUJI_EV_RESTORE",
                     "PREVIEW_REQUEST cameraId=${activeFacingId ?: "unknown"} saved=$savedPreviewEv applied=$initialPreviewEv range=$previewEvRange"
@@ -3070,7 +3260,7 @@ fun CameraScreen(
                     "BOUND cameraId=$actualCameraId stored=$savedBoundEv applied=$restoredEv range=$boundEvRange"
                 )
                 val zoomStateOnBind = bound.cameraInfo.zoomState.value
-                val savedZoom = appPrefs.getFloat("camera_zoom_ratio", 1f)
+                val savedZoom = paramsSnapshot.zoomRatio
                 val cameraXZoomMaximum = zoomStateOnBind?.maxZoomRatio ?: 1f
                 val zoomAssessment = Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
                 val cameraReportedZoomMaximum = Camera2Info.cameraReportedZoomMax(activeCameraDetails, cameraXZoomMaximum)
@@ -3119,9 +3309,31 @@ fun CameraScreen(
                 val supportsManualSensor = capabilities?.contains(
                     CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR
                 ) == true
-                // Preserve user-selected WB and focus intent across logical-camera rebinds.
+                // Preserve exposure, WB and focus intent across logical-camera rebinds.
+                if (manualIsoEnabled || manualShutterEnabled) {
+                    runCatching {
+                        applyCameraExposureState(
+                            bound,
+                            manualIsoEnabled,
+                            manualShutterEnabled,
+                            manualIso,
+                            manualShutterNs,
+                            iso,
+                            shutterNs
+                        )
+                    }.onFailure {
+                        android.util.Log.w("FUJI_PARAMS_RESTORE", "Manual exposure restore failed cameraId=$actualCameraId", it)
+                    }
+                }
                 if (manualColorTempEnabled) applyManualWhiteBalance(bound, manualColorTemp)
                 else applyAutoWhiteBalance(bound)
+                if (actualCameraId != null && activeParamsCameraId != actualCameraId) {
+                    android.util.Log.w(
+                        "FUJI_PARAMS_RESTORE",
+                        "SELECTED_CAMERA_ID_MISMATCH selected=$activeParamsCameraId bound=$actualCameraId; future saves use bound ID"
+                    )
+                    activeParamsCameraId = actualCameraId
+                }
                 val focusModes = runCatching {
                     Camera2CameraInfo.from(bound.cameraInfo)
                         .getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
@@ -3133,6 +3345,35 @@ fun CameraScreen(
                         manualFocus > 0f -> runCatching {
                             applyManualFocus(bound, manualFocus.coerceIn(0f, focusDistance))
                         }
+                    }
+                }
+                if (focusLocked && previewView.width > 0 && previewView.height > 0 &&
+                    manualFocus <= 0f && !milkyWayInfinityFocusEnabled
+                ) {
+                    runCatching {
+                        val center = previewView.meteringPointFactory.createPoint(
+                            previewView.width * 0.5f,
+                            previewView.height * 0.5f
+                        )
+                        val action = FocusMeteringAction.Builder(
+                            center,
+                            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                        ).disableAutoCancel().build()
+                        val future = bound.cameraControl.startFocusAndMetering(action)
+                        future.addListener({
+                            val success = runCatching { future.get().isFocusSuccessful }.getOrDefault(false)
+                            if (success) {
+                                val af = applyCameraAfLock(bound)
+                                val ae = applyCameraAeLock(bound, locked = true)
+                                focusLocked = af && ae
+                            } else {
+                                focusLocked = false
+                                android.util.Log.w("FUJI_PARAMS_RESTORE", "AF-L restore did not focus cameraId=$actualCameraId")
+                            }
+                        }, mainExecutor)
+                    }.onFailure {
+                        focusLocked = false
+                        android.util.Log.w("FUJI_PARAMS_RESTORE", "AF-L restore request failed cameraId=$actualCameraId", it)
                     }
                 }
             }
@@ -8362,12 +8603,16 @@ private fun applyAutoWhiteBalance(camera: Camera) {
     Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }
 
-private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
+private fun manualWhiteBalanceGains(kelvin: Int): RggbChannelVector {
     // Approximate correlated color temperature with Camera2 sensor color-correction gains.
     val warmth = ((6500f - kelvin.coerceIn(2500, 8000)) / 4000f).coerceIn(-0.85f, 1f)
     val redGain = (1f + warmth * 0.42f).coerceIn(0.65f, 2.0f)
     val blueGain = (1f - warmth * 0.38f).coerceIn(0.65f, 2.0f)
-    val gains = RggbChannelVector(redGain, 1f, 1f, blueGain)
+    return RggbChannelVector(redGain, 1f, 1f, blueGain)
+}
+
+private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
+    val gains = manualWhiteBalanceGains(kelvin)
     val options = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF)

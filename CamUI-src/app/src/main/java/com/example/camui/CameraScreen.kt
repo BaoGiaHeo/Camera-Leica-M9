@@ -450,6 +450,7 @@ fun CameraScreen(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val localView = LocalView.current
+    val screenProfile = rememberScreenProfile()
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
@@ -910,6 +911,13 @@ fun CameraScreen(
         )
     }
     val proAfModeState = rememberUpdatedState(proAfMode)
+    var touchAfEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_touch_af_enabled", false)) }
+    LaunchedEffect(touchAfEnabled) { appPrefs.edit().putBoolean("pro_touch_af_enabled", touchAfEnabled).apply() }
+    BackHandler(enabled = proSel != null && mode == "Pro") {
+        android.util.Log.i("FUJI_PRO_SCALE", "BACK source=system selected=$proSel")
+        proSel = null
+    }
+    var proAdjustmentContent: (@Composable (Modifier) -> Unit)? = null
     var focusLocked by remember { mutableStateOf(false) }
     var focusLockRequestGeneration by remember { mutableIntStateOf(0) }
     fun invalidatePendingFocusLock(activeCamera: Camera? = null) {
@@ -1884,7 +1892,6 @@ fun CameraScreen(
                             val previewWidth = previewView.width
                             val previewHeight = previewView.height
                             if (previewWidth > 0 && previewHeight > 0) {
-                                centerAfPoint = focusTargetDisplay
                                 centerAfStatus = 0
                                 runCatching {
                                     val afPointSize = CameraAfAreaSize.fromPreference(
@@ -5302,13 +5309,7 @@ fun CameraScreen(
                                                     "preview=${previewView.width}x${previewView.height} " +
                                                     "tap=${tapPoint.x},${tapPoint.y} focusLocked=$focusLocked"
                                             )
-                                            if (focusLocked && isTapInsideAfReticle(
-                                                    tapPoint,
-                                                    centerAfPoint ?: Offset(0.5f, 0.5f),
-                                                    previewView.width,
-                                                    previewView.height
-                                                )
-                                            ) {
+                                            if (focusLocked) {
                                                 invalidatePendingFocusLock(active)
                                                 runCatching { active.cameraControl.cancelFocusAndMetering() }
                                                 val aeUnlocked = applyCameraAeLock(active, locked = false)
@@ -5321,7 +5322,11 @@ fun CameraScreen(
                                                 )
                                                 return@detectTapGestures
                                             }
-                                            // Tapping elsewhere replaces the previous AF/AE lock.
+                                            if (mode != "Pro" || !touchAfEnabled) {
+                                                android.util.Log.d("FUJI_AF_TOUCH", "TOUCH_AF_IGNORED mode=$mode enabled=$touchAfEnabled tap=${tapPoint.x},${tapPoint.y}")
+                                                return@detectTapGestures
+                                            }
+                                            // TOUCH AF is explicit in Pro; the default Photo tap is inert.
                                             invalidatePendingFocusLock(active)
                                             manualAfOverrideUntilMs = manualAfOverrideDeadline(SystemClock.elapsedRealtime())
                                             android.util.Log.d(
@@ -5514,6 +5519,7 @@ fun CameraScreen(
                                             }, mainExecutor)
                                         },
                                         onLongPress = { offset ->
+                                            if (mode != "Pro" || !touchAfEnabled) return@detectTapGestures
                                             val active = camera ?: return@detectTapGestures
                                             val tapPoint = normalizedAfTapPoint(
                                                 Offset(offset.x, offset.y),
@@ -5770,12 +5776,7 @@ fun CameraScreen(
                                         manualFocus <= 0f && !milkyWayInfinityFocusEnabled,
                                     focusLocked = focusLocked && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                         lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
-                                    centerAfPoint = centerAfPoint.takeIf {
-                                        lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
-                                            (manualAfReticleOverrideActive ||
-                                                manualFocus > 0f || milkyWayInfinityFocusEnabled ||
-                                                !faceTrackingEnabled || faceTrackCenter == null)
-                                    },
+                                    centerAfPoint = centerAfPoint.takeIf { lcdDisplayMode != CameraLcdDisplayMode.CLEAN },
                                     centerAfStatus = if (focusLocked) 1 else centerAfStatus,
                                     showManualAfReticle = manualAfReticleOverrideActive,
                                     centerAfScale = CameraAfAreaSize.fromPreference(
@@ -5932,6 +5933,19 @@ fun CameraScreen(
                                 performanceMode = performanceMode,
                                 reducedMotion = dispReducedMotion
                             )
+                            if (mode == "Pro" && proSel != null) {
+                                val selectedPanel = proAdjustmentContent
+                                Box(
+                                    Modifier.align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .height((frameHeight / 48f * 6f).coerceAtLeast(52.dp))
+                                        .background(Color(0xE00B0B0B))
+                                        .border(1.dp, Color(0xFF737B7D), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                ) {
+                                    selectedPanel?.invoke(Modifier.fillMaxSize())
+                                }
+                            }
                             if (bracketCaptureActive) {
                                 Text(
                                     "BRACKETING $bracketCompletedFrames",
@@ -6207,8 +6221,8 @@ fun CameraScreen(
                     }
     }
 
-    val controlsContent: @Composable (Modifier) -> Unit = { controlsModifier ->
-        Column(controlsModifier) {
+    proAdjustmentContent = { adjustmentModifier ->
+        Column(adjustmentModifier) {
                         val selected = proSel
                         if (selected != null && mode == "Pro") {
                             when (selected) {
@@ -6234,7 +6248,8 @@ fun CameraScreen(
                                                     }
                                                 }
                                             },
-                                            onAuto = {
+                                            onBack = { proSel = null },
+                                        onAuto = {
                                                 evIndex = 0
                                                 camera?.let { active ->
                                                     runCatching {
@@ -6295,7 +6310,8 @@ fun CameraScreen(
                                                     }
                                                 }
                                             },
-                                            onAuto = {
+                                            onBack = { proSel = null },
+                                        onAuto = {
                                                 val keepManualShutter = manualShutterEnabled
                                                 manualIsoEnabled = false
                                                 manualExposure = keepManualShutter
@@ -6363,7 +6379,8 @@ fun CameraScreen(
                                                     }
                                                 }
                                             },
-                                            onAuto = {
+                                            onBack = { proSel = null },
+                                        onAuto = {
                                                 val keepManualIso = manualIsoEnabled
                                                 manualShutterEnabled = false
                                                 manualExposure = keepManualIso
@@ -6407,6 +6424,21 @@ fun CameraScreen(
                                                 )
                                             }
                                         }
+                                        FujiChip(
+                                            "TOUCH AF",
+                                            touchAfEnabled,
+                                            {
+                                                touchAfEnabled = !touchAfEnabled
+                                                if (touchAfEnabled.not()) {
+                                                    centerAfPoint = Offset(0.5f, 0.5f)
+                                                    preferredFaceCenter = null
+                                                    invalidatePendingFocusLock(camera)
+                                                    centerAfStatus = 0
+                                                }
+                                                android.util.Log.i("FUJI_AF_TOUCH", "TOUCH_AF enabled=$touchAfEnabled")
+                                            },
+                                            Modifier.fillMaxWidth()
+                                        )
                                         if (proAfMode == "MF" && maxFocus > 0f &&
                                             availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true
                                         ) {
@@ -6428,7 +6460,8 @@ fun CameraScreen(
                                                         runCatching { applyManualFocus(active, manualFocus) }
                                                     }
                                                 },
-                                                onAuto = {
+                                                onBack = { proSel = null },
+                                        onAuto = {
                                                     manualFocus = 0f
                                                     milkyWayInfinityFocusEnabled = false
                                                     selectProAfMode("AF-S")
@@ -6496,6 +6529,7 @@ fun CameraScreen(
                                             }
                                             appPrefs.edit().putFloat("camera_zoom_ratio", plan.effectiveZoomRatio).apply()
                                         },
+                                        onBack = { proSel = null },
                                         onAuto = {
                                             val requested = 1f.coerceIn(minimumZoom, maximumZoom)
                                             val plan = resolveZoomExecutionPlan(
@@ -6536,6 +6570,7 @@ fun CameraScreen(
                                                 runCatching { applyManualWhiteBalance(active, manualColorTemp) }
                                             }
                                         },
+                                        onBack = { proSel = null },
                                         onAuto = {
                                             manualColorTempEnabled = false
                                             camera?.let { active -> runCatching { applyAutoWhiteBalance(active) } }
@@ -6544,7 +6579,11 @@ fun CameraScreen(
                                 }
                             }
                         }
+        }
+    }
 
+    val controlsContent: @Composable (Modifier) -> Unit = { controlsModifier ->
+        Column(controlsModifier) {
                         if (mode == "Pro") {
                             val proItems = listOf(
                                 Triple("EV", evText, "EV"),
@@ -6920,8 +6959,13 @@ fun CameraScreen(
             }
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
             FujiKey(
-                "DISP · ${stringResource(lcdDisplayMode.labelResource)}",
-                onClick = { cycleDispDisplayMode() },
+                "DISP/BACK · ${stringResource(lcdDisplayMode.labelResource)}",
+                onClick = {
+                    if (proSel != null && mode == "Pro") {
+                        android.util.Log.i("FUJI_PRO_SCALE", "BACK source=DISP selected=$proSel")
+                        proSel = null
+                    } else cycleDispDisplayMode()
+                },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
             )
         }
@@ -6939,9 +6983,10 @@ fun CameraScreen(
         simpleMode = simpleUiMode
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val topPlateHeight = (maxHeight * 0.15f).coerceIn(52.dp, 68.dp)
-            val leftColumnWidth = (maxWidth * 0.13f).coerceIn(96.dp, 128.dp)
-            val rightColumnWidth = (maxWidth * 0.20f).coerceIn(150.dp, 200.dp)
+            val layoutMetrics = screenProfile.layoutFor(maxWidth.value, maxHeight.value)
+            val topPlateHeight = layoutMetrics.topPlateHeight
+            val leftColumnWidth = layoutMetrics.leftColumnWidth
+            val rightColumnWidth = layoutMetrics.rightColumnWidth
             val chromeAlpha = if (hudVisible) ratioUiAlpha.value else 0f
             val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
 
@@ -7000,7 +7045,7 @@ fun CameraScreen(
                             if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Yellow.copy(alpha = 0.12f)))
                         }
                         if (mode == "Pro") {
-                            Box(Modifier.fillMaxWidth().height(44.dp).graphicsLayer { alpha = chromeAlpha }) {
+                            Box(Modifier.fillMaxWidth().height(layoutMetrics.proControlHeight).graphicsLayer { alpha = chromeAlpha }) {
                                 controlsContent(Modifier.fillMaxSize())
                             }
                         }

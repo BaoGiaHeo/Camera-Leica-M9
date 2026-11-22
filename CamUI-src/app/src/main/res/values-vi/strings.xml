@@ -191,4 +191,12 @@
     <string name="activation_continue">TIẾP TỤC</string>
     <string name="activation_ok">OK</string>
     <string name="activation_reopen">XEM LẠI GIỚI THIỆU</string>
+    <string name="preview_fps_title">FPS XEM TRƯỚC</string>
+    <string name="preview_fps_description">Đặt dải tốc độ khung hình cho màn xem trước. Thời gian phơi sáng khi chụp được điều khiển riêng.</string>
+    <string name="preview_fps_60">60 FPS</string>
+    <string name="preview_fps_30">30 FPS</string>
+    <string name="preview_fps_24">24 FPS</string>
+    <string name="preview_fps_auto">TỰ ĐỘNG</string>
+    <string name="preview_fps_keep_title">Giữ FPS xem trước giữa các lần mở app</string>
+    <string name="preview_fps_keep_description">Khi tắt, FPS xem trước trở về 60 FPS mỗi lần mở ứng dụng.</string>
 </resources>

@@ -69,6 +69,31 @@ class WatermarkGeometryTest {
     }
 
     @Test
+    fun paletteLandscapeSwatchesSitInsideThePhotoSevenPointFivePercentAboveBottom() {
+        val geometry = WatermarkGeometry.build(
+            1920, 1280, WatermarkLayoutSettings(layout = WatermarkLayoutType.PALETTE), metadata
+        )
+        assertEquals(1528f, geometry.paletteRect!!.top, 0.8f)
+        assertEquals(73f, geometry.paletteRect!!.height, 0.8f)
+        assertEquals(geometry.photoRect.right, geometry.paletteRect!!.right, 0.8f)
+        assertTrue(geometry.paletteRect!!.bottom < geometry.photoRect.bottom)
+    }
+
+    @Test
+    fun palettePortraitSwatchesMoveBelowTextAndExtendFooterWithoutClipping() {
+        val geometry = WatermarkGeometry.build(
+            1280, 1920, WatermarkLayoutSettings(layout = WatermarkLayoutType.PALETTE), metadata
+        )
+        assertTrue(geometry.paletteBelowText)
+        assertEquals(0.277f * 1280f, geometry.paletteRect!!.top - geometry.photoRect.bottom, 0.8f)
+        assertEquals(0.045f * 1280f, geometry.paletteRect!!.height, 0.8f)
+        assertEquals(geometry.photoRect.left, geometry.paletteRect!!.left, 0.8f)
+        assertEquals(geometry.photoRect.right, geometry.paletteRect!!.right, 0.8f)
+        assertTrue(geometry.paletteRect!!.top > geometry.photoRect.bottom)
+        assertTrue(geometry.paletteRect!!.bottom <= geometry.canvasHeight + 0.5f)
+    }
+
+    @Test
     fun allEightLayoutsPreserveSourcePixelDimensions() {
         WatermarkLayoutType.values().forEach { layout ->
             val geometry = WatermarkGeometry.build(

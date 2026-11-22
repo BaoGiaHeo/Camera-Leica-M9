@@ -154,24 +154,32 @@ def parse_cube(path: Path) -> Lut:
                 if not 2 <= size3d <= 129:
                     raise ValueError("LUT_3D_SIZE must be between 2 and 129")
             continue
-        if directive in ("DOMAIN_MIN", "DOMAIN_MAX", "LUT_1D_INPUT_RANGE"):
-            if len(parts) not in (3, 4):
-                raise ValueError(f"{directive} requires two or three components")
+        if directive in ("DOMAIN_MIN", "DOMAIN_MAX"):
+            if len(parts) != 4:
+                raise ValueError(f"{directive} requires three components")
             values = [float(value) for value in parts[1:]]
-            if len(values) == 2:
-                values = values * 3
             if not all(math.isfinite(value) for value in values):
                 raise ValueError(f"{directive} contains a non-finite component")
             if directive == "DOMAIN_MIN":
                 domain_min = values
-            elif directive == "DOMAIN_MAX":
-                domain_max = values
             else:
-                one_d_domain_min = values
-                one_d_domain_max = [float(parts[2])] * 3
+                domain_max = values
             continue
-        if directive.isalpha() or directive.startswith("_"):
-            # Ignore standard informational directives such as 3D_INPUT_RANGE.
+        if directive in ("LUT_1D_INPUT_RANGE", "LUT_3D_INPUT_RANGE"):
+            if len(parts) != 3:
+                raise ValueError(f"{directive} requires exactly two scalar values")
+            low, high = float(parts[1]), float(parts[2])
+            if not math.isfinite(low) or not math.isfinite(high) or high <= low:
+                raise ValueError(f"{directive} must define a finite increasing range")
+            if directive == "LUT_1D_INPUT_RANGE":
+                one_d_domain_min = [low, low, low]
+                one_d_domain_max = [high, high, high]
+            else:
+                domain_min = [low, low, low]
+                domain_max = [high, high, high]
+            continue
+        if any(character.isalpha() for character in directive) or directive.startswith("_"):
+            # Ignore non-data metadata headers while preserving numeric RGB rows.
             continue
         if len(parts) != 3:
             raise ValueError(f"invalid .cube row: {raw[:80]}")

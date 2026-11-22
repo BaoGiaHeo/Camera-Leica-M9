@@ -2986,11 +2986,19 @@ fun CameraScreen(
                     Camera2CameraInfo.from(bound.cameraInfo)
                 }.getOrNull()
                 val actualCameraId = actualCamera2Info?.cameraId
-                activeCameraSensorSurvey = actualCameraId?.let { id ->
-                    CameraSensorSurvey.inspect(cameraManager, id)
-                }
-                activeCameraSensorSurvey?.let { survey ->
-                    android.util.Log.i("FUJI_SENSOR_SURVEY", survey.diagnosticLine())
+                activeCameraSensorSurvey = null
+                actualCameraId?.let { surveyCameraId ->
+                    scope.launch(Dispatchers.IO) {
+                        val survey = CameraSensorSurvey.inspect(cameraManager, surveyCameraId)
+                        withContext(Dispatchers.Main.immediate) {
+                            if (bindGeneration == cameraBindGeneration && camera === bound) {
+                                activeCameraSensorSurvey = survey
+                                survey?.let {
+                                    android.util.Log.i("FUJI_SENSOR_SURVEY", it.diagnosticLine())
+                                }
+                            }
+                        }
+                    }
                 }
                 activeCameraCharacteristics = actualCameraId?.let { id ->
                     runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()

@@ -2412,20 +2412,72 @@ private fun applyCameraLookPixels(
     val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
     val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
     val colorChrome = recipe.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+    val sharpness = recipe.getFloat("film_custom_sharpness", 0f).coerceIn(0f, 1f)
+    val noiseReduction = recipe.getFloat("film_custom_noise_reduction", 0f).coerceIn(0f, 1f)
     val grain = recipe.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)
     val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
     val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
     val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
-    val row = IntArray(bitmap.width)
+    val tonePlaneX = recipe.getFloat("film_tone_plane_x", 0.5f).coerceIn(0f, 1f)
+    val tonePlaneY = recipe.getFloat("film_tone_plane_y", 0.5f).coerceIn(0f, 1f)
+    val palette = recipe.getInt("film_tone_palette", 100).coerceIn(0, 100) / 100f
+    val width = bitmap.width
+    val height = bitmap.height
+    if (width <= 0 || height <= 0) return false
+
+    // Keep three original rows in memory. This lets the same spatial noise/detail controls
+    // drive both the live filter preview and the final JPEG without another full-size bitmap.
+    var previousRow = IntArray(width)
+    var currentRow = IntArray(width)
+    var nextRow = IntArray(width)
+    val outputRow = IntArray(width)
     val lutOutput = FloatArray(3)
-    for (y in 0 until bitmap.height) {
-        bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
-        for (x in row.indices) {
-            val pixel = row[x]
+    bitmap.getPixels(currentRow, 0, width, 0, 0, width, 1)
+    currentRow.copyInto(previousRow)
+    if (height > 1) bitmap.getPixels(nextRow, 0, width, 0, 1, width, 1)
+    else currentRow.copyInto(nextRow)
+
+    fun pixelLuma(pixel: Int): Float =
+        (AndroidColor.red(pixel) * 0.2126f +
+            AndroidColor.green(pixel) * 0.7152f +
+            AndroidColor.blue(pixel) * 0.0722f) / 255f
+
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val pixel = currentRow[x]
             val alpha = AndroidColor.alpha(pixel)
-            val red = AndroidColor.red(pixel).toFloat()
-            val green = AndroidColor.green(pixel).toFloat()
-            val blue = AndroidColor.blue(pixel).toFloat()
+            val leftPixel = currentRow[(x - 1).coerceAtLeast(0)]
+            val rightPixel = currentRow[(x + 1).coerceAtMost(width - 1)]
+            val upperPixel = previousRow[x]
+            val lowerPixel = nextRow[x]
+            val centerLuma = pixelLuma(pixel)
+            val leftLuma = pixelLuma(leftPixel)
+            val rightLuma = pixelLuma(rightPixel)
+            val upperLuma = pixelLuma(upperPixel)
+            val lowerLuma = pixelLuma(lowerPixel)
+
+            val leftWeight = (1f - kotlin.math.abs(centerLuma - leftLuma) * 5f).coerceIn(0f, 1f)
+            val rightWeight = (1f - kotlin.math.abs(centerLuma - rightLuma) * 5f).coerceIn(0f, 1f)
+            val upperWeight = (1f - kotlin.math.abs(centerLuma - upperLuma) * 5f).coerceIn(0f, 1f)
+            val lowerWeight = (1f - kotlin.math.abs(centerLuma - lowerLuma) * 5f).coerceIn(0f, 1f)
+            val neighbourWeight = leftWeight + rightWeight + upperWeight + lowerWeight
+            val denoiseMix = noiseReduction * 0.28f
+            fun denoiseChannel(channel: (Int) -> Int): Float {
+                if (neighbourWeight <= 0.001f || denoiseMix <= 0f) {
+                    return channel(pixel).toFloat()
+                }
+                val neighbours = (
+                    channel(leftPixel) * leftWeight +
+                        channel(rightPixel) * rightWeight +
+                        channel(upperPixel) * upperWeight +
+                        channel(lowerPixel) * lowerWeight
+                    ) / neighbourWeight
+                return channel(pixel) * (1f - denoiseMix) + neighbours * denoiseMix
+            }
+
+            val red = denoiseChannel(AndroidColor::red)
+            val green = denoiseChannel(AndroidColor::green)
+            val blue = denoiseChannel(AndroidColor::blue)
             val mapped = if (cube != null) {
                 cube.sampleInto(red / 255f, green / 255f, blue / 255f, lutOutput)
                 null
@@ -2447,18 +2499,32 @@ private fun applyCameraLookPixels(
 
             val chromeChroma = maxOf(abs(r - luma), abs(g - luma), abs(b - luma))
             val chromeFactor = 1f + colorChrome * (0.05f + chromeChroma * 0.18f)
-            val saturationFactor = saturation * chromeFactor
+            val planeSaturation = (0.72f + tonePlaneX * 0.56f) * palette
+            val saturationFactor = saturation * chromeFactor * planeSaturation
             r = luma + (r - luma) * saturationFactor
             g = luma + (g - luma) * saturationFactor
             b = luma + (b - luma) * saturationFactor
 
-            r += temperature * 0.045f
-            g += temperature * 0.006f
+            val planeExposure = (0.5f - tonePlaneY) * 0.16f * palette
+            r += temperature * 0.045f + planeExposure
+            g += temperature * 0.006f + planeExposure
             b -= temperature * 0.045f
             // Color Tone shifts green/magenta independently from global color temperature.
             r += tone * 0.018f
             g -= tone * 0.035f
             b += tone * 0.018f
+
+            // Restrained local-contrast recovery avoids hard edge halos.
+            val localSourceLuma = (leftLuma + rightLuma + upperLuma + lowerLuma) * 0.25f
+            val detail = centerLuma - localSourceLuma
+            val outputLuma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
+            val sharpenedLuma = (outputLuma + detail * sharpness * 0.32f).coerceIn(0f, 1f)
+            val sharpnessScale = if (outputLuma > 0.015f) {
+                (sharpenedLuma / outputLuma).coerceIn(0.82f, 1.18f)
+            } else 1f
+            r *= sharpnessScale
+            g *= sharpnessScale
+            b *= sharpnessScale
 
             if (grain > 0.001f) {
                 // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
@@ -2470,14 +2536,22 @@ private fun applyCameraLookPixels(
                 g += noise
                 b += noise
             }
-            row[x] = AndroidColor.argb(
+            outputRow[x] = AndroidColor.argb(
                 alpha,
                 clamp8(r.coerceIn(0f, 1f) * 255f),
                 clamp8(g.coerceIn(0f, 1f) * 255f),
                 clamp8(b.coerceIn(0f, 1f) * 255f)
             )
         }
-        bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
+        bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+        if (y + 1 < height) {
+            val recycled = previousRow
+            previousRow = currentRow
+            currentRow = nextRow
+            nextRow = recycled
+            if (y + 2 < height) bitmap.getPixels(nextRow, 0, width, 0, y + 2, width, 1)
+            else currentRow.copyInto(nextRow)
+        }
     }
     return true
 }

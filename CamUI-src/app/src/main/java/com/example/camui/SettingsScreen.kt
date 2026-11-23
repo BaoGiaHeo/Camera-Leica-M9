@@ -69,15 +69,15 @@ private data class SettingItem(
     val titleResource: Int
 )
 private val settingItems = listOf(
-    SettingItem("tab_01", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram", R.string.settings_tab_assistive_tools),
-    SettingItem("tab_02", "Focus & Lens", "Camera ID · Lens · Sensor information", R.string.settings_tab_focus_lens),
-    SettingItem("tab_03", "Capture & Quality", "Aspect ratio · Image quality · Save location", R.string.settings_tab_capture_quality),
-    SettingItem("tab_04", "Photo Mode Setting", "HDR · RAW", R.string.settings_tab_photo_mode),
-    SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails", R.string.settings_tab_nightshot),
-    SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout", R.string.settings_tab_display),
-    SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback", R.string.settings_tab_sound),
-    SettingItem("tab_08", "Language", "ENGLISH · TIẾNG VIỆT", R.string.settings_tab_language),
-    SettingItem("tab_09", "About", "FujiFilm Mode · 2.6.0", R.string.settings_tab_about),
+    SettingItem("tab_01", "Công cụ hỗ trợ", "Grid Lines · Focus Peaking · Histogram", R.string.settings_tab_assistive_tools),
+    SettingItem("tab_02", "Lấy nét & Ống kính", "Camera ID · Lens · Sensor information", R.string.settings_tab_focus_lens),
+    SettingItem("tab_03", "Chụp & Chất lượng", "Aspect ratio · Image quality · Save location", R.string.settings_tab_capture_quality),
+    SettingItem("tab_04", "Thiết lập chế độ ảnh", "HDR · RAW", R.string.settings_tab_photo_mode),
+    SettingItem("tab_05", "Chụp đêm NightShot", "Chụp đêm NightShot · Long Exposure / Star Trails", R.string.settings_tab_nightshot),
+    SettingItem("tab_06", "Hiển thị / Giao diện", "Shutter button · LCD texture · Simple mode · Left-hand layout", R.string.settings_tab_display),
+    SettingItem("tab_07", "Âm thanh & Rung", "Shutter sound · Dial clicks · Haptic feedback", R.string.settings_tab_sound),
+    SettingItem("tab_08", "Ngôn ngữ", "ENGLISH · TIẾNG VIỆT", R.string.settings_tab_language),
+    SettingItem("tab_09", "Giới thiệu", "FujiFilm Mode · 2.6.0", R.string.settings_tab_about),
 )
 
 @Composable
@@ -86,12 +86,12 @@ fun SettingsScreen(
     showGrid: Boolean, onShowGrid: (Boolean) -> Unit,
     showHist: Boolean, onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit,
-    onOpenToolbox: () -> Unit = {},
+    onOpenCông cụ hỗ trợ: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {},
     onReplayActivation: () -> Unit = {}
 ) {
-    var selectedCategory by remember { mutableStateOf("Assistive Tools") }
-    var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
+    var selectedCategory by remember { mutableStateOf("Công cụ hỗ trợ") }
+    var categoryBeforeBackup by remember { mutableStateOf("Chụp & Chất lượng") }
     val displayVersionName = BuildConfig.VERSION_NAME
         .replace(Regex("(?i)dream.*$"), "")
         .trim()
@@ -159,7 +159,7 @@ fun SettingsScreen(
                         categoryBeforeBackup = visibleCategory
                         selectedCategory = "Sao lưu & Khôi phục"
                     },
-                    onOpenToolbox = onOpenToolbox,
+                    onOpenCông cụ hỗ trợ = onOpenCông cụ hỗ trợ,
                     onOpenContentsManagement = onOpenContentsManagement,
                     onReplayActivation = onReplayActivation
                 )
@@ -183,7 +183,7 @@ private fun SettingsDetailPage(
     embedded: Boolean = false,
     modifier: Modifier = Modifier,
     onOpenBackup: () -> Unit = {},
-    onOpenToolbox: () -> Unit = {},
+    onOpenCông cụ hỗ trợ: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {},
     onReplayActivation: () -> Unit = {}
 ) {
@@ -271,13 +271,13 @@ var nightShotMode by remember {
                 .padding(horizontal = if (isLandscape) 22.dp else 12.dp, vertical = 10.dp)
         ) {
         when (title) {
-            "Assistive Tools" -> {
-                Text("Viewfinder overlays are configured in Toolbox.",
+            "Công cụ hỗ trợ" -> {
+                Text("Lưới căn khung, cân bằng, biểu đồ sáng và lấy nét viền được thiết lập trong Công cụ hỗ trợ.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
-                FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "Grid · Level · Histogram · Focus peaking · HUD")
-                FujiListRow("Contents Management", "OPEN", onClick = onOpenContentsManagement, description = "LUT Manager")
+                FujiListRow("Công cụ hỗ trợ", "MỞ", onClick = onOpenCông cụ hỗ trợ, description = "Lưới · Cân bằng · Biểu đồ sáng · Viền nét · HUD")
+                FujiListRow("Quản lý nội dung", "MỞ", onClick = onOpenContentsManagement, description = "Quản lý LUT")
             }
-            "Focus & Lens" -> {
+            "Lấy nét & Ống kính" -> {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text(
                         stringResource(R.string.af_area_size_title),
@@ -352,8 +352,8 @@ var nightShotMode by remember {
                     CameraHardwareScannerPanel()
                 }
             }
-            "Capture & Quality" -> {
-                Text("Aspect Ratio", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+            "Chụp & Chất lượng" -> {
+                Text("Tỉ lệ khung hình", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -363,7 +363,7 @@ var nightShotMode by remember {
                     }
                 }
                 Spacer(Modifier.padding(7.dp))
-                Text("Image Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Chất lượng ảnh", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -380,7 +380,7 @@ var nightShotMode by remember {
                 FujiListRow("Sao lưu & Khôi phục", "BACKUP", onClick = onOpenBackup,
                     description = "Lưu hoặc nạp lại các thiết lập camera")
             }
-            "Display / Appearance", "Appearance" -> {
+            "Hiển thị / Giao diện", "Appearance" -> {
                 Text(
                     stringResource(R.string.zoom_controls_section),
                     color = FujiSkin.lcdGreen,
@@ -461,7 +461,7 @@ var nightShotMode by remember {
                     leftHandedLayout = it
                     prefs.edit().putBoolean("left_handed_layout_enabled", it).apply()
                 }
-                Text("Custom shutter button", color = FujiSkin.lcdGreen, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("Tùy chỉnh nút chụp", color = FujiSkin.lcdGreen, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 Text("Đổi màu nút chụp hoặc dùng ảnh PNG/JPG làm mặt nút.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -500,7 +500,7 @@ var nightShotMode by remember {
                         }.padding(vertical = 7.dp))
                 }
             }
-            "Sound & Haptic" -> {
+            "Âm thanh & Rung" -> {
                 Text(
                     stringResource(R.string.sound_master_volume, soundMasterVolume),
                     color = CamColors.TextColor,
@@ -564,9 +564,9 @@ var nightShotMode by remember {
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            "Language" -> {
-                var selectedLanguage by remember {
-                    mutableStateOf(AppLanguageManager.currentLanguage)
+            "Ngôn ngữ" -> {
+                var selectedNgôn ngữ by remember {
+                    mutableStateOf(AppNgôn ngữManager.currentNgôn ngữ)
                 }
                 Text(stringResource(R.string.language_screen_title), color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
@@ -582,18 +582,18 @@ var nightShotMode by remember {
                 languages.forEach { (id, label) ->
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 3.dp)
-                            .background(if (selectedLanguage == id) Color(0xFF20292B) else FujiSkin.lcd)
-                            .border(1.dp, if (selectedLanguage == id) FujiSkin.orange else Color(0xFF344247))
+                            .background(if (selectedNgôn ngữ == id) Color(0xFF20292B) else FujiSkin.lcd)
+                            .border(1.dp, if (selectedNgôn ngữ == id) FujiSkin.orange else Color(0xFF344247))
                             .animaTClickable {
-                                selectedLanguage = id
-                                AppLanguageManager.setLanguage(context, id)
+                                selectedNgôn ngữ = id
+                                AppNgôn ngữManager.setNgôn ngữ(context, id)
                             }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(label, color = if (selectedLanguage == id) FujiSkin.orange else CamColors.TextColor,
+                        Text(label, color = if (selectedNgôn ngữ == id) FujiSkin.orange else CamColors.TextColor,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        if (selectedLanguage == id) {
+                        if (selectedNgôn ngữ == id) {
                             Text("✓", color = FujiSkin.orange, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -605,17 +605,17 @@ var nightShotMode by remember {
                     onShowGrid(prefs.getBoolean("viewfinder_grid_enabled", true))
                     onShowHist(prefs.getBoolean("viewfinder_histogram_enabled", true))
                     onFocusPeaking(prefs.getBoolean("viewfinder_focus_peaking_enabled", false))
-                    AppLanguageManager.initialize(context)
+                    AppNgôn ngữManager.initialize(context)
                 })
             }
-            "NightShotMode" -> {
+            "Chụp đêm NightShot" -> {
                 Text(
                     "Chế độ chụp đêm",
                     color = CamColors.TextColor,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "NightShotMode thu nhiều khung trong thời lượng đã chọn, căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Số khung thực tế phụ thuộc tốc độ camera; giữ máy ổn định đến khi ghép xong.",
+                    "Chụp đêm NightShot thu nhiều khung trong thời lượng đã chọn, căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Số khung thực tế phụ thuộc tốc độ camera; giữ máy ổn định đến khi ghép xong.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -623,7 +623,7 @@ var nightShotMode by remember {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
                         "Tắt" to "off",
-                        "NightShotMode · Multi-frame" to "night",
+                        "Chụp đêm NightShot · Multi-frame" to "night",
                         "Phơi sáng lâu · Star Trails" to "star_trails"
                     ).forEach { (label, value) ->
                         Row(
@@ -693,9 +693,9 @@ var nightShotMode by remember {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text("Milky Way", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                            Text("Dải Ngân Hà", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Bật để dùng nhánh căn chỉnh và ghép khung bầu trời trong NightShotMode. Tắt mặc định; không hoạt động ở Photo thường.",
+                                "Bật để dùng nhánh căn chỉnh và ghép khung bầu trời trong Chụp đêm NightShot. Tắt mặc định; không hoạt động ở Photo thường.",
                                 color = CamColors.Sub, fontSize = 10.sp,
                                 modifier = Modifier.padding(top = 3.dp)
                             )
@@ -742,7 +742,7 @@ var nightShotMode by remember {
                     )
                 }
             }
-            "Photo Mode Setting" -> {
+            "Thiết lập chế độ ảnh" -> {
                 Text(
                     stringResource(R.string.preview_fps_title),
                     color = CamColors.TextColor,
@@ -774,7 +774,7 @@ var nightShotMode by remember {
                     }
                 }
                 Spacer(Modifier.padding(5.dp))
-                Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Chất lượng chụp", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
                     "HDR Tone Mapping",
                     "Engine HDR tone mapping độc lập, tự điều chỉnh mức xử lý theo dữ liệu sáng/tối và tài nguyên thiết bị. HDR không thay đổi độ phân giải đầu ra của LunaDream.",
@@ -787,9 +787,9 @@ var nightShotMode by remember {
                         .apply()
                 }
                 Spacer(Modifier.padding(5.dp))
-                Text("RAW Capture", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Chụp RAW", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "RAW lưu DNG gốc theo dữ liệu cảm biến. RawDream 2.0 chụp đồng thời DNG và JPEG; JPEG được căn chỉnh, ghép đa khung, khử nhiễu và phục hồi chi tiết bằng LunaDream 2.0, đầu ra mục tiêu 108MP. RawDream 2.0 không kết hợp NightShotMode, Star Trails, Burst hoặc Bracketing. Nếu camera không hỗ trợ đồng thời RAW + JPEG, ứng dụng báo lỗi và không tự chuyển sang JPEG thường.",
+                    "RAW lưu DNG gốc theo dữ liệu cảm biến. RawDream 2.0 chụp đồng thời DNG và JPEG; JPEG được căn chỉnh, ghép đa khung, khử nhiễu và phục hồi chi tiết bằng LunaDream 2.0, đầu ra mục tiêu 108MP. RawDream 2.0 không kết hợp Chụp đêm NightShot, Star Trails, Burst hoặc Bracketing. Nếu camera không hỗ trợ đồng thời RAW + JPEG, ứng dụng báo lỗi và không tự chuyển sang JPEG thường.",
                     color = CamColors.Sub, fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
                 )
@@ -874,7 +874,7 @@ private fun CameraHardwareScannerPanel() {
         }
 
         errorMessage?.let {
-            InfoCard("Không thể hoàn tất quét", "Camera2 access") {
+            InfoCard("Không thể hoàn tất quét", "Truy cập Camera2") {
                 Text(it, color = CamColors.Sub, fontSize = 11.sp)
             }
         }
@@ -887,7 +887,7 @@ private fun CameraHardwareScannerPanel() {
                 InfoLine("Camera ID công khai", scan.publicIdCount.toString())
                 InfoLine("Physical ID được công bố", scan.physicalIdCount.toString())
                 InfoLine("Tổng mục đã đọc", scan.entries.size.toString())
-                InfoLine("Vendor metadata keys", scan.vendorMetadataKeys.size.toString())
+                InfoLine("Khóa metadata nhà sản xuất", scan.vendorMetadataKeys.size.toString())
                 InfoLine("Nhóm camera chạy đồng thời", scan.concurrentCameraSetCount.toString())
                 InfoLine("ID không đọc được", scan.unreadableIds.size.toString())
             }

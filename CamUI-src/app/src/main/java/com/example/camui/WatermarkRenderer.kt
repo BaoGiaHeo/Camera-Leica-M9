@@ -171,7 +171,7 @@ internal object WatermarkRenderer {
         drawSourceAtNativeSize(canvas, source, geometry.photoRect)
         when (geometry.layout) {
             WatermarkLayoutType.BAR -> drawBar(context, canvas, geometry, settings, metadata, fonts, primary, secondary)
-            WatermarkLayoutType.CAPTION -> drawCaption(canvas, geometry, settings, metadata, fonts)
+            WatermarkLayoutType.CAPTION -> drawCaption(canvas, geometry, settings, metadata, fonts, primary, secondary)
             WatermarkLayoutType.CARD -> drawCard(context, canvas, geometry, settings, metadata, fonts)
             WatermarkLayoutType.GALLERY -> drawGallery(context, canvas, geometry, settings, metadata, fonts)
             WatermarkLayoutType.BLACK -> drawBlack(context, canvas, geometry, settings, metadata, fonts)
@@ -255,11 +255,51 @@ internal object WatermarkRenderer {
             textAlign = align
             textSize = (capHeightPx / capRatio.coerceIn(0.4f, 0.9f)).coerceAtLeast(1f)
         }
-        val minimum = paint.textSize * 0.85f
+        val minimum = paint.textSize * 0.70f
         while (paint.measureText(text) > maxWidth && paint.textSize > minimum + 0.25f) {
             paint.textSize = (paint.textSize * 0.97f).coerceAtLeast(minimum)
         }
         return paint.takeIf { it.measureText(text) <= maxWidth }
+    }
+
+    private fun fitTwoLineBadge(
+        text: String,
+        typeface: Typeface,
+        maxWidth: Float,
+        capHeightPx: Float,
+        capRatio: Float
+    ): List<String> {
+        val words = text.replace('\n', ' ').trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (words.isEmpty()) return emptyList()
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            this.typeface = typeface
+            textSize = (capHeightPx / capRatio.coerceIn(0.4f, 0.9f)).coerceAtLeast(1f)
+        }
+        val lines = mutableListOf<String>()
+        var truncated = false
+        for (word in words) {
+            if (lines.isEmpty()) {
+                lines.add(word)
+                continue
+            }
+            val candidate = lines.last() + " " + word
+            if (paint.measureText(candidate) <= maxWidth) {
+                lines[lines.lastIndex] = candidate
+            } else if (lines.size < 2) {
+                lines.add(word)
+            } else {
+                truncated = true
+                break
+            }
+        }
+        if (truncated && lines.isNotEmpty()) {
+            var last = lines.last().trimEnd()
+            while (last.isNotEmpty() && paint.measureText("$last…") > maxWidth) {
+                last = last.dropLast(1).trimEnd()
+            }
+            lines[lines.lastIndex] = if (last.isEmpty()) "…" else "$last…"
+        }
+        return lines.take(2)
     }
 
     private fun drawMeasuredText(
@@ -355,7 +395,7 @@ internal object WatermarkRenderer {
 
     private fun drawCaption(
         canvas: Canvas, geometry: WatermarkLayoutGeometry, settings: WatermarkLayoutSettings,
-        metadata: WatermarkPhotoMetadata, fonts: Fonts
+        metadata: WatermarkPhotoMetadata, fonts: Fonts, primary: Int, secondary: Int
     ) {
         val footerTop = geometry.photoRect.bottom
         val centerX = geometry.canvasWidth * 0.5f
@@ -364,11 +404,10 @@ internal object WatermarkRenderer {
         drawRichLine(
             canvas,
             listOf(
-                Fragment("Shot on ", fonts.regular, 0xFF6E6E6E.toInt(), fonts.regularCapRatio),
-                Fragment(
-                    metadata.cameraName + " FUJIFILM",
-                    fonts.semibold, 0xFF161616.toInt(), fonts.semiboldCapRatio
-                )
+                Fragment("Shot on ", fonts.regular, secondary, fonts.regularCapRatio),
+                Fragment(metadata.cameraName, fonts.semibold, primary, fonts.semiboldCapRatio),
+                Fragment(" | ", fonts.regular, secondary, fonts.regularCapRatio),
+                Fragment("FUJIFILM", fonts.semibold, primary, fonts.semiboldCapRatio)
             ),
             centerX, footerTop + s * 0.078f, geometry.canvasWidth * 0.90f, s * 0.025f * settings.sizeScale
         )
@@ -382,13 +421,13 @@ internal object WatermarkRenderer {
         drawMeasuredText(
             canvas, line2, centerX, footerTop + s * 0.125f,
             geometry.canvasWidth * 0.90f, s * 0.019f * settings.sizeScale,
-            fonts.regular, 0xFF8C8C8C.toInt(), fonts.regularCapRatio
+            fonts.regular, secondary, fonts.regularCapRatio
         )
         if (location.isNotBlank()) {
             drawMeasuredText(
                 canvas, location, centerX, footerTop + s * 0.172f,
                 geometry.canvasWidth * 0.90f, s * 0.019f * settings.sizeScale,
-                fonts.regular, 0xFFA0A0A0.toInt(), fonts.regularCapRatio
+                fonts.regular, secondary, fonts.regularCapRatio
             )
         }
     }
@@ -458,7 +497,7 @@ internal object WatermarkRenderer {
         val footer = geometry.footerRect ?: return
         val s = geometry.shortSide
         val filter = metadata.filterName.takeIf { settings.fields.filter && it.isNotBlank() && !it.equals("STD", true) }
-        val badge = geometry.badgeRect
+        val badge = geometry.badgeRect?.takeIf { filter != null }
         if (filter != null && badge != null) {
             val badgeColour = when (metadata.filterCategory.lowercase()) {
                 "classic", "vintage", "cổ điển" -> 0xFF2F8F7A.toInt()
@@ -470,7 +509,17 @@ internal object WatermarkRenderer {
                 s * 0.006f, s * 0.006f,
                 Paint(Paint.ANTI_ALIAS_FLAG).apply { color = badgeColour }
             )
-            val badgeLines = metadata.filterBadge.ifBlank { "CLASSIC\nNEG." }.split('\n').take(2)
+            val badgeLines = fitTwoLineBadge(
+                text = when {
+                    filter.contains("classic negative", true) || filter.contains("classic neg", true) -> "CLASSIC\nNEG."
+                    filter.contains("classic chrome", true) -> "CLASSIC\nCHROME"
+                    else -> filter.replace('_', ' ').replace('-', ' ').uppercase(java.util.Locale.ROOT)
+                },
+                typeface = fonts.semibold,
+                maxWidth = badge.width * 0.88f,
+                capHeightPx = s * 0.013f * settings.sizeScale,
+                capRatio = fonts.semiboldCapRatio
+            )
             badgeLines.forEachIndexed { index, line ->
                 drawMeasuredText(
                     canvas, line, badge.centerX,

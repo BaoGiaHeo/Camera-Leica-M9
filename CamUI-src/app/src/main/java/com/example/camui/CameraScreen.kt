@@ -1000,6 +1000,7 @@ fun CameraScreen(
     var multiFrameCapturedFrames by remember { mutableIntStateOf(0) }
     var multiFrameTargetFrames by remember { mutableIntStateOf(5) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
+    var lunaDreamRenderElapsedSeconds by remember { mutableIntStateOf(0) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
     var lunaDreamMode by remember {
@@ -1039,6 +1040,19 @@ fun CameraScreen(
             }
         } else {
             processingElapsedSeconds = 0
+        }
+    }
+    LaunchedEffect(multiFrameRenderStarted, isProcessing, previewFreezeEffect) {
+        if (isProcessing && multiFrameRenderStarted && previewFreezeEffect == "luna") {
+            val renderStartedAt = SystemClock.elapsedRealtime()
+            lunaDreamRenderElapsedSeconds = 0
+            while (isProcessing && multiFrameRenderStarted && previewFreezeEffect == "luna") {
+                lunaDreamRenderElapsedSeconds =
+                    ((SystemClock.elapsedRealtime() - renderStartedAt) / 1_000L).toInt().coerceAtLeast(0)
+                delay(1_000L)
+            }
+        } else if (!isProcessing || previewFreezeEffect != "luna") {
+            lunaDreamRenderElapsedSeconds = 0
         }
     }
     LaunchedEffect(lunaDreamMode, dispReducedMotion) {
@@ -5806,6 +5820,17 @@ fun CameraScreen(
                                     }
                                 )
                             }
+                            if (isProcessing && previewFreezeEffect != "off") {
+                                frozenPreviewBitmap?.let { frozen ->
+                                    Image(
+                                        bitmap = frozen,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize().blur(7.dp)
+                                            .graphicsLayer { alpha = 0.94f },
+                                        contentScale = ContentScale.FillBounds
+                                    )
+                                }
+                            }
                             frozenPreviewBitmap?.let { frozen ->
                                 if (frozenPreviewAlpha > 0.001f) {
                                     Image(
@@ -6232,6 +6257,19 @@ fun CameraScreen(
                                         .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
                                 )
                             }
+                            if (nightShotMode == "night") {
+                                Text(
+                                    text = if (timerSec > 0) "DRIVE · ${timerSec}s" else "DRIVE · TẮT",
+                                    color = if (timerSec > 0) FujiSkin.orange else Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.align(Alignment.TopEnd)
+                                        .padding(8.dp)
+                                        .background(Color(0xCC101416), RoundedCornerShape(3.dp))
+                                        .border(1.dp, Color(0xFF596367), RoundedCornerShape(3.dp))
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                )
+                            }
                             val idleLunaEffect = lunaDreamMode != "off" && !isProcessing
                             if ((previewFreezeVisible && previewFreezeEffect != "off") || idleLunaEffect) {
                                 val effectMode = if (previewFreezeVisible) previewFreezeEffect else "luna"
@@ -6312,7 +6350,7 @@ fun CameraScreen(
                                         queueCount = if (nightMode && labelLower.contains("hàng đợi 2")) 2 else 0,
                                         holdSteady = isCapturingMultiFrame,
                                         stabilityBars = stability,
-                                        elapsedSeconds = processingElapsedSeconds,
+                                        elapsedSeconds = if (nightMode) processingElapsedSeconds else lunaDreamRenderElapsedSeconds,
                                         batteryTemperatureC = measuredBatteryTempC,
                                         thermalStatus = thermalStatusCode,
                                         errorCode = if (hasError) stringResource(R.string.mf_error_short) else null,

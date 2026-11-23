@@ -766,7 +766,7 @@ fun CameraScreen(
         appPrefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    // Live Photo và nhánh xử lý ảnh gốc thiết bị đã bị loại khỏi 2.6.1.
+    // Hai nhánh Live Photo và xử lý ảnh gốc thiết bị đã được gỡ khỏi 2.6.1.
     // Xóa cờ cũ một lần để các bản nâng cấp không giữ trạng thái ẩn.
     val nativeImageProcessingEnabled = false
     LaunchedEffect(Unit) {
@@ -1813,7 +1813,6 @@ fun CameraScreen(
         // Disable shutter immediately while the old UseCaseGroup is being replaced.
         camera = null
         imageCapture = null
-        videoCaptureUseCase = null
         activeCameraDetails = null
         activePhysicalCameraDetails = emptyList()
         nightExtensionActive = false
@@ -2949,7 +2948,7 @@ fun CameraScreen(
             // When UHD sharpening is requested, prefer OEM HDR JPEG (or software HDR)
             // so the post-capture 2x sharpening can still run. Explicit Ultra HDR remains
             // higher priority because its gain map must be preserved without recompression.
-            val preferJpegR = !rawCaptureActive && !livePhotoEnabled &&
+            val preferJpegR = !rawCaptureActive &&
                 ultraHdr &&
                 Build.VERSION.SDK_INT >= 34
             preserveUltraHdrOutput = false

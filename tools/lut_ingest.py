@@ -107,6 +107,8 @@ def license_decision(meta: dict) -> tuple[str, bool, str]:
 def parse_cube(path: Path) -> tuple[int, list[tuple[float, float, float]]]:
     size = None
     lut_1d = None
+    domain_min = (0.0, 0.0, 0.0)
+    domain_max = (1.0, 1.0, 1.0)
     rows: list[tuple[float, float, float]] = []
     for raw in path.read_text(encoding="utf-8-sig", errors="strict").splitlines():
         line = raw.split("#", 1)[0].strip()
@@ -119,6 +121,16 @@ def parse_cube(path: Path) -> tuple[int, list[tuple[float, float, float]]]:
         if key == "DOMAIN_MIN" or key == "DOMAIN_MAX":
             if len(fields) != 4:
                 fail(f"{key} must contain three values")
+            try:
+                values = tuple(float(v) for v in fields[1:])
+            except ValueError:
+                fail(f"Invalid {key} values")
+            if not all(math.isfinite(v) for v in values):
+                fail(f"{key} contains NaN or infinite values")
+            if key == "DOMAIN_MIN":
+                domain_min = values
+            else:
+                domain_max = values
             continue
         if key == "LUT_1D_SIZE":
             lut_1d = int(fields[1])
@@ -136,6 +148,8 @@ def parse_cube(path: Path) -> tuple[int, list[tuple[float, float, float]]]:
             fail(f"Invalid .cube numeric row: {raw[:100]}")
     if lut_1d:
         fail("Combined LUT_1D_SIZE + LUT_3D_SIZE cubes are not yet supported; export a baked 3D cube")
+    if any(abs(v) > 1e-9 for v in domain_min) or any(abs(v - 1.0) > 1e-9 for v in domain_max):
+        fail("Non-default DOMAIN_MIN/MAX is not supported; bake the input domain into a standard 0..1 cube")
     if size is None or not 2 <= size <= 129:
         fail("Missing or unsupported LUT_3D_SIZE (expected 2..129)")
     if len(rows) != size ** 3:

@@ -21,6 +21,7 @@ import math
 import re
 import struct
 import sys
+import tempfile
 import zlib
 from pathlib import Path
 from typing import Iterable
@@ -409,7 +410,54 @@ def self_test() -> None:
     assert output[-1] == (1.0, 1.0, 1.0)
     middle = output[2 + 2*5 + 2*25]
     assert all(abs(v - 0.5) < 1e-9 for v in middle)
-    print("SELF_TEST_OK: identity LUT ordering, trilinear interpolation and endpoints")
+
+    # Exercise the three parsers with generated identity fixtures.
+    with tempfile.TemporaryDirectory(prefix="fuji-lut-test-") as directory:
+        root = Path(directory)
+        cube = root / "identity.cube"
+        cube_rows = [
+            f"{r/(2-1):.6f} {g/(2-1):.6f} {b/(2-1):.6f}"
+            for b in range(2) for g in range(2) for r in range(2)
+        ]
+        cube.write_text("LUT_3D_SIZE 2\\n" + "\\n".join(cube_rows) + "\\n", encoding="utf-8")
+        cube_size, cube_table = parse_cube(cube)
+        assert cube_size == 2 and len(cube_table) == 8
+        assert cube_table[1] == (1.0, 0.0, 0.0)
+
+        vlt = root / "identity.vlt"
+        vlt_rows = [
+            f"{int(r*4095)} {int(g*4095)} {int(b*4095)}"
+            for b in range(2) for g in range(2) for r in range(2)
+        ]
+        vlt.write_text(
+            "# panasonic vlt file version 1.0\\n# source vlt file \\"\\"\\n"
+            "LUT_3D_SIZE 2\\n" + "\\n".join(vlt_rows) + "\\n",
+            encoding="ascii",
+        )
+        vlt_size, vlt_table = parse_vlt(vlt)
+        assert vlt_size == 2 and len(vlt_table) == 8
+        assert all(abs(v - 1.0) < 1e-9 for v in vlt_table[-1])
+
+        # L=2 gives an 8x8 Hald image and N=L^2=4 samples per channel.
+        hald_pixels = bytearray(8 * 8 * 3)
+        for blue in range(4):
+            for green in range(4):
+                for red in range(4):
+                    index = red + green * 4 + blue * 16
+                    offset = index * 3
+                    hald_pixels[offset:offset+3] = bytes((
+                        round(red * 255 / 3),
+                        round(green * 255 / 3),
+                        round(blue * 255 / 3),
+                    ))
+        hald = root / "identity-hald.png"
+        write_png_rgb(hald, 8, 8, bytes(hald_pixels))
+        converted, hald_size, kind = parse_source(hald, 3)
+        assert kind == "hald-png" and hald_size == 4 and len(converted) == 27
+        assert converted[0] == (0.0, 0.0, 0.0)
+        assert all(abs(v - 1.0) < 1e-6 for v in converted[-1])
+
+    print("SELF_TEST_OK: CUBE, VLT, Hald PNG, R-fastest ordering and trilinear resampling")
 
 
 def ingest(input_root: Path, output_root: Path, target_size: int) -> dict:

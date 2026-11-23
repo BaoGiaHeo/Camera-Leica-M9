@@ -15,6 +15,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 data class PhotoOutputResult(
     val width: Int,

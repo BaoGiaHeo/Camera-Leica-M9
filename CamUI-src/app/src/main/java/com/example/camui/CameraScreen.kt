@@ -772,18 +772,14 @@ fun CameraScreen(
         appPrefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    var livePhotoEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("live_photo_enabled", false))
-    }
-    var nativeImageProcessingEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("native_image_processing_enabled", false) && !livePhotoEnabled)
-    }
-    LaunchedEffect(livePhotoEnabled) {
-        appPrefs.edit().putBoolean("live_photo_enabled", livePhotoEnabled).apply()
-    }
-    LaunchedEffect(nativeImageProcessingEnabled) {
+    // Live Photo và nhánh xử lý ảnh gốc thiết bị đã bị loại khỏi 2.6.1.
+    // Xóa cờ cũ một lần để các bản nâng cấp không giữ trạng thái ẩn.
+    val livePhotoEnabled = false
+    val nativeImageProcessingEnabled = false
+    LaunchedEffect(Unit) {
         appPrefs.edit()
-            .putBoolean("native_image_processing_enabled", nativeImageProcessingEnabled)
+            .remove("live_photo_enabled")
+            .remove("native_image_processing_enabled")
             .apply()
     }
     var lensCorrectionEnabled by remember {
@@ -978,6 +974,7 @@ fun CameraScreen(
     var manualColorTemp by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_wb_kelvin", 5200).coerceIn(2000, 10000)) }
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
+    var filmCustomizerVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
     var filterPreviewSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val fallbackFilterPreviewBitmap = remember(context) { createFilmLookPreviewSample(context) }
@@ -991,7 +988,7 @@ fun CameraScreen(
     var previewEffectBloom by remember { mutableStateOf(false) }
     val previewFreezeBlockInteraction = remember { MutableInteractionSource() }
     var isProcessing by remember { mutableStateOf(false) }
-    var livePhotoCaptureInProgress by remember { mutableStateOf(false) }
+    val livePhotoCaptureInProgress = false
     var processingProgress by remember { mutableIntStateOf(0) }
     var noiseReductionProgress by remember { mutableIntStateOf(0) }
     var processingLabel by remember { mutableStateOf("") }
@@ -1456,10 +1453,6 @@ fun CameraScreen(
         // continuous camera command loop until the shared hold threshold elapses.
         delay(FUJI_KEY_HOLD_THRESHOLD_MS)
         if (zoomHoldDirection != direction) return@LaunchedEffect
-        if (appPrefs.getBoolean("dial_click_enabled", true)) {
-            CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
-            CameraSoundEngine.startZoomMotor(context, direction)
-        }
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = zoomSel
         var previousFrame = 0L
@@ -1474,7 +1467,6 @@ fun CameraScreen(
                 ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, 0.05f)
             previousFrame = frame
             if (dt <= 0f) continue
-            CameraSoundEngine.updateZoomMotorSpeed((dt * 20f).coerceIn(0.15f, 1f))
             zoomFrameIndex++
             val state = active.cameraInfo.zoomState.value ?: continue
             val minimum = state.minZoomRatio
@@ -1495,9 +1487,6 @@ fun CameraScreen(
             )
             if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
                 val crossedZoomMilestones = zoomHapticMilestonesCrossed(targetZoom, next)
-                if (appPrefs.getBoolean("dial_click_enabled", true) && crossedZoomMilestones.isNotEmpty()) {
-                    CameraSoundEngine.play(context, CameraSoundEngine.Sound.ZOOM_TICK)
-                }
                 if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
                     crossedZoomMilestones.forEach { milestone ->
                         localView.performHapticFeedback(
@@ -5349,11 +5338,15 @@ fun CameraScreen(
                     flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 })
                 FujiTopKey(label = "DRIVE", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
-                    timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
+                    timerSec = if (nightShotMode == "night") {
+                        when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 }
+                    } else {
+                        when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
+                    }
                 }, onLongClick = {
                     if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
                 })
-                FujiTopKey(label = "FILM", icon = "film", selected = filterDialogVisible || activeFilter != "None", onClick = { filterDialogVisible = true })
+                FujiTopKey(label = "FILM", icon = "sliders", selected = filmCustomizerVisible, onClick = { filmCustomizerVisible = true })
                 FujiTopKey(label = "ADJ", icon = "sliders", selected = false, onClick = onOpenToolbox)
                 FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
                 FujiTopKey(label = "AF", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
@@ -6921,15 +6914,7 @@ fun CameraScreen(
                 "LUNA",
                 lunaDreamMode != "off" || nightShotMode == "night",
                 {
-                    when {
-                        livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
-                        nativeImageProcessingEnabled -> localizedToast(
-                            context,
-                            "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        else -> showLunaDream = true
-                    }
+                    showLunaDream = true
                 },
                 Modifier.fillMaxWidth()
             )
@@ -6976,7 +6961,6 @@ fun CameraScreen(
                         },
                         onPressEnd = {
                             zoomHoldDirection = 0
-                            CameraSoundEngine.stopZoomMotor()
                             CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END key=W direction=${if (wZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
@@ -6995,7 +6979,6 @@ fun CameraScreen(
                         },
                         onPressEnd = {
                             zoomHoldDirection = 0
-                            CameraSoundEngine.stopZoomMotor()
                             CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END key=T direction=${if (tZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
@@ -7252,36 +7235,6 @@ fun CameraScreen(
                 onMetering = { metering = (metering + 1) % meteringModes.size },
                 renderEngine = renderEngine,
                 onRenderEngine = { renderEngine = if (renderEngine == "Performance") "Compatible" else "Performance" },
-                livePhotoEnabled = livePhotoEnabled,
-                onLivePhotoChanged = { enabled ->
-                    livePhotoEnabled = enabled
-                    if (enabled) {
-                        nativeImageProcessingEnabled = false
-                        appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
-                        showLunaDream = false
-                        burstMode = false
-                        hdrBracketMode = false
-                        focusBracketMode = false
-                        if (nightShotMode != "off") {
-                            nightShotMode = "off"
-                            appPrefs.edit().putString("nightshot_mode", "off").apply()
-                        }
-                    }
-                },
-                nativeImageProcessingEnabled = nativeImageProcessingEnabled,
-                onNativeImageProcessingChanged = { enabled ->
-                    nativeImageProcessingEnabled = enabled
-                    if (enabled) {
-                        livePhotoEnabled = false
-                        appPrefs.edit().putBoolean("live_photo_enabled", false).apply()
-                        showLunaDream = false
-                        // NightShot and Star Trails use the app's own multi-frame pipeline, not the OEM still-photo path.
-                        if (nightShotMode != "off") {
-                            nightShotMode = "off"
-                            appPrefs.edit().putString("nightshot_mode", "off").apply()
-                        }
-                    }
-                },
                 faceTrackingMode = faceTrackingMode,
                 onFaceTrackingModeChanged = { nextMode ->
                     if (nextMode in setOf("off", "face", "face_eye")) {
@@ -7363,7 +7316,7 @@ fun CameraScreen(
             )
         }
 
-        if (showLunaDream && !nativeImageProcessingEnabled && !livePhotoEnabled) {
+        if (showLunaDream) {
             LunaDreamBottomSheet(
                 onDismiss = { showLunaDream = false },
                 nightShotEnabled = nightShotMode == "night",

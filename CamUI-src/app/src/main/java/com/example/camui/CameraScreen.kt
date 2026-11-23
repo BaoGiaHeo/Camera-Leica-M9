@@ -7809,6 +7809,12 @@ private fun FilterRollToneDialog(
                             )
                         }
                     }
+                    Text(
+                        "Tối",
+                        color = Color.White,
+                        fontSize = 8.sp,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Nhạt", color = Color.White, fontSize = 8.sp)
                         Text("Đậm", color = Color.White, fontSize = 8.sp)

@@ -4816,20 +4816,35 @@ fun CameraScreen(
                                             localizedUiText(context, "LunaDream 2.0 không hoàn tất; đã dùng thuật toán dự phòng 1.5. Lý do:") +
                                                 " " + (lunaDreamFailureReason ?: "unknown") + " · ${actualOutputMp}MP"
                                         captureUseLunaDream15 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 1.5 · 50MP."
-                                            else "Đã lưu LunaDream 1.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                            if (outputResolutionResult!!.isAspectCropped) {
+                                                "Đã lưu LunaDream 1.5 · crop từ 4:3 · " + actualOutputMp + "MP (mật độ 50MP)."
+                                            } else if (outputResolutionResult!!.reachedRequestedSize) {
+                                                "Đã lưu LunaDream 1.5 · 50MP."
+                                            } else "Đã lưu LunaDream 1.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseRawDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 108MP."
-                                            else "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                            if (outputResolutionResult!!.isAspectCropped) {
+                                                "Đã lưu RawDream 2.0 · DNG gốc + JPEG crop 4:3 · " + actualOutputMp + "MP (mật độ 108MP)."
+                                            } else if (outputResolutionResult!!.reachedRequestedSize) {
+                                                "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 108MP."
+                                            } else "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
-                                            else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                            if (outputResolutionResult!!.isAspectCropped) {
+                                                "Đã lưu LunaDream 2.0 · crop từ 4:3 · " + actualOutputMp + "MP (mật độ 108MP)."
+                                            } else if (outputResolutionResult!!.reachedRequestedSize) {
+                                                "Đã lưu LunaDream 2.0 · 108MP."
+                                            } else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream25 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.5 · 150MP."
-                                            else "Đã lưu LunaDream 2.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                            if (outputResolutionResult!!.isAspectCropped) {
+                                                "Đã lưu LunaDream 2.5 · crop từ 4:3 · " + actualOutputMp + "MP (mật độ 150MP)."
+                                            } else if (outputResolutionResult!!.reachedRequestedSize) {
+                                                "Đã lưu LunaDream 2.5 · 150MP."
+                                            } else "Đã lưu LunaDream 2.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream30 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 200MP."
-                                            else "Đã lưu LunaDream 3.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                            if (outputResolutionResult!!.isAspectCropped) {
+                                                "Đã lưu LunaDream 3.0 · crop từ 4:3 · " + actualOutputMp + "MP (mật độ 200MP)."
+                                            } else if (outputResolutionResult!!.reachedRequestedSize) {
+                                                "Đã lưu LunaDream 3.0 · 200MP."
+                                            } else "Đã lưu LunaDream 3.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream && !lunaDreamApplied ->
                                             "LunaDream không hoàn tất: " + (lunaDreamFailureReason ?: "engine không cung cấp nguyên nhân") + ". Đã lưu JPEG gốc làm ảnh dự phòng."
                                         captureUseRawDream20 && lunaDreamApplied && !outputResolutionApplied ->

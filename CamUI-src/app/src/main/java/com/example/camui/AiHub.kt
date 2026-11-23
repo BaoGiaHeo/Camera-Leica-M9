@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,7 +76,7 @@ fun LunaDreamBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "Choose a mode before capture. LunaDream keeps that selection throughout processing.",
+                    stringResource(R.string.lunadream_choose_mode),
                     color = FujiSkin.muted,
                     fontSize = 10.sp,
                     lineHeight = 15.sp

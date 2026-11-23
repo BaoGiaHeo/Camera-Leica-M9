@@ -23,10 +23,13 @@ data class PhotoOutputResult(
     val width: Int,
     val height: Int,
     val requestedPixels: Long,
-    val actualPixels: Long
+    val actualPixels: Long,
+    val isAspectCropped: Boolean = false
 ) {
-    // Integer dimensions on non-integer aspect ratios may fall a fraction below the target.
-    val reachedRequestedSize: Boolean get() = actualPixels >= requestedPixels * 995L / 1000L
+    // An intentional crop reduces the stored pixel count but retains the requested 4:3
+    // sampling density. Non-cropped output must reach at least 99.5% of the target.
+    val reachedRequestedSize: Boolean get() =
+        isAspectCropped || actualPixels >= requestedPixels * 995L / 1000L
 }
 
 /**
@@ -84,7 +87,8 @@ object PhotoOutputResolution {
         context: Context,
         uri: Uri,
         targetPixels: Long,
-        targetHeightOverWidth: Float? = null
+        targetHeightOverWidth: Float? = null,
+        useFourThreeBase: Boolean = false
     ): PhotoOutputResult? {
         require(targetPixels in MIN_OUTPUT_PIXELS..250_000_000L) {
             "Unsupported output pixel target"
@@ -107,19 +111,63 @@ object PhotoOutputResolution {
 
             // Geometry is independently unit-tested. Portrait uses a center crop from
             // the original Bitmap; null target ratio preserves the complete landscape frame.
+            val baseHeightOverWidth = if (useFourThreeBase) {
+                if (sourceHeight >= sourceWidth) 4f / 3f else 3f / 4f
+            } else {
+                targetHeightOverWidth
+            }
             val geometry = PhotoOutputGeometry.calculate(
                 sourceWidth,
                 sourceHeight,
                 targetPixels,
-                targetHeightOverWidth
+                baseHeightOverWidth
             )
-            val sourceRect = Rect(
+            var sourceRect = Rect(
                 geometry.sourceLeft,
                 geometry.sourceTop,
                 geometry.sourceLeft + geometry.sourceWidth,
                 geometry.sourceTop + geometry.sourceHeight
             )
-            val destinationRect = Rect(0, 0, geometry.outputWidth, geometry.outputHeight)
+            var width = geometry.outputWidth
+            var height = geometry.outputHeight
+            var isAspectCropped = false
+
+            if (useFourThreeBase && targetHeightOverWidth != null &&
+                targetHeightOverWidth.isFinite() && targetHeightOverWidth > 0f
+            ) {
+                val requestedWidthOverHeight = 1.0 / targetHeightOverWidth.toDouble()
+                val baseSourceAspect = geometry.sourceWidth.toDouble() / geometry.sourceHeight.toDouble()
+                if (kotlin.math.abs(baseSourceAspect - requestedWidthOverHeight) > 0.001) {
+                    val cropWidth: Int
+                    val cropHeight: Int
+                    val cropLeft: Int
+                    val cropTop: Int
+                    if (baseSourceAspect > requestedWidthOverHeight) {
+                        cropHeight = geometry.sourceHeight
+                        cropWidth = (cropHeight * requestedWidthOverHeight)
+                            .roundToInt().coerceIn(2, geometry.sourceWidth)
+                        cropLeft = (geometry.sourceWidth - cropWidth) / 2
+                        cropTop = 0
+                    } else {
+                        cropWidth = geometry.sourceWidth
+                        cropHeight = (cropWidth / requestedWidthOverHeight)
+                            .roundToInt().coerceIn(2, geometry.sourceHeight)
+                        cropLeft = 0
+                        cropTop = (geometry.sourceHeight - cropHeight) / 2
+                    }
+                    sourceRect = Rect(
+                        geometry.sourceLeft + cropLeft,
+                        geometry.sourceTop + cropTop,
+                        geometry.sourceLeft + cropLeft + cropWidth,
+                        geometry.sourceTop + cropTop + cropHeight
+                    )
+                    val scaleX = geometry.outputWidth.toDouble() / geometry.sourceWidth.toDouble()
+                    val scaleY = geometry.outputHeight.toDouble() / geometry.sourceHeight.toDouble()
+                    width = (cropWidth * scaleX).roundToInt().coerceAtLeast(2)
+                    height = (cropHeight * scaleY).roundToInt().coerceAtLeast(2)
+                    isAspectCropped = true
+                }
+            }
 
             // Never silently lower the requested MP count. The caller either receives the
             // requested output size or an explicit failure with the original photo untouched.
@@ -129,11 +177,10 @@ object PhotoOutputResolution {
             val freeHeapHeadroom = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
             val usableHeap = (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L)
 
-            val width = geometry.outputWidth
-            val height = geometry.outputHeight
-            val outputPixels = geometry.outputPixels
+            val baseOutputPixels = geometry.outputPixels
+            val outputPixels = width.toLong() * height.toLong()
             val outputBytes = outputPixels * 2L // RGB_565.
-            require(outputPixels >= targetPixels * 995L / 1000L) {
+            require(baseOutputPixels >= targetPixels * 995L / 1000L) {
                 "Requested MP geometry was not reached; original photo retained"
             }
             require(outputBytes <= usableHeap) {
@@ -145,7 +192,7 @@ object PhotoOutputResolution {
                 sourceRect.width() == sourceWidth && sourceRect.height() == sourceHeight
             ) {
                 verifyStoredOutput(context, uri, width, height)
-                return PhotoOutputResult(width, height, targetPixels, outputPixels)
+                return PhotoOutputResult(width, height, targetPixels, outputPixels, isAspectCropped)
             }
 
             output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
@@ -222,11 +269,16 @@ object PhotoOutputResolution {
                     "requestedWidthOverHeight=${"%.5f".format(Locale.US, geometry.requestedWidthOverHeight)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )
-            check(outputPixels >= targetPixels * 995L / 1000L) {
-                "Output verification fell below the requested megapixel target"
+            check(baseOutputPixels >= targetPixels * 995L / 1000L) {
+                "Base 4:3 output geometry fell below the requested megapixel target"
             }
-            Log.i(TAG, "Exact requested output accepted: requested=${targetPixels} actual=${outputPixels}")
-            PhotoOutputResult(width, height, targetPixels, outputPixels)
+            Log.i(
+                TAG,
+                "LunaDream output accepted: requestedBasePixels=" + targetPixels +
+                    " actualFilePixels=" + outputPixels +
+                    " aspectCropped=" + isAspectCropped
+            )
+            PhotoOutputResult(width, height, targetPixels, outputPixels, isAspectCropped)
         } catch (failure: Throwable) {
             if (replacing && backup.exists()) {
                 runCatching {

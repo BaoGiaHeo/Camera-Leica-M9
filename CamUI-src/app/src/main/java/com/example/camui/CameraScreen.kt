@@ -4609,7 +4609,8 @@ fun CameraScreen(
                                                     context,
                                                     saved,
                                                     requestedMp,
-                                                    outputHeightOverWidth
+                                                    outputHeightOverWidth,
+                                                    useFourThreeBase = captureUseLunaDream
                                                 )
                                             } else {
                                                 PhotoOutputResolution.applyAspectRatio(

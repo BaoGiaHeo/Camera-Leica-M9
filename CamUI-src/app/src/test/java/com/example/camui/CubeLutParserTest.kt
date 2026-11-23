@@ -80,6 +80,18 @@ class CubeLutParserTest {
     }
 
     @Test
+    fun classifiesImportedLutGroupsAndLogInputs() {
+        assertEquals("Fujifilm", catalogLutCategory("bundleable/Fujifilm/lut_abc.cube"))
+        assertEquals("Leica", catalogLutCategory("bundleable/Leica/Classic.cube"))
+        assertEquals("Panasonic Lumix", catalogLutCategory("bundleable/Panasonic Lumix/Standard.cube"))
+        assertEquals("Sony", catalogLutCategory("bundleable/Sony/CreativeLook_NT.cube"))
+        assertEquals("Hald CLUT", catalogLutCategory("local-only/Hald CLUT/MyLook.cube"))
+        assertEquals("Cinema / Log", catalogLutCategory("bundleable/Panasonic Lumix/V-Log/Look.cube"))
+        assertEquals("Cinema / Log", catalogLutCategory("bundleable/Sony/CineAlta/S-Log3.cube"))
+        assertEquals("Khác", catalogLutCategory("local-only/Other/Custom.cube"))
+    }
+
+    @Test
     fun acceptsOneDimensionalCubeWithoutThreeDimensionalHeader() {
         val text = """
             TITLE "One dimensional identity"

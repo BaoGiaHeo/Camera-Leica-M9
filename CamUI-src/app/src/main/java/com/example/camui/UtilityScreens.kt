@@ -2053,26 +2053,42 @@ private fun readBoundedLutBytes(input: InputStream, maxBytes: Int): ByteArray {
     return output.toByteArray()
 }
 
-private fun catalogLutCategory(path: String): String {
-    val parts = path.replace('\\', '/').split('/').filter { it.isNotBlank() }
+internal fun catalogLutCategory(path: String): String {
+    val normalized = path.replace('\\', '/')
+    val parts = normalized.split('/').filter { it.isNotBlank() }
     val folder = parts.firstOrNull {
         it.matches(Regex("\\d{2}_[A-Za-z0-9_-]+"))
     }?.substringAfter('_')?.replace('_', ' ')
     if (folder != null) return "Canon · $folder"
-    if (path.contains("Panasonic-Standard", true)) return "RAW/Log · Panasonic adapter"
-    val brand = parts.firstOrNull {
-        it.equals("Fujifilm", true) || it.equals("Kodak", true) ||
-            it.equals("Leica", true) || it.equals("Hasselblad", true) ||
-            it.equals("Nikon", true) || it.equals("Arri", true) ||
-            it.equals("RED", true) || it.equals("Cineon", true)
+
+    val lower = normalized.lowercase(Locale.ROOT)
+    val logInput = listOf(
+        "v-log", "vlog", "s-log", "slog", "n-log", "nlog",
+        "f-log", "flog", "logc", "cineon", "c-log", "clog",
+        "bmd film", "blackmagic film", "cinealta", "venice"
+    ).any { lower.contains(it) }
+    if (logInput || lower.contains("cinema / log") || lower.contains("cinema_log")) {
+        return "Cinema / Log"
     }
-    if (brand != null) {
-        val logInput = path.contains("V-Log", true) || path.contains("VLog", true) ||
-            path.contains("N-Log", true) || path.contains("FLog", true) ||
-            path.contains("LogC", true) || path.contains("Cineon", true)
-        return if (logInput) "RAW/Log · $brand" else brand
+
+    fun hasFolder(vararg names: String): Boolean =
+        parts.any { part -> names.any { it.equals(part.trim(), ignoreCase = true) } }
+
+    return when {
+        hasFolder("Fujifilm", "FujiFilm") -> "Fujifilm"
+        hasFolder("Leica") -> "Leica"
+        hasFolder("Panasonic", "Panasonic Lumix", "Lumix") -> "Panasonic Lumix"
+        hasFolder("Sony") -> "Sony"
+        hasFolder("Hald CLUT", "HaldCLUT", "Hald_CLUT") || lower.contains("hald-clut") -> "Hald CLUT"
+        hasFolder("Kodak") -> "Kodak"
+        hasFolder("Hasselblad") -> "Hasselblad"
+        hasFolder("Nikon") -> "Nikon"
+        hasFolder("Arri", "ARRI") -> "Cinema / Log"
+        hasFolder("RED") -> "Cinema / Log"
+        hasFolder("Other", "Khác") -> "Khác"
+        lower.contains("panasonic-standard") -> "Panasonic Lumix"
+        else -> "LUT nhập"
     }
-    return "LUT nhập"
 }
 
 private fun scanLutZip(

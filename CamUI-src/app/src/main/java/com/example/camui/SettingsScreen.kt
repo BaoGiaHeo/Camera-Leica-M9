@@ -62,7 +62,7 @@ private val settingItems = listOf(
     SettingItem("tab_01", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram"),
     SettingItem("tab_02", "Focus & Lens", "Camera ID · Lens · Sensor information"),
     SettingItem("tab_03", "Capture & Quality", "Aspect ratio · Image quality · Save location"),
-    SettingItem("tab_04", "Photo Mode Setting", "HDR · Noise reduction · RAW"),
+    SettingItem("tab_04", "Photo Mode Setting", "HDR · RAW"),
     SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails"),
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout"),
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback"),

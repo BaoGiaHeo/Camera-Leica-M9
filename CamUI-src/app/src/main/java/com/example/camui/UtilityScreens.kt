@@ -3397,6 +3397,7 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
     val photoPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val lunaDreamStatus = photoPrefs.getString("photo_lunadream_status:$uri", "Không có dữ liệu phiên LunaDream") ?: "Không có dữ liệu phiên LunaDream"
     val lunaDreamSourceSurvey = photoPrefs.getString("photo_lunadream_source_survey:$uri", "Không có khảo sát LunaDream") ?: "Không có khảo sát LunaDream"
+    val lunaDreamXmpStatus = photoPrefs.getString("photo_lunadream_xmp:$uri", "Không có trạng thái XMP") ?: "Không có trạng thái XMP"
     val logicalCameraId = photoPrefs.getString("photo_camera_id:$uri", "Không công bố") ?: "Không công bố"
     val physicalCameraId = photoPrefs.getString("photo_physical_camera_id:$uri", "HAL không công bố") ?: "HAL không công bố"
     val processedOutputSize = photoPrefs.getString("photo_output_size:$uri", "Không ghi nhận") ?: "Không ghi nhận"
@@ -3455,7 +3456,8 @@ private fun readPhotoInspectorInfo(context: Context, uri: Uri): List<Pair<String
         "Gợi ý chất lượng" to (qualityReport?.recommendation ?: "Không phân tích được"),
         "Kích thước sau xử lý" to processedOutputSize,
         "Trạng thái LunaDream" to lunaDreamStatus,
-        "Chiến lược nguồn điểm ảnh LunaDream" to lunaDreamSourceSurvey
+        "Chiến lược nguồn điểm ảnh LunaDream" to lunaDreamSourceSurvey,
+        "XMP LunaDream" to lunaDreamXmpStatus
     )
 }
 

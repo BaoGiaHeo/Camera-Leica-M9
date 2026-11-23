@@ -2030,7 +2030,7 @@ private const val CUSTOM_CAMERA_LUT_PREFIX = "camera_lut:"
 private const val CUSTOM_CAMERA_LUT_IDS = "camera_lut_ids"
 private const val ACTIVE_CAMERA_LUT_IDS = "active_camera_lut_ids"
 private const val MAX_LUT_INPUT_BYTES = 256L * 1024L * 1024L
-private const val MAX_LUT_ENTRY_BYTES = 8 * 1024 * 1024
+private const val MAX_LUT_ENTRY_BYTES = 64 * 1024 * 1024
 private const val MAX_LUT_ARCHIVE_ENTRIES = 1500
 private const val MAX_LUT_EXPANDED_BYTES = 320L * 1024L * 1024L
 private const val MAX_LUTS_PER_IMPORT = 700
@@ -2128,6 +2128,24 @@ private fun scanLutZip(
                             "Tệp .bin không phải LUT RGB 33x33x33 được hỗ trợ."
                         }
                         found.add(LutImportEntry(innerName, category, bytes, true))
+                    }
+                    "vlt" -> {
+                        val cube = parsePanasonicVlt(bytes)
+                        found.add(LutImportEntry(innerName, category, encodeImportedCubeLut(cube, innerName), false))
+                    }
+                    "png" -> {
+                        // ZIP packages often include cover/preview PNGs beside LUTs.
+                        // Only add PNGs that pass the Hald cube geometry and decoder checks.
+                        runCatching { parseHaldPng(bytes) }.getOrNull()?.let { cube ->
+                            found.add(
+                                LutImportEntry(
+                                    innerName,
+                                    "Hald CLUT",
+                                    encodeImportedCubeLut(cube, innerName),
+                                    false
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -2241,8 +2259,30 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
                 )
             )
         }
+        "vlt" -> {
+            val title = displayName.substringBeforeLast('.')
+            listOf(
+                LutImportEntry(
+                    title,
+                    "Panasonic Lumix · V-Log",
+                    encodeImportedCubeLut(parsePanasonicVlt(inputBytes), title),
+                    false
+                )
+            )
+        }
+        "png" -> {
+            val title = displayName.substringBeforeLast('.')
+            listOf(
+                LutImportEntry(
+                    title,
+                    "Hald CLUT",
+                    encodeImportedCubeLut(parseHaldPng(inputBytes), title),
+                    false
+                )
+            )
+        }
         "zip" -> scanLutZip(inputBytes, 0, LutImportBudget())
-        else -> error("Hỗ trợ .cube, LUT .bin RGB 33x33x33 và ZIP chứa các định dạng này.")
+        else -> error("Hỗ trợ .cube, Panasonic .vlt v1.0 17-grid, Hald PNG RGB/RGBA 8/16-bit, Canon .bin và ZIP.")
     }
     require(entries.isNotEmpty()) {
         "Không tìm thấy LUT .cube hoặc .bin hợp lệ bên trong ZIP."
@@ -3168,7 +3208,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
         ) {
             Text("LUT MANAGER", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Text(
-                "Nhập LUT .cube, LUT Canon RGB 33x33x33 (.bin), hoặc ZIP chứa tối đa 700 LUT .cube/.bin. Hỗ trợ ZIP lồng. LUT Log được giữ riêng, không áp nhầm lên JPEG sRGB.",
+                "Nhập .cube, Panasonic .vlt 17-grid, Hald PNG RGB/RGBA 8/16-bit, Canon RGB .bin hoặc ZIP lồng chứa các định dạng này. LUT Log vẫn được phân nhóm riêng.",
                 color = FujiSkin.muted,
                 fontSize = 10.sp
             )
@@ -3185,7 +3225,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
             if (luts.isEmpty()) {
-                EmptyNote("Chưa có LUT nào. Hỗ trợ .cube, Canon RGB .bin và ZIP chứa nhiều LUT.")
+                EmptyNote("Chưa có LUT. Hỗ trợ .cube, Panasonic .vlt, Hald PNG 8/16-bit, Canon .bin và ZIP.")
             } else {
                 val matchingLuts = luts.filter {
                     lutSearch.isBlank() ||

@@ -34,6 +34,19 @@ echo "framework_ready=1" >> emulator-artifacts/command-status.txt
 adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk > emulator-artifacts/install.txt 2>&1
 echo "install=0" >> emulator-artifacts/command-status.txt
 adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1
+
+# Bypass the one-time language/storage/publisher introduction so this smoke run
+# exercises the actual camera viewfinder on a clean debug installation.
+printf '%s\n' \
+  "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>" \
+  "<map><boolean name='first_activation_completed' value='true' /></map>" \
+  | adb shell run-as com.fujifilm.mode.debug sh -c 'mkdir -p shared_prefs && cat > shared_prefs/fujifilm_settings.xml'
+adb shell run-as com.fujifilm.mode.debug cat shared_prefs/fujifilm_settings.xml > emulator-artifacts/seeded-preferences.txt
+echo "first_activation_bypassed=1" >> emulator-artifacts/command-status.txt
+
+# Force the first landscape side for deterministic camera layout verification.
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 1
 adb logcat -c
 adb shell am force-stop com.fujifilm.mode.debug > emulator-artifacts/force-stop.txt 2>&1
 adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1 || true
@@ -59,21 +72,57 @@ if [ "$startup_ready" -ne 1 ]; then
   exit 26
 fi
 echo "activity_displayed=1" >> emulator-artifacts/command-status.txt
-sleep 8
+
+# Dismiss Android's first-use immersive-mode confirmation if it is present.
+adb shell uiautomator dump /sdcard/fuji-window.xml > emulator-artifacts/immersive-uiautomator.txt 2>&1 || true
+adb shell cat /sdcard/fuji-window.xml > emulator-artifacts/immersive-window.xml 2>&1 || true
+python - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+path = "emulator-artifacts/immersive-window.xml"
+try:
+    root = ET.parse(path).getroot()
+except Exception:
+    root = None
+point = None
+if root is not None:
+    for node in root.iter("node"):
+        if node.attrib.get("text", "").strip() == "Got it":
+            match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", node.attrib.get("bounds", ""))
+            if match:
+                x1, y1, x2, y2 = map(int, match.groups())
+                point = ((x1 + x2) // 2, (y1 + y2) // 2)
+                break
+if point:
+    with open("emulator-artifacts/immersive-dismiss-point.txt", "w") as stream:
+        stream.write(f"{point[0]} {point[1]}")
+PY
+if [ -s emulator-artifacts/immersive-dismiss-point.txt ]; then
+  read immersive_x immersive_y < emulator-artifacts/immersive-dismiss-point.txt
+  adb shell input tap "$immersive_x" "$immersive_y"
+  echo "immersive_notice_dismissed=1" >> emulator-artifacts/command-status.txt
+else
+  echo "immersive_notice_absent=1" >> emulator-artifacts/command-status.txt
+fi
+sleep 10
 
 adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid.txt 2>&1 || true
-adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt 2>&1 || true
-adb exec-out screencap -p > emulator-artifacts/camera-portrait.png 2> emulator-artifacts/screencap-portrait-error.txt || true
-adb logcat -d -v threadtime -t 12000 > emulator-artifacts/logcat-portrait.txt 2>&1 || true
+adb shell dumpsys activity activities > emulator-artifacts/activity-landscape-90.txt 2>&1 || true
+adb shell uiautomator dump /sdcard/fuji-viewfinder-90.xml > emulator-artifacts/viewfinder-uiautomator-90.txt 2>&1 || true
+adb shell cat /sdcard/fuji-viewfinder-90.xml > emulator-artifacts/viewfinder-window-90.xml 2>&1 || true
+adb exec-out screencap -p > emulator-artifacts/camera-landscape-90.png 2> emulator-artifacts/screencap-landscape-90-error.txt || true
+adb logcat -d -v threadtime -t 12000 > emulator-artifacts/logcat-landscape-90.txt 2>&1 || true
 
-# Exercise orientation only after a successful cold launch.
-adb shell settings put system accelerometer_rotation 0
-adb shell settings put system user_rotation 1
+# Rotate to the opposite landscape side. The app remains landscape-only; this
+# checks left/right control placement and cutout handling at both 90° and 270°.
+adb shell settings put system user_rotation 3
 sleep 5
-adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt 2>&1 || true
-adb exec-out screencap -p > emulator-artifacts/camera-landscape.png 2> emulator-artifacts/screencap-landscape-error.txt || true
+adb shell dumpsys activity activities > emulator-artifacts/activity-landscape-270.txt 2>&1 || true
+adb shell uiautomator dump /sdcard/fuji-viewfinder-270.xml > emulator-artifacts/viewfinder-uiautomator-270.txt 2>&1 || true
+adb shell cat /sdcard/fuji-viewfinder-270.xml > emulator-artifacts/viewfinder-window-270.xml 2>&1 || true
+adb exec-out screencap -p > emulator-artifacts/camera-landscape-270.png 2> emulator-artifacts/screencap-landscape-270-error.txt || true
 adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid-landscape.txt 2>&1 || true
-adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-landscape.txt 2>&1 || true
+adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-landscape-270.txt 2>&1 || true
 
 # Keep raw logs even when startup fails; report app crash signatures separately.
 app_pid="$(tr -d '\r\n ' < emulator-artifacts/app-pid.txt)"

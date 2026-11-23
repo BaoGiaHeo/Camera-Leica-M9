@@ -17,14 +17,11 @@ android {
     testBuildType = "developer"
 
     defaultConfig {
-        applicationId = "com.fujifilm.mode"
-        minSdk = 29
-        // Keep targetSdk unchanged to avoid changing runtime permission behavior.
-        targetSdk = 37
-        versionCode = 17
-        versionName = "2.5.1"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
+    applicationId = "com.fujifilm.mode"
+
+    versionCode = 17
+    versionName = "2.5.1"
+}
 
     buildTypes {
         debug {
@@ -39,13 +36,16 @@ android {
             buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "true")
         }
         release {
-            // The public release uses the stable production application ID:
-            // com.fujifilm.mode (without the internal .developer suffix).
-            isMinifyEnabled = false
-            buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "false")
-            // Debug signing keeps CI output directly installable for on-device testing.
-            signingConfig = signingConfigs.getByName("debug")
-        }
+    isMinifyEnabled = false
+
+    buildConfigField(
+        "boolean",
+        "DEVELOPER_LOG_ENABLED",
+        "false"
+    )
+
+    signingConfig = signingConfigs.getByName("debug")
+}
     }
 
     compileOptions {

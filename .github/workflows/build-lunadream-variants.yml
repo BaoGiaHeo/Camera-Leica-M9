@@ -1,4 +1,4 @@
-name: Build FujiFilm Mode Release APK
+name: Build FujiFilm Mode 2.5.1 Release APK
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,6 +13,7 @@ on:
       - fuji-2.5.0-round1-spec
       - fuji-2.5.0-round1-stage
       - fuji-2.5.0-full-work
+      - fuji-2.5.1-rebuild-2026-11-23
     paths:
       - "CamUI-src/**"
       - ".github/workflows/build-lunadream-variants.yml"
@@ -56,7 +57,7 @@ jobs:
         working-directory: CamUI-src
         run: |
           gradle --no-daemon :app:assembleRelease --stacktrace
-          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/FujiFilm-Mode-2.5.0.apk
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/FujiFilm-Mode-2.5.1.apk
 
       - name: Verify Release APK identity
         working-directory: CamUI-src
@@ -68,9 +69,9 @@ jobs:
           VERSION_CODE=$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionCode='\\([^']*\\)'.*/\\1/p")
           VERSION_NAME=$(printf '%s\n' "$BADGING" | sed -n "s/^package:.*versionName='\\([^']*\\)'.*/\\1/p")
           echo "package=$PACKAGE versionCode=$VERSION_CODE versionName=$VERSION_NAME"
-          test "$PACKAGE" = "com.fujifilm.mode.developer"
-          test "$VERSION_CODE" = "16"
-          test "$VERSION_NAME" = "2.5.0"
+          test "$PACKAGE" = "com.fujifilm.mode"
+          test "$VERSION_CODE" = "17"
+          test "$VERSION_NAME" = "2.5.1"
 
       - name: Run supported unit tests
         working-directory: CamUI-src
@@ -80,7 +81,7 @@ jobs:
         if: success() && steps.build_release.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-Release-2.5.0
+          name: FujiFilm-Mode-Release-2.5.1
           path: CamUI-src/app/build/outputs/apk/release/FujiFilm-Mode-2.5.0.apk
           if-no-files-found: error
           retention-days: 14

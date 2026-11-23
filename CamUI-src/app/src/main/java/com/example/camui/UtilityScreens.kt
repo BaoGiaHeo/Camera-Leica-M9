@@ -2134,8 +2134,18 @@ private fun scanLutZip(
                         found.add(LutImportEntry(innerName, category, encodeImportedCubeLut(cube, innerName), false))
                     }
                     "png" -> {
-                        val cube = parseHaldPng(bytes)
-                        found.add(LutImportEntry(innerName, "Hald CLUT", encodeImportedCubeLut(cube, innerName), false))
+                        // ZIP packages often include cover/preview PNGs beside LUTs.
+                        // Only add PNGs that pass the Hald cube geometry and decoder checks.
+                        runCatching { parseHaldPng(bytes) }.getOrNull()?.let { cube ->
+                            found.add(
+                                LutImportEntry(
+                                    innerName,
+                                    "Hald CLUT",
+                                    encodeImportedCubeLut(cube, innerName),
+                                    false
+                                )
+                            )
+                        }
                     }
                 }
             }

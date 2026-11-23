@@ -418,11 +418,28 @@ object NightShotProcessor {
             val exposureWeights = if (mode == MergeMode.HDR_BRACKET) ShortArray(width * height) else null
             // Keep a small, immutable reference image for alignment. Using the changing
             // accumulated output as a reference would allow drift to build up over a burst.
+            val alignmentProfile = when (mode) {
+                MergeMode.LUNA_DREAM_2_5 -> AlignmentProfile(levels = 4, maxDimension = 256, features = 144, iterations = 6)
+                MergeMode.LUNA_DREAM_3_0 -> AlignmentProfile(levels = 5, maxDimension = 512, features = 192, iterations = 7)
+                MergeMode.LUNA_DREAM_2_0 -> AlignmentProfile(levels = 3, maxDimension = 128, features = 96, iterations = 5)
+                MergeMode.LUNA_DREAM_1_5 -> AlignmentProfile(levels = 3, maxDimension = 128, features = 64, iterations = 4)
+                else -> AlignmentProfile(levels = 3, maxDimension = 128, features = 96, iterations = 5)
+            }
             if (mode != MergeMode.STAR_TRAILS) {
-                alignmentReference = makeAlignmentThumbnail(base!!)
-                // Reuse one feature pyramid for every computational stack. This provides
-                // software stabilization even when the phone has no OIS/EIS hardware.
-                alignmentReferenceState = preparePyramidalAlignmentReference(alignmentReference!!)
+                alignmentReference = makeAlignmentThumbnail(base!!, alignmentProfile.maxDimension)
+                // Prepare one immutable LK pyramid and Shi-Tomasi feature set per burst.
+                // Higher LunaDream tiers spend more work on coarse-to-fine alignment.
+                alignmentReferenceState = preparePyramidalAlignmentReference(
+                    alignmentReference!!,
+                    maxLevels = alignmentProfile.levels,
+                    maxFeatures = alignmentProfile.features
+                )
+                Log.i(
+                    TAG,
+                    "LK_PROFILE mode=$mode levels=${alignmentReferenceState!!.pyramid.size} " +
+                        "maxDimension=${alignmentProfile.maxDimension} features=${alignmentReferenceState!!.features.size} " +
+                        "iterations=${alignmentProfile.iterations}"
+                )
             }
             if (bestScores != null || exposureWeights != null) {
                 for (y in 0 until height) {
@@ -460,7 +477,11 @@ object NightShotProcessor {
                     } else {
                         // Sparse pyramidal LK rejects moving features; it falls back to
                         // gradient translation when the scene has too few reliable features.
-                        estimatePyramidalLucasKanade(alignmentReferenceState!!, current)
+                        estimatePyramidalLucasKanade(
+                            alignmentReferenceState!!,
+                            current,
+                            alignmentProfile.iterations
+                        )
                     }
                     alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt
                     val shiftX = shift.first.coerceIn(-width / 12, width / 12)
@@ -1017,15 +1038,28 @@ object NightShotProcessor {
     private const val LUNA_LK_WINDOW_RADIUS = 3
     private const val LUNA_LK_ITERATIONS = 5
 
+    private data class AlignmentProfile(
+        val levels: Int,
+        val maxDimension: Int,
+        val features: Int,
+        val iterations: Int
+    )
+
     private data class AlignmentReferenceState(
         val thumbnail: Bitmap,
         val pyramid: List<GrayLevel>,
         val features: List<Pair<Int, Int>>
     )
 
-    private fun preparePyramidalAlignmentReference(thumbnail: Bitmap): AlignmentReferenceState {
-        val pyramid = buildGrayPyramid(thumbnail)
-        val features = if (pyramid.size >= 2) detectShiTomasiFeatures(pyramid.first()) else emptyList()
+    private fun preparePyramidalAlignmentReference(
+        thumbnail: Bitmap,
+        maxLevels: Int = 3,
+        maxFeatures: Int = LUNA_LK_MAX_FEATURES
+    ): AlignmentReferenceState {
+        val pyramid = buildGrayPyramid(thumbnail, maxLevels)
+        val features = if (pyramid.size >= 2) {
+            detectShiTomasiFeatures(pyramid.first(), maxFeatures)
+        } else emptyList()
         return AlignmentReferenceState(thumbnail, pyramid, features)
     }
 
@@ -1035,10 +1069,14 @@ object NightShotProcessor {
      */
     private fun estimatePyramidalLucasKanade(
         reference: AlignmentReferenceState,
-        currentFrame: Bitmap
+        currentFrame: Bitmap,
+        iterations: Int = LUNA_LK_ITERATIONS
     ): Pair<Int, Int> {
         val referenceThumbnail = reference.thumbnail
-        val currentThumbnail = makeAlignmentThumbnail(currentFrame)
+        val currentThumbnail = makeAlignmentThumbnail(
+            currentFrame,
+            max(referenceThumbnail.width, referenceThumbnail.height)
+        )
         try {
             val width = referenceThumbnail.width
             val height = referenceThumbnail.height
@@ -1047,7 +1085,7 @@ object NightShotProcessor {
             ) return 0 to 0
 
             val referencePyramid = reference.pyramid
-            val currentPyramid = buildGrayPyramid(currentThumbnail)
+            val currentPyramid = buildGrayPyramid(currentThumbnail, referencePyramid.size)
             if (referencePyramid.size < 2 || currentPyramid.size != referencePyramid.size ||
                 reference.features.size < 8
             ) {
@@ -1056,7 +1094,7 @@ object NightShotProcessor {
 
             val tracks = ArrayList<FlowTrack>(reference.features.size)
             for ((x, y) in reference.features) {
-                trackPyramidalLucasKanade(referencePyramid, currentPyramid, x, y)?.let {
+                trackPyramidalLucasKanade(referencePyramid, currentPyramid, x, y, iterations)?.let {
                     tracks.add(FlowTrack(it.first, it.second))
                 }
             }
@@ -1073,16 +1111,17 @@ object NightShotProcessor {
         }
     }
 
-    private fun buildGrayPyramid(bitmap: Bitmap): List<GrayLevel> {
+    private fun buildGrayPyramid(bitmap: Bitmap, maxLevels: Int = 3): List<GrayLevel> {
         val colors = IntArray(bitmap.width * bitmap.height)
         bitmap.getPixels(colors, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         var width = bitmap.width
         var height = bitmap.height
         var gray = IntArray(colors.size) { index -> luma(colors[index]) }
-        val pyramid = ArrayList<GrayLevel>(3)
+        val levelLimit = maxLevels.coerceIn(1, 6)
+        val pyramid = ArrayList<GrayLevel>(levelLimit)
         pyramid.add(GrayLevel(width, height, gray))
 
-        while (pyramid.size < 3 && min(width, height) >= 48) {
+        while (pyramid.size < levelLimit && min(width, height) >= 48) {
             val nextWidth = width / 2
             val nextHeight = height / 2
             val next = IntArray(nextWidth * nextHeight)
@@ -1105,7 +1144,10 @@ object NightShotProcessor {
         return pyramid
     }
 
-    private fun detectShiTomasiFeatures(level: GrayLevel): List<Pair<Int, Int>> {
+    private fun detectShiTomasiFeatures(
+        level: GrayLevel,
+        maxFeatures: Int = LUNA_LK_MAX_FEATURES
+    ): List<Pair<Int, Int>> {
         data class Candidate(val x: Int, val y: Int, val score: Float)
 
         val width = level.width
@@ -1139,7 +1181,8 @@ object NightShotProcessor {
         }
 
         candidates.sortByDescending { it.score }
-        val selected = ArrayList<Pair<Int, Int>>(LUNA_LK_MAX_FEATURES)
+        val featureLimit = maxFeatures.coerceIn(8, 256)
+        val selected = ArrayList<Pair<Int, Int>>(featureLimit)
         val minDistanceSquared = 36
         for (candidate in candidates) {
             if (selected.none { (x, y) ->
@@ -1149,7 +1192,7 @@ object NightShotProcessor {
                 }
             ) {
                 selected.add(candidate.x to candidate.y)
-                if (selected.size >= LUNA_LK_MAX_FEATURES) break
+                if (selected.size >= featureLimit) break
             }
         }
         return selected
@@ -1159,7 +1202,8 @@ object NightShotProcessor {
         reference: List<GrayLevel>,
         current: List<GrayLevel>,
         originalX: Int,
-        originalY: Int
+        originalY: Int,
+        iterations: Int = LUNA_LK_ITERATIONS
     ): Pair<Float, Float>? {
         val maxLevel = min(reference.size, current.size) - 1
         var flowX = 0f
@@ -1182,7 +1226,7 @@ object NightShotProcessor {
             ) return null
 
             var meanError = Float.MAX_VALUE
-            for (iteration in 0 until LUNA_LK_ITERATIONS) {
+            for (iteration in 0 until iterations.coerceIn(2, 10)) {
                 var a11 = 0f
                 var a12 = 0f
                 var a22 = 0f
@@ -1999,10 +2043,13 @@ object NightShotProcessor {
     private fun luma(red: Int, green: Int, blue: Int): Int =
         (red * 3 + green * 6 + blue) / 10
 
-    private fun makeAlignmentThumbnail(source: Bitmap): Bitmap {
+    private fun makeAlignmentThumbnail(
+        source: Bitmap,
+        maxDimension: Int = ALIGNMENT_MAX_DIMENSION
+    ): Bitmap {
         val scale = min(
             1f,
-            ALIGNMENT_MAX_DIMENSION.toFloat() / max(source.width, source.height).toFloat()
+            maxDimension.coerceIn(64, 1024).toFloat() / max(source.width, source.height).toFloat()
         )
         val width = (source.width * scale).toInt().coerceAtLeast(32)
         val height = (source.height * scale).toInt().coerceAtLeast(32)

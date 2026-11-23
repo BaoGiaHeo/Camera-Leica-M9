@@ -2765,7 +2765,7 @@ fun applyCameraWatermark(
     val filterRaw = preferences.getString("selected_filter", "STD")?.trim().orEmpty()
     val standardFilter = filterRaw.isBlank() || filterRaw.equals("None", true) ||
         filterRaw.equals("STD", true) || filterRaw.equals("Standard", true)
-    val filterName = if (standardFilter) "" else filterRaw
+    val filterName = if (standardFilter) "" else cameraLookDisplayName(context, filterRaw).ifBlank { filterRaw }
     val filterCategory = when {
         filterRaw.contains("classic", true) || filterRaw.contains("negative", true) -> "Classic"
         filterRaw.contains("mono", true) || filterRaw.contains("black", true) -> "Monochrome"

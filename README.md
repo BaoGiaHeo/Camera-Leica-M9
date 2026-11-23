@@ -1,17 +1,20 @@
-# LunaDream 2.5.0dream
+# FujiFilm Mode 2.5.1
 
-LunaDream is an Android camera application built with Kotlin, Jetpack Compose, CameraX and Camera2 metadata discovery.
+FujiFilm Mode is an Android camera application built with Kotlin, Jetpack Compose, CameraX and Camera2 metadata discovery.
 
-## 2.5.0dream — hardware-inspired camera interface
+## 2.5.1 — rebuild baseline
 
-- Launcher name: **LunaDream**
-- Version: **2.5.0dream** (versionCode 15)
+- Launcher name: **FujiFilm Mode**
+- Release application ID: **com.fujifilm.mode**
+- Version: **2.5.1** (versionCode 17)
+- Rebuild base: commit `524ee6a8141dbc195b0306ea1b035afdd44a317b`
+- The internal Developer build type remains separate from the public Release identity.
 - The camera UI is locked to landscape-left / landscape-right. Android system bars are hidden in immersive mode and can be revealed temporarily with an edge swipe.
 - The camera body uses a black leatherette-style surface, brushed silver top plate, knurled rotary controls, engraved labels and a separate LCD preview layer.
 - Photo has seven top-plate keys. Pro hides FILM and has six top-plate keys plus a six-cell LCD information strip for EV, Tv, ISO, AF, WB and RESET.
 - The left-hand mode rail and right-hand shutter / zoom / command controls can be reversed in Appearance settings.
 - Film Filters uses a landscape split view: live-look preview on the left and searchable, categorized 35 mm film tiles on the right. Press and hold the preview to compare the original image. The built-in film-look catalog remains in the camera source.
-- LunaDream 1.5 and LunaDream 2.0 retain their existing capture and processing state. NightShotMode has a separate physical switch and duration selection.
+- LunaDream 1.5, 2.0, 2.5 and 3.0 remain required capture and processing modes. NightShotMode has a separate physical switch and duration selection.
 - Q Menu and Settings use the shared FujiSkin component family (FujiPanel, FujiTopKey, FujiSwitch, FujiChip, FujiTile, FujiListRow, FujiSearchField, FujiDial and FujiScrollbar).
 - Aspect-ratio changes fade the camera surface out for 200 ms, apply the selected ratio, then fade it in over 250 ms. Input is blocked during the transition.
 - Physical capture orientation is read independently of the fixed landscape UI. Sensor readings use circular smoothing and a 12-degree hysteresis band; an unknown / flat reading retains the last valid orientation.
@@ -20,7 +23,7 @@ LunaDream is an Android camera application built with Kotlin, Jetpack Compose, C
 
 ## Camera processing is retained
 
-The 2.5.0dream interface update keeps the existing CameraX use cases, Camera2 controls, focus/zoom behavior, filter recipes, LunaDream 1.5 / 2.0 processing paths, NightShotMode and image-orientation normalization. UI work must not silently replace a selected capture mode or change the corresponding processor.
+The 2.5.0dream interface update keeps the existing CameraX use cases, Camera2 controls, focus/zoom behavior, filter recipes, LunaDream 1.5 / 2.0 / 2.5 / 3.0 processing paths, NightShotMode and image-orientation normalization. UI work must not silently replace a selected capture mode or change the corresponding processor.
 
 ## Important validation notes
 

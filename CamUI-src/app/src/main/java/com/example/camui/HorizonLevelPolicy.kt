@@ -42,6 +42,12 @@ internal class OneEuroFilter(
     private var filteredDerivative = 0f
     private var filteredValue = 0f
 
+    fun reset() {
+        previousTimestampSeconds = null
+        previousRawValue = null
+        filteredDerivative = 0f
+    }
+
     fun filter(value: Float, timestampNanos: Long): Float {
         if (!value.isFinite()) return filteredValue
         val timestamp = timestampNanos / 1_000_000_000.0

@@ -658,6 +658,7 @@ fun CameraScreen(
                     )
                     if (HorizonLevelPolicy.isNearFlat(gravityZ, magnitude)) {
                         levelVisible = false
+                        levelFilter.reset()
                         horizonRollDegrees = 0f
                         return
                     }

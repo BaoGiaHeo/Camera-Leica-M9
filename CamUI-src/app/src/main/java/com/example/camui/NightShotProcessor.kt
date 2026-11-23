@@ -2103,7 +2103,10 @@ object NightShotProcessor {
         referenceThumbnail: Bitmap,
         currentFrame: Bitmap
     ): Pair<Int, Int> {
-        val thumbnail = makeAlignmentThumbnail(currentFrame)
+        val thumbnail = makeAlignmentThumbnail(
+            currentFrame,
+            max(referenceThumbnail.width, referenceThumbnail.height)
+        )
         try {
             val width = referenceThumbnail.width
             val height = referenceThumbnail.height

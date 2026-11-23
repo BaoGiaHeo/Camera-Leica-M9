@@ -2958,13 +2958,18 @@ fun applyCameraWatermark(
         ?: iso.trim().takeIf { it.isNotBlank() }?.let { if (it.startsWith("ISO", true)) it else "ISO " + it }.orEmpty()
 
     val dateRaw = sourceExif[ExifInterface.TAG_DATETIME_ORIGINAL] ?: sourceExif[ExifInterface.TAG_DATETIME]
-    val capturedDate = dateRaw?.let { raw ->
+    val parsedCaptureDate = dateRaw?.let { raw ->
         runCatching {
-            java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).apply { isLenient = false }.parse(raw)
+            java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US)
+                .apply { isLenient = false }
+                .parse(raw)
         }.getOrNull()
     }
-    val dateText = capturedDate?.let { java.text.SimpleDateFormat("yyyy.MM.dd", Locale.US).format(it) }.orEmpty()
-    val timeText = capturedDate?.let { java.text.SimpleDateFormat("HH:mm", Locale.US).format(it) }.orEmpty()
+    // CameraX/OEM may omit EXIF DateTimeOriginal. Use capture wall-clock time as a
+    // fallback so enabled date/time watermark fields are never silently blank.
+    val capturedDate = parsedCaptureDate ?: java.util.Date()
+    val dateText = java.text.SimpleDateFormat("yyyy.MM.dd", Locale.US).format(capturedDate)
+    val timeText = java.text.SimpleDateFormat("HH:mm", Locale.US).format(capturedDate)
     val location = watermarkLocationFromExif(context, sourceExif, preferences)
 
     val filterRaw = preferences.getString("selected_filter", "STD")?.trim().orEmpty()

@@ -4,9 +4,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.graphics.Rect
 import android.net.Uri
 import android.provider.MediaStore
@@ -323,8 +320,6 @@ object PhotoOutputResolution {
         require(sourceWidth > 0 && sourceHeight > 0)
         require(outputWidth > 0 && outputHeight > 0)
 
-        val rowTop = IntArray(sourceWidth)
-        val rowBottom = IntArray(sourceWidth)
         val tileRows = UPSCALE_TILE_ROWS.coerceAtMost(outputHeight)
         var completedRows = 0
         val startedAt = android.os.SystemClock.elapsedRealtime()
@@ -332,6 +327,20 @@ object PhotoOutputResolution {
         while (completedRows < outputHeight) {
             val rows = minOf(tileRows, outputHeight - completedRows)
             val tilePixels = IntArray(outputWidth * rows)
+            val firstOutputY = completedRows
+            val lastOutputY = completedRows + rows - 1
+            val firstSourceY = (
+                (firstOutputY + 0.5f) * sourceHeight / outputHeight.toFloat() - 0.5f
+            ).coerceIn(0f, (sourceHeight - 1).toFloat()).toInt()
+            val lastSourceY = (
+                (lastOutputY + 0.5f) * sourceHeight / outputHeight.toFloat() - 0.5f
+            ).coerceIn(0f, (sourceHeight - 1).toFloat()).toInt()
+            val sourceBlockHeight = (lastSourceY + 2).coerceAtMost(sourceHeight) - firstSourceY
+            val sourceBlock = IntArray(sourceWidth * sourceBlockHeight)
+            source.getPixels(
+                sourceBlock, 0, sourceWidth, sourceRect.left,
+                sourceRect.top + firstSourceY, sourceWidth, sourceBlockHeight
+            )
 
             for (tileRow in 0 until rows) {
                 val outputY = completedRows + tileRow
@@ -341,13 +350,8 @@ object PhotoOutputResolution {
                 val y0 = sourceY.toInt()
                 val y1 = (y0 + 1).coerceAtMost(sourceHeight - 1)
                 val fy = sourceY - y0
-
-                source.getPixels(
-                    rowTop, 0, sourceWidth, sourceRect.left, sourceRect.top + y0, sourceWidth, 1
-                )
-                source.getPixels(
-                    rowBottom, 0, sourceWidth, sourceRect.left, sourceRect.top + y1, sourceWidth, 1
-                )
+                val sourceTopOffset = (y0 - firstSourceY) * sourceWidth
+                val sourceBottomOffset = (y1 - firstSourceY) * sourceWidth
 
                 val outputOffset = tileRow * outputWidth
                 for (outputX in 0 until outputWidth) {
@@ -358,10 +362,10 @@ object PhotoOutputResolution {
                     val x1 = (x0 + 1).coerceAtMost(sourceWidth - 1)
                     val fx = sourceX - x0
 
-                    val p00 = rowTop[x0]
-                    val p10 = rowTop[x1]
-                    val p01 = rowBottom[x0]
-                    val p11 = rowBottom[x1]
+                    val p00 = sourceBlock[sourceTopOffset + x0]
+                    val p10 = sourceBlock[sourceTopOffset + x1]
+                    val p01 = sourceBlock[sourceBottomOffset + x0]
+                    val p11 = sourceBlock[sourceBottomOffset + x1]
 
                     val nearest = when {
                         fy < 0.5f && fx < 0.5f -> p00

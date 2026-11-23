@@ -950,6 +950,8 @@ fun CameraScreen(
             ) {
                 "luna15" -> "luna15"
                 "luna20", "luna" -> "luna20"
+                "luna25" -> "luna25"
+                "luna30" -> "luna30"
                 else -> "off"
             }
         )
@@ -3386,7 +3388,7 @@ fun CameraScreen(
     fun takePhoto() {
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
-            (nightShotMode != "off" || lunaDreamMode == "luna20" || starTrailCaptureInProgress)
+            (nightShotMode != "off" || lunaDreamMode != "off" || starTrailCaptureInProgress)
         if (needsCriticalBatteryProtection) {
             localizedToast(
                 context,
@@ -3737,8 +3739,16 @@ fun CameraScreen(
             val captureUseLunaDream20 = lunaDreamSelected && lunaDreamMode == "luna20" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
-            val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20 || captureUseRawDream20
-            val captureUseLunaDream20Stack = captureUseLunaDream20 || captureUseRawDream20
+            val captureUseLunaDream25 = lunaDreamSelected && lunaDreamMode == "luna25" &&
+                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
+                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
+            val captureUseLunaDream30 = lunaDreamSelected && lunaDreamMode == "luna30" &&
+                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
+                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
+            val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20 ||
+                captureUseLunaDream25 || captureUseLunaDream30 || captureUseRawDream20
+            val captureUseLunaDream20Stack = captureUseLunaDream20 || captureUseLunaDream25 ||
+                captureUseLunaDream30 || captureUseRawDream20
             if (lunaDreamSelected && !captureUseLunaDream) {
                 LunaDreamDiagnostics.record(
                     context,
@@ -3760,7 +3770,10 @@ fun CameraScreen(
                     "mode=" + (when {
                         captureUseRawDream20 -> "RawDream 2.0"
                         captureUseLunaDream15 -> "LunaDream 1.5"
-                        else -> "LunaDream 2.0"
+                        captureUseLunaDream20 -> "LunaDream 2.0"
+                        captureUseLunaDream25 -> "LunaDream 2.5"
+                        captureUseLunaDream30 -> "LunaDream 3.0"
+                        else -> "LunaDream"
                     }) + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
                 )
             }
@@ -3864,16 +3877,21 @@ fun CameraScreen(
                 multiFrameCapturedFrames = 0
                 multiFrameTargetFrames = when {
                     captureUseNightShot -> captureNightTargetFrames
-                    captureUseLunaDream15 -> 5
+                    captureUseLunaDream15 -> 1
+                    captureUseLunaDream20 -> 4
+                    captureUseLunaDream25 -> 8
+                    captureUseLunaDream30 -> 12
                     else -> 8
                 }
                 isProcessing = true
                 processingProgress = 0
                 processingEtaSeconds = -1
                 processingLabel = when {
-                    captureUseLunaDream15 -> "LunaDream 1.5 · đang chụp khung đầu tiên"
-                    captureUseRawDream20 -> "RawDream 2.0 · đang chụp khung đầu tiên"
+                    captureUseLunaDream15 -> "LunaDream 1.5 · đang xử lý khung gốc"
                     captureUseLunaDream20 -> "LunaDream 2.0 · đang chụp khung đầu tiên"
+                    captureUseLunaDream25 -> "LunaDream 2.5 · đang chụp khung đầu tiên"
+                    captureUseLunaDream30 -> "LunaDream 3.0 · đang chụp khung đầu tiên"
+                    captureUseRawDream20 -> "RawDream 2.0 · đang chụp khung đầu tiên"
                     else -> "NightShotMode · đang chụp khung đầu tiên"
                 }
             }
@@ -3943,9 +3961,11 @@ fun CameraScreen(
                             val supirRequested = appPrefs.getBoolean("uhd_coming_soon", false)
                             processingLabel = when {
                                 captureIsUltraHdr -> "Đang giữ nguyên dữ liệu Ultra HDR"
-                                captureUseLunaDream15 -> "LunaDream 1.5 · chuẩn bị ghép tối đa 5 khung"
+                                captureUseLunaDream15 -> "LunaDream 1.5 · xử lý một khung, tối đa hai khung"
+                                captureUseLunaDream20 -> "LunaDream 2.0 · chuẩn bị ghép 4 khung"
+                                captureUseLunaDream25 -> "LunaDream 2.5 · chuẩn bị ghép 8 khung"
+                                captureUseLunaDream30 -> "LunaDream 3.0 · chuẩn bị ghép 12 khung"
                                 captureUseRawDream20 -> "RawDream 2.0 · chuẩn bị ghép 8 khung, giữ DNG gốc"
-                                captureUseLunaDream20 -> "LunaDream 2.0 · chuẩn bị ghép 8 khung"
                                 captureUseMilkyWayStack -> "NightShotMode Milky Way · chuẩn bị căn chỉnh 8 khung"
                                 captureUseNightShot -> "NightShotMode · chuẩn bị căn chỉnh và ghép nhiều khung"
                                 captureUseSoftwareHdr -> "Đang xử lý Software HDR"
@@ -3991,8 +4011,11 @@ fun CameraScreen(
                                             stackedFrames.add(firstFrame)
                                             val maxFrames = when {
                                                 captureUseNightShot -> captureNightTargetFrames
-                                                captureUseLunaDream20Stack -> 8
-                                                captureUseLunaDream15 -> 5
+                                                captureUseLunaDream15 -> 1
+                                                captureUseLunaDream20 -> 4
+                                                captureUseLunaDream25 -> 8
+                                                captureUseLunaDream30 -> 12
+                                                captureUseRawDream20 -> 8
                                                 else -> 5
                                             }
                                             withContext(Dispatchers.Main.immediate) {
@@ -4147,7 +4170,10 @@ fun CameraScreen(
                                             // camera HAL rejects a late request. 2.0 keeps its prior rule.
                                             val minimumFramesRequired = when {
                                                 captureUseNightShot && !stoppedForBattery -> maxFrames
-                                                captureUseLunaDream15 -> 3
+                                                captureUseLunaDream15 -> 1
+                                                captureUseLunaDream20 -> 3
+                                                captureUseLunaDream25 -> 6
+                                                captureUseLunaDream30 -> 12
                                                 else -> 2
                                             }
                                             lunaDreamCapturedFrameCount = stackedFrames.size

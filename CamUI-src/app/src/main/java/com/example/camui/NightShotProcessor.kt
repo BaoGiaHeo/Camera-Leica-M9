@@ -78,7 +78,17 @@ object NightShotProcessor {
         ExifInterface.TAG_FLASH
     )
 
-    enum class MergeMode { NIGHT_AVERAGE, LUNA_DREAM_1_5, LUNA_DREAM_2_0, MILKY_WAY_STACK, STAR_TRAILS, HDR_BRACKET, FOCUS_STACK }
+    enum class MergeMode {
+        NIGHT_AVERAGE,
+        LUNA_DREAM_1_5,
+        LUNA_DREAM_2_0,
+        LUNA_DREAM_2_5,
+        LUNA_DREAM_3_0,
+        MILKY_WAY_STACK,
+        STAR_TRAILS,
+        HDR_BRACKET,
+        FOCUS_STACK
+    }
 
     private data class GrayLevel(
         val width: Int,
@@ -311,13 +321,18 @@ object NightShotProcessor {
         onProgress: ((Int) -> Unit)? = null
     ): Boolean {
         val invalidFrameIndex = frames.indexOfFirst { !it.exists() || it.length() <= 0L }
-        if (frames.size < 2 || invalidFrameIndex >= 0) {
+        val singleFrameAllowed = mode == MergeMode.LUNA_DREAM_1_5 && frames.size == 1
+        if ((!singleFrameAllowed && frames.size < 2) || invalidFrameIndex >= 0) {
             val reason = when {
                 frames.size < 2 -> "Need at least 2 valid frames; received ${frames.size}"
                 else -> "Frame ${invalidFrameIndex + 1} is missing or empty"
             }
             Log.e(TAG, "Merge rejected for $mode: $reason")
-            if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
+            if (mode == MergeMode.LUNA_DREAM_1_5 ||
+                mode == MergeMode.LUNA_DREAM_2_0 ||
+                mode == MergeMode.LUNA_DREAM_2_5 ||
+                mode == MergeMode.LUNA_DREAM_3_0
+            ) {
                 LunaDreamDiagnostics.record(
                     context,
                     "MERGE_REJECTED",
@@ -331,13 +346,18 @@ object NightShotProcessor {
             MergeMode.STAR_TRAILS -> "star-"
             MergeMode.LUNA_DREAM_1_5 -> "luna15-"
             MergeMode.LUNA_DREAM_2_0 -> "luna-dream-"
+            MergeMode.LUNA_DREAM_2_5 -> "luna-dream-25-"
+            MergeMode.LUNA_DREAM_3_0 -> "luna-dream-30-"
             MergeMode.MILKY_WAY_STACK -> "milky-way-"
             MergeMode.HDR_BRACKET -> "hdr-"
             MergeMode.FOCUS_STACK -> "focus-"
             else -> "night-"
         }
         val tempOutput = File(context.cacheDir, "fuji-" + prefix + System.nanoTime() + ".jpg")
-        val isLunaDreamMerge = mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
+        val isLunaDreamMerge = mode == MergeMode.LUNA_DREAM_1_5 ||
+            mode == MergeMode.LUNA_DREAM_2_0 ||
+            mode == MergeMode.LUNA_DREAM_2_5 ||
+            mode == MergeMode.LUNA_DREAM_3_0
         val mergeStartedAt = SystemClock.elapsedRealtime()
         var decodeMs = 0L
         var alignmentMs = 0L
@@ -360,7 +380,10 @@ object NightShotProcessor {
             )
         }
         val lunaFusionExecutor: ExecutorService? = if (
-            mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0
+            mode == MergeMode.LUNA_DREAM_1_5 ||
+                mode == MergeMode.LUNA_DREAM_2_0 ||
+                mode == MergeMode.LUNA_DREAM_2_5 ||
+                mode == MergeMode.LUNA_DREAM_3_0
         ) {
             Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
         } else null
@@ -448,7 +471,7 @@ object NightShotProcessor {
 
                     currentStage = "fuse frame ${frameIndex + 1}/${frames.size}"
                     val fusionStartedAt = SystemClock.elapsedRealtime()
-                    if (mode == MergeMode.LUNA_DREAM_1_5 || mode == MergeMode.LUNA_DREAM_2_0) {
+                    if (isLunaDreamMerge) {
                         fuseLunaDreamFrameParallel(
                             base!!,
                             current,
@@ -500,9 +523,7 @@ object NightShotProcessor {
                                     ) {
                                         oldRow[x] = packRgb(max(ar, br), max(ag, bg), max(ab, bb))
                                     }
-                                } else if (mode == MergeMode.LUNA_DREAM_1_5 ||
-                                    mode == MergeMode.LUNA_DREAM_2_0
-                                ) {
+                                } else if (isLunaDreamMerge) {
                                     // Both LunaDream modes use motion-aware temporal fusion. 1.5
                                     // uses five exposures and global translation; 2.0 keeps its
                                     // existing eight-frame Lucas-Kanade path.
@@ -619,13 +640,21 @@ object NightShotProcessor {
                     runCatching { onProgress?.invoke(stageProgress) }
                 }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
-            } else if (mode == MergeMode.LUNA_DREAM_2_0) {
-                // Preserve the LunaDream 2.0 build-9 finishing sequence exactly:
-                // strength-2 edge-aware denoise followed by the dedicated 2.0 detail pass.
+            } else if (
+                mode == MergeMode.LUNA_DREAM_2_0 ||
+                mode == MergeMode.LUNA_DREAM_2_5 ||
+                mode == MergeMode.LUNA_DREAM_3_0
+            ) {
+                // The tiers share temporal alignment/fusion and increase the finishing budget.
+                val strength = when (mode) {
+                    MergeMode.LUNA_DREAM_2_5 -> 3
+                    MergeMode.LUNA_DREAM_3_0 -> 4
+                    else -> 2
+                }
                 val detailStartedAt = SystemClock.elapsedRealtime()
                 applyLunaDreamNoiseReduction(
                     base!!,
-                    strength = 2,
+                    strength = strength,
                     workers = lunaFusionExecutor
                 ) { stageProgress ->
                     runCatching { onProgress?.invoke(90 + (stageProgress * 3 / 100)) }
@@ -1568,8 +1597,12 @@ object NightShotProcessor {
         }
     }
 
-    private fun baseBlendForDenoise(strength: Int): Float =
-        if (strength >= 2) 0.22f else 0.23f
+    private fun baseBlendForDenoise(strength: Int): Float = when {
+        strength >= 4 -> 0.26f
+        strength >= 3 -> 0.24f
+        strength >= 2 -> 0.22f
+        else -> 0.23f
+    }
 
     private fun applyLunaDreamNoiseReduction(
         bitmap: Bitmap,
@@ -1602,7 +1635,7 @@ object NightShotProcessor {
         fillLumaRow(currentRow, currentLuma)
         fillLumaRow(nextRow, nextLuma)
 
-        val baseBlend = if (strength >= 2) 0.22f else 0.23f
+        val baseBlend = baseBlendForDenoise(strength)
         val progressInterval = (height / 48).coerceAtLeast(1)
         for (y in 0 until height) {
             for (x in 0 until width) {

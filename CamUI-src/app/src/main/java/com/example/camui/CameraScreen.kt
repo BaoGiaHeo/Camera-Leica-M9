@@ -4082,11 +4082,15 @@ fun CameraScreen(
                                                         val expectedFrame = stackedFrames.size + pendingCaptures.size
                                                         processingLabel = when {
                                                             captureUseLunaDream15 ->
-                                                                "LunaDream 1.5: thu khung $expectedFrame/$maxFrames"
-                                                            captureUseRawDream20 ->
-                                                                "RawDream 2.0: thu khung $expectedFrame/$maxFrames"
+                                                                "LunaDream 1.5: xử lý khung gốc"
                                                             captureUseLunaDream20 ->
                                                                 "LunaDream 2.0: thu khung $expectedFrame/$maxFrames"
+                                                            captureUseLunaDream25 ->
+                                                                "LunaDream 2.5: thu khung $expectedFrame/$maxFrames"
+                                                            captureUseLunaDream30 ->
+                                                                "LunaDream 3.0: thu khung $expectedFrame/$maxFrames"
+                                                            captureUseRawDream20 ->
+                                                                "RawDream 2.0: thu khung $expectedFrame/$maxFrames"
                                                             captureUseMilkyWayStack ->
                                                                 "NightShotMode Milky Way: thu khung $expectedFrame/$maxFrames"
                                                             captureUseNightShot ->
@@ -4165,9 +4169,8 @@ fun CameraScreen(
                                                         "; merge/render is blocked and the original frame will be preserved"
                                                 )
                                             }
-                                            // 1.5 aims for five frames, but a three-frame stack is
-                                            // enough to complete a valid multi-frame result when the
-                                            // camera HAL rejects a late request. 2.0 keeps its prior rule.
+                                            // Every LunaDream tier has an explicit minimum frame count.
+                                            // Higher tiers never silently fall back to a lower tier.
                                             val minimumFramesRequired = when {
                                                 captureUseNightShot && !stoppedForBattery -> maxFrames
                                                 captureUseLunaDream15 -> 1
@@ -4181,8 +4184,14 @@ fun CameraScreen(
                                                 LunaDreamDiagnostics.record(
                                                     context,
                                                     "FRAME_CAPTURE_SUMMARY",
-                                                    "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
-                                                        "; validFrames=${stackedFrames.size}; targetFrames=$maxFrames; minimumRequired=$minimumFramesRequired; " +
+                                                    "mode=" + when {
+                                                        captureUseLunaDream15 -> "LunaDream 1.5"
+                                                        captureUseLunaDream20 -> "LunaDream 2.0"
+                                                        captureUseLunaDream25 -> "LunaDream 2.5"
+                                                        captureUseLunaDream30 -> "LunaDream 3.0"
+                                                        captureUseRawDream20 -> "RawDream 2.0"
+                                                        else -> "LunaDream"
+                                                    } + "; validFrames=${stackedFrames.size}; targetFrames=$maxFrames; minimumRequired=$minimumFramesRequired; " +
                                                         "captureElapsed=${burstElapsedMs}ms; stoppedForStorage=$stoppedForStorage"
                                                 )
                                             }
@@ -4193,8 +4202,13 @@ fun CameraScreen(
                                                 LunaDreamDiagnostics.record(
                                                     context,
                                                     "FRAME_COUNT_INSUFFICIENT",
-                                                    "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else "LunaDream 2.0") +
-                                                        "; validFrames=${stackedFrames.size}; required=$minimumFramesRequired; reason=${lunaDreamFailureReason}"
+                                                    "mode=" + when {
+                                                        captureUseLunaDream15 -> "LunaDream 1.5"
+                                                        captureUseLunaDream20 -> "LunaDream 2.0"
+                                                        captureUseLunaDream25 -> "LunaDream 2.5"
+                                                        captureUseLunaDream30 -> "LunaDream 3.0"
+                                                        else -> "RawDream 2.0"
+                                                    } + "; validFrames=${stackedFrames.size}; required=$minimumFramesRequired; reason=${lunaDreamFailureReason}"
                                                 )
                                             }
                                             if (stackedFrames.size >= minimumFramesRequired) {
@@ -4203,11 +4217,15 @@ fun CameraScreen(
                                                     multiFrameRenderStarted = true
                                                     processingLabel = when {
                                                         captureUseLunaDream15 ->
-                                                            "LunaDream 1.5: căn chỉnh và khử nhiễu " + stackedFrames.size + "/5 khung"
+                                                            "LunaDream 1.5: khử nhiễu và phục hồi chi tiết"
+                                                        captureUseLunaDream20 ->
+                                                            "LunaDream 2.0: căn chỉnh và ghép " + stackedFrames.size + "/4 khung"
+                                                        captureUseLunaDream25 ->
+                                                            "LunaDream 2.5: căn chỉnh và ghép " + stackedFrames.size + "/8 khung"
+                                                        captureUseLunaDream30 ->
+                                                            "LunaDream 3.0: căn chỉnh và ghép " + stackedFrames.size + "/12 khung"
                                                         captureUseRawDream20 ->
                                                             "RawDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
-                                                        captureUseLunaDream20 ->
-                                                            "LunaDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
                                                         captureUseMilkyWayStack ->
                                                             "NightShotMode Milky Way: căn chỉnh và gộp " + stackedFrames.size + "/8 khung"
                                                         captureUseNightShot ->
@@ -4219,6 +4237,10 @@ fun CameraScreen(
                                                 nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
                                                     context, stackedFrames, saved,
                                                     when {
+                                                        captureUseLunaDream25 ->
+                                                            NightShotProcessor.MergeMode.LUNA_DREAM_2_5
+                                                        captureUseLunaDream30 ->
+                                                            NightShotProcessor.MergeMode.LUNA_DREAM_3_0
                                                         captureUseRawDream20 || captureUseLunaDream20 ->
                                                             NightShotProcessor.MergeMode.LUNA_DREAM_2_0
                                                         captureUseLunaDream15 ->
@@ -4233,8 +4255,14 @@ fun CameraScreen(
                                                             LunaDreamDiagnostics.record(
                                                                 context,
                                                                 "MERGE_CALLBACK_FAILURE",
-                                                                "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
-                                                                    "; reason=$reason; validFrames=${stackedFrames.size}",
+                                                                "mode=" + when {
+                                                                    captureUseLunaDream15 -> "LunaDream 1.5"
+                                                                    captureUseLunaDream20 -> "LunaDream 2.0"
+                                                                    captureUseLunaDream25 -> "LunaDream 2.5"
+                                                                    captureUseLunaDream30 -> "LunaDream 3.0"
+                                                                    captureUseRawDream20 -> "RawDream 2.0"
+                                                                    else -> "LunaDream"
+                                                                } + "; reason=$reason; validFrames=${stackedFrames.size}",
                                                                 failure
                                                             )
                                                         }
@@ -4247,10 +4275,20 @@ fun CameraScreen(
                                                 ) { mergeProgress ->
                                                     mainExecutor.execute {
                                                         processingLabel = when {
-                                                            captureUseLunaDream15 && mergeProgress >= 90 ->
-                                                                "LunaDream 1.5 Render · khử nhiễu và phục hồi chi tiết"
                                                             captureUseLunaDream15 ->
-                                                                "LunaDream 1.5 · căn chỉnh và ghép ${stackedFrames.size}/5 khung"
+                                                                "LunaDream 1.5 Render · khử nhiễu và phục hồi chi tiết"
+                                                            captureUseLunaDream20 && mergeProgress >= 90 ->
+                                                                "LunaDream 2.0 Render · khử nhiễu và phục hồi chi tiết"
+                                                            captureUseLunaDream20 ->
+                                                                "LunaDream 2.0 · căn chỉnh và ghép ${stackedFrames.size}/4 khung"
+                                                            captureUseLunaDream25 && mergeProgress >= 90 ->
+                                                                "LunaDream 2.5 Render · khử nhiễu và phục hồi chi tiết"
+                                                            captureUseLunaDream25 ->
+                                                                "LunaDream 2.5 · căn chỉnh và ghép ${stackedFrames.size}/8 khung"
+                                                            captureUseLunaDream30 && mergeProgress >= 90 ->
+                                                                "LunaDream 3.0 Render · khử nhiễu và phục hồi chi tiết"
+                                                            captureUseLunaDream30 ->
+                                                                "LunaDream 3.0 · căn chỉnh và ghép ${stackedFrames.size}/12 khung"
                                                             captureUseRawDream20 && mergeProgress >= 90 ->
                                                                 "RawDream 2.0 Render · hoàn thiện ảnh JPEG"
                                                             captureUseRawDream20 ->
@@ -4269,7 +4307,7 @@ fun CameraScreen(
                                                         )
                                                     }
                                                 }
-                                                if (!nightShotMerged && captureUseLunaDream20Stack) {
+                                                if (!nightShotMerged && (captureUseLunaDream20 || captureUseRawDream20)) {
                                                     val primaryFailure = lunaDreamFailureReason
                                                         ?: "LunaDream 2.0 merge returned false without a failure callback"
                                                     if (stackedFrames.size >= 3) {
@@ -4424,14 +4462,22 @@ fun CameraScreen(
                                     captureUseLunaDream15 -> lunaDream15Processed
                                     captureUseRawDream20 -> rawDream20Processed
                                     captureUseLunaDream20 -> nightShotMerged
+                                    captureUseLunaDream25 -> nightShotMerged
+                                    captureUseLunaDream30 -> nightShotMerged
                                     else -> false
                                 }
                                 if (captureUseLunaDream) {
                                     LunaDreamDiagnostics.record(
                                         context,
                                         if (lunaDreamApplied) "CAPTURE_PROCESSING_COMPLETE" else "CAPTURE_PROCESSING_INCOMPLETE",
-                                        "mode=" + (if (captureUseLunaDream15) "LunaDream 1.5" else if (captureUseRawDream20) "RawDream 2.0" else "LunaDream 2.0") +
-                                            "; validFrames=$lunaDreamCapturedFrameCount; fallbackApplied=$lunaDream20FallbackApplied; " +
+                                        "mode=" + when {
+                                            captureUseLunaDream15 -> "LunaDream 1.5"
+                                            captureUseLunaDream20 -> "LunaDream 2.0"
+                                            captureUseLunaDream25 -> "LunaDream 2.5"
+                                            captureUseLunaDream30 -> "LunaDream 3.0"
+                                            captureUseRawDream20 -> "RawDream 2.0"
+                                            else -> "LunaDream"
+                                        } + "; validFrames=$lunaDreamCapturedFrameCount; fallbackApplied=$lunaDream20FallbackApplied; " +
                                             "merged=$nightShotMerged; reason=${lunaDreamFailureReason ?: "none"}"
                                     )
                                 }
@@ -4443,6 +4489,12 @@ fun CameraScreen(
                                     processingLabel = when {
                                         captureUseLunaDream15 && lunaDreamApplied ->
                                             "LunaDream Render · 1.5 đang phục hồi chi tiết"
+                                        captureUseLunaDream20 && lunaDreamApplied ->
+                                            "LunaDream Render · 2.0 đang phục hồi chi tiết"
+                                        captureUseLunaDream25 && lunaDreamApplied ->
+                                            "LunaDream Render · 2.5 đang phục hồi chi tiết"
+                                        captureUseLunaDream30 && lunaDreamApplied ->
+                                            "LunaDream Render · 3.0 đang phục hồi chi tiết"
                                         captureUseRawDream20 && lunaDream20FallbackApplied ->
                                             "RawDream 2.0 · đang hoàn tất JPEG bằng dự phòng LunaDream 1.5"
                                         captureUseLunaDream20 && lunaDream20FallbackApplied ->
@@ -4534,8 +4586,11 @@ fun CameraScreen(
                                     val requestedMp = when {
                                         captureUseNightShot -> 60_000_000L
                                         captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
-                                        captureUseLunaDream20Stack && lunaDream20FallbackApplied -> 50_000_000L
-                                        captureUseLunaDream && lunaDreamApplied -> 108_000_000L
+                                        (captureUseLunaDream20 || captureUseRawDream20) && lunaDream20FallbackApplied -> 50_000_000L
+                                        captureUseLunaDream20 && lunaDreamApplied -> 108_000_000L
+                                        captureUseLunaDream25 && lunaDreamApplied -> 150_000_000L
+                                        captureUseLunaDream30 && lunaDreamApplied -> 200_000_000L
+                                        captureUseRawDream20 && lunaDreamApplied -> 108_000_000L
                                         else -> null
                                     }
                                     withContext(Dispatchers.Main) {
@@ -5785,8 +5840,10 @@ fun CameraScreen(
                                     zebraPoints = zebraPoints,
                                     showStatus = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     resolutionText = when (lunaDreamMode) {
-                                        "luna20" -> "UHD"
-                                        "luna15" -> "FHD+"
+                                        "luna15" -> "50MP"
+                                        "luna20" -> "108MP"
+                                        "luna25" -> "150MP"
+                                        "luna30" -> "200MP"
                                         else -> "FHD"
                                     },
                                     previewFps = measuredPreviewFps.takeIf { it.isFinite() && it > 0f },

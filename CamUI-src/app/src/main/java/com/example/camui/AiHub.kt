@@ -81,10 +81,10 @@ fun LunaDreamBottomSheet(
                     lineHeight = 15.sp
                 )
                 val lunaModes = listOf(
-                    Triple("luna15", "LunaDream 1.5", "50MP · 1 khung (tối đa 2) · ưu tiên tốc độ"),
-                    Triple("luna20", "LunaDream 2.0", "108MP · 3–5 khung · cân bằng tốc độ và chi tiết"),
-                    Triple("luna25", "LunaDream 2.5", "150MP · 6–10 khung · căn chỉnh và ghép nâng cao"),
-                    Triple("luna30", "LunaDream 3.0", "200MP · 12–16 khung · chất lượng cao nhất")
+                    Triple("luna15", stringResource(R.string.lunadream_tier_15_title), stringResource(R.string.lunadream_tier_15_description)),
+                    Triple("luna20", stringResource(R.string.lunadream_tier_20_title), stringResource(R.string.lunadream_tier_20_description)),
+                    Triple("luna25", stringResource(R.string.lunadream_tier_25_title), stringResource(R.string.lunadream_tier_25_description)),
+                    Triple("luna30", stringResource(R.string.lunadream_tier_30_title), stringResource(R.string.lunadream_tier_30_description))
                 )
                 if (isLandscape) {
                     Column(

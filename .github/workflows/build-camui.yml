@@ -3,7 +3,7 @@ name: LunaDream 2.5.0dream landscape UI validation
 
 on:
   push:
-    branches: [main, "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream", "fuji-2.5.0-round1-spec", "fuji-2.5.0-round1-stage", "fuji-2.5.0-full-work", "fuji-2.5.0-prompt-2026-11-22-round1"]
+    branches: [main, "work/fujifilm-mode-2.6.1", "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream", "fuji-2.5.0-round1-spec", "fuji-2.5.0-round1-stage", "fuji-2.5.0-full-work", "fuji-2.5.0-prompt-2026-11-22-round1"]
   workflow_dispatch:
 
 permissions:
@@ -53,7 +53,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: fujifilm-mode-2.5.0-apks
+          name: fujifilm-mode-2.6.1-apks
           path: |
             CamUI-src/app/build/outputs/apk/debug/app-debug.apk
             CamUI-src/app/build/outputs/apk/developer/app-developer.apk

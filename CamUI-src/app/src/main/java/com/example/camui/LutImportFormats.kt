@@ -233,10 +233,10 @@ internal fun parseHaldPng(bytes: ByteArray): CubeLut {
             }
             current[index] = ((raw + predictor) and 0xFF).toByte()
         }
-        val rowOffset = y * rowBytes
         val pixelBase = y * width * 3
         for (x in 0 until width) {
-            val source = rowOffset + x * bytesPerPixel
+            // current is a single, unfiltered scanline; do not add the global row offset here.
+            val source = x * bytesPerPixel
             val destination = pixelBase + x * 3
             for (channel in 0..2) {
                 val sample = if (bitDepth == 8) {

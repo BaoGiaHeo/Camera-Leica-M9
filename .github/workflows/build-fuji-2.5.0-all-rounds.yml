@@ -48,6 +48,17 @@ jobs:
         working-directory: CamUI-src
         run: gradle :app:testDeveloperUnitTest --stacktrace --console=plain
 
+      - name: Upload Developer unit-test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fujifilm-mode-2.6.0-unit-test-reports
+          path: |
+            CamUI-src/app/build/reports/tests/testDeveloperUnitTest/
+            CamUI-src/app/build/test-results/testDeveloperUnitTest/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Assemble installable APK variants
         id: assemble
         if: always()
@@ -55,7 +66,7 @@ jobs:
         run: gradle :app:assembleDeveloper :app:assembleDebug --stacktrace --console=plain
 
       - name: Verify canonical Developer application ID
-        if: steps.assemble.outcome == 'success'
+        if: always() && steps.assemble.outcome == 'success'
         working-directory: CamUI-src
         run: |
           APK="app/build/outputs/apk/developer/app-developer.apk"
@@ -67,7 +78,7 @@ jobs:
           sha256sum "$APK" | tee developer-apk-sha256.txt
 
       - name: Upload installable APKs and build identity
-        if: steps.assemble.outcome == 'success'
+        if: always() && steps.assemble.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: fujifilm-mode-2.6.0-all-rounds-apks

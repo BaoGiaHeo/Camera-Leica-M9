@@ -565,8 +565,8 @@ var nightShotMode by remember {
                 )
             }
             "Ngôn ngữ" -> {
-                var selectedNgôn ngữ by remember {
-                    mutableStateOf(AppNgôn ngữManager.currentNgôn ngữ)
+                var selectedLanguage by remember {
+                    mutableStateOf(AppLanguageManager.currentNgôn ngữ)
                 }
                 Text(stringResource(R.string.language_screen_title), color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
@@ -582,18 +582,18 @@ var nightShotMode by remember {
                 languages.forEach { (id, label) ->
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 3.dp)
-                            .background(if (selectedNgôn ngữ == id) Color(0xFF20292B) else FujiSkin.lcd)
-                            .border(1.dp, if (selectedNgôn ngữ == id) FujiSkin.orange else Color(0xFF344247))
+                            .background(if (selectedLanguage == id) Color(0xFF20292B) else FujiSkin.lcd)
+                            .border(1.dp, if (selectedLanguage == id) FujiSkin.orange else Color(0xFF344247))
                             .animaTClickable {
-                                selectedNgôn ngữ = id
-                                AppNgôn ngữManager.setNgôn ngữ(context, id)
+                                selectedLanguage = id
+                                AppLanguageManager.setNgôn ngữ(context, id)
                             }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(label, color = if (selectedNgôn ngữ == id) FujiSkin.orange else CamColors.TextColor,
+                        Text(label, color = if (selectedLanguage == id) FujiSkin.orange else CamColors.TextColor,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        if (selectedNgôn ngữ == id) {
+                        if (selectedLanguage == id) {
                             Text("✓", color = FujiSkin.orange, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -605,7 +605,7 @@ var nightShotMode by remember {
                     onShowGrid(prefs.getBoolean("viewfinder_grid_enabled", true))
                     onShowHist(prefs.getBoolean("viewfinder_histogram_enabled", true))
                     onFocusPeaking(prefs.getBoolean("viewfinder_focus_peaking_enabled", false))
-                    AppNgôn ngữManager.initialize(context)
+                    AppLanguageManager.initialize(context)
                 })
             }
             "Chụp đêm NightShot" -> {

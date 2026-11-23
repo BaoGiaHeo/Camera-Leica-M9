@@ -172,7 +172,7 @@ internal object WatermarkRenderer {
         when (geometry.layout) {
             WatermarkLayoutType.BAR -> drawBar(context, canvas, geometry, settings, metadata, fonts, primary, secondary)
             WatermarkLayoutType.CAPTION -> drawCaption(canvas, geometry, settings, metadata, fonts, primary, secondary)
-            WatermarkLayoutType.CARD -> drawCard(context, canvas, geometry, settings, metadata, fonts)
+            WatermarkLayoutType.CARD -> drawCard(context, canvas, geometry, settings, metadata, fonts, primary)
             WatermarkLayoutType.GALLERY -> drawGallery(context, canvas, geometry, settings, metadata, fonts, primary, secondary)
             WatermarkLayoutType.BLACK -> drawBlack(context, canvas, geometry, settings, metadata, fonts)
         }
@@ -434,7 +434,8 @@ internal object WatermarkRenderer {
 
     private fun drawCard(
         context: Context, canvas: Canvas, geometry: WatermarkLayoutGeometry,
-        settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts
+        settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts,
+        primary: Int
     ) {
         val meta = geometry.metadataRect ?: return
         drawLogo(context, canvas, geometry.logoRect ?: return, settings.invert)
@@ -448,7 +449,7 @@ internal object WatermarkRenderer {
         ).filter { it.isNotBlank() }.joinToString(" ")
         val cap = s * 0.032f * settings.sizeScale
         val right = meta.right - s * 0.049f
-        val linePaint = fitPaint(line, fonts.medium, 0xFF3C3C3C.toInt(), cap, s * 0.52f, fonts.mediumCapRatio, Paint.Align.RIGHT)
+        val linePaint = fitPaint(line, fonts.medium, primary, cap, s * 0.52f, fonts.mediumCapRatio, Paint.Align.RIGHT)
         if (linePaint != null) {
             val capRect = Rect()
             linePaint.getTextBounds("H", 0, 1, capRect)

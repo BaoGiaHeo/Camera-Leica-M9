@@ -1,7 +1,7 @@
 package com.example.camui
 
 import android.content.Context
-import android.hardware.input.InputDevice
+import android.view.InputDevice
 import android.hardware.input.InputManager
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbManager
@@ -63,7 +63,7 @@ internal fun readCameraAccessoryStatus(context: Context): CameraAccessoryStatus 
 
     val inputManager = context.getSystemService(Context.INPUT_SERVICE) as? InputManager
     val externalCameraRemote = runCatching {
-        inputManager?.inputDeviceIds.orEmpty()
+        inputManager?.inputDeviceIds?.toList().orEmpty()
             .mapNotNull { InputDevice.getDevice(it) }
             .firstOrNull { device ->
                 device.isExternal &&

@@ -1152,6 +1152,7 @@ fun CameraScreen(
     var viewerOriginalBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var viewerShowsOriginal by remember { mutableStateOf(false) }
     var photoViewerVisible by remember { mutableStateOf(false) }
+    var resolutionWarning by remember { mutableStateOf<String?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
@@ -4692,35 +4693,23 @@ fun CameraScreen(
                                 val outputResolutionApplied = outputResolutionResult != null
 
                                 if (captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied) {
-                                    // Do not present an undersized JPEG as a completed 50/108MP LunaDream.
-                                    runCatching {
-                                        context.contentResolver.update(
-                                            saved,
-                                            ContentValues().apply {
-                                                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Unprocessed")
-                                                put(MediaStore.Images.Media.IS_PENDING, 0)
-                                            },
-                                            null,
-                                            null
-                                        )
+                                    // Keep the successfully fused source JPEG in the normal album.
+                                    // Never claim the requested MP count, but do not return before
+                                    // watermarking, metadata publication and thumbnail delivery.
+                                    val requestedMp = when {
+                                        captureUseLunaDream30 -> 200
+                                        captureUseLunaDream25 -> 150
+                                        captureUseRawDream20 || captureUseLunaDream20 -> 108
+                                        else -> 50
                                     }
+                                    val warning = "LunaDream đã ghép ảnh thành công, nhưng thiết bị không đủ bộ nhớ để nâng ảnh lên $requestedMp MP. Ảnh ghép ở độ phân giải gốc vẫn được lưu và đóng watermark. Ứng dụng không ghi nhãn sai ảnh này là $requestedMp MP."
+                                    android.util.Log.e(
+                                        "FUJI_LUNADREAM",
+                                        "OUTPUT_UPSCALE_SKIPPED requested=${requestedMp}MP; merged source JPEG retained; watermarking will continue"
+                                    )
                                     withContext(Dispatchers.Main) {
-                                        lastUri = null
-                                        thumb = null
-                                        thumbUri = null
-                                        photoViewerVisible = false
-                                        isProcessing = false
-                                        processingProgress = 0
-                                        processingEtaSeconds = -1
-                                        multiFrameHoldActive = false
-                                        multiFrameRenderStarted = false
-                                        localizedToast(
-                                            context,
-                                            "LunaDream đã ghép ảnh nhưng không đạt độ phân giải yêu cầu. Ảnh được giữ riêng trong Pictures/FujifilmMode/Unprocessed; không xuất như ảnh 50/108MP.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        resolutionWarning = warning
                                     }
-                                    return@launch
                                 }
 
                                 val digitalZoomResult = if (
@@ -4756,7 +4745,7 @@ fun CameraScreen(
                                     processingLabel = "Đang đóng watermark ở độ phân giải cuối"
                                     processingEtaSeconds = -1
                                 }
-                                val stamped = if (captureIsUltraHdr || (captureUseLunaDream && !lunaDreamApplied)) false else runCatching {
+                                val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
@@ -7323,6 +7312,30 @@ fun CameraScreen(
                 activeFilter = activeFilter,
                 onDismiss = { filmCustomizerVisible = false }
             )
+        }
+        resolutionWarning?.let { warning ->
+            Dialog(
+                onDismissRequest = { resolutionWarning = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                FujiPanel(
+                    title = "THÔNG TIN ĐỘ PHÂN GIẢI",
+                    modifier = Modifier.fillMaxWidth(0.88f).heightIn(max = 280.dp),
+                    onBack = { resolutionWarning = null }
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(warning, color = Color.White, fontSize = 12.sp)
+                        FujiKey(
+                            "ĐÓNG",
+                            onClick = { resolutionWarning = null },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
         }
 
         if (showLunaDream) {

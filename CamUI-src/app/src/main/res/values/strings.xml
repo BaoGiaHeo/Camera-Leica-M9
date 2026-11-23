@@ -133,6 +133,8 @@
     <string name="watermark_studio_location_auto_note">Location uses the custom label or source-photo GPS metadata; it is hidden when neither is available.</string>
     <string name="mf_mode_ld15">LD 1.5</string>
     <string name="mf_mode_ld20">LD 2.0</string>
+    <string name="mf_mode_ld25">LD 2.5</string>
+    <string name="mf_mode_ld30">LD 3.0</string>
     <string name="mf_mode_night">NIGHT</string>
     <string name="mf_stage_capture">CAPTURE</string>
     <string name="mf_stage_align">ALIGN</string>
@@ -187,7 +189,7 @@
     <string name="activation_battery_value">BATTERY %1$s</string>
     <string name="activation_storage_warning">LOW STORAGE · LESS THAN 1 GB FREE</string>
     <string name="activation_battery_warning">LOW BATTERY · BELOW 20%</string>
-    <string name="battery_processing_blocked">Battery is at 5% or below. Charge the device before using NightShot or LunaDream 2.0.</string>
+    <string name="battery_processing_blocked">Battery is at 5% or below. Charge the device before using NightShot or LunaDream.</string>
     <string name="processing_lock_luna15">Unavailable while LunaDream 1.5 is active.</string>
     <string name="processing_lock_luna20">Unavailable while LunaDream 2.0 is active.</string>
     <string name="processing_lock_night">Unavailable with NightShot.</string>

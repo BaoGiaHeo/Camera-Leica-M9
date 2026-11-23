@@ -1473,6 +1473,7 @@ fun CameraScreen(
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = zoomSel
         var previousFrame = 0L
+        var lastZoomCommandAtMs = 0L
         val holdStartedAtMs = SystemClock.elapsedRealtime()
         var zoomFrameIndex = 0L
         var lastDiagnosticAt = SystemClock.uptimeMillis()
@@ -1523,8 +1524,18 @@ fun CameraScreen(
                 actualZoomRatio = plan.effectiveZoomRatio
                 digitalZoomCropScale = plan.digitalCropRatio
                 zoomInteractionGeneration++
-                if (abs(state.zoomRatio - plan.cameraControlZoomRatio) > 0.002f) {
+                val commandNowMs = SystemClock.elapsedRealtime()
+                val previousCommandPending = lastZoomFuture?.isDone == false
+                if (
+                    abs(state.zoomRatio - plan.cameraControlZoomRatio) > 0.002f &&
+                    !previousCommandPending &&
+                    commandNowMs - lastZoomCommandAtMs >= 33L
+                ) {
+                    // Do not enqueue one CameraX zoom command on every display frame.
+                    // Wait for the previous future and cap HAL updates at ~30 Hz;
+                    // Compose preview interpolation can continue at the full display rate.
                     lastZoomFuture = active.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
+                    lastZoomCommandAtMs = commandNowMs
                 }
                 tickCount++
             }
@@ -5633,7 +5644,7 @@ fun CameraScreen(
                                             }, mainExecutor)
                                         },
                                         onLongPress = { offset ->
-                                            if (mode != "Pro" || !touchAfEnabled) return@detectTapGestures
+                                            if (!touchAfEnabled) return@detectTapGestures
                                             val active = camera ?: return@detectTapGestures
                                             val tapPoint = normalizedAfTapPoint(
                                                 Offset(offset.x, offset.y),

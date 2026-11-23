@@ -227,7 +227,13 @@ private val englishUi = mapOf(
     "Fujifilm Mode (app-debug)" to "FujiFilm Mode",
     "Version 1.1 experimental · Debug build" to "Version 1.1 experimental · Debug build",
     "Chưa có ảnh trong Pictures/FujifilmMode." to "No photos in Pictures/FujifilmMode yet.",
-    "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes."
+    "Không rung máy cho đến khi hoàn tất" to "Do not move the phone until capture finishes.",
+    "Chiến lược nguồn điểm ảnh LunaDream" to "LunaDream source strategy",
+    "XMP LunaDream" to "LunaDream XMP metadata",
+    "Không có khảo sát LunaDream" to "No LunaDream source survey",
+    "Không có trạng thái XMP" to "No XMP status",
+    "XMP APP1 written and verified" to "XMP APP1 written and verified",
+    "XMP not written; see FUJI_LUNADREAM_XMP log" to "XMP not written; see FUJI_LUNADREAM_XMP log"
 )
 
 private val fullEnglishUi = mapOf(

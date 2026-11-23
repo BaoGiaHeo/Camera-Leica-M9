@@ -40,7 +40,7 @@ adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-
 printf '%s\n' \
   "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>" \
   "<map><boolean name='first_activation_completed' value='true' /></map>" \
-  | adb shell run-as com.fujifilm.mode.debug sh -c 'mkdir -p shared_prefs && cat > shared_prefs/fujifilm_settings.xml'
+  | adb shell "run-as com.fujifilm.mode.debug sh -c 'mkdir -p shared_prefs && cat > shared_prefs/fujifilm_settings.xml'"
 adb shell run-as com.fujifilm.mode.debug cat shared_prefs/fujifilm_settings.xml > emulator-artifacts/seeded-preferences.txt
 echo "first_activation_bypassed=1" >> emulator-artifacts/command-status.txt
 

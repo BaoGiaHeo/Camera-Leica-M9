@@ -80,46 +80,68 @@ fun LunaDreamBottomSheet(
                     fontSize = 10.sp,
                     lineHeight = 15.sp
                 )
+                val lunaModes = listOf(
+                    Triple("luna15", "LunaDream 1.5", "50MP · 1 khung (tối đa 2) · ưu tiên tốc độ"),
+                    Triple("luna20", "LunaDream 2.0", "108MP · 3–5 khung · cân bằng tốc độ và chi tiết"),
+                    Triple("luna25", "LunaDream 2.5", "150MP · 6–10 khung · căn chỉnh và ghép nâng cao"),
+                    Triple("luna30", "LunaDream 3.0", "200MP · 12–16 khung · chất lượng cao nhất")
+                )
                 if (isLandscape) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(Modifier.weight(1f)) {
-                            LunaDreamModeRow(
-                                title = "LunaDream 1.5",
-                                subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
-                                selected = selectedMode == "luna15",
-                                intensity = 0.58f,
-                                phase = 0f,
-                                onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
-                            )
-                        }
-                        Box(Modifier.weight(1f)) {
-                            LunaDreamModeRow(
-                                title = "LunaDream 2.0",
-                                subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
-                                selected = selectedMode == "luna20",
-                                intensity = 1f,
-                                phase = 0f,
-                                onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
-                            )
+                    Column(
+                        Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        lunaModes.chunked(2).forEachIndexed { rowIndex, rowModes ->
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                rowModes.forEach { (modeId, title, subtitle) ->
+                                    Box(Modifier.weight(1f)) {
+                                        LunaDreamModeRow(
+                                            title = title,
+                                            subtitle = subtitle,
+                                            selected = selectedMode == modeId,
+                                            intensity = when (modeId) {
+                                                "luna15" -> 0.58f
+                                                "luna20" -> 0.72f
+                                                "luna25" -> 0.86f
+                                                else -> 1f
+                                            },
+                                            phase = rowIndex.toFloat() * 0.5f,
+                                            onCheckedChange = {
+                                                onSelectedModeChange(if (it) modeId else "off")
+                                            }
+                                        )
+                                    }
+                                }
+                                if (rowModes.size == 1) Spacer(Modifier.weight(1f))
+                            }
                         }
                     }
                 } else {
-                    LunaDreamModeRow(
-                        title = "LunaDream 1.5",
-                        subtitle = "50MP · chụp một lần · xử lý trực tiếp, ưu tiên tốc độ",
-                        selected = selectedMode == "luna15",
-                        intensity = 0.58f,
-                        phase = 0f,
-                        onCheckedChange = { onSelectedModeChange(if (it) "luna15" else "off") }
-                    )
-                    LunaDreamModeRow(
-                        title = "LunaDream 2.0",
-                        subtitle = "108MP · đa khung hình · ưu tiên phục hồi chi tiết tối đa",
-                        selected = selectedMode == "luna20",
-                        intensity = 1f,
-                        phase = 0f,
-                        onCheckedChange = { onSelectedModeChange(if (it) "luna20" else "off") }
-                    )
+                    Column(
+                        Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        lunaModes.forEach { (modeId, title, subtitle) ->
+                            LunaDreamModeRow(
+                                title = title,
+                                subtitle = subtitle,
+                                selected = selectedMode == modeId,
+                                intensity = when (modeId) {
+                                    "luna15" -> 0.58f
+                                    "luna20" -> 0.72f
+                                    "luna25" -> 0.86f
+                                    else -> 1f
+                                },
+                                phase = 0f,
+                                onCheckedChange = {
+                                    onSelectedModeChange(if (it) modeId else "off")
+                                }
+                            )
+                        }
+                    }
                 }
                 Text(
                     if (selectedMode == "off") "LUNADREAM IS OFF" else "LUNADREAM · ${selectedMode.uppercase()}",

@@ -4588,8 +4588,8 @@ fun CameraScreen(
                                         captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
                                         (captureUseLunaDream20 || captureUseRawDream20) && lunaDream20FallbackApplied -> 50_000_000L
                                         captureUseLunaDream20 && lunaDreamApplied -> 108_000_000L
-                                        captureUseLunaDream25 && lunaDreamApplied -> 150_000_000L
-                                        captureUseLunaDream30 && lunaDreamApplied -> 200_000_000L
+                                        captureUseLunaDream25 && lunaDreamApplied -> 150_039_552L
+                                        captureUseLunaDream30 && lunaDreamApplied -> 199_756_800L
                                         captureUseRawDream20 && lunaDreamApplied -> 108_000_000L
                                         else -> null
                                     }

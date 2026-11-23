@@ -70,12 +70,12 @@ private val settingItems = listOf(
     SettingItem("tab_01", "Assistive Tools", "Grid Lines · Focus Peaking · Histogram", R.string.settings_tab_assistive_tools),
     SettingItem("tab_02", "Focus & Lens", "Camera ID · Lens · Sensor information", R.string.settings_tab_focus_lens),
     SettingItem("tab_03", "Capture & Quality", "Aspect ratio · Image quality · Save location", R.string.settings_tab_capture_quality),
-    SettingItem("tab_04", "Photo Mode Setting", "HDR · Noise reduction · RAW", R.string.settings_tab_photo_mode),
+    SettingItem("tab_04", "Photo Mode Setting", "HDR · RAW", R.string.settings_tab_photo_mode),
     SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails", R.string.settings_tab_nightshot),
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout", R.string.settings_tab_display),
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback", R.string.settings_tab_sound),
     SettingItem("tab_08", "Language", "ENGLISH · TIẾNG VIỆT", R.string.settings_tab_language),
-    SettingItem("tab_09", "About", "FujiFilm Mode · 2.5.0Dream", R.string.settings_tab_about),
+    SettingItem("tab_09", "About", "FujiFilm Mode · 2.6.0", R.string.settings_tab_about),
 )
 
 @Composable
@@ -105,14 +105,7 @@ fun SettingsScreen(
             item
         }
     }
-    val visibleSettingItems = if (BuildConfig.DEVELOPER_LOG_ENABLED) {
-        localizedSettingItems + SettingItem(
-            "tab_11",
-            "Pixel OSD Preview",
-            "Pixel OSD preview and diagnostic tools",
-            R.string.pixel_osd_preview_tab
-        )
-    } else localizedSettingItems
+    val visibleSettingItems = localizedSettingItems
     FujiScreenScaffold(
         title = stringResource(R.string.settings_screen_title), modifier = Modifier.fillMaxSize(),
         onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
@@ -197,7 +190,6 @@ private fun SettingsDetailPage(
         )
     }
     var imageQuality by remember { mutableStateOf(prefs.getString("image_quality", "Best") ?: "Best") }
-    var noiseReduction by remember { mutableStateOf(prefs.getString("noise_reduction", "Medium") ?: "Medium") }
     var rawCaptureMode by remember {
         mutableStateOf(
             when (prefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") {
@@ -208,16 +200,12 @@ private fun SettingsDetailPage(
         )
     }
     var hdr by remember { mutableStateOf(prefs.getBoolean("hdr_enabled", prefs.getBoolean("hdr_coming_soon", false))) }
-    var keepPreviewFps by remember {
-        mutableStateOf(prefs.getBoolean("preview_fps_keep", false))
-    }
     val supportedFpsModes = remember(context) { discoverSupportedPreviewFpsModes(context) }
     val defaultFpsMode = remember(supportedFpsModes) { highestSupportedPreviewFpsMode(supportedFpsModes) }
     var previewFpsMode by remember {
         mutableStateOf(
-            if (keepPreviewFps) {
-                prefs.getString("preview_fps_mode", defaultFpsMode)?.takeIf { it in supportedFpsModes } ?: defaultFpsMode
-            } else defaultFpsMode
+            prefs.getString("preview_fps_mode", defaultFpsMode)
+                ?.takeIf { it in supportedFpsModes } ?: defaultFpsMode
         )
     }
 var nightShotMode by remember {
@@ -271,9 +259,6 @@ var nightShotMode by remember {
                 .padding(horizontal = if (isLandscape) 22.dp else 12.dp, vertical = 10.dp)
         ) {
         when (title) {
-            stringResource(R.string.pixel_osd_preview_tab) -> {
-                PixelOsdPreview()
-            }
             "Assistive Tools" -> {
                 Text("Viewfinder overlays are configured in Toolbox.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
@@ -776,18 +761,6 @@ var nightShotMode by remember {
                         )
                     }
                 }
-                SettingsSwitch(
-                    stringResource(R.string.preview_fps_keep),
-                    stringResource(R.string.preview_fps_description),
-                    keepPreviewFps
-                ) { enabled ->
-                    keepPreviewFps = enabled
-                    prefs.edit().putBoolean("preview_fps_keep", enabled).apply()
-                    if (!enabled) {
-                        previewFpsMode = defaultFpsMode
-                        prefs.edit().putString("preview_fps_mode", defaultFpsMode).apply()
-                    }
-                }
                 Spacer(Modifier.padding(5.dp))
                 Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
@@ -817,22 +790,6 @@ var nightShotMode by remember {
                             rawCaptureMode = value
                             prefs.edit().putString("raw_capture_mode", value).apply()
                         }, Modifier.width(92.dp))
-                    }
-                }
-                Spacer(Modifier.padding(5.dp))
-                Text("Noise Reduction", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Off tắt khử nhiễu. Low / Medium / High chỉ dùng thuật toán khử nhiễu có sẵn của camera (Camera2); không có xử lý AI sau chụp. Ultra HDR giữ nguyên dữ liệu JPEG_R.",
-                    color = CamColors.Sub, fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 5.dp, bottom = 9.dp)
-                )
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("Off", "Low", "Medium", "High").forEach { option ->
-                        FujiChip(option, noiseReduction == option, {
-                            noiseReduction = option
-                            prefs.edit().putString("noise_reduction", option).apply()
-                        }, Modifier.width(75.dp))
                     }
                 }
             }

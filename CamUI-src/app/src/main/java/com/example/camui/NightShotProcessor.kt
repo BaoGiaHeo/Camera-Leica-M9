@@ -89,6 +89,20 @@ object NightShotProcessor {
             mode == MergeMode.LUNA_DREAM_2_5 ||
             mode == MergeMode.LUNA_DREAM_3_0
 
+    private fun requestedWorkers(mode: MergeMode): Int = when (mode) {
+        MergeMode.LUNA_DREAM_1_5 -> 3
+        MergeMode.LUNA_DREAM_2_0 -> 5
+        MergeMode.LUNA_DREAM_2_5 -> 6
+        MergeMode.LUNA_DREAM_3_0 -> 8
+        else -> 1
+    }
+
+    private fun activeWorkerCount(executor: ExecutorService): Int =
+        (executor as? java.util.concurrent.ThreadPoolExecutor)
+            ?.maximumPoolSize
+            ?.coerceAtLeast(1)
+            ?: Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
+
     private data class GrayLevel(
         val width: Int,
         val height: Int,
@@ -370,10 +384,20 @@ object NightShotProcessor {
                     "maxHeap=${Runtime.getRuntime().maxMemory()}"
             )
         }
-        val lunaFusionExecutor: ExecutorService? = if (
-            isLunaDreamStackMode(mode)
-        ) {
-            Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
+        val lunaFusionExecutor: ExecutorService? = if (isLunaDreamStackMode(mode)) {
+            val requested = requestedWorkers(mode)
+            val available = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+            val actual = requested.coerceAtMost(available)
+            if (actual != requested) {
+                Log.w(TAG, "LunaDream $mode requested $requested workers; clamped to $actual because availableProcessors=$available")
+            }
+            Log.i(TAG, "LunaDream worker plan: mode=$mode requested=$requested active=$actual availableProcessors=$available")
+            Executors.newFixedThreadPool(actual) { runnable ->
+                Thread({
+                    runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
+                    runnable.run()
+                }, "LunaDream-${mode.name.lowercase()}").apply { isDaemon = true }
+            }
         } else null
         return try {
             currentStage = "read first frame EXIF"
@@ -777,7 +801,7 @@ object NightShotProcessor {
     ) {
         check(!base.isRecycled) { "LunaDream fusion base bitmap was recycled" }
         check(base.isMutable) { "LunaDream fusion base bitmap must be mutable before pixel writes" }
-        val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val workerCount = activeWorkerCount(workers)
         val rowsPerStripe = 64
         for (top in 0 until height step rowsPerStripe) {
             val rowCount = min(rowsPerStripe, height - top)
@@ -1479,7 +1503,7 @@ object NightShotProcessor {
         val width = bitmap.width
         val height = bitmap.height
         if (width < 3 || height < 3) return
-        val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val workerCount = activeWorkerCount(workers)
         val rowsPerStripe = 64
         var carryRow = IntArray(width)
         var carryLuma = IntArray(width)
@@ -1795,7 +1819,7 @@ object NightShotProcessor {
         val width = bitmap.width
         val height = bitmap.height
         if (width < 3 || height < 3) return
-        val workerCount = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val workerCount = activeWorkerCount(workers)
         val rowsPerStripe = 64
         var carryRow = IntArray(width)
         var carryLuma = IntArray(width)

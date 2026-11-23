@@ -36,9 +36,30 @@ echo "install=0" >> emulator-artifacts/command-status.txt
 adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1
 adb logcat -c
 adb shell am force-stop com.fujifilm.mode.debug > emulator-artifacts/force-stop.txt 2>&1
-adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1
-echo "am_start=0" >> emulator-artifacts/command-status.txt
-sleep 15
+adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1 || true
+echo "am_start_command_completed=1" >> emulator-artifacts/command-status.txt
+
+# ART verification and first Compose class loading are slow on this small CI emulator.
+# Wait up to 150 seconds for ActivityTaskManager to confirm the actual first frame.
+startup_ready=0
+for i in $(seq 1 75); do
+  if adb logcat -d -v brief -s ActivityTaskManager:I 2>/dev/null | grep -q "Displayed com.fujifilm.mode.debug/com.example.camui.MainActivity"; then
+    startup_ready=1
+    break
+  fi
+  if [ -z "$(adb shell pidof com.fujifilm.mode.debug 2>/dev/null | tr -d '\r')" ]; then
+    break
+  fi
+  sleep 2
+done
+if [ "$startup_ready" -ne 1 ]; then
+  echo "activity_not_displayed_within_150s=1" >> emulator-artifacts/command-status.txt
+  adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid.txt 2>&1 || true
+  adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-startup-timeout.txt 2>&1 || true
+  exit 26
+fi
+echo "activity_displayed=1" >> emulator-artifacts/command-status.txt
+sleep 8
 
 adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid.txt 2>&1 || true
 adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt 2>&1 || true
@@ -55,8 +76,15 @@ adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid-landscape.t
 adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-landscape.txt 2>&1 || true
 
 # Keep raw logs even when startup fails; report app crash signatures separately.
-if grep -Eq 'FATAL EXCEPTION|Fatal signal [0-9]+|am_crash|Process: com\.fujifilm\.mode' emulator-artifacts/logcat-landscape.txt; then
-  echo "app_crash_signature=1" >> emulator-artifacts/command-status.txt
+app_pid="$(tr -d '\r\n ' < emulator-artifacts/app-pid.txt)"
+if grep -Eq 'FATAL EXCEPTION|am_crash|Process: com\.fujifilm\.mode\.debug' emulator-artifacts/logcat-landscape.txt; then
+  if grep -Eq 'Process: com\.fujifilm\.mode\.debug|am_crash.*com\.fujifilm\.mode\.debug' emulator-artifacts/logcat-landscape.txt; then
+    echo "app_crash_signature=1" >> emulator-artifacts/command-status.txt
+    exit 22
+  fi
+fi
+if [ -n "$app_pid" ] && grep -Eq "Fatal signal [0-9]+.*pid $app_pid \(com\.fujifilm\.mode\.debug" emulator-artifacts/logcat-landscape.txt; then
+  echo "app_native_crash_signature=1" >> emulator-artifacts/command-status.txt
   exit 22
 fi
 if [ ! -s emulator-artifacts/app-pid.txt ]; then

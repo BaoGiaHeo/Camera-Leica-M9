@@ -835,19 +835,16 @@ fun CameraScreen(
     }
     var previewFpsMode by remember {
         mutableStateOf(
-            if (appPrefs.getBoolean("preview_fps_keep", false)) {
-                appPrefs.getString("preview_fps_mode", defaultPreviewFpsMode)
-                    ?.takeIf { it in supportedPreviewFpsModes } ?: defaultPreviewFpsMode
-            } else defaultPreviewFpsMode
+            appPrefs.getString("preview_fps_mode", defaultPreviewFpsMode)
+                ?.takeIf { it in supportedPreviewFpsModes } ?: defaultPreviewFpsMode
         )
     }
     var previewFpsTarget by remember { mutableFloatStateOf(Float.NaN) }
     LaunchedEffect(supportedPreviewFpsModes, defaultPreviewFpsMode) {
-        val keepSelection = appPrefs.getBoolean("preview_fps_keep", false)
-        val stored = appPrefs.getString("preview_fps_mode", defaultPreviewFpsMode)
-        val selected = if (keepSelection && stored in supportedPreviewFpsModes) stored ?: defaultPreviewFpsMode else defaultPreviewFpsMode
+        val stored = appPrefs.getString("preview_fps_mode", null)
+        val selected = stored?.takeIf { it in supportedPreviewFpsModes } ?: defaultPreviewFpsMode
         previewFpsMode = selected
-        if (!keepSelection || stored !in supportedPreviewFpsModes) {
+        if (stored != selected) {
             appPrefs.edit().putString("preview_fps_mode", selected).apply()
         }
     }
@@ -1238,7 +1235,6 @@ fun CameraScreen(
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
     val imageQuality = appPrefs.getString("image_quality", "Best") ?: "Best"
-    val noiseReduction = appPrefs.getString("noise_reduction", "Medium") ?: "Medium"
     val rawCaptureMode = when (appPrefs.getString("raw_capture_mode", "jpeg") ?: "jpeg") {
         "raw_plus", "raw_dream" -> "raw_dream"
         "raw" -> "raw"
@@ -2117,12 +2113,8 @@ fun CameraScreen(
                 } else {
                     highestSupportedPreviewFpsMode(activeCameraFpsModes)
                 }
-                if (activePreviewFpsMode != previewFpsMode) {
-                    scope.launch(Dispatchers.Main.immediate) {
-                        previewFpsMode = activePreviewFpsMode
-                        appPrefs.edit().putString("preview_fps_mode", activePreviewFpsMode).apply()
-                    }
-                }
+                // Do not overwrite the saved request when this camera lacks it.
+                // activePreviewFpsMode is a session-only fallback; another camera can restore the preference.
                 val fpsSelection = selectPreviewFpsRange(activePreviewFpsMode, advertisedPreviewFpsRanges)
                 fpsSelection.range?.let { selectedRange ->
                     Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
@@ -2408,41 +2400,6 @@ fun CameraScreen(
                         ResolutionSelector.Builder()
                             .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
                             .build()
-                    )
-                }
-                // Off/Low/Medium/High use only the active camera's ISP noise reduction.
-                // LunaDream uses multi-frame fusion; the camera ISP may still apply its standard noise reduction.
-                val availableNrModes = activeFacingId?.let { id ->
-                    runCatching {
-                        cameraManager.getCameraCharacteristics(id)
-                            .get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES)?.toSet()
-                    }.getOrNull()
-                }.orEmpty()
-                val preferredNrModes = when (noiseReduction) {
-                    "Off" -> listOf(CaptureRequest.NOISE_REDUCTION_MODE_OFF)
-                    "Low" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL
-                    )
-                    "Medium" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                    )
-                    "High" -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY,
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST
-                    )
-                    else -> listOf(
-                        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL,
-                        CaptureRequest.NOISE_REDUCTION_MODE_FAST,
-                        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
-                    )
-                }
-                val effectiveNrMode = preferredNrModes.firstOrNull { it in availableNrModes }
-                if (effectiveNrMode != null && !hdrExtensionActive && !nightExtensionActive) {
-                    Camera2Interop.Extender(captureBuilder).setCaptureRequestOption(
-                        CaptureRequest.NOISE_REDUCTION_MODE, effectiveNrMode
                     )
                 }
                 if (!hdrExtensionActive && !nightExtensionActive &&
@@ -4448,71 +4405,19 @@ fun CameraScreen(
                                                     }
                                                 }
                                                 if (!nightShotMerged && captureUseLunaDream20Stack) {
-                                                    val primaryFailure = lunaDreamFailureReason
-                                                        ?: "LunaDream 2.0 merge returned false without a failure callback"
-                                                    if (stackedFrames.size >= 3) {
-                                                        var fallbackFailure: String? = null
-                                                        LunaDreamDiagnostics.record(
-                                                            context,
-                                                            "FALLBACK_20_TO_15_START",
-                                                            "originalMode=2.0; validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure"
-                                                        )
-                                                        android.util.Log.w(
-                                                            "FUJI_LUNADREAM",
-                                                            "LunaDream 2.0 merge failed; retrying the same ${stackedFrames.size} frames with the 1.5 fallback. reason=$primaryFailure"
-                                                        )
-                                                        nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
-                                                            context,
-                                                            stackedFrames,
-                                                            saved,
-                                                            NightShotProcessor.MergeMode.LUNA_DREAM_1_5,
-                                                            onFailure = { reason, failure ->
-                                                                fallbackFailure = reason
-                                                                android.util.Log.e(
-                                                                    "FUJI_LUNADREAM",
-                                                                    "LunaDream 1.5 fallback merge failed: $reason",
-                                                                    failure
-                                                                )
-                                                            },
-                                                            onProgress = { fallbackProgress ->
-                                                                mainExecutor.execute {
-                                                                    processingLabel = "LunaDream 1.5 fallback · $fallbackProgress%"
-                                                                    processingProgress = maxOf(processingProgress, fallbackProgress.coerceIn(0, 100))
-                                                                }
-                                                            }
-                                                        )
-                                                        if (nightShotMerged) {
-                                                            LunaDreamDiagnostics.record(
-                                                                context,
-                                                                "FALLBACK_20_TO_15_SUCCESS",
-                                                                "validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure"
-                                                            )
-                                                            lunaDreamStackFallbackApplied = true
-                                                            lunaDreamFailureReason = primaryFailure
-                                                            android.util.Log.w(
-                                                                "FUJI_LUNADREAM",
-                                                                "LunaDream 1.5 fallback succeeded after 2.0 failure; frames=${stackedFrames.size}; reason=$primaryFailure"
-                                                            )
-                                                        } else {
-                                                            lunaDreamFailureReason =
-                                                                "LunaDream 2.0 failed: $primaryFailure; LunaDream 1.5 fallback failed: ${fallbackFailure ?: "merge returned false"}"
-                                                            LunaDreamDiagnostics.record(
-                                                                context,
-                                                                "FALLBACK_20_TO_15_FAILED",
-                                                                "validFrames=${stackedFrames.size}; primaryFailure=$primaryFailure; fallbackFailure=${fallbackFailure ?: "merge returned false"}"
-                                                            )
-                                                        }
-                                                    } else {
-                                                        lunaDreamFailureReason =
-                                                            "LunaDream 2.0 failed: $primaryFailure; 1.5 fallback requires at least 3 valid frames, but only ${stackedFrames.size} were captured"
-                                                        LunaDreamDiagnostics.record(
-                                                            context,
-                                                            "FALLBACK_20_TO_15_SKIPPED",
-                                                            "validFrames=${stackedFrames.size}; requiredAtLeast=3; primaryFailure=$primaryFailure"
-                                                        )
-                                                    }
-                                                }
-                                            }
+                                                    val failure = lunaDreamFailureReason
+                                                        ?: "Selected LunaDream model returned no successful output"
+                                                    lunaDreamFailureReason = failure
+                                                    LunaDreamDiagnostics.record(
+                                                        context,
+                                                        "MODEL_FAILED_NO_DOWNGRADE",
+                                                        "selectedMode=$lunaDreamMode; validFrames=${stackedFrames.size}; reason=$failure"
+                                                    )
+                                                    android.util.Log.e(
+                                                        "FUJI_LUNADREAM",
+                                                        "Selected model failed; no lower-quality model was substituted. mode=$lunaDreamMode reason=$failure"
+                                                    )
+                                                }                                            }
                                             android.util.Log.i(
                                                 "FUJI_FRAME_STACK",
                                                 "mode=" + (when {
@@ -4720,7 +4625,7 @@ fun CameraScreen(
                                         captureUseRawDream20 && lunaDreamApplied -> 108_000_000L
                                         captureUseLunaDream30 && lunaDreamApplied -> 200_000_000L
                                         captureUseLunaDream25 && lunaDreamApplied -> 150_000_000L
-                                        captureUseLunaDream20 && lunaDreamApplied -> 150_000_000L
+                                        captureUseLunaDream20 && lunaDreamApplied -> 108_000_000L
                                         else -> null
                                     }
                                     withContext(Dispatchers.Main) {

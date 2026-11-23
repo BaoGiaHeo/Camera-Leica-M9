@@ -1,4 +1,4 @@
-name: FujiFilm Mode 2.5.0 · all three rounds
+name: FujiFilm Mode 2.6.0 · all three rounds
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fuji-2.5.0-all-rounds-${{ github.ref }}
+  group: fuji-2.6.0-all-rounds-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -62,15 +62,15 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$APK" | tee developer-apk-badging.txt
           grep -F "package: name='com.fujifilm.mode'" developer-apk-badging.txt
-          grep -F "versionCode='16'" developer-apk-badging.txt
-          grep -F "versionName='2.5.0'" developer-apk-badging.txt
+          grep -F "versionCode='17'" developer-apk-badging.txt
+          grep -F "versionName='2.6.0'" developer-apk-badging.txt
           sha256sum "$APK" | tee developer-apk-sha256.txt
 
       - name: Upload installable APKs and build identity
         if: steps.assemble.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: fujifilm-mode-2.5.0-all-rounds-apks
+          name: fujifilm-mode-2.6.0-all-rounds-apks
           path: |
             CamUI-src/app/build/outputs/apk/developer/app-developer.apk
             CamUI-src/app/build/outputs/apk/debug/app-debug.apk
@@ -106,7 +106,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: fujifilm-mode-2.5.0-emulator-inspection
+          name: fujifilm-mode-2.6.0-emulator-inspection
           path: emulator-artifacts/
           if-no-files-found: warn
           retention-days: 14

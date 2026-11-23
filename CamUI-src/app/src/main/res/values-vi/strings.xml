@@ -133,6 +133,8 @@
     <string name="watermark_studio_location_auto_note">Vị trí dùng nhãn tùy chỉnh hoặc GPS trong EXIF của ảnh nguồn; trường sẽ ẩn nếu không có cả hai.</string>
     <string name="mf_mode_ld15">LD 1.5</string>
     <string name="mf_mode_ld20">LD 2.0</string>
+    <string name="mf_mode_ld25">LD 2.5</string>
+    <string name="mf_mode_ld30">LD 3.0</string>
     <string name="mf_mode_night">NIGHT</string>
     <string name="mf_stage_capture">CHỤP</string>
     <string name="mf_stage_align">CĂN KHUNG</string>
@@ -187,7 +189,7 @@
     <string name="activation_battery_value">PIN %1$s</string>
     <string name="activation_storage_warning">BỘ NHỚ TRỐNG DƯỚI 1 GB</string>
     <string name="activation_battery_warning">PIN DƯỚI 20%</string>
-    <string name="battery_processing_blocked">Pin còn 5% hoặc thấp hơn. Hãy sạc trước khi dùng NightShot hoặc LunaDream 2.0.</string>
+    <string name="battery_processing_blocked">Pin còn 5% hoặc thấp hơn. Hãy sạc trước khi dùng NightShot hoặc LunaDream.</string>
     <string name="processing_lock_luna15">Không dùng cùng LunaDream 1.5.</string>
     <string name="processing_lock_luna20">Không dùng cùng LunaDream 2.0.</string>
     <string name="processing_lock_night">Không dùng cùng NightShot.</string>

@@ -4779,6 +4779,10 @@ fun CameraScreen(
                                 } ?: "Không nội suy độ phân giải"
                                 appPrefs.edit()
                                     .putString("photo_lunadream_status:$saved", inspectorLunaDreamStatus)
+                                    .putString(
+                                        "photo_lunadream_source_survey:$saved",
+                                        captureLunaDreamSourceSurvey?.toLogString() ?: "Không có khảo sát LunaDream"
+                                    )
                                     .putString("photo_camera_id:$saved", activeCameraDetails?.id ?: "Không công bố")
                                     .putString("photo_physical_camera_id:$saved", activePhysicalCameraId ?: "HAL không công bố")
                                     .putString("photo_output_size:$saved", inspectorOutputSize)

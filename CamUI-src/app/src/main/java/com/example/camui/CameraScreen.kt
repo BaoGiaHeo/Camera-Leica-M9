@@ -4714,6 +4714,51 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
 
+                                val lunaDreamXmpWritten = if (
+                                    captureUseLunaDream && lunaDreamApplied &&
+                                    outputResolutionApplied && outputResolutionResult != null
+                                ) {
+                                    val xmpMode = when {
+                                        captureUseLunaDream15 -> "LunaDream 1.5"
+                                        captureUseLunaDream20 -> "LunaDream 2.0"
+                                        captureUseLunaDream25 -> "LunaDream 2.5"
+                                        captureUseLunaDream30 -> "LunaDream 3.0"
+                                        else -> "RawDream 2.0"
+                                    }
+                                    val sourceSurvey = captureLunaDreamSourceSurvey
+                                    val written = LunaDreamXmpWriter.write(
+                                        context,
+                                        saved,
+                                        LunaDreamXmpMetadata(
+                                            mode = xmpMode,
+                                            frameCount = lunaDreamCapturedFrameCount,
+                                            width = outputResolutionResult!!.width,
+                                            height = outputResolutionResult!!.height,
+                                            requestedBasePixels = outputResolutionResult!!.requestedPixels,
+                                            actualFilePixels = outputResolutionResult!!.actualPixels,
+                                            isAspectCropped = outputResolutionResult!!.isAspectCropped,
+                                            availableStrategy = sourceSurvey?.availableStrategy ?: "C",
+                                            activeCaptureStrategy = sourceSurvey?.activeCaptureStrategy ?: "C",
+                                            sensorPixelArray = sourceSurvey?.let {
+                                                (it.sensorPixelArrayWidth ?: 0).toString() + "x" +
+                                                    (it.sensorPixelArrayHeight ?: 0).toString()
+                                            },
+                                            maximumResolutionJpeg = sourceSurvey?.let {
+                                                (it.maximumResolutionJpegWidth ?: 0).toString() + "x" +
+                                                    (it.maximumResolutionJpegHeight ?: 0).toString()
+                                            }
+                                        )
+                                    )
+                                    LunaDreamDiagnostics.record(
+                                        context,
+                                        "XMP_FINALIZE",
+                                        "written=$written mode=$xmpMode frames=$lunaDreamCapturedFrameCount " +
+                                            "basePixels=" + outputResolutionResult!!.requestedPixels +
+                                            " filePixels=" + outputResolutionResult!!.actualPixels
+                                    )
+                                    written
+                                } else false
+
                                 if (captureUseLunaDream && !lunaDreamApplied) {
                                     val reason = lunaDreamFailureReason
                                         ?.takeIf { it.isNotBlank() }

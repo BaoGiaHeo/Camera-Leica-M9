@@ -292,12 +292,16 @@ internal object WatermarkRenderer {
                 break
             }
         }
-        if (truncated && lines.isNotEmpty()) {
-            var last = lines.last().trimEnd()
-            while (last.isNotEmpty() && paint.measureText("$last…") > maxWidth) {
-                last = last.dropLast(1).trimEnd()
+        lines.indices.forEach { index ->
+            val mustEllipsize = (truncated && index == lines.lastIndex) ||
+                paint.measureText(lines[index]) > maxWidth
+            if (mustEllipsize) {
+                var candidate = lines[index].trimEnd()
+                while (candidate.isNotEmpty() && paint.measureText("$candidate…") > maxWidth) {
+                    candidate = candidate.dropLast(1).trimEnd()
+                }
+                lines[index] = if (candidate.isEmpty()) "…" else "$candidate…"
             }
-            lines[lines.lastIndex] = if (last.isEmpty()) "…" else "$last…"
         }
         return lines.take(2)
     }

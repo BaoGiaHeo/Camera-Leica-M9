@@ -612,39 +612,74 @@ fun CameraScreen(
         context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     }
     val levelSensor = remember(sensorManager) {
-        sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
+            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
             ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     }
     var levelEnabled by remember {
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
             .getBoolean("viewfinder_level_enabled", true))
     }
+    var levelVisible by remember { mutableStateOf(levelSensor != null) }
     var horizonRollDegrees by remember { mutableFloatStateOf(0f) }
+    val levelFilter = remember(levelSensor) { OneEuroFilter() }
     DisposableEffect(sensorManager, levelSensor, levelEnabled) {
         if (sensorManager == null || levelSensor == null || !levelEnabled) {
+            levelVisible = false
             onDispose { }
         } else {
             val rotationMatrix = FloatArray(9)
-            val orientationAngles = FloatArray(3)
             val listener = object : SensorEventListener {
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
                 override fun onSensorChanged(event: SensorEvent?) {
-                    val values = event ?: return
-                    val rollDegrees = if (values.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
-                        SensorManager.getRotationMatrixFromVector(rotationMatrix, values.values)
-                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
-                        Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
-                    } else {
-                        Math.toDegrees(kotlin.math.atan2(
-                            values.values[0].toDouble(),
-                            values.values[1].toDouble()
-                        )).toFloat()
+                    val sample = event ?: return
+                    val gravityX: Float
+                    val gravityY: Float
+                    val gravityZ: Float
+                    when (sample.sensor.type) {
+                        Sensor.TYPE_ROTATION_VECTOR -> {
+                            SensorManager.getRotationMatrixFromVector(rotationMatrix, sample.values)
+                            // R maps device axes to world axes. R^T * (0, 0, g)
+                            // reconstructs gravity in the device coordinate system.
+                            val g = SensorManager.GRAVITY_EARTH
+                            gravityX = rotationMatrix[6] * g
+                            gravityY = rotationMatrix[7] * g
+                            gravityZ = rotationMatrix[8] * g
+                        }
+                        else -> {
+                            gravityX = sample.values.getOrElse(0) { 0f }
+                            gravityY = sample.values.getOrElse(1) { 0f }
+                            gravityZ = sample.values.getOrElse(2) { 0f }
+                        }
                     }
-                    horizonRollDegrees = ((rollDegrees + 180f) % 360f) - 180f
+                    val magnitude = kotlin.math.sqrt(
+                        gravityX * gravityX + gravityY * gravityY + gravityZ * gravityZ
+                    )
+                    if (HorizonLevelPolicy.isNearFlat(gravityZ, magnitude)) {
+                        levelVisible = false
+                        horizonRollDegrees = 0f
+                        return
+                    }
+
+                    @Suppress("DEPRECATION")
+                    val displayRotation = context.findHostActivity()
+                        ?.windowManager?.defaultDisplay?.rotation ?: Surface.ROTATION_0
+                    val screenGravity = when (displayRotation) {
+                        Surface.ROTATION_90 -> gravityY to -gravityX
+                        Surface.ROTATION_180 -> -gravityX to -gravityY
+                        Surface.ROTATION_270 -> -gravityY to gravityX
+                        else -> gravityX to gravityY
+                    }
+                    val error = HorizonLevelPolicy.nearestAxisErrorDegrees(
+                        screenGravity.first,
+                        screenGravity.second
+                    ) ?: return
+                    levelVisible = true
+                    horizonRollDegrees = levelFilter.filter(error, sample.timestamp)
                 }
             }
-            sensorManager.registerListener(listener, levelSensor, SensorManager.SENSOR_DELAY_UI)
+            sensorManager.registerListener(listener, levelSensor, SensorManager.SENSOR_DELAY_GAME)
             onDispose { sensorManager.unregisterListener(listener) }
         }
     }
@@ -5872,7 +5907,7 @@ fun CameraScreen(
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()
                                         else -> emptyList()
                                     },
-                                    showLevel = when (lcdDisplayMode) {
+                                    showLevel = levelVisible && when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
                                         CameraLcdDisplayMode.LEVEL_GRID -> true
                                         CameraLcdDisplayMode.STANDARD -> levelEnabled

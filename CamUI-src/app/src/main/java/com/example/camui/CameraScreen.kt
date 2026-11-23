@@ -1167,6 +1167,15 @@ fun CameraScreen(
     var viewerShowsOriginal by remember { mutableStateOf(false) }
     var photoViewerVisible by remember { mutableStateOf(false) }
     var resolutionWarning by remember { mutableStateOf<String?>(null) }
+    var cameraAccessoryStatus by remember { mutableStateOf(CameraAccessoryStatus()) }
+    LaunchedEffect(context) {
+        while (true) {
+            cameraAccessoryStatus = withContext(Dispatchers.IO) {
+                readCameraAccessoryStatus(context)
+            }
+            delay(1_500L)
+        }
+    }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
@@ -6267,6 +6276,30 @@ fun CameraScreen(
                                     modifier = Modifier.align(Alignment.Center)
                                         .animaTClickable { permissionLauncher.launch(Manifest.permission.CAMERA) }
                                 )
+                            }
+                            if (mode == "Photo" || mode == "Pro") {
+                                val accessoryVisible = cameraAccessoryStatus.hasAnyConnection
+                                if (accessoryVisible) {
+                                    Row(
+                                        modifier = Modifier.align(Alignment.TopStart)
+                                            .padding(8.dp)
+                                            .background(Color(0xCC101416), RoundedCornerShape(3.dp))
+                                            .border(1.dp, Color(0xFF596367), RoundedCornerShape(3.dp))
+                                            .padding(horizontal = 7.dp, vertical = 5.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (cameraAccessoryStatus.bluetoothShutterConnected) {
+                                            Text("ᛒ BT", color = Color(0xFF9ED8FF), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        if (cameraAccessoryStatus.usbCaptureConnected) {
+                                            Text("USB", color = Color(0xFFB9E6C3), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        if (cameraAccessoryStatus.wiredHeadsetConnected) {
+                                            Text("CÁP", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
                             }
                             if (nightShotMode == "night") {
                                 Text(

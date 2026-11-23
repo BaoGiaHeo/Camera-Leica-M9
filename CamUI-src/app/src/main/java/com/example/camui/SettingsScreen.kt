@@ -566,7 +566,7 @@ var nightShotMode by remember {
             }
             "Ngôn ngữ" -> {
                 var selectedLanguage by remember {
-                    mutableStateOf(AppLanguageManager.currentNgôn ngữ)
+                    mutableStateOf(AppLanguageManager.currentLanguage)
                 }
                 Text(stringResource(R.string.language_screen_title), color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text(
@@ -586,7 +586,7 @@ var nightShotMode by remember {
                             .border(1.dp, if (selectedLanguage == id) FujiSkin.orange else Color(0xFF344247))
                             .animaTClickable {
                                 selectedLanguage = id
-                                AppLanguageManager.setNgôn ngữ(context, id)
+                                AppLanguageManager.setLanguage(context, id)
                             }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically

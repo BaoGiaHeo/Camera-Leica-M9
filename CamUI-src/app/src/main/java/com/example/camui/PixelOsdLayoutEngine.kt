@@ -249,11 +249,11 @@ internal object PixelOsdLayoutEngine {
             addText("pro-dr-value", "pro-right", drValue, rightX, y, t2)
             y += t2 + itemGap
             if (frame.focusLocked) {
-                addIcon(
+                val lockWidth = addIcon(
                     "pro-lock-icon", "pro-right", "lock",
                     rightX, y, (unit * 1.7f).roundToInt()
                 )
-                addText("pro-lock", "pro-right", "AF-L", rightX + unit * 1.7f, y, t3)
+                addText("pro-lock", "pro-right", "AF-L", rightX + lockWidth + itemGap, y, t3)
             }
         }
         val histogram = if (frame.showHistogram && frame.histogram.isNotEmpty()) {

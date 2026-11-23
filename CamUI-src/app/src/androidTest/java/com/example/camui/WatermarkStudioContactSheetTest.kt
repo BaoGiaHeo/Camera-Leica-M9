@@ -51,6 +51,22 @@ class WatermarkStudioContactSheetTest {
         "watermark_custom_location",
         "watermark_custom_model",
         "watermark_custom_copyright",
+        "watermark_size_step",
+        "watermark_invert",
+        "watermark_location_enabled",
+        "watermark_location_mode",
+        "watermark_use_true_focal",
+        "watermark_save_mode",
+        "watermark_field_name",
+        "watermark_field_lens",
+        "watermark_field_focal",
+        "watermark_field_aperture",
+        "watermark_field_shutter",
+        "watermark_field_iso",
+        "watermark_field_date",
+        "watermark_field_clock",
+        "watermark_field_location",
+        "watermark_field_filter",
         "selected_filter",
         "lunadream_mode",
         "nightshot_mode"
@@ -95,6 +111,22 @@ class WatermarkStudioContactSheetTest {
                 .putBoolean("watermark_show_megapixels", true)
                 .putString("watermark_custom_model", "TEST CAMERA")
                 .putString("watermark_custom_copyright", "Baoaka06")
+                .putInt("watermark_size_step", 0)
+                .putBoolean("watermark_invert", false)
+                .putBoolean("watermark_location_enabled", true)
+                .putString("watermark_location_mode", "PLACE")
+                .putBoolean("watermark_use_true_focal", false)
+                .putString("watermark_save_mode", "watermarked")
+                .putBoolean("watermark_field_name", true)
+                .putBoolean("watermark_field_lens", true)
+                .putBoolean("watermark_field_focal", true)
+                .putBoolean("watermark_field_aperture", true)
+                .putBoolean("watermark_field_shutter", true)
+                .putBoolean("watermark_field_iso", true)
+                .putBoolean("watermark_field_date", false)
+                .putBoolean("watermark_field_clock", false)
+                .putBoolean("watermark_field_location", true)
+                .putBoolean("watermark_field_filter", true)
                 .putString("selected_filter", "Classic Chrome")
                 .putString("lunadream_mode", "off")
                 .putString("nightshot_mode", "5s")
@@ -144,9 +176,40 @@ class WatermarkStudioContactSheetTest {
                     640,
                     360,
                     WatermarkLayoutSettings(
-                        layout = WatermarkLayoutType.fromPreference(layoutId)
+                        layout = WatermarkLayoutType.fromPreference(layoutId),
+                        sizeStep = 0,
+                        invert = false,
+                        fields = WatermarkFieldVisibility(
+                            cameraName = true,
+                            lens = true,
+                            focalLength = true,
+                            aperture = true,
+                            shutter = true,
+                            iso = true,
+                            date = false,
+                            time = false,
+                            location = true,
+                            filter = true
+                        ),
+                        locationEnabled = true,
+                        locationMode = "PLACE",
+                        useTrueFocalLength = false,
+                        customCameraName = "TEST CAMERA",
+                        saveMode = "watermarked"
                     ),
-                    WatermarkPhotoMetadata()
+                    WatermarkPhotoMetadata(
+                        cameraName = "TEST CAMERA",
+                        lensName = "Main",
+                        focal35mm = "24 mm",
+                        trueFocalLength = "24 mm",
+                        aperture = "f/1.8",
+                        shutter = "1/125 s",
+                        iso = "ISO 200",
+                        location = "TEST LOCATION",
+                        filterName = "Classic Chrome",
+                        filterCategory = "Classic",
+                        filterBadge = "CLASSIC\nCHROME"
+                    )
                 )
                 assertEquals(
                     "Unexpected watermark canvas width for $layoutId",

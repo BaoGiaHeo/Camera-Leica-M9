@@ -129,22 +129,20 @@ class PixelOsdGoldenRenderingTest {
             val glyphHeights = mutableListOf<Int>()
             modes.forEach { mode ->
                 val renderer = PixelOsdRenderer(context)
+                // Render a single measured OSD label. A full-screen alpha union of
+                // status + W/T zoom labels measures the distance between labels, not glyph height.
                 val frame = PixelOsdFrame(
                     showGrid = false,
                     showPixelTexture = false,
                     centerAfPoint = null,
-                    focusLocked = true,
-                    showStatus = true,
-                    batteryPercent = 74,
+                    focusLocked = false,
+                    showStatus = false,
+                    showLevel = true,
+                    horizonRollDegrees = 5f,
                     showEvScale = false,
                     showHistogram = false,
                     isPro = false,
-                    showZoomBar = true,
-                    zoomRatio = 2f,
-                    zoomMinimumRatio = 0.6f,
-                    zoomMaximumRatio = 10f,
-                    zoomOpticalBoundaryRatio = 3f,
-                    zoomDigitalBoundaryRatio = 8f,
+                    showZoomBar = false,
                     pixelScaleMode = mode
                 )
                 renderer.render(lcd.width, lcd.height, frame)

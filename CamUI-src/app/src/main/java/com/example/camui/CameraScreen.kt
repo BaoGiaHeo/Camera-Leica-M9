@@ -4755,10 +4755,10 @@ fun CameraScreen(
                                     }
                                     android.util.Log.w(
                                         "FUJI_LUNADREAM",
-                                        "Fallback JPEG saved at original capture URI; reason=$reason"
+                                        "Original JPEG preserved at capture URI because the selected LunaDream model failed; reason=$reason"
                                     )
                                     withContext(Dispatchers.Main) {
-                                        processingLabel = "LunaDream fallback · $reason"
+                                        processingLabel = "LunaDream failed · original JPEG preserved: $reason"
                                         processingProgress = maxOf(processingProgress, 90)
                                     }
                                 }
@@ -4866,7 +4866,7 @@ fun CameraScreen(
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.5 · 150MP."
                                             else "Đã lưu LunaDream 2.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 150MP."
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
                                             else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream && !lunaDreamApplied ->
                                             "LunaDream không hoàn tất: " + (lunaDreamFailureReason ?: "engine không cung cấp nguyên nhân") + ". Đã lưu JPEG gốc làm ảnh dự phòng."

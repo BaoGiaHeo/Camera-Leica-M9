@@ -209,7 +209,8 @@ internal object WatermarkRenderer {
         capHeightPx: Float,
         maxWidth: Float,
         capRatio: Float,
-        align: Paint.Align = Paint.Align.LEFT
+        align: Paint.Align = Paint.Align.LEFT,
+        minimumScale: Float = 0.85f
     ): Paint? {
         if (text.isBlank() || maxWidth <= 0f) return null
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
@@ -218,7 +219,7 @@ internal object WatermarkRenderer {
             textAlign = align
             textSize = (capHeightPx / capRatio.coerceIn(0.4f, 0.9f)).coerceAtLeast(1f)
         }
-        val minimum = paint.textSize * 0.85f
+        val minimum = paint.textSize * minimumScale.coerceIn(0.5f, 1f)
         while (paint.measureText(text) > maxWidth && paint.textSize > minimum + 0.25f) {
             paint.textSize = (paint.textSize * 0.97f).coerceAtLeast(minimum)
         }
@@ -235,9 +236,10 @@ internal object WatermarkRenderer {
         typeface: Typeface,
         color: Int,
         capRatio: Float,
-        align: Paint.Align = Paint.Align.CENTER
+        align: Paint.Align = Paint.Align.CENTER,
+        minimumScale: Float = 0.85f
     ): Boolean {
-        val paint = fitPaint(text, typeface, color, capHeightPx, maxWidth, capRatio, align) ?: return false
+        val paint = fitPaint(text, typeface, color, capHeightPx, maxWidth, capRatio, align, minimumScale) ?: return false
         val cap = Rect()
         paint.getTextBounds("H", 0, 1, cap)
         val baseline = centerY - (cap.top + cap.bottom) * 0.5f
@@ -328,10 +330,9 @@ internal object WatermarkRenderer {
             canvas,
             listOf(
                 Fragment("Shot on ", fonts.regular, 0xFF6E6E6E.toInt(), fonts.regularCapRatio),
-                Fragment(
-                    metadata.cameraName + " FUJIFILM",
-                    fonts.semibold, 0xFF161616.toInt(), fonts.semiboldCapRatio
-                )
+                Fragment(metadata.cameraName, fonts.semibold, 0xFF111111.toInt(), fonts.semiboldCapRatio),
+                Fragment(" | ", fonts.regular, 0xFF9A9A9A.toInt(), fonts.regularCapRatio),
+                Fragment("FUJIFILM", fonts.semibold, 0xFF111111.toInt(), fonts.semiboldCapRatio)
             ),
             centerX, footerTop + s * 0.078f, geometry.canvasWidth * 0.90f, s * 0.025f * settings.sizeScale
         )
@@ -491,18 +492,12 @@ internal object WatermarkRenderer {
         )
 
         val footer = geometry.footerRect ?: return
-        val titleY = footer.top + s * 0.045f
-        val dateY = footer.top + s * 0.087f
-        val specsY = footer.top + s * 0.129f
+        val dateY = footer.top + s * 0.045f
+        val specsY = footer.top + s * 0.087f
         val location = if (settings.locationMode.equals("COORDS", true)) {
             metadata.coordinates.ifBlank { metadata.location }
         } else metadata.visibleLocation(settings)
-        val locationY = footer.top + s * 0.171f
-        drawMeasuredText(
-            canvas, "FUJIFILM MODE", footer.centerX, titleY,
-            footer.width * 0.90f, s * 0.020f, fonts.semibold, foreground,
-            fonts.semiboldCapRatio
-        )
+        val locationY = footer.top + s * 0.129f
         if (settings.fields.date) {
             drawMeasuredText(
                 canvas, metadata.date, footer.centerX, dateY,
@@ -549,15 +544,17 @@ internal object WatermarkRenderer {
         settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts
     ) {
         val photo = geometry.photoRect
+        val primary = if (settings.invert) 0xFFF2F2F2.toInt() else 0xFF111111.toInt()
+        val secondary = if (settings.invert) 0xFF9A9A9A.toInt() else 0xFF6E6E6E.toInt()
         drawLogo(context, canvas, geometry.logoRect ?: return, settings.invert)
         val s = geometry.shortSide
         drawRichLine(
             canvas,
             listOf(
-                Fragment("Shot on ", fonts.regular, 0xFF4A4A4A.toInt(), fonts.regularCapRatio),
-                Fragment(metadata.cameraName, fonts.semibold, 0xFF111111.toInt(), fonts.semiboldCapRatio),
-                Fragment(" | ", fonts.regular, 0xFF9A9A9A.toInt(), fonts.regularCapRatio),
-                Fragment(if (settings.fields.date) metadata.date else "", fonts.regular, 0xFF4A4A4A.toInt(), fonts.regularCapRatio)
+                Fragment("Shot on ", fonts.regular, secondary, fonts.regularCapRatio),
+                Fragment(metadata.cameraName, fonts.semibold, primary, fonts.semiboldCapRatio),
+                Fragment(" | ", fonts.regular, secondary, fonts.regularCapRatio),
+                Fragment(if (settings.fields.date) metadata.date else "", fonts.regular, secondary, fonts.regularCapRatio)
             ),
             geometry.canvasWidth * 0.5f, photo.bottom + s * 0.14f * settings.sizeScale,
             geometry.canvasWidth * 0.88f, s * 0.021f * settings.sizeScale
@@ -567,9 +564,28 @@ internal object WatermarkRenderer {
             drawMeasuredText(
                 canvas, location, geometry.canvasWidth * 0.5f, photo.bottom + s * 0.189f * settings.sizeScale,
                 geometry.canvasWidth * 0.86f, s * 0.019f * settings.sizeScale,
-                fonts.regular, 0xFF9C9C9C.toInt(), fonts.regularCapRatio
+                fonts.regular, secondary, fonts.regularCapRatio
             )
         }
+    }
+
+    private fun balancedBadgeLines(value: String): List<String> {
+        val words = value.trim().uppercase(java.util.Locale.ROOT)
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+        if (words.size <= 1) return listOf(value.trim().uppercase(java.util.Locale.ROOT))
+        var best = words.size / 2
+        var bestScore = Float.MAX_VALUE
+        for (split in 1 until words.size) {
+            val first = words.take(split).joinToString(" ")
+            val second = words.drop(split).joinToString(" ")
+            val score = maxOf(first.length, second.length) + kotlin.math.abs(first.length - second.length) * 0.35f
+            if (score < bestScore) {
+                bestScore = score
+                best = split
+            }
+        }
+        return listOf(words.take(best).joinToString(" "), words.drop(best).joinToString(" "))
     }
 
     private fun drawBlack(
@@ -591,13 +607,14 @@ internal object WatermarkRenderer {
                 s * 0.006f, s * 0.006f,
                 Paint(Paint.ANTI_ALIAS_FLAG).apply { color = badgeColour }
             )
-            val badgeLines = metadata.filterBadge.ifBlank { "CLASSIC\nNEG." }.split('\n').take(2)
+            val badgeLines = balancedBadgeLines(filter)
             badgeLines.forEachIndexed { index, line ->
                 drawMeasuredText(
                     canvas, line, badge.centerX,
                     badge.centerY + (index - (badgeLines.size - 1) / 2f) * s * 0.018f,
                     badge.width * 0.88f, s * 0.013f * settings.sizeScale,
-                    fonts.semibold, Color.WHITE, fonts.semiboldCapRatio
+                    fonts.semibold, Color.WHITE, fonts.semiboldCapRatio,
+                    minimumScale = 0.70f
                 )
             }
         }

@@ -11,6 +11,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -131,27 +133,37 @@ fun SettingsScreen(
                     )
                 }
             }
-            SettingsDetailPage(
-                title = selectedCategory,
-                onBack = {},
-                ratioIdx = ratioIdx,
-                onRatio = onRatio,
-                showGrid = showGrid,
-                onShowGrid = onShowGrid,
-                showHist = showHist,
-                onShowHist = onShowHist,
-                focusPeaking = focusPeaking,
-                onFocusPeaking = onFocusPeaking,
-                embedded = true,
+            AnimatedContent(
+                targetState = selectedCategory,
                 modifier = Modifier.weight(1f),
-                onOpenBackup = {
-                    categoryBeforeBackup = selectedCategory
-                    selectedCategory = "Sao lưu & Khôi phục"
+                transitionSpec = {
+                    (fadeIn(tween(180)) + slideInHorizontally(tween(210)) { it / 18 }) togetherWith
+                        (fadeOut(tween(140)) + slideOutHorizontally(tween(160)) { -it / 32 })
                 },
-                onOpenToolbox = onOpenToolbox,
-                onOpenContentsManagement = onOpenContentsManagement,
-                onReplayActivation = onReplayActivation
-            )
+                label = "Chuyển mục cài đặt"
+            ) { visibleCategory ->
+                SettingsDetailPage(
+                    title = visibleCategory,
+                    onBack = {},
+                    ratioIdx = ratioIdx,
+                    onRatio = onRatio,
+                    showGrid = showGrid,
+                    onShowGrid = onShowGrid,
+                    showHist = showHist,
+                    onShowHist = onShowHist,
+                    focusPeaking = focusPeaking,
+                    onFocusPeaking = onFocusPeaking,
+                    embedded = true,
+                    modifier = Modifier.fillMaxSize(),
+                    onOpenBackup = {
+                        categoryBeforeBackup = visibleCategory
+                        selectedCategory = "Sao lưu & Khôi phục"
+                    },
+                    onOpenToolbox = onOpenToolbox,
+                    onOpenContentsManagement = onOpenContentsManagement,
+                    onReplayActivation = onReplayActivation
+                )
+            }
         }
     }
 }

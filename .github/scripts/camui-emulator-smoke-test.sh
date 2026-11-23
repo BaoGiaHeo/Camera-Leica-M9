@@ -94,7 +94,7 @@ fi
 echo "app_process_alive=1" >> emulator-artifacts/command-status.txt
 
 # Run instrumentation only after the plain install + cold start was observed.
-gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
+gradle --no-daemon -p CamUI-src :app:connectedDeveloperAndroidTest --stacktrace --console=plain
 
 # End-to-end crash-report test: this trigger exists only in the debug source set.
 adb shell am force-stop com.fujifilm.mode.debug

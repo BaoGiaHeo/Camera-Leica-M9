@@ -1807,7 +1807,7 @@ fun CameraScreen(
             "FUJI_CAMERA_REBIND",
             "START generation=$bindGeneration facing=${if (front) "FRONT" else "BACK"} " +
                 "mode=$mode ratioIndex=$ratioIdx rotation=$targetRotation renderEngine=$renderEngine " +
-                "nightShot=$nightShotMode burst=$burstMode
+                "nightShot=$nightShotMode burst=$burstMode"
         )
         // Disable shutter immediately while the old UseCaseGroup is being replaced.
         camera = null

@@ -132,6 +132,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -158,6 +159,7 @@ import androidx.compose.ui.geometry.Size as DrawSize
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -7456,18 +7458,355 @@ private fun LensTransitionOverlay(
 }
 
 @Composable
+private fun FilmSimulationCustomizerDialog(
+    previewSource: Bitmap,
+    activeFilter: String,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val prefs = remember(context) {
+        context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    }
+    var highlight by remember { mutableFloatStateOf(prefs.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)) }
+    var shadow by remember { mutableFloatStateOf(prefs.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)) }
+    var colorChrome by remember { mutableFloatStateOf(prefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)) }
+    var sharpness by remember { mutableFloatStateOf(prefs.getFloat("film_custom_sharpness", 0f).coerceIn(0f, 1f)) }
+    var noiseReduction by remember { mutableFloatStateOf(prefs.getFloat("film_custom_noise_reduction", 0f).coerceIn(0f, 1f)) }
+    var revision by remember { mutableIntStateOf(0) }
+
+    fun setValue(key: String, value: Float) {
+        prefs.edit().putFloat(key, value).apply()
+        revision++
+    }
+    fun reset() {
+        highlight = 0f
+        shadow = 0f
+        colorChrome = 0f
+        sharpness = 0f
+        noiseReduction = 0f
+        prefs.edit()
+            .putFloat("film_custom_highlight", 0f)
+            .putFloat("film_custom_shadow", 0f)
+            .putFloat("film_custom_color_chrome", 0f)
+            .putFloat("film_custom_sharpness", 0f)
+            .putFloat("film_custom_noise_reduction", 0f)
+            .apply()
+        revision++
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        FujiPanel(
+            title = "TÙY CHỈNH CUỘN PHIM",
+            modifier = Modifier.fillMaxWidth(0.96f).heightIn(max = 520.dp),
+            onBack = onDismiss
+        ) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 460.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Column(
+                    Modifier.weight(1.05f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("XEM TRƯỚC · " + cameraLookDisplayName(context, activeFilter),
+                        color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(4.dp))
+                            .background(FujiSkin.lcd).border(1.dp, Color(0xFF556267), RoundedCornerShape(4.dp))
+                    ) {
+                        FilterLookPreviewImage(
+                            source = previewSource,
+                            preset = activeFilter,
+                            modifier = Modifier.fillMaxSize(),
+                            maxDimension = 720,
+                            adjustmentRevision = revision
+                        )
+                    }
+                }
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    @Composable
+                    fun adjustment(
+                        label: String,
+                        value: Float,
+                        range: ClosedFloatingPointRange<Float>,
+                        key: String,
+                        display: (Float) -> String
+                    ) {
+                        Text("$label · ${display(value)}", color = Color.White, fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        Slider(
+                            value = value,
+                            onValueChange = {
+                                when (key) {
+                                    "film_custom_highlight" -> highlight = it
+                                    "film_custom_shadow" -> shadow = it
+                                    "film_custom_color_chrome" -> colorChrome = it
+                                    "film_custom_sharpness" -> sharpness = it
+                                    "film_custom_noise_reduction" -> noiseReduction = it
+                                }
+                                setValue(key, it)
+                            },
+                            valueRange = range,
+                            colors = SliderDefaults.colors(
+                                thumbColor = FujiSkin.orange,
+                                activeTrackColor = FujiSkin.orange,
+                                inactiveTrackColor = Color(0xFF42494B)
+                            )
+                        )
+                    }
+                    adjustment("Vùng sáng", highlight, -1f..1f, "film_custom_highlight") {
+                        String.format(Locale.US, "%+.2f", it)
+                    }
+                    adjustment("Vùng tối", shadow, -1f..1f, "film_custom_shadow") {
+                        String.format(Locale.US, "%+.2f", it)
+                    }
+                    adjustment("Tăng sắc độ", colorChrome, 0f..1f, "film_custom_color_chrome") {
+                        String.format(Locale.US, "%.2f", it)
+                    }
+                    adjustment("Độ nét", sharpness, 0f..1f, "film_custom_sharpness") {
+                        String.format(Locale.US, "%.2f", it)
+                    }
+                    adjustment("Giảm nhiễu", noiseReduction, 0f..1f, "film_custom_noise_reduction") {
+                        String.format(Locale.US, "%.2f", it)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FujiKey("ĐẶT LẠI", onClick = ::reset, modifier = Modifier.weight(1f))
+                        FujiKey("ĐÓNG", onClick = onDismiss, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterRollToneDialog(
+    previewSource: Bitmap,
+    activeFilter: String,
+    onDismiss: () -> Unit,
+    onSelectFilter: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val prefs = remember(context) {
+        context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    }
+    var toneX by remember { mutableFloatStateOf(prefs.getFloat("film_tone_plane_x", 0.5f).coerceIn(0f, 1f)) }
+    var toneY by remember { mutableFloatStateOf(prefs.getFloat("film_tone_plane_y", 0.5f).coerceIn(0f, 1f)) }
+    var palette by remember { mutableIntStateOf(prefs.getInt("film_tone_palette", 100).coerceIn(0, 100)) }
+    var revision by remember { mutableIntStateOf(0) }
+    var showingOriginal by remember { mutableStateOf(false) }
+
+    fun updateTone(x: Float, y: Float) {
+        toneX = x.coerceIn(0f, 1f)
+        toneY = y.coerceIn(0f, 1f)
+        prefs.edit()
+            .putFloat("film_tone_plane_x", toneX)
+            .putFloat("film_tone_plane_y", toneY)
+            .apply()
+        revision++
+    }
+
+    val visibleRoll = remember {
+        cameraLookGroups.flatMap { it.presets }.distinct().take(18)
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        FujiPanel(
+            title = "CUỘN PHIM & CHỈNH TONE",
+            modifier = Modifier.fillMaxWidth(0.97f).heightIn(max = 540.dp),
+            onBack = onDismiss
+        ) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 280.dp, max = 480.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Column(
+                    Modifier.weight(1.08f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("KHUNG NGẮM · " + cameraLookDisplayName(context, activeFilter),
+                        color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(4.dp))
+                            .background(FujiSkin.lcd).border(1.dp, Color(0xFF556267), RoundedCornerShape(4.dp))
+                            .pointerInput(activeFilter) {
+                                detectTapGestures(
+                                    onPress = {
+                                        showingOriginal = true
+                                        tryAwaitRelease()
+                                        showingOriginal = false
+                                    }
+                                )
+                            }
+                    ) {
+                        FilterLookPreviewImage(
+                            source = previewSource,
+                            preset = if (showingOriginal) "None" else activeFilter,
+                            modifier = Modifier.fillMaxSize(),
+                            maxDimension = 720,
+                            adjustmentRevision = revision
+                        )
+                    }
+                    Text("Giữ khung ngắm để xem ảnh gốc",
+                        color = FujiSkin.muted, fontSize = 8.sp)
+                }
+
+                Column(
+                    Modifier.weight(0.94f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("CUỘN PHIM CÓ SẴN", color = FujiSkin.lcdGreen,
+                        fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    visibleRoll.forEachIndexed { index, preset ->
+                        val selected = activeFilter == preset
+                        val accent = when (index % 6) {
+                            0 -> Color(0xFFE0B16B)
+                            1 -> Color(0xFFBFC5C8)
+                            2 -> Color(0xFF88B6C7)
+                            3 -> Color(0xFFD3A16A)
+                            4 -> Color(0xFF779A85)
+                            else -> Color(0xFFB98D9F)
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
+                                .background(if (selected) Color(0xFF30251C) else Color(0xFF151A1C))
+                                .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF394447),
+                                    RoundedCornerShape(4.dp))
+                                .clickable { onSelectFilter(preset) }
+                                .padding(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(Modifier.width(5.dp).height(34.dp).background(accent, RoundedCornerShape(2.dp)))
+                            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                                Text(preset, color = Color.White, fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text(cameraLookDisplayName(context, preset),
+                                    color = if (selected) FujiSkin.orange else FujiSkin.muted,
+                                    fontSize = 9.sp, maxLines = 1)
+                            }
+                            if (selected) Text("●", color = FujiSkin.orange, fontSize = 10.sp)
+                        }
+                    }
+
+                    Text("BẢNG TONE 2D", color = FujiSkin.lcdGreen,
+                        fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 5.dp))
+                    Text("Sáng", color = Color.White, fontSize = 8.sp,
+                        modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Box(
+                        Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(5.dp))
+                            .border(1.dp, Color(0xFF81898B), RoundedCornerShape(5.dp))
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = { point ->
+                                        updateTone(point.x / size.width.coerceAtLeast(1), point.y / size.height.coerceAtLeast(1))
+                                    },
+                                    onDrag = { change, _ ->
+                                        updateTone(
+                                            change.position.x / size.width.coerceAtLeast(1),
+                                            change.position.y / size.height.coerceAtLeast(1)
+                                        )
+                                        change.consume()
+                                    }
+                                )
+                            }
+                    ) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            drawRect(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFFF1F1ED), Color(0xFF8A8E8F), Color(0xFF111516)),
+                                    start = Offset.Zero,
+                                    end = Offset(size.width, size.height)
+                                )
+                            )
+                            drawRect(
+                                Brush.linearGradient(
+                                    colors = listOf(Color.Transparent, Color(0x66000000)),
+                                    start = Offset(0f, 0f),
+                                    end = Offset(size.width, 0f)
+                                )
+                            )
+                            for (row in 1..5) {
+                                for (column in 1..7) {
+                                    drawCircle(
+                                        Color(0x887B8587),
+                                        radius = 2.dp.toPx(),
+                                        center = Offset(size.width * column / 8f, size.height * row / 6f)
+                                    )
+                                }
+                            }
+                            drawCircle(
+                                Color.White,
+                                radius = 7.dp.toPx(),
+                                center = Offset(size.width * toneX, size.height * toneY),
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+                            drawCircle(
+                                FujiSkin.orange,
+                                radius = 2.4.dp.toPx(),
+                                center = Offset(size.width * toneX, size.height * toneY)
+                            )
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Nhạt", color = Color.White, fontSize = 8.sp)
+                        Text("Đậm", color = Color.White, fontSize = 8.sp)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Palette", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(palette.toString(), color = FujiSkin.orange, fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = palette.toFloat(),
+                        onValueChange = {
+                            palette = it.roundToInt().coerceIn(0, 100)
+                            prefs.edit().putInt("film_tone_palette", palette).apply()
+                            revision++
+                        },
+                        valueRange = 0f..100f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = FujiSkin.orange,
+                            activeTrackColor = FujiSkin.orange,
+                            inactiveTrackColor = Color(0xFF42494B)
+                        )
+                    )
+                    FujiKey(
+                        "ĐẶT LẠI",
+                        onClick = {
+                            palette = 100
+                            prefs.edit()
+                                .putFloat("film_tone_plane_x", 0.5f)
+                                .putFloat("film_tone_plane_y", 0.5f)
+                                .putInt("film_tone_palette", 100)
+                                .apply()
+                            updateTone(0.5f, 0.5f)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun FilterLookPreviewImage(
     source: Bitmap,
     preset: String,
     modifier: Modifier,
-    maxDimension: Int
+    maxDimension: Int,
+    adjustmentRevision: Int = 0
 ) {
     val context = LocalContext.current
     val renderedState by produceState(
         initialValue = Pair(false, null as ImageBitmap?),
         source,
         preset,
-        maxDimension
+        maxDimension,
+        adjustmentRevision
     ) {
         val rendered = withContext(Dispatchers.Default) {
             renderCameraLookPreview(context, source, preset, maxDimension)

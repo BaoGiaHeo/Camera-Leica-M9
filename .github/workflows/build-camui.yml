@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: landscape-ui-emulator-${{ github.ref }}
+  group: fujifilm-mode-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

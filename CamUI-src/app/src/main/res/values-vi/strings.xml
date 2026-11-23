@@ -208,4 +208,12 @@
     <string name="activation_ok">OK</string>
     <string name="activation_reopen">XEM LẠI GIỚI THIỆU</string>
     <string name="quick_display_title">HIỂN THỊ</string>
+    <string name="lunadream_tier_15_title">LunaDream 1.5</string>
+    <string name="lunadream_tier_15_description">50MP · 1 khung (tối đa 2) · ưu tiên tốc độ</string>
+    <string name="lunadream_tier_20_title">LunaDream 2.0</string>
+    <string name="lunadream_tier_20_description">108MP · 3–5 khung · cân bằng tốc độ và chi tiết</string>
+    <string name="lunadream_tier_25_title">LunaDream 2.5</string>
+    <string name="lunadream_tier_25_description">150MP · 6–10 khung · căn chỉnh và ghép nâng cao</string>
+    <string name="lunadream_tier_30_title">LunaDream 3.0</string>
+    <string name="lunadream_tier_30_description">200MP · 12–16 khung · chất lượng cao nhất</string>
 </resources>

@@ -173,7 +173,7 @@ internal object WatermarkRenderer {
             WatermarkLayoutType.BAR -> drawBar(context, canvas, geometry, settings, metadata, fonts, primary, secondary)
             WatermarkLayoutType.CAPTION -> drawCaption(canvas, geometry, settings, metadata, fonts, primary, secondary)
             WatermarkLayoutType.CARD -> drawCard(context, canvas, geometry, settings, metadata, fonts)
-            WatermarkLayoutType.GALLERY -> drawGallery(context, canvas, geometry, settings, metadata, fonts)
+            WatermarkLayoutType.GALLERY -> drawGallery(context, canvas, geometry, settings, metadata, fonts, primary, secondary)
             WatermarkLayoutType.BLACK -> drawBlack(context, canvas, geometry, settings, metadata, fonts)
         }
     }
@@ -464,7 +464,8 @@ internal object WatermarkRenderer {
 
     private fun drawGallery(
         context: Context, canvas: Canvas, geometry: WatermarkLayoutGeometry,
-        settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts
+        settings: WatermarkLayoutSettings, metadata: WatermarkPhotoMetadata, fonts: Fonts,
+        primary: Int, secondary: Int
     ) {
         val photo = geometry.photoRect
         drawLogo(context, canvas, geometry.logoRect ?: return, settings.invert)
@@ -472,10 +473,10 @@ internal object WatermarkRenderer {
         drawRichLine(
             canvas,
             listOf(
-                Fragment("Shot on ", fonts.regular, 0xFF4A4A4A.toInt(), fonts.regularCapRatio),
-                Fragment(metadata.cameraName, fonts.semibold, 0xFF111111.toInt(), fonts.semiboldCapRatio),
-                Fragment(" | ", fonts.regular, 0xFF9A9A9A.toInt(), fonts.regularCapRatio),
-                Fragment(if (settings.fields.date) metadata.date else "", fonts.regular, 0xFF4A4A4A.toInt(), fonts.regularCapRatio)
+                Fragment("Shot on ", fonts.regular, secondary, fonts.regularCapRatio),
+                Fragment(metadata.cameraName, fonts.semibold, primary, fonts.semiboldCapRatio),
+                Fragment(" | ", fonts.regular, secondary, fonts.regularCapRatio),
+                Fragment(if (settings.fields.date) metadata.date else "", fonts.regular, secondary, fonts.regularCapRatio)
             ),
             geometry.canvasWidth * 0.5f, photo.bottom + s * 0.14f * settings.sizeScale,
             geometry.canvasWidth * 0.88f, s * 0.021f * settings.sizeScale
@@ -485,7 +486,7 @@ internal object WatermarkRenderer {
             drawMeasuredText(
                 canvas, location, geometry.canvasWidth * 0.5f, photo.bottom + s * 0.189f * settings.sizeScale,
                 geometry.canvasWidth * 0.86f, s * 0.019f * settings.sizeScale,
-                fonts.regular, 0xFF9C9C9C.toInt(), fonts.regularCapRatio
+                fonts.regular, secondary, fonts.regularCapRatio
             )
         }
     }

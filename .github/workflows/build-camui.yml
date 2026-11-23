@@ -3,7 +3,14 @@ name: LunaDream 2.5.0dream landscape UI validation
 
 on:
   push:
-    branches: [main, "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream", "fuji-2.5.0-round1-spec", "fuji-2.5.0-round1-stage", "fuji-2.5.0-full-work"]
+    branches:
+      - main
+      - "feature/fujifilm-mode-1.6"
+      - "feature/lunadream-2.5.0dream"
+      - "fuji-2.5.0-round1-spec"
+      - "fuji-2.5.0-round1-stage"
+      - "fuji-2.5.0-full-work"
+      - "work/258b5c16-watermark-fix"
   workflow_dispatch:
 
 permissions:
@@ -47,7 +54,16 @@ jobs:
 
       - name: Run unit tests and build an internal emulator APK
         working-directory: CamUI-src
-        run: gradle :app:testDeveloperUnitTest :app:assembleDebug --stacktrace
+        run: gradle :app:testDeveloperUnitTest :app:assembleDeveloper :app:assembleDebug --stacktrace
+
+      - name: Upload Developer APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-2.5.0-developer
+          path: CamUI-src/app/build/outputs/apk/developer/app-developer.apk
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Update Android command-line tools for API 37 preview emulator
         run: |

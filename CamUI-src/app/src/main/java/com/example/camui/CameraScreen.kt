@@ -5070,10 +5070,10 @@ fun CameraScreen(
                     modifier = Modifier.width(76.dp).height(13.dp),
                     contentScale = ContentScale.Fit
                 )
-                FujiTopKey(label = "FLASH", icon = if (flash == ImageCapture.FLASH_MODE_ON) "flash_on" else "flash_off", selected = flash == ImageCapture.FLASH_MODE_ON, onClick = {
+                FujiTopKey(label = "ĐÈN", icon = if (flash == ImageCapture.FLASH_MODE_ON) "flash_on" else "flash_off", selected = flash == ImageCapture.FLASH_MODE_ON, onClick = {
                     flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 })
-                FujiTopKey(label = "DRIVE", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
+                FujiTopKey(label = "HẸN", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
                     timerSec = if (nightShotMode == "night") {
                         when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 }
                     } else {
@@ -5083,8 +5083,8 @@ fun CameraScreen(
                     if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
                 })
                 FujiTopKey(label = "FILM", icon = "sliders", selected = filmCustomizerVisible, onClick = { filmCustomizerVisible = true })
-                FujiTopKey(label = "ADJ", icon = "sliders", selected = false, onClick = onOpenToolbox)
-                FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
+                FujiTopKey(label = "CHỈNH", icon = "sliders", selected = false, onClick = onOpenToolbox)
+                FujiTopKey(label = "ĐỒ THỊ", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
                 FujiTopKey(label = "AF", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
                 FujiTopKey(label = "Q", icon = "q", selected = showQuick, onClick = { showQuick = !showQuick })
             }
@@ -6014,7 +6014,7 @@ fun CameraScreen(
                             }
                             if (nightShotMode == "night") {
                                 Text(
-                                    text = if (timerSec > 0) "DRIVE · ${timerSec}s" else "DRIVE · TẮT",
+                                    text = if (timerSec > 0) "HẸN GIỜ · ${timerSec}s" else "HẸN GIỜ · TẮT",
                                     color = if (timerSec > 0) FujiSkin.orange else Color.White,
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,

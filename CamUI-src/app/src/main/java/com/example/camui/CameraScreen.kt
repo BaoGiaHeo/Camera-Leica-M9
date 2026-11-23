@@ -2967,7 +2967,7 @@ fun CameraScreen(
                     }
                 }
             } catch (e: Exception) {
-                } else if (hdrExtensionActive) {
+                if (hdrExtensionActive) {
                     // Some FULL/LEVEL_3 implementations still reject the three-use-case
                     // combination. Drop only the OEM extension and retry the base camera.
                     android.util.Log.w("FUJI_HDR", "HDR extension bind failed; retrying base camera", e)

@@ -473,10 +473,9 @@ object NightShotProcessor {
                     val alignmentStartedAt = SystemClock.elapsedRealtime()
                     val shift = if (mode == MergeMode.STAR_TRAILS) {
                         // Star trails intentionally preserve each star's position over time.
-                        0 to 0
+                        0f to 0f
                     } else {
-                        // Sparse pyramidal LK rejects moving features; it falls back to
-                        // gradient translation when the scene has too few reliable features.
+                        // Preserve the sparse LK flow at subpixel precision for LunaDream fusion.
                         estimatePyramidalLucasKanade(
                             alignmentReferenceState!!,
                             current,
@@ -484,10 +483,19 @@ object NightShotProcessor {
                         )
                     }
                     alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt
-                    val shiftX = shift.first.coerceIn(-width / 12, width / 12)
-                    val shiftY = shift.second.coerceIn(-height / 12, height / 12)
-                    if (mode != MergeMode.STAR_TRAILS && (shiftX != 0 || shiftY != 0)) {
-                        Log.d(TAG, "Aligned frame ${frameIndex + 1} for $mode: dx=$shiftX dy=$shiftY")
+                    val shiftX = shift.first.coerceIn(-width / 12f, width / 12f)
+                    val shiftY = shift.second.coerceIn(-height / 12f, height / 12f)
+                    val integerShiftX = shiftX.roundToInt()
+                    val integerShiftY = shiftY.roundToInt()
+                    if (mode != MergeMode.STAR_TRAILS &&
+                        (kotlin.math.abs(shiftX) >= 0.01f || kotlin.math.abs(shiftY) >= 0.01f)
+                    ) {
+                        Log.d(
+                            TAG,
+                            "Aligned frame " + (frameIndex + 1) + " for " + mode +
+                                ": dx=" + String.format(java.util.Locale.US, "%.4f", shiftX) +
+                                " dy=" + String.format(java.util.Locale.US, "%.4f", shiftY)
+                        )
                     }
 
                     currentStage = "fuse frame ${frameIndex + 1}/${frames.size}"
@@ -514,7 +522,7 @@ object NightShotProcessor {
                                     totalMergedFrames.toFloat()
                                 runCatching { onProgress?.invoke((5 + frameFraction * 90f).toInt()) }
                             }
-                            val sourceY = (y + shiftY).coerceIn(0, height - 1)
+                            val sourceY = (y + integerShiftY).coerceIn(0, height - 1)
                             base!!.getPixels(oldRow, 0, width, 0, y, width, 1)
                             current.getPixels(newRow, 0, width, 0, sourceY, width, 1)
                             if (mode == MergeMode.FOCUS_STACK) {
@@ -522,7 +530,7 @@ object NightShotProcessor {
                                 current.getPixels(lowerRow, 0, width, 0, (sourceY + 1).coerceAtMost(height - 1), width, 1)
                             }
                             for (x in 0 until width) {
-                                val sourceX = (x + shiftX).coerceIn(0, width - 1)
+                                val sourceX = (x + integerShiftX).coerceIn(0, width - 1)
                                 val a = oldRow[x]
                                 val b = newRow[sourceX]
                                 // Large multi-frame stacks visit many millions of pixels.
@@ -798,8 +806,8 @@ object NightShotProcessor {
         current: Bitmap,
         width: Int,
         height: Int,
-        shiftX: Int,
-        shiftY: Int,
+        shiftX: Float,
+        shiftY: Float,
         frameIndex: Int,
         totalMergedFrames: Int,
         workers: ExecutorService,
@@ -813,11 +821,17 @@ object NightShotProcessor {
             val rowCount = min(rowsPerStripe, height - top)
             val pixelCount = rowCount * width
             val oldPixels = IntArray(pixelCount)
-            val newPixels = IntArray(pixelCount)
+            val newPixelsTop = IntArray(pixelCount)
+            val newPixelsBottom = IntArray(pixelCount)
+            val verticalFractions = FloatArray(rowCount)
             base.getPixels(oldPixels, 0, width, 0, top, width, rowCount)
             for (row in 0 until rowCount) {
-                val sourceY = (top + row + shiftY).coerceIn(0, height - 1)
-                current.getPixels(newPixels, row * width, width, 0, sourceY, width, 1)
+                val sourceY = (top + row + shiftY).coerceIn(0f, (height - 1).toFloat())
+                val y0 = sourceY.toInt()
+                val y1 = (y0 + 1).coerceAtMost(height - 1)
+                verticalFractions[row] = sourceY - y0
+                current.getPixels(newPixelsTop, row * width, width, 0, y0, width, 1)
+                current.getPixels(newPixelsBottom, row * width, width, 0, y1, width, 1)
             }
 
             val jobs = (0 until workerCount).map { worker ->
@@ -826,15 +840,32 @@ object NightShotProcessor {
                     val until = pixelCount * (worker + 1) / workerCount
                     for (index in from until until) {
                         val x = index % width
-                        val sourceX = (x + shiftX).coerceIn(0, width - 1)
+                        val row = index / width
+                        val sourceX = (x + shiftX).coerceIn(0f, (width - 1).toFloat())
+                        val x0 = sourceX.toInt()
+                        val x1 = (x0 + 1).coerceAtMost(width - 1)
+                        val fx = sourceX - x0
+                        val fy = verticalFractions[row]
+                        val rowOffset = row * width
+                        val p00 = newPixelsTop[rowOffset + x0]
+                        val p10 = newPixelsTop[rowOffset + x1]
+                        val p01 = newPixelsBottom[rowOffset + x0]
+                        val p11 = newPixelsBottom[rowOffset + x1]
+                        val oneMinusX = 1f - fx
+                        val oneMinusY = 1f - fy
+                        val redTop = ((p00 ushr 16) and 0xFF) * oneMinusX + ((p10 ushr 16) and 0xFF) * fx
+                        val redBottom = ((p01 ushr 16) and 0xFF) * oneMinusX + ((p11 ushr 16) and 0xFF) * fx
+                        val greenTop = ((p00 ushr 8) and 0xFF) * oneMinusX + ((p10 ushr 8) and 0xFF) * fx
+                        val greenBottom = ((p01 ushr 8) and 0xFF) * oneMinusX + ((p11 ushr 8) and 0xFF) * fx
+                        val blueTop = (p00 and 0xFF) * oneMinusX + (p10 and 0xFF) * fx
+                        val blueBottom = (p01 and 0xFF) * oneMinusX + (p11 and 0xFF) * fx
                         val a = oldPixels[index]
-                        val b = newPixels[(index / width) * width + sourceX]
                         val ar = (a ushr 16) and 0xFF
                         val ag = (a ushr 8) and 0xFF
                         val ab = a and 0xFF
-                        val br = (b ushr 16) and 0xFF
-                        val bg = (b ushr 8) and 0xFF
-                        val bb = b and 0xFF
+                        val br = (redTop * oneMinusY + redBottom * fy).roundToInt().coerceIn(0, 255)
+                        val bg = (greenTop * oneMinusY + greenBottom * fy).roundToInt().coerceIn(0, 255)
+                        val bb = (blueTop * oneMinusY + blueBottom * fy).roundToInt().coerceIn(0, 255)
                         val oldLuma = luma(ar, ag, ab)
                         val newLuma = luma(br, bg, bb)
                         val lumaDelta = kotlin.math.abs(oldLuma - newLuma)
@@ -1071,7 +1102,7 @@ object NightShotProcessor {
         reference: AlignmentReferenceState,
         currentFrame: Bitmap,
         iterations: Int = LUNA_LK_ITERATIONS
-    ): Pair<Int, Int> {
+    ): Pair<Float, Float> {
         val referenceThumbnail = reference.thumbnail
         val currentThumbnail = makeAlignmentThumbnail(
             currentFrame,
@@ -1082,14 +1113,15 @@ object NightShotProcessor {
             val height = referenceThumbnail.height
             if (currentThumbnail.width != width || currentThumbnail.height != height ||
                 width < 48 || height < 48
-            ) return 0 to 0
+            ) return 0f to 0f
 
             val referencePyramid = reference.pyramid
             val currentPyramid = buildGrayPyramid(currentThumbnail, referencePyramid.size)
             if (referencePyramid.size < 2 || currentPyramid.size != referencePyramid.size ||
                 reference.features.size < 8
             ) {
-                return estimateGlobalTranslation(referenceThumbnail, currentFrame)
+                val fallback = estimateGlobalTranslation(referenceThumbnail, currentFrame)
+                return fallback.first.toFloat() to fallback.second.toFloat()
             }
 
             val tracks = ArrayList<FlowTrack>(reference.features.size)
@@ -1100,12 +1132,18 @@ object NightShotProcessor {
             }
 
             val translation = robustTranslationConsensus(tracks)
-                ?: return estimateGlobalTranslation(referenceThumbnail, currentFrame)
+                ?: run {
+                    val fallback = estimateGlobalTranslation(referenceThumbnail, currentFrame)
+                    return fallback.first.toFloat() to fallback.second.toFloat()
+                }
 
             val scaleX = currentFrame.width.toFloat() / width
             val scaleY = currentFrame.height.toFloat() / height
-            return (translation.first * scaleX).roundToInt() to
-                (translation.second * scaleY).roundToInt()
+            val scaledX = translation.first * scaleX
+            val scaledY = translation.second * scaleY
+            // Camera motion is retained at 1/16 source pixel for downstream multi-frame fusion.
+            return (scaledX * 16f).roundToInt() / 16f to
+                (scaledY * 16f).roundToInt() / 16f
         } finally {
             currentThumbnail.recycle()
         }

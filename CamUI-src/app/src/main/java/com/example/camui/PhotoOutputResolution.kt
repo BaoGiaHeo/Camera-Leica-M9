@@ -17,6 +17,7 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.exp
 
 data class PhotoOutputResult(
     val width: Int,
@@ -37,6 +38,11 @@ object PhotoOutputResolution {
     private const val TAG = "FUJI_LUNADREAM_RESAMPLE"
     private const val MIN_OUTPUT_PIXELS = 4L
     private const val RESERVED_HEAP_BYTES = 64L * 1024L * 1024L
+    private const val UPSCALE_TILE_ROWS = 64
+    private const val EDGE_AWARE_SIGMA = 24f
+    private val EDGE_WEIGHT_LOOKUP = FloatArray(256) { difference ->
+        exp(-difference.toFloat() / EDGE_AWARE_SIGMA)
+    }
 
     /**
      * Center-crop the upright JPEG to the selected frame ratio while preserving the
@@ -143,13 +149,17 @@ object PhotoOutputResolution {
             }
 
             output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-            Canvas(output!!).drawBitmap(
-                src,
-                sourceRect,
-                destinationRect,
-                Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
-                    isAntiAlias = true
-                }
+            val reconstructionStartedAt = android.os.SystemClock.elapsedRealtime()
+            renderEdgeAwareTiles(
+                source = src,
+                sourceRect = sourceRect,
+                destination = output!!
+            )
+            Log.i(
+                TAG,
+                "RECONSTRUCTION complete=" + width + "x" + height +
+                    " tileRows=" + UPSCALE_TILE_ROWS +
+                    " elapsed=" + (android.os.SystemClock.elapsedRealtime() - reconstructionStartedAt) + "ms"
             )
             // Release the source before JPEG compression; the resized output is now complete.
             if (!src.isRecycled) src.recycle()
@@ -235,6 +245,134 @@ object PhotoOutputResolution {
             runCatching { temp.delete() }
             runCatching { backup.delete() }
         }
+    }
+
+
+    /**
+     * Edge-aware reconstruction performed in bounded horizontal tiles.
+     *
+     * The input is the temporally aligned/fused LunaDream reference image. Each output
+     * sample starts from a bilinear footprint, then attenuates neighbours whose luminance
+     * disagrees with the nearest source sample. This reduces interpolation across strong
+     * edges without inventing texture that is absent from the aligned burst.
+     *
+     * The output Bitmap is still full-sized because Android's public Bitmap JPEG encoder
+     * accepts a complete Bitmap; only the working pixel arrays are tile-bounded here.
+     */
+    private fun renderEdgeAwareTiles(
+        source: Bitmap,
+        sourceRect: Rect,
+        destination: Bitmap
+    ) {
+        val outputWidth = destination.width
+        val outputHeight = destination.height
+        val sourceWidth = sourceRect.width()
+        val sourceHeight = sourceRect.height()
+        require(sourceWidth > 0 && sourceHeight > 0)
+        require(outputWidth > 0 && outputHeight > 0)
+
+        val rowTop = IntArray(sourceWidth)
+        val rowBottom = IntArray(sourceWidth)
+        val tileRows = UPSCALE_TILE_ROWS.coerceAtMost(outputHeight)
+        var completedRows = 0
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+
+        while (completedRows < outputHeight) {
+            val rows = minOf(tileRows, outputHeight - completedRows)
+            val tilePixels = IntArray(outputWidth * rows)
+
+            for (tileRow in 0 until rows) {
+                val outputY = completedRows + tileRow
+                val sourceY = (
+                    (outputY + 0.5f) * sourceHeight / outputHeight.toFloat() - 0.5f
+                ).coerceIn(0f, (sourceHeight - 1).toFloat())
+                val y0 = sourceY.toInt()
+                val y1 = (y0 + 1).coerceAtMost(sourceHeight - 1)
+                val fy = sourceY - y0
+
+                source.getPixels(
+                    rowTop, 0, sourceWidth, sourceRect.left, sourceRect.top + y0, sourceWidth, 1
+                )
+                source.getPixels(
+                    rowBottom, 0, sourceWidth, sourceRect.left, sourceRect.top + y1, sourceWidth, 1
+                )
+
+                val outputOffset = tileRow * outputWidth
+                for (outputX in 0 until outputWidth) {
+                    val sourceX = (
+                        (outputX + 0.5f) * sourceWidth / outputWidth.toFloat() - 0.5f
+                    ).coerceIn(0f, (sourceWidth - 1).toFloat())
+                    val x0 = sourceX.toInt()
+                    val x1 = (x0 + 1).coerceAtMost(sourceWidth - 1)
+                    val fx = sourceX - x0
+
+                    val p00 = rowTop[x0]
+                    val p10 = rowTop[x1]
+                    val p01 = rowBottom[x0]
+                    val p11 = rowBottom[x1]
+
+                    val nearest = when {
+                        fy < 0.5f && fx < 0.5f -> p00
+                        fy < 0.5f -> p10
+                        fx < 0.5f -> p01
+                        else -> p11
+                    }
+                    val nearestLuma = pixelLuma(nearest)
+                    val w00 = (1f - fx) * (1f - fy) *
+                        EDGE_WEIGHT_LOOKUP[kotlin.math.abs(pixelLuma(p00) - nearestLuma)]
+                    val w10 = fx * (1f - fy) *
+                        EDGE_WEIGHT_LOOKUP[kotlin.math.abs(pixelLuma(p10) - nearestLuma)]
+                    val w01 = (1f - fx) * fy *
+                        EDGE_WEIGHT_LOOKUP[kotlin.math.abs(pixelLuma(p01) - nearestLuma)]
+                    val w11 = fx * fy *
+                        EDGE_WEIGHT_LOOKUP[kotlin.math.abs(pixelLuma(p11) - nearestLuma)]
+                    val weightSum = (w00 + w10 + w01 + w11).coerceAtLeast(1e-6f)
+
+                    val red = (
+                        ((p00 ushr 16) and 0xFF) * w00 +
+                            ((p10 ushr 16) and 0xFF) * w10 +
+                            ((p01 ushr 16) and 0xFF) * w01 +
+                            ((p11 ushr 16) and 0xFF) * w11
+                        ) / weightSum
+                    val green = (
+                        ((p00 ushr 8) and 0xFF) * w00 +
+                            ((p10 ushr 8) and 0xFF) * w10 +
+                            ((p01 ushr 8) and 0xFF) * w01 +
+                            ((p11 ushr 8) and 0xFF) * w11
+                        ) / weightSum
+                    val blue = (
+                        (p00 and 0xFF) * w00 +
+                            (p10 and 0xFF) * w10 +
+                            (p01 and 0xFF) * w01 +
+                            (p11 and 0xFF) * w11
+                        ) / weightSum
+
+                    tilePixels[outputOffset + outputX] =
+                        (red.toInt().coerceIn(0, 255) shl 16) or
+                            (green.toInt().coerceIn(0, 255) shl 8) or
+                            blue.toInt().coerceIn(0, 255)
+                }
+            }
+
+            destination.setPixels(
+                tilePixels, 0, outputWidth, 0, completedRows, outputWidth, rows
+            )
+            completedRows += rows
+            if (completedRows == outputHeight || completedRows % (tileRows * 4) == 0) {
+                Log.d(
+                    TAG,
+                    "RECONSTRUCTION rows=" + completedRows + "/" + outputHeight +
+                        " elapsed=" + (android.os.SystemClock.elapsedRealtime() - startedAt) + "ms"
+                )
+            }
+        }
+    }
+
+    private fun pixelLuma(pixel: Int): Int {
+        val red = (pixel ushr 16) and 0xFF
+        val green = (pixel ushr 8) and 0xFF
+        val blue = pixel and 0xFF
+        return (red * 3 + green * 6 + blue) / 10
     }
 
     /**

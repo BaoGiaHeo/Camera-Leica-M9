@@ -3763,7 +3763,16 @@ fun CameraScreen(
                 ).show()
                 return@launch
             }
-            if (captureUseLunaDream) {
+            val captureLunaDreamSourceSurvey = if (captureUseLunaDream) {
+                val sensorCameraId = activeCameraDetails?.id ?: runCatching {
+                    Camera2CameraInfo.from(activeCamera.cameraInfo).cameraId
+                }.getOrNull()
+                val survey = LunaDreamSourceStrategy.inspect(context, sensorCameraId)
+                LunaDreamDiagnostics.record(
+                    context,
+                    "SOURCE_SURVEY",
+                    survey.toLogString()
+                )
                 LunaDreamDiagnostics.record(
                     context,
                     "CAPTURE_REQUESTED",
@@ -3774,9 +3783,11 @@ fun CameraScreen(
                         captureUseLunaDream25 -> "LunaDream 2.5"
                         captureUseLunaDream30 -> "LunaDream 3.0"
                         else -> "LunaDream"
-                    }) + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
+                    }) + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr; " +
+                        "sourceStrategy=" + survey.activeCaptureStrategy
                 )
-            }
+                survey
+            } else null
             val captureUseNightShot = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Photo" && nightShotMode == "night" && !captureUseLunaDream
             val captureUseMilkyWayStack = captureUseNightShot && !front &&

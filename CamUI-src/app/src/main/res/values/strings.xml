@@ -216,4 +216,5 @@
     <string name="lunadream_tier_25_description">150MP · 6–10 frames · advanced alignment and fusion</string>
     <string name="lunadream_tier_30_title">LunaDream 3.0</string>
     <string name="lunadream_tier_30_description">200MP · 12–16 frames · highest quality</string>
+    <string name="lunadream_choose_mode">Choose a mode before capture. LunaDream keeps that selection throughout processing.</string>
 </resources>

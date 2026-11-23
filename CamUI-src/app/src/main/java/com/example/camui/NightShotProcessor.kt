@@ -690,6 +690,7 @@ object NightShotProcessor {
                 }
                 applyLunaDream20DetailRecovery(
                     base!!,
+                    strength = strength,
                     workers = lunaFusionExecutor
                 ) { stageProgress ->
                     runCatching { onProgress?.invoke(93 + (stageProgress * 2 / 100)) }
@@ -1885,6 +1886,7 @@ object NightShotProcessor {
     private fun applyLunaDream20DetailRecoveryParallel(
         bitmap: Bitmap,
         workers: ExecutorService,
+        strength: Int,
         onProgress: ((Int) -> Unit)? = null
     ) {
         val width = bitmap.width
@@ -1950,14 +1952,32 @@ object NightShotProcessor {
                         val edgeDelta = centerLuma - crossMean
                         val fineDelta = centerLuma - diagonalMean
                         val edgeMagnitude = kotlin.math.abs(edgeDelta)
+                        val edgeGain = when {
+                            strength >= 4 -> 0.23f
+                            strength >= 3 -> 0.205f
+                            else -> 0.18f
+                        }
+                        val fineGain = when {
+                            strength >= 4 -> 0.095f
+                            strength >= 3 -> 0.078f
+                            else -> 0.06f
+                        }
                         val correction = if (centerLuma in 18f..238f && edgeMagnitude >= 2.5f && edgeMagnitude <= 58f) {
-                            edgeDelta * 0.18f +
-                                if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.06f else 0f
+                            edgeDelta * edgeGain +
+                                if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * fineGain else 0f
                         } else 0f
 
                         val localMin = minOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
                         val localMax = maxOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
-                        val correctionLimit = minOf(4.5f, (edgeMagnitude * 0.32f).coerceAtLeast(1f))
+                        val maximumCorrection = when {
+                            strength >= 4 -> 5.5f
+                            strength >= 3 -> 5f
+                            else -> 4.5f
+                        }
+                        val correctionLimit = minOf(
+                            maximumCorrection,
+                            (edgeMagnitude * if (strength >= 4) 0.36f else 0.32f).coerceAtLeast(1f)
+                        )
                         val clampedCorrection = correction.coerceIn(-correctionLimit, correctionLimit)
                         val targetLuma = (centerLuma + clampedCorrection)
                             .coerceIn((localMin - 2f).coerceAtLeast(0f), (localMax + 2f).coerceAtMost(255f))
@@ -1985,11 +2005,12 @@ object NightShotProcessor {
 
     private fun applyLunaDream20DetailRecovery(
         bitmap: Bitmap,
+        strength: Int = 2,
         workers: ExecutorService? = null,
         onProgress: ((Int) -> Unit)? = null
     ) {
         if (workers != null) {
-            applyLunaDream20DetailRecoveryParallel(bitmap, workers, onProgress)
+            applyLunaDream20DetailRecoveryParallel(bitmap, workers, strength, onProgress)
             return
         }
         val width = bitmap.width
@@ -2033,14 +2054,32 @@ object NightShotProcessor {
                 val edgeDelta = centerLuma - crossMean
                 val fineDelta = centerLuma - diagonalMean
                 val edgeMagnitude = kotlin.math.abs(edgeDelta)
+                val edgeGain = when {
+                    strength >= 4 -> 0.23f
+                    strength >= 3 -> 0.205f
+                    else -> 0.18f
+                }
+                val fineGain = when {
+                    strength >= 4 -> 0.095f
+                    strength >= 3 -> 0.078f
+                    else -> 0.06f
+                }
                 val correction = if (centerLuma in 18f..238f && edgeMagnitude >= 2.5f && edgeMagnitude <= 58f) {
-                    edgeDelta * 0.18f +
-                        if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * 0.06f else 0f
+                    edgeDelta * edgeGain +
+                        if (kotlin.math.abs(fineDelta) >= 3.5f) fineDelta * fineGain else 0f
                 } else 0f
 
                 val localMin = minOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
                 val localMax = maxOf(centerLuma, leftLuma, rightLuma, upLuma, downLuma, upLeft, upRight, downLeft, downRight)
-                val correctionLimit = minOf(4.5f, (edgeMagnitude * 0.32f).coerceAtLeast(1f))
+                val maximumCorrection = when {
+                    strength >= 4 -> 5.5f
+                    strength >= 3 -> 5f
+                    else -> 4.5f
+                }
+                val correctionLimit = minOf(
+                    maximumCorrection,
+                    (edgeMagnitude * if (strength >= 4) 0.36f else 0.32f).coerceAtLeast(1f)
+                )
                 val clampedCorrection = correction.coerceIn(-correctionLimit, correctionLimit)
                 val targetLuma = (centerLuma + clampedCorrection)
                     .coerceIn((localMin - 2f).coerceAtLeast(0f), (localMax + 2f).coerceAtMost(255f))

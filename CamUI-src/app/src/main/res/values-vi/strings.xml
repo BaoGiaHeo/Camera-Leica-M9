@@ -216,4 +216,5 @@
     <string name="lunadream_tier_25_description">150MP · 6–10 khung · căn chỉnh và ghép nâng cao</string>
     <string name="lunadream_tier_30_title">LunaDream 3.0</string>
     <string name="lunadream_tier_30_description">200MP · 12–16 khung · chất lượng cao nhất</string>
+    <string name="lunadream_choose_mode">Chọn chế độ trước khi chụp. LunaDream sẽ giữ lựa chọn này trong suốt quá trình xử lý.</string>
 </resources>

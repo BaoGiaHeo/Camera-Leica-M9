@@ -1812,46 +1812,96 @@ internal data class CubeLut(
         return values[voxel * 3 + channel]
     }
 
-    private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
+    /**
+     * Allocation-free sampler for row/tile image processing. The optional 1D shaper
+     * is applied before the 3D stage. The 3D volume uses six-case tetrahedral
+     * interpolation; callers reuse the supplied output buffer across pixels.
+     */
+    fun sampleInto(red: Float, green: Float, blue: Float, output: FloatArray) {
+        require(output.size >= 3) { "LUT output buffer must have at least three channels." }
+        var inputRed = red.coerceIn(0f, 1f)
+        var inputGreen = green.coerceIn(0f, 1f)
+        var inputBlue = blue.coerceIn(0f, 1f)
 
-    fun sample(red: Float, green: Float, blue: Float): Triple<Float, Float, Float> {
-        val input = floatArrayOf(red, green, blue)
-        val oneD = if (oneDSize >= 2) {
-            FloatArray(3) { channel ->
-                val position = input[channel].coerceIn(0f, 1f) * (oneDSize - 1)
-                val low = position.toInt().coerceIn(0, oneDSize - 1)
-                val high = (low + 1).coerceAtMost(oneDSize - 1)
-                val fraction = position - low
-                val a = oneDValues[low * 3 + channel]
-                val b = oneDValues[high * 3 + channel]
-                mix(a, b, fraction).coerceIn(0f, 1f)
-            }
-        } else input
+        if (oneDSize >= 2) {
+            val redPosition = inputRed * (oneDSize - 1)
+            val redLow = redPosition.toInt().coerceIn(0, oneDSize - 1)
+            val redHigh = (redLow + 1).coerceAtMost(oneDSize - 1)
+            val redT = redPosition - redLow
+            inputRed = (oneDValues[redLow * 3] +
+                (oneDValues[redHigh * 3] - oneDValues[redLow * 3]) * redT).coerceIn(0f, 1f)
 
-        if (size < 2) return Triple(oneD[0], oneD[1], oneD[2])
+            val greenPosition = inputGreen * (oneDSize - 1)
+            val greenLow = greenPosition.toInt().coerceIn(0, oneDSize - 1)
+            val greenHigh = (greenLow + 1).coerceAtMost(oneDSize - 1)
+            val greenT = greenPosition - greenLow
+            inputGreen = (oneDValues[greenLow * 3 + 1] +
+                (oneDValues[greenHigh * 3 + 1] - oneDValues[greenLow * 3 + 1]) * greenT).coerceIn(0f, 1f)
 
-        fun coordinate(value: Float, channel: Int): Pair<Int, Float> {
-            val span = (domainMax[channel] - domainMin[channel]).coerceAtLeast(0.00001f)
-            val normalized = ((value - domainMin[channel]) / span).coerceIn(0f, 1f) * (size - 1)
-            val low = normalized.toInt().coerceIn(0, size - 1)
-            return low to (normalized - low).coerceIn(0f, 1f)
+            val bluePosition = inputBlue * (oneDSize - 1)
+            val blueLow = bluePosition.toInt().coerceIn(0, oneDSize - 1)
+            val blueHigh = (blueLow + 1).coerceAtMost(oneDSize - 1)
+            val blueT = bluePosition - blueLow
+            inputBlue = (oneDValues[blueLow * 3 + 2] +
+                (oneDValues[blueHigh * 3 + 2] - oneDValues[blueLow * 3 + 2]) * blueT).coerceIn(0f, 1f)
         }
 
-        val (r0, rt) = coordinate(oneD[0], 0)
-        val (g0, gt) = coordinate(oneD[1], 1)
-        val (b0, bt) = coordinate(oneD[2], 2)
+        if (size < 2) {
+            output[0] = inputRed
+            output[1] = inputGreen
+            output[2] = inputBlue
+            return
+        }
+
+        val redSpan = (domainMax[0] - domainMin[0]).coerceAtLeast(0.00001f)
+        val greenSpan = (domainMax[1] - domainMin[1]).coerceAtLeast(0.00001f)
+        val blueSpan = (domainMax[2] - domainMin[2]).coerceAtLeast(0.00001f)
+        val redPosition = ((inputRed - domainMin[0]) / redSpan).coerceIn(0f, 1f) * (size - 1)
+        val greenPosition = ((inputGreen - domainMin[1]) / greenSpan).coerceIn(0f, 1f) * (size - 1)
+        val bluePosition = ((inputBlue - domainMin[2]) / blueSpan).coerceIn(0f, 1f) * (size - 1)
+
+        val r0 = redPosition.toInt().coerceIn(0, size - 1)
+        val g0 = greenPosition.toInt().coerceIn(0, size - 1)
+        val b0 = bluePosition.toInt().coerceIn(0, size - 1)
+        val rt = (redPosition - r0).coerceIn(0f, 1f)
+        val gt = (greenPosition - g0).coerceIn(0f, 1f)
+        val bt = (bluePosition - b0).coerceIn(0f, 1f)
         val r1 = (r0 + 1).coerceAtMost(size - 1)
         val g1 = (g0 + 1).coerceAtMost(size - 1)
         val b1 = (b0 + 1).coerceAtMost(size - 1)
 
-        fun channel(c: Int): Float {
-            val c00 = mix(value(r0, g0, b0, c), value(r0, g0, b1, c), bt)
-            val c01 = mix(value(r0, g1, b0, c), value(r0, g1, b1, c), bt)
-            val c10 = mix(value(r1, g0, b0, c), value(r1, g0, b1, c), bt)
-            val c11 = mix(value(r1, g1, b0, c), value(r1, g1, b1, c), bt)
-            return mix(mix(c00, c01, gt), mix(c10, c11, gt), rt).coerceIn(0f, 1f)
+        for (channel in 0..2) {
+            val c000 = value(r0, g0, b0, channel)
+            val c100 = value(r1, g0, b0, channel)
+            val c010 = value(r0, g1, b0, channel)
+            val c001 = value(r0, g0, b1, channel)
+            val c110 = value(r1, g1, b0, channel)
+            val c101 = value(r1, g0, b1, channel)
+            val c011 = value(r0, g1, b1, channel)
+            val c111 = value(r1, g1, b1, channel)
+
+            val result = when {
+                rt >= gt && gt >= bt ->
+                    c000 + rt * (c100 - c000) + gt * (c110 - c100) + bt * (c111 - c110)
+                rt >= bt && bt > gt ->
+                    c000 + rt * (c100 - c000) + bt * (c101 - c100) + gt * (c111 - c101)
+                bt > rt && rt >= gt ->
+                    c000 + bt * (c001 - c000) + rt * (c101 - c001) + gt * (c111 - c101)
+                gt > rt && rt >= bt ->
+                    c000 + gt * (c010 - c000) + rt * (c110 - c010) + bt * (c111 - c110)
+                gt >= bt && bt > rt ->
+                    c000 + gt * (c010 - c000) + bt * (c011 - c010) + rt * (c111 - c011)
+                else ->
+                    c000 + bt * (c001 - c000) + gt * (c011 - c001) + rt * (c111 - c011)
+            }
+            output[channel] = result.coerceIn(0f, 1f)
         }
-        return Triple(channel(0), channel(1), channel(2))
+    }
+
+    fun sample(red: Float, green: Float, blue: Float): Triple<Float, Float, Float> {
+        val output = FloatArray(3)
+        sampleInto(red, green, blue, output)
+        return Triple(output[0], output[1], output[2])
     }
 }
 
@@ -2351,6 +2401,7 @@ private fun applyCameraLookPixels(
     val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
     val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
     val row = IntArray(bitmap.width)
+    val lutOutput = FloatArray(3)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
         for (x in row.indices) {
@@ -2359,14 +2410,16 @@ private fun applyCameraLookPixels(
             val red = AndroidColor.red(pixel).toFloat()
             val green = AndroidColor.green(pixel).toFloat()
             val blue = AndroidColor.blue(pixel).toFloat()
-            val mapped = cube?.sample(red / 255f, green / 255f, blue / 255f)
-                ?: transformPreset(preset, red, green, blue).let {
-                    Triple(it.first / 255f, it.second / 255f, it.third / 255f)
-                }
+            val mapped = if (cube != null) {
+                cube.sampleInto(red / 255f, green / 255f, blue / 255f, lutOutput)
+                null
+            } else {
+                transformPreset(preset, red, green, blue)
+            }
 
-            var r = mapped.first.coerceIn(0f, 1f)
-            var g = mapped.second.coerceIn(0f, 1f)
-            var b = mapped.third.coerceIn(0f, 1f)
+            var r = if (cube != null) lutOutput[0] else (mapped!!.first / 255f).coerceIn(0f, 1f)
+            var g = if (cube != null) lutOutput[1] else (mapped!!.second / 255f).coerceIn(0f, 1f)
+            var b = if (cube != null) lutOutput[2] else (mapped!!.third / 255f).coerceIn(0f, 1f)
             val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
             val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
             val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)

@@ -32,6 +32,54 @@ class CubeLutParserTest {
     }
 
     @Test
+    fun sampleIntoMatchesAllocationFreeTetrahedralSample() {
+        val text = buildString {
+            appendLine("LUT_3D_SIZE 2")
+            for (red in 0..1) {
+                for (green in 0..1) {
+                    for (blue in 0..1) {
+                        val outRed = 0.10f + red * 0.40f + green * 0.20f + blue * 0.10f
+                        val outGreen = 0.20f + red * 0.10f + green * 0.30f + blue * 0.20f
+                        val outBlue = 0.05f + red * 0.20f + green * 0.10f + blue * 0.50f
+                        appendLine("$outRed $outGreen $outBlue")
+                    }
+                }
+            }
+        }
+        val lut = requireNotNull(parseCubeLutText(text))
+        val output = FloatArray(3)
+        lut.sampleInto(0.2f, 0.6f, 0.4f, output)
+        val sampled = lut.sample(0.2f, 0.6f, 0.4f)
+        assertEquals(sampled.first, output[0], 0.0001f)
+        assertEquals(sampled.second, output[1], 0.0001f)
+        assertEquals(sampled.third, output[2], 0.0001f)
+        assertEquals(0.34f, output[0], 0.0001f)
+        assertEquals(0.48f, output[1], 0.0001f)
+        assertEquals(0.35f, output[2], 0.0001f)
+    }
+
+    @Test
+    fun tetrahedralInterpolationUsesTheContainingSimplex() {
+        val text = buildString {
+            appendLine("LUT_3D_SIZE 2")
+            for (red in 0..1) {
+                for (green in 0..1) {
+                    for (blue in 0..1) {
+                        val product = (red * green).toFloat()
+                        appendLine("$product 0 0")
+                    }
+                }
+            }
+        }
+        val lut = requireNotNull(parseCubeLutText(text))
+        val output = FloatArray(3)
+        lut.sampleInto(0.25f, 0.75f, 0.50f, output)
+        // G >= B >= R uses the G -> B -> R tetrahedron, producing a piecewise
+        // linear value of 0.25 rather than the trilinear product 0.1875.
+        assertEquals(0.25f, output[0], 0.0001f)
+    }
+
+    @Test
     fun acceptsOneDimensionalCubeWithoutThreeDimensionalHeader() {
         val text = """
             TITLE "One dimensional identity"

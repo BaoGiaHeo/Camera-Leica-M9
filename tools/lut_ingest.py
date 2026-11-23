@@ -419,7 +419,7 @@ def self_test() -> None:
             f"{r/(2-1):.6f} {g/(2-1):.6f} {b/(2-1):.6f}"
             for b in range(2) for g in range(2) for r in range(2)
         ]
-        cube.write_text("LUT_3D_SIZE 2\\n" + "\\n".join(cube_rows) + "\\n", encoding="utf-8")
+        cube.write_text("LUT_3D_SIZE 2\n" + "\n".join(cube_rows) + "\n", encoding="utf-8")
         cube_size, cube_table = parse_cube(cube)
         assert cube_size == 2 and len(cube_table) == 8
         assert cube_table[1] == (1.0, 0.0, 0.0)
@@ -430,8 +430,12 @@ def self_test() -> None:
             for b in range(2) for g in range(2) for r in range(2)
         ]
         vlt.write_text(
-            "# panasonic vlt file version 1.0\\n# source vlt file \\"\\"\\n"
-            "LUT_3D_SIZE 2\\n" + "\\n".join(vlt_rows) + "\\n",
+            "\n".join([
+                "# panasonic vlt file version 1.0",
+                '# source vlt file ""',
+                "LUT_3D_SIZE 2",
+                *vlt_rows,
+            ]) + "\n",
             encoding="ascii",
         )
         vlt_size, vlt_table = parse_vlt(vlt)

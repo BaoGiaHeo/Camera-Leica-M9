@@ -4828,6 +4828,14 @@ fun CameraScreen(
                                         "photo_lunadream_source_survey:$saved",
                                         captureLunaDreamSourceSurvey?.toLogString() ?: "Không có khảo sát LunaDream"
                                     )
+                                    .putString(
+                                        "photo_lunadream_xmp:$saved",
+                                        when {
+                                            !captureUseLunaDream -> "Not applicable"
+                                            lunaDreamXmpWritten -> "XMP APP1 written and verified"
+                                            else -> "XMP not written; see FUJI_LUNADREAM_XMP log"
+                                        }
+                                    )
                                     .putString("photo_camera_id:$saved", activeCameraDetails?.id ?: "Không công bố")
                                     .putString("photo_physical_camera_id:$saved", activePhysicalCameraId ?: "HAL không công bố")
                                     .putString("photo_output_size:$saved", inspectorOutputSize)

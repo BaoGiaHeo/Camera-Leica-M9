@@ -86,7 +86,7 @@ fun SettingsScreen(
     showGrid: Boolean, onShowGrid: (Boolean) -> Unit,
     showHist: Boolean, onShowHist: (Boolean) -> Unit,
     focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit,
-    onOpenCông cụ hỗ trợ: () -> Unit = {},
+    onOpenToolbox: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {},
     onReplayActivation: () -> Unit = {}
 ) {
@@ -159,7 +159,7 @@ fun SettingsScreen(
                         categoryBeforeBackup = visibleCategory
                         selectedCategory = "Sao lưu & Khôi phục"
                     },
-                    onOpenCông cụ hỗ trợ = onOpenCông cụ hỗ trợ,
+                    onOpenToolbox = onOpenToolbox,
                     onOpenContentsManagement = onOpenContentsManagement,
                     onReplayActivation = onReplayActivation
                 )
@@ -183,7 +183,7 @@ private fun SettingsDetailPage(
     embedded: Boolean = false,
     modifier: Modifier = Modifier,
     onOpenBackup: () -> Unit = {},
-    onOpenCông cụ hỗ trợ: () -> Unit = {},
+    onOpenToolbox: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {},
     onReplayActivation: () -> Unit = {}
 ) {
@@ -274,7 +274,7 @@ var nightShotMode by remember {
             "Công cụ hỗ trợ" -> {
                 Text("Lưới căn khung, cân bằng, biểu đồ sáng và lấy nét viền được thiết lập trong Công cụ hỗ trợ.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
-                FujiListRow("Công cụ hỗ trợ", "MỞ", onClick = onOpenCông cụ hỗ trợ, description = "Lưới · Cân bằng · Biểu đồ sáng · Viền nét · HUD")
+                FujiListRow("Công cụ hỗ trợ", "MỞ", onClick = onOpenToolbox, description = "Lưới · Cân bằng · Biểu đồ sáng · Viền nét · HUD")
                 FujiListRow("Quản lý nội dung", "MỞ", onClick = onOpenContentsManagement, description = "Quản lý LUT")
             }
             "Lấy nét & Ống kính" -> {
@@ -524,7 +524,6 @@ var nightShotMode by remember {
                 ) {
                     dialClickEnabled = it
                     prefs.edit().putBoolean("dial_click_enabled", it).apply()
-                    if (!it) CameraSoundEngine.stopZoomMotor()
                 }
                 Text(
                     "MECHANICAL FEEDBACK",

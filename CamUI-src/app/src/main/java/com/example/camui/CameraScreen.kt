@@ -766,7 +766,7 @@ fun CameraScreen(
         appPrefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    // Hai nhánh Live Photo và xử lý ảnh gốc thiết bị đã được gỡ khỏi 2.6.1.
+    // Các nhánh ghi video ghép và xử lý ISP riêng đã được loại khỏi 2.6.1.
     // Xóa cờ cũ một lần để các bản nâng cấp không giữ trạng thái ẩn.
     LaunchedEffect(Unit) {
         appPrefs.edit()
@@ -2346,7 +2346,7 @@ fun CameraScreen(
                 }
                 // Pro exposure is sent through dynamic CameraControl options. CameraX copies
                 // repeating options into one-shot still captures; avoid stale builder values.
-                val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled &&
+                val lunaDreamRequestedInPrefs =
                     appPrefs.getString("lunadream_mode", "off") != "off"
                 val isComputationalHighResolution =
                     (lunaDreamRequestedInPrefs || uhdCaptureEnabled || fhdCaptureEnabled ||
@@ -5707,7 +5707,7 @@ fun CameraScreen(
                                         manualExposure = manualExposure,
                                         manualIsoEnabled = manualIsoEnabled,
                                         manualShutterEnabled = manualShutterEnabled,
-                                        nativeImageProcessingEnabled = nativeImageProcessingEnabled,
+                                        nativeImageProcessingEnabled = false,
                                         livePhotoEnabled = false
                                     ),
                                     whiteBalanceText = toneText,

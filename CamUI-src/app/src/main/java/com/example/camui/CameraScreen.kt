@@ -7423,7 +7423,7 @@ private fun FilterRollToneDialog(
     }
 
     val visibleRoll = remember {
-        listOf("None") + cameraLookGroups.flatMap { it.presets }.distinct().take(17)
+        listOf("None") + builtInCameraLookGroupDefinitions.flatMap { it.presets }.distinct().take(17)
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         FujiPanel(

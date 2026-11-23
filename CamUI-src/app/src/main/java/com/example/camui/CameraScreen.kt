@@ -768,7 +768,6 @@ fun CameraScreen(
     }
     // Hai nhánh Live Photo và xử lý ảnh gốc thiết bị đã được gỡ khỏi 2.6.1.
     // Xóa cờ cũ một lần để các bản nâng cấp không giữ trạng thái ẩn.
-    val nativeImageProcessingEnabled = false
     LaunchedEffect(Unit) {
         appPrefs.edit()
             .remove("live_photo_enabled")
@@ -1773,7 +1772,7 @@ fun CameraScreen(
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
         hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
-        nativeImageProcessingEnabled, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
+        uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode,
         previewFpsMode
     ) {
@@ -1852,9 +1851,8 @@ fun CameraScreen(
                     ImageCapture.getImageCaptureCapabilities(cameraInfo).supportedOutputFormats
                 }.getOrDefault(emptySet())
             }.orEmpty()
-            val rawDreamRequested = rawCaptureMode == "raw_dream" &&
-                !nativeImageProcessingEnabled
-            val rawCaptureRequested = !nativeImageProcessingEnabled &&
+            val rawDreamRequested = rawCaptureMode == "raw_dream"
+            val rawCaptureRequested =
                 mode == "Photo" && nightShotMode == "off" &&
                 (lunaDreamMode == "off" || rawDreamRequested) &&
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
@@ -1886,48 +1884,11 @@ fun CameraScreen(
             val analysisCompatibleHardware = hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL ||
                 hardwareLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3
             softwareHdrFallback = false
-            // Prefer the OEM AUTO extension, then HDR, while Native Image Processing is active.
-            // CameraX applies the selected vendor extension to Preview and ImageCapture.
-            val nativeProcessingExtensionMode = if (
-                nativeImageProcessingEnabled && mode == "Photo" && nightShotMode == "off" &&
-                !rawCaptureActive && !burstMode && !hdrBracketMode && !focusBracketMode
-            ) {
-                listOf(ExtensionMode.AUTO, ExtensionMode.HDR).firstOrNull { extensionMode ->
-                    runCatching {
-                        extensionsManager?.isExtensionAvailable(baseSelector, extensionMode) == true
-                    }.getOrDefault(false)
-                }
-            } else null
-            val nativeProcessingExtensionSelector = nativeProcessingExtensionMode?.let { extensionMode ->
-                runCatching {
-                    extensionsManager!!.getExtensionEnabledCameraSelector(baseSelector, extensionMode)
-                }.onFailure {
-                    android.util.Log.w("FUJI_NATIVE_IMAGE", "OEM extension selector unavailable", it)
-                }.getOrNull()
-            }
-            var nativeProcessingExtensionActive = nativeProcessingExtensionSelector != null
-            val nativeProcessingAnalysisSupported = nativeProcessingExtensionMode?.let { extensionMode ->
-                runCatching {
-                    extensionsManager?.isImageAnalysisSupported(baseSelector, extensionMode) == true
-                }.getOrDefault(false)
-            } ?: true
-            if (nativeImageProcessingEnabled && nativeProcessingExtensionActive) {
-                android.util.Log.i(
-                    "FUJI_NATIVE_IMAGE",
-                    "Using OEM CameraX extension mode=" + nativeProcessingExtensionMode
-                )
-            } else if (nativeImageProcessingEnabled) {
-                android.util.Log.i(
-                    "FUJI_NATIVE_IMAGE",
-                    "No OEM AUTO/HDR extension exposed; using the device camera's default ISP JPEG pipeline"
-                )
-            }
             // NightShot deliberately captures ordinary zero-EV auto-exposed frames and stacks them
             // in software. Do not enable the vendor NIGHT extension: some HALs turn it into a
             // single high-gain/long-shutter exposure, which is not the requested behaviour.
             nightExtensionActive = false
-            val hdrCaptureRequested = !nativeImageProcessingEnabled &&
-                hdrEnabled && mode == "Photo" &&
+            val hdrCaptureRequested = hdrEnabled && mode == "Photo" &&
                 nightShotMode == "off" && !rawCaptureActive &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             // HDRbyHDMP is the common software path for all devices and HDMP levels.
@@ -1941,7 +1902,7 @@ fun CameraScreen(
                 }.getOrNull()
             } else null
             var hdrExtensionActive = hdrExtensionSelector != null
-            var selector = nativeProcessingExtensionSelector ?: hdrExtensionSelector ?: baseSelector
+            var selector = hdrExtensionSelector ?: baseSelector
             if (hdrCaptureRequested && !hdrExtensionActive) {
                 android.util.Log.i("FUJI_HDR", "HDRbyHDMP software engine selected for this camera")
             }
@@ -2090,7 +2051,6 @@ fun CameraScreen(
                     }.getOrDefault(emptySet())
                 }.orEmpty()
                 val distortionCorrectionMode = when {
-                    nativeProcessingExtensionActive -> null
                     !lensCorrectionEnabled -> CaptureRequest.DISTORTION_CORRECTION_MODE_OFF
                     distortionModes.contains(CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY) ->
                         CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY
@@ -2106,7 +2066,6 @@ fun CameraScreen(
                     }.getOrDefault(emptySet())
                 }.orEmpty()
                 val aberrationCorrectionMode = when {
-                    nativeProcessingExtensionActive -> null
                     !lensCorrectionEnabled -> CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_OFF
                     aberrationModes.contains(CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY) ->
                         CaptureRequest.COLOR_CORRECTION_ABERRATION_MODE_HIGH_QUALITY
@@ -2122,7 +2081,6 @@ fun CameraScreen(
                     }.getOrDefault(emptySet())
                 }.orEmpty()
                 val shadingCorrectionMode = when {
-                    nativeProcessingExtensionActive -> null
                     !lensCorrectionEnabled -> CaptureRequest.SHADING_MODE_OFF
                     shadingModes.contains(CaptureRequest.SHADING_MODE_HIGH_QUALITY) ->
                         CaptureRequest.SHADING_MODE_HIGH_QUALITY
@@ -2199,7 +2157,7 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                 }
                 var lastAfTraceAtMs = 0L
-                if (!hdrExtensionActive && !nightExtensionActive && !nativeProcessingExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
+                if (!hdrExtensionActive && !nightExtensionActive) Camera2Interop.Extender(previewBuilder).setSessionCaptureCallback(
                     object : CameraCaptureSession.CaptureCallback() {
                         override fun onCaptureCompleted(
                             session: CameraCaptureSession,
@@ -2511,9 +2469,7 @@ fun CameraScreen(
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 previewUseCase = preview
-                analysisUseCase = if (!nativeProcessingExtensionActive || nativeProcessingAnalysisSupported) {
-                    analysis
-                } else null
+                analysisUseCase = analysis
                 var lastAnalysis = 0L
                 var lastFaceDetectionStartAtMs = 0L
                 var lastLensCheckAt = 0L
@@ -2796,6 +2752,7 @@ fun CameraScreen(
                     .setViewPort(viewPort)
                     .addUseCase(preview)
                     .addUseCase(capture)
+                    .addUseCase(analysis)
                 val group = groupBuilder.build()
                 val bound = provider.bindToLifecycle(lifecycleOwner, selector, group)
                 android.util.Log.i(
@@ -3010,31 +2967,6 @@ fun CameraScreen(
                     }
                 }
             } catch (e: Exception) {
-                if (nativeProcessingExtensionActive) {
-                    android.util.Log.w(
-                        "FUJI_NATIVE_IMAGE",
-                        "OEM extension bind failed; retrying with the device's default ISP pipeline",
-                        e
-                    )
-                    nativeProcessingExtensionActive = false
-                    selector = baseSelector
-                    provider.unbindAll()
-                    val fallbackBound = runCatching { bindCapture(ImageCapture.OUTPUT_FORMAT_JPEG) }
-                    if (fallbackBound.isSuccess && camera != null && imageCapture != null) {
-                        localizedToast(
-                            context,
-                            "Camera OEM Extension không khởi chạy được; đang dùng pipeline ISP mặc định của thiết bị.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        camera = null
-                        imageCapture = null
-                        localizedToast(
-                            context,
-                            "Không thể khởi tạo camera theo pipeline gốc của thiết bị.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
                 } else if (hdrExtensionActive) {
                     // Some FULL/LEVEL_3 implementations still reject the three-use-case
                     // combination. Drop only the OEM extension and retry the base camera.
@@ -3517,7 +3449,7 @@ fun CameraScreen(
             ).show()
             return
         }
-        val rawModeConflictsWithComputationalCapture = !nativeImageProcessingEnabled && (
+        val rawModeConflictsWithComputationalCapture = (
             (mode == "Photo" && rawCaptureMode == "raw" &&
                 (nightShotMode != "off" || lunaDreamMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                     uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode)) ||
@@ -3525,7 +3457,7 @@ fun CameraScreen(
                 (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                     uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode))
         )
-        if (!nativeImageProcessingEnabled && rawCaptureMode == "raw_dream" &&
+        if (rawCaptureMode == "raw_dream" &&
             imageCapture?.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW_JPEG
         ) {
             localizedToast(
@@ -3842,15 +3774,10 @@ fun CameraScreen(
             )
             val captureIsUltraHdr = preserveUltraHdrOutput
             val captureUseSoftwareHdr = softwareHdrFallback && !captureIsUltraHdr
-            val captureUseDeviceProcessing = nativeImageProcessingEnabled &&
-                !captureIsUltraHdr && capture.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW &&
-                capture.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-            val captureUseRawDream20 = !nativeImageProcessingEnabled &&
-                mode == "Photo" && rawCaptureMode == "raw_dream"
-            val lunaDreamSelected = !nativeImageProcessingEnabled &&
-                mode == "Photo" && (lunaDreamMode != "off" || captureUseRawDream20)
+            val captureUseRawDream20 = mode == "Photo" && rawCaptureMode == "raw_dream"
+            val lunaDreamSelected = mode == "Photo" && (lunaDreamMode != "off" || captureUseRawDream20)
             val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
@@ -3894,8 +3821,7 @@ fun CameraScreen(
                     }) + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
                 )
             }
-            val captureUseNightShot = !nativeImageProcessingEnabled &&
-                mode == "Photo" && nightShotMode == "night" && !captureUseLunaDream
+            val captureUseNightShot = mode == "Photo" && nightShotMode == "night" && !captureUseLunaDream
             val captureUseMilkyWayStack = captureUseNightShot && !front &&
                 kotlin.math.abs(zoomSel - 1f) < 0.08f && milkyWayStackEnabled &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
@@ -4560,36 +4486,6 @@ fun CameraScreen(
                                         }
                                     }.getOrDefault(false)
                                 } else false
-                                if (captureUseDeviceProcessing) {
-                                    withContext(Dispatchers.Main) {
-                                        processingLabel = "Xử lý ảnh gốc thiết bị · tối ưu tông sáng và chi tiết"
-                                        processingProgress = maxOf(processingProgress, 67)
-                                    }
-                                }
-                                val deviceProcessingApplied = if (captureUseDeviceProcessing) {
-                                    withContext(Dispatchers.IO) {
-                                        runCatching {
-                                            applySoftwarePhotoEnhancement(
-                                                context,
-                                                saved,
-                                                softwareHdr = true,
-                                                uhdSharpening = true
-                                            )
-                                        }.onFailure {
-                                            android.util.Log.e(
-                                                "FUJI_NATIVE_IMAGE",
-                                                "Device image enhancement pass failed; the original JPEG is retained",
-                                                it
-                                            )
-                                        }.getOrDefault(false)
-                                    }
-                                } else false
-                                if (captureUseDeviceProcessing) {
-                                    android.util.Log.i(
-                                        "FUJI_NATIVE_IMAGE",
-                                        "Post-capture device enhancement applied=$deviceProcessingApplied"
-                                    )
-                                }
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 70) }
                                 // Keep a clean pre-filter image as the reference for every picker preview.
                                 val unfilteredPreview = if (captureIsUltraHdr) null else runCatching {
@@ -4773,8 +4669,6 @@ fun CameraScreen(
                                     captureUseLunaDream -> "LunaDream fallback · " + (lunaDreamFailureReason ?: "engine failure")
                                     captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
                                     captureUseNightShot -> "NightShotMode · chụp đêm"
-                                    captureUseDeviceProcessing && deviceProcessingApplied -> "Xử lý ảnh gốc thiết bị · ISP + tối ưu tông/chi tiết"
-                                    captureUseDeviceProcessing -> "Xử lý ảnh gốc thiết bị chưa hoàn tất · giữ ảnh JPEG"
                                     else -> "Chụp ảnh thường"
                                 }
                                 val inspectorOutputSize = outputResolutionResult?.let {
@@ -4885,11 +4779,6 @@ fun CameraScreen(
                                     val finalMessage = (if (captureIsUltraHdr) message
                                         else message) +
                                         digitalZoomSuffix
-                                    val deviceProcessingSuffix = when {
-                                        !captureUseDeviceProcessing -> ""
-                                        deviceProcessingApplied -> " Xử lý ảnh gốc thiết bị đã hoàn tất: tối ưu dải sáng và độ sắc nét."
-                                        else -> " Bước xử lý ảnh gốc thiết bị không hoàn tất; ảnh JPEG gốc vẫn được giữ."
-                                    }
                                     val lunaDreamStatusSuffix = when {
                                         captureUseLunaDream15 && lunaDreamApplied -> " LunaDream 1.5 đã ghép " + lunaDreamCapturedFrameCount + " khung hình."
                                         captureUseRawDream20 && lunaDreamApplied -> " RawDream 2.0 giữ DNG cảm biến gốc và ghép " + lunaDreamCapturedFrameCount + " JPEG bằng thuật toán LunaDream 2.0."
@@ -4899,7 +4788,7 @@ fun CameraScreen(
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""
                                     }
-                                    android.util.Log.i("FUJI_CAPTURE", finalMessage + deviceProcessingSuffix + lunaDreamStatusSuffix)
+                                    android.util.Log.i("FUJI_CAPTURE", finalMessage + lunaDreamStatusSuffix)
                                 }
                                 delay(450)
                                 withContext(Dispatchers.Main) {

@@ -7306,7 +7306,7 @@ fun CameraScreen(
             }
         }
         if (filterDialogVisible) {
-            FilterLookDialog(
+            FilterRollToneDialog(
                 previewSource = filterPreviewSourceBitmap ?: fallbackFilterPreviewBitmap,
                 activeFilter = activeFilter,
                 onDismiss = { filterDialogVisible = false },
@@ -7315,6 +7315,13 @@ fun CameraScreen(
                     activeFilter = nextFilter
                     appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 }
+            )
+        }
+        if (filmCustomizerVisible) {
+            FilmSimulationCustomizerDialog(
+                previewSource = filterPreviewSourceBitmap ?: fallbackFilterPreviewBitmap,
+                activeFilter = activeFilter,
+                onDismiss = { filmCustomizerVisible = false }
             )
         }
 
@@ -7610,7 +7617,7 @@ private fun FilterRollToneDialog(
     }
 
     val visibleRoll = remember {
-        cameraLookGroups.flatMap { it.presets }.distinct().take(18)
+        listOf("None") + cameraLookGroups.flatMap { it.presets }.distinct().take(17)
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         FujiPanel(
@@ -7680,9 +7687,10 @@ private fun FilterRollToneDialog(
                         ) {
                             Box(Modifier.width(5.dp).height(34.dp).background(accent, RoundedCornerShape(2.dp)))
                             Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                                Text(preset, color = Color.White, fontSize = 10.sp,
+                                Text(if (preset == "None") "Original" else preset,
+                                    color = Color.White, fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold, maxLines = 1)
-                                Text(cameraLookDisplayName(context, preset),
+                                Text(if (preset == "None") "Gốc" else cameraLookDisplayName(context, preset),
                                     color = if (selected) FujiSkin.orange else FujiSkin.muted,
                                     fontSize = 9.sp, maxLines = 1)
                             }

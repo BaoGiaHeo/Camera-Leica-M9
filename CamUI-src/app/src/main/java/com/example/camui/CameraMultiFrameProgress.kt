@@ -65,7 +65,9 @@ internal data class MultiFrameProgressUiState(
     val thermalStatus: Int,
     val errorCode: String? = null,
     val reducedMotion: Boolean = false,
-    val simpleMode: Boolean = false
+    val simpleMode: Boolean = false,
+    val elapsedTenths: Int = 0,
+    val batteryTemperatureTenthsC: Int = -1
 )
 
 internal fun resolveMultiFrameStage(
@@ -103,6 +105,12 @@ internal fun multiFrameTemperatureColor(tempC: Int): Long = when {
 internal fun multiFrameElapsedLabel(seconds: Int): String {
     val safe = seconds.coerceAtLeast(0)
     return String.format(Locale.US, "%d:%02d", safe / 60, safe % 60)
+}
+
+internal fun multiFrameElapsedLabelTenths(tenths: Int): String {
+    val safe = tenths.coerceAtLeast(0)
+    val totalSeconds = safe / 10
+    return String.format(Locale.US, "%d:%02d.%d", totalSeconds / 60, totalSeconds % 60, safe % 10)
 }
 
 @Composable
@@ -147,7 +155,7 @@ internal fun FujiMultiFrameProgressPill(
         else -> ""
     }
     val temperatureText = if (state.batteryTemperatureC >= 0) {
-        stringResource(R.string.mf_temperature_format, state.batteryTemperatureC)
+        stringResource(R.string.mf_temperature_format, state.batteryTemperatureTenthsC / 10f)
     } else {
         stringResource(R.string.mf_temperature_unavailable)
     }
@@ -285,7 +293,7 @@ internal fun FujiMultiFrameProgressPill(
                 }
 
                 Text(
-                    multiFrameElapsedLabel(state.elapsedSeconds),
+                    multiFrameElapsedLabelTenths(if (state.elapsedTenths > 0) state.elapsedTenths else state.elapsedSeconds * 10),
                     color = Color(0xFFBAC6C4),
                     fontFamily = fontFamily,
                     fontSize = 7.sp

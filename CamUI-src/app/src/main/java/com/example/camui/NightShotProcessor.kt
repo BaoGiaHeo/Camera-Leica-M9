@@ -406,7 +406,9 @@ object NightShotProcessor {
             val mergeFrames = selectSharpestLunaDreamReference(frames, mode)
             referenceSelectionMs = SystemClock.elapsedRealtime() - referenceSelectionStartedAt
             currentStage = "read reference frame EXIF"
-            val firstExif = readExif(mergeFrames.first())
+            // Watermark/exposure timestamps must remain tied to the first captured frame,
+            // even when a sharper later frame is selected as the fusion reference.
+            val firstExif = readExif(frames.first())
             val stackPixelLimit = when (mode) {
                 MergeMode.HDR_BRACKET, MergeMode.FOCUS_STACK -> 16_000_000L
                 MergeMode.NIGHT_AVERAGE, MergeMode.MILKY_WAY_STACK -> 60_000_000L

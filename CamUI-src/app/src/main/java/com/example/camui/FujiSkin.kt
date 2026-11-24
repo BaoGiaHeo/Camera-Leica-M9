@@ -144,7 +144,7 @@ fun FujiLeatherSurface(
 ) {
     Box(modifier = modifier.background(Color(0xFF0B1010))) {
         Image(
-            painter = painterResource(id = R.drawable.fuji_leather_texture),
+            painter = painterResource(id = R.drawable.fuji_leather_background),
             contentDescription = null,
             modifier = Modifier.fillMaxSize().graphicsLayer {
                 alpha = if (simpleMode) 0.90f else 1f

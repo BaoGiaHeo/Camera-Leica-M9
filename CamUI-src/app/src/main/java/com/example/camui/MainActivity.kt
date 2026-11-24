@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.os.StrictMode
 import android.provider.MediaStore
 import android.view.OrientationEventListener
 import android.view.WindowManager
@@ -193,7 +194,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (BuildConfig.DEVELOPER_LOG_ENABLED) {
+        if (BuildConfig.DEBUG) {
+            // Catch disk/network work and leaked framework objects during camera-screen iteration.
+            // penaltyLog keeps this diagnostic-only; it never crashes the capture flow.
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build()
+            )
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder().detectAll().penaltyLog().build()
+            )
             frameMetricsDiagnostics = CameraFrameMetricsDiagnostics.attach(window)
         }
         LegacyColorAdjustmentCleanup.migrateOnce(this)

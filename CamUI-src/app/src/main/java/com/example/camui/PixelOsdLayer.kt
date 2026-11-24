@@ -12,6 +12,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -1326,9 +1331,11 @@ fun PixelOsdLayer(
     frame: PixelOsdFrame,
     maxRefreshHz: Int = 120,
     performanceMode: Boolean = false,
-    reducedMotion: Boolean = false
+    reducedMotion: Boolean = false,
+    onProControlTap: (String) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val latestProControlTap = rememberUpdatedState(onProControlTap)
     val renderer = remember(context.applicationContext) {
         PixelOsdRenderer(context.applicationContext)
     }
@@ -1388,7 +1395,25 @@ fun PixelOsdLayer(
         centerAfPoint = frame.centerAfPoint?.let { animatedAfPoint },
         selectedControlProgress = animatedSelectedControlProgress
     )
-    Canvas(modifier) {
+    Canvas(
+        modifier.pointerInput(frame.isPro) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val up = waitForUpOrCancellation()
+                if (up != null && frame.isPro) {
+                    val plan = renderer.layoutSnapshotForTesting()
+                    val selected = plan?.let { layout ->
+                        resolvePixelOsdProControlTap(layout, down.position.x, down.position.y)
+                    }
+                    if (selected != null) {
+                        down.consume()
+                        up.consume()
+                        latestProControlTap.value(selected)
+                    }
+                }
+            }
+        }
+    ) {
         val widthPx = size.width.roundToInt()
         val heightPx = size.height.roundToInt()
         renderer.render(widthPx, heightPx, animatedFrame, maxRefreshHz)
@@ -1396,4 +1421,40 @@ fun PixelOsdLayer(
             renderer.drawScaled(native, widthPx, heightPx)
         }
     }
+}
+
+/**
+ * Resolve taps against the same measured text boxes used to render the LCD.
+ * Taps outside actionable HUD values are deliberately left unconsumed so AF
+ * tap/long-press gestures on the camera preview continue to work.
+ */
+private fun resolvePixelOsdProControlTap(
+    layout: PixelOsdLayoutPlan,
+    x: Float,
+    y: Float
+): String? {
+    val hitPadding = (layout.unitPx * 0.55f).coerceAtLeast(6f)
+    val targets = listOf(
+        "pro-shutter-label" to "Tv",
+        "pro-shutter-value" to "Tv",
+        "pro-iso-label" to "ISO",
+        "pro-iso-value" to "ISO",
+        "pro-kelvin" to "Tone",
+        "pro-af" to "AF"
+    )
+    targets.forEach { (id, control) ->
+        val bounds = layout.elements.firstOrNull { it.id == id }?.bounds ?: return@forEach
+        if (x >= bounds.left - hitPadding && x <= bounds.right + hitPadding &&
+            y >= bounds.top - hitPadding && y <= bounds.bottom + hitPadding
+        ) return control
+    }
+
+    // The numeric labels and rail at the far-left edge are the EV control.
+    val evLeft = 0f
+    val evRight = layout.evLineX + layout.unitPx * 1.25f
+    val evTop = layout.evTop - layout.unitPx
+    val evBottom = layout.evBottom + layout.unitPx
+    if (x in evLeft..evRight && y in evTop..evBottom) return "EV"
+
+    return null
 }

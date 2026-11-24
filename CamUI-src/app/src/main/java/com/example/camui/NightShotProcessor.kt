@@ -729,7 +729,7 @@ object NightShotProcessor {
             Log.i(
                 TAG,
                 "Merged " + frames.size + " frames as " + mode + " at " + width + "x" + height +
-                    "; decode=" + decodeMs + "ms align=" + alignmentMs +
+                    "; referenceSelection=" + referenceSelectionMs + "ms decode=" + decodeMs + "ms align=" + alignmentMs +
                     "ms fusion=" + fusionMs + "ms detail=" + detailRecoveryMs + "ms encode=" + encodeMs +
                     "ms publish=" + publishMs + "ms total=" + totalMergeMs + "ms"
             )
@@ -738,7 +738,8 @@ object NightShotProcessor {
                     context,
                     "MERGE_SUCCESS",
                     "mode=$mode; frames=${frames.size}; output=${width}x$height; " +
-                        "decode=${decodeMs}ms; align=${alignmentMs}ms; fusion=${fusionMs}ms; " +
+                        "referenceSelection=${referenceSelectionMs}ms; decode=${decodeMs}ms; " +
+                        "align=${alignmentMs}ms; fusion=${fusionMs}ms; "
                         "detail=${detailRecoveryMs}ms; encode=${encodeMs}ms; publish=${publishMs}ms; total=${totalMergeMs}ms"
                 )
             }
@@ -759,7 +760,7 @@ object NightShotProcessor {
                 TAG,
                 "Multi-frame merge failed for $mode at stage=$currentStage after " +
                     elapsedMs +
-                    "ms; decode=$decodeMs align=$alignmentMs fusion=$fusionMs " +
+                    "ms; referenceSelection=$referenceSelectionMs decode=$decodeMs align=$alignmentMs fusion=$fusionMs " +
                     "detail=$detailRecoveryMs encode=$encodeMs publish=$publishMs; " +
                     "heapUsed=" + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) +
                     "; reason=$reason; original capture remains available",
@@ -770,8 +771,9 @@ object NightShotProcessor {
                     context,
                     "MERGE_FAILED",
                     "mode=$mode; stage=$currentStage; frames=${frames.size}; elapsed=${elapsedMs}ms; " +
-                        "decode=${decodeMs}ms; align=${alignmentMs}ms; fusion=${fusionMs}ms; " +
-                        "detail=${detailRecoveryMs}ms; encode=${encodeMs}ms; publish=${publishMs}ms; " +
+                        "referenceSelection=${referenceSelectionMs}ms; decode=${decodeMs}ms; " +
+                        "align=${alignmentMs}ms; fusion=${fusionMs}ms; detail=${detailRecoveryMs}ms; " +
+                        "encode=${encodeMs}ms; publish=${publishMs}ms; " +
                         "heapUsed=${Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()}; " +
                         "maxHeap=${Runtime.getRuntime().maxMemory()}; reason=$reason",
                     failure

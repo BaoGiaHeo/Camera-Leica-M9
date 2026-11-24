@@ -3,10 +3,7 @@ package com.example.camui
 import android.content.Context
 import android.graphics.Typeface
 import android.util.Log
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 
 /**
  * Loads the optional Arial assets once. Missing files must never prevent startup or APK builds.
@@ -56,10 +53,7 @@ internal object AppFonts {
     fun family(context: Context): FontFamily {
         composeFamily?.let { return it }
         return synchronized(lock) {
-            composeFamily ?: FontFamily(
-                Font(regular(context), FontWeight.Normal, FontStyle.Normal),
-                Font(bold(context), FontWeight.Bold, FontStyle.Normal)
-            ).also { composeFamily = it }
+            composeFamily ?: FontFamily(regular(context)).also { composeFamily = it }
         }
     }
 

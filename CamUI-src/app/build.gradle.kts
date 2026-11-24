@@ -12,38 +12,21 @@ plugins {
 android {
     namespace = "com.example.camui"
     compileSdk = 37
-    // Instrumentation tests target the Developer variant used by CI so the
-    // KK7 Android-runtime glyph checks run against the same diagnostic build.
-    testBuildType = "developer"
-
     defaultConfig {
-        applicationId = "com.fujifilm.mode"
+        applicationId = "com.fujiflim.mode"
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 37
-        versionCode = 17
-        versionName = "2.6.0"
+        versionCode = 18
+        versionName = "2.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // 2.7.0 intentionally publishes one installable Debug APK only.
+    // No developer/release variants, signing overrides, or minification are required.
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = ""
             buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "false")
-        }
-        create("developer") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ""
-            versionNameSuffix = ""
-            buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "true")
-        }
-        release {
-            // The installable release uses the canonical application ID.
-            isMinifyEnabled = false
-            buildConfigField("boolean", "DEVELOPER_LOG_ENABLED", "false")
-            // Debug signing keeps CI output directly installable for on-device testing.
-            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

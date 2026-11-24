@@ -1147,6 +1147,8 @@ fun CameraScreen(
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
+    var galleryVisible by remember { mutableStateOf(false) }
+    var galleryRefreshToken by remember { mutableStateOf(0) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var thumbUri by remember { mutableStateOf<Uri?>(null) }
     var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -4148,6 +4150,7 @@ fun CameraScreen(
                                 }
                                 withContext(Dispatchers.Main.immediate) {
                                     lastUri = saved
+                                    galleryRefreshToken++
                                     if (initialThumbnail != null) {
                                         thumb = initialThumbnail
                                         thumbUri = saved
@@ -4503,6 +4506,7 @@ fun CameraScreen(
                                     withContext(Dispatchers.Main) {
                                         if (preserved) {
                                             lastUri = saved
+                                    galleryRefreshToken++
                                             thumb = originalThumbnail
                                             thumbUri = saved.takeIf { originalThumbnail != null }
                                         }
@@ -4863,6 +4867,7 @@ fun CameraScreen(
                                 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
+                                    galleryRefreshToken++
                                     thumb = finalThumbnail
                                     thumbUri = saved.takeIf { finalThumbnail != null }
                                     processingProgress = 100
@@ -4989,6 +4994,7 @@ fun CameraScreen(
                                 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
+                                    galleryRefreshToken++
                                     thumb = fallbackThumbnail
                                     thumbUri = saved.takeIf { fallbackThumbnail != null }
                                     isProcessing = false
@@ -6860,7 +6866,7 @@ fun CameraScreen(
                 Modifier.size(58.dp).clip(RoundedCornerShape(4.dp))
                     .background(Color(0xFF070909))
                     .border(2.dp, FujiSkin.silver, RoundedCornerShape(4.dp))
-                    .animaTClickable { onOpenAlbum(lastUri) },
+                    .animaTClickable { galleryVisible = true; galleryRefreshToken++ },
                 contentAlignment = Alignment.Center
             ) {
                 val image = thumb
@@ -6876,7 +6882,7 @@ fun CameraScreen(
                     FujiIconGlyph("film", Modifier.size(24.dp), FujiSkin.lcdGreen)
                 }
             }
-            FujiChip("PLAY", false, { onOpenAlbum(lastUri) }, Modifier.fillMaxWidth())
+            FujiChip("PLAY", false, { galleryVisible = true; galleryRefreshToken++ }, Modifier.fillMaxWidth())
             Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF454B4D)))
             FujiChip(
                 "PRO",
@@ -7440,6 +7446,13 @@ fun CameraScreen(
                     }
                 }
             }
+        }
+        if (galleryVisible) {
+            CameraGalleryDialog(
+                refreshToken = galleryRefreshToken,
+                initialUri = lastUri,
+                onDismiss = { galleryVisible = false }
+            )
         }
         if (ratioTransitionInProgress) {
             Box(

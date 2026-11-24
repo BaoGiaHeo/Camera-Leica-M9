@@ -898,6 +898,7 @@ fun CameraScreen(
     }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var countdown by remember { mutableIntStateOf(0) }
+    var captureCountdownJob by remember { mutableStateOf<Job?>(null) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }
     val previewFpsEstimator = remember { PreviewFpsEstimator() }
@@ -3887,15 +3888,17 @@ fun CameraScreen(
             startStarTrailSession(activeCapture, activeCamera)
             return
         }
-        scope.launch {
+        captureCountdownJob?.cancel()
+        captureCountdownJob = scope.launch {
             val captureDelaySeconds = if (nightShotMode == "night") nightShotTimerSeconds else timerSec
             if (captureDelaySeconds > 0) {
                 for (s in captureDelaySeconds downTo 1) {
                     countdown = s
                     delay(1000)
                 }
-                countdown = 0
             }
+            countdown = 0
+            captureCountdownJob = null
             // Resolve the active camera/use case after the timer, because the user may rotate
             // or switch lenses while the countdown is running.
             val capture = imageCapture ?: return@launch
@@ -7410,12 +7413,32 @@ fun CameraScreen(
         if (countdown > 0) {
             Column(
                 modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("$countdown", color = Color.White, fontSize = 88.sp, fontWeight = FontWeight.Bold)
-                if (nightShotMode == "night") {
-                    Text("HẸN GIỜ NIGHT SHOT", color = FujiSkin.orange, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
+                Text(
+                    if (nightShotMode == "night") "HẸN GIỜ NIGHT SHOT" else "HẸN GIỜ CHỤP",
+                    color = FujiSkin.orange,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "HỦY HẸN GIỜ",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xCC8E2C24))
+                        .clickable {
+                            captureCountdownJob?.cancel()
+                            captureCountdownJob = null
+                            countdown = 0
+                            localizedToast(context, "Đã hủy hẹn giờ chụp.", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 16.dp, vertical = 9.dp)
+                )
             }
         }
         if (starTrailCaptureInProgress) {

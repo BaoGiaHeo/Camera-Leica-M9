@@ -22,6 +22,7 @@ import androidx.core.content.res.ResourcesCompat
 object FujiTypography {
     const val FONT_ASSET_PATH = "fonts/arial.ttf"
     const val FONT_BOLD_ASSET_PATH = "fonts/arial_bold.ttf"
+    const val FONT_RESOURCE_PATH = "assets/fonts/arial.ttf"
 
     const val GLYPH_TEST_CHARACTERS =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
@@ -66,8 +67,8 @@ object FujiTypography {
                 if (!primary.hasGlyph(glyph)) {
                     val family = when {
                         fallbackPaint.hasGlyph(glyph) -> fallbackFamily
-                        systemPaint.hasGlyph(glyph) -> FontFamily.Monospace
-                        else -> FontFamily.Monospace
+                        systemPaint.hasGlyph(glyph) -> FontFamily.SansSerif
+                        else -> FontFamily.SansSerif
                     }
                     addStyle(SpanStyle(fontFamily = family), index, index + charCount)
                 }
@@ -101,7 +102,7 @@ object FujiTypography {
     fun systemMonoTypeface(): Typeface {
         cachedSystemMonoTypeface?.let { return it }
         return synchronized(lock) {
-            cachedSystemMonoTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+            cachedSystemMonoTypeface ?: Typeface.SANS_SERIF
                 .also { cachedSystemMonoTypeface = it }
         }
     }
@@ -120,10 +121,10 @@ object FujiTypography {
      * silently dropped even when the primary bitmap face lacks those marks.
      */
     fun withMissingGlyphFallback(value: String): AnnotatedString {
-        val primary = cachedTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+        val primary = cachedTypeface ?: Typeface.SANS_SERIF
         val primaryPaint = Paint().apply { typeface = primary }
         val fallbackPaint = Paint().apply {
-            typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+            typeface = cachedShareTechTypeface ?: Typeface.SANS_SERIF
         }
         val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
         val fallbackFamily = cachedFontFamily ?: FontFamily.SansSerif
@@ -187,11 +188,11 @@ object FujiTypography {
             val report = computeGlyphCoverage(primary, fallback)
             Log.i(
                 TAG,
-                "OSD typeface=${primary.toString()}; source=$FONT_RESOURCE_PATH; " +
-                    "bundledKK7=$bundledFontLoaded; glyphs=${report.testedGlyphs}; " +
-                    "KK7Missing=${report.missingFromKk7.joinToString("")}; " +
-                    "ShareTechMissing=${report.missingAfterFallback.joinToString("")}; " +
-                    "systemMonoUnresolved=${report.missingAfterSystemFallback.joinToString("")}"
+                "OSD typeface=" + primary.toString() + "; source=" + FONT_RESOURCE_PATH + "; " +
+                    "bundledArial=" + bundledFontLoaded + "; glyphs=" + report.testedGlyphs + "; " +
+                    "ArialMissing=" + report.missingFromKk7.joinToString("") + "; " +
+                    "ArialFallbackMissing=" + report.missingAfterFallback.joinToString("") + "; " +
+                    "systemSansUnresolved=" + report.missingAfterSystemFallback.joinToString("")
             )
             startupReportLogged = true
         }

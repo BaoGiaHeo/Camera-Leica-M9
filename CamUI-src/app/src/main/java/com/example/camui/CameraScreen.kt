@@ -6949,7 +6949,6 @@ fun CameraScreen(
                         },
                         onPressEnd = {
                             zoomHoldDirection = 0
-                            CameraSoundEngine.stopZoomMotor()
                             CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END key=W direction=${if (wZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
@@ -6968,7 +6967,6 @@ fun CameraScreen(
                         },
                         onPressEnd = {
                             zoomHoldDirection = 0
-                            CameraSoundEngine.stopZoomMotor()
                             CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
                             appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                             android.util.Log.d("FUJI_ZOOM", "PRESS_END key=T direction=${if (tZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")

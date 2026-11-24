@@ -4208,6 +4208,8 @@ fun CameraScreen(
                                 var lunaDreamCapturedFrameCount = 0
                                 var lunaDreamFailureReason: String? = null
                                 var lunaDreamStackFallbackApplied = false
+                                 var multiFrameAeLockApplied = false
+                                 var multiFrameAwbLockApplied = false
                                 if ((captureUseNightShot || captureUseFiveFrameStack ||
                                         captureUseLunaDream15 || captureUseLunaDream20Stack) &&
                                     (!captureNightShotExtension || captureUseLunaDream15 || captureUseLunaDream20Stack)
@@ -4216,6 +4218,21 @@ fun CameraScreen(
                                     val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
+                                             if (captureUseNightShot || captureUseMilkyWayStack || captureUseLunaDream20Stack) {
+                                                 withContext(Dispatchers.Main.immediate) {
+                                                     if (!manualIsoEnabled && !manualShutterEnabled) {
+                                                         multiFrameAeLockApplied = applyCameraAeLock(activeCamera, locked = true)
+                                                     }
+                                                     if (!manualColorTempEnabled) {
+                                                         multiFrameAwbLockApplied = applyCameraAwbLock(activeCamera, locked = true)
+                                                     }
+                                                     android.util.Log.i(
+                                                         "FUJI_MULTI_FRAME_LOCK",
+                                                         "AE_LOCK=$multiFrameAeLockApplied AWB_LOCK=$multiFrameAwbLockApplied"
+                                                     )
+                                                 }
+                                             }
+
                                             stackedFrames.add(firstFrame)
                                             val maxFrames = when {
                                                 captureUseNightShot -> captureNightTargetFrames
@@ -4277,72 +4294,42 @@ fun CameraScreen(
                                                         break
                                                     }
                                                     val useGyroStabilityGate = captureUseNightShot ||
-
                                                         captureUseMilkyWayStack || captureUseLunaDream20Stack
-
                                                     if (useGyroStabilityGate && gyroSensor != null) {
-
                                                         val settleDeadlineMs = SystemClock.elapsedRealtime() + 260L
-
                                                         var stable = false
-
                                                         while (SystemClock.elapsedRealtime() < settleDeadlineMs) {
-
                                                             val stableSince = gyroStableSinceNanos.get()
-
                                                             val rate = gyroRateDegreesPerSecond.get()
-
-                                                            if (stableSince > 0L &&
-
-                                                                SystemClock.elapsedRealtimeNanos() - stableSince >= 90_000_000L &&
-
-                                                                rate.isFinite() && rate <= 2.0f
-
-                                                            ) {
-
+                                                            if (!rate.isFinite()) {
                                                                 stable = true
-
                                                                 break
-
                                                             }
-
+                                                            if (stableSince > 0L &&
+                                                                SystemClock.elapsedRealtimeNanos() - stableSince >= 90_000_000L &&
+                                                                rate <= 2.0f
+                                                            ) {
+                                                                stable = true
+                                                                break
+                                                            }
                                                             delay(20L)
-
                                                         }
-
                                                         if (!stable) {
-
                                                             motionRejectedFrames++
-
                                                             consecutiveMotionRejections++
-
-                                                            android.util.Log.d(
-
-                                                                "FUJI_GYRO_STABILITY",
-
-                                                                "Skipped multi-frame attempt: gyro did not settle within 260ms; rate=" +
-
-                                                                    gyroRateDegreesPerSecond.get() + " deg/s"
-
-                                                            )
-
+                                                            android.util.Log.d("FUJI_GYRO_STABILITY",
+                                                                "Skipped a frame attempt because gyro did not settle within 260ms; rate=" +
+                                                                    gyroRateDegreesPerSecond.get() + " deg/s")
                                                             if (consecutiveMotionRejections >= maxFrames * 2) {
-
                                                                 stopSubmitting = true
-
                                                                 android.util.Log.w("FUJI_GYRO_STABILITY", "Stopped after repeated unstable attempts")
-
                                                                 break
-
                                                             }
-
                                                             continue
-
                                                         }
-
                                                     }
-
                                                     val frameNumber = nextFrameNumber++
+                                                                                                        val frameNumber = nextFrameNumber++
                                                     val nextFrame = File(
                                                         context.cacheDir,
                                                         "fuji-stack-" + System.nanoTime() + "-" + frameNumber + ".jpg"
@@ -4596,6 +4583,13 @@ fun CameraScreen(
                                     } finally {
                                         stackedFrames.forEach { runCatching { it.delete() } }
                                         withContext(Dispatchers.Main) {
+                                            if (multiFrameAeLockApplied) {
+                                                runCatching { applyCameraAeLock(activeCamera, locked = false) }
+                                            }
+                                            if (multiFrameAwbLockApplied) {
+                                                runCatching { applyCameraAwbLock(activeCamera, locked = false) }
+                                            }
+
                                             if (captureUseNightShot) nightShotCaptureInProgress = false
                                             if (captureUseLunaDream || captureUseNightShot) {
                                                 // Frame acquisition has ended; merge/render now runs in the background.
@@ -8033,6 +8027,32 @@ private fun applyCameraExposureState(
  * AE lock explicitly after focus succeeds. Unsupported AE-lock devices are not reported
  * as having completed a full AF/AE lock.
  */
+/**
+ * Locks auto white balance across a computational frame sequence when the HAL supports it.
+ */
+private fun applyCameraAwbLock(camera: Camera, locked: Boolean): Boolean {
+    val cameraId = runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }
+        .getOrNull() ?: "unknown"
+    val available = runCatching {
+        Camera2CameraInfo.from(camera.cameraInfo)
+            .getCameraCharacteristic(CameraCharacteristics.CONTROL_AWB_LOCK_AVAILABLE) == true
+    }.getOrDefault(false)
+    if (!available) {
+        android.util.Log.w("FUJI_MULTI_FRAME_LOCK", "CONTROL_AWB_LOCK unavailable cameraId=$cameraId")
+        return !locked
+    }
+    return runCatching {
+        val options = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_LOCK, locked)
+            .build()
+        Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
+        android.util.Log.i("FUJI_MULTI_FRAME_LOCK", "CONTROL_AWB_LOCK=$locked cameraId=$cameraId")
+        true
+    }.onFailure {
+        android.util.Log.w("FUJI_MULTI_FRAME_LOCK", "Could not set CONTROL_AWB_LOCK=$locked cameraId=$cameraId", it)
+    }.getOrDefault(false)
+}
+
 private fun applyCameraAeLock(camera: Camera, locked: Boolean): Boolean {
     val cameraId = runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }
         .getOrNull() ?: "unknown"

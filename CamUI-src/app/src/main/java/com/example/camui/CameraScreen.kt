@@ -1001,6 +1001,8 @@ fun CameraScreen(
     var multiFrameCapturedFrames by remember { mutableIntStateOf(0) }
     var multiFrameTargetFrames by remember { mutableIntStateOf(5) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
+    var processingElapsedTenths by remember { mutableIntStateOf(0) }
+    var measuredBatteryTempTenthsC by remember { mutableIntStateOf(-1) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
     var lunaDreamMode by remember {
@@ -1034,12 +1036,14 @@ fun CameraScreen(
             val startedAt = SystemClock.elapsedRealtime()
             processingElapsedSeconds = 0
             while (isProcessing) {
-                processingElapsedSeconds =
-                    ((SystemClock.elapsedRealtime() - startedAt) / 1_000L).toInt().coerceAtLeast(0)
-                delay(1_000L)
+                val elapsedMs = (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(0L)
+                processingElapsedSeconds = (elapsedMs / 1_000L).toInt()
+                processingElapsedTenths = (elapsedMs / 100L).toInt()
+                delay(100L)
             }
         } else {
             processingElapsedSeconds = 0
+            processingElapsedTenths = 0
         }
     }
     LaunchedEffect(lunaDreamMode, dispReducedMotion) {
@@ -1102,6 +1106,7 @@ fun CameraScreen(
                     context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
                 }.getOrNull()
                 val tempTenths = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+                measuredBatteryTempTenthsC = tempTenths.takeIf { it > 0 } ?: -1
                 measuredBatteryTempC = if (tempTenths > 0) tempTenths / 10 else -1
                 val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
                 thermalStatusCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -1114,6 +1119,7 @@ fun CameraScreen(
             }
         } else {
             measuredBatteryTempC = -1
+            measuredBatteryTempTenthsC = -1
             thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
         }
     }
@@ -6316,7 +6322,9 @@ fun CameraScreen(
                                         holdSteady = isCapturingMultiFrame,
                                         stabilityBars = stability,
                                         elapsedSeconds = processingElapsedSeconds,
+                                        elapsedTenths = processingElapsedTenths,
                                         batteryTemperatureC = measuredBatteryTempC,
+                                        batteryTemperatureTenthsC = measuredBatteryTempTenthsC,
                                         thermalStatus = thermalStatusCode,
                                         errorCode = if (hasError) stringResource(R.string.mf_error_short) else null,
                                         reducedMotion = dispReducedMotion,

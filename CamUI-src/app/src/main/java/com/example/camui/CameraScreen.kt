@@ -6232,6 +6232,20 @@ fun CameraScreen(
                                 } else {
                                     ((position + 0.35f) / 1.70f).coerceIn(0f, 1f) * passSeconds
                                 }
+                                // Freeze the actual last camera frame for LunaDream/NightShot.
+                                // Blur is a display-only RenderEffect (API 31+) and never touches the saved JPEG.
+                                if (previewFreezeVisible && isProcessing) {
+                                    frozenPreviewBitmap?.let { frozen ->
+                                        Image(
+                                            bitmap = frozen,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize()
+                                                .graphicsLayer { alpha = previewFreezeAlpha.value }
+                                                .blur(if (Build.VERSION.SDK_INT >= 31) 8.dp else 0.dp),
+                                            contentScale = ContentScale.FillBounds
+                                        )
+                                    }
+                                }
                                 Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = overlayAlpha }) {
                                     CameraPreviewProcessingEffect.draw(
                                         canvas = drawContext.canvas.nativeCanvas,

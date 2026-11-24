@@ -33,30 +33,27 @@ internal object WatermarkRenderer {
     private data class Fragment(val text: String, val typeface: Typeface, val color: Int, val capRatio: Float)
 
     private fun loadFonts(context: Context): Fonts {
-        val regular = context.resources.getFont(R.font.saira_semicondensed_regular)
-        val medium = context.resources.getFont(R.font.saira_semicondensed_medium)
-        val semibold = context.resources.getFont(R.font.saira_semicondensed_semibold)
+        val regular = AppFonts.regular(context)
+        val bold = AppFonts.bold(context)
+        val regularCap = measuredCapRatio(regular)
+        val boldCap = measuredCapRatio(bold)
         return Fonts(
-            regular, medium, semibold,
-            readCapRatio(context, R.font.saira_semicondensed_regular, regular),
-            readCapRatio(context, R.font.saira_semicondensed_medium, medium),
-            readCapRatio(context, R.font.saira_semicondensed_semibold, semibold)
+            regular = regular,
+            medium = regular,
+            semibold = bold,
+            regularCapRatio = regularCap,
+            mediumCapRatio = regularCap,
+            semiboldCapRatio = boldCap
         )
     }
 
-    private fun readCapRatio(context: Context, fontId: Int, typeface: Typeface): Float {
-        val parsed = runCatching {
-            val bytes = context.resources.openRawResource(fontId).use { it.readBytes() }
-            parseCapRatio(bytes)
-        }.getOrNull()
-        if (parsed != null) return parsed
+    private fun measuredCapRatio(typeface: Typeface): Float {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = 100f
         }
         val bounds = Rect()
         paint.getTextBounds("H", 0, 1, bounds)
-        Log.w(TAG, "SAIRA_OS2_CAPHEIGHT_FALLBACK fontId=" + fontId + " capAt100=" + bounds.height())
         return (bounds.height() / 100f).coerceIn(0.45f, 0.9f)
     }
 

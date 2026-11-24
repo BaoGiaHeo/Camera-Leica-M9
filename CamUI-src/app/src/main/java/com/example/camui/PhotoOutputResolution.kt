@@ -74,6 +74,18 @@ object PhotoOutputResolution {
         return interpolateToMp(context, uri, nativeCropPixels, targetHeightOverWidth)
     }
 
+    /** Reads the pixel dimensions actually stored in the MediaStore JPEG without allocating a bitmap. */
+    fun readStoredDimensions(context: Context, uri: Uri): Pair<Int, Int>? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val decoded = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, bounds)
+                bounds.outWidth > 0 && bounds.outHeight > 0
+            } ?: false
+        }.getOrDefault(false)
+        return if (decoded) bounds.outWidth to bounds.outHeight else null
+    }
+
     fun interpolateToMp(
         context: Context,
         uri: Uri,

@@ -772,14 +772,13 @@ fun CameraScreen(
         appPrefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    var livePhotoEnabled by remember {
-        mutableStateOf(appPrefs.getBoolean("live_photo_enabled", false))
-    }
+    // Live Photo was removed from the product UI and capture workflow.
+    var livePhotoEnabled by remember { mutableStateOf(false) }
     var nativeImageProcessingEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("native_image_processing_enabled", false) && !livePhotoEnabled)
     }
-    LaunchedEffect(livePhotoEnabled) {
-        appPrefs.edit().putBoolean("live_photo_enabled", livePhotoEnabled).apply()
+    LaunchedEffect(Unit) {
+        appPrefs.edit().putBoolean("live_photo_enabled", false).apply()
     }
     LaunchedEffect(nativeImageProcessingEnabled) {
         appPrefs.edit()
@@ -7257,22 +7256,6 @@ fun CameraScreen(
                 onMetering = { metering = (metering + 1) % meteringModes.size },
                 renderEngine = renderEngine,
                 onRenderEngine = { renderEngine = if (renderEngine == "Performance") "Compatible" else "Performance" },
-                livePhotoEnabled = livePhotoEnabled,
-                onLivePhotoChanged = { enabled ->
-                    livePhotoEnabled = enabled
-                    if (enabled) {
-                        nativeImageProcessingEnabled = false
-                        appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
-                        showLunaDream = false
-                        burstMode = false
-                        hdrBracketMode = false
-                        focusBracketMode = false
-                        if (nightShotMode != "off") {
-                            nightShotMode = "off"
-                            appPrefs.edit().putString("nightshot_mode", "off").apply()
-                        }
-                    }
-                },
                 nativeImageProcessingEnabled = nativeImageProcessingEnabled,
                 onNativeImageProcessingChanged = { enabled ->
                     nativeImageProcessingEnabled = enabled

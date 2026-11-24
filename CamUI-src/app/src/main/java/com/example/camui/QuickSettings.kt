@@ -39,8 +39,6 @@ fun QuickPanel(
     onMetering: () -> Unit,
     renderEngine: String,
     onRenderEngine: () -> Unit,
-    livePhotoEnabled: Boolean,
-    onLivePhotoChanged: (Boolean) -> Unit,
     nativeImageProcessingEnabled: Boolean,
     onNativeImageProcessingChanged: (Boolean) -> Unit,
     faceTrackingMode: String,

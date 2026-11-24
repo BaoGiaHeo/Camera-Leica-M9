@@ -112,7 +112,7 @@ fun CamTheme(content: @Composable () -> Unit) {
         CamColors.Sub = Color(0xFF9E9E9E)
         CamColors.Shutter = parseAppColor(shutterHex, Color.White)
     }
-    val appFontFamily = FujiTypography.uiFont
+    val appFontFamily = FujiTypography.composeFamily(context)
     val baseTypography = Typography()
     val appTypography = baseTypography.copy(
         displayLarge = baseTypography.displayLarge.copy(fontFamily = appFontFamily),

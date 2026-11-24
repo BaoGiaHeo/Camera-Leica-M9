@@ -192,6 +192,8 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
@@ -615,6 +617,46 @@ fun CameraScreen(
         sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
             ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
             ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    }
+
+    // Angular velocity is sampled independently from the horizon-level sensor.
+    val gyroSensor = remember(sensorManager) { sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE) }
+    val gyroRateDegreesPerSecond = remember(gyroSensor) { AtomicReference(Float.NaN) }
+    val gyroStableSinceNanos = remember(gyroSensor) { AtomicLong(0L) }
+    DisposableEffect(sensorManager, gyroSensor) {
+        if (sensorManager == null || gyroSensor == null) {
+            gyroRateDegreesPerSecond.set(Float.NaN)
+            gyroStableSinceNanos.set(0L)
+            onDispose { }
+        } else {
+            val listener = object : SensorEventListener {
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+                override fun onSensorChanged(event: SensorEvent?) {
+                    val sample = event ?: return
+                    if (sample.values.size < 3) return
+                    val radiansPerSecond = kotlin.math.sqrt(
+                        sample.values[0] * sample.values[0] +
+                            sample.values[1] * sample.values[1] +
+                            sample.values[2] * sample.values[2]
+                    )
+                    val degreesPerSecond = radiansPerSecond * (180f / Math.PI.toFloat())
+                    gyroRateDegreesPerSecond.set(degreesPerSecond)
+                    if (degreesPerSecond <= 2.0f) {
+                        if (gyroStableSinceNanos.get() == 0L) {
+                            gyroStableSinceNanos.compareAndSet(0L, sample.timestamp)
+                        }
+                    } else {
+                        gyroStableSinceNanos.set(0L)
+                    }
+                }
+            }
+            sensorManager.registerListener(listener, gyroSensor, SensorManager.SENSOR_DELAY_GAME)
+            onDispose {
+                sensorManager.unregisterListener(listener)
+                gyroRateDegreesPerSecond.set(Float.NaN)
+                gyroStableSinceNanos.set(0L)
+            }
+        }
     }
     var levelEnabled by remember {
         mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0)
@@ -4196,6 +4238,10 @@ fun CameraScreen(
                                             // JPEG/file callback work and avoids an idle gap between requests.
                                             // The device's actual sensor/ISP throughput remains authoritative.
                                             var consecutiveCaptureFailures = 0
+
+                                            var consecutiveMotionRejections = 0
+
+                                            var motionRejectedFrames = 0
                                             var stoppedForStorage = false
                                             var stoppedForBattery = false
                                             var stopSubmitting = false
@@ -4230,6 +4276,72 @@ fun CameraScreen(
                                                         stopSubmitting = true
                                                         break
                                                     }
+                                                    val useGyroStabilityGate = captureUseNightShot ||
+
+                                                        captureUseMilkyWayStack || captureUseLunaDream20Stack
+
+                                                    if (useGyroStabilityGate && gyroSensor != null) {
+
+                                                        val settleDeadlineMs = SystemClock.elapsedRealtime() + 260L
+
+                                                        var stable = false
+
+                                                        while (SystemClock.elapsedRealtime() < settleDeadlineMs) {
+
+                                                            val stableSince = gyroStableSinceNanos.get()
+
+                                                            val rate = gyroRateDegreesPerSecond.get()
+
+                                                            if (stableSince > 0L &&
+
+                                                                SystemClock.elapsedRealtimeNanos() - stableSince >= 90_000_000L &&
+
+                                                                rate.isFinite() && rate <= 2.0f
+
+                                                            ) {
+
+                                                                stable = true
+
+                                                                break
+
+                                                            }
+
+                                                            delay(20L)
+
+                                                        }
+
+                                                        if (!stable) {
+
+                                                            motionRejectedFrames++
+
+                                                            consecutiveMotionRejections++
+
+                                                            android.util.Log.d(
+
+                                                                "FUJI_GYRO_STABILITY",
+
+                                                                "Skipped multi-frame attempt: gyro did not settle within 260ms; rate=" +
+
+                                                                    gyroRateDegreesPerSecond.get() + " deg/s"
+
+                                                            )
+
+                                                            if (consecutiveMotionRejections >= maxFrames * 2) {
+
+                                                                stopSubmitting = true
+
+                                                                android.util.Log.w("FUJI_GYRO_STABILITY", "Stopped after repeated unstable attempts")
+
+                                                                break
+
+                                                            }
+
+                                                            continue
+
+                                                        }
+
+                                                    }
+
                                                     val frameNumber = nextFrameNumber++
                                                     val nextFrame = File(
                                                         context.cacheDir,
@@ -4294,6 +4406,7 @@ fun CameraScreen(
                                                 }
 
                                                 consecutiveCaptureFailures = 0
+                                                consecutiveMotionRejections = 0
                                                 stackedFrames.add(nextFrame)
                                                 withContext(Dispatchers.Main.immediate) {
                                                     multiFrameCapturedFrames = stackedFrames.size
@@ -4306,6 +4419,10 @@ fun CameraScreen(
                                             }
 
                                             val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - captureNightStartedAtNanos) / 1_000_000L).coerceAtLeast(1L)
+                                            if (motionRejectedFrames > 0) {
+                                                android.util.Log.i("FUJI_GYRO_STABILITY", "Skipped " + motionRejectedFrames +
+                                                    " multi-frame attempts because the camera was moving")
+                                            }
                                             if (captureUseNightShot) {
                                                 val achievedFps = stackedFrames.size * 1000.0 / burstElapsedMs
                                                 android.util.Log.i(

@@ -4221,7 +4221,8 @@ fun CameraScreen(
                                     val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
-                                             if (captureUseNightShot || captureUseMilkyWayStack || captureUseLunaDream20Stack) {
+                                             if (captureUseNightShot || captureUseMilkyWayStack || captureUseLunaDream20Stack ||
+                                                        captureUseLunaDream25 || captureUseLunaDream30) {
                                                  withContext(Dispatchers.Main.immediate) {
                                                      if (!manualIsoEnabled && !manualShutterEnabled) {
                                                          multiFrameAeLockApplied = applyCameraAeLock(activeCamera, locked = true)
@@ -4272,7 +4273,8 @@ fun CameraScreen(
                                             // reliably. LunaDream 2.0 retains its known-good two-request queue.
                                             val maxInFlightCaptures = when {
                                                 captureUseLunaDream15 -> 1
-                                                captureUseNightShot || captureUseLunaDream20Stack -> 2
+                                                captureUseNightShot || captureUseLunaDream20Stack ||
+                                                    captureUseLunaDream25 || captureUseLunaDream30 -> 2
                                                 else -> 1
                                             }
 
@@ -4296,8 +4298,8 @@ fun CameraScreen(
                                                         stopSubmitting = true
                                                         break
                                                     }
-                                                    val useGyroStabilityGate = captureUseNightShot ||
-                                                        captureUseMilkyWayStack || captureUseLunaDream20Stack
+                                                    val useGyroStabilityGate = captureUseNightShot || captureUseMilkyWayStack ||
+                                                        captureUseLunaDream20Stack || captureUseLunaDream25 || captureUseLunaDream30
                                                     if (useGyroStabilityGate && gyroSensor != null) {
                                                         val settleDeadlineMs = SystemClock.elapsedRealtime() + 260L
                                                         var stable = false

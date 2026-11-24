@@ -6054,7 +6054,12 @@ fun CameraScreen(
                                     else -> 120
                                 },
                                 performanceMode = performanceMode,
-                                reducedMotion = dispReducedMotion
+                                reducedMotion = dispReducedMotion,
+                                onProControlTap = { selectedControl ->
+                                    if (mode == "Pro") {
+                                        proSel = if (proSel == selectedControl) null else selectedControl
+                                    }
+                                }
                             )
                             if (mode == "Pro" && proSel != null) {
                                 val selectedPanel = proAdjustmentContent

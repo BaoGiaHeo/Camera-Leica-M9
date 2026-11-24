@@ -25,10 +25,9 @@ internal object CameraSoundEngine {
     private const val MAX_ACTIVE_TRACKS = 6
     private val lock = Any()
     private val activeTracks = ArrayDeque<AudioTrack>()
-    private var motorTrack: AudioTrack? = null
     private var masterVolume = 0.85f
 
-    enum class Sound { UI_CLICK, ZOOM_TICK, CONFIRM }
+    enum class Sound { UI_CLICK, CONFIRM }
 
     fun configure(context: Context, volumePercent: Int) {
         synchronized(lock) { masterVolume = volumePercent.coerceIn(0, 100) / 100f }
@@ -103,7 +102,6 @@ internal object CameraSoundEngine {
     private fun releaseTrack(track: AudioTrack) {
         synchronized(lock) {
             activeTracks.remove(track)
-            if (motorTrack === track) motorTrack = null
         }
         runCatching {
             if (track.playState == AudioTrack.PLAYSTATE_PLAYING) track.stop()
@@ -133,12 +131,10 @@ internal object CameraSoundEngine {
         configure(context, prefs.getInt("sound_master_volume", 85))
         val enabled = when (sound) {
             Sound.UI_CLICK, Sound.CONFIRM -> prefs.getBoolean("ui_sound_enabled", true)
-            Sound.ZOOM_TICK -> prefs.getBoolean("dial_click_enabled", true)
         }
         if (!enabled || !allowed(context)) return
         val (duration, frequency, overtone) = when (sound) {
             Sound.UI_CLICK -> Triple(42, 1_450.0, 2_100.0)
-            Sound.ZOOM_TICK -> Triple(28, 1_820.0, 2_760.0)
             Sound.CONFIRM -> Triple(74, 1_080.0, 1_620.0)
         }
         runCatching {
@@ -148,38 +144,7 @@ internal object CameraSoundEngine {
         }.onFailure { Log.w(TAG, "Could not play " + sound, it) }
     }
 
-    fun startZoomMotor(context: Context, direction: Int) {
-        val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        configure(context, prefs.getInt("sound_master_volume", 85))
-        if (!allowed(context) || direction == 0) return
-        stopZoomMotor()
-        runCatching {
-            val frequency = if (direction > 0) 118.0 else 96.0
-            val samples = pcm(180, frequency, frequency * 1.48, 8, 8, loop = true)
-            val track = createTrack(context, samples)
-            registerTrack(track, releaseOnMarker = false)
-            synchronized(lock) { motorTrack = track }
-            track.setLoopPoints(0, samples.size - 1, -1)
-            track.play()
-            Log.d(TAG, "ZOOM_MOTOR_START direction=" + direction + " sampleRate=" + SAMPLE_RATE)
-        }.onFailure { Log.w(TAG, "Could not start zoom motor feedback", it) }
-    }
-
-    fun updateZoomMotorSpeed(normalizedSpeed: Float) {
-        val speed = normalizedSpeed.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
-        val track = synchronized(lock) { motorTrack } ?: return
-        val playbackRate = (SAMPLE_RATE * (0.90f + speed * 0.55f)).roundToInt()
-        runCatching { track.setPlaybackRate(playbackRate) }
-    }
-
-    fun stopZoomMotor() {
-        val track = synchronized(lock) { motorTrack.also { motorTrack = null } } ?: return
-        Log.d(TAG, "ZOOM_MOTOR_STOP")
-        releaseTrack(track)
-    }
-
     fun stopAll() {
-        stopZoomMotor()
         val tracks = synchronized(lock) { activeTracks.toList().also { activeTracks.clear() } }
         tracks.forEach { track -> runCatching { track.stop(); track.release() } }
     }

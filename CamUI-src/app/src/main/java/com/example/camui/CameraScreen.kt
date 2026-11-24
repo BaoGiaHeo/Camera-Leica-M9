@@ -1456,10 +1456,6 @@ fun CameraScreen(
         // continuous camera command loop until the shared hold threshold elapses.
         delay(FUJI_KEY_HOLD_THRESHOLD_MS)
         if (zoomHoldDirection != direction) return@LaunchedEffect
-        if (appPrefs.getBoolean("dial_click_enabled", true)) {
-            CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
-            CameraSoundEngine.startZoomMotor(context, direction)
-        }
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = zoomSel
         var previousFrame = 0L
@@ -1474,7 +1470,6 @@ fun CameraScreen(
                 ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, 0.05f)
             previousFrame = frame
             if (dt <= 0f) continue
-            CameraSoundEngine.updateZoomMotorSpeed((dt * 20f).coerceIn(0.15f, 1f))
             zoomFrameIndex++
             val state = active.cameraInfo.zoomState.value ?: continue
             val minimum = state.minZoomRatio
@@ -1495,9 +1490,6 @@ fun CameraScreen(
             )
             if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
                 val crossedZoomMilestones = zoomHapticMilestonesCrossed(targetZoom, next)
-                if (appPrefs.getBoolean("dial_click_enabled", true) && crossedZoomMilestones.isNotEmpty()) {
-                    CameraSoundEngine.play(context, CameraSoundEngine.Sound.ZOOM_TICK)
-                }
                 if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
                     crossedZoomMilestones.forEach { milestone ->
                         localView.performHapticFeedback(
@@ -4701,35 +4693,15 @@ fun CameraScreen(
                                 val outputResolutionApplied = outputResolutionResult != null
 
                                 if (captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied) {
-                                    // Do not present an undersized JPEG as a completed 50/108MP LunaDream.
-                                    runCatching {
-                                        context.contentResolver.update(
-                                            saved,
-                                            ContentValues().apply {
-                                                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Unprocessed")
-                                                put(MediaStore.Images.Media.IS_PENDING, 0)
-                                            },
-                                            null,
-                                            null
-                                        )
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        lastUri = null
-                                        thumb = null
-                                        thumbUri = null
-                                        photoViewerVisible = false
-                                        isProcessing = false
-                                        processingProgress = 0
-                                        processingEtaSeconds = -1
-                                        multiFrameHoldActive = false
-                                        multiFrameRenderStarted = false
-                                        localizedToast(
-                                            context,
-                                            "LunaDream đã ghép ảnh nhưng không đạt độ phân giải yêu cầu. Ảnh được giữ riêng trong Pictures/FujifilmMode/Unprocessed; không xuất như ảnh 50/108MP.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                    return@launch
+                                    // Preserve the successfully merged JPEG at its actual dimensions.
+                                    // Do not exit here: the common finalization path must still apply
+                                    // watermark, EXIF normalization and publish the thumbnail.
+                                    val actualDimensions = PhotoOutputResolution.readStoredDimensions(context, saved)
+                                    android.util.Log.w(
+                                        "FUJI_OUTPUT",
+                                        "Requested output sizing was unavailable; preserving merged image " +
+                                            "at ${actualDimensions?.first ?: -1}x${actualDimensions?.second ?: -1}"
+                                    )
                                 }
 
                                 val digitalZoomResult = if (

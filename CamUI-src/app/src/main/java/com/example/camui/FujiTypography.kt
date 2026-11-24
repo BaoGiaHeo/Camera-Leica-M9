@@ -3,80 +3,28 @@ package com.example.camui
 import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.util.Log
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.core.content.res.ResourcesCompat
 
 /**
- * The one typography source for Compose text and the native pixel OSD renderer.
- *
- * KK7 remains the primary face. The Gradle resource task inflates the checked-in
- * compressed source into the Android resource res/font/vcr_osd_mono_kk7.ttf.
- * Share Tech Mono is the per-glyph fallback for characters not present in KK7.
+ * Shared typography provider. Arial assets are optional and loaded once by AppFonts;
+ * Android SansSerif is the safe fallback when either file is not present.
  */
 object FujiTypography {
-    const val FONT_ASSET_PATH = "fonts/arial.ttf"
-    const val FONT_BOLD_ASSET_PATH = "fonts/arial_bold.ttf"
-    const val FONT_RESOURCE_PATH = "assets/fonts/arial.ttf"
+    const val FONT_ASSET_PATH = AppFonts.REGULAR_ASSET
+    const val FONT_BOLD_ASSET_PATH = AppFonts.BOLD_ASSET
+    const val FONT_RESOURCE_PATH = "assets/" + FONT_ASSET_PATH
 
     const val GLYPH_TEST_CHARACTERS =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
             "+-/:.,%°·●K" +
             "ĂÂĐÊÔƠƯÁÀẢÃẠẮẰẲẴẶẤẦẨẪẬẾỀỂỄỆỐỒỔỖỘỚỜỞỠỢỨỪỬỮỰÝỲỶỸỴ" +
-            "ăâđêôơưáàảãạắằẳẵặấầẩẫậếềểễệốồổỗộớờởỡợứừửữựýỳỷỹỵ"
+            "ăâđêôơưáàảãạắằẳẵặấầẩẫậếềểễệốồổỗộớờởỡợứừửữựýỳỹỵ"
 
-    private const val TAG = "FujiTypography"
-
-    @Volatile private var cachedTypeface: Typeface? = null
-    @Volatile private var cachedShareTechTypeface: Typeface? = null
-    @Volatile private var cachedSystemMonoTypeface: Typeface? = null
-    @Volatile private var cachedFontFamily: FontFamily? = null
-    @Volatile private var cachedShareTechFontFamily: FontFamily? = null
-    @Volatile private var bundledFontLoaded = false
-    @Volatile private var fallbackWarningLogged = false
-    @Volatile private var startupReportLogged = false
-
-    private val lock = Any()
-
-    /** Shared Arial family for Compose UI; missing assets fall back to SansSerif. */
+    /** Source-compatible property for legacy call sites without a Context. */
     val uiFont: FontFamily get() = FontFamily.SansSerif
-
-    fun uiTypeface(context: Context): Typeface = AppFonts.regular(context)
-
-    fun uiBoldTypeface(context: Context): Typeface = AppFonts.bold(context)
-
-    fun withUiMissingGlyphFallback(context: Context, value: String): AnnotatedString {
-        val primary = Paint().apply { typeface = uiTypeface(context) }
-        val fallbackPaint = Paint().apply {
-            typeface = cachedShareTechTypeface ?: Typeface.SANS_SERIF
-        }
-        val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
-        val fallbackFamily = AppFonts.family(context)
-        return buildAnnotatedString {
-            append(value)
-            var index = 0
-            while (index < value.length) {
-                val codePoint = value.codePointAt(index)
-                val charCount = Character.charCount(codePoint)
-                val glyph = String(Character.toChars(codePoint))
-                if (!primary.hasGlyph(glyph)) {
-                    val family = when {
-                        fallbackPaint.hasGlyph(glyph) -> fallbackFamily
-                        systemPaint.hasGlyph(glyph) -> FontFamily.SansSerif
-                        else -> FontFamily.SansSerif
-                    }
-                    addStyle(SpanStyle(fontFamily = family), index, index + charCount)
-                }
-                index += charCount
-            }
-        }
-    }
-
 
     data class GlyphCoverageReport(
         val testedGlyphs: Int,
@@ -85,130 +33,78 @@ object FujiTypography {
         val missingAfterSystemFallback: List<String>
     )
 
-    fun androidTypeface(context: Context): Typeface {
-        cachedTypeface?.let { return it }
-        return synchronized(lock) {
-            cachedTypeface ?: AppFonts.regular(context).also { cachedTypeface = it }
-        }
-    }
+    fun uiTypeface(context: Context): Typeface = AppFonts.regular(context)
 
-    fun shareTechTypeface(context: Context): Typeface {
-        cachedShareTechTypeface?.let { return it }
-        return synchronized(lock) {
-            cachedShareTechTypeface ?: AppFonts.regular(context).also { cachedShareTechTypeface = it }
-        }
-    }
+    fun uiBoldTypeface(context: Context): Typeface = AppFonts.bold(context)
 
-    fun systemMonoTypeface(): Typeface {
-        cachedSystemMonoTypeface?.let { return it }
-        return synchronized(lock) {
-            cachedSystemMonoTypeface ?: Typeface.SANS_SERIF
-                .also { cachedSystemMonoTypeface = it }
-        }
-    }
+    fun androidTypeface(context: Context): Typeface = AppFonts.regular(context)
 
-    fun isBundledFontLoaded(context: Context): Boolean {
-        androidTypeface(context)
-        return bundledFontLoaded
-    }
+    /** Legacy name retained for callers; it now resolves to the shared Arial face. */
+    fun shareTechTypeface(context: Context): Typeface = AppFonts.regular(context)
+
+    /** Legacy method name retained for callers; this is now SansSerif, not monospace. */
+    fun systemMonoTypeface(): Typeface = Typeface.SANS_SERIF
+
+    fun isBundledFontLoaded(context: Context): Boolean =
+        AppFonts.isRegularAssetLoaded(context)
 
     fun glyphCoverage(context: Context): GlyphCoverageReport =
-        computeGlyphCoverage(androidTypeface(context), shareTechTypeface(context))
+        computeGlyphCoverage(AppFonts.regular(context), AppFonts.regular(context))
 
-    /**
-     * Selects Share Tech Mono for each code point missing from KK7. Combining
-     * marks are kept as separate spans, so decomposed Vietnamese text is not
-     * silently dropped even when the primary bitmap face lacks those marks.
-     */
+    fun composeFamily(context: Context): FontFamily = AppFonts.family(context)
+
+    fun withUiMissingGlyphFallback(context: Context, value: String): AnnotatedString =
+        withGlyphFallback(value, AppFonts.regular(context), AppFonts.family(context))
+
     fun withMissingGlyphFallback(value: String): AnnotatedString {
-        val primary = cachedTypeface ?: Typeface.SANS_SERIF
-        val primaryPaint = Paint().apply { typeface = primary }
-        val fallbackPaint = Paint().apply {
-            typeface = cachedShareTechTypeface ?: Typeface.SANS_SERIF
-        }
-        val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
-        val fallbackFamily = cachedFontFamily ?: FontFamily.SansSerif
+        val face = Typeface.SANS_SERIF
+        return withGlyphFallback(value, face, FontFamily.SansSerif)
+    }
+
+    private fun withGlyphFallback(
+        value: String,
+        primary: Typeface,
+        fallbackFamily: FontFamily
+    ): AnnotatedString {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = primary }
         return buildAnnotatedString {
             append(value)
             var index = 0
             while (index < value.length) {
                 val codePoint = value.codePointAt(index)
-                val charCount = Character.charCount(codePoint)
+                val count = Character.charCount(codePoint)
                 val glyph = String(Character.toChars(codePoint))
-                if (!primaryPaint.hasGlyph(glyph)) {
-                    val family = when {
-                        fallbackPaint.hasGlyph(glyph) -> fallbackFamily
-                        systemPaint.hasGlyph(glyph) -> FontFamily.Monospace
-                        else -> FontFamily.Monospace
-                    }
-                    addStyle(SpanStyle(fontFamily = family), index, index + charCount)
+                if (!paint.hasGlyph(glyph)) {
+                    addStyle(SpanStyle(fontFamily = fallbackFamily), index, index + count)
                 }
-                index += charCount
+                index += count
             }
         }
     }
 
-    fun composeFamily(context: Context): FontFamily {
-        cachedFontFamily?.let { return it }
-        return synchronized(lock) {
-            cachedFontFamily ?: AppFonts.family(context).also { cachedFontFamily = it }
-        }
-    }
-
-
-
     private fun computeGlyphCoverage(primary: Typeface, fallback: Typeface): GlyphCoverageReport {
-        val primaryPaint = Paint().apply { typeface = primary }
-        val fallbackPaint = Paint().apply { typeface = fallback }
+        val primaryPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = primary }
+        val fallbackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = fallback }
+        val systemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.SANS_SERIF }
         val glyphs = linkedSetOf<String>()
         var index = 0
         while (index < GLYPH_TEST_CHARACTERS.length) {
             val codePoint = GLYPH_TEST_CHARACTERS.codePointAt(index)
-            if (!Character.isWhitespace(codePoint)) {
-                glyphs += String(Character.toChars(codePoint))
-            }
+            if (!Character.isWhitespace(codePoint)) glyphs += String(Character.toChars(codePoint))
             index += Character.charCount(codePoint)
         }
-        val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
         val missingPrimary = glyphs.filterNot(primaryPaint::hasGlyph)
         val missingAfterFallback = missingPrimary.filterNot(fallbackPaint::hasGlyph)
         val missingAfterSystem = missingAfterFallback.filterNot(systemPaint::hasGlyph)
-        return GlyphCoverageReport(glyphs.size, missingPrimary, missingAfterFallback, missingAfterSystem)
-    }
-
-    private fun logStartupDiagnostics(context: Context, primary: Typeface) {
-        if (startupReportLogged) return
-        synchronized(lock) {
-            if (startupReportLogged) return
-            val fallback = runCatching {
-                ResourcesCompat.getFont(context, R.font.share_tech_mono)
-                    ?: Typeface.create("monospace", Typeface.NORMAL)
-            }.getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
-            cachedShareTechTypeface = fallback
-            val report = computeGlyphCoverage(primary, fallback)
-            Log.i(
-                TAG,
-                "OSD typeface=" + primary.toString() + "; source=" + FONT_RESOURCE_PATH + "; " +
-                    "bundledArial=" + bundledFontLoaded + "; glyphs=" + report.testedGlyphs + "; " +
-                    "ArialMissing=" + report.missingFromKk7.joinToString("") + "; " +
-                    "ArialFallbackMissing=" + report.missingAfterFallback.joinToString("") + "; " +
-                    "systemSansUnresolved=" + report.missingAfterSystemFallback.joinToString("")
-            )
-            startupReportLogged = true
-        }
+        return GlyphCoverageReport(
+            testedGlyphs = glyphs.size,
+            missingFromKk7 = missingPrimary,
+            missingAfterFallback = missingAfterFallback,
+            missingAfterSystemFallback = missingAfterSystem
+        )
     }
 
     internal fun clearCacheForTests() {
-        synchronized(lock) {
-            cachedTypeface = null
-            cachedShareTechTypeface = null
-            AppFonts.clearCacheForTests()
-            cachedSystemMonoTypeface = null
-            cachedFontFamily = null
-            cachedShareTechFontFamily = null
-            bundledFontLoaded = false
-            fallbackWarningLogged = false
-            startupReportLogged = false
-        }
+        AppFonts.clearCacheForTests()
     }
 }

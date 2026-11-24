@@ -1,4 +1,4 @@
-name: LunaDream 2.5.0dream landscape UI validation
+name: FujiFilm Mode 2.6.2 build and landscape UI validation
 # Build APK and publish it even if the hosted Android Emulator cannot complete.
 
 on:
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -47,16 +47,17 @@ jobs:
 
       - name: Run unit tests and build an internal emulator APK
         working-directory: CamUI-src
-        run: gradle :app:testDeveloperUnitTest :app:assembleDebug :app:assembleDeveloper --stacktrace
+        run: gradle :app:testDeveloperUnitTest :app:assembleDebug :app:assembleDeveloper :app:assembleRelease --stacktrace
 
       - name: Upload installable APKs
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: fujifilm-mode-2.5.0-apks
+          name: fujifilm-mode-2.6.2-apks
           path: |
             CamUI-src/app/build/outputs/apk/debug/app-debug.apk
             CamUI-src/app/build/outputs/apk/developer/app-developer.apk
+            CamUI-src/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -79,9 +80,8 @@ jobs:
           arch: x86_64
           profile: pixel_2
           emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
-          emulator-boot-timeout: 600
-          script: |
-            script: bash .github/scripts/camui-emulator-smoke-test.sh
+          emulator-boot-timeout: 900
+          script: bash .github/scripts/camui-emulator-smoke-test.sh
 
       - name: Upload emulator inspection
         if: always()

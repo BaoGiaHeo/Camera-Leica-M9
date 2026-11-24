@@ -1,40 +1,34 @@
 package com.example.camui
 
 import java.io.File
-import java.util.zip.GZIPInputStream
-import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FujiTypographyAssetTest {
     @Test
-    fun bundledKk7FontAssetExistsAndInflatesToTrueType() {
-        val asset = File("src/main/assets/${FujiTypography.FONT_ASSET_PATH}")
-        assertTrue("Missing bundled font asset: ${asset.path}", asset.isFile)
-        assertTrue("Bundled font asset is unexpectedly small", asset.length() > 4_000L)
+    fun optionalArialAssetPathsAreStableAndDoNotRequireBundledFonts() {
+        assertEquals("fonts/arial.ttf", FujiTypography.FONT_ASSET_PATH)
+        assertEquals("fonts/arial_bold.ttf", FujiTypography.FONT_BOLD_ASSET_PATH)
 
-        val signature = GZIPInputStream(asset.inputStream()).use { input ->
-            ByteArray(4).also { buffer ->
-                var offset = 0
-                while (offset < buffer.size) {
-                    val count = input.read(buffer, offset, buffer.size - offset)
-                    check(count > 0) { "Truncated bundled font asset" }
-                    offset += count
-                }
-            }
+        val regular = File("src/main/assets/${FujiTypography.FONT_ASSET_PATH}")
+        val bold = File("src/main/assets/${FujiTypography.FONT_BOLD_ASSET_PATH}")
+
+        // The user supplies these two assets separately. Their absence is valid:
+        // AppFonts must use Typeface.SANS_SERIF / SansSerif Bold without failing startup.
+        if (regular.exists()) {
+            assertTrue("Arial regular asset is unexpectedly small", regular.length() > 4_000L)
         }
-        assertArrayEquals(byteArrayOf(0, 1, 0, 0), signature)
-        val fallbackFont = File("src/main/res/font/share_tech_mono.ttf")
-        assertTrue("Missing Share Tech Mono fallback font", fallbackFont.isFile)
-        assertTrue("Share Tech Mono fallback font is unexpectedly small", fallbackFont.length() > 10_000L)
-        val license = File("src/main/assets/fonts/ShareTechMono-OFL.txt")
-        assertTrue("Missing Share Tech Mono OFL notice", license.isFile)
-        assertTrue("Share Tech Mono OFL notice is incomplete", license.readText().contains("SIL OPEN FONT LICENSE Version 1.1"))
-        assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ĂÂĐÊÔƠƯ"))
-        assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ăâđêôơư"))
+        if (bold.exists()) {
+            assertTrue("Arial bold asset is unexpectedly small", bold.length() > 4_000L)
+        }
+    }
+
+    @Test
+    fun xmlThemeDoesNotDependOnRemovedVcrFontResource() {
         val theme = File("src/main/res/values/themes.xml").readText()
-        assertTrue("Android XML theme must use KK7", theme.contains("@font/vcr_osd_mono_kk7"))
-        assertFalse("Android XML theme must not override KK7 with sans", theme.contains(">sans</item>"))
+        assertTrue("Theme must retain a safe SansSerif system fallback", theme.contains("sans-serif"))
+        assertFalse("Theme must not reference the removed VCR font", theme.contains("@font/vcr_osd_mono_kk7"))
     }
 }

@@ -9,6 +9,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+androidComponents {
+    // The 2.7.0 package publishes a single Debug variant; do not create a Release APK.
+    beforeVariants(selector().withBuildType("release")) {
+        enable = false
+    }
+}
+
 android {
     namespace = "com.example.camui"
     compileSdk = 37

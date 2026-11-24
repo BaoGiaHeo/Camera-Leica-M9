@@ -512,7 +512,6 @@ var nightShotMode by remember {
                 ) {
                     dialClickEnabled = it
                     prefs.edit().putBoolean("dial_click_enabled", it).apply()
-                    if (!it) CameraSoundEngine.stopZoomMotor()
                 }
                 Text(
                     "MECHANICAL FEEDBACK",

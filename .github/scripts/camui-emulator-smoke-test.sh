@@ -33,35 +33,35 @@ echo "framework_ready=1" >> emulator-artifacts/command-status.txt
 
 adb install -r CamUI-src/app/build/outputs/apk/debug/app-debug.apk > emulator-artifacts/install.txt 2>&1
 echo "install=0" >> emulator-artifacts/command-status.txt
-adb shell pm grant com.fujifilm.mode.debug android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1
+adb shell pm grant com.fujiflim.mode android.permission.CAMERA > emulator-artifacts/permission.txt 2>&1
 adb logcat -c
-adb shell am force-stop com.fujifilm.mode.debug > emulator-artifacts/force-stop.txt 2>&1
-adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1 || true
+adb shell am force-stop com.fujiflim.mode > emulator-artifacts/force-stop.txt 2>&1
+adb shell am start -W -n com.fujiflim.mode/com.example.camui.MainActivity > emulator-artifacts/start-result.txt 2>&1 || true
 echo "am_start_command_completed=1" >> emulator-artifacts/command-status.txt
 
 # ART verification and first Compose class loading are slow on this small CI emulator.
 # Wait up to 150 seconds for ActivityTaskManager to confirm the actual first frame.
 startup_ready=0
 for i in $(seq 1 75); do
-  if adb logcat -d -v brief -s ActivityTaskManager:I 2>/dev/null | grep -q "Displayed com.fujifilm.mode.debug/com.example.camui.MainActivity"; then
+  if adb logcat -d -v brief -s ActivityTaskManager:I 2>/dev/null | grep -q "Displayed com.fujiflim.mode/com.example.camui.MainActivity"; then
     startup_ready=1
     break
   fi
-  if [ -z "$(adb shell pidof com.fujifilm.mode.debug 2>/dev/null | tr -d '\r')" ]; then
+  if [ -z "$(adb shell pidof com.fujiflim.mode 2>/dev/null | tr -d '\r')" ]; then
     break
   fi
   sleep 2
 done
 if [ "$startup_ready" -ne 1 ]; then
   echo "activity_not_displayed_within_150s=1" >> emulator-artifacts/command-status.txt
-  adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid.txt 2>&1 || true
+  adb shell pidof com.fujiflim.mode > emulator-artifacts/app-pid.txt 2>&1 || true
   adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-startup-timeout.txt 2>&1 || true
   exit 26
 fi
 echo "activity_displayed=1" >> emulator-artifacts/command-status.txt
 sleep 8
 
-adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid.txt 2>&1 || true
+adb shell pidof com.fujiflim.mode > emulator-artifacts/app-pid.txt 2>&1 || true
 adb shell dumpsys activity activities > emulator-artifacts/activity-portrait.txt 2>&1 || true
 adb exec-out screencap -p > emulator-artifacts/camera-portrait.png 2> emulator-artifacts/screencap-portrait-error.txt || true
 adb logcat -d -v threadtime -t 12000 > emulator-artifacts/logcat-portrait.txt 2>&1 || true
@@ -72,7 +72,7 @@ adb shell settings put system user_rotation 1
 sleep 5
 adb shell dumpsys activity activities > emulator-artifacts/activity-landscape.txt 2>&1 || true
 adb exec-out screencap -p > emulator-artifacts/camera-landscape.png 2> emulator-artifacts/screencap-landscape-error.txt || true
-adb shell pidof com.fujifilm.mode.debug > emulator-artifacts/app-pid-landscape.txt 2>&1 || true
+adb shell pidof com.fujiflim.mode > emulator-artifacts/app-pid-landscape.txt 2>&1 || true
 adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-landscape.txt 2>&1 || true
 
 # Keep raw logs even when startup fails; report app crash signatures separately.
@@ -94,12 +94,12 @@ fi
 echo "app_process_alive=1" >> emulator-artifacts/command-status.txt
 
 # Run instrumentation only after the plain install + cold start was observed.
-gradle --no-daemon -p CamUI-src :app:connectedDeveloperAndroidTest --stacktrace --console=plain
+gradle --no-daemon -p CamUI-src :app:connectedDebugAndroidTest --stacktrace --console=plain
 
 # End-to-end crash-report test: this trigger exists only in the debug source set.
-adb shell am force-stop com.fujifilm.mode.debug
+adb shell am force-stop com.fujiflim.mode
 adb logcat -c
-adb shell am start -W -n com.fujifilm.mode.debug/com.example.camui.CrashTestActivity > emulator-artifacts/crash-test-start.txt 2>&1
+adb shell am start -W -n com.fujiflim.mode/com.example.camui.CrashTestActivity > emulator-artifacts/crash-test-start.txt 2>&1
 report_visible=0
 for i in $(seq 1 20); do
   adb shell uiautomator dump /sdcard/crash-report-window.xml > emulator-artifacts/crash-test-uiautomator.txt 2>&1 || true
@@ -148,7 +148,7 @@ adb shell input tap "$ok_x" "$ok_y"
 # OK must release the original process so its uncaught exception can terminate it.
 main_process_exited=0
 for i in $(seq 1 15); do
-  if [ -z "$(adb shell pidof com.fujifilm.mode.debug 2>/dev/null | tr -d '\r')" ]; then
+  if [ -z "$(adb shell pidof com.fujiflim.mode 2>/dev/null | tr -d '\r')" ]; then
     main_process_exited=1
     break
   fi

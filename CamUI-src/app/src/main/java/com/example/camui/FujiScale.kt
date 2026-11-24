@@ -114,98 +114,102 @@ internal fun FujiScale(
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onPositionChange(advanceFujiScalePosition(safePosition, safeStep))
             })
-            Box(
-                modifier = Modifier.size(48.dp).clickable(onClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onAuto()
-                }),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier.size(width = 22.dp, height = 20.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(if (auto) Color(0xFF352411) else Color(0xFF15191A))
-                        .border(1.dp, if (auto) Color(0xFFFFB300) else Color(0xFF596265), RoundedCornerShape(3.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "A",
-                        color = if (auto) Color(0xFFFFB300) else Color(0xFFF2F2F2),
-                        fontFamily = FujiTypography.uiFont,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp
-                    )
-                }
-            }
             ScaleKey("BACK", onClick = onBack, wide = true)
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .pointerInput(safeStep) {
-                    var dragPosition = latestPosition.value
-                    detectDragGestures(
-                        onDragStart = { dragPosition = latestPosition.value },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            val next = advanceFujiScalePosition(
-                                dragPosition,
-                                -dragAmount.x / size.width.coerceAtLeast(1).toFloat() * 0.72f
-                            )
-                            val oldDetent = (dragPosition / safeStep).roundToInt()
-                            val newDetent = (next / safeStep).roundToInt()
-                            dragPosition = next
-                            latestOnPositionChange.value(next)
-                            if (oldDetent != newDetent) {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                        }
-                    )
-                }
+        Row(
+            Modifier.fillMaxWidth().height(48.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Canvas(Modifier.fillMaxWidth().height(23.dp).align(Alignment.Center)) {
-                val centerX = size.width * 0.5f
-                val detents = (safePosition / safeStep).takeIf { it.isFinite() } ?: 0f
-                val whole = kotlin.math.floor(detents).toInt()
-                val remainder = detents - whole
-                val stepPx = size.width / 24f
-                val baseline = size.height * 0.68f
-                for (index in -12..12) {
-                    val x = centerX + (index - remainder) * stepPx
-                    if (x < 0f || x > size.width) continue
-                    val major = Math.floorMod(whole + index, 3) == 0
-                    val tickTop = if (major) 2.dp.toPx() else 6.dp.toPx()
+            Box(
+                modifier = Modifier.weight(1f).height(48.dp)
+                    .pointerInput(safeStep) {
+                        var dragPosition = latestPosition.value
+                        detectDragGestures(
+                            onDragStart = { dragPosition = latestPosition.value },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                val next = advanceFujiScalePosition(
+                                    dragPosition,
+                                    -dragAmount.x / size.width.coerceAtLeast(1).toFloat() * 0.72f
+                                )
+                                val oldDetent = (dragPosition / safeStep).roundToInt()
+                                val newDetent = (next / safeStep).roundToInt()
+                                dragPosition = next
+                                latestOnPositionChange.value(next)
+                                if (oldDetent != newDetent) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                            }
+                        )
+                    }
+            ) {
+                Canvas(Modifier.fillMaxWidth().height(23.dp).align(Alignment.Center)) {
+                    val centerX = size.width * 0.5f
+                    val detents = (safePosition / safeStep).takeIf { it.isFinite() } ?: 0f
+                    val whole = kotlin.math.floor(detents).toInt()
+                    val remainder = detents - whole
+                    val stepPx = size.width / 24f
+                    val baseline = size.height * 0.68f
+                    for (index in -12..12) {
+                        val x = centerX + (index - remainder) * stepPx
+                        if (x < 0f || x > size.width) continue
+                        val major = Math.floorMod(whole + index, 3) == 0
+                        val tickTop = if (major) 2.dp.toPx() else 6.dp.toPx()
+                        drawLine(
+                            color = Color.White.copy(alpha = if (major) 0.95f else 0.42f),
+                            start = Offset(x, tickTop),
+                            end = Offset(x, baseline),
+                            strokeWidth = if (major) 1.2.dp.toPx() else 0.7.dp.toPx()
+                        )
+                    }
+                    // End labels are actual camera values, not generic tick indices.
+                    val native = drawContext.canvas.nativeCanvas
+                    val baselineText = size.height - 0.5.dp.toPx()
+                    textPaint.textAlign = Paint.Align.LEFT
+                    textPaint.textSize = 7.sp.toPx()
+                    native.drawText(lowLabel, 1.dp.toPx(), baselineText, textPaint)
+                    textPaint.textAlign = Paint.Align.RIGHT
+                    native.drawText(highLabel, size.width - 1.dp.toPx(), baselineText, textPaint)
+
+                    val cursor = Path().apply {
+                        moveTo(centerX - 5.dp.toPx(), 0.5.dp.toPx())
+                        lineTo(centerX + 5.dp.toPx(), 0.5.dp.toPx())
+                        lineTo(centerX, 6.dp.toPx())
+                        close()
+                    }
+                    drawPath(cursor, Color.White)
                     drawLine(
-                        color = Color.White.copy(alpha = if (major) 0.95f else 0.42f),
-                        start = Offset(x, tickTop),
-                        end = Offset(x, baseline),
-                        strokeWidth = if (major) 1.2.dp.toPx() else 0.7.dp.toPx()
+                        Color.White,
+                        Offset(centerX, 6.dp.toPx()),
+                        Offset(centerX, baseline),
+                        strokeWidth = 1.dp.toPx()
                     )
                 }
-                // Physical end values stay below the ruler; tick indices are never
-                // exposed as if they were EV, shutter or ISO values.
-                val native = drawContext.canvas.nativeCanvas
-                val baselineText = size.height - 0.5.dp.toPx()
-                textPaint.textAlign = Paint.Align.LEFT
-                textPaint.textSize = 7.sp.toPx()
-                native.drawText(lowLabel, 1.dp.toPx(), baselineText, textPaint)
-                textPaint.textAlign = Paint.Align.RIGHT
-                native.drawText(highLabel, size.width - 1.dp.toPx(), baselineText, textPaint)
-
-                val cursor = Path().apply {
-                    moveTo(centerX - 5.dp.toPx(), 0.5.dp.toPx())
-                    lineTo(centerX + 5.dp.toPx(), 0.5.dp.toPx())
-                    lineTo(centerX, 6.dp.toPx())
-                    close()
-                }
-                drawPath(cursor, Color.White)
-                drawLine(
-                    Color.White,
-                    Offset(centerX, 6.dp.toPx()),
-                    Offset(centerX, baseline),
-                    strokeWidth = 1.dp.toPx()
+            }
+            // Auto is intentionally visible only while a Pro value is selected.
+            Box(
+                modifier = Modifier.width(38.dp).height(42.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(if (auto) Color(0xFF352411) else Color(0xFF15191A))
+                    .border(
+                        1.dp,
+                        if (auto) Color(0xFFFFB300) else Color(0xFF596265),
+                        RoundedCornerShape(5.dp)
+                    )
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onAuto()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "A",
+                    color = if (auto) Color(0xFFFFB300) else Color(0xFFF2F2F2),
+                    fontFamily = FujiTypography.uiFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
                 )
             }
         }

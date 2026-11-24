@@ -7088,16 +7088,6 @@ fun CameraScreen(
                     })
             }
             FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
-            FujiKey(
-                "DISP/BACK · ${stringResource(lcdDisplayMode.labelResource)}",
-                onClick = {
-                    if (proSel != null && mode == "Pro") {
-                        android.util.Log.i("FUJI_PRO_SCALE", "BACK source=DISP selected=$proSel")
-                        proSel = null
-                    } else cycleDispDisplayMode()
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
-            )
         }
     }
 

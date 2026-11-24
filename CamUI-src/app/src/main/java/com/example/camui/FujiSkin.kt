@@ -1,6 +1,7 @@
 package com.example.camui
 
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 
 import android.content.Context
 import android.media.AudioManager
@@ -18,6 +19,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
@@ -62,6 +64,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -139,92 +142,20 @@ fun FujiLeatherSurface(
     simpleMode: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
-    Box(
-        modifier = modifier.background(FujiSkin.body)
-    ) {
-        Canvas(
-            Modifier.fillMaxSize().drawWithCache {
-                val width = size.width
-                val height = size.height
-                val scale = (size.minDimension / 700f).coerceAtLeast(0.55f)
-                val random = Random(0x61847)
-                val strokes = ArrayList<Triple<Path, Color, Float>>()
-                val longCount = if (simpleMode) 170 else 520
-                val shortCount = if (simpleMode) 440 else 1480
-
-                // Long, slightly bowed grain gives the surface its stretched leather fibers.
-                repeat(longCount) {
-                    val x = random.nextFloat() * width
-                    val y = random.nextFloat() * height
-                    val drift = (random.nextFloat() - 0.5f) * width * 0.045f
-                    val bend = (random.nextFloat() - 0.5f) * width * 0.018f
-                    val path = Path().apply {
-                        moveTo(x, y - height * 0.16f)
-                        cubicTo(
-                            x + drift * 0.42f + bend,
-                            y + height * 0.18f,
-                            x + drift - bend,
-                            y + height * 0.58f,
-                            x + drift * 0.72f,
-                            y + height * 1.16f
-                        )
-                    }
-                    val pale = random.nextFloat() > 0.57f
-                    val alpha = if (pale) 0.025f + random.nextFloat() * 0.055f
-                        else 0.035f + random.nextFloat() * 0.075f
-                    val color = (if (pale) Color(0xFFB7C0BC) else Color(0xFF020505))
-                        .copy(alpha = alpha)
-                    strokes += Triple(path, color, (0.32f + random.nextFloat() * 0.72f) * scale)
-                }
-
-                // Short diagonal creases overlap the long fibers to reproduce the fine cross-grain.
-                repeat(shortCount) {
-                    val x = random.nextFloat() * width
-                    val y = random.nextFloat() * height
-                    val length = (14f + random.nextFloat() * 76f) * scale
-                    val rise = (18f + random.nextFloat() * 110f) * scale
-                    val direction = if (random.nextBoolean()) 1f else -1f
-                    val curve = (random.nextFloat() - 0.5f) * 24f * scale
-                    val path = Path().apply {
-                        moveTo(x, y)
-                        cubicTo(
-                            x + length * 0.30f,
-                            y - rise * 0.35f + curve,
-                            x + length * 0.72f * direction,
-                            y - rise * 0.74f - curve,
-                            x + length * direction,
-                            y - rise
-                        )
-                    }
-                    val pale = random.nextFloat() > 0.68f
-                    val alpha = if (pale) 0.018f + random.nextFloat() * 0.045f
-                        else 0.035f + random.nextFloat() * 0.085f
-                    val color = (if (pale) Color(0xFFD1D7D3) else Color(0xFF010303))
-                        .copy(alpha = alpha)
-                    strokes += Triple(path, color, (0.24f + random.nextFloat() * 0.58f) * scale)
-                }
-
-                onDrawBehind {
-                    drawRect(
-                        Brush.verticalGradient(
-                            0f to Color(0xFF171D1C),
-                            0.48f to Color(0xFF101615),
-                            1f to Color(0xFF0B1010)
-                        )
-                    )
-                    strokes.forEach { (path, color, strokeWidth) ->
-                        drawPath(path, color, style = Stroke(width = strokeWidth))
-                    }
-                    drawRect(
-                        Brush.radialGradient(
-                            colors = listOf(Color.Transparent, Color(0x55000000)),
-                            center = Offset(width * 0.52f, height * 0.48f),
-                            radius = maxOf(width, height) * 0.78f
-                        )
-                    )
-                }
-            }
-        ) {}
+    Box(modifier = modifier.background(Color(0xFF0B1010))) {
+        Image(
+            painter = painterResource(id = R.drawable.fuji_leather_texture),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                alpha = if (simpleMode) 0.90f else 1f
+            },
+            contentScale = ContentScale.Crop
+        )
+        // A light darkening layer keeps LCD labels legible while retaining the
+        // exact grain and color character of the supplied leather reference.
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.10f))
+        )
         content()
     }
 }

@@ -113,12 +113,41 @@ object PhotoOutputResolution {
 
             // Geometry is independently unit-tested. Portrait uses a center crop from
             // the original Bitmap; null target ratio preserves the complete landscape frame.
-            val geometry = PhotoOutputGeometry.calculate(
+            // Keep 64 MiB free for EXIF/MediaStore and transient Android allocations.
+            // If the requested target cannot fit, solve again at the largest conservative
+            // pixel budget that can fit an RGB_565 destination alongside the decoded source.
+            val runtime = Runtime.getRuntime()
+            val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+            val freeHeapHeadroom = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
+            val usableHeap = (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L)
+            val heapPixelBudget = (usableHeap / 2L).coerceAtLeast(0L)
+            require(heapPixelBudget >= MIN_OUTPUT_PIXELS) {
+                "Insufficient heap for even the minimum output buffer; original photo retained"
+            }
+
+            var effectiveTargetPixels = minOf(targetPixels, heapPixelBudget)
+            var geometry = PhotoOutputGeometry.calculate(
                 sourceWidth,
                 sourceHeight,
-                targetPixels,
+                effectiveTargetPixels,
                 targetHeightOverWidth
             )
+            var budgetAdjustments = 0
+            while (geometry.outputPixels * 2L > usableHeap &&
+                effectiveTargetPixels > MIN_OUTPUT_PIXELS &&
+                budgetAdjustments < 12
+            ) {
+                effectiveTargetPixels = (effectiveTargetPixels * 0.9).toLong()
+                    .coerceAtLeast(MIN_OUTPUT_PIXELS)
+                geometry = PhotoOutputGeometry.calculate(
+                    sourceWidth,
+                    sourceHeight,
+                    effectiveTargetPixels,
+                    targetHeightOverWidth
+                )
+                budgetAdjustments++
+            }
+
             val sourceRect = Rect(
                 geometry.sourceLeft,
                 geometry.sourceTop,
@@ -127,24 +156,20 @@ object PhotoOutputResolution {
             )
             val destinationRect = Rect(0, 0, geometry.outputWidth, geometry.outputHeight)
 
-            // Never silently lower the requested MP count. The caller either receives the
-            // requested output size or an explicit failure with the original photo untouched.
-            // Keep 64 MiB free for JPEG/EXIF/MediaStore and transient Android allocations.
-            val runtime = Runtime.getRuntime()
-            val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
-            val freeHeapHeadroom = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
-            val usableHeap = (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L)
-
             val width = geometry.outputWidth
             val height = geometry.outputHeight
             val outputPixels = geometry.outputPixels
             val outputBytes = outputPixels * 2L // RGB_565.
-            require(outputPixels >= targetPixels * 995L / 1000L) {
-                "Requested MP geometry was not reached; original photo retained"
+            require(outputPixels >= MIN_OUTPUT_PIXELS && outputBytes <= usableHeap) {
+                "Output geometry still exceeds the conservative heap budget; original photo retained"
             }
-            require(outputBytes <= usableHeap) {
-                "Not enough free heap for the requested output; original photo retained"
-            }
+            val memoryLimited = outputPixels < targetPixels * 995L / 1000L
+            Log.i(
+                TAG,
+                "Output memory plan: requested=$targetPixels effectiveTarget=$effectiveTargetPixels " +
+                    "actual=$outputPixels heapUsed=$usedHeap usableHeap=$usableHeap " +
+                    "outputBytes=$outputBytes adjustments=$budgetAdjustments limited=$memoryLimited"
+            )
 
             if (sourceWidth == width && sourceHeight == height &&
                 sourceRect.left == 0 && sourceRect.top == 0 &&
@@ -224,10 +249,15 @@ object PhotoOutputResolution {
                     "requestedWidthOverHeight=${"%.5f".format(Locale.US, geometry.requestedWidthOverHeight)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )
-            check(outputPixels >= targetPixels * 995L / 1000L) {
-                "Output verification fell below the requested megapixel target"
+            if (memoryLimited) {
+                Log.w(
+                    TAG,
+                    "Output reduced to the largest geometry within the current heap budget: " +
+                        "requested=${targetPixels} actual=${outputPixels} dimensions=${width}x${height}"
+                )
+            } else {
+                Log.i(TAG, "Requested output accepted: requested=${targetPixels} actual=${outputPixels}")
             }
-            Log.i(TAG, "Exact requested output accepted: requested=${targetPixels} actual=${outputPixels}")
             PhotoOutputResult(width, height, targetPixels, outputPixels)
         } catch (failure: Throwable) {
             if (replacing && backup.exists()) {

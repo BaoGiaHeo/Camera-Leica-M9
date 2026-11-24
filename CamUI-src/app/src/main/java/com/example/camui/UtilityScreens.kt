@@ -2822,6 +2822,22 @@ private fun duplicateOriginalWatermarkSource(context: Context, uri: Uri): Uri? {
     }
 }
 
+private fun readCaptureDateTaken(context: Context, uri: Uri): Date? =
+    runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(MediaStore.Images.Media.DATE_TAKEN),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (!cursor.moveToFirst()) null else {
+                val column = cursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)
+                if (column < 0) null else cursor.getLong(column).takeIf { it > 0L }?.let(::Date)
+            }
+        }
+    }.getOrNull()
+
 fun applyCameraWatermark(
     context: Context,
     uri: Uri,
@@ -2883,14 +2899,31 @@ fun applyCameraWatermark(
     val isoLabel = isoNumber?.let { "ISO " + it }
         ?: iso.trim().takeIf { it.isNotBlank() }?.let { if (it.startsWith("ISO", true)) it else "ISO " + it }.orEmpty()
 
-    val dateRaw = sourceExif[ExifInterface.TAG_DATETIME_ORIGINAL] ?: sourceExif[ExifInterface.TAG_DATETIME]
-    val capturedDate = dateRaw?.let { raw ->
+    val dateRaw = sourceExif[ExifInterface.TAG_DATETIME_ORIGINAL]
+        ?: sourceExif[ExifInterface.TAG_DATETIME_DIGITIZED]
+        ?: sourceExif[ExifInterface.TAG_DATETIME]
+    val exifCapturedDate = dateRaw?.let { raw ->
         runCatching {
-            java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).apply { isLenient = false }.parse(raw)
+            java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).apply {
+                isLenient = false
+                timeZone = java.util.TimeZone.getDefault()
+            }.parse(raw)
         }.getOrNull()
     }
-    val dateText = capturedDate?.let { java.text.SimpleDateFormat("yyyy.MM.dd", Locale.US).format(it) }.orEmpty()
-    val timeText = capturedDate?.let { java.text.SimpleDateFormat("HH:mm", Locale.US).format(it) }.orEmpty()
+    // MediaStore.DATE_TAKEN is captured at the original shutter event and remains
+    // associated with the source URI after LunaDream replaces its JPEG contents.
+    val capturedDate = exifCapturedDate ?: readCaptureDateTaken(context, uri)
+    val outputLocale = Locale.getDefault()
+    val dateText = capturedDate?.let {
+        java.text.SimpleDateFormat("dd/MM/yyyy", outputLocale).apply {
+            timeZone = java.util.TimeZone.getDefault()
+        }.format(it)
+    }.orEmpty()
+    val timeText = capturedDate?.let {
+        java.text.SimpleDateFormat("HH:mm", outputLocale).apply {
+            timeZone = java.util.TimeZone.getDefault()
+        }.format(it)
+    }.orEmpty()
     val location = watermarkLocationFromExif(context, sourceExif, preferences)
 
     val filterRaw = preferences.getString("selected_filter", "STD")?.trim().orEmpty()

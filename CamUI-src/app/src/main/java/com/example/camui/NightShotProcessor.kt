@@ -741,7 +741,7 @@ object NightShotProcessor {
                     "MERGE_SUCCESS",
                     "mode=$mode; frames=${frames.size}; output=${width}x$height; " +
                         "referenceSelection=${referenceSelectionMs}ms; decode=${decodeMs}ms; " +
-                        "align=${alignmentMs}ms; fusion=${fusionMs}ms; "
+                        "align=${alignmentMs}ms; fusion=${fusionMs}ms; " +
                         "detail=${detailRecoveryMs}ms; encode=${encodeMs}ms; publish=${publishMs}ms; total=${totalMergeMs}ms"
                 )
             }

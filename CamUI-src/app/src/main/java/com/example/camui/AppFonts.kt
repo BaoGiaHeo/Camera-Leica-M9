@@ -20,21 +20,37 @@ internal object AppFonts {
     @Volatile private var regularFace: Typeface? = null
     @Volatile private var boldFace: Typeface? = null
     @Volatile private var composeFamily: FontFamily? = null
+    @Volatile private var regularAssetLoaded = false
+    @Volatile private var boldAssetLoaded = false
     private val lock = Any()
 
     fun regular(context: Context): Typeface {
         regularFace?.let { return it }
         return synchronized(lock) {
-            regularFace ?: load(context, REGULAR_ASSET, Typeface.SANS_SERIF).also { regularFace = it }
+            regularFace ?: load(context, REGULAR_ASSET, Typeface.SANS_SERIF) { regularAssetLoaded = it }
+                .also { regularFace = it }
         }
     }
 
     fun bold(context: Context): Typeface {
         boldFace?.let { return it }
         return synchronized(lock) {
-            boldFace ?: load(context, BOLD_ASSET, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD))
-                .also { boldFace = it }
+            boldFace ?: load(
+                context,
+                BOLD_ASSET,
+                Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            ) { boldAssetLoaded = it }.also { boldFace = it }
         }
+    }
+
+    fun isRegularAssetLoaded(context: Context): Boolean {
+        regular(context)
+        return regularAssetLoaded
+    }
+
+    fun isBoldAssetLoaded(context: Context): Boolean {
+        bold(context)
+        return boldAssetLoaded
     }
 
     fun family(context: Context): FontFamily {
@@ -47,18 +63,25 @@ internal object AppFonts {
         }
     }
 
-    private fun load(context: Context, asset: String, fallback: Typeface): Typeface =
-        runCatching {
-            Typeface.createFromAsset(context.applicationContext.assets, asset)
-        }.onFailure {
-            Log.w(TAG, "Optional font asset $asset unavailable; using Android SansSerif.", it)
-        }.getOrDefault(fallback)
+    private fun load(
+        context: Context,
+        asset: String,
+        fallback: Typeface,
+        onLoaded: (Boolean) -> Unit
+    ): Typeface = runCatching {
+        Typeface.createFromAsset(context.applicationContext.assets, asset).also { onLoaded(true) }
+    }.onFailure {
+        onLoaded(false)
+        Log.w(TAG, "Optional font asset $asset unavailable; using Android SansSerif.", it)
+    }.getOrDefault(fallback)
 
     internal fun clearCacheForTests() {
         synchronized(lock) {
             regularFace = null
             boldFace = null
             composeFamily = null
+            regularAssetLoaded = false
+            boldAssetLoaded = false
         }
     }
 }

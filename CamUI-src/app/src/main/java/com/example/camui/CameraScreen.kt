@@ -1301,6 +1301,12 @@ fun CameraScreen(
     var nightShotDurationSeconds by remember {
         mutableIntStateOf(appPrefs.getInt("nightshot_duration_seconds", 5).let { if (it in listOf(5, 10, 3)) it else 5 })
     }
+    // Pre-capture delay is independent from the Night Shot multi-frame collection duration.
+    var nightShotTimerSeconds by remember {
+        mutableIntStateOf(appPrefs.getInt("nightshot_timer_seconds", 0).coerceIn(0, 10).let {
+            if (it in listOf(0, 3, 5, 10)) it else 0
+        })
+    }
     var starTrailExposureSeconds by remember {
         mutableIntStateOf(appPrefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
     }
@@ -1336,7 +1342,7 @@ fun CameraScreen(
     }
     LaunchedEffect(
         mode, front, flash, timerSec, ultraHdr, renderEngine, metering,
-        nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
+        nightShotMode, nightShotFrameCount, nightShotDurationSeconds, nightShotTimerSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
         milkyWayStackEnabled
@@ -1352,6 +1358,7 @@ fun CameraScreen(
             .putString("nightshot_mode", nightShotMode)
             .putInt("nightshot_frame_count", nightShotFrameCount)
             .putInt("nightshot_duration_seconds", nightShotDurationSeconds)
+            .putInt("nightshot_timer_seconds", nightShotTimerSeconds)
             .putInt("star_trails_exposure_seconds", starTrailExposureSeconds)
             .putBoolean("pro_manual_exposure_enabled", manualExposure)
             .putBoolean("pro_manual_iso_enabled", manualIsoEnabled)
@@ -3840,8 +3847,9 @@ fun CameraScreen(
             return
         }
         scope.launch {
-            if (timerSec > 0) {
-                for (s in timerSec downTo 1) {
+            val captureDelaySeconds = if (nightShotMode == "night") nightShotTimerSeconds else timerSec
+            if (captureDelaySeconds > 0) {
+                for (s in captureDelaySeconds downTo 1) {
                     countdown = s
                     delay(1000)
                 }
@@ -5326,9 +5334,23 @@ fun CameraScreen(
                 FujiTopKey(label = "FLASH", icon = if (flash == ImageCapture.FLASH_MODE_ON) "flash_on" else "flash_off", selected = flash == ImageCapture.FLASH_MODE_ON, onClick = {
                     flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 })
-                FujiTopKey(label = "DRIVE", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
-                    timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
-                }, onLongClick = {
+                FujiTopKey(
+                    label = if (nightShotMode == "night") "DRIVE" else "DRIVE",
+                    icon = "timer",
+                    selected = if (nightShotMode == "night") nightShotTimerSeconds > 0 else timerSec > 0 || burstMode,
+                    onClick = {
+                        if (nightShotMode == "night") {
+                            nightShotTimerSeconds = when (nightShotTimerSeconds) {
+                                0 -> 3
+                                3 -> 5
+                                5 -> 10
+                                else -> 0
+                            }
+                        } else {
+                            timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
+                        }
+                    },
+                    onLongClick = {
                     if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
                 })
                 FujiTopKey(label = "FILM", icon = "film", selected = filterDialogVisible || activeFilter != "None", onClick = { filterDialogVisible = true })
@@ -7292,8 +7314,15 @@ fun CameraScreen(
         }
 
         if (countdown > 0) {
-            Text("$countdown", color = Color.White, fontSize = 88.sp,
-                fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("$countdown", color = Color.White, fontSize = 88.sp, fontWeight = FontWeight.Bold)
+                if (nightShotMode == "night") {
+                    Text("HẸN GIỜ NIGHT SHOT", color = FujiSkin.orange, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
         if (starTrailCaptureInProgress) {
             Box(

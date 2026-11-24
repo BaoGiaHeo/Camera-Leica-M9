@@ -663,7 +663,7 @@ fun FujiScreenScaffold(
                 }
             }
             if (onBack != null) {
-                FujiKey("DISP/BACK", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))
+                FujiKey("QUAY LẠI", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))
             }
         }
         Column(

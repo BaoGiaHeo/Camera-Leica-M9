@@ -132,22 +132,6 @@ fun QuickPanel(
                     }
                 }
 
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("LIVE PHOTO", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Text(
-                            if (livePhotoEnabled) "Đang bật · ảnh + clip chuyển động"
-                            else "Đang tắt · ảnh tĩnh thông thường",
-                            color = FujiSkin.muted,
-                            fontSize = 8.sp
-                        )
-                    }
-                    FujiSwitch(livePhotoEnabled, onLivePhotoChanged)
-                }
-
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FujiTile(
                         "Render Engine", renderEngine, true, onRenderEngine,
@@ -175,10 +159,6 @@ fun QuickPanel(
                         "Contents", "LUT", false, onContentManagement,
                         icon = "sliders", modifier = Modifier.weight(1f)
                     )
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    FujiTile("Other", "Device options", false, { showOther = true },
-                        icon = "more", modifier = Modifier.weight(1f))
                 }
                 Row(
                     Modifier.fillMaxWidth().padding(top = 3.dp)

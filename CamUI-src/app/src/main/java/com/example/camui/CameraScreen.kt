@@ -4332,7 +4332,6 @@ fun CameraScreen(
                                                         }
                                                     }
                                                     val frameNumber = nextFrameNumber++
-                                                                                                        val frameNumber = nextFrameNumber++
                                                     val nextFrame = File(
                                                         context.cacheDir,
                                                         "fuji-stack-" + System.nanoTime() + "-" + frameNumber + ".jpg"

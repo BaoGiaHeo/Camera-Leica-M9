@@ -5607,7 +5607,7 @@ fun CameraScreen(
                                             }, mainExecutor)
                                         },
                                         onLongPress = { offset ->
-                                            if (mode != "Pro" || !touchAfEnabled) return@detectTapGestures
+                                            if (mode == "Pro" && !touchAfEnabled) return@detectTapGestures
                                             val active = camera ?: return@detectTapGestures
                                             val tapPoint = normalizedAfTapPoint(
                                                 Offset(offset.x, offset.y),

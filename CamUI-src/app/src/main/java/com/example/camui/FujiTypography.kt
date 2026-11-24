@@ -52,10 +52,10 @@ object FujiTypography {
     fun withUiMissingGlyphFallback(context: Context, value: String): AnnotatedString {
         val primary = Paint().apply { typeface = uiTypeface(context) }
         val fallbackPaint = Paint().apply {
-            typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+            typeface = cachedShareTechTypeface ?: Typeface.SANS_SERIF
         }
         val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
-        val fallbackFamily = shareTechComposeFamily()
+        val fallbackFamily = AppFonts.family(context)
         return buildAnnotatedString {
             append(value)
             var index = 0
@@ -126,7 +126,7 @@ object FujiTypography {
             typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
         }
         val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
-        val fallbackFamily = shareTechComposeFamily()
+        val fallbackFamily = cachedFontFamily ?: FontFamily.SansSerif
         return buildAnnotatedString {
             append(value)
             var index = 0
@@ -154,13 +154,7 @@ object FujiTypography {
         }
     }
 
-    private fun shareTechComposeFamily(): FontFamily {
-        cachedShareTechFontFamily?.let { return it }
-        return synchronized(lock) {
-            cachedShareTechFontFamily ?: FontFamily(Font(R.font.share_tech_mono))
-                .also { cachedShareTechFontFamily = it }
-        }
-    }
+
 
     private fun computeGlyphCoverage(primary: Typeface, fallback: Typeface): GlyphCoverageReport {
         val primaryPaint = Paint().apply { typeface = primary }

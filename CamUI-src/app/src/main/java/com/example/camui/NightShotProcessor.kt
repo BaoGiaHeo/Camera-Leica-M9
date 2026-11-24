@@ -365,6 +365,7 @@ object NightShotProcessor {
         val isLunaDreamMerge = isLunaDreamStackMode(mode)
         val mergeStartedAt = SystemClock.elapsedRealtime()
         var decodeMs = 0L
+        var referenceSelectionMs = 0L
         var alignmentMs = 0L
         var fusionMs = 0L
         var detailRecoveryMs = 0L
@@ -400,8 +401,12 @@ object NightShotProcessor {
             }
         } else null
         return try {
-            currentStage = "read first frame EXIF"
-            val firstExif = readExif(frames.first())
+            currentStage = "rank LunaDream reference frames"
+            val referenceSelectionStartedAt = SystemClock.elapsedRealtime()
+            val mergeFrames = selectSharpestLunaDreamReference(frames, mode)
+            referenceSelectionMs = SystemClock.elapsedRealtime() - referenceSelectionStartedAt
+            currentStage = "read reference frame EXIF"
+            val firstExif = readExif(mergeFrames.first())
             val stackPixelLimit = when (mode) {
                 MergeMode.HDR_BRACKET, MergeMode.FOCUS_STACK -> 16_000_000L
                 MergeMode.NIGHT_AVERAGE, MergeMode.MILKY_WAY_STACK -> 60_000_000L
@@ -410,7 +415,7 @@ object NightShotProcessor {
             currentStage = "decode first frame"
             val firstDecodeStartedAt = SystemClock.elapsedRealtime()
             base = decodeUpright(
-                frames.first(),
+                mergeFrames.first(),
                 null,
                 null,
                 stackPixelLimit,
@@ -460,7 +465,7 @@ object NightShotProcessor {
             for (frameIndex in 1 until frames.size) {
                 currentStage = "decode frame ${frameIndex + 1}/${frames.size}"
                 val frameDecodeStartedAt = SystemClock.elapsedRealtime()
-                val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
+                val current = decodeUpright(mergeFrames[frameIndex], width, height, stackPixelLimit)
                     ?: error("Could not decode frame " + (frameIndex + 1))
                 decodeMs += SystemClock.elapsedRealtime() - frameDecodeStartedAt
                 try {
@@ -787,6 +792,97 @@ object NightShotProcessor {
      * process disjoint pixel ranges, then written back once complete. The per-pixel blend
      * equations intentionally match the serial implementation.
      */
+    /**
+     * For LunaDream 2.0/2.5/3.0, use a sharp captured frame as the immutable fusion reference.
+     * Each candidate is decoded to at most a 512px thumbnail; no full-resolution frame is
+     * retained during scoring. LunaDream 1.5 intentionally keeps its original frame order.
+     */
+    private fun selectSharpestLunaDreamReference(
+        frames: List<File>,
+        mode: MergeMode
+    ): List<File> {
+        if (mode != MergeMode.LUNA_DREAM_2_0 &&
+            mode != MergeMode.LUNA_DREAM_2_5 &&
+            mode != MergeMode.LUNA_DREAM_3_0
+        ) return frames
+
+        val scores = frames.mapIndexed { index, file ->
+            val score = measureFrameSharpness(file)
+            Log.d(TAG, "LUNADREAM_REFERENCE_CANDIDATE index=$index score=$score file=${file.name}")
+            score
+        }
+        val bestIndex = scores.indices.maxByOrNull { scores[it] } ?: 0
+        Log.i(
+            TAG,
+            "LUNADREAM_REFERENCE_SELECTED mode=$mode index=$bestIndex " +
+                "score=${scores.getOrElse(bestIndex) { Double.NEGATIVE_INFINITY }} " +
+                "count=${frames.size}"
+        )
+        return listOf(frames[bestIndex]) + frames.filterIndexed { index, _ -> index != bestIndex }
+    }
+
+    /** Tenengrad gradient energy combined with Laplacian variance on a bounded thumbnail. */
+    private fun measureFrameSharpness(file: File): Double {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth < 3 || bounds.outHeight < 3) return Double.NEGATIVE_INFINITY
+
+        var sample = 1
+        while (max(bounds.outWidth / sample, bounds.outHeight / sample) > 512) {
+            sample *= 2
+        }
+        val bitmap = BitmapFactory.decodeFile(
+            file.absolutePath,
+            BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.RGB_565
+                inDither = true
+            }
+        ) ?: return Double.NEGATIVE_INFINITY
+
+        return try {
+            if (bitmap.width < 3 || bitmap.height < 3) return Double.NEGATIVE_INFINITY
+            val width = bitmap.width
+            val height = bitmap.height
+            val pixels = IntArray(width * height)
+            bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+            fun gray(index: Int): Double {
+                val color = pixels[index]
+                return (((color ushr 16) and 0xFF) * 0.2126 +
+                    ((color ushr 8) and 0xFF) * 0.7152 +
+                    (color and 0xFF) * 0.0722)
+            }
+
+            var gradientEnergy = 0.0
+            var laplacianSum = 0.0
+            var laplacianSquared = 0.0
+            var count = 0L
+            for (y in 1 until height - 1 step 2) {
+                val row = y * width
+                for (x in 1 until width - 1 step 2) {
+                    val index = row + x
+                    val gx = gray(index + 1) - gray(index - 1)
+                    val gy = gray(index + width) - gray(index - width)
+                    val center = gray(index)
+                    val laplacian = gray(index - 1) + gray(index + 1) +
+                        gray(index - width) + gray(index + width) - 4.0 * center
+                    gradientEnergy += gx * gx + gy * gy
+                    laplacianSum += laplacian
+                    laplacianSquared += laplacian * laplacian
+                    count++
+                }
+            }
+            if (count == 0L) return 0.0
+            val n = count.toDouble()
+            val tenengrad = gradientEnergy / n
+            val laplacianMean = laplacianSum / n
+            val laplacianVariance = (laplacianSquared / n - laplacianMean * laplacianMean).coerceAtLeast(0.0)
+            tenengrad + 0.25 * laplacianVariance
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
     private fun fuseLunaDreamFrameParallel(
         base: Bitmap,
         current: Bitmap,

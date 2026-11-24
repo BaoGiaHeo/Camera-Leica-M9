@@ -115,50 +115,51 @@ object FujiFeedback {
 }
 
 object FujiSkin {
-    val body = Color(0xFF1A1A1A)
-    val bodyDeep = Color(0xFF101010)
-    val silver = Color(0xFFD9DBDD)
-    val ivory = Color(0xFFF2F2EE)
-    val lcd = Color(0xFF0B0B0B)
-    val lcdGreen = Color(0xFF9EE6B0)
-    val orange = Color(0xFFE8442B)
-    val line = Color(0xFF657078)
-    val muted = Color(0xFF899397)
+    val body = Color(0xFF202020)
+    val bodyDeep = Color(0xFF0E0E0E)
+    val silver = Color(0xFFC1C1C1)
+    val ivory = Color(0xFFFFFFFF)
+    val lcd = Color(0xFF080808)
+    val lcdGreen = Color(0xFF7FDB9B)
+    val orange = Color(0xFFE4002B)
+    val line = Color(0xFF5F5F5F)
+    val muted = Color(0xFF8A8A8A)
+    val manualBlue = Color(0xFF4A90E2)
 }
 
-/** Procedural leatherette surface; no bitmap allocation and no capture-pipeline involvement. */
+/**
+ * Cached, screen-sized leatherette texture shared by the camera UI.
+ * The image is center-cropped by Compose; the translucent radial overlay adds a
+ * restrained edge vignette without allocating a bitmap during recomposition.
+ */
 @Composable
 fun FujiLeatherSurface(
     modifier: Modifier = Modifier,
     simpleMode: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val texture = androidx.compose.ui.res.painterResource(R.drawable.fuji_leather_texture)
     Box(
-        modifier = modifier
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0xFF292929), FujiSkin.body, FujiSkin.bodyDeep)
+        modifier = modifier.background(FujiSkin.bodyDeep)
+    ) {
+        androidx.compose.foundation.Image(
+            painter = texture,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+        if (!simpleMode) {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.16f),
+                            Color.Black.copy(alpha = 0.38f)
+                        )
+                    )
                 )
             )
-    ) {
-        if (!simpleMode) {
-            Canvas(Modifier.fillMaxSize()) {
-                val step = 8.dp.toPx()
-                var y = 2.dp.toPx()
-                while (y < size.height) {
-                    var x = 2.dp.toPx()
-                    while (x < size.width) {
-                        val shade = if (((x / step).toInt() + (y / step).toInt()) % 2 == 0) {
-                            Color.White.copy(alpha = 0.025f)
-                        } else {
-                            Color.Black.copy(alpha = 0.09f)
-                        }
-                        drawCircle(shade, radius = 1.05.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, y))
-                        x += step
-                    }
-                    y += step
-                }
-            }
         }
         content()
     }

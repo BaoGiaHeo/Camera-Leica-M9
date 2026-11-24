@@ -5607,7 +5607,8 @@ fun CameraScreen(
                                             }, mainExecutor)
                                         },
                                         onLongPress = { offset ->
-                                            if (mode == "Pro" && !touchAfEnabled) return@detectTapGestures
+                                            // Long-press is the persistent AF/AE lock gesture in both Photo and Pro.
+                                            // The Pro Touch AF preference only gates single-tap refocusing.
                                             val active = camera ?: return@detectTapGestures
                                             val tapPoint = normalizedAfTapPoint(
                                                 Offset(offset.x, offset.y),

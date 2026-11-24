@@ -52,40 +52,18 @@ fun QuickPanel(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showOther by remember { mutableStateOf(false) }
     FujiPanel(
-        title = if (showOther) "OTHER · DEVICE OPTIONS" else "Q MENU",
+        title = "Q MENU",
         modifier = modifier
             .widthIn(max = if (deviceLandscape) 560.dp else 620.dp)
             .fillMaxWidth()
             .heightIn(max = 440.dp),
-        onBack = { if (showOther) showOther = false else onDismiss() }
+        onBack = onDismiss
     ) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            if (showOther) {
-                FujiListRow(
-                    "Xử lý ảnh gốc thiết bị",
-                    if (nativeImageProcessingEnabled) "ON" else "OFF",
-                    onClick = { onNativeImageProcessingChanged(!nativeImageProcessingEnabled) },
-                    description = "Ưu tiên ISP/OEM AUTO-HDR; sau chụp tiếp tục tối ưu dải sáng và chi tiết trên JPEG."
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        if (nativeImageProcessingEnabled) "ĐANG BẬT · ISP/OEM" else "ĐANG TẮT · LUNADREAM CÓ THỂ DÙNG",
-                        color = FujiSkin.lcdGreen,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    FujiSwitch(nativeImageProcessingEnabled, onNativeImageProcessingChanged)
-                }
-            } else {
                 Text(
                     stringResource(R.string.face_tracking_section_title),
                     color = FujiSkin.lcdGreen,
@@ -139,6 +117,13 @@ fun QuickPanel(
                         "Metering", metering, false, onMetering,
                         modifier = Modifier.weight(1f)
                     )
+                    FujiTile(
+                        "ISP DEVICE",
+                        if (nativeImageProcessingEnabled) "ON" else "OFF",
+                        nativeImageProcessingEnabled,
+                        { onNativeImageProcessingChanged(!nativeImageProcessingEnabled) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FujiTile(
@@ -175,7 +160,6 @@ fun QuickPanel(
                         modifier = Modifier.clickable(onClick = onSettings)
                     )
                 }
-            }
         }
     }
 }

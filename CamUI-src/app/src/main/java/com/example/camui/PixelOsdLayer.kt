@@ -1399,17 +1399,21 @@ fun PixelOsdLayer(
         modifier.pointerInput(frame.isPro) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
-                val up = waitForUpOrCancellation()
-                if (up != null && frame.isPro) {
-                    val plan = renderer.layoutSnapshotForTesting()
-                    val selected = plan?.let { layout ->
-                        resolvePixelOsdProControlTap(layout, down.position.x, down.position.y)
-                    }
-                    if (selected != null) {
-                        down.consume()
+                val plan = if (frame.isPro) renderer.layoutSnapshotForTesting() else null
+                val selected = plan?.let { layout ->
+                    resolvePixelOsdProControlTap(layout, down.position.x, down.position.y)
+                }
+                if (selected != null) {
+                    // Consume only hits on real Pro HUD values. All other preview taps
+                    // remain available to the AF/AE metering gesture below this overlay.
+                    down.consume()
+                    val up = waitForUpOrCancellation()
+                    if (up != null) {
                         up.consume()
                         latestProControlTap.value(selected)
                     }
+                } else {
+                    waitForUpOrCancellation()
                 }
             }
         }

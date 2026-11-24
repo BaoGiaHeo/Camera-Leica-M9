@@ -1,9 +1,9 @@
-name: LunaDream 2.5.0dream landscape UI validation
+name: FujiFilm Mode 2.7.0 Debug validation
 # Build APK and publish it even if the hosted Android Emulator cannot complete.
 
 on:
   push:
-    branches: [main, "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream", "fuji-2.5.0-round1-spec", "fuji-2.5.0-round1-stage", "fuji-2.5.0-full-work", "fuji-2.5.0-prompt-2026-11-22-round1"]
+    branches: [main, "feature/fujifilm-mode-1.6", "feature/lunadream-2.5.0dream", "fuji-2.5.0-round1-spec", "fuji-2.5.0-round1-stage", "fuji-2.5.0-full-work", "fuji-2.5.0-prompt-2026-11-22-round1", "fuji-2.7.0"]
   workflow_dispatch:
 
 permissions:
@@ -47,16 +47,15 @@ jobs:
 
       - name: Run unit tests and build an internal emulator APK
         working-directory: CamUI-src
-        run: gradle :app:testDeveloperUnitTest :app:assembleDebug :app:assembleDeveloper --stacktrace
+        run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
       - name: Upload installable APKs
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: fujifilm-mode-2.5.0-apks
+          name: fujifilm-mode-2.7.0-debug-apk
           path: |
             CamUI-src/app/build/outputs/apk/debug/app-debug.apk
-            CamUI-src/app/build/outputs/apk/developer/app-developer.apk
           if-no-files-found: error
           retention-days: 14
 

@@ -11,8 +11,8 @@ plugins {
 
 androidComponents {
     // The 2.7.0 package publishes a single Debug variant; do not create a Release APK.
-    beforeVariants(selector().withBuildType("release")) {
-        enable = false
+    beforeVariants(selector().withBuildType("release")) { variantBuilder ->
+        variantBuilder.enable = false
     }
 }
 

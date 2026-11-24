@@ -113,7 +113,7 @@ class PixelOsdGoldenRenderingTest {
     }
 
     @Test
-    fun kk7GlyphHeightIsIndependentOfFineMediumAndChunkyPixelGrids() {
+    fun arialGlyphHeightIsIndependentOfFineMediumAndChunkyPixelGrids() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val outputDirectory = File(
             context.getExternalFilesDir(null) ?: context.cacheDir,
@@ -154,10 +154,10 @@ class PixelOsdGoldenRenderingTest {
                     assertEquals(lcd.width, textLayer.width)
                     assertEquals(lcd.height, textLayer.height)
                     val bounds = alphaBounds(textLayer)
-                    assertTrue("KK7 text plane is empty for $mode", bounds != null)
+                    assertTrue("Arial text plane is empty for $mode", bounds != null)
                     val glyphHeight = bounds!!.bottom - bounds.top + 1
-                    assertTrue("KK7 glyphs too small for $mode: height=$glyphHeight", glyphHeight >= 7)
-                    assertTrue("KK7 glyphs too large for $mode: height=$glyphHeight", glyphHeight <= 24)
+                    assertTrue("Arial glyphs too small for $mode: height=$glyphHeight", glyphHeight >= 7)
+                    assertTrue("Arial glyphs too large for $mode: height=$glyphHeight", glyphHeight <= 24)
                     glyphHeights += glyphHeight
 
                     val file = File(
@@ -177,7 +177,7 @@ class PixelOsdGoldenRenderingTest {
             }
             val heightSpread = (glyphHeights.maxOrNull() ?: 0) - (glyphHeights.minOrNull() ?: 0)
             assertTrue(
-                "KK7 glyph height changes with PIXEL mode at ${lcd.width}x${lcd.height}: $glyphHeights",
+                "Arial glyph height changes with PIXEL mode at ${lcd.width}x${lcd.height}: $glyphHeights",
                 heightSpread <= 1
             )
         }

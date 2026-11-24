@@ -4701,35 +4701,29 @@ fun CameraScreen(
                                 val outputResolutionApplied = outputResolutionResult != null
 
                                 if (captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied) {
-                                    // Do not present an undersized JPEG as a completed 50/108MP LunaDream.
+                                    // Keep the last valid LunaDream image, but do not skip the
+                                    // common post-processing stage: watermarking and metadata
+                                    // finalization must run for every successful model output.
+                                    android.util.Log.w(
+                                        "FUJI_OUTPUT",
+                                        "Requested LunaDream MP target was unavailable; preserving actual-sized output and continuing watermark processing"
+                                    )
                                     runCatching {
                                         context.contentResolver.update(
                                             saved,
                                             ContentValues().apply {
                                                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FujifilmMode/Unprocessed")
-                                                put(MediaStore.Images.Media.IS_PENDING, 0)
                                             },
                                             null,
                                             null
                                         )
+                                    }.onFailure {
+                                        android.util.Log.e(
+                                            "FUJI_OUTPUT",
+                                            "Could not mark undersized LunaDream output as Unprocessed",
+                                            it
+                                        )
                                     }
-                                    withContext(Dispatchers.Main) {
-                                        lastUri = null
-                                        thumb = null
-                                        thumbUri = null
-                                        photoViewerVisible = false
-                                        isProcessing = false
-                                        processingProgress = 0
-                                        processingEtaSeconds = -1
-                                        multiFrameHoldActive = false
-                                        multiFrameRenderStarted = false
-                                        localizedToast(
-                                            context,
-                                            "LunaDream đã ghép ảnh nhưng không đạt độ phân giải yêu cầu. Ảnh được giữ riêng trong Pictures/FujifilmMode/Unprocessed; không xuất như ảnh 50/108MP.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                    return@launch
                                 }
 
                                 val digitalZoomResult = if (

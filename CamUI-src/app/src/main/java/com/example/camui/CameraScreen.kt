@@ -3714,9 +3714,11 @@ fun CameraScreen(
                 (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                     uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode))
         )
-        if (mode == "Photo" && !nativeImageProcessingEnabled &&
-            rawCaptureMode == "raw_dream" &&
-            imageCapture?.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+        if (LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
+                cameraMode = mode,
+                rawDreamSelected = !nativeImageProcessingEnabled && rawCaptureMode == "raw_dream",
+                imageCaptureUsesRawJpeg = imageCapture?.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+            )
         ) {
             localizedToast(
                 context,

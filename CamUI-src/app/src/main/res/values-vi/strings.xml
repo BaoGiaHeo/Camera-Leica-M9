@@ -242,4 +242,13 @@
     <string name="capture_diagnostics_share">Chia sẻ nhật ký (.txt)</string>
     <string name="common_close">Đóng</string>
     <string name="gallery_image_open_failed">Không mở được ảnh</string>
+    <string name="filter_lut_import">NHẬP LUT</string>
+    <string name="filter_lut_importing">ĐANG NHẬP…</string>
+    <string name="filter_reset">RST</string>
+    <string name="filter_adjustments_title">ĐIỀU CHỈNH MÀU</string>
+    <string name="filter_adjust_highlights">Vùng sáng</string>
+    <string name="filter_adjust_shadows">Vùng tối</string>
+    <string name="filter_adjust_color_chrome">Color Chrome</string>
+    <string name="filter_adjust_grain">Hạt film</string>
+    <string name="filter_adjust_saturation">Bão hòa</string>
 </resources>

@@ -2829,7 +2829,8 @@ fun applyCameraWatermark(
     aperture: String,
     shutter: String,
     iso: String,
-    preservePhotoAspectRatio: Boolean = true
+    preservePhotoAspectRatio: Boolean = true,
+    onStageDuration: ((String, Long) -> Unit)? = null
 ): Boolean {
     val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val watermarkEnabled = preferences.getBoolean("watermark_enabled", true)
@@ -2999,24 +3000,48 @@ fun applyCameraWatermark(
                     "ULTRA_HDR_GAINMAP_NOT_PRESERVED: output is standard JPEG SDR; original backup=" + (originalCopy != null)
                 )
             }
+            var filterDurationMs = -1L
             val filterApplied = if (filterRequested) {
-                check(applyCameraLookPixels(context, sourceBitmap, filterPreset, filterCube)) {
-                    "Selected film look could not be applied to the final photo"
-                }
+                val filterStartedAtMs = android.os.SystemClock.elapsedRealtime()
+                val applied = applyCameraLookPixels(context, sourceBitmap, filterPreset, filterCube)
+                filterDurationMs = android.os.SystemClock.elapsedRealtime() - filterStartedAtMs
+                check(applied) { "Selected film look could not be applied to the final photo" }
             } else false
+            if (filterRequested) onStageDuration?.invoke("Bộ lọc", filterDurationMs)
+            var watermarkDrawDurationMs = -1L
             if (watermarkEnabled) {
+                val watermarkDrawStartedAtMs = android.os.SystemClock.elapsedRealtime()
                 outputBitmap = WatermarkRenderer.render(context, sourceBitmap, settings, metadata)
+                watermarkDrawDurationMs = android.os.SystemClock.elapsedRealtime() - watermarkDrawStartedAtMs
+                onStageDuration?.invoke("Watermark", watermarkDrawDurationMs)
             }
             val finalBitmap = outputBitmap ?: sourceBitmap
             val outWidth = finalBitmap.width
             val outHeight = finalBitmap.height
-            val written = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 96, output)
-            } ?: false
-            check(written) { "Could not write watermarked JPEG" }
-            val exifRestored = restoreImageExifAttributes(context, uri, sourceExif, outWidth, outHeight)
-            check(exifRestored) { "Could not restore source EXIF and GPS after watermark rendering" }
-            setMediaStoreOrientationUpright(context, uri)
+            val encodedFile = java.io.File.createTempFile("fuji-final-", ".jpg", context.cacheDir)
+            try {
+                val encodeStartedAtMs = android.os.SystemClock.elapsedRealtime()
+                java.io.FileOutputStream(encodedFile).use { encoded ->
+                    check(finalBitmap.compress(Bitmap.CompressFormat.JPEG, 96, encoded)) {
+                        "Could not encode final JPEG"
+                    }
+                    encoded.flush()
+                    encoded.fd.sync()
+                }
+                onStageDuration?.invoke("Mã hóa", android.os.SystemClock.elapsedRealtime() - encodeStartedAtMs)
+                val writeStartedAtMs = android.os.SystemClock.elapsedRealtime()
+                val written = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
+                    encodedFile.inputStream().use { input -> input.copyTo(destination) }
+                    true
+                } ?: false
+                check(written) { "Could not write final JPEG to MediaStore" }
+                val exifRestored = restoreImageExifAttributes(context, uri, sourceExif, outWidth, outHeight)
+                check(exifRestored) { "Could not restore source EXIF and GPS after final export" }
+                setMediaStoreOrientationUpright(context, uri)
+                onStageDuration?.invoke("Ghi file", android.os.SystemClock.elapsedRealtime() - writeStartedAtMs)
+            } finally {
+                runCatching { encodedFile.delete() }
+            }
             android.util.Log.i(
                 "FUJI_WATERMARK",
                 "FINAL_EXPORT watermarkEnabled=$watermarkEnabled filter=$filterPreset filterApplied=$filterApplied " +

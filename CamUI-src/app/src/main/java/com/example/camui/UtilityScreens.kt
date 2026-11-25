@@ -3255,18 +3255,7 @@ fun applyCameraWatermark(
             val frame = if (watermarkEnabled) {
                 WatermarkStage.printed(uri, finalBitmap, sourceExif, verificationRect)
             } else {
-                WatermarkStage.intentionallySkipped(uri, sourceExif, outWidth, outHeight).let { skipped ->
-                    WatermarkedFrame.fromWatermarkStage(
-                        uri = uri,
-                        bitmap = finalBitmap,
-                        sourceExif = sourceExif,
-                        width = outWidth,
-                        height = outHeight,
-                        watermarkPrinted = false,
-                        intentionalSkip = false,
-                        verificationRegion = null
-                    )
-                }
+                WatermarkStage.filteredWithoutWatermark(uri, finalBitmap, sourceExif)
             }
             val sinkResult = ImageSink.write(context, frame, onStageDuration)
             check(sinkResult.written) { "ImageSink could not publish the final photo" }

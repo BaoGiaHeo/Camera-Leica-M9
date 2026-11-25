@@ -258,4 +258,5 @@
     <string name="filter_adjust_saturation">Saturation</string>
     <string name="filter_adjust_hue">Hue</string>
     <string name="filter_adjust_lightness">HSL Lightness</string>
+    <string name="gallery_app_unavailable">No gallery app is available to open this photo.</string>
 </resources>

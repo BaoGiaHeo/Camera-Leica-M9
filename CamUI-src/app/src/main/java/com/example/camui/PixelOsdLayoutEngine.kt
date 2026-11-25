@@ -237,9 +237,6 @@ internal object PixelOsdLayoutEngine {
                 rightX + (columnWidth - areaLabelWidth) / 2f, y, t3
             )
             y += unit * 1.35f
-            val kelvin = frame.whiteBalanceKelvinText.ifBlank { "----K" }.take(8)
-            addText("pro-kelvin", "pro-right", kelvin, rightX, y, t1)
-            y += t1 + itemGap
             val film = frame.filmSimulationText.ifBlank { "ST" }.take(2)
             addText("pro-film", "pro-right", film, rightX + unit * 0.7f, y, t2)
             y += t2 + itemGap
@@ -431,8 +428,13 @@ internal object PixelOsdLayoutEngine {
             if (frame.showProWhiteBalance) {
                 groups += Group("white-balance", listOf(
                     Part("pro-wb-label", text = "WB", tier = t3),
-                    Part("pro-wb-value", text = frame.whiteBalanceText.ifBlank { "AUTO" }, beforeGap = labelValueGap)
+                    Part("pro-wb-value", text = frame.whiteBalanceKelvinText.ifBlank { "AUTO" }, beforeGap = labelValueGap)
                 ))
+            }
+
+            val proHudOrder = listOf("shutter", "aperture", "focus", "iso", "white-balance", "ev", "mode")
+            groups.sortBy { group ->
+                proHudOrder.indexOf(group.id).let { if (it < 0) Int.MAX_VALUE else it }
             }
 
             fun partWidth(part: Part, shrink: Float): Float {

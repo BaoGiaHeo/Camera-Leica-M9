@@ -25,7 +25,8 @@ class PixelOsdGeometryTest {
                 showProWhiteBalance = true,
                 evDisplayIndex = 1f,
                 evStepStops = 1f / 3f,
-                whiteBalanceText = "5500K",
+                whiteBalanceText = "AUTO",
+                whiteBalanceKelvinText = "5500K",
                 showProShutter = true,
                 showProIso = true,
                 showProFocus = true

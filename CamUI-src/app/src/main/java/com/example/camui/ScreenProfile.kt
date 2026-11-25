@@ -63,7 +63,7 @@ internal data class ScreenProfile(
         return ScreenLayoutMetrics(
             topPlateHeight = (safeHeight * 0.105f).coerceIn(40f, 52f).dp,
             leftColumnWidth = (safeWidth * 0.075f).coerceIn(54f, 70f).dp,
-            rightColumnWidth = (safeWidth * 0.285f).coerceIn(188f, 232f).dp,
+            rightColumnWidth = (safeWidth * 0.34f).coerceIn(260f, 310f).dp,
             proControlHeight = (safeHeight * 0.12f).coerceIn(64f, 92f).dp
         )
     }

@@ -159,6 +159,7 @@ import androidx.compose.ui.geometry.Size as DrawSize
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -6928,77 +6929,138 @@ fun CameraScreen(
             dialCameraReportedMaximum,
             Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
         )
-
         val wZoomDirection = if (zoomButtonsSwapped) 1 else -1
         val tZoomDirection = -wZoomDirection
-
-        val activeDialSelection = proSel
-        val commandValue = evText
         Column(
-            sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 3.dp, vertical = 7.dp),
+            sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 4.dp, vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                FujiKey(if (flash == ImageCapture.FLASH_MODE_ON) "FLASH ON" else "FLASH",
-                    onClick = { flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF },
-                    modifier = Modifier.weight(1f))
-                FujiKey(if (timerSec == 0) "DRIVE" else "TIMER $timerSec",
+                FujiKey(
+                    if (timerSec == 0) "TIMER" else "TIMER $timerSec",
                     onClick = { timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 } },
-                    modifier = Modifier.weight(1f))
+                    modifier = Modifier.weight(1f)
+                )
+                FujiKey(
+                    if (flash == ImageCapture.FLASH_MODE_ON) "FLASH ON" else "FLASH",
+                    onClick = { flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF },
+                    modifier = Modifier.weight(1f)
+                )
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    FujiKey(
-                        "W",
-                        onClick = { animateZoomTo((zoomSel + wZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
-                        modifier = Modifier.weight(1f),
-                        enabled = zoomStateForDial != null && if (wZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
-                        onPressStart = {
-                            CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START")
-                            CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
-                            CameraSoundEngine.play(context, CameraSoundEngine.Sound.UI_CLICK)
-                            zoomHoldDirection = wZoomDirection
-                        },
-                        onPressEnd = {
-                            zoomHoldDirection = 0
-                            CameraSoundEngine.stopZoomMotor()
-                            CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
-                            appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
-                            android.util.Log.d("FUJI_ZOOM", "PRESS_END key=W direction=${if (wZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
+            val range = evRange
+            if (range != null && range.upper > range.lower) {
+                val span = (range.upper - range.lower).coerceAtLeast(1)
+                FujiScale(
+                    label = "EV",
+                    valueText = commandValue,
+                    position = ((evIndex - range.lower).toFloat() / span).coerceIn(0f, 1f),
+                    auto = !manualExposure,
+                    lowLabel = "%.1f".format(Locale.US, range.lower * evStep),
+                    highLabel = "%+.1f".format(Locale.US, range.upper * evStep),
+                    stepFraction = 1f / span,
+                    onPositionChange = { fraction ->
+                        val value = (range.lower + fraction * span).roundToInt().coerceIn(range.lower, range.upper)
+                        evIndex = value
+                        manualExposure = false
+                        camera?.let { active ->
+                            runCatching {
+                                applyAutoExposure(active)
+                                active.cameraControl.setExposureCompensationIndex(value)
+                            }
                         }
-                    )
-                    FujiKey(
-                        "T",
-                        onClick = { animateZoomTo((zoomSel + tZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
-                        modifier = Modifier.weight(1f),
-                        enabled = zoomStateForDial != null && if (tZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
-                        onPressStart = {
-                            CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START")
-                            CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
-                            CameraSoundEngine.play(context, CameraSoundEngine.Sound.UI_CLICK)
-                            zoomHoldDirection = tZoomDirection
-                        },
-                        onPressEnd = {
-                            zoomHoldDirection = 0
-                            CameraSoundEngine.stopZoomMotor()
-                            CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
-                            appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
-                            android.util.Log.d("FUJI_ZOOM", "PRESS_END key=T direction=${if (tZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
+                        appPrefs.edit().putInt("pro_ev_index", value).apply()
+                    },
+                    onBack = { proSel = null },
+                    onAuto = {
+                        evIndex = 0
+                        manualExposure = false
+                        camera?.let { active ->
+                            runCatching {
+                                applyAutoExposure(active)
+                                active.cameraControl.setExposureCompensationIndex(0)
+                            }
                         }
-                    )
-                }
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                        appPrefs.edit().putInt("pro_ev_index", 0).apply()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Text("EV —", color = FujiSkin.muted, fontSize = 8.sp)
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Column(
+                    Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Text(stringResource(if (wZoomDirection > 0) R.string.zoom_direction_in else R.string.zoom_direction_out), color = FujiSkin.muted, fontSize = 7.sp)
-                    Text(stringResource(if (tZoomDirection > 0) R.string.zoom_direction_in else R.string.zoom_direction_out), color = FujiSkin.muted, fontSize = 7.sp)
+                    Text("ZOOM", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        FujiKey(
+                            "W",
+                            onClick = { animateZoomTo((zoomSel + wZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
+                            modifier = Modifier.weight(1f),
+                            enabled = zoomStateForDial != null && if (wZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
+                            onPressStart = {
+                                CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START")
+                                CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
+                                CameraSoundEngine.play(context, CameraSoundEngine.Sound.UI_CLICK)
+                                zoomHoldDirection = wZoomDirection
+                            },
+                            onPressEnd = {
+                                zoomHoldDirection = 0
+                                CameraSoundEngine.stopZoomMotor()
+                                CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
+                                appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
+                                android.util.Log.d("FUJI_ZOOM", "PRESS_END key=W direction=${if (wZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
+                            }
+                        )
+                        FujiKey(
+                            "T",
+                            onClick = { animateZoomTo((zoomSel + tZoomDirection * 0.1f).coerceIn(dialZoomMinimum, dialZoomMaximum)) },
+                            modifier = Modifier.weight(1f),
+                            enabled = zoomStateForDial != null && if (tZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
+                            onPressStart = {
+                                CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START")
+                                CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
+                                CameraSoundEngine.play(context, CameraSoundEngine.Sound.UI_CLICK)
+                                zoomHoldDirection = tZoomDirection
+                            },
+                            onPressEnd = {
+                                zoomHoldDirection = 0
+                                CameraSoundEngine.stopZoomMotor()
+                                CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
+                                appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
+                                android.util.Log.d("FUJI_ZOOM", "PRESS_END key=T direction=${if (tZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
+                            }
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        Text(stringResource(if (wZoomDirection > 0) R.string.zoom_direction_in else R.string.zoom_direction_out), color = FujiSkin.muted, fontSize = 7.sp)
+                        Text(stringResource(if (tZoomDirection > 0) R.string.zoom_direction_in else R.string.zoom_direction_out), color = FujiSkin.muted, fontSize = 7.sp)
+                    }
                 }
-                Text("ZOOM", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Column(Modifier.width(88.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FujiKey(
+                        if (focusLocked) "AF LOCKED" else "AF LOCK",
+                        onClick = {
+                            camera?.let { active ->
+                                if (focusLocked) {
+                                    invalidatePendingFocusLock(active)
+                                    runCatching { active.cameraControl.cancelFocusAndMetering() }
+                                    applyCameraAeLock(active, locked = false)
+                                    focusLocked = false
+                                } else focusLocked = applyCameraAeLock(active, locked = true)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    FujiKey("MENU", onClick = onOpenSettings, modifier = Modifier.fillMaxWidth())
+                }
             }
             FujiShutterButton(
                 enabled = !isProcessing,
@@ -7011,108 +7073,28 @@ fun CameraScreen(
                     }
                 },
                 onCapture = { takePhoto() },
-                modifier = Modifier.size(74.dp)
+                modifier = Modifier.size(84.dp)
             ) {
                 if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
                     FujiIconGlyph("close", Modifier.size(25.dp), Color.White)
                 } else if (shutterButtonBitmap != null) {
-                    Image(
-                        shutterButtonBitmap!!,
-                        "Custom shutter button",
-                        Modifier.fillMaxSize().clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
+                    Image(shutterButtonBitmap!!, "Custom shutter button",
+                        Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                 }
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FujiKey("−", onClick = {
-                    val active = camera
-                    val range = evRange
-                    if (active != null && range != null) {
-                        val next = (evIndex - 1).coerceIn(range.lower, range.upper)
-                        evIndex = next
-                        manualExposure = false
-                        runCatching { active.cameraControl.setExposureCompensationIndex(next) }
-                        android.util.Log.d("FUJI_EV", "TAP direction=DOWN index=$next")
-                    }
-                }, modifier = Modifier.weight(1f),
-                    onPressStart = { CrashContextDiagnostics.recordUiEvent("EV_MINUS_PRESS_START"); evHoldDirection = -1 },
-                    onPressEnd = {
-                        evHoldDirection = 0
-                        CrashContextDiagnostics.recordUiEvent("EV_MINUS_PRESS_END index=$evIndex")
-                        appPrefs.edit().putInt("pro_ev_index", evIndex).apply()
-                        android.util.Log.d("FUJI_EV", "PRESS_END direction=DOWN index=$evIndex")
-                    })
-                Column(Modifier.weight(1.3f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        commandValue,
-                        color = FujiSkin.lcdGreen,
-                        fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                    Text(
-                        "EV",
-                        color = FujiSkin.ivory,
-                        fontSize = 7.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.7.sp
-                    )
-                }
-                FujiKey("+", onClick = {
-                    val active = camera
-                    val range = evRange
-                    if (active != null && range != null) {
-                        val next = (evIndex + 1).coerceIn(range.lower, range.upper)
-                        evIndex = next
-                        manualExposure = false
-                        runCatching { active.cameraControl.setExposureCompensationIndex(next) }
-                        android.util.Log.d("FUJI_EV", "TAP direction=UP index=$next")
-                    }
-                }, modifier = Modifier.weight(1f),
-                    onPressStart = { CrashContextDiagnostics.recordUiEvent("EV_PLUS_PRESS_START"); evHoldDirection = 1 },
-                    onPressEnd = {
-                        evHoldDirection = 0
-                        CrashContextDiagnostics.recordUiEvent("EV_PLUS_PRESS_END index=$evIndex")
-                        appPrefs.edit().putInt("pro_ev_index", evIndex).apply()
-                        android.util.Log.d("FUJI_EV", "PRESS_END direction=UP index=$evIndex")
-                    })
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FujiKey("SWAP", onClick = { front = !front; manualFocus = 0f }, modifier = Modifier.weight(0.75f))
                 FujiKey(
-                    if (focusLocked) "AF-L ON" else "AF LOCK",
+                    "DISP/BACK · ${stringResource(lcdDisplayMode.labelResource)}",
                     onClick = {
-                        camera?.let { active ->
-                            if (focusLocked) {
-                                invalidatePendingFocusLock(active)
-                                runCatching { active.cameraControl.cancelFocusAndMetering() }
-                                applyCameraAeLock(active, locked = false)
-                                focusLocked = false
-                            } else {
-                                focusLocked = applyCameraAeLock(active, locked = true)
-                            }
-                        }
+                        if (proSel != null && mode == "Pro") {
+                            android.util.Log.i("FUJI_PRO_SCALE", "BACK source=DISP selected=$proSel")
+                            proSel = null
+                        } else cycleDispDisplayMode()
                     },
-                    modifier = Modifier.weight(1.2f)
+                    modifier = Modifier.weight(1.65f)
                 )
-                FujiKey("MENU", onClick = onOpenSettings, modifier = Modifier.weight(0.8f))
-                FujiKey("SWAP", onClick = { front = !front; manualFocus = 0f }, modifier = Modifier.weight(0.8f))
             }
-            FujiKey(
-                "DISP/BACK · ${stringResource(lcdDisplayMode.labelResource)}",
-                onClick = {
-                    if (proSel != null && mode == "Pro") {
-                        android.util.Log.i("FUJI_PRO_SCALE", "BACK source=DISP selected=$proSel")
-                        proSel = null
-                    } else cycleDispDisplayMode()
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
-            )
         }
     }
 
@@ -7714,7 +7696,7 @@ private fun FilterLookDialog(
                             .animaTClickable { onSelectFilter(preset) }.padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(Modifier.width(106.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp))
+                        Box(Modifier.width(62.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp))
                             .background(Color(0xFF070909))
                             .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
                             Row(Modifier.fillMaxSize().padding(horizontal = 3.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -7769,82 +7751,78 @@ private fun FilterLookDialog(
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        FujiPanel(
-            title = stringResource(R.string.film_filters_title),
-            modifier = Modifier.fillMaxWidth(0.97f)
-                .then(if (isLandscape) Modifier.fillMaxHeight(0.94f) else Modifier.heightIn(max = dialogMaxHeight)),
-            onBack = onDismiss
-        ) {
-            if (isLandscape) {
-                Row(
-                    Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+        if (isLandscape) {
+            var palettePoint by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
+            Box(Modifier.fillMaxSize().padding(end = 12.dp, top = 10.dp, bottom = 10.dp), contentAlignment = Alignment.CenterEnd) {
+                Column(
+                    Modifier.width(206.dp).fillMaxHeight().clip(RoundedCornerShape(26.dp))
+                        .background(Color(0xF50A0C0D)).border(1.dp, Color(0xFF465054), RoundedCornerShape(26.dp))
+                        .padding(horizontal = 9.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Column(
-                        Modifier.weight(0.88f).fillMaxHeight(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Column(
-                            Modifier.weight(1f).fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                if (showingOriginal || activeFilter == "None") {
-                                    stringResource(R.string.filter_preview_original)
-                                } else {
-                                    stringResource(R.string.filter_preview_name, activeFilterName)
-                                },
-                                color = FujiSkin.lcdGreen,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1
-                            )
-                            previewPane(Modifier.weight(1f).fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("FILM ROLL", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text("×", color = Color.White, fontSize = 20.sp,
+                            modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp))
+                    }
+                    searchPane(Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        lookCategories.forEach { category ->
+                            val label = category.labelResource?.let { stringResource(it) } ?: category.customLabel.orEmpty()
+                            FujiChip(label, selectedLookCategory == category.id, { selectedLookCategory = category.id })
                         }
                     }
+                    Text(
+                        stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
+                        color = FujiSkin.lcdGreen, fontSize = 7.sp
+                    )
+                    presetGrid(Modifier.weight(1f).fillMaxWidth())
                     Column(
-                        Modifier.weight(1.12f).fillMaxHeight(),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
+                            .background(Color(0xFF25292A)).padding(6.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
-                            Modifier.weight(1f).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Text("TONE / BRIGHTNESS", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+                        Box(
+                            Modifier.fillMaxWidth().height(84.dp).clip(RoundedCornerShape(7.dp))
+                                .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
                         ) {
-                            Column(
-                                Modifier.weight(0.34f).fillMaxHeight(),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    "CATEGORIES",
-                                    color = FujiSkin.lcdGreen,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.8.sp
-                                )
-                                categoryPane(Modifier.weight(1f).fillMaxWidth())
+                            Canvas(Modifier.fillMaxSize()) {
+                                drawRect(Brush.horizontalGradient(listOf(Color.White, Color(0xFFB8B8B8), Color(0xFF333638))))
+                                drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+                                val center = Offset(size.width * palettePoint.x, size.height * palettePoint.y)
+                                drawCircle(Color.White, 6.dp.toPx(), center)
+                                drawCircle(Color.Black, 8.dp.toPx(), center, style = Stroke(1.dp.toPx()))
                             }
-                            Column(
-                                Modifier.weight(0.66f).fillMaxHeight(),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                searchPane(Modifier)
-                                Text(
-                                    stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
-                                    color = FujiSkin.lcdGreen,
-                                    fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
-                                    fontSize = 9.sp
-                                )
-                                presetGrid(Modifier.weight(1f).fillMaxWidth())
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("SÁNG", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                            Text("NHẠT", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                            Text("ĐẬM", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                            Text("TỐI", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Palette: 100%", color = Color(0xFFD4D7D8), fontSize = 7.sp)
+                            Spacer(Modifier.weight(1f))
+                            Canvas(Modifier.width(78.dp).height(12.dp)) {
+                                drawLine(Color(0xFFBFC3C4), Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), 2.dp.toPx())
+                                drawCircle(Color.White, 5.dp.toPx(), Offset(size.width - 5.dp.toPx(), size.height / 2f))
                             }
                         }
                     }
+                    Text(if (showingOriginal) "ORIGINAL" else activeFilterName, color = FujiSkin.lcdGreen, fontSize = 7.sp, maxLines = 1)
                 }
-            } else {
+            }
+        } else {
+            FujiPanel(
+                title = stringResource(R.string.film_filters_title),
+                modifier = Modifier.fillMaxWidth(0.97f).heightIn(max = dialogMaxHeight),
+                onBack = onDismiss
+            ) {
                 Text(
                     if (activeFilter == "None") stringResource(R.string.filter_preview_original) else stringResource(R.string.filter_preview_name, activeFilterName),
-                    color = FujiSkin.lcdGreen,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 5.dp)
                 )
                 previewPane(Modifier.fillMaxWidth().height(140.dp))
@@ -7855,9 +7833,10 @@ private fun FilterLookDialog(
             }
         }
     }
+
 }
 
-// Filter groups include the original brand/film looks which were previously hidden
+ which were previously hidden
 // when the picker was flattened into a single "Bộ lọc" category.
 private data class CameraLookGroup(
     val id: String,

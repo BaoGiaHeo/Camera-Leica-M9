@@ -15,7 +15,7 @@ class ScreenProfileLayoutTest {
         ).layoutFor()
         assertEquals(41.23f, compact.topPlateHeight.value, 0.1f)
         assertTrue(compact.leftColumnWidth.value in 54f..70f)
-        assertTrue(compact.rightColumnWidth.value in 188f..232f)
+        assertTrue(compact.rightColumnWidth.value in 260f..310f)
         assertTrue(compact.proControlHeight.value >= 64f)
     }
 
@@ -29,7 +29,7 @@ class ScreenProfileLayoutTest {
         ).layoutFor(1600f, 900f)
         assertEquals(52f, profile.topPlateHeight.value, 0.001f)
         assertEquals(70f, profile.leftColumnWidth.value, 0.001f)
-        assertEquals(232f, profile.rightColumnWidth.value, 0.001f)
+        assertEquals(310f, profile.rightColumnWidth.value, 0.001f)
         assertEquals(92f, profile.proControlHeight.value, 0.001f)
     }
 

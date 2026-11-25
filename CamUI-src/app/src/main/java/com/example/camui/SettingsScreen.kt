@@ -112,7 +112,7 @@ fun SettingsScreen(
     ) {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Column(
-                Modifier.width(126.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp))
+                Modifier.width(72.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp))
                     .background(Color(0xFF101416)).border(1.dp, Color(0xFF3E484B), RoundedCornerShape(4.dp))
                     .verticalScroll(rememberScrollState()).padding(vertical = 5.dp, horizontal = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -130,9 +130,9 @@ fun SettingsScreen(
                     ) {
                         Box(Modifier.width(3.dp).fillMaxHeight().background(if (selected) FujiSkin.orange else Color.Transparent))
                         FujiIconGlyph(item.icon, Modifier.size(17.dp), if (selected) FujiSkin.orange else FujiSkin.muted)
-                        Text(stringResource(item.titleResource), color = if (selected) Color.White else Color(0xFFB4BBBD),
-                            fontSize = 8.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            maxLines = 2, modifier = Modifier.weight(1f).padding(end = 3.dp))
+                        Text(item.title.take(2).uppercase(), color = if (selected) Color.White else Color(0xFFB4BBBD),
+                            fontSize = 6.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                            modifier = Modifier.weight(1f).padding(end = 2.dp))
                     }
                 }
             }

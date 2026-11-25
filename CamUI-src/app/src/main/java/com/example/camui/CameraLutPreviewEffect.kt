@@ -298,7 +298,8 @@ internal object CameraLutPreviewEffect {
         context: Context,
         view: View,
         preset: String,
-        prepared: PreparedEffect?
+        prepared: PreparedEffect?,
+        baseEffect: RenderEffect? = null
     ): String {
         if (Build.VERSION.SDK_INT < 33) {
             clear(view)
@@ -314,21 +315,18 @@ internal object CameraLutPreviewEffect {
         }
         updateRecipeUniforms(context, effect.shader)
         val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
-        val currentEffect = view.renderEffect
         val state = synchronized(viewEffects) {
             val existing = viewEffects[view]
             if (existing == null) {
-                ViewEffectState(baseEffect = currentEffect, appliedEffect = null).also {
+                ViewEffectState(baseEffect = baseEffect, appliedEffect = null).also {
                     viewEffects[view] = it
                 }
             } else {
-                // DigitalZoomPreviewEffect can replace/clear its own RenderEffect between
-                // zoom gestures. Treat that new value as the base before chaining the LUT.
-                if (currentEffect !== existing.appliedEffect) existing.baseEffect = currentEffect
+                existing.baseEffect = baseEffect
                 existing
             }
         }
-        val composed = state.baseEffect?.let { base ->
+        val composed = baseEffect?.let { base ->
             RenderEffect.createChainEffect(lutEffect, base)
         } ?: lutEffect
         state.appliedEffect = composed
@@ -341,8 +339,8 @@ internal object CameraLutPreviewEffect {
     @Synchronized
     fun updateRecipe(context: Context, view: View, preset: String) {
         if (Build.VERSION.SDK_INT < 33) return
-        val prepared = preparedCache[preset]
-            ?: if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null
+        val prepared = (preparedCache[preset]
+            ?: (if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null))
             ?: return
         if (viewEffects[view]?.appliedEffect == null) {
             install(context, view, preset, prepared)

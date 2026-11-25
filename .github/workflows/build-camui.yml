@@ -65,13 +65,12 @@ jobs:
           sdkmanager --install "cmdline-tools;latest" --channel=3
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
 
-      - name: Cold-start smoke test on Android 17 emulator
+      - name: Cold-start smoke test on Android 15 emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
           ANDROID_I_WANT_MY_TCG: "yes"
         with:
-          # Use a stable Android 15 Google APIs image; the Android 17 Preview
-          # image booted but its Settings/ADB service disconnected before tests.
+          # Android 15 stable image is used for repeatable cold-start checks.
           api-level: "35"
           target: google_apis
           channel: stable
@@ -79,8 +78,7 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect
           emulator-boot-timeout: 600
-          script: |
-            script: bash .github/scripts/camui-emulator-smoke-test.sh
+          script: bash .github/scripts/camui-emulator-smoke-test.sh
 
       - name: Upload emulator inspection
         if: always()
@@ -89,4 +87,3 @@ jobs:
           name: emulator-inspection
           path: emulator-artifacts/
           if-no-files-found: warn
-

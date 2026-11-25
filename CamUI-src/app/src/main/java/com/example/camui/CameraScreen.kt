@@ -4208,7 +4208,7 @@ fun CameraScreen(
                 )
                 localizedToast(
                     context,
-                    "LunaDream cần Photo/JPEG; RawDream 2.0 cần RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing.",
+                    "LunaDream cần Photo hoặc Pro ở định dạng JPEG; RawDream 2.0 cần Photo và RAW + JPEG được camera hỗ trợ. Hãy tắt Ultra HDR, Burst và Bracketing.",
                     Toast.LENGTH_LONG
                 ).show()
                 return@launch

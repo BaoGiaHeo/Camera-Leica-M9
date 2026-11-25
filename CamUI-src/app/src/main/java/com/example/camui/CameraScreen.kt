@@ -1469,10 +1469,6 @@ fun CameraScreen(
         // continuous camera command loop until the shared hold threshold elapses.
         delay(FUJI_KEY_HOLD_THRESHOLD_MS)
         if (zoomHoldDirection != direction) return@LaunchedEffect
-        if (appPrefs.getBoolean("dial_click_enabled", true)) {
-            CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
-            CameraSoundEngine.startZoomMotor(context, direction)
-        }
         var lastZoomFuture: com.google.common.util.concurrent.ListenableFuture<*>? = null
         var targetZoom = zoomSel
         var previousFrame = 0L
@@ -1487,7 +1483,6 @@ fun CameraScreen(
                 ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, 0.05f)
             previousFrame = frame
             if (dt <= 0f) continue
-            CameraSoundEngine.updateZoomMotorSpeed((dt * 20f).coerceIn(0.15f, 1f))
             zoomFrameIndex++
             val state = active.cameraInfo.zoomState.value ?: continue
             val minimum = state.minZoomRatio
@@ -1508,9 +1503,6 @@ fun CameraScreen(
             )
             if (kotlin.math.abs(next - targetZoom) > 0.0005f) {
                 val crossedZoomMilestones = zoomHapticMilestonesCrossed(targetZoom, next)
-                if (appPrefs.getBoolean("dial_click_enabled", true) && crossedZoomMilestones.isNotEmpty()) {
-                    CameraSoundEngine.play(context, CameraSoundEngine.Sound.ZOOM_TICK)
-                }
                 if (appPrefs.getBoolean("haptic_feedback_enabled", true)) {
                     crossedZoomMilestones.forEach { milestone ->
                         localView.performHapticFeedback(
@@ -7284,13 +7276,10 @@ fun CameraScreen(
                             enabled = zoomStateForDial != null && if (wZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
                             onPressStart = {
                                 CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_START")
-                                CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
-                                CameraSoundEngine.play(context, CameraSoundEngine.Sound.UI_CLICK)
                                 zoomHoldDirection = wZoomDirection
                             },
                             onPressEnd = {
                                 zoomHoldDirection = 0
-                                CameraSoundEngine.stopZoomMotor()
                                 CrashContextDiagnostics.recordUiEvent("ZOOM_W_PRESS_END ratio=$zoomSel")
                                 appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                                 android.util.Log.d("FUJI_ZOOM", "PRESS_END key=W direction=${if (wZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")
@@ -7303,13 +7292,10 @@ fun CameraScreen(
                             enabled = zoomStateForDial != null && if (tZoomDirection > 0) zoomSel < dialZoomMaximum - 0.001f else zoomSel > dialZoomMinimum + 0.001f,
                             onPressStart = {
                                 CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_START")
-                                CameraSoundEngine.configure(context, appPrefs.getInt("sound_master_volume", 85))
-                                CameraSoundEngine.play(context, CameraSoundEngine.Sound.UI_CLICK)
                                 zoomHoldDirection = tZoomDirection
                             },
                             onPressEnd = {
                                 zoomHoldDirection = 0
-                                CameraSoundEngine.stopZoomMotor()
                                 CrashContextDiagnostics.recordUiEvent("ZOOM_T_PRESS_END ratio=$zoomSel")
                                 appPrefs.edit().putFloat("camera_zoom_ratio", zoomSel).apply()
                                 android.util.Log.d("FUJI_ZOOM", "PRESS_END key=T direction=${if (tZoomDirection > 0) "IN" else "OUT"} zoom=$zoomSel")

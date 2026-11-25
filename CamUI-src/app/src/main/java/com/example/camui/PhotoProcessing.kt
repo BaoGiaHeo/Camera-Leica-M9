@@ -124,7 +124,9 @@ fun applySoftwarePhotoEnhancement(
             }
         }
 
+// JPEG_INTERMEDIATE_ALLOWLIST: PhotoProcessing output is an intermediate processing result; final capture publication is owned by WatermarkFinalizer.
         val written = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+// JPEG_INTERMEDIATE_ALLOWLIST: PhotoProcessing output is an intermediate processing result; final capture publication is owned by WatermarkFinalizer.
             working.compress(Bitmap.CompressFormat.JPEG, 98, output)
         } ?: false
         if (!written) return@runCatching false

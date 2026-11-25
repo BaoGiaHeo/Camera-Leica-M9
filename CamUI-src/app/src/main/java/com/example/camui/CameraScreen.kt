@@ -3527,6 +3527,9 @@ fun CameraScreen(
                             if (unfilteredPreview != null) {
                                 withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                             }
+                            val exportStageDurations = linkedMapOf<String, Long>()
+                            val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
+                            val watermarkStartedAtMs = SystemClock.elapsedRealtime()
                             val stamped = runCatching {
                                 applyCameraWatermark(
                                     context,
@@ -3537,12 +3540,45 @@ fun CameraScreen(
                                         Locale.US, effectiveExposureNs / 1_000_000_000.0
                                     ) else "AUTO",
                                     if (manualSensorSupported) effectiveIso.toString() else "AUTO",
-                                    preservePhotoAspectRatio = true
+                                    preservePhotoAspectRatio = true,
+                                    onStageDuration = { stage, duration ->
+                                        exportStageDurations[stage] = duration
+                                    }
                                 )
+                            }.onFailure {
+                                android.util.Log.e("FUJI_STAR_TRAILS", "Final filter/watermark export failed", it)
                             }.getOrDefault(false)
+                            val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
                             val metadata = runCatching {
                                 finalizeCapturedImageMetadata(context, starUri)
+                            }.onFailure {
+                                android.util.Log.w("FUJI_STAR_TRAILS", "Metadata finalization failed", it)
                             }.getOrDefault(false)
+                            val dimensions = CaptureDiagnostics.readImageDimensions(context, starUri)
+                            val runtime = Runtime.getRuntime()
+                            val sampledHeapBytes = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+                            CaptureDiagnostics.record(
+                                context,
+                                CaptureDiagnosticEntry(
+                                    timestamp = System.currentTimeMillis(),
+                                    mode = "Star Trails",
+                                    filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
+                                    watermarkEnabled = watermarkWasRequested,
+                                    watermarkPrinted = watermarkWasRequested && stamped,
+                                    outputWidth = dimensions.first,
+                                    outputHeight = dimensions.second,
+                                    stageTimesMs = mapOf(
+                                        "Chụp" to -1L,
+                                        "Ghép" to -1L,
+                                        "Nâng" to -1L,
+                                        "Bộ lọc" to (exportStageDurations["Bộ lọc"] ?: -1L),
+                                        "Watermark" to (exportStageDurations["Watermark"] ?: watermarkDurationMs),
+                                        "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
+                                        "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
+                                    ),
+                                    peakMemoryBytes = sampledHeapBytes
+                                )
+                            )
                             listOf(stamped, metadata)
                         }
                         val previewThumb = withContext(Dispatchers.IO) {
@@ -3931,7 +3967,12 @@ fun CameraScreen(
                     burstCaptureActive = false
                     burstStopRequested = false
                 }
-                for ((index, burstUri) in burstSavedUris.withIndex()) {
+                if (burstSavedUris.isNotEmpty()) {
+                    isProcessing = true
+                    processingProgress = 0
+                    processingLabel = "Đang áp bộ lọc và watermark cho Burst"
+                    try {
+                    for ((index, burstUri) in burstSavedUris.withIndex()) {
                     val exportStageDurations = linkedMapOf<String, Long>()
                     val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
                     val watermarkStartedAtMs = SystemClock.elapsedRealtime()
@@ -4005,6 +4046,13 @@ fun CameraScreen(
                         )
                     )
                     lastSuccessfulUri = burstUri
+                    processingProgress = ((index + 1) * 100 / burstSavedUris.size).coerceIn(0, 100)
+                }
+                    }
+                } finally {
+                    isProcessing = false
+                    processingProgress = 0
+                    processingLabel = ""
                 }
                 if (lastSuccessfulUri != null) {
                     lastUri = lastSuccessfulUri

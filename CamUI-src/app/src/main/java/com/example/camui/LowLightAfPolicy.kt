@@ -46,3 +46,24 @@ internal fun lowLightLuminanceSceneChanged(
 ): Boolean = lowLight && currentLuma.isFinite() &&
     (!previousAfLuma.isFinite() ||
         kotlin.math.abs(currentLuma - previousAfLuma) >= Tuning.LOW_LIGHT_SCENE_CHANGE_LUMA)
+
+/**
+ * Returns true when measured angular velocity indicates deliberate device motion.
+ * Devices without a gyroscope, or invalid samples, simply report no gyro trigger.
+ */
+internal fun lowLightAfGyroMotionDetected(
+    xRadiansPerSecond: Float,
+    yRadiansPerSecond: Float,
+    zRadiansPerSecond: Float,
+    thresholdRadiansPerSecond: Float = Tuning.LOW_LIGHT_AF_GYRO_THRESHOLD_RAD_S
+): Boolean {
+    if (!xRadiansPerSecond.isFinite() || !yRadiansPerSecond.isFinite() ||
+        !zRadiansPerSecond.isFinite() || !thresholdRadiansPerSecond.isFinite() ||
+        thresholdRadiansPerSecond <= 0f
+    ) return false
+    val magnitudeSquared =
+        xRadiansPerSecond * xRadiansPerSecond +
+            yRadiansPerSecond * yRadiansPerSecond +
+            zRadiansPerSecond * zRadiansPerSecond
+    return magnitudeSquared >= thresholdRadiansPerSecond * thresholdRadiansPerSecond
+}

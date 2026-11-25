@@ -192,12 +192,12 @@ internal object PixelOsdLayoutEngine {
             } else ""
             val batteryWidth = if (batteryLabel.isNotBlank()) snapGrid(unit * 1.9f) else 0f
             val batteryTextWidth = if (batteryLabel.isNotBlank()) {
-                measureTextWidthPx(batteryLabel, t1).coerceAtLeast(1f)
+                ceil(measureTextWidthPx(batteryLabel, t1)).coerceAtLeast(1f)
             } else 0f
-            val wbWidth = measureTextWidthPx(wbLabel, t2).coerceAtLeast(1f)
-            val fWidth = measureTextWidthPx("F", t1).coerceAtLeast(1f)
+            val wbWidth = ceil(measureTextWidthPx(wbLabel, t2)).coerceAtLeast(1f)
+            val fWidth = ceil(measureTextWidthPx("F", t1)).coerceAtLeast(1f)
             val sizeLabel = frame.outputSizeLabel.ifBlank { "L" }.take(1)
-            val sizeWidth = measureTextWidthPx(sizeLabel, t1).coerceAtLeast(1f)
+            val sizeWidth = ceil(measureTextWidthPx(sizeLabel, t1)).coerceAtLeast(1f)
             val total = fWidth + sizeWidth + wbWidth + groupGap * 2 +
                 if (batteryLabel.isNotBlank()) itemGap + batteryWidth + labelValueGap + batteryTextWidth else 0f
             var x = widthPx - margin - total
@@ -437,10 +437,10 @@ internal object PixelOsdLayoutEngine {
 
             fun partWidth(part: Part, shrink: Float): Float {
                 return when {
-                    part.text != null -> measureTextWidthPx(
+                    part.text != null -> ceil(measureTextWidthPx(
                         part.text,
                         (part.tier * shrink).roundToInt().coerceAtLeast(1)
-                    ).coerceAtLeast(1f)
+                    )).coerceAtLeast(1f)
                     part.sprite != null -> {
                         val rows = PixelOsdSprites.get(part.sprite) ?: return 0f
                         val h = snapGrid(t1 * shrink)

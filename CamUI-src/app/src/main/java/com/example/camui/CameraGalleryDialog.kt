@@ -77,7 +77,12 @@ internal fun CameraGalleryDialog(
             initialUri?.takeIf { it !in captured }?.let(::add)
             addAll(captured)
         }
-        selectedIndex = if (photos.isEmpty()) null else selectedIndex?.coerceIn(0, photos.lastIndex)
+        selectedIndex = if (photos.isEmpty()) {
+            null
+        } else {
+            initialUri?.let { uri -> photos.indexOf(uri).takeIf { it >= 0 } }
+                ?: selectedIndex?.coerceIn(0, photos.lastIndex)
+        }
         isLoading = false
     }
 

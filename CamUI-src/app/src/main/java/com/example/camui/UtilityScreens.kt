@@ -2742,18 +2742,36 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
             return@runCatching false
         }
         val estimatedPixels = sourceBounds.outWidth.toLong() * sourceBounds.outHeight.toLong()
-        val estimatedBytes = estimatedPixels * 2L // RGB_565 working bitmap
         val runtime = Runtime.getRuntime()
         val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
         val availableHeap = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
-        if (estimatedBytes + 64L * 1024L * 1024L > availableHeap) {
-            android.util.Log.w(
-                "FUJI_FILTER",
-                "Insufficient heap for full-resolution LUT processing: pixels=$estimatedPixels required=$estimatedBytes available=$availableHeap"
-            )
-            return@runCatching false
+        val reservedHeap = 64L * 1024L * 1024L
+        val rgb565Bytes = estimatedPixels * 2L
+        val argb8888Bytes = estimatedPixels * 4L
+        val bitmapConfig = when {
+            argb8888Bytes + reservedHeap <= availableHeap -> Bitmap.Config.ARGB_8888
+            rgb565Bytes + reservedHeap <= availableHeap -> Bitmap.Config.RGB_565
+            else -> {
+                android.util.Log.w(
+                    "FUJI_FILTER",
+                    "Insufficient heap for full-resolution LUT processing: pixels=$estimatedPixels " +
+                        "argbRequired=$argb8888Bytes rgb565Required=$rgb565Bytes available=$availableHeap"
+                )
+                return@runCatching false
+            }
         }
-        val bitmap = decodeWatermarkPixelBitmap(context, uri) ?: return@runCatching false
+        val bitmapOptions = BitmapFactory.Options().apply {
+            inPreferredConfig = bitmapConfig
+            inMutable = true
+            inDither = bitmapConfig == Bitmap.Config.RGB_565
+        }
+        val bitmap = context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, bitmapOptions)
+        } ?: return@runCatching false
+        android.util.Log.d(
+            "FUJI_FILTER",
+            "Processing LUT at " + sourceBounds.outWidth + "x" + sourceBounds.outHeight + " config=" + bitmapConfig
+        )
         try {
             if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
             val written = context.contentResolver.openOutputStream(uri, "wt")?.use {

@@ -123,6 +123,17 @@ class CubeLutParserTest {
     }
 
     @Test
+    fun classifiesChineseNamedCubeFilesIntoEnglishGroups() {
+        assertEquals("Hasselblad", catalogLutCategory("assets/film_sims/哈苏 经典.cube"))
+        assertEquals("Hasselblad", catalogLutCategory("assets/film_sims/哈苏 鲜艳.cube"))
+        assertEquals("Fujifilm", catalogLutCategory("assets/film_sims/富士 标准.cube"))
+        assertEquals("Fujifilm", catalogLutCategory("assets/film_sims/富士 经典正片.cube"))
+        assertEquals("Leica", catalogLutCategory("assets/film_sims/徕卡 CLS 胶片质感.cube"))
+        assertEquals("Kodak", catalogLutCategory("assets/film_sims/柯达 Ultramax 400.cube"))
+        assertEquals("Creative", catalogLutCategory("assets/film_sims/奶茶色静物.cube"))
+    }
+
+    @Test
     fun acceptsOneDimensionalCubeWithoutThreeDimensionalHeader() {
         val text = """
             TITLE "One dimensional identity"

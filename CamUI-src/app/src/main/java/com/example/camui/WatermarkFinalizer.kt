@@ -20,7 +20,8 @@ internal object WatermarkFinalizer {
         aperture: String,
         shutter: String,
         iso: String,
-        captureTimestampMillis: Long
+        captureTimestampMillis: Long,
+        onStageDuration: ((String, Long) -> Unit)? = null
     ): Boolean {
         val enabled = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
             .getBoolean("watermark_enabled", true)
@@ -40,7 +41,8 @@ internal object WatermarkFinalizer {
                 iso = iso,
                 preservePhotoAspectRatio = true,
                 applyFilter = true,
-                captureTimestampMillis = captureTimestampMillis
+                captureTimestampMillis = captureTimestampMillis,
+                onStageDuration = onStageDuration
             )
         }.onFailure {
             Log.e(TAG, "Watermark finalizer failed for $uri", it)

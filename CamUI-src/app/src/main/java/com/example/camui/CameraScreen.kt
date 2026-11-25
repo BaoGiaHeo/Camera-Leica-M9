@@ -118,6 +118,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
@@ -7086,13 +7087,16 @@ fun CameraScreen(
                 FujiKey(
                     if (focusLocked) "AF-L ON" else "AF LOCK",
                     onClick = {
-                        val active = camera ?: return@FujiKey
-                        if (focusLocked) {
-                            invalidatePendingFocusLock(active)
-                            runCatching { active.cameraControl.cancelFocusAndMetering() }
-                            applyCameraAeLock(active, locked = false)
-                            focusLocked = false
-                        } else focusLocked = applyCameraAeLock(active, locked = true)
+                        camera?.let { active ->
+                            if (focusLocked) {
+                                invalidatePendingFocusLock(active)
+                                runCatching { active.cameraControl.cancelFocusAndMetering() }
+                                applyCameraAeLock(active, locked = false)
+                                focusLocked = false
+                            } else {
+                                focusLocked = applyCameraAeLock(active, locked = true)
+                            }
+                        }
                     },
                     modifier = Modifier.weight(1.2f)
                 )

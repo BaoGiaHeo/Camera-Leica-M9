@@ -188,13 +188,47 @@ internal object CameraLutPreviewEffect {
     )
     private val viewEffects = WeakHashMap<View, ViewEffectState>()
 
+    private fun hasActiveColorRecipe(context: Context): Boolean {
+        val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        return kotlin.math.abs(preferences.getFloat("film_custom_highlight", 0f)) > 0.001f ||
+            kotlin.math.abs(preferences.getFloat("film_custom_shadow", 0f)) > 0.001f ||
+            preferences.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
+            preferences.getFloat("film_custom_grain", 0f) > 0.001f ||
+            kotlin.math.abs(preferences.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+            kotlin.math.abs(preferences.getFloat("film_custom_tone", 0f)) > 0.001f ||
+            kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
+            kotlin.math.abs(preferences.getFloat("film_custom_hue", 0f)) > 0.001f ||
+            kotlin.math.abs(preferences.getFloat("film_custom_lightness", 0f)) > 0.001f
+    }
+
+    private fun identityLut(): CubeLut {
+        val values = FloatArray(2 * 2 * 2 * 3)
+        var index = 0
+        for (red in 0..1) {
+            for (green in 0..1) {
+                for (blue in 0..1) {
+                    values[index++] = red.toFloat()
+                    values[index++] = green.toFloat()
+                    values[index++] = blue.toFloat()
+                }
+            }
+        }
+        return CubeLut(
+            size = 2,
+            domainMin = floatArrayOf(0f, 0f, 0f),
+            domainMax = floatArrayOf(1f, 1f, 1f),
+            values = values
+        )
+    }
+
     @Synchronized
     fun prepare(context: Context, preset: String): PreparedEffect? {
-        if (preset == "None" || preset.isBlank()) return null
+        if (preset.isBlank()) return null
         if (Build.VERSION.SDK_INT < 33) return null
+        if (preset == "None" && !hasActiveColorRecipe(context)) return null
         preparedCache[preset]?.let { return it }
 
-        val lut = readCameraLookLut(context, preset) ?: return null
+        val lut = if (preset == "None") identityLut() else readCameraLookLut(context, preset) ?: return null
         val size = lut.size
         if (size < 2) return null
 
@@ -256,7 +290,7 @@ internal object CameraLutPreviewEffect {
             clear(view)
             return "UNSUPPORTED_API_33_REQUIRED"
         }
-        if (preset == "None" || preset.isBlank()) {
+        if (preset.isBlank() || (preset == "None" && prepared == null)) {
             clear(view)
             return "OFF"
         }

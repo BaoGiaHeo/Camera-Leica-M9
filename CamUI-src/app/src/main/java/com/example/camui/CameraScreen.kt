@@ -6931,6 +6931,7 @@ fun CameraScreen(
         )
         val wZoomDirection = if (zoomButtonsSwapped) 1 else -1
         val tZoomDirection = -wZoomDirection
+        val commandValue = evText
         Column(
             sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 4.dp, vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -7836,7 +7837,7 @@ private fun FilterLookDialog(
 
 }
 
- which were previously hidden
+// Filter groups include the original brand/film looks which were previously hidden
 // when the picker was flattened into a single "Bộ lọc" category.
 private data class CameraLookGroup(
     val id: String,

@@ -4782,12 +4782,16 @@ fun CameraScreen(
                                     processingLabel = "Đang đóng watermark ở độ phân giải cuối"
                                     processingEtaSeconds = -1
                                 }
+                                val exportStageDurations = linkedMapOf<String, Long>()
                                 val watermarkStartedAtMs = SystemClock.elapsedRealtime()
                                 val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = true
+                                        preservePhotoAspectRatio = true,
+                                        onStageDuration = { stage, duration ->
+                                            exportStageDurations[stage] = duration
+                                        }
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
@@ -4855,10 +4859,10 @@ fun CameraScreen(
                                             "Chụp" to (callbackAtMs - captureRequestAtMs).coerceAtLeast(0L),
                                             "Ghép" to mergeDurationMs,
                                             "Nâng" to outputResolutionDurationMs,
-                                            "Bộ lọc" to -1L,
-                                            "Watermark" to watermarkDurationMs,
-                                            "Mã hóa" to -1L,
-                                            "Ghi file" to -1L
+                                            "Bộ lọc" to (exportStageDurations["Bộ lọc"] ?: -1L),
+                                            "Watermark" to (exportStageDurations["Watermark"] ?: watermarkDurationMs),
+                                            "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
+                                            "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                                         ),
                                         peakMemoryBytes = sampledUsedHeapBytes
                                     )

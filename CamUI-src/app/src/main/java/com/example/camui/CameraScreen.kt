@@ -1321,6 +1321,32 @@ fun CameraScreen(
     val lowLightDetectedState = rememberUpdatedState(lowLightDetected)
     val lowLightMeanLumaState = rememberUpdatedState(lowLightMeanLuma)
     val lowLightIsoState = rememberUpdatedState(lowLightIsoActive)
+
+    var lowLightGyroMoving by remember { mutableStateOf(false) }
+    val lowLightGyroMovingState = rememberUpdatedState(lowLightGyroMoving)
+    DisposableEffect(sensorManager) {
+        val gyroSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        if (sensorManager == null || gyroSensor == null) {
+            lowLightGyroMoving = false
+            onDispose { }
+        } else {
+            val listener = object : SensorEventListener {
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+
+                override fun onSensorChanged(event: SensorEvent?) {
+                    val sample = event ?: return
+                    val moving = lowLightAfGyroMotionDetected(
+                        sample.values.getOrElse(0) { Float.NaN },
+                        sample.values.getOrElse(1) { Float.NaN },
+                        sample.values.getOrElse(2) { Float.NaN }
+                    )
+                    if (moving != lowLightGyroMovingState.value) lowLightGyroMoving = moving
+                }
+            }
+            sensorManager.registerListener(listener, gyroSensor, SensorManager.SENSOR_DELAY_GAME)
+            onDispose { sensorManager.unregisterListener(listener) }
+        }
+    }
     var milkyWayStackEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("milky_way_stack_enabled", false))
     }
@@ -2022,7 +2048,8 @@ fun CameraScreen(
                         currentLuma,
                         lowLightAfActive
                     )
-                    if ((movedEnough || luminanceSceneChanged) &&
+                    val gyroMovementDetected = lowLightAfActive && lowLightGyroMovingState.value
+                    if ((movedEnough || luminanceSceneChanged || gyroMovementDetected) &&
                         now - lastFaceAfAtMs >= lowLightAfRetryIntervalMs(lowLightAfActive) &&
                         !focusLockedState.value && manualFocusState.value <= 0f && proAfModeState.value != "MF"
                     ) {
@@ -2048,7 +2075,8 @@ fun CameraScreen(
                                         "faceTargetDisplay=${focusTargetDisplay.x},${focusTargetDisplay.y} " +
                                             "cameraTarget=${focusTargetCamera.x},${focusTargetCamera.y} " +
                                             "digitalCrop=$digitalCropScale lowLight=$lowLightAfActive " +
-                                            "luma=$currentLuma retryMs=${lowLightAfRetryIntervalMs(lowLightAfActive)}"
+                                            "gyroMotion=$gyroMovementDetected luma=$currentLuma " +
+                                            "retryMs=${lowLightAfRetryIntervalMs(lowLightAfActive)}"
                                     )
                                     val action = FocusMeteringAction.Builder(
                                         point,

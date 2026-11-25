@@ -353,9 +353,9 @@ internal object CameraLutPreviewEffect {
         if (Build.VERSION.SDK_INT < 31) return
         val state = synchronized(viewEffects) { viewEffects.remove(view) }
         if (state != null) {
-            if (view.renderEffect === state.appliedEffect) {
-                view.setRenderEffect(state.baseEffect)
-            }
+            // View has no public RenderEffect getter. This effect owns the installed
+            // chain and restores the base effect explicitly supplied by the zoom renderer.
+            view.setRenderEffect(state.baseEffect)
         }
     }
 }

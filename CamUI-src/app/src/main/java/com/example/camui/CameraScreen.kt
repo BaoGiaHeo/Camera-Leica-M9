@@ -4070,8 +4070,10 @@ fun CameraScreen(
                 rawValues
             ).build()
             var activeLivePhotoRecording: Recording? = null
+            var captureRequestAtMs = SystemClock.elapsedRealtime()
             val imageSavedCallback = object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                        val callbackAtMs = SystemClock.elapsedRealtime()
                         val saved = result.savedUri
                         val isRawCallback = result.imageFormat == ImageFormat.RAW_SENSOR
                         if (isRawCallback && saved != null) {
@@ -4141,6 +4143,7 @@ fun CameraScreen(
                                 if (manualFocus > 0f) applyManualFocus(activeCamera, manualFocus)
                             }
                             LunaDreamProcessingScope.launch {
+                                val capturePipelineStartMs = SystemClock.elapsedRealtime()
                                 try {
                                 // Publish a small preview of the first valid JPEG immediately,
                                 // before multi-frame stacking, AI render, HDR or watermark work.
@@ -4162,6 +4165,7 @@ fun CameraScreen(
                                     "Initial capture thumbnail published=${initialThumbnail != null} uri=$saved before post-processing"
                                 )
                                 var nightShotMerged = false
+                                var mergeDurationMs = -1L
                                 var lunaDreamCapturedFrameCount = 0
                                 var lunaDreamFailureReason: String? = null
                                 var lunaDreamStackFallbackApplied = false
@@ -4379,6 +4383,7 @@ fun CameraScreen(
                                                     }
                                                     processingProgress = 27
                                                 }
+                                                val mergeStartedAtMs = SystemClock.elapsedRealtime()
                                                 nightShotMerged = NightShotProcessor.mergeFramesIntoUri(
                                                     context, stackedFrames, saved,
                                                     when {
@@ -4444,6 +4449,7 @@ fun CameraScreen(
                                                         )
                                                     }
                                                 }
+                                                mergeDurationMs = SystemClock.elapsedRealtime() - mergeStartedAtMs
                                                 if (!nightShotMerged && captureUseLunaDream20Stack) {
                                                     val failure = lunaDreamFailureReason
                                                         ?: "Selected LunaDream model returned no successful output"
@@ -4664,6 +4670,7 @@ fun CameraScreen(
                                 )
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
+                                val outputResolutionStartedAtMs = SystemClock.elapsedRealtime()
                                 val outputResolutionResult = if (
                                     !captureIsUltraHdr &&
                                     !captureRawOnly && (!captureRawPlus || captureUseRawDream20)
@@ -4712,6 +4719,8 @@ fun CameraScreen(
                                         }.getOrNull()
                                     }
                                 } else null
+                                val outputResolutionDurationMs =
+                                    SystemClock.elapsedRealtime() - outputResolutionStartedAtMs
                                 val outputResolutionApplied = outputResolutionResult != null
 
                                 if (captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied) {
@@ -4781,6 +4790,7 @@ fun CameraScreen(
                                         preservePhotoAspectRatio = true
                                     )
                                 }.getOrDefault(false)
+                                val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
 
                                 if (captureUseLunaDream && !lunaDreamApplied) {
                                     val reason = lunaDreamFailureReason
@@ -4812,6 +4822,47 @@ fun CameraScreen(
                                     if (captureIsUltraHdr) publishUltraHdrCapture(context, saved)
                                     else finalizeCapturedImageMetadata(context, saved)
                                 }.getOrDefault(false)
+                                val diagnosticDimensions = outputResolutionResult?.let {
+                                    it.width to it.height
+                                } ?: withContext(Dispatchers.IO) {
+                                    CaptureDiagnostics.readImageDimensions(context, saved)
+                                }
+                                val runtimeForDiagnostics = Runtime.getRuntime()
+                                val sampledUsedHeapBytes =
+                                    (runtimeForDiagnostics.totalMemory() - runtimeForDiagnostics.freeMemory()).coerceAtLeast(0L)
+                                val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
+                                val diagnosticMode = when {
+                                    captureUseLunaDream15 -> "LunaDream 1.5"
+                                    captureUseLunaDream20 -> "LunaDream 2.0"
+                                    captureUseLunaDream25 -> "LunaDream 2.5"
+                                    captureUseLunaDream30 -> "LunaDream 3.0"
+                                    captureUseRawDream20 -> "RawDream 2.0"
+                                    captureUseNightShot -> "Night Shot"
+                                    mode == "Pro" -> "Pro"
+                                    else -> "Thường"
+                                }
+                                CaptureDiagnostics.record(
+                                    context,
+                                    CaptureDiagnosticEntry(
+                                        timestamp = System.currentTimeMillis(),
+                                        mode = diagnosticMode,
+                                        filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
+                                        watermarkEnabled = watermarkWasRequested,
+                                        watermarkPrinted = watermarkWasRequested && stamped && !captureIsUltraHdr,
+                                        outputWidth = diagnosticDimensions.first,
+                                        outputHeight = diagnosticDimensions.second,
+                                        stageTimesMs = mapOf(
+                                            "Chụp" to (callbackAtMs - captureRequestAtMs).coerceAtLeast(0L),
+                                            "Ghép" to mergeDurationMs,
+                                            "Nâng" to outputResolutionDurationMs,
+                                            "Bộ lọc" to -1L,
+                                            "Watermark" to watermarkDurationMs,
+                                            "Mã hóa" to -1L,
+                                            "Ghi file" to -1L
+                                        ),
+                                        peakMemoryBytes = sampledUsedHeapBytes
+                                    )
+                                )
                                 val digitalXmpPublished = if (digitalZoomApplied) {
                                     DigitalZoomXmpWriter.writeDigitalZoom(
                                         context = context,
@@ -5143,6 +5194,7 @@ fun CameraScreen(
                     return@launch
                 }
             }
+            captureRequestAtMs = SystemClock.elapsedRealtime()
             if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
                 capture.takePicture(
                     rawOutput,

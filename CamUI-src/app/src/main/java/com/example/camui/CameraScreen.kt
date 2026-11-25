@@ -4945,7 +4945,7 @@ fun CameraScreen(
                                     withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                                 }
                                 val lookPrefs = appPrefs
-                                val lookApplied = !captureIsUltraHdr && (
+                                val lookRequested = !captureIsUltraHdr && !captureRawOnly && (
                                     (lookPrefs.getString("selected_filter", "None") ?: "None") != "None" ||
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_highlight", 0f)) > 0.001f ||
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_shadow", 0f)) > 0.001f ||
@@ -4953,7 +4953,9 @@ fun CameraScreen(
                                     lookPrefs.getFloat("film_custom_grain", 0f) > 0.001f ||
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
-                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_hue", 0f)) > 0.001f ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_lightness", 0f)) > 0.001f
                                 )
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
@@ -5053,6 +5055,21 @@ fun CameraScreen(
                                     }
                                 } else null
                                 val digitalZoomApplied = digitalZoomResult != null
+                                val lookApplied = if (lookRequested) {
+                                    withContext(Dispatchers.IO) {
+                                        runCatching { applyCameraLook(context, saved) }
+                                            .onFailure {
+                                                android.util.Log.e("FUJI_FILTER", "Final still-photo LUT processing failed", it)
+                                            }
+                                            .getOrDefault(false)
+                                    }
+                                } else false
+                                if (lookRequested && !lookApplied) {
+                                    android.util.Log.e(
+                                        "FUJI_FILTER",
+                                        "A filter or color adjustment was selected but could not be applied; original pixels were retained"
+                                    )
+                                }
                                 if (captureDigitalCropRatio > 1.001f && !digitalZoomApplied) {
                                     android.util.Log.e(
                                         "FUJI_DIGITAL_ZOOM",

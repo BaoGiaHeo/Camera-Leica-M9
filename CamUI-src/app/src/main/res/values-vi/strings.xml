@@ -198,8 +198,8 @@
     <string name="grid_color_auto">Tự động</string>
     <string name="grid_opacity_title">Độ trong suốt</string>
     <string name="sound_master_volume">ÂM LƯỢNG CHÍNH · %1$d%%</string>
-    <string name="sound_master_enabled">ÂM ĐỘNG CƠ ZOOM VÀ NẤC XOAY</string>
-    <string name="sound_zoom_description">Âm servo và tiếng nấc khi thao tác W/T. Tự tắt khi điện thoại ở chế độ im lặng.</string>
+    <string name="sound_master_enabled">ÂM THANH GIAO DIỆN</string>
+    <string name="sound_zoom_description">Zoom không phát âm thanh. Mục này chỉ điều chỉnh âm thanh phản hồi giao diện.</string>
     <string name="sound_shutter_title">Âm thanh màn trập</string>
     <string name="sound_shutter_description">Âm WAV màn trập cơ, dùng mức âm lượng chính.</string>
     <string name="sound_ui_title">Âm thanh giao diện cơ học</string>

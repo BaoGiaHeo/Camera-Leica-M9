@@ -15,6 +15,7 @@ internal object Tuning {
     const val LOW_LIGHT_LUMA_EXIT = 0.24f
     const val LOW_LIGHT_HYSTERESIS_MS = 1_200L
     const val LOW_LIGHT_SCENE_CHANGE_LUMA = 0.12f
+    const val LOW_LIGHT_AF_GYRO_THRESHOLD_RAD_S = 0.12f
     const val LOW_LIGHT_SCENE_CHANGE_GYRO_DEGREES = 2.5f
     const val AF_RETRY_MIN_INTERVAL_MS = 900L
     const val AF_TARGET_MOVE_THRESHOLD = 0.055f

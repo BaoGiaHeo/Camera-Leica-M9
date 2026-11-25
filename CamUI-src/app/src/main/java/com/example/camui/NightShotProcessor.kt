@@ -384,6 +384,16 @@ object NightShotProcessor {
         var alignmentReferenceState: AlignmentReferenceState? = null
         var publishing = false
         var currentStage = "initializing merge"
+        val stageWatchdog = if (mode == MergeMode.LUNA_DREAM_3_0) {
+            LunaDreamStageWatchdog(context, "LunaDream 3.0")
+        } else null
+        fun beginStage(name: String, budgetMs: Long) {
+            stageWatchdog?.beginStage(name, budgetMs)
+            currentStage = name
+        }
+        fun checkStageWatchdog() {
+            stageWatchdog?.checkpoint()
+        }
         if (isLunaDreamMerge) {
             LunaDreamDiagnostics.record(
                 context,
@@ -409,7 +419,7 @@ object NightShotProcessor {
             }
         } else null
         return try {
-            currentStage = "read first frame EXIF"
+            beginStage("đọc EXIF khung đầu", Tuning.LUNA_DREAM_30_EXIF_BUDGET_MS)
             val firstExif = readExif(frames.first())
             val stackPixelLimit = when (mode) {
                 MergeMode.HDR_BRACKET, MergeMode.FOCUS_STACK -> 16_000_000L
@@ -423,7 +433,7 @@ object NightShotProcessor {
             if (mode == MergeMode.LUNA_DREAM_3_0) {
                 Log.i(TAG, "LunaDream 3.0 stack memory policy: maxPixels=$stackPixelLimit; workers=${Tuning.LUNA_DREAM_30_WORKER_COUNT}")
             }
-            currentStage = "decode first frame"
+            beginStage("giải mã khung đầu", Tuning.LUNA_DREAM_30_DECODE_BUDGET_MS)
             val firstDecodeStartedAt = SystemClock.elapsedRealtime()
             base = decodeUpright(
                 frames.first(),
@@ -433,6 +443,7 @@ object NightShotProcessor {
                 mutable = isLunaDreamMerge
             ) ?: error("Could not decode first frame")
             decodeMs += SystemClock.elapsedRealtime() - firstDecodeStartedAt
+            checkStageWatchdog()
             val width = base!!.width
             val height = base!!.height
             val oldRow = IntArray(width)
@@ -454,6 +465,7 @@ object NightShotProcessor {
             }
             if (bestScores != null || exposureWeights != null) {
                 for (y in 0 until height) {
+                    if (y % 64 == 0) checkStageWatchdog()
                     base!!.getPixels(newRow, 0, width, 0, y, width, 1)
                     if (bestScores != null) {
                         base!!.getPixels(upperRow, 0, width, 0, (y - 1).coerceAtLeast(0), width, 1)
@@ -474,13 +486,14 @@ object NightShotProcessor {
 
             val totalMergedFrames = (frames.size - 1).coerceAtLeast(1)
             for (frameIndex in 1 until frames.size) {
-                currentStage = "decode frame ${frameIndex + 1}/${frames.size}"
+                beginStage("giải mã khung ${frameIndex + 1}/${frames.size}", Tuning.LUNA_DREAM_30_DECODE_BUDGET_MS)
                 val frameDecodeStartedAt = SystemClock.elapsedRealtime()
                 val current = decodeUpright(frames[frameIndex], width, height, stackPixelLimit)
                     ?: error("Could not decode frame " + (frameIndex + 1))
                 decodeMs += SystemClock.elapsedRealtime() - frameDecodeStartedAt
+                checkStageWatchdog()
                 try {
-                    currentStage = "align frame ${frameIndex + 1}/${frames.size}"
+                    beginStage("căn chỉnh khung ${frameIndex + 1}/${frames.size}", Tuning.LUNA_DREAM_30_ALIGN_BUDGET_MS)
                     val alignmentStartedAt = SystemClock.elapsedRealtime()
                     val shift = if (mode == MergeMode.STAR_TRAILS) {
                         // Star trails intentionally preserve each star's position over time.
@@ -491,13 +504,14 @@ object NightShotProcessor {
                         estimatePyramidalLucasKanade(alignmentReferenceState!!, current)
                     }
                     alignmentMs += SystemClock.elapsedRealtime() - alignmentStartedAt
+                    checkStageWatchdog()
                     val shiftX = shift.first.coerceIn(-width / 12, width / 12)
                     val shiftY = shift.second.coerceIn(-height / 12, height / 12)
                     if (mode != MergeMode.STAR_TRAILS && (shiftX != 0 || shiftY != 0)) {
                         Log.d(TAG, "Aligned frame ${frameIndex + 1} for $mode: dx=$shiftX dy=$shiftY")
                     }
 
-                    currentStage = "fuse frame ${frameIndex + 1}/${frames.size}"
+                    beginStage("ghép khung ${frameIndex + 1}/${frames.size}", Tuning.LUNA_DREAM_30_FUSION_BUDGET_MS)
                     val fusionStartedAt = SystemClock.elapsedRealtime()
                     if (isLunaDreamStackMode(mode)) {
                         fuseLunaDreamFrameParallel(
@@ -511,12 +525,14 @@ object NightShotProcessor {
                             totalMergedFrames,
                             lunaFusionExecutor ?: error("LunaDream fusion workers unavailable")
                         ) { frameProgress ->
+                            checkStageWatchdog()
                             runCatching { onProgress?.invoke(frameProgress) }
                         }
                     } else {
                         val progressRowInterval = (height / 8).coerceAtLeast(1)
                         for (y in 0 until height) {
                             if (y % progressRowInterval == 0) {
+                                checkStageWatchdog()
                                 val frameFraction = (frameIndex - 1 + y.toFloat() / height) /
                                     totalMergedFrames.toFloat()
                                 runCatching { onProgress?.invoke((5 + frameFraction * 90f).toInt()) }
@@ -649,12 +665,13 @@ object NightShotProcessor {
                         }
                     }
                     fusionMs += SystemClock.elapsedRealtime() - fusionStartedAt
+                    checkStageWatchdog()
                 } finally {
                     current.recycle()
                 }
             }
 
-            currentStage = "detail recovery and denoise"
+            beginStage("khử nhiễu và phục hồi chi tiết", Tuning.LUNA_DREAM_30_DETAIL_BUDGET_MS)
             if (mode == MergeMode.NIGHT_AVERAGE) {
                 // Lift dark mid-tones after motion-aware averaging, preserving bright star cores.
                 brightenNightResult(base!!)
@@ -681,12 +698,14 @@ object NightShotProcessor {
                     strength = 2,
                     workers = lunaFusionExecutor
                 ) { stageProgress ->
+                    checkStageWatchdog()
                     runCatching { onProgress?.invoke(90 + (stageProgress * 2 / 100)) }
                 }
                 applyLunaDream20DetailRecovery(
                     base!!,
                     workers = lunaFusionExecutor
                 ) { stageProgress ->
+                    checkStageWatchdog()
                     runCatching { onProgress?.invoke(92 + (stageProgress / 2)) }
                 }
                 when (mode) {
@@ -698,9 +717,10 @@ object NightShotProcessor {
                 }
                 detailRecoveryMs = SystemClock.elapsedRealtime() - detailStartedAt
             }
+            checkStageWatchdog()
 
             runCatching { onProgress?.invoke(96) }
-            currentStage = "encode merged JPEG"
+            beginStage("mã hóa JPEG ghép", Tuning.LUNA_DREAM_30_ENCODE_BUDGET_MS)
             val encodeStartedAt = SystemClock.elapsedRealtime()
 // JPEG_INTERMEDIATE_ALLOWLIST: frame/merge/backup/rollback JPEG is an internal processing stage; CameraScreen runs WatermarkFinalizer before publishing the final capture.
             FileOutputStream(tempOutput).use { output ->
@@ -713,7 +733,8 @@ object NightShotProcessor {
             }
             writeExif(tempOutput, firstExif)
             encodeMs = SystemClock.elapsedRealtime() - encodeStartedAt
-            currentStage = "publish merged JPEG to MediaStore"
+            checkStageWatchdog()
+            beginStage("ghi ảnh ghép vào MediaStore", Tuning.LUNA_DREAM_30_PUBLISH_BUDGET_MS)
             val publishStartedAt = SystemClock.elapsedRealtime()
             publishing = true
 // JPEG_INTERMEDIATE_ALLOWLIST: frame/merge/backup/rollback JPEG is an internal processing stage; CameraScreen runs WatermarkFinalizer before publishing the final capture.
@@ -721,7 +742,7 @@ object NightShotProcessor {
                 tempOutput.inputStream().use { input -> input.copyTo(output) }
                 output.flush()
             } ?: error("Could not write merged image to MediaStore")
-            currentStage = "verify published JPEG"
+            beginStage("xác minh JPEG sau ghi", Tuning.LUNA_DREAM_30_VERIFY_BUDGET_MS)
             val verification = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             val verificationReadable = context.contentResolver.openInputStream(destinationUri)?.use { input ->
                 BitmapFactory.decodeStream(input, null, verification)
@@ -730,6 +751,7 @@ object NightShotProcessor {
             check(verificationReadable && verification.outWidth >= 3 && verification.outHeight >= 3) {
                 "Merged output could not be reopened as a valid JPEG"
             }
+            checkStageWatchdog()
             context.contentResolver.update(
                 destinationUri,
                 ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
@@ -738,8 +760,10 @@ object NightShotProcessor {
             )
             publishing = false
             publishMs = SystemClock.elapsedRealtime() - publishStartedAt
+            checkStageWatchdog()
             runCatching { onProgress?.invoke(100) }
             val totalMergeMs = SystemClock.elapsedRealtime() - mergeStartedAt
+            stageWatchdog?.finish()
             Log.i(
                 TAG,
                 "Merged " + frames.size + " frames as " + mode + " at " + width + "x" + height +
@@ -768,8 +792,13 @@ object NightShotProcessor {
                 }.onFailure { Log.e(TAG, "Could not restore original JPEG after merge publish failure", it) }
             }
             val elapsedMs = SystemClock.elapsedRealtime() - mergeStartedAt
-            val reason = failure.message?.takeIf { it.isNotBlank() }
+            val rawReason = failure.message?.takeIf { it.isNotBlank() }
                 ?: failure.javaClass.simpleName
+            val reason = if (isLunaDreamMerge) {
+                "Lỗi ở bước $currentStage: $rawReason"
+            } else {
+                rawReason
+            }
             Log.e(
                 TAG,
                 "Multi-frame merge failed for $mode at stage=$currentStage after " +

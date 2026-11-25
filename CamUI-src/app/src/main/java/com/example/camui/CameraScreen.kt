@@ -351,7 +351,8 @@ private suspend fun saveBurstFrame(
     sessionId: String,
     frameIndex: Int,
     folder: String = "Burst",
-    filePrefix: String = "FUJI_BURST"
+    filePrefix: String = "FUJI_BURST",
+    publishOnSave: Boolean = true
 ): Uri? = suspendCancellableCoroutine { continuation ->
     val name = "${filePrefix}_${sessionId}_${(frameIndex + 1).toString().padStart(2, '0')}.jpg"
     val values = ContentValues().apply {
@@ -374,7 +375,7 @@ private suspend fun saveBurstFrame(
     capture.takePicture(output, executor, object : ImageCapture.OnImageSavedCallback {
         override fun onImageSaved(results: ImageCapture.OutputFileResults) {
             val savedUri = results.savedUri
-            if (savedUri != null) {
+            if (savedUri != null && publishOnSave) {
                 runCatching {
                     context.contentResolver.update(
                         savedUri,
@@ -382,6 +383,8 @@ private suspend fun saveBurstFrame(
                         null,
                         null
                     )
+                }.onFailure {
+                    android.util.Log.w("FUJI_BURST", "Could not publish frame " + (frameIndex + 1), it)
                 }
             }
             if (continuation.isActive) continuation.resume(savedUri)
@@ -3702,7 +3705,9 @@ fun CameraScreen(
                     bracketCaptureActive = false
                 }
                 var mergedBracketUri: Uri? = null
+                var bracketMergeDurationMs = -1L
                 if (bracketSavedUris.size >= 2) {
+                    val bracketMergeStartedAtMs = SystemClock.elapsedRealtime()
                     isProcessing = true
                     processingProgress = 0
                     processingLabel = if (useHdrBracket) "Đang ghép HDR Bracketing" else "Đang ghép Focus Stack"
@@ -3726,18 +3731,82 @@ fun CameraScreen(
                             )
                         }
                     } finally {
+                        bracketMergeDurationMs = SystemClock.elapsedRealtime() - bracketMergeStartedAtMs
                         isProcessing = false
                         processingProgress = 0
                     }
                 }
                 if (mergedBracketUri != null) {
-                    lastUri = mergedBracketUri
+                    val finalUri = mergedBracketUri!!
+                    val exportStageDurations = linkedMapOf<String, Long>()
+                    val bracketInfo = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
+                    val bracketFocal = bracketInfo
+                        ?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                        ?.firstOrNull()?.let { "%.1f mm".format(Locale.US, it) } ?: ""
+                    val bracketAperture = bracketInfo
+                        ?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
+                        ?.firstOrNull()?.let { "f/%.1f".format(Locale.US, it) } ?: ""
+                    val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
+                    val watermarkStartedAtMs = SystemClock.elapsedRealtime()
+                    val stamped = withContext(Dispatchers.IO) {
+                        runCatching {
+                            applyCameraWatermark(
+                                context,
+                                finalUri,
+                                bracketFocal,
+                                bracketAperture,
+                                if (useHdrBracket) "HDR Bracketing" else "Focus Stack",
+                                iso.takeIf { it > 0 }?.toString() ?: "AUTO",
+                                preservePhotoAspectRatio = true,
+                                onStageDuration = { stage, duration -> exportStageDurations[stage] = duration }
+                            )
+                        }.onFailure {
+                            android.util.Log.e("FUJI_BRACKET", "Final filter/watermark export failed; merged source retained", it)
+                        }.getOrDefault(false)
+                    }
+                    val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
+                    val metadataPublished = withContext(Dispatchers.IO) {
+                        runCatching { finalizeCapturedImageMetadata(context, finalUri) }
+                            .onFailure { android.util.Log.w("FUJI_BRACKET", "Could not finalize merged photo metadata", it) }
+                            .getOrDefault(false)
+                    }
+                    val dimensions = withContext(Dispatchers.IO) {
+                        CaptureDiagnostics.readImageDimensions(context, finalUri)
+                    }
+                    val runtime = Runtime.getRuntime()
+                    val sampledHeapBytes = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+                    CaptureDiagnostics.record(
+                        context,
+                        CaptureDiagnosticEntry(
+                            timestamp = System.currentTimeMillis(),
+                            mode = if (useHdrBracket) "HDR Bracketing" else "Focus Bracketing",
+                            filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
+                            watermarkEnabled = watermarkWasRequested,
+                            watermarkPrinted = watermarkWasRequested && stamped,
+                            outputWidth = dimensions.first,
+                            outputHeight = dimensions.second,
+                            stageTimesMs = mapOf(
+                                "Chụp" to -1L,
+                                "Ghép" to bracketMergeDurationMs,
+                                "Nâng" to -1L,
+                                "Bộ lọc" to (exportStageDurations["Bộ lọc"] ?: -1L),
+                                "Watermark" to (exportStageDurations["Watermark"] ?: watermarkDurationMs),
+                                "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
+                                "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
+                            ),
+                            peakMemoryBytes = sampledHeapBytes
+                        )
+                    )
+                    if (!metadataPublished) {
+                        android.util.Log.w("FUJI_BRACKET", "Merged output retained without metadata confirmation")
+                    }
+                    lastUri = finalUri
                     thumb = withContext(Dispatchers.IO) {
                         runCatching {
-                            decodeUprightBitmap(context, mergedBracketUri!!, maxDimension = 320)?.asImageBitmap()
+                            decodeUprightBitmap(context, finalUri, maxDimension = 320)?.asImageBitmap()
                         }.getOrNull()
                     }
-                    thumbUri = mergedBracketUri.takeIf { thumb != null }
+                    thumbUri = finalUri.takeIf { thumb != null }
                 }
                 val mergeMessage = when {
                     bracketSavedUris.size < 2 -> "Không đủ khung hình để ghép; các ảnh chụp thành công vẫn được giữ."
@@ -3772,6 +3841,8 @@ fun CameraScreen(
                 burstStopRequested = false
                 burstCompletedFrames = 0
                 var lastSuccessfulUri: Uri? = null
+                val burstSavedUris = ArrayList<Uri>()
+                val burstCaptureDurationsMs = ArrayList<Long>()
                 val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
                 try {
                     if (timerSec > 0) {
@@ -3793,13 +3864,15 @@ fun CameraScreen(
                                 activeCapture,
                                 mainExecutor,
                                 sessionId,
-                                frameIndex
+                                frameIndex,
+                                publishOnSave = false
                             )
                         }.onFailure {
                             android.util.Log.w("FUJI_BURST", "Could not enqueue frame ${frameIndex + 1}", it)
                         }.getOrNull()
                         if (savedUri != null) {
-                            lastSuccessfulUri = savedUri
+                            burstSavedUris += savedUri
+                            burstCaptureDurationsMs += (SystemClock.elapsedRealtime() - frameStartedAt).coerceAtLeast(0L)
                             burstCompletedFrames += 1
                         }
                         // Best effort: do not add delay when the camera itself takes longer than 200 ms.
@@ -3811,6 +3884,81 @@ fun CameraScreen(
                     countdown = 0
                     burstCaptureActive = false
                     burstStopRequested = false
+                }
+                for ((index, burstUri) in burstSavedUris.withIndex()) {
+                    val exportStageDurations = linkedMapOf<String, Long>()
+                    val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
+                    val watermarkStartedAtMs = SystemClock.elapsedRealtime()
+                    var stamped = false
+                    var dimensions = 0 to 0
+                    var sampledHeapBytes = 0L
+                    try {
+                        withContext(Dispatchers.IO) {
+                            try {
+                                stamped = runCatching {
+                                    applyCameraWatermark(
+                                        context,
+                                        burstUri,
+                                        "",
+                                        "",
+                                        "",
+                                        "AUTO",
+                                        preservePhotoAspectRatio = true,
+                                        onStageDuration = { stage, duration ->
+                                            exportStageDurations[stage] = duration
+                                        }
+                                    )
+                                }.onFailure {
+                                    android.util.Log.e("FUJI_BURST", "Frame " + (index + 1) + " watermark/LUT export failed; original JPEG retained", it)
+                                }.getOrDefault(false)
+                                runCatching {
+                                    finalizeCapturedImageMetadata(context, burstUri)
+                                }.onFailure {
+                                    android.util.Log.w("FUJI_BURST", "Frame " + (index + 1) + " metadata finalization failed", it)
+                                }
+                            } finally {
+                                runCatching {
+                                    context.contentResolver.update(
+                                        burstUri,
+                                        ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                                        null,
+                                        null
+                                    )
+                                }.onFailure {
+                                    android.util.Log.e("FUJI_BURST", "Could not publish frame " + (index + 1), it)
+                                }
+                            }
+                            dimensions = CaptureDiagnostics.readImageDimensions(context, burstUri)
+                            val runtime = Runtime.getRuntime()
+                            sampledHeapBytes = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+                        }
+                    } catch (failure: Throwable) {
+                        android.util.Log.e("FUJI_BURST", "Frame " + (index + 1) + " finalization failed", failure)
+                    }
+                    val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
+                    CaptureDiagnostics.record(
+                        context,
+                        CaptureDiagnosticEntry(
+                            timestamp = System.currentTimeMillis(),
+                            mode = "Burst",
+                            filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
+                            watermarkEnabled = watermarkWasRequested,
+                            watermarkPrinted = watermarkWasRequested && stamped,
+                            outputWidth = dimensions.first,
+                            outputHeight = dimensions.second,
+                            stageTimesMs = mapOf(
+                                "Chụp" to (burstCaptureDurationsMs.getOrNull(index) ?: -1L),
+                                "Ghép" to -1L,
+                                "Nâng" to -1L,
+                                "Bộ lọc" to (exportStageDurations["Bộ lọc"] ?: -1L),
+                                "Watermark" to (exportStageDurations["Watermark"] ?: watermarkDurationMs),
+                                "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
+                                "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
+                            ),
+                            peakMemoryBytes = sampledHeapBytes
+                        )
+                    )
+                    lastSuccessfulUri = burstUri
                 }
                 if (lastSuccessfulUri != null) {
                     lastUri = lastSuccessfulUri

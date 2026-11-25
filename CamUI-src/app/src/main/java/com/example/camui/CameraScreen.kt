@@ -984,6 +984,7 @@ fun CameraScreen(
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
+    var previewRecipeRevision by remember { mutableIntStateOf(0) }
     var filterPreviewSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val fallbackFilterPreviewBitmap = remember(context) { createFilmLookPreviewSample(context) }
     val shutterEffectProgress = remember { Animatable(0f) }
@@ -1686,7 +1687,10 @@ fun CameraScreen(
     }
     val digitalZoomPreviewEffect = remember(previewView) { DigitalZoomPreviewEffect() }
     DisposableEffect(previewView, digitalZoomPreviewEffect) {
-        onDispose { digitalZoomPreviewEffect.clear(previewView) }
+        onDispose {
+            CameraLutPreviewEffect.clear(previewView)
+            digitalZoomPreviewEffect.clear(previewView)
+        }
     }
     LaunchedEffect(previewView, digitalZoomCropScale, digitalZoomPreviewEffect) {
         val safeDigitalScale = digitalZoomCropScale.takeIf { it.isFinite() && it >= 1f } ?: 1f
@@ -1711,6 +1715,19 @@ fun CameraScreen(
             safeDigitalScale
         )
         android.util.Log.d("FUJI_ZOOM_PREVIEW_TRANSFORM", previewTransformText)
+    }
+    LaunchedEffect(previewView, activeFilter, previewRecipeRevision, digitalZoomCropScale) {
+        val prepared = withContext(Dispatchers.IO) {
+            runCatching { CameraLutPreviewEffect.prepare(context, activeFilter) }
+                .onFailure {
+                    android.util.Log.e("FUJI_LIVE_LUT", "Could not prepare live filter $activeFilter", it)
+                }
+                .getOrNull()
+        }
+        val method = CameraLutPreviewEffect.install(context, previewView, activeFilter, prepared)
+        CrashContextDiagnostics.recordUiEvent(
+            "LIVE_LUT_EFFECT preset=$activeFilter method=$method api=${android.os.Build.VERSION.SDK_INT}"
+        )
     }
     var previewStreamState by remember(previewView) {
         mutableStateOf(
@@ -7671,10 +7688,11 @@ fun CameraScreen(
                 onDismiss = { filterDialogVisible = false },
                 onSelectFilter = { selected ->
                     val nextFilter = if (selected == activeFilter) "None" else selected
-                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$nextFilter method=still-preview")
+                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$nextFilter method=live-preview+still-export")
                     activeFilter = nextFilter
                     appPrefs.edit().putString("selected_filter", nextFilter).apply()
-                }
+                },
+                onRecipeChanged = { previewRecipeRevision++ }
             )
         }
 
@@ -7961,7 +7979,8 @@ private fun FilterLookDialog(
     previewSource: Bitmap,
     activeFilter: String,
     onDismiss: () -> Unit,
-    onSelectFilter: (String) -> Unit
+    onSelectFilter: (String) -> Unit,
+    onRecipeChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -8017,16 +8036,18 @@ private fun FilterLookDialog(
         palettePoint = clamped
         val temperature = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
         val tone = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
-        CrashContextDiagnostics.recordUiEvent("TONE_DRAG x=${clamped.x} y=${clamped.y} temperature=$temperature tone=$tone method=still-preview")
+        CrashContextDiagnostics.recordUiEvent("TONE_DRAG x=${clamped.x} y=${clamped.y} temperature=$temperature tone=$tone method=live-preview+still-export")
         recipePrefs.edit()
             .putFloat("film_custom_temperature", temperature)
             .putFloat("film_custom_tone", tone)
             .apply()
         customPreviewRevision++
+        onRecipeChanged()
     }
     fun persistRecipeValue(key: String, value: Float) {
         recipePrefs.edit().putFloat(key, value).apply()
         customPreviewRevision++
+        onRecipeChanged()
     }
     val adjustmentControls: @Composable (Modifier) -> Unit = { adjustmentModifier ->
         Column(

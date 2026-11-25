@@ -417,7 +417,7 @@ private fun GalleryPhoto(
             contentScale = fit
         )
         failed -> Box(modifier.background(Color(0xFF202020)), contentAlignment = Alignment.Center) {
-            Text("Không đọc được ảnh", color = Color(0xFF9B9B9B), fontSize = 10.sp)
+            Text(stringResource(R.string.gallery_image_open_failed), color = Color(0xFF9B9B9B), fontSize = 10.sp)
         }
         else -> Box(modifier.background(Color(0xFF202020)), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(

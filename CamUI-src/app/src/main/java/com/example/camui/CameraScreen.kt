@@ -4047,12 +4047,12 @@ fun CameraScreen(
                     )
                     lastSuccessfulUri = burstUri
                     processingProgress = ((index + 1) * 100 / burstSavedUris.size).coerceIn(0, 100)
-                }
                     }
                 } finally {
                     isProcessing = false
                     processingProgress = 0
                     processingLabel = ""
+                }
                 }
                 if (lastSuccessfulUri != null) {
                     lastUri = lastSuccessfulUri

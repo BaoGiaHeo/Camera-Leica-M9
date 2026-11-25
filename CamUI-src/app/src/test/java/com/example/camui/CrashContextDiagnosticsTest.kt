@@ -35,14 +35,14 @@ class CrashContextDiagnosticsTest {
     }
 
     @Test
-    fun eventRingBufferKeepsOnlyTheMostRecentTwentyEntries() {
-        repeat(25) { CrashContextDiagnostics.recordUiEvent("EVENT_$it") }
+    fun eventRingBufferKeepsOnlyTheMostRecentFiftyEntries() {
+        repeat(65) { CrashContextDiagnostics.recordUiEvent("EVENT_$it") }
 
         val report = CrashContextDiagnostics.snapshot()
 
+        assertFalse(report.contains("EVENT_14"))
+        assertTrue(report.contains("EVENT_15"))
+        assertTrue(report.contains("EVENT_64"))
         assertFalse(report.contains("EVENT_0"))
-        assertFalse(report.contains("EVENT_4"))
-        assertTrue(report.contains("EVENT_5"))
-        assertTrue(report.contains("EVENT_24"))
     }
 }

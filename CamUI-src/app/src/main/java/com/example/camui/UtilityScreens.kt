@@ -3032,7 +3032,8 @@ fun applyCameraWatermark(
     iso: String,
     preservePhotoAspectRatio: Boolean = true,
     onStageDuration: ((String, Long) -> Unit)? = null,
-    applyFilter: Boolean = true
+    applyFilter: Boolean = true,
+    captureTimestampMillis: Long = System.currentTimeMillis()
 ): Boolean {
     val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val watermarkEnabled = preferences.getBoolean("watermark_enabled", true)
@@ -3124,14 +3125,10 @@ fun applyCameraWatermark(
     val isoLabel = isoNumber?.let { "ISO " + it }
         ?: iso.trim().takeIf { it.isNotBlank() }?.let { if (it.startsWith("ISO", true)) it else "ISO " + it }.orEmpty()
 
-    val dateRaw = sourceExif[ExifInterface.TAG_DATETIME_ORIGINAL] ?: sourceExif[ExifInterface.TAG_DATETIME]
-    val capturedDate = dateRaw?.let { raw ->
-        runCatching {
-            java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).apply { isLenient = false }.parse(raw)
-        }.getOrNull()
-    }
-    val dateText = capturedDate?.let { java.text.SimpleDateFormat("yyyy.MM.dd", Locale.US).format(it) }.orEmpty()
-    val timeText = capturedDate?.let { java.text.SimpleDateFormat("HH:mm", Locale.US).format(it) }.orEmpty()
+    // The watermark clock is frozen at the shutter press, not at the end of a long stack render.
+    val capturedDate = java.util.Date(captureTimestampMillis)
+    val dateText = java.text.SimpleDateFormat("yyyy.MM.dd", Locale.US).format(capturedDate)
+    val timeText = java.text.SimpleDateFormat("HH:mm", Locale.US).format(capturedDate)
     val location = watermarkLocationFromExif(context, sourceExif, preferences)
 
     val filterRaw = filterPreset.trim().ifBlank { "None" }
@@ -3265,11 +3262,11 @@ fun applyCameraWatermark(
             android.util.Log.i(
                 "FUJI_WATERMARK",
                 "FINAL_EXPORT watermarkEnabled=$watermarkEnabled filter=$filterPreset filterApplied=$filterApplied " +
-                    "layout=" + settings.layout.id +
+                    "watermarkMarker=${sinkResult.marker} layout=" + settings.layout.id +
                     " original=" + bounds.outWidth + "x" + bounds.outHeight +
                     " output=" + outWidth + "x" + outHeight +
                     " ratio=" + outWidth + ":" + outHeight +
-                    " saveMode=" + settings.saveMode +
+                    " captureTimestamp=$captureTimestampMillis saveMode=" + settings.saveMode +
                     " GPS_EXIF_PRESERVED=" + sourceExif.containsKey(ExifInterface.TAG_GPS_LATITUDE)
             )
             true
@@ -3279,6 +3276,10 @@ fun applyCameraWatermark(
         }
     }.onFailure {
         android.util.Log.e("FUJI_WATERMARK", "Saira A-E watermark rendering failed", it)
+        CaptureDiagnostics.recordWarning(
+            context,
+            "Watermark/Filter export failed: ${it.javaClass.simpleName}: ${it.message ?: "no detail"}"
+        )
     }.getOrDefault(false)
 }
 

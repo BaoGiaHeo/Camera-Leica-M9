@@ -3051,8 +3051,23 @@ fun applyCameraWatermark(
                         rect.bottom.toInt().coerceAtMost(outHeight)
                     )
                 }
+            val watermarkBackgroundColor = if (
+                settings.invert ||
+                settings.layout == WatermarkLayoutType.BLACK ||
+                settings.layout == WatermarkLayoutType.DOT_DARK
+            ) {
+                0xFF0F0F12.toInt()
+            } else {
+                Color.WHITE
+            }
             val frame = if (watermarkEnabled) {
-                WatermarkStage.printed(uri, finalBitmap, sourceExif, verificationRect)
+                WatermarkStage.printed(
+                    uri,
+                    finalBitmap,
+                    sourceExif,
+                    verificationRect,
+                    watermarkBackgroundColor
+                )
             } else {
                 WatermarkStage.filteredWithoutWatermark(uri, finalBitmap, sourceExif)
             }

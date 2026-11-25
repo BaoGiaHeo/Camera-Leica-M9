@@ -3049,8 +3049,28 @@ fun applyCameraWatermark(
         kotlin.math.abs(preferences.getFloat("film_custom_lightness", 0f)) > 0.001f
     val filterRequested = applyFilter && (filterPreset != "None" || hasCustomAdjustments)
     if (!watermarkEnabled && !filterRequested) {
-        android.util.Log.i("FUJI_WATERMARK", "No export overlay requested; watermark disabled intentionally")
-        return false
+        val sourceExifForSkip = readImageExifAttributes(context, uri)
+        val originalBounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val boundsReadable = runCatching {
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, originalBounds)
+            }
+        }.isSuccess
+        check(boundsReadable && originalBounds.outWidth > 0 && originalBounds.outHeight > 0) {
+            "Không đọc được kích thước ảnh để xác nhận watermark đã tắt có chủ ý"
+        }
+        val skipped = WatermarkStage.intentionallySkipped(
+            uri = uri,
+            sourceExif = sourceExifForSkip,
+            width = originalBounds.outWidth,
+            height = originalBounds.outHeight
+        )
+        val skipResult = ImageSink.write(context, skipped, onStageDuration)
+        android.util.Log.i(
+            "FUJI_WATERMARK",
+            "WATERMARK_SKIPPED_INTENTIONALLY uri=$uri marker=${skipResult.marker}"
+        )
+        return skipResult.written && skipResult.marker == "FM-WM=0"
     }
     val filterCube = if (!applyFilter || filterPreset == "None") null else readCameraLookLut(context, filterPreset)
     if (applyFilter && customCameraLutId(filterPreset) != null && filterCube == null) {
@@ -3222,29 +3242,36 @@ fun applyCameraWatermark(
             val finalBitmap = outputBitmap ?: sourceBitmap
             val outWidth = finalBitmap.width
             val outHeight = finalBitmap.height
-            val encodedFile = java.io.File.createTempFile("fuji-final-", ".jpg", context.cacheDir)
-            try {
-                val encodeStartedAtMs = android.os.SystemClock.elapsedRealtime()
-                java.io.FileOutputStream(encodedFile).use { encoded ->
-                    check(finalBitmap.compress(Bitmap.CompressFormat.JPEG, 96, encoded)) {
-                        "Could not encode final JPEG"
-                    }
-                    encoded.flush()
-                    encoded.fd.sync()
+            val geometry = WatermarkGeometry.build(sourceBitmap.width, sourceBitmap.height, settings, metadata)
+            val verificationRect = (geometry.footerRect ?: geometry.cardRect ?: geometry.metadataRect)
+                ?.let { rect ->
+                    android.graphics.Rect(
+                        rect.left.toInt().coerceAtLeast(0),
+                        rect.top.toInt().coerceAtLeast(0),
+                        rect.right.toInt().coerceAtMost(outWidth),
+                        rect.bottom.toInt().coerceAtMost(outHeight)
+                    )
                 }
-                onStageDuration?.invoke("Mã hóa", android.os.SystemClock.elapsedRealtime() - encodeStartedAtMs)
-                val writeStartedAtMs = android.os.SystemClock.elapsedRealtime()
-                val written = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
-                    encodedFile.inputStream().use { input -> input.copyTo(destination) }
-                    true
-                } ?: false
-                check(written) { "Could not write final JPEG to MediaStore" }
-                val exifRestored = restoreImageExifAttributes(context, uri, sourceExif, outWidth, outHeight)
-                check(exifRestored) { "Could not restore source EXIF and GPS after final export" }
-                setMediaStoreOrientationUpright(context, uri)
-                onStageDuration?.invoke("Ghi file", android.os.SystemClock.elapsedRealtime() - writeStartedAtMs)
-            } finally {
-                runCatching { encodedFile.delete() }
+            val frame = if (watermarkEnabled) {
+                WatermarkStage.printed(uri, finalBitmap, sourceExif, verificationRect)
+            } else {
+                WatermarkStage.intentionallySkipped(uri, sourceExif, outWidth, outHeight).let { skipped ->
+                    WatermarkedFrame.fromWatermarkStage(
+                        uri = uri,
+                        bitmap = finalBitmap,
+                        sourceExif = sourceExif,
+                        width = outWidth,
+                        height = outHeight,
+                        watermarkPrinted = false,
+                        intentionalSkip = false,
+                        verificationRegion = null
+                    )
+                }
+            }
+            val sinkResult = ImageSink.write(context, frame, onStageDuration)
+            check(sinkResult.written) { "ImageSink could not publish the final photo" }
+            check(sinkResult.marker == if (watermarkEnabled) "FM-WM=1" else "FM-WM=0") {
+                "ImageSink watermark marker does not match the selected preference"
             }
             android.util.Log.i(
                 "FUJI_WATERMARK",

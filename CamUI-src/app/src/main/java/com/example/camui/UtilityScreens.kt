@@ -2457,7 +2457,7 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
     }
 }
 // Built-in looks and imported custom looks share the same CubeLut sampler and pixel pipeline.
-private fun readCameraLookLut(context: Context, preset: String): CubeLut? {
+internal fun readCameraLookLut(context: Context, preset: String): CubeLut? {
     val builtInId = builtInCameraLutId(preset)
     val customId = customCameraLutId(preset)
     val cacheKey = when {

@@ -23,4 +23,12 @@ internal object LunaDreamCapturePolicy {
             !focusBracketMode &&
             !nativeProcessingEnabled &&
             !livePhotoEnabled
+
+    /** RawDream's RAW+JPEG capability check is a Photo-only gate, never a Pro gate. */
+    fun shouldRejectRawDreamFormatMismatch(
+        cameraMode: String,
+        rawDreamSelected: Boolean,
+        imageCaptureUsesRawJpeg: Boolean
+    ): Boolean =
+        cameraMode == "Photo" && rawDreamSelected && !imageCaptureUsesRawJpeg
 }

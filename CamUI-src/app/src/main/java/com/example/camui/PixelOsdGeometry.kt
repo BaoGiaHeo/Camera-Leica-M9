@@ -21,10 +21,10 @@ data class PixelOsdGeometry(
             require(widthPx > 0) { "LCD width must be greater than zero." }
             require(heightPx > 0) { "LCD height must be greater than zero." }
             val scale = when (pixelMode.lowercase()) {
-                "fine" -> 2
-                "medium" -> 3
+                "fine" -> 1
+                "medium" -> 2
                 "chunky" -> 4
-                else -> 2
+                else -> 1
             }
             return PixelOsdGeometry(
                 pixelScale = scale,

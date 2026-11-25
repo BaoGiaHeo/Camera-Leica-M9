@@ -3541,7 +3541,7 @@ fun CameraScreen(
                             val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
                             val watermarkStartedAtMs = SystemClock.elapsedRealtime()
                             val stamped = runCatching {
-                                applyCameraWatermark(
+                                WatermarkFinalizer.ensure(
                                     context,
                                     starUri,
                                     focal,
@@ -3841,7 +3841,7 @@ fun CameraScreen(
                     val watermarkStartedAtMs = SystemClock.elapsedRealtime()
                     val stamped = withContext(Dispatchers.IO) {
                         runCatching {
-                            applyCameraWatermark(
+                            WatermarkFinalizer.ensure(
                                 context,
                                 finalUri,
                                 bracketFocal,
@@ -3988,7 +3988,7 @@ fun CameraScreen(
                         withContext(Dispatchers.IO) {
                             try {
                                 stamped = runCatching {
-                                    applyCameraWatermark(
+                                    WatermarkFinalizer.ensure(
                                         context,
                                         burstUri,
                                         "",
@@ -5059,12 +5059,11 @@ fun CameraScreen(
                                 }
                                 val watermarkStartedAtMs = SystemClock.elapsedRealtime()
                                 val stamped = if (captureIsUltraHdr) false else runCatching {
-                                    applyCameraWatermark(
+                                    WatermarkFinalizer.ensure(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
                                         preservePhotoAspectRatio = true,
                                         onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
-                                        applyFilter = true,
                                         captureTimestampMillis = captureTimestampMillis
                                     )
                                 }.getOrDefault(false)

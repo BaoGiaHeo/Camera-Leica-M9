@@ -24,8 +24,8 @@ android {
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 37
-        versionCode = 19
-        versionName = "2.8.0"
+        versionCode = 20
+        versionName = "2.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

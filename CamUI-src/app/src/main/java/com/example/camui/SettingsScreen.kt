@@ -75,7 +75,7 @@ private val settingItems = listOf(
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout", R.string.settings_tab_display),
     SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback", R.string.settings_tab_sound),
     SettingItem("tab_08", "Language", "ENGLISH · TIẾNG VIỆT", R.string.settings_tab_language),
-    SettingItem("tab_09", "About", "FujiFilm Mode · 2.6.0", R.string.settings_tab_about),
+    SettingItem("tab_09", "About", "FujiFilm Mode · 2.7.0", R.string.settings_tab_about),
 )
 
 @Composable

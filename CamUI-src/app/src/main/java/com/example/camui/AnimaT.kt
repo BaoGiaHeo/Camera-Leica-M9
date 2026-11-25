@@ -9,8 +9,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -62,14 +62,14 @@ object AnimaT {
     ): EnterTransition = when {
         reducedMotion -> EnterTransition.None
         performanceMode -> fadeIn(animationSpec = tween(durationMillis = 90))
-        else -> slideInHorizontally(
-            initialOffsetX = { fullWidth -> fullWidth / 18 },
-            animationSpec = tween(durationMillis = 240, easing = motionEasing)
+        else -> slideInVertically(
+            initialOffsetY = { fullHeight -> (fullHeight / 45).coerceAtLeast(1) },
+            animationSpec = tween(durationMillis = Tuning.SETTINGS_ENTER_MS, easing = motionEasing)
         ) +
-            fadeIn(animationSpec = tween(durationMillis = 220, easing = motionEasing)) +
+            fadeIn(animationSpec = tween(durationMillis = Tuning.SETTINGS_ENTER_MS, easing = motionEasing)) +
             scaleIn(
-                initialScale = 0.99f,
-                animationSpec = tween(durationMillis = 240, easing = motionEasing)
+                initialScale = 0.985f,
+                animationSpec = tween(durationMillis = Tuning.SETTINGS_ENTER_MS, easing = motionEasing)
             )
     }
 
@@ -80,25 +80,19 @@ object AnimaT {
     ): ExitTransition = when {
         reducedMotion -> ExitTransition.None
         performanceMode -> fadeOut(animationSpec = tween(durationMillis = 70))
-        else -> slideOutHorizontally(
-            targetOffsetX = { fullWidth -> -fullWidth / 32 },
-            animationSpec = tween(durationMillis = 190, easing = motionEasing)
+        else -> slideOutVertically(
+            targetOffsetY = { fullHeight -> (fullHeight / 80).coerceAtLeast(1) },
+            animationSpec = tween(durationMillis = Tuning.SETTINGS_EXIT_MS, easing = motionEasing)
         ) +
-            fadeOut(animationSpec = tween(durationMillis = 180, easing = motionEasing)) +
+            fadeOut(animationSpec = tween(durationMillis = Tuning.SETTINGS_EXIT_MS, easing = motionEasing)) +
             scaleOut(
                 targetScale = 0.995f,
-                animationSpec = tween(durationMillis = 190, easing = motionEasing)
+                animationSpec = tween(durationMillis = Tuning.SETTINGS_EXIT_MS, easing = motionEasing)
             )
     }
 }
 
-fun Modifier.animaTContent(): Modifier = composed {
-    val context = LocalContext.current
-    val reducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
-    if (reducedMotion) this else animateContentSize(
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
-    )
-}
+fun Modifier.animaTContent(): Modifier = this
 
 fun Modifier.animaTClickable(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
@@ -111,8 +105,8 @@ fun Modifier.animaTClickable(enabled: Boolean = true, onClick: () -> Unit): Modi
             .getBoolean("haptic_feedback_enabled", true)
     }
     val scale by animateFloatAsState(
-        targetValue = if (pressed && !reducedMotion) 0.985f else 1f,
-        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+        targetValue = if (pressed && !reducedMotion) Tuning.BUTTON_PRESS_SCALE else 1f,
+        animationSpec = tween(durationMillis = Tuning.BUTTON_PRESS_MS, easing = FastOutSlowInEasing),
         label = "AnimaT press feedback"
     )
     this.graphicsLayer {

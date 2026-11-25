@@ -78,6 +78,7 @@ internal fun CameraGalleryDialog(
 
     LaunchedEffect(refreshToken, initialUri) {
         android.util.Log.i("FUJI_GALLERY", "ALBUM_OPEN initialUri=$initialUri")
+        CrashContextDiagnostics.recordUiEvent("ALBUM_OPEN")
         isLoading = true
         val captured = withContext(Dispatchers.IO) {
             queryFujiFilmPhotos(context)
@@ -338,7 +339,10 @@ private object GalleryThumbnailCache {
             value.allocationByteCount.coerceAtLeast(value.byteCount)
 
         override fun entryRemoved(evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?) {
-            if (evicted) android.util.Log.i("FUJI_GALLERY", "BITMAP_CACHE_EVICT key=$key bytes=${oldValue.byteCount}")
+            if (evicted) {
+                android.util.Log.i("FUJI_GALLERY", "BITMAP_CACHE_EVICT key=$key bytes=${oldValue.byteCount}")
+                CrashContextDiagnostics.recordUiEvent("BITMAP_CACHE_EVICT bytes=${oldValue.byteCount}")
+            }
             // Never recycle: Compose may still hold this Bitmap through ImageBitmap.
         }
     }
@@ -397,8 +401,10 @@ private fun GalleryPhoto(
                 GalleryThumbnailCache.load(context, uri, target)
             }.onFailure {
                 android.util.Log.e("FUJI_GALLERY", "ALBUM_THUMB_LOAD uri=$uri result=fail", it)
+                CrashContextDiagnostics.recordUiEvent("ALBUM_THUMB_LOAD uri=$uri fail")
             }.getOrNull()?.also {
                 android.util.Log.i("FUJI_GALLERY", "ALBUM_THUMB_LOAD uri=$uri result=ok")
+                CrashContextDiagnostics.recordUiEvent("ALBUM_THUMB_LOAD uri=$uri ok")
             }
         }
         failed = bitmap == null

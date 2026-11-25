@@ -37,6 +37,35 @@ class LunaDreamCapturePolicyTest {
     }
 
     @Test
+    fun rawDreamFormatMismatchGuardDoesNotRejectProForPersistedRawPreference() {
+        assertFalse(
+            LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
+                cameraMode = "Pro",
+                rawDreamSelected = true,
+                imageCaptureUsesRawJpeg = false
+            )
+        )
+    }
+
+    @Test
+    fun rawDreamFormatMismatchGuardStillProtectsPhotoMode() {
+        assertTrue(
+            LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
+                cameraMode = "Photo",
+                rawDreamSelected = true,
+                imageCaptureUsesRawJpeg = false
+            )
+        )
+        assertFalse(
+            LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
+                cameraMode = "Photo",
+                rawDreamSelected = true,
+                imageCaptureUsesRawJpeg = true
+            )
+        )
+    }
+
+    @Test
     fun rejectsActualRawOutput() {
         assertFalse(allowed("Pro", imageCaptureUsesRaw = true))
     }

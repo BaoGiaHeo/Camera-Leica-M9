@@ -288,9 +288,9 @@ var nightShotMode by remember {
         ) {
         when (title) {
             "Assistive Tools" -> {
-                Text("Viewfinder overlays are configured in Toolbox.",
+                Text("Các lớp phủ màn ngắm được thiết lập trong Hộp công cụ.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
-                FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "Grid · Level · Histogram · Focus peaking · HUD")
+                FujiListRow("Hộp công cụ", "MỞ", onClick = onOpenToolbox, description = "Lưới · Cân bằng · Biểu đồ · Nét đỉnh · HUD")
                 FujiListRow("Quản lý LUT", "MỞ", onClick = onOpenContentsManagement, description = "Nhập và quản lý LUT")
                 FujiListRow("Nhật ký chẩn đoán", "MỞ", onClick = onOpenDiagnostics, description = "30 lần chụp gần nhất · xuất tệp TXT")
             }
@@ -370,7 +370,7 @@ var nightShotMode by remember {
                 }
             }
             "Capture & Quality" -> {
-                Text("Aspect Ratio", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Tỉ lệ khung hình", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -380,12 +380,12 @@ var nightShotMode by remember {
                     }
                 }
                 Spacer(Modifier.padding(7.dp))
-                Text("Image Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Chất lượng ảnh", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Best sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf("Low", "Medium", "High", "Best").forEach { option ->
+                    listOf("Thấp", "Vừa", "Cao", "Tốt nhất").forEach { option ->
                         FujiChip(option, imageQuality == option, {
                             imageQuality = option
                             prefs.edit().putString("image_quality", option).apply()
@@ -793,7 +793,7 @@ var nightShotMode by remember {
                     }
                 }
                 Spacer(Modifier.padding(5.dp))
-                Text("Capture Quality", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Chất lượng chụp", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 SettingsSwitch(
                     "HDR Tone Mapping",
                     "Engine HDR tone mapping độc lập, tự điều chỉnh mức xử lý theo dữ liệu sáng/tối và tài nguyên thiết bị. HDR không thay đổi độ phân giải đầu ra của LunaDream.",

@@ -89,6 +89,24 @@ internal object WatermarkStage {
             verificationRegion = null
         )
     }
+
+    fun filteredWithoutWatermark(
+        uri: Uri,
+        bitmap: Bitmap,
+        sourceExif: Map<String, String>
+    ): WatermarkedFrame {
+        require(!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0)
+        return WatermarkedFrame.fromWatermarkStage(
+            uri = uri,
+            bitmap = bitmap,
+            sourceExif = sourceExif,
+            width = bitmap.width,
+            height = bitmap.height,
+            watermarkPrinted = false,
+            intentionalSkip = true,
+            verificationRegion = null
+        )
+    }
 }
 
 /**
@@ -115,7 +133,7 @@ internal object ImageSink {
         onStageDuration: ((String, Long) -> Unit)? = null
     ): Result {
         val marker = if (frame.watermarkPrinted) WATERMARK_COMMENT else SKIPPED_COMMENT
-        if (frame.intentionalSkip) {
+        if (frame.intentionalSkip && frame.bitmap == null) {
             val start = android.os.SystemClock.elapsedRealtime()
             writeExif(context, frame.uri, frame.sourceExif, frame.width, frame.height, marker)
             val elapsed = android.os.SystemClock.elapsedRealtime() - start
@@ -157,7 +175,9 @@ internal object ImageSink {
             writeMs = android.os.SystemClock.elapsedRealtime() - writeStarted
             onStageDuration?.invoke("Ghi file", writeMs)
 
-            val regionVerified = frame.verificationRegion?.let { verifyWatermarkRegion(context, frame.uri, it) }
+            val regionVerified = if (frame.watermarkPrinted) {
+                frame.verificationRegion?.let { verifyWatermarkRegion(context, frame.uri, it) }
+            } else null
             if (regionVerified == false) {
                 CaptureDiagnostics.recordWarning(
                     context,

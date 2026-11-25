@@ -221,7 +221,9 @@ internal object PixelOsdLayoutEngine {
         }
 
         if (frame.isPro && frame.showStatus) {
-            val columnWidth = unit * 4.6f
+            // Keep the right LCD column aligned to the same pixel grid as its
+            // icon renderer; otherwise the snapped AF-area icon can cross the safe edge.
+            val columnWidth = snapGrid(unit * 4.6f)
             val rightX = (widthPx - margin - columnWidth).coerceAtLeast(margin.toFloat())
             var y = maxOf(heightPx * 0.18f, (margin + t1 + itemGap).toFloat())
             val areaHeight = (unit * 2.4f).roundToInt()

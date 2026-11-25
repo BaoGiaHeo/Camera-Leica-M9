@@ -7589,6 +7589,7 @@ fun CameraScreen(
                 onDismiss = { filterDialogVisible = false },
                 onSelectFilter = { selected ->
                     val nextFilter = if (selected == activeFilter) "None" else selected
+                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$nextFilter method=still-preview")
                     activeFilter = nextFilter
                     appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 }
@@ -7843,6 +7844,7 @@ private fun FilterLookDialog(
         palettePoint = clamped
         val temperature = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
         val tone = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
+        CrashContextDiagnostics.recordUiEvent("TONE_DRAG x=${clamped.x} y=${clamped.y} temperature=$temperature tone=$tone method=still-preview")
         recipePrefs.edit()
             .putFloat("film_custom_temperature", temperature)
             .putFloat("film_custom_tone", tone)

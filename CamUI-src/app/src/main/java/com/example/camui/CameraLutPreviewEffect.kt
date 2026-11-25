@@ -334,9 +334,10 @@ internal object CameraLutPreviewEffect {
     }
 
     /** Update uniforms on the cached shader during Tone Pad drags without rebuilding its LUT atlas. */
+    @Synchronized
     fun updateRecipe(context: Context, view: View, preset: String) {
         if (Build.VERSION.SDK_INT < 33) return
-        val prepared = synchronized(preparedCache) { preparedCache[preset] }
+        val prepared = preparedCache[preset]
             ?: if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null
             ?: return
         install(context, view, preset, prepared)

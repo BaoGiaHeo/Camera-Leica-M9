@@ -2117,18 +2117,18 @@ internal fun catalogLutCategory(path: String): String {
         parts.any { part -> names.any { it.equals(part.trim(), ignoreCase = true) } }
 
     return when {
-        hasFolder("Fujifilm", "FujiFilm") || parts.any { it == "富士" } -> "Fujifilm"
-        hasFolder("Leica") || parts.any { it == "徕卡" } -> "Leica"
+        hasFolder("Fujifilm", "FujiFilm") || normalized.contains("富士") -> "Fujifilm"
+        hasFolder("Leica") || normalized.contains("徕卡") -> "Leica"
         hasFolder("Panasonic", "Panasonic Lumix", "Lumix") -> "Panasonic Lumix"
         hasFolder("Sony") -> "Sony"
         hasFolder("Hald CLUT", "HaldCLUT", "Hald_CLUT") || lower.contains("hald-clut") -> "Hald CLUT"
-        hasFolder("Kodak") || parts.any { it == "柯达" } -> "Kodak"
-        hasFolder("Hasselblad") || parts.any { it == "哈苏" } -> "Hasselblad"
+        hasFolder("Kodak") || normalized.contains("柯达") -> "Kodak"
+        hasFolder("Hasselblad") || normalized.contains("哈苏") -> "Hasselblad"
         hasFolder("Nikon") -> "Nikon"
         hasFolder("Arri", "ARRI") -> "Cinema / Log"
         hasFolder("RED") -> "Cinema / Log"
         hasFolder("Other", "Khác") -> "Khác"
-        parts.any { it == "风格" } -> "Creative"
+        parts.any { it == "风格" } || normalized.contains("奶茶色静物") -> "Creative"
         lower.contains("lut_fuji_") || lower.contains("lut_fuji") -> "Fujifilm"
         lower.contains("lut_hassel_") || lower.contains("lut_hassel") -> "Hasselblad"
         lower.contains("lut_kodak_") || lower.contains("lut_kodak") -> "Kodak"

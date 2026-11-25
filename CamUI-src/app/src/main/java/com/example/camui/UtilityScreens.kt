@@ -2046,8 +2046,7 @@ private fun parseCanonBinaryLut(bytes: ByteArray): CubeLut? {
 private data class LutImportEntry(
     val name: String,
     val category: String,
-    val bytes: ByteArray,
-    val binaryRgb33: Boolean
+    val stagedFile: File
 )
 
 /** Custom LUTs remain in app-private storage; source document permissions are not needed after import. */
@@ -2082,6 +2081,23 @@ private fun readBoundedLutBytes(input: InputStream, maxBytes: Int): ByteArray {
         output.write(buffer, 0, count)
     }
     return output.toByteArray()
+}
+
+private fun copyBoundedLutFile(input: InputStream, destination: File, maxBytes: Long): Long {
+    destination.outputStream().buffered().use { output ->
+        val buffer = ByteArray(64 * 1024)
+        var total = 0L
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            if (count == 0) continue
+            total += count
+            require(total <= maxBytes) { "Gói LUT vượt quá giới hạn dung lượng cho phép." }
+            output.write(buffer, 0, count)
+        }
+        output.flush()
+        return total
+    }
 }
 
 private fun englishLutDisplayName(name: String): String = when (name.trim()) {
@@ -2141,13 +2157,14 @@ internal fun catalogLutCategory(path: String): String {
 }
 
 private fun scanLutZip(
-    archiveBytes: ByteArray,
+    archive: InputStream,
     depth: Int,
-    budget: LutImportBudget
+    budget: LutImportBudget,
+    stagingDirectory: File
 ): List<LutImportEntry> {
     require(depth <= 3) { "ZIP LUT lồng quá nhiều cấp." }
     val found = ArrayList<LutImportEntry>()
-    ZipInputStream(ByteArrayInputStream(archiveBytes)).use { zip ->
+    ZipInputStream(archive).use { zip ->
         while (true) {
             val entry = zip.nextEntry ?: break
             budget.entries += 1
@@ -2156,9 +2173,8 @@ private fun scanLutZip(
             }
             if (!entry.isDirectory) {
                 val extension = entry.name.substringAfterLast('.', "").lowercase()
-                // The supplied APK asset pack also contains large ONNX models, native
-                // libraries, shader files and style data. Ignore non-LUT resources
-                // before reading them so they cannot trip the per-entry LUT size cap.
+                // The supplied APK asset pack includes ONNX models, native libraries,
+                // shaders and non-LUT style data. Ignore them before allocating memory.
                 if (extension !in setOf("zip", "cube", "bin")) {
                     zip.closeEntry()
                     continue
@@ -2174,18 +2190,28 @@ private fun scanLutZip(
                 )
                 val category = catalogLutCategory(entry.name)
                 when (extension) {
-                    "zip" -> found.addAll(scanLutZip(bytes, depth + 1, budget))
+                    "zip" -> found.addAll(
+                        scanLutZip(
+                            ByteArrayInputStream(bytes),
+                            depth + 1,
+                            budget,
+                            stagingDirectory
+                        )
+                    )
                     "cube" -> {
                         require(parseCubeLutText(String(bytes, StandardCharsets.UTF_8)) != null) {
                             "Tệp .cube bên trong ZIP không đúng định dạng LUT 3D."
                         }
-                        found.add(LutImportEntry(innerName, category, bytes, false))
+                        val staged = File(stagingDirectory, UUID.randomUUID().toString() + ".tmp")
+                        staged.writeBytes(bytes)
+                        found.add(LutImportEntry(innerName, category, staged))
                     }
                     "bin" -> {
-                        // Some APK packs use .bin for style/model data too. Import only
-                        // recognised RGB 33^3/65^3 LUTs and skip every other binary.
+                        // .bin is also used by style/model assets. Stage only recognised LUTs.
                         if (parseAnyBinaryLut(bytes) != null) {
-                            found.add(LutImportEntry(innerName, category, bytes, true))
+                            val staged = File(stagingDirectory, UUID.randomUUID().toString() + ".tmp")
+                            staged.writeBytes(bytes)
+                            found.add(LutImportEntry(innerName, category, staged))
                         }
                     }
                 }
@@ -2198,7 +2224,6 @@ private fun scanLutZip(
     }
     return found
 }
-
 private fun customCameraLutFile(context: Context, id: String): File? {
     if (!id.matches(Regex("[a-f0-9-]{36}"))) return null
     return File(File(context.filesDir, "camera_luts"), id + ".cube")
@@ -2272,72 +2297,76 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
     val extension = displayName.substringAfterLast('.', "").lowercase()
     val input = context.contentResolver.openInputStream(uri)
         ?: error("Không thể mở tệp LUT đã chọn.")
-    val inputBytes = input.use { readBoundedLutBytes(it, MAX_LUT_INPUT_BYTES.toInt()) }
-    val entries = when (extension) {
-        "cube" -> {
-            require(parseCubeLutText(String(inputBytes, StandardCharsets.UTF_8)) != null) {
-                "Tệp .cube không hợp lệ hoặc không phải LUT 3D."
-            }
-            listOf(
-                LutImportEntry(
-                    englishLutDisplayName(displayName.substringBeforeLast('.')),
-                    catalogLutCategory(displayName),
-                    inputBytes,
-                    false
-                )
-            )
-        }
-        "bin" -> {
-            require(parseAnyBinaryLut(inputBytes) != null) {
-                "Unsupported .bin LUT. Expected float32 RGB 33^3/65^3 or Canon RGB8 33^3."
-            }
-            listOf(
-                LutImportEntry(
-                    englishLutDisplayName(displayName.substringBeforeLast('.')),
-                    catalogLutCategory(displayName),
-                    inputBytes,
-                    true
-                )
-            )
-        }
-        "zip" -> scanLutZip(inputBytes, 0, LutImportBudget())
-        else -> error("Hỗ trợ .cube, LUT .bin RGB float32 33³/65³, Canon RGB8 33³ và ZIP chứa các định dạng này.")
-    }
-    require(entries.isNotEmpty()) {
-        "Không tìm thấy LUT .cube hoặc .bin hợp lệ bên trong ZIP."
-    }
-    val directory = File(context.filesDir, "camera_luts").apply { mkdirs() }
-    val prefs = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
-    val ids = prefs.getStringSet(CUSTOM_CAMERA_LUT_IDS, emptySet()).orEmpty().toMutableSet()
-    val imported = ArrayList<CustomCameraLut>()
-    entries.forEach { entry ->
-        val id = UUID.randomUUID().toString()
-        val safeName = entry.name.substringAfterLast('/').substringAfterLast('\\')
-            .ifBlank { "Imported LUT" }.take(100)
-        val target = File(directory, id + ".cube")
-        val temporary = File(directory, id + ".tmp")
-        temporary.writeBytes(entry.bytes)
-        if (!temporary.renameTo(target)) {
-            temporary.copyTo(target, overwrite = true)
-            temporary.delete()
-        }
-        ids.add(id)
-        imported.add(CustomCameraLut(id, safeName, entry.category))
-    }
-    val activeIds = prefs.getStringSet(ACTIVE_CAMERA_LUT_IDS, emptySet())
-        .orEmpty().toMutableSet()
-    imported.forEach { lut -> activeIds.add(lut.id) }
-    val editor = prefs.edit()
-        .putStringSet(CUSTOM_CAMERA_LUT_IDS, ids)
-        .putStringSet(ACTIVE_CAMERA_LUT_IDS, activeIds)
-    imported.forEach { lut ->
-        editor.putString("camera_lut_name_" + lut.id, lut.name)
-        editor.putString("camera_lut_category_" + lut.id, lut.category)
-    }
-    editor.apply()
-    return imported
-}
+    val stagingDirectory = File(
+        context.cacheDir,
+        "lut-import-" + UUID.randomUUID().toString()
+    ).apply { check(mkdirs()) { "Không thể tạo thư mục nhập LUT tạm." } }
 
+    try {
+        val budget = LutImportBudget()
+        val entries = when (extension) {
+            "cube", "bin" -> {
+                val bytes = input.use { readBoundedLutBytes(it, MAX_LUT_ENTRY_BYTES) }
+                val name = englishLutDisplayName(displayName.substringBeforeLast('.'))
+                val category = catalogLutCategory(displayName)
+                when (extension) {
+                    "cube" -> require(parseCubeLutText(String(bytes, StandardCharsets.UTF_8)) != null) {
+                        "Tệp .cube không hợp lệ hoặc không phải LUT 3D."
+                    }
+                    "bin" -> require(parseAnyBinaryLut(bytes) != null) {
+                        "Unsupported .bin LUT. Expected float32 RGB 33^3/65^3 or Canon RGB8 33^3."
+                    }
+                }
+                val staged = File(stagingDirectory, UUID.randomUUID().toString() + ".tmp")
+                staged.writeBytes(bytes)
+                listOf(LutImportEntry(name, category, staged))
+            }
+            "zip" -> {
+                val stagedArchive = File(stagingDirectory, "source.zip")
+                input.use { copyBoundedLutFile(it, stagedArchive, MAX_LUT_INPUT_BYTES) }
+                scanLutZip(stagedArchive.inputStream(), 0, budget, stagingDirectory)
+            }
+            else -> error("Hỗ trợ .cube, LUT .bin RGB float32 33³/65³, Canon RGB8 33³ và ZIP chứa các định dạng này.")
+        }
+        require(entries.isNotEmpty()) {
+            "Không tìm thấy LUT .cube hoặc .bin hợp lệ bên trong ZIP."
+        }
+
+        val directory = File(context.filesDir, "camera_luts").apply { mkdirs() }
+        val prefs = context.getSharedPreferences("fujifilm_contents", Context.MODE_PRIVATE)
+        val ids = prefs.getStringSet(CUSTOM_CAMERA_LUT_IDS, emptySet()).orEmpty().toMutableSet()
+        val activeIds = prefs.getStringSet(ACTIVE_CAMERA_LUT_IDS, emptySet())
+            .orEmpty().toMutableSet()
+        val imported = ArrayList<CustomCameraLut>(entries.size)
+        val editor = prefs.edit()
+
+        entries.forEach { entry ->
+            val id = UUID.randomUUID().toString()
+            val safeName = entry.name.substringAfterLast('/').substringAfterLast('\\')
+                .ifBlank { "Imported LUT" }.take(100)
+            val target = File(directory, id + ".cube")
+            val temporary = File(directory, id + ".tmp")
+            entry.stagedFile.copyTo(temporary, overwrite = true)
+            if (!temporary.renameTo(target)) {
+                temporary.copyTo(target, overwrite = true)
+                temporary.delete()
+            }
+            ids.add(id)
+            activeIds.add(id)
+            val lut = CustomCameraLut(id, safeName, entry.category)
+            imported.add(lut)
+            editor.putString("camera_lut_name_" + id, lut.name)
+            editor.putString("camera_lut_category_" + id, lut.category)
+        }
+
+        editor.putStringSet(CUSTOM_CAMERA_LUT_IDS, ids)
+            .putStringSet(ACTIVE_CAMERA_LUT_IDS, activeIds)
+            .apply()
+        return imported
+    } finally {
+        stagingDirectory.deleteRecursively()
+    }
+}
 // Built-in looks use the app-authored sRGB transforms in transformPreset.
 // Non-commercial LUT files are not bundled into this commercial application.
 private val filmSimulationAssets = emptyMap<String, String>()

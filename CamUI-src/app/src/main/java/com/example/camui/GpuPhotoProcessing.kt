@@ -214,7 +214,9 @@ internal fun tryApplyGpuPhotoEnhancement(
         val rendered = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         output = rendered
         rendered.setPixels(pixelArray, 0, width, 0, 0, width, height)
+// JPEG_INTERMEDIATE_ALLOWLIST: GPU processing output bitmap is an intermediate result; final camera photo must pass WatermarkFinalizer.
         val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
+// JPEG_INTERMEDIATE_ALLOWLIST: GPU processing output bitmap is an intermediate result; final camera photo must pass WatermarkFinalizer.
             rendered.compress(Bitmap.CompressFormat.JPEG, 98, it)
         } ?: false
         if (!written) return false

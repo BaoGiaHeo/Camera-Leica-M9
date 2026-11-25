@@ -50,7 +50,8 @@ internal data class CaptureDiagnosticEntry(
     val outputWidth: Int,
     val outputHeight: Int,
     val stageTimesMs: Map<String, Long>,
-    val peakMemoryBytes: Long
+    val peakMemoryBytes: Long,
+    val errorMessage: String? = null
 ) {
     val megapixels: Double
         get() = outputWidth.toLong().coerceAtLeast(0L)
@@ -60,6 +61,7 @@ internal data class CaptureDiagnosticEntry(
 internal object CaptureDiagnostics {
     private const val PREFS = "fujifilm_settings"
     private const val KEY = "capture_diagnostics_v1"
+    private const val WARNING_KEY = "capture_diagnostics_warnings_v1"
     private const val TAG = "FUJI_CAPTURE_DIAGNOSTICS"
     private val lock = Any()
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -88,6 +90,7 @@ internal object CaptureDiagnostics {
                     put("height", entry.outputHeight)
                     put("stages", stages)
                     put("peakMemoryBytes", entry.peakMemoryBytes)
+                    put("errorMessage", entry.errorMessage)
                 })
                 prefs.edit().putString(KEY, next.toString()).apply()
             }
@@ -116,20 +119,50 @@ internal object CaptureDiagnostics {
                 outputWidth = item.optInt("width"),
                 outputHeight = item.optInt("height"),
                 stageTimesMs = stages,
-                peakMemoryBytes = item.optLong("peakMemoryBytes")
+                peakMemoryBytes = item.optLong("peakMemoryBytes"),
+                errorMessage = item.optString("errorMessage").takeIf { it.isNotBlank() && it != "null" }
             )
         }.takeLast(Tuning.CAPTURE_DIAGNOSTICS_LIMIT).reversed()
     }.onFailure { android.util.Log.e(TAG, "Could not read capture diagnostic entries", it) }
         .getOrDefault(emptyList())
 
+    fun recordWarning(context: Context, warning: String) {
+        val safe = warning.replace('\n', ' ').take(300)
+        CrashContextDiagnostics.recordUiEvent("RED_WARNING $safe")
+        runCatching {
+            synchronized(lock) {
+                val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val old = runCatching { JSONArray(prefs.getString(WARNING_KEY, "[]") ?: "[]") }
+                    .getOrDefault(JSONArray())
+                val next = JSONArray()
+                val start = (old.length() - 29).coerceAtLeast(0)
+                for (index in start until old.length()) next.put(old.optString(index))
+                next.put(dateFormat.format(Date()) + " RED: " + safe)
+                prefs.edit().putString(WARNING_KEY, next.toString()).apply()
+            }
+        }.onFailure { android.util.Log.e(TAG, "Could not store watermark warning", it) }
+    }
+
+    fun readWarnings(context: Context): List<String> = runCatching {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(WARNING_KEY, "[]") ?: "[]"
+        val array = JSONArray(raw)
+        (0 until array.length()).map { array.optString(it) }.takeLast(30).reversed()
+    }.getOrDefault(emptyList())
+
     fun exportText(context: Context): String {
         val entries = read(context)
+        val warnings = readWarnings(context)
         return buildString {
             appendLine("FujiFilm Mode — Nhật ký chẩn đoán")
             appendLine("Thiết bị: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             appendLine("Phiên bản: ${BuildConfig.VERSION_NAME}")
             appendLine("Số lần chụp: ${entries.size}")
+            appendLine("Cảnh báo gần đây: ${warnings.size}")
+            warnings.forEach { appendLine("! $it") }
+            appendLine()
+            appendLine(CrashContextDiagnostics.snapshot())
             appendLine()
             entries.forEachIndexed { index, entry ->
                 appendLine("#${index + 1} ${dateFormat.format(Date(entry.timestamp))}")
@@ -250,6 +283,14 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
                             color = Color(0xFFD0D0D0),
                             fontSize = 10.sp
                         )
+                        entry.errorMessage?.let { error ->
+                            Text(
+                                "LỖI: $error",
+                                color = Color(0xFFFF5B52),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         Text(
                             "${entry.outputWidth}×${entry.outputHeight} · " +
                                 String.format(Locale.US, "%.2f MP", entry.megapixels) +

@@ -1723,7 +1723,10 @@ fun CameraScreen(
                 }
                 .getOrNull()
         }
-        val method = CameraLutPreviewEffect.install(context, previewView, activeFilter, prepared)
+        val method = CameraLutPreviewEffect.install(
+            context, previewView, activeFilter, prepared,
+            digitalZoomPreviewEffect.currentRenderEffect()
+        )
         CrashContextDiagnostics.recordUiEvent(
             "LIVE_LUT_EFFECT preset=$activeFilter method=$method api=${android.os.Build.VERSION.SDK_INT}"
         )
@@ -7692,7 +7695,10 @@ fun CameraScreen(
                     appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 },
                 onRecipeChanged = {
-                    CameraLutPreviewEffect.updateRecipe(context, previewView, activeFilter)
+                    CameraLutPreviewEffect.updateRecipe(
+                        context, previewView, activeFilter,
+                        digitalZoomPreviewEffect.currentRenderEffect()
+                    )
                 }
             )
         }

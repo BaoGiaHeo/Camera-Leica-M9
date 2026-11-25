@@ -362,6 +362,7 @@ private suspend fun saveBurstFrame(
         put(MediaStore.Images.Media.IS_PENDING, 1)
     }
     val output = runCatching {
+// JPEG_INTERMEDIATE_ALLOWLIST: CameraX capture JPEG is an IS_PENDING source frame; final photo is rewritten through WatermarkFinalizer/ImageSink.
         ImageCapture.OutputFileOptions.Builder(
             context.contentResolver,
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -4318,11 +4319,13 @@ fun CameraScreen(
                     else -> "NightShotMode · đang chụp khung đầu tiên"
                 }
             }
+// JPEG_INTERMEDIATE_ALLOWLIST: CameraX capture JPEG is an IS_PENDING source frame; final photo is rewritten through WatermarkFinalizer/ImageSink.
             val output = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 values
             ).build()
+// JPEG_INTERMEDIATE_ALLOWLIST: CameraX capture JPEG is an IS_PENDING source frame; final photo is rewritten through WatermarkFinalizer/ImageSink.
             val rawOutput = ImageCapture.OutputFileOptions.Builder(
                 context.contentResolver,
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,

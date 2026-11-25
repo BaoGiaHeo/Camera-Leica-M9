@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Size
+import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -330,6 +331,32 @@ private fun keyPagerState(initialPage: Int, pageCount: Int) =
         rememberPagerState(initialPage = initialPage, pageCount = { pageCount })
     }
 
+private object GalleryThumbnailCache {
+    private const val MAX_BYTES = 32 * 1024 * 1024
+    private val cache = object : LruCache<String, Bitmap>(MAX_BYTES) {
+        override fun sizeOf(key: String, value: Bitmap): Int =
+            value.allocationByteCount.coerceAtLeast(value.byteCount)
+
+        override fun entryRemoved(evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?) {
+            if (evicted) android.util.Log.i("FUJI_GALLERY", "BITMAP_CACHE_EVICT key=$key bytes=${oldValue.byteCount}")
+            // Never recycle: Compose may still hold this Bitmap through ImageBitmap.
+        }
+    }
+
+    fun load(context: android.content.Context, uri: Uri, target: Size): Bitmap {
+        val modified = runCatching {
+            context.contentResolver.query(uri, arrayOf(MediaStore.Images.Media.DATE_MODIFIED), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+            } ?: 0L
+        }.getOrDefault(0L)
+        val key = "$uri|$modified|${target.width}x${target.height}"
+        cache.get(key)?.let { return it }
+        val bitmap = context.contentResolver.loadThumbnail(uri, target, null)
+        cache.put(key, bitmap)
+        return bitmap
+    }
+}
+
 @Composable
 private fun GalleryPhoto(
     uri: Uri,
@@ -367,8 +394,12 @@ private fun GalleryPhoto(
         failed = false
         bitmap = withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.loadThumbnail(uri, target, null)
-            }.getOrNull()
+                GalleryThumbnailCache.load(context, uri, target)
+            }.onFailure {
+                android.util.Log.e("FUJI_GALLERY", "ALBUM_THUMB_LOAD uri=$uri result=fail", it)
+            }.getOrNull()?.also {
+                android.util.Log.i("FUJI_GALLERY", "ALBUM_THUMB_LOAD uri=$uri result=ok")
+            }
         }
         failed = bitmap == null
     }

@@ -5145,7 +5145,10 @@ fun CameraScreen(
                                             "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
                                             "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                                         ),
-                                        peakMemoryBytes = sampledUsedHeapBytes
+                                        peakMemoryBytes = sampledUsedHeapBytes,
+                                        errorMessage = if (captureUseLunaDream && !lunaDreamApplied) {
+                                            "LunaDream dừng: " + (lunaDreamFailureReason ?: "Không hoàn tất ghép ảnh")
+                                        } else null
                                     )
                                 )
                                 val digitalXmpPublished = if (digitalZoomApplied) {
@@ -5317,6 +5320,36 @@ fun CameraScreen(
                                     "Capture processing pipeline failed; publishing the last valid capture. reason=$reason",
                                     failure
                                 )
+                                val failedDimensions = withContext(Dispatchers.IO) {
+                                    CaptureDiagnostics.readImageDimensions(context, saved)
+                                }
+                                val failedRuntime = Runtime.getRuntime()
+                                val failedHeapBytes = (failedRuntime.totalMemory() - failedRuntime.freeMemory()).coerceAtLeast(0L)
+                                val failedMode = when {
+                                    captureUseLunaDream15 -> "LunaDream 1.5"
+                                    captureUseLunaDream20 -> "LunaDream 2.0"
+                                    captureUseLunaDream25 -> "LunaDream 2.5"
+                                    captureUseLunaDream30 -> "LunaDream 3.0"
+                                    captureUseNightShot -> "Night Shot"
+                                    mode == "Pro" -> "Pro"
+                                    else -> "Thường"
+                                }
+                                CaptureDiagnostics.record(
+                                    context,
+                                    CaptureDiagnosticEntry(
+                                        timestamp = captureTimestampMillis,
+                                        mode = failedMode,
+                                        filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
+                                        watermarkEnabled = appPrefs.getBoolean("watermark_enabled", true),
+                                        watermarkPrinted = false,
+                                        outputWidth = failedDimensions.first,
+                                        outputHeight = failedDimensions.second,
+                                        stageTimesMs = mapOf("Lỗi hậu kỳ" to 0L),
+                                        peakMemoryBytes = failedHeapBytes,
+                                        errorMessage = reason
+                                    )
+                                )
+                                CaptureDiagnostics.recordWarning(context, "$failedMode failed: $reason")
                                 runCatching {
                                     context.contentResolver.update(
                                         saved,

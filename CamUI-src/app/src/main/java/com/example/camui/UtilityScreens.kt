@@ -826,6 +826,7 @@ private suspend fun renderWatermarkStudioPreview(context: Context): ImageBitmap?
     try {
         val copied = runCatching {
             resolver.openInputStream(sourceUri)?.use { input ->
+// JPEG_INTERMEDIATE_ALLOWLIST: normalization, Watermark Studio preview, or original backup intermediate; camera final export is ImageSink.
                 resolver.openOutputStream(previewUri, "wt")?.use { output ->
                     input.copyTo(output)
                     true
@@ -1761,7 +1762,9 @@ fun normalizeCapturedImage(
         }
         val finalBitmap = orientedBitmap
         try {
+// JPEG_INTERMEDIATE_ALLOWLIST: normalization, Watermark Studio preview, or original backup intermediate; camera final export is ImageSink.
             val outputWritten = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+// JPEG_INTERMEDIATE_ALLOWLIST: normalization, Watermark Studio preview, or original backup intermediate; camera final export is ImageSink.
                 finalBitmap.compress(Bitmap.CompressFormat.JPEG, 98, output)
             } ?: false
             if (!outputWritten) return@runCatching false

@@ -8408,17 +8408,23 @@ private fun FilterLookDialog(
                                 modifier = Modifier.weight(1f)
                             )
                             Box(
-                                Modifier.size(24.dp).clip(RoundedCornerShape(5.dp))
-                                    .background(Color(0xFF383F41))
-                                    .clickable { updatePalette(Offset(0.5f, 0.5f)) },
+                                Modifier.size(48.dp).clickable {
+                                    updatePalette(Offset(0.5f, 0.5f))
+                                },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    "↺",
-                                    color = FujiSkin.lcdGreen,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Box(
+                                    Modifier.size(24.dp).clip(RoundedCornerShape(5.dp))
+                                        .background(Color(0xFF383F41)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "↺",
+                                        color = FujiSkin.lcdGreen,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                         Box(

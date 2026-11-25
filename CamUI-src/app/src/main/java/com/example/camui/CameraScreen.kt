@@ -1315,6 +1315,12 @@ fun CameraScreen(
     var starTrailTimerJob by remember { mutableStateOf<Job?>(null) }
     var starTrailExposureStatus by remember { mutableStateOf("Đang kiểm tra hỗ trợ phơi sáng") }
     var lowLightDetected by remember { mutableStateOf(false) }
+    var lowLightCandidateStartedAtMs by remember { mutableLongStateOf(0L) }
+    var lowLightMeanLuma by remember { mutableFloatStateOf(1f) }
+    var lowLightIsoActive by remember { mutableStateOf(false) }
+    val lowLightDetectedState = rememberUpdatedState(lowLightDetected)
+    val lowLightMeanLumaState = rememberUpdatedState(lowLightMeanLuma)
+    val lowLightIsoState = rememberUpdatedState(lowLightIsoActive)
     var milkyWayStackEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("milky_way_stack_enabled", false))
     }
@@ -1962,6 +1968,7 @@ fun CameraScreen(
                 var lastFaceTrackAtMs = 0L
                 var lastFaceAfAtMs = 0L
                 var lastFaceAfTarget: Offset? = null
+                var lastLowLightAfLuma = Float.NaN
 
                 fun publishDetectedFace(
                     center: Offset,
@@ -2012,14 +2019,24 @@ fun CameraScreen(
                         return
                     }
                     val previousTarget = lastFaceAfTarget
+                    val lowLightAfActive = lowLightDetectedState.value || lowLightIsoState.value
                     val movedEnough = previousTarget == null ||
                         kotlin.math.abs(previousTarget.x - focusTargetCamera.x) +
-                        kotlin.math.abs(previousTarget.y - focusTargetCamera.y) > 0.025f
-                    if (movedEnough && now - lastFaceAfAtMs >= 200L &&
+                        kotlin.math.abs(previousTarget.y - focusTargetCamera.y) >
+                        lowLightAfMovementThreshold(lowLightAfActive)
+                    val currentLuma = lowLightMeanLumaState.value
+                    val luminanceSceneChanged = lowLightLuminanceSceneChanged(
+                        lastLowLightAfLuma,
+                        currentLuma,
+                        lowLightAfActive
+                    )
+                    if ((movedEnough || luminanceSceneChanged) &&
+                        now - lastFaceAfAtMs >= lowLightAfRetryIntervalMs(lowLightAfActive) &&
                         !focusLockedState.value && manualFocusState.value <= 0f && proAfModeState.value != "MF"
                     ) {
                         lastFaceAfAtMs = now
                         lastFaceAfTarget = focusTargetCamera
+                        if (lowLightAfActive) lastLowLightAfLuma = currentLuma
                         scope.launch(Dispatchers.Main) {
                             val previewWidth = previewView.width
                             val previewHeight = previewView.height
@@ -2038,7 +2055,8 @@ fun CameraScreen(
                                         "FUJI_AF_TRACE",
                                         "faceTargetDisplay=${focusTargetDisplay.x},${focusTargetDisplay.y} " +
                                             "cameraTarget=${focusTargetCamera.x},${focusTargetCamera.y} " +
-                                            "digitalCrop=$digitalCropScale"
+                                            "digitalCrop=$digitalCropScale lowLight=$lowLightAfActive " +
+                                            "luma=$currentLuma retryMs=${lowLightAfRetryIntervalMs(lowLightAfActive)}"
                                     )
                                     val action = FocusMeteringAction.Builder(
                                         point,
@@ -2330,7 +2348,21 @@ fun CameraScreen(
                             live.activePhysicalCameraId?.let { id ->
                                 if (activePhysicalCameraId != id) activePhysicalCameraId = id
                             }
-                            live.iso?.let { if (iso != it) iso = it }
+                            live.iso?.let { liveIso ->
+                                if (iso != liveIso) iso = liveIso
+                                val nextLowLightIso = if (lowLightIsoActive) {
+                                    liveIso > Tuning.LOW_LIGHT_ISO_EXIT
+                                } else {
+                                    liveIso >= Tuning.LOW_LIGHT_ISO_ENTER
+                                }
+                                if (nextLowLightIso != lowLightIsoActive) {
+                                    lowLightIsoActive = nextLowLightIso
+                                    android.util.Log.i(
+                                        "FUJI_AF",
+                                        "Low-light ISO hysteresis active=$nextLowLightIso iso=$liveIso"
+                                    )
+                                }
+                            }
                             live.shutterNs?.let { if (shutterNs != it) shutterNs = it }
                             live.aperture?.let { if (apertureValue != it) apertureValue = it }
                             live.focusDiopter?.let { if (focusDiopter != it) focusDiopter = it }
@@ -2778,7 +2810,21 @@ fun CameraScreen(
                                 rgbBlueHistogram = if (rgbHistogramEnabledState.value) blueBins else IntArray(32)
                                 peakPoints = if (focusPeakingEnabled.value) edges else emptyList()
                                 zebraPoints = if (zebraEnabledState.value) overexposed else emptyList()
-                                lowLightDetected = meanLuma < 52
+                                lowLightMeanLuma = (meanLuma / 255f).coerceIn(0f, 1f)
+                                val lowLightTransition = updateLowLightAfTransition(
+                                    normalizedLuma = lowLightMeanLuma,
+                                    active = lowLightDetected,
+                                    candidateStartedAtMs = lowLightCandidateStartedAtMs,
+                                    nowMs = SystemClock.elapsedRealtime()
+                                )
+                                lowLightCandidateStartedAtMs = lowLightTransition.candidateStartedAtMs
+                                if (lowLightTransition.changed) {
+                                    lowLightDetected = lowLightTransition.active
+                                    android.util.Log.i(
+                                        "FUJI_AF",
+                                        "Low-light luminance hysteresis active=${lowLightTransition.active} meanLuma=$meanLuma"
+                                    )
+                                }
                             }
                         }
 

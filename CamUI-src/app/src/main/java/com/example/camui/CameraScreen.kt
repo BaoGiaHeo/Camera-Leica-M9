@@ -7962,6 +7962,7 @@ private fun FilterLookDialog(
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
     val dialogMaxHeight = (configuration.screenHeightDp * if (isLandscape) 0.94f else 0.84f).dp
     val previewHeight = if (isLandscape) 112.dp else 150.dp
+    val landscapePanelWidth = (configuration.screenWidthDp * 0.32f).coerceIn(250f, 380f).dp
     val scope = rememberCoroutineScope()
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var filterSearch by remember { mutableStateOf("") }
@@ -7969,6 +7970,7 @@ private fun FilterLookDialog(
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
+    var showAdjustmentControls by remember { mutableStateOf(false) }
     var customPreviewRevision by remember { mutableIntStateOf(0) }
     val recipePrefs = remember(context) {
         context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -8236,7 +8238,7 @@ private fun FilterLookDialog(
                     val selected = activeFilter == preset
                     val itemName = cameraLookDisplayName(context, preset)
                     Row(
-                        Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(4.dp))
+                        Modifier.fillMaxWidth().height(74.dp).clip(RoundedCornerShape(4.dp))
                             .background(if (selected) Color(0xFF303638) else Color(0xFF15191A))
                             .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
                             .animaTClickable { onSelectFilter(preset) }.padding(4.dp),
@@ -8261,8 +8263,8 @@ private fun FilterLookDialog(
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(itemName, color = if (selected) Color.White else Color(0xFFE2E7E7),
-                                fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text("35MM FILM LOOK", color = FujiSkin.lcdGreen, fontSize = 6.sp, letterSpacing = 0.8.sp)
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text("35MM FILM LOOK", color = FujiSkin.lcdGreen, fontSize = 7.sp, letterSpacing = 0.8.sp)
                         }
                     }
                 }
@@ -8300,9 +8302,9 @@ private fun FilterLookDialog(
         if (isLandscape) {
             Box(Modifier.fillMaxSize().padding(end = 12.dp, top = 10.dp, bottom = 10.dp), contentAlignment = Alignment.CenterEnd) {
                 Column(
-                    Modifier.width(206.dp).fillMaxHeight().clip(RoundedCornerShape(26.dp))
+                    Modifier.width(landscapePanelWidth).fillMaxHeight().clip(RoundedCornerShape(26.dp))
                         .background(Color(0xF50A0C0D)).border(1.dp, Color(0xFF465054), RoundedCornerShape(26.dp))
-                        .padding(horizontal = 9.dp, vertical = 10.dp),
+                        .padding(horizontal = 11.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -8324,7 +8326,28 @@ private fun FilterLookDialog(
                         color = FujiSkin.lcdGreen, fontSize = 7.sp
                     )
                     presetGrid(Modifier.weight(1f).fillMaxWidth())
-                    adjustmentControls(Modifier.fillMaxWidth())
+                    Row(
+                        Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(5.dp))
+                            .background(Color(0xFF202526))
+                            .clickable { showAdjustmentControls = !showAdjustmentControls }
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.filter_adjustments_title),
+                            color = Color.White,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            if (showAdjustmentControls) "−" else "+",
+                            color = FujiSkin.lcdGreen,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
                             .background(Color(0xFF25292A)).padding(6.dp),
@@ -8342,14 +8365,22 @@ private fun FilterLookDialog(
                                 letterSpacing = 0.4.sp,
                                 modifier = Modifier.weight(1f)
                             )
-                            FujiKey(
-                                stringResource(R.string.filter_reset),
-                                onClick = { updatePalette(Offset(0.5f, 0.5f)) },
-                                modifier = Modifier.width(34.dp)
-                            )
+                            Box(
+                                Modifier.size(24.dp).clip(RoundedCornerShape(5.dp))
+                                    .background(Color(0xFF383F41))
+                                    .clickable { updatePalette(Offset(0.5f, 0.5f)) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "↺",
+                                    color = FujiSkin.lcdGreen,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                         Box(
-                            Modifier.fillMaxWidth().height(84.dp).clip(RoundedCornerShape(7.dp))
+                            Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(7.dp))
                                 .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
                                 .onSizeChanged {
                                     paletteWidth = it.width.toFloat().coerceAtLeast(1f)
@@ -8427,7 +8458,28 @@ private fun FilterLookDialog(
                 searchPane(Modifier)
                 importPane(Modifier)
                 categoryPane(Modifier)
-                adjustmentControls(Modifier.fillMaxWidth())
+                Row(
+                    Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF202526))
+                        .clickable { showAdjustmentControls = !showAdjustmentControls }
+                        .padding(horizontal = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.filter_adjustments_title),
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        if (showAdjustmentControls) "−" else "+",
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
                 Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
                 presetGrid(Modifier.weight(1f))
             }

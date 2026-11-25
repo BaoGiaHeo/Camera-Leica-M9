@@ -26,9 +26,17 @@ internal class LunaDreamStageWatchdog(
 
     fun beginStage(name: String, budgetMs: Long) {
         checkpoint()
+        if (stageName != "initializing merge") {
+            val now = SystemClock.elapsedRealtime()
+            recordStageComplete(now - stageStartedAtMs, now - mergeStartedAtMs)
+        }
         stageName = name
         stageBudgetMs = budgetMs.coerceAtLeast(1L)
         stageStartedAtMs = SystemClock.elapsedRealtime()
+        lastRecordedStage = null
+        CrashContextDiagnostics.recordUiEvent(
+            "LUNADREAM_STAGE_START mode=$mode stage=$stageName budgetMs=$stageBudgetMs"
+        )
         Log.i(
             "FUJI_LUNADREAM_WATCHDOG",
             "STAGE_START mode=$mode stage=$stageName budgetMs=$stageBudgetMs multiplier=$stageMultiplier"

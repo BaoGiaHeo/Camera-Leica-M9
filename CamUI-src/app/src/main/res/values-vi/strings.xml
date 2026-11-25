@@ -238,4 +238,7 @@
     <string name="settings_tab_sound">Âm thanh &amp; Rung</string>
     <string name="settings_tab_language">Ngôn ngữ</string>
     <string name="settings_tab_about">Giới thiệu</string>
+    <string name="capture_diagnostics_title">Nhật ký chẩn đoán</string>
+    <string name="capture_diagnostics_share">Chia sẻ nhật ký (.txt)</string>
+    <string name="common_close">Đóng</string>
 </resources>

@@ -25,7 +25,8 @@ internal class WatermarkedFrame private constructor(
     internal val height: Int,
     internal val watermarkPrinted: Boolean,
     internal val intentionalSkip: Boolean,
-    internal val verificationRegion: Rect?
+    internal val verificationRegion: Rect?,
+    internal val verificationBackgroundColor: Int
 ) {
     companion object {
         internal fun fromWatermarkStage(
@@ -36,7 +37,8 @@ internal class WatermarkedFrame private constructor(
             height: Int,
             watermarkPrinted: Boolean,
             intentionalSkip: Boolean,
-            verificationRegion: Rect?
+            verificationRegion: Rect?,
+            verificationBackgroundColor: Int
         ): WatermarkedFrame = WatermarkedFrame(
             uri = uri,
             bitmap = bitmap,
@@ -45,7 +47,8 @@ internal class WatermarkedFrame private constructor(
             height = height,
             watermarkPrinted = watermarkPrinted,
             intentionalSkip = intentionalSkip,
-            verificationRegion = verificationRegion
+            verificationRegion = verificationRegion,
+            verificationBackgroundColor = verificationBackgroundColor
         )
     }
 }
@@ -56,7 +59,8 @@ internal object WatermarkStage {
         uri: Uri,
         bitmap: Bitmap,
         sourceExif: Map<String, String>,
-        verificationRegion: Rect?
+        verificationRegion: Rect?,
+        verificationBackgroundColor: Int
     ): WatermarkedFrame {
         require(!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0)
         return WatermarkedFrame.fromWatermarkStage(
@@ -67,7 +71,8 @@ internal object WatermarkStage {
             height = bitmap.height,
             watermarkPrinted = true,
             intentionalSkip = false,
-            verificationRegion = verificationRegion
+            verificationRegion = verificationRegion,
+            verificationBackgroundColor = verificationBackgroundColor
         )
     }
 
@@ -86,7 +91,8 @@ internal object WatermarkStage {
             height = height,
             watermarkPrinted = false,
             intentionalSkip = true,
-            verificationRegion = null
+            verificationRegion = null,
+            verificationBackgroundColor = android.graphics.Color.BLACK
         )
     }
 
@@ -104,7 +110,8 @@ internal object WatermarkStage {
             height = bitmap.height,
             watermarkPrinted = false,
             intentionalSkip = true,
-            verificationRegion = null
+            verificationRegion = null,
+            verificationBackgroundColor = android.graphics.Color.BLACK
         )
     }
 }
@@ -182,7 +189,7 @@ internal object ImageSink {
             onStageDuration?.invoke("Ghi file", writeMs)
 
             val regionVerified = if (frame.watermarkPrinted) {
-                frame.verificationRegion?.let { verifyWatermarkRegion(context, frame.uri, it) }
+                frame.verificationRegion?.let { verifyWatermarkRegion(context, frame.uri, it, frame.verificationBackgroundColor) }
             } else null
             if (regionVerified == false) {
                 CaptureDiagnostics.recordWarning(
@@ -237,7 +244,12 @@ internal object ImageSink {
         check(verification == marker) { "Final EXIF watermark marker mismatch: expected=$marker actual=$verification" }
     }
 
-    private fun verifyWatermarkRegion(context: Context, uri: Uri, requested: Rect): Boolean? {
+    private fun verifyWatermarkRegion(
+        context: Context,
+        uri: Uri,
+        requested: Rect,
+        expectedBackgroundColor: Int
+    ): Boolean? {
         val source = context.contentResolver.openInputStream(uri) ?: return false
         source.use { input ->
             val decoder = BitmapRegionDecoder.newInstance(input, false) ?: return false
@@ -254,7 +266,9 @@ internal object ImageSink {
                 try {
                     val strideX = (bitmap.width / 64).coerceAtLeast(1)
                     val strideY = (bitmap.height / 32).coerceAtLeast(1)
-                    var first = -1
+                    val expectedRed = android.graphics.Color.red(expectedBackgroundColor)
+                    val expectedGreen = android.graphics.Color.green(expectedBackgroundColor)
+                    val expectedBlue = android.graphics.Color.blue(expectedBackgroundColor)
                     var different = 0
                     var sampled = 0
                     var y = 0
@@ -262,18 +276,16 @@ internal object ImageSink {
                         var x = 0
                         while (x < bitmap.width) {
                             val pixel = bitmap.getPixel(x, y)
-                            val rgb = pixel and 0x00FFFFFF
-                            if (first < 0) first = rgb
-                            else if (kotlin.math.abs(android.graphics.Color.red(rgb) - android.graphics.Color.red(first)) +
-                                kotlin.math.abs(android.graphics.Color.green(rgb) - android.graphics.Color.green(first)) +
-                                kotlin.math.abs(android.graphics.Color.blue(rgb) - android.graphics.Color.blue(first)) > 24
-                            ) different++
+                            val delta = kotlin.math.abs(android.graphics.Color.red(pixel) - expectedRed) +
+                                kotlin.math.abs(android.graphics.Color.green(pixel) - expectedGreen) +
+                                kotlin.math.abs(android.graphics.Color.blue(pixel) - expectedBlue)
+                            if (delta > 48) different++
                             sampled++
                             x += strideX
                         }
                         y += strideY
                     }
-                    // Heuristic verification of a non-uniform printed footer/card region.
+                    // Compare the decoded footer region against the pre-render blank-canvas color.
                     return sampled > 8 && different >= 4
                 } finally {
                     if (!bitmap.isRecycled) bitmap.recycle()

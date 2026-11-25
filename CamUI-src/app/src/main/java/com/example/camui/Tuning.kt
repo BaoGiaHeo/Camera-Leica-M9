@@ -28,6 +28,9 @@ internal object Tuning {
     const val ASPECT_RATIO_ANIMATION_MS = 220
     const val JANK_DIAGNOSTICS_ENABLED = true
     const val CAPTURE_DIAGNOSTICS_LIMIT = 30
+    const val LUNA_DREAM_30_STACK_MAX_PIXELS = 48_000_000L
+    const val LUNA_DREAM_30_WORKER_COUNT = 4
+    const val LUNA_DREAM_30_MIN_OUTPUT_PIXELS = 50_000_000L
 }
 
 /**

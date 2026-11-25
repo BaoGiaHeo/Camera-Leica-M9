@@ -34,7 +34,10 @@ class FujiTypographyAssetTest {
         assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ĂÂĐÊÔƠƯ"))
         assertTrue(FujiTypography.GLYPH_TEST_CHARACTERS.contains("ăâđêôơư"))
         val theme = File("src/main/res/values/themes.xml").readText()
-        assertTrue("Android XML theme must use KK7", theme.contains("@font/vcr_osd_mono_kk7"))
-        assertFalse("Android XML theme must not override KK7 with sans", theme.contains(">sans</item>"))
+        val tuning = File("src/main/java/com/example/camui/Tuning.kt").readText()
+        assertTrue("Arial regular asset path must be supported", tuning.contains("fonts/arial.ttf"))
+        assertTrue("Arial bold asset path must be supported", tuning.contains("fonts/arial_bold.ttf"))
+        assertTrue("Android XML theme must use sans-serif fallback", theme.contains(">sans</item>"))
+        assertFalse("Android XML theme must not force the VCR pixel font", theme.contains("@font/vcr_osd_mono_kk7"))
     }
 }

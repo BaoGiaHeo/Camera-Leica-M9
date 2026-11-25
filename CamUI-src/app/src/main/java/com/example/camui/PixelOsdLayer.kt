@@ -762,12 +762,28 @@ class PixelOsdRenderer(context: Context) {
         val elements = layout.elements.filter {
             it.section == "pro-top" || it.section == "pro-bottom" || it.section == "pro-right"
         }
+        val bottomElements = elements.filter { it.section == "pro-bottom" && it.kind != PixelOsdElementKind.RULE }
+        if (bottomElements.isNotEmpty()) {
+            val scale = pixelScale.coerceAtLeast(1).toFloat()
+            val padding = (layout.unitPx * 0.70f / scale).coerceAtLeast(3f)
+            val left = bottomElements.minOf { it.bounds.left } / scale - padding
+            val top = bottomElements.minOf { it.bounds.top } / scale - padding
+            val right = bottomElements.maxOf { it.bounds.right } / scale + padding
+            val bottom = bottomElements.maxOf { it.bounds.bottom } / scale + padding
+            fillPaint.color = android.graphics.Color.argb(204, 8, 11, 13)
+            fillPaint.alpha = 204
+            val radius = (layout.unitPx * 0.45f / scale).coerceAtLeast(3f)
+            canvas.drawRoundRect(android.graphics.RectF(left, top, right, bottom), radius, radius, fillPaint)
+            fillPaint.alpha = 255
+        }
         elements.forEach { element ->
             if (element.kind == PixelOsdElementKind.TEXT) {
                 val key = when (element.id) {
                     "pro-dr" -> "DR"
                     "pro-wb" -> "WB"
-                    "pro-mode" -> "EV"
+                    "pro-mode" -> "METER"
+                    "pro-ev-label", "pro-ev-value" -> "EV"
+                    "pro-wb-label", "pro-wb-value" -> "WB"
                     "pro-af" -> "AF"
                     "pro-shutter-label", "pro-shutter-value" -> "TV"
                     "pro-aperture-label", "pro-aperture-value" -> "F"
@@ -776,11 +792,12 @@ class PixelOsdRenderer(context: Context) {
                 }
                 val selectedThis = selected == key ||
                     (key == "TV" && selected == "SHUTTER") ||
-                    (key == "F" && selected == "APERTURE")
+                    (key == "F" && selected == "APERTURE") ||
+                    (key == "WB" && selected == "TONE")
                 val textColor = when {
                     selectedThis -> PixelOsdPalette.BLUE
                     element.id == "pro-area" && frame.touchAfEnabled -> PixelOsdPalette.BLUE
-                    element.id == "pro-kelvin" && frame.manualWhiteBalance -> PixelOsdPalette.BLUE
+                    (element.id == "pro-kelvin" || element.id == "pro-wb-value") && frame.manualWhiteBalance -> PixelOsdPalette.BLUE
                     element.id == "pro-lock" -> PixelOsdPalette.AMBER
                     element.id == "pro-dr-value" && frame.dynamicRangeText.contains("400", ignoreCase = true) -> PixelOsdPalette.AMBER
                     (key == "EV" && frame.manualExposure) ||
@@ -1443,6 +1460,10 @@ private fun resolvePixelOsdProControlTap(
         "pro-shutter-value" to "Tv",
         "pro-iso-label" to "ISO",
         "pro-iso-value" to "ISO",
+        "pro-ev-label" to "EV",
+        "pro-ev-value" to "EV",
+        "pro-wb-label" to "Tone",
+        "pro-wb-value" to "Tone",
         "pro-kelvin" to "Tone",
         "pro-af" to "AF"
     )

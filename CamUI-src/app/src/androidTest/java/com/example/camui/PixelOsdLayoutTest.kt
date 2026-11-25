@@ -109,6 +109,13 @@ class PixelOsdLayoutTest {
                             (size.height / 48f).let { kotlin.math.round(it).toInt().coerceIn(15, 28) },
                             layout.unitPx
                         )
+                        if (isPro) {
+                            val ids = layout.elements.map { it.id }.toSet()
+                            assertTrue("Pro HUD EV readout missing", "pro-ev-value" in ids)
+                            assertTrue("Pro HUD WB readout missing", "pro-wb-value" in ids)
+                        } else {
+                            assertTrue("Photo HUD should not show Pro EV", layout.elements.none { it.id == "pro-ev-value" })
+                        }
                         assertTrue(
                             "Overlapping OSD boxes in " + size.width + "x" + size.height + "/" + mode + "/" + locale +
                                 "/Pro=" + isPro + ": " +

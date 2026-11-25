@@ -370,22 +370,28 @@ internal object PixelOsdLayoutEngine {
             data class Group(val id: String, val parts: List<Part>)
             val groups = ArrayList<Group>()
 
-            if (frame.showProEv) {
-                groups += Group(
-                    "mode",
-                    listOf(
-                        Part("pro-mode", text = "M"),
-                        Part(
-                            "meter",
-                            sprite = when (frame.meteringText.uppercase()) {
-                                "M" -> "meter-center"
-                                "S" -> "meter-spot"
-                                else -> "meter-matrix"
-                            },
-                            beforeGap = itemGap
-                        )
+            groups += Group(
+                "mode",
+                listOf(
+                    Part("pro-mode", text = frame.meteringText.ifBlank { "C" }),
+                    Part(
+                        "meter",
+                        sprite = when (frame.meteringText.uppercase()) {
+                            "M" -> "meter-center"
+                            "S" -> "meter-spot"
+                            else -> "meter-matrix"
+                        },
+                        beforeGap = itemGap
                     )
                 )
+            )
+            if (frame.showProEv) {
+                val evStops = frame.evDisplayIndex * frame.evStepStops
+                val evValue = String.format(java.util.Locale.US, "%.1f", evStops)
+                groups += Group("ev", listOf(
+                    Part("pro-ev-label", text = "EV", tier = t3),
+                    Part("pro-ev-value", text = evValue, beforeGap = labelValueGap)
+                ))
             }
             if (frame.showProFocus) {
                 groups += Group(
@@ -421,6 +427,12 @@ internal object PixelOsdLayoutEngine {
                         Part("pro-iso-value", text = frame.isoText.removePrefix("ISO").ifBlank { "AUTO" }, beforeGap = labelValueGap)
                     )
                 )
+            }
+            if (frame.showProWhiteBalance) {
+                groups += Group("white-balance", listOf(
+                    Part("pro-wb-label", text = "WB", tier = t3),
+                    Part("pro-wb-value", text = frame.whiteBalanceText.ifBlank { "AUTO" }, beforeGap = labelValueGap)
+                ))
             }
 
             fun partWidth(part: Part, shrink: Float): Float {

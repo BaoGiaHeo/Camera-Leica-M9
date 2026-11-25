@@ -61,10 +61,10 @@ internal data class ScreenProfile(
         val safeWidth = widthDp.takeIf { it.isFinite() && it > 0f } ?: this.widthDp
         val safeHeight = heightDp.takeIf { it.isFinite() && it > 0f } ?: this.heightDp
         return ScreenLayoutMetrics(
-            topPlateHeight = (safeHeight * 0.14f).coerceIn(52f, 68f).dp,
-            leftColumnWidth = (safeWidth * 0.12f).coerceIn(96f, 132f).dp,
-            rightColumnWidth = (safeWidth * 0.19f).coerceIn(150f, 200f).dp,
-            proControlHeight = (safeHeight * 0.10f).coerceIn(56f, 84f).dp
+            topPlateHeight = (safeHeight * 0.105f).coerceIn(40f, 52f).dp,
+            leftColumnWidth = (safeWidth * 0.075f).coerceIn(54f, 70f).dp,
+            rightColumnWidth = (safeWidth * 0.285f).coerceIn(188f, 232f).dp,
+            proControlHeight = (safeHeight * 0.12f).coerceIn(64f, 92f).dp
         )
     }
 

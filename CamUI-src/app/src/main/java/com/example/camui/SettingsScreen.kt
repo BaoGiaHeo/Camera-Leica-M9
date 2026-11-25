@@ -88,7 +88,7 @@ fun SettingsScreen(
     onOpenContentsManagement: () -> Unit = {},
     onReplayActivation: () -> Unit = {}
 ) {
-    var selectedCategory by remember { mutableStateOf("Assistive Tools") }
+    var selectedCategory by remember { mutableStateOf("Capture & Quality") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
     val displayVersionName = BuildConfig.VERSION_NAME
         .replace(Regex("(?i)dream.*$"), "")
@@ -110,28 +110,46 @@ fun SettingsScreen(
         title = stringResource(R.string.settings_screen_title), modifier = Modifier.fillMaxSize(),
         onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
     ) {
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                stringResource(R.string.settings_menu_tabs),
-                color = FujiSkin.lcdGreen,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Column(
+                Modifier.width(126.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF101416)).border(1.dp, Color(0xFF3E484B), RoundedCornerShape(4.dp))
+                    .verticalScroll(rememberScrollState()).padding(vertical = 5.dp, horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                visibleSettingItems.forEachIndexed { index, item ->
-                    FujiChip(
-                        "%02d · %s".format(index + 1, stringResource(item.titleResource)),
-                        selectedCategory == item.title,
-                        { selectedCategory = item.title }
-                    )
+                Text("SHOOTING MENU", color = FujiSkin.lcdGreen, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp, modifier = Modifier.padding(start = 5.dp, top = 3.dp, bottom = 4.dp))
+                visibleSettingItems.forEach { item ->
+                    val selected = selectedCategory == item.title
+                    Row(
+                        Modifier.fillMaxWidth().height(45.dp).clip(RoundedCornerShape(3.dp))
+                            .background(if (selected) Color(0xFF303638) else Color.Transparent)
+                            .border(1.dp, if (selected) Color(0xFF858D90) else Color.Transparent, RoundedCornerShape(3.dp))
+                            .clickable { selectedCategory = item.title },
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(Modifier.width(3.dp).fillMaxHeight().background(if (selected) FujiSkin.orange else Color.Transparent))
+                        FujiIconGlyph(item.icon, Modifier.size(17.dp), if (selected) FujiSkin.orange else FujiSkin.muted)
+                        Text(stringResource(item.titleResource), color = if (selected) Color.White else Color(0xFFB4BBBD),
+                            fontSize = 8.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 2, modifier = Modifier.weight(1f).padding(end = 3.dp))
+                    }
                 }
             }
-            SettingsDetailPage(
+            Column(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(4.dp))
+                    .background(FujiSkin.lcd).border(1.dp, Color(0xFF596265), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 9.dp, vertical = 7.dp)
+            ) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("SHOOTING SETTING", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                    Spacer(Modifier.weight(1f))
+                    val activeIndex = visibleSettingItems.indexOfFirst { it.title == selectedCategory }.coerceAtLeast(0) + 1
+                    Text("%02d/%02d".format(activeIndex, visibleSettingItems.size), color = FujiSkin.lcdGreen,
+                        fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                }
+                SettingsDetailPage(
+                    title = selectedCategory,            SettingsDetailPage(
                 title = selectedCategory,
                 onBack = {},
                 ratioIdx = ratioIdx,
@@ -143,7 +161,7 @@ fun SettingsScreen(
                 focusPeaking = focusPeaking,
                 onFocusPeaking = onFocusPeaking,
                 embedded = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 onOpenBackup = {
                     categoryBeforeBackup = selectedCategory
                     selectedCategory = "Sao lưu & Khôi phục"
@@ -151,7 +169,8 @@ fun SettingsScreen(
                 onOpenToolbox = onOpenToolbox,
                 onOpenContentsManagement = onOpenContentsManagement,
                 onReplayActivation = onReplayActivation
-            )
+                )
+            }
         }
     }
 }

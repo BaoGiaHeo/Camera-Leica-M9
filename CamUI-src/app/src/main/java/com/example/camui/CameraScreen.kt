@@ -5333,32 +5333,41 @@ fun CameraScreen(
     )
 
     val toolbarContent: @Composable (Modifier, Dp) -> Unit = { toolbarModifier, plateHeight ->
-        FujiMetalTopPlate(toolbarModifier, height = plateHeight) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 1.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.fujifilm_logo),
-                    contentDescription = null,
-                    modifier = Modifier.width(76.dp).height(13.dp),
-                    contentScale = ContentScale.Fit
-                )
-                FujiTopKey(label = "FLASH", icon = if (flash == ImageCapture.FLASH_MODE_ON) "flash_on" else "flash_off", selected = flash == ImageCapture.FLASH_MODE_ON, onClick = {
-                    flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
-                })
-                FujiTopKey(label = "DRIVE", icon = "timer", selected = timerSec > 0 || burstMode, onClick = {
-                    timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 }
-                }, onLongClick = {
-                    if (mode == "Photo" && nightShotMode == "off" && lunaDreamMode == "off" && rawCaptureMode == "jpeg" && !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled) burstMode = !burstMode
-                })
-                FujiTopKey(label = "FILM", icon = "film", selected = filterDialogVisible || activeFilter != "None", onClick = { filterDialogVisible = true })
-                FujiTopKey(label = "ADJ", icon = "sliders", selected = false, onClick = onOpenToolbox)
-                FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
-                FujiTopKey(label = "AF", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
-                FujiTopKey(label = "Q", icon = "q", selected = showQuick, onClick = { showQuick = !showQuick })
+        Row(
+            toolbarModifier.fillMaxWidth().height(plateHeight).clip(RoundedCornerShape(5.dp))
+                .background(Color(0xA9080A0B)).border(1.dp, Color(0xFF737A7C), RoundedCornerShape(5.dp))
+                .padding(horizontal = 12.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Column(Modifier.widthIn(min = 100.dp, max = 136.dp), verticalArrangement = Arrangement.Center) {
+                Image(painter = painterResource(R.drawable.fujifilm_logo), contentDescription = "FUJIFILM",
+                    modifier = Modifier.fillMaxWidth().height(22.dp), contentScale = ContentScale.Fit)
+                Text("MODE · DIGITAL CAMERA", color = Color(0xFFE4E6E4), fontSize = 6.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.05.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth())
             }
+            Spacer(Modifier.weight(1f))
+            FujiTopKey(label = "PEAK", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
+            FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
+            FujiTopKey(
+                label = if (mode == "Pro") "PRO" else "PHOTO", icon = "q", selected = mode == "Pro",
+                onClick = {
+                    if (mode == "Pro") {
+                        mode = "Photo"
+                        proSel = null
+                        manualExposure = false
+                        manualIsoEnabled = false
+                        manualShutterEnabled = false
+                        manualColorTempEnabled = false
+                        manualFocus = 0f
+                        milkyWayInfinityFocusEnabled = false
+                        invalidatePendingFocusLock(camera)
+                        camera?.let { active -> runCatching { applyAutoWhiteBalance(active); applyAutoFocus(active) } }
+                    } else mode = "Pro"
+                }
+            )
+            FujiTopKey(label = "MENU", icon = "q", selected = false, onClick = onOpenSettings)
         }
     }
 
@@ -5973,7 +5982,7 @@ fun CameraScreen(
                                     whiteBalanceText = toneText,
                                     filmSimulationText = activeFilter.takeIf { it != "None" }?.take(2)?.uppercase(Locale.US) ?: "",
                                     outputSizeLabel = if (lunaDreamMode == "luna20" || lunaDreamMode == "luna15") "L" else "M",
-                                    whiteBalanceKelvinText = if (manualColorTempEnabled) "${manualColorTemp}K" else "----K",
+                                    whiteBalanceKelvinText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
                                     touchAfEnabled = touchAfEnabled,
                                     manualExposure = manualExposure,
                                     manualWhiteBalance = manualColorTempEnabled,
@@ -6862,82 +6871,48 @@ fun CameraScreen(
 
 
     val leftHardwareContent: @Composable (Modifier) -> Unit = { sideModifier ->
-        Column(
-            sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 3.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
+        Column(sideModifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 2.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(13.dp)) {
             Box(
-                Modifier.size(58.dp).clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF070909))
-                    .border(2.dp, FujiSkin.silver, RoundedCornerShape(4.dp))
+                Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFF070909))
+                    .border(1.5.dp, FujiSkin.silver, RoundedCornerShape(5.dp))
                     .animaTClickable { galleryVisible = true; galleryRefreshToken++ },
                 contentAlignment = Alignment.Center
             ) {
                 val image = thumb
-                if (image != null) {
-                    Image(
-                        image,
-                        "Ảnh gần nhất",
-                        Modifier.fillMaxSize().padding(2.dp)
-                            ,
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    FujiIconGlyph("film", Modifier.size(24.dp), FujiSkin.lcdGreen)
-                }
+                if (image != null) Image(image, "Ảnh gần nhất", Modifier.fillMaxSize().padding(2.dp), contentScale = ContentScale.Crop)
+                else FujiIconGlyph("film", Modifier.size(22.dp), FujiSkin.lcdGreen)
             }
-            FujiChip("PLAY", false, { galleryVisible = true; galleryRefreshToken++ }, Modifier.fillMaxWidth())
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF454B4D)))
-            FujiChip(
-                "PRO",
-                mode == "Pro",
-                { mode = "Pro" },
-                Modifier.fillMaxWidth()
-            )
-            FujiChip(
-                "PHOTO",
-                mode == "Photo",
-                {
-                    mode = "Photo"
-                    proSel = null
-                    manualExposure = false
-                    manualIsoEnabled = false
-                    manualShutterEnabled = false
-                    manualColorTempEnabled = false
-                    manualFocus = 0f
-                    milkyWayInfinityFocusEnabled = false
-                    invalidatePendingFocusLock(camera)
-
-                    camera?.let { runCatching { applyAutoWhiteBalance(it); applyAutoFocus(it) } }
-                },
-                Modifier.fillMaxWidth()
-            )
-            FujiChip(
-                "FILTER",
-                filterDialogVisible || activeFilter != "None",
-                {
-                    activeFilter = appPrefs.getString("selected_filter", activeFilter) ?: activeFilter
-                    filterDialogVisible = true
-                },
-                Modifier.fillMaxWidth()
-            )
-            FujiChip(
-                "LUNA",
-                lunaDreamMode != "off" || nightShotMode == "night",
-                {
-                    when {
-                        livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
-                        nativeImageProcessingEnabled -> localizedToast(
-                            context,
-                            "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        else -> showLunaDream = true
-                    }
-                },
-                Modifier.fillMaxWidth()
-            )
+            Text("PLAY", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.6.sp, modifier = Modifier.clickable { galleryVisible = true; galleryRefreshToken++ })
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF6D7476)))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
+                    .background(if (filterDialogVisible || activeFilter != "None") Color(0xFF34383A) else Color(0xAA111415))
+                    .border(1.dp, if (filterDialogVisible || activeFilter != "None") FujiSkin.orange else Color(0xFF657074), RoundedCornerShape(4.dp))
+                    .animaTClickable { activeFilter = appPrefs.getString("selected_filter", activeFilter) ?: activeFilter; filterDialogVisible = true }
+                    .padding(vertical = 9.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                FujiIconGlyph("film", Modifier.size(18.dp), if (filterDialogVisible || activeFilter != "None") FujiSkin.orange else FujiSkin.ivory)
+                Text("FILTER", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            }
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
+                    .background(if (lunaDreamMode != "off" || nightShotMode == "night") Color(0xFF34383A) else Color(0xAA111415))
+                    .border(1.dp, Color(0xFF657074), RoundedCornerShape(4.dp))
+                    .animaTClickable {
+                        when {
+                            livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
+                            nativeImageProcessingEnabled -> localizedToast(context, "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.", Toast.LENGTH_LONG).show()
+                            else -> showLunaDream = true
+                        }
+                    }.padding(vertical = 9.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                FujiIconGlyph("moon", Modifier.size(18.dp), FujiSkin.orange)
+                Text("LUNA", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 
@@ -6963,6 +6938,14 @@ fun CameraScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                FujiKey(if (flash == ImageCapture.FLASH_MODE_ON) "FLASH ON" else "FLASH",
+                    onClick = { flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF },
+                    modifier = Modifier.weight(1f))
+                FujiKey(if (timerSec == 0) "DRIVE" else "TIMER $timerSec",
+                    onClick = { timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 } },
+                    modifier = Modifier.weight(1f))
+            }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(
                     Modifier.fillMaxWidth(),
@@ -7099,7 +7082,23 @@ fun CameraScreen(
                         android.util.Log.d("FUJI_EV", "PRESS_END direction=UP index=$evIndex")
                     })
             }
-            FujiChip("SWAP", false, { front = !front; manualFocus = 0f }, Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FujiKey(
+                    if (focusLocked) "AF-L ON" else "AF LOCK",
+                    onClick = {
+                        val active = camera ?: return@FujiKey
+                        if (focusLocked) {
+                            invalidatePendingFocusLock(active)
+                            runCatching { active.cameraControl.cancelFocusAndMetering() }
+                            applyCameraAeLock(active, locked = false)
+                            focusLocked = false
+                        } else focusLocked = applyCameraAeLock(active, locked = true)
+                    },
+                    modifier = Modifier.weight(1.2f)
+                )
+                FujiKey("MENU", onClick = onOpenSettings, modifier = Modifier.weight(0.8f))
+                FujiKey("SWAP", onClick = { front = !front; manualFocus = 0f }, modifier = Modifier.weight(0.8f))
+            }
             FujiKey(
                 "DISP/BACK · ${stringResource(lcdDisplayMode.labelResource)}",
                 onClick = {
@@ -7132,95 +7131,44 @@ fun CameraScreen(
             val chromeAlpha = if (hudVisible) ratioUiAlpha.value else 0f
             val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
 
-            Column(Modifier.fillMaxSize().padding(vertical = 4.dp)) {
+            Column(Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)) {
                 Box(
-                    Modifier.fillMaxWidth().height(topPlateHeight)
-                        .graphicsLayer { alpha = chromeAlpha }
-                        .onSizeChanged {
-                            Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
-                        }
+                    Modifier.fillMaxWidth().height(topPlateHeight).graphicsLayer { alpha = chromeAlpha }
+                        .onSizeChanged { Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)") }
                 ) {
-                    toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(
-                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                            ), topPlateHeight)
-                    if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Red.copy(alpha = 0.13f)))
+                    toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)), topPlateHeight)
                 }
-                Row(
-                    Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        Modifier.width(leftColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(
-                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                            )
-                            .windowInsetsPadding(
-                                WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal)
-                            )
-                            .windowInsetsPadding(
-                                WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal)
-                            )
-                            .graphicsLayer { alpha = chromeAlpha }
-                            .onSizeChanged {
-                                Log.d("LUNA_LAYOUT", "LEFT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
-                            }
-                    ) {
-                        leftPanelContent(Modifier.fillMaxSize())
-                        if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Blue.copy(alpha = 0.17f)))
+                Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val leftPaneWidth = if (leftHandedLayout) layoutMetrics.rightColumnWidth else leftColumnWidth
+                    val rightPaneWidth = if (leftHandedLayout) leftColumnWidth else rightColumnWidth
+                    if (leftHandedLayout) {
+                        Box(Modifier.width(leftPaneWidth).fillMaxHeight()
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .graphicsLayer { alpha = chromeAlpha }) { leftPanelContent(Modifier.fillMaxSize()) }
                     }
                     Column(Modifier.weight(1f).fillMaxHeight()) {
-                        Box(
-                            Modifier.weight(1f).fillMaxWidth()
-                                .onSizeChanged {
-                                    Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
-                                }
-                        ) {
+                        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(5.dp))
+                            .onSizeChanged { Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)") }) {
                             previewContent(Modifier.fillMaxSize())
-                            if (!hasCam) {
-                                Text(
-                                    localizedUiText(context, "NO SIGNAL"),
-                                    color = Color(0xFFE8442B),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.align(Alignment.Center)
-                                )
-                            } else if (previewStreamState != PreviewView.StreamState.STREAMING) {
-                                Text(
-                                    localizedUiText(context, "STARTING..."),
-                                    color = FujiSkin.lcdGreen,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.align(Alignment.Center)
-                                )
-                            }
-                            if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color.Yellow.copy(alpha = 0.12f)))
-                        }
-                        if (mode == "Pro") {
-                            Box(Modifier.fillMaxWidth().height(layoutMetrics.proControlHeight).graphicsLayer { alpha = chromeAlpha }) {
-                                controlsContent(Modifier.fillMaxSize())
-                            }
+                            if (!hasCam) Text(localizedUiText(context, "NO SIGNAL"), color = Color(0xFFE8442B),
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+                            else if (previewStreamState != PreviewView.StreamState.STREAMING) Text(
+                                localizedUiText(context, "STARTING..."), color = FujiSkin.lcdGreen, fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
                         }
                     }
-                    Box(
-                        Modifier.width(rightColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(
-                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)
-                            )
-                            .windowInsetsPadding(
-                                WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal)
-                            )
-                            .windowInsetsPadding(
-                                WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal)
-                            )
-                            .graphicsLayer { alpha = chromeAlpha }
-                            .onSizeChanged {
-                                Log.d("LUNA_LAYOUT", "RIGHT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
-                            }
-                    ) {
-                        rightPanelContent(Modifier.fillMaxSize())
-                        if (DEBUG_FUJI_LAYOUT) Box(Modifier.fillMaxSize().background(Color(0xFF9B59B6).copy(alpha = 0.18f)))
+                    if (!leftHandedLayout) {
+                        Box(Modifier.width(leftPaneWidth).fillMaxHeight()
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .graphicsLayer { alpha = chromeAlpha }) { leftPanelContent(Modifier.fillMaxSize()) }
                     }
+                    Box(Modifier.width(rightPaneWidth).fillMaxHeight()
+                        .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                        .windowInsetsPadding(WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal))
+                        .windowInsetsPadding(WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal))
+                        .graphicsLayer { alpha = chromeAlpha }
+                        .onSizeChanged { Log.d("LUNA_LAYOUT", "RIGHT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)") }
+                    ) { rightPanelContent(Modifier.fillMaxSize()) }
                 }
             }
         AnimatedVisibility(
@@ -7750,71 +7698,67 @@ private fun FilterLookDialog(
         }
     }
     val presetGrid: @Composable (Modifier) -> Unit = { listModifier ->
-        LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            items(visiblePresets.chunked(if (isLandscape) 3 else 2), key = { pair -> pair.firstOrNull() ?: "empty" }) { pair ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pair.forEach { preset ->
-                        val selected = activeFilter == preset
-                        val itemName = cameraLookDisplayName(context, preset)
-                        Column(
-                            Modifier.weight(1f).padding(bottom = 8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF15191A))
-                                .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
-                                .animaTClickable { onSelectFilter(preset) }.padding(6.dp)
-                        ) {
-                            Box(Modifier.fillMaxWidth().height(76.dp).clip(RoundedCornerShape(2.dp))
-                                .background(Color(0xFF070909))
-                                .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
-                                Row(
-                                    Modifier.fillMaxSize().padding(horizontal = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(
-                                        Modifier.width(5.dp).fillMaxHeight(),
-                                        verticalArrangement = Arrangement.SpaceEvenly
-                                    ) { repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) } }
-                                    Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 3.dp)) {
-                                        FilterLookPreviewImage(
-                                            source = previewSource,
-                                            preset = preset,
-                                            modifier = Modifier.fillMaxSize(),
-                                            maxDimension = 192,
-                                        )
-                                        if (selected) {
-                                            Text(
-                                                "●",
-                                                color = FujiSkin.orange,
-                                                fontSize = 10.sp,
-                                                modifier = Modifier.align(Alignment.TopEnd)
-                                                    .background(Color(0xAA000000)).padding(horizontal = 3.dp)
-                                            )
-                                        }
-                                    }
-                                    Column(
-                                        Modifier.width(5.dp).fillMaxHeight(),
-                                        verticalArrangement = Arrangement.SpaceEvenly
-                                    ) { repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) } }
+        if (isLandscape) {
+            LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                items(visiblePresets, key = { it }) { preset ->
+                    val selected = activeFilter == preset
+                    val itemName = cameraLookDisplayName(context, preset)
+                    Row(
+                        Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(4.dp))
+                            .background(if (selected) Color(0xFF303638) else Color(0xFF15191A))
+                            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
+                            .animaTClickable { onSelectFilter(preset) }.padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(Modifier.width(106.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp))
+                            .background(Color(0xFF070909))
+                            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
+                            Row(Modifier.fillMaxSize().padding(horizontal = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.width(5.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                                    repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) }
+                                }
+                                Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 3.dp)) {
+                                    FilterLookPreviewImage(source = previewSource, preset = preset, modifier = Modifier.fillMaxSize(), maxDimension = 192)
+                                }
+                                Column(Modifier.width(5.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                                    repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) }
                                 }
                             }
-                            Text(
-                                itemName,
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                modifier = Modifier.padding(top = 5.dp)
-                            )
-                            Text(
-                                "FUJIFILM LOOK",
-                                color = FujiSkin.lcdGreen,
-                                fontSize = 6.sp,
-                                letterSpacing = 0.75.sp,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
+                            if (selected) Text("✓", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.TopEnd).background(FujiSkin.orange).padding(horizontal = 3.dp, vertical = 1.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(itemName, color = if (selected) Color.White else Color(0xFFE2E7E7),
+                                fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text("35MM FILM LOOK", color = FujiSkin.lcdGreen, fontSize = 6.sp, letterSpacing = 0.8.sp)
                         }
                     }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        } else {
+            LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                items(visiblePresets.chunked(2), key = { pair -> pair.firstOrNull() ?: "empty" }) { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pair.forEach { preset ->
+                            val selected = activeFilter == preset
+                            val itemName = cameraLookDisplayName(context, preset)
+                            Column(
+                                Modifier.weight(1f).padding(bottom = 8.dp).clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF15191A))
+                                    .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
+                                    .animaTClickable { onSelectFilter(preset) }.padding(6.dp)
+                            ) {
+                                Box(Modifier.fillMaxWidth().height(76.dp).clip(RoundedCornerShape(2.dp))
+                                    .background(Color(0xFF070909))
+                                    .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
+                                    FilterLookPreviewImage(source = previewSource, preset = preset, modifier = Modifier.fillMaxSize(), maxDimension = 192)
+                                }
+                                Text(itemName, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, modifier = Modifier.padding(top = 5.dp))
+                            }
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }

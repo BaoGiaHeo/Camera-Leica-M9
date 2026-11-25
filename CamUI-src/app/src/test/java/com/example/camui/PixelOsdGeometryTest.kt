@@ -16,6 +16,33 @@ class PixelOsdGeometryTest {
     }
 
     @Test
+    fun proHudShowsEVAndWhiteBalanceAsLiveValues() {
+        val plan = PixelOsdLayoutEngine.create(
+            frame = PixelOsdFrame(
+                isPro = true,
+                showStatus = true,
+                showProEv = true,
+                showProWhiteBalance = true,
+                evDisplayIndex = 1f,
+                evStepStops = 1f / 3f,
+                whiteBalanceText = "5500K",
+                showProShutter = true,
+                showProIso = true,
+                showProFocus = true
+            ),
+            widthPx = 2400,
+            heightPx = 1080,
+            pixelScale = 2,
+            measureTextWidthPx = { value, cap -> value.length * cap * 0.55f }
+        )
+        val values = plan.elements.filter { it.section == "pro-bottom" }.mapNotNull { it.text }
+        assertTrue("EV readout must show compensation", values.contains("0.3"))
+        assertTrue("WB readout must show real Kelvin", values.contains("5500K"))
+        assertTrue("Pro readouts must not overlap", plan.overlaps().isEmpty())
+        assertTrue("Pro readouts must stay inside safe area", plan.outOfSafeBounds().isEmpty())
+    }
+
+    @Test
     fun fineIsTheDefaultAndUsesTwoDisplayPixelsPerLogicPixel() {
         val geometry = PixelOsdGeometry.fromDisplayPixels(1920, 1080)
         assertEquals(2, geometry.pixelScale)

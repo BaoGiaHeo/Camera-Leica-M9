@@ -7994,7 +7994,8 @@ private fun FilterLookDialog(
     val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
     val dialogMaxHeight = (configuration.screenHeightDp * if (isLandscape) 0.94f else 0.84f).dp
     val previewHeight = if (isLandscape) 112.dp else 150.dp
-    val landscapePanelWidth = (configuration.screenWidthDp * 0.32f).coerceIn(250f, 380f).dp
+    val landscapePanelWidth = (configuration.screenWidthDp * Tuning.FILM_ROLL_PANEL_WIDTH_FRACTION)
+        .coerceIn(Tuning.FILM_ROLL_PANEL_MIN_WIDTH_DP, Tuning.FILM_ROLL_PANEL_MAX_WIDTH_DP).dp
     val scope = rememberCoroutineScope()
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var filterSearch by remember { mutableStateOf("") }
@@ -8286,7 +8287,7 @@ private fun FilterLookDialog(
                     val selected = activeFilter == preset
                     val itemName = cameraLookDisplayName(context, preset)
                     Row(
-                        Modifier.fillMaxWidth().height(74.dp).clip(RoundedCornerShape(4.dp))
+                        Modifier.fillMaxWidth().height(Tuning.FILM_ROLL_FILTER_ROW_HEIGHT_DP.dp).clip(RoundedCornerShape(4.dp))
                             .background(if (selected) Color(0xFF303638) else Color(0xFF15191A))
                             .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
                             .animaTClickable { onSelectFilter(preset) }.padding(4.dp),
@@ -8414,13 +8415,13 @@ private fun FilterLookDialog(
                                 modifier = Modifier.weight(1f)
                             )
                             Box(
-                                Modifier.size(48.dp).clickable {
+                                Modifier.size(Tuning.FILM_ROLL_RESET_TOUCH_TARGET_DP.dp).clickable {
                                     updatePalette(Offset(0.5f, 0.5f))
                                 },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Box(
-                                    Modifier.size(24.dp).clip(RoundedCornerShape(5.dp))
+                                    Modifier.size(Tuning.FILM_ROLL_RESET_ICON_SIZE_DP.dp).clip(RoundedCornerShape(5.dp))
                                         .background(Color(0xFF383F41)),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -8434,7 +8435,7 @@ private fun FilterLookDialog(
                             }
                         }
                         Box(
-                            Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(7.dp))
+                            Modifier.fillMaxWidth().height(Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp).clip(RoundedCornerShape(7.dp))
                                 .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
                                 .onSizeChanged {
                                     paletteWidth = it.width.toFloat().coerceAtLeast(1f)

@@ -4524,7 +4524,10 @@ fun CameraScreen(
                                             // CameraX requests on devices whose HAL cannot queue stills
                                             // reliably. LunaDream 2.0 retains its known-good two-request queue.
                                             val maxInFlightCaptures = when {
-                                                captureUseLunaDream15 -> 1
+                                                // LunaDream 1.5 and 3.0 submit stills serially. The 3.0
+                                                // render is the heaviest stack path; serial requests avoid
+                                                // HAL queue pressure and make all eight frame callbacks deterministic.
+                                                captureUseLunaDream15 || captureUseLunaDream30 -> 1
                                                 captureUseNightShot || captureUseLunaDream20Stack -> 2
                                                 else -> 1
                                             }
@@ -4657,6 +4660,9 @@ fun CameraScreen(
                                             val minimumFramesRequired = when {
                                                 captureUseNightShot && !stoppedForBattery -> maxFrames
                                                 captureUseLunaDream15 -> 3
+                                                // 3.0 is an eight-frame detail-recovery mode. Do not
+                                                // publish a nominal 3.0 result from a two-frame partial stack.
+                                                captureUseLunaDream30 -> 6
                                                 else -> 2
                                             }
                                             lunaDreamCapturedFrameCount = stackedFrames.size
@@ -7306,6 +7312,14 @@ fun CameraScreen(
                     .animaTClickable {
                         when {
                             livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
+                            nativeImageProcessingEnabled && mode == "Pro" -> {
+                                // Pro must use the app's JPEG stack path for LunaDream.
+                                // Turn off the mutually-exclusive OEM processing before opening the model picker.
+                                nativeImageProcessingEnabled = false
+                                appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
+                                showLunaDream = true
+                                CrashContextDiagnostics.recordUiEvent("LUNADREAM_PRO_OEM_PROCESSING_DISABLED")
+                            }
                             nativeImageProcessingEnabled -> localizedToast(context, "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.", Toast.LENGTH_LONG).show()
                             else -> showLunaDream = true
                         }

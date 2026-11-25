@@ -73,7 +73,7 @@ private val settingItems = listOf(
     SettingItem("tab_04", "Photo Mode Setting", "HDR · RAW", R.string.settings_tab_photo_mode),
     SettingItem("tab_05", "NightShotMode", "NightShotMode · Long Exposure / Star Trails", R.string.settings_tab_nightshot),
     SettingItem("tab_06", "Display / Appearance", "Shutter button · LCD texture · Simple mode · Left-hand layout", R.string.settings_tab_display),
-    SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Dial clicks · Haptic feedback", R.string.settings_tab_sound),
+    SettingItem("tab_07", "Sound & Haptic", "Shutter sound · Interface sound · Haptic feedback", R.string.settings_tab_sound),
     SettingItem("tab_08", "Language", "ENGLISH · TIẾNG VIỆT", R.string.settings_tab_language),
     SettingItem("tab_09", "About", "FujiFilm Mode · 2.7.0", R.string.settings_tab_about),
 )
@@ -264,7 +264,6 @@ var nightShotMode by remember {
     var shutterButtonImageUri by remember { mutableStateOf(prefs.getString("shutter_button_image_uri", null)) }
     var shutterSoundEnabled by remember { mutableStateOf(prefs.getBoolean("shutter_sound_enabled", true)) }
     var hapticFeedbackEnabled by remember { mutableStateOf(prefs.getBoolean("haptic_feedback_enabled", true)) }
-    var dialClickEnabled by remember { mutableStateOf(prefs.getBoolean("dial_click_enabled", true)) }
     var interfaceSoundEnabled by remember { mutableStateOf(prefs.getBoolean("ui_sound_enabled", true)) }
     var soundMasterVolume by remember { mutableIntStateOf(prefs.getInt("sound_master_volume", 85).coerceIn(0, 100)) }
     val shutterImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -541,17 +540,8 @@ var nightShotMode by remember {
                     valueRange = 0f..100f,
                     steps = 19
                 )
-                SettingsSwitch(
-                    stringResource(R.string.sound_master_enabled),
-                    stringResource(R.string.sound_zoom_description),
-                    dialClickEnabled
-                ) {
-                    dialClickEnabled = it
-                    prefs.edit().putBoolean("dial_click_enabled", it).apply()
-                    if (!it) CameraSoundEngine.stopZoomMotor()
-                }
                 Text(
-                    "MECHANICAL FEEDBACK",
+                    "CAMERA FEEDBACK",
                     color = FujiSkin.lcdGreen,
                     fontWeight = FontWeight.Bold,
                     fontSize = 10.sp,

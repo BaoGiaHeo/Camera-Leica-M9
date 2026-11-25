@@ -4957,6 +4957,21 @@ fun CameraScreen(
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_hue", 0f)) > 0.001f ||
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_lightness", 0f)) > 0.001f
                                 )
+                                val lookApplied = if (lookRequested) {
+                                    withContext(Dispatchers.IO) {
+                                        runCatching { applyCameraLook(context, saved) }
+                                            .onFailure {
+                                                android.util.Log.e("FUJI_FILTER", "Final still-photo LUT processing failed", it)
+                                            }
+                                            .getOrDefault(false)
+                                    }
+                                } else false
+                                if (lookRequested && !lookApplied) {
+                                    android.util.Log.e(
+                                        "FUJI_FILTER",
+                                        "A filter or color adjustment was selected but could not be applied; original pixels were retained"
+                                    )
+                                }
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
                                 val outputResolutionStartedAtMs = SystemClock.elapsedRealtime()
@@ -5055,21 +5070,6 @@ fun CameraScreen(
                                     }
                                 } else null
                                 val digitalZoomApplied = digitalZoomResult != null
-                                val lookApplied = if (lookRequested) {
-                                    withContext(Dispatchers.IO) {
-                                        runCatching { applyCameraLook(context, saved) }
-                                            .onFailure {
-                                                android.util.Log.e("FUJI_FILTER", "Final still-photo LUT processing failed", it)
-                                            }
-                                            .getOrDefault(false)
-                                    }
-                                } else false
-                                if (lookRequested && !lookApplied) {
-                                    android.util.Log.e(
-                                        "FUJI_FILTER",
-                                        "A filter or color adjustment was selected but could not be applied; original pixels were retained"
-                                    )
-                                }
                                 if (captureDigitalCropRatio > 1.001f && !digitalZoomApplied) {
                                     android.util.Log.e(
                                         "FUJI_DIGITAL_ZOOM",

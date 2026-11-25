@@ -259,4 +259,6 @@
     <string name="filter_adjust_hue">Sắc độ</string>
     <string name="filter_adjust_lightness">Độ sáng HSL</string>
     <string name="gallery_app_unavailable">Không tìm thấy ứng dụng Thư viện để mở ảnh này.</string>
+    <string name="diagnostics_ui_counters">Bộ đếm giao diện: %1$s</string>
+    <string name="diagnostics_recent_warnings">Cảnh báo gần đây</string>
 </resources>

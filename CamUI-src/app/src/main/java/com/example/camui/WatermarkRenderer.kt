@@ -118,7 +118,12 @@ internal object WatermarkRenderer {
     ): Bitmap {
         require(!source.isRecycled && source.width > 0 && source.height > 0)
         val geometry = WatermarkGeometry.build(source.width, source.height, settings, metadata)
-        val output = Bitmap.createBitmap(geometry.canvasWidth, geometry.canvasHeight, Bitmap.Config.ARGB_8888)
+        val outputConfig = if (source.config == Bitmap.Config.RGB_565) {
+            Bitmap.Config.RGB_565
+        } else {
+            Bitmap.Config.ARGB_8888
+        }
+        val output = Bitmap.createBitmap(geometry.canvasWidth, geometry.canvasHeight, outputConfig)
         try {
             draw(context, Canvas(output), source, geometry, settings, metadata)
             Log.i(

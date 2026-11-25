@@ -129,6 +129,10 @@ internal class CameraFrameMetricsDiagnostics private constructor(
     }
 
     private fun logSummary(summary: CameraFrameMetricsSummary) {
+        CrashContextDiagnostics.recordUiEvent(
+            "FRAME_METRICS frames=${summary.frameCount} jankyFrames=${summary.jankyFrameCount} " +
+                "droppedCallbackReports=${summary.droppedCallbackReports} fps=${String.format(Locale.US, "%.1f", summary.measuredFramesPerSecond)}"
+        )
         Log.i(
             TAG,
             String.format(

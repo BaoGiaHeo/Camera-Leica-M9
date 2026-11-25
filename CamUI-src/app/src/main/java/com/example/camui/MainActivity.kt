@@ -118,6 +118,7 @@ class MainActivity : AppCompatActivity() {
     private fun openDeviceGallery(latestPhoto: Uri?): Boolean {
         val photoUri = latestPhoto ?: mostRecentPhotoUri()
         if (photoUri != null) {
+            CrashContextDiagnostics.recordUiEvent("ALBUM_OPEN source=native-gallery image=latest")
             val imageIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(photoUri, "image/jpeg")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -132,6 +133,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // With no photo, open the device's Gallery application rather than an in-app album.
+        CrashContextDiagnostics.recordUiEvent("ALBUM_OPEN source=native-gallery image=none")
         val galleryIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_APP_GALLERY)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

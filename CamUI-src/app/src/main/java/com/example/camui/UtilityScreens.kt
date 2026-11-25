@@ -2923,7 +2923,9 @@ fun applyCameraWatermark(
         preferences.getFloat("film_custom_grain", 0f) > 0.001f ||
         kotlin.math.abs(preferences.getFloat("film_custom_temperature", 0f)) > 0.001f ||
         kotlin.math.abs(preferences.getFloat("film_custom_tone", 0f)) > 0.001f ||
-        kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+        kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
+        kotlin.math.abs(preferences.getFloat("film_custom_hue", 0f)) > 0.001f ||
+        kotlin.math.abs(preferences.getFloat("film_custom_lightness", 0f)) > 0.001f
     val filterRequested = applyFilter && (filterPreset != "None" || hasCustomAdjustments)
     if (!watermarkEnabled && !filterRequested) {
         android.util.Log.i("FUJI_WATERMARK", "No export overlay requested; watermark disabled intentionally")

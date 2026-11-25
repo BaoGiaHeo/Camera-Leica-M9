@@ -280,6 +280,20 @@ internal object CameraLutPreviewEffect {
         return prepared
     }
 
+    private fun updateRecipeUniforms(context: Context, shader: RuntimeShader) {
+        val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        shader.setFloatUniform("uMix", 1f)
+        shader.setFloatUniform("uHighlight", preferences.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f))
+        shader.setFloatUniform("uShadow", preferences.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f))
+        shader.setFloatUniform("uColorChrome", preferences.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f))
+        shader.setFloatUniform("uGrain", preferences.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f))
+        shader.setFloatUniform("uTemperature", preferences.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f))
+        shader.setFloatUniform("uTone", preferences.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f))
+        shader.setFloatUniform("uSaturation", preferences.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
+        shader.setFloatUniform("uHueShift", preferences.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
+        shader.setFloatUniform("uLightnessShift", preferences.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
+    }
+
     fun install(
         context: Context,
         view: View,
@@ -298,17 +312,7 @@ internal object CameraLutPreviewEffect {
             clear(view)
             return "LUT_UNAVAILABLE"
         }
-        val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        effect.shader.setFloatUniform("uMix", 1f)
-        effect.shader.setFloatUniform("uHighlight", preferences.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f))
-        effect.shader.setFloatUniform("uShadow", preferences.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f))
-        effect.shader.setFloatUniform("uColorChrome", preferences.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f))
-        effect.shader.setFloatUniform("uGrain", preferences.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f))
-        effect.shader.setFloatUniform("uTemperature", preferences.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f))
-        effect.shader.setFloatUniform("uTone", preferences.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f))
-        effect.shader.setFloatUniform("uSaturation", preferences.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
-        effect.shader.setFloatUniform("uHueShift", preferences.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
-        effect.shader.setFloatUniform("uLightnessShift", preferences.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
+        updateRecipeUniforms(context, effect.shader)
         val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
         val currentEffect = view.renderEffect
         val state = synchronized(viewEffects) {
@@ -340,7 +344,8 @@ internal object CameraLutPreviewEffect {
         val prepared = preparedCache[preset]
             ?: if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null
             ?: return
-        install(context, view, preset, prepared)
+        if (viewEffects[view]?.appliedEffect == null) return
+        updateRecipeUniforms(context, prepared.shader)
     }
 
     fun clear(view: View) {

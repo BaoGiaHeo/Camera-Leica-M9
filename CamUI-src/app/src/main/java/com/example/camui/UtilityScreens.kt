@@ -2367,28 +2367,9 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
         stagingDirectory.deleteRecursively()
     }
 }
-// Built-in looks use the app-authored sRGB transforms in transformPreset.
-// Non-commercial LUT files are not bundled into this commercial application.
-private val filmSimulationAssets = emptyMap<String, String>()
-
-private val filmSimulationCache = mutableMapOf<String, CubeLut>()
-
-private fun readFilmSimulationLut(context: Context, preset: String): CubeLut? {
-    val assetPath = filmSimulationAssets[preset] ?: return null
-    synchronized(filmSimulationCache) {
-        filmSimulationCache[preset]?.let { return it }
-    }
-    val parsed = runCatching {
-        context.assets.open(assetPath).bufferedReader().use { parseCubeLutText(it.readText()) }
-    }.getOrNull() ?: return null
-    synchronized(filmSimulationCache) {
-        filmSimulationCache[preset] = parsed
-    }
-    return parsed
-}
-
+// All selectable creative looks now come from imported 3D LUT resources.
 private fun readCameraLookLut(context: Context, preset: String): CubeLut? {
-    val customId = customCameraLutId(preset) ?: return readFilmSimulationLut(context, preset)
+    val customId = customCameraLutId(preset) ?: return null
     synchronized(customCameraLutCache) {
         customCameraLutCache[customId]?.let { return it }
     }
@@ -2457,95 +2438,13 @@ private fun hslToRgb(hue: Float, saturation: Float, lightness: Float, out: Float
     out[2] = (blue + match).coerceIn(0f, 1f)
 }
 
-private fun transformPreset(name: String, red: Float, green: Float, blue: Float): Triple<Float, Float, Float> {
-    val luma = red * 0.2126f + green * 0.7152f + blue * 0.0722f
-    var r = red
-    var g = green
-    var b = blue
-    fun saturation(amount: Float) {
-        r = luma + (r - luma) * amount
-        g = luma + (g - luma) * amount
-        b = luma + (b - luma) * amount
-    }
-    fun contrast(amount: Float) {
-        r = (r - 128f) * amount + 128f
-        g = (g - 128f) * amount + 128f
-        b = (b - 128f) * amount + 128f
-    }
-    fun warmHighlights(amount: Float) {
-        val weight = ((luma - 76f) / 179f).coerceIn(0f, 1f)
-        r += amount * weight
-        g += amount * 0.34f * weight
-        b -= amount * 0.62f * weight
-    }
-    fun coolShadows(amount: Float) {
-        val weight = ((150f - luma) / 150f).coerceIn(0f, 1f)
-        r -= amount * 0.28f * weight
-        g += amount * 0.08f * weight
-        b += amount * weight
-    }
-    when (name) {
-        "Provia" -> { saturation(1.04f); contrast(1.03f) }
-        "Velvia" -> { saturation(1.30f); contrast(1.13f); b += 3f; g += 1f }
-        "Astia" -> { saturation(0.96f); contrast(0.97f); warmHighlights(3f) }
-        "Classic Chrome" -> { saturation(0.82f); contrast(1.07f); coolShadows(3f); r += 2f }
-        "Classic Neg" -> { saturation(0.98f); contrast(1.11f); warmHighlights(4f); g += 2f }
-        "Eterna" -> { saturation(0.78f); contrast(0.91f); r += 3f; g += 3f; b += 4f }
-        "Pro Neg Std" -> { saturation(0.90f); contrast(0.93f); warmHighlights(2f) }
-        "Pro Neg Hi" -> { saturation(0.96f); contrast(1.10f); warmHighlights(2f) }
-        "Nostalgic Neg" -> { saturation(0.94f); contrast(0.97f); warmHighlights(7f); coolShadows(2f) }
-        "Reala Ace" -> { saturation(1.04f); contrast(1.06f) }
-        "Bleach Bypass" -> { saturation(0.48f); contrast(1.34f) }
-        "Acros" -> { r = luma; g = luma; b = luma; contrast(1.22f) }
-        "Portra 160" -> { saturation(0.90f); contrast(0.93f); warmHighlights(7f); coolShadows(2f) }
-        "Portra 400" -> { saturation(0.88f); contrast(0.94f); warmHighlights(5f); coolShadows(3f) }
-        "Portra 800" -> { saturation(0.91f); contrast(0.96f); warmHighlights(6f); coolShadows(3f) }
-        "Gold 200" -> { saturation(1.13f); contrast(1.06f); warmHighlights(11f); r += 2f }
-        "Ektar 100" -> { saturation(1.22f); contrast(1.10f); warmHighlights(3f); b += 2f }
-        "Kodachrome 64" -> { saturation(1.06f); contrast(1.13f); r += 3f; g += 1f; b -= 2f }
-        "ColorPlus 200" -> { saturation(1.08f); contrast(1.02f); warmHighlights(8f) }
-        "CineStill 800T" -> { saturation(1.04f); contrast(0.96f); coolShadows(10f); warmHighlights(6f) }
-        "Vision3 250D" -> { saturation(0.94f); contrast(0.91f); warmHighlights(4f); coolShadows(2f) }
-        "Vision3 500T" -> { saturation(0.92f); contrast(0.94f); coolShadows(8f); warmHighlights(3f) }
-        "400H" -> { saturation(0.88f); contrast(0.91f); r += 3f; g += 4f; b += 2f }
-        "Tri-X 400" -> { r = luma; g = luma; b = luma; contrast(1.20f) }
-        "T-Max 400" -> { r = luma; g = luma; b = luma; contrast(1.15f) }
-        "Ektachrome 100" -> { saturation(1.10f); contrast(1.10f); coolShadows(3f); warmHighlights(3f) }
-        "Vivid" -> { saturation(1.24f); contrast(1.14f) }
-        "Natural" -> { saturation(0.96f); contrast(1.02f) }
-        "Monochrome" -> { r = luma; g = luma; b = luma; contrast(1.16f) }
-        "Cool" -> { saturation(1.08f); contrast(1.09f); r -= 5f; b += 9f }
-        "Warm" -> { saturation(1.05f); contrast(1.07f); r += 8f; b -= 5f }
-        "Cine Tone" -> { saturation(0.88f); contrast(0.92f); r += 5f; b -= 2f }
-        "Soft Log" -> { saturation(0.78f); r = 42f + r * 0.78f; g = 42f + g * 0.78f; b = 42f + b * 0.78f }
-        "Kodak Portra 400" -> { saturation(0.88f); contrast(0.94f); r += 8f; g += 3f; b -= 5f }
-        "Agfa" -> { saturation(1.2f); r += 7f; g += 2f; b -= 5f }
-        "Kodak Gold" -> { saturation(1.12f); r += 10f; g += 4f; b -= 8f }
-        "Fuji 400" -> { saturation(0.96f); r += 2f; g += 4f; b -= 2f; contrast(0.97f) }
-        "Leica Vivid" -> { saturation(1.24f); contrast(1.14f) }
-        "Leica Natural" -> { saturation(0.96f); contrast(1.02f) }
-        "Leica Mono" -> { r = luma; g = luma; b = luma; contrast(1.16f) }
-        "Hasselblad HNCS" -> { saturation(0.98f); contrast(1.06f); r += 2f; g += 2f }
-        "Zeiss Cool" -> { saturation(1.08f); contrast(1.09f); r -= 5f; b += 9f }
-        "Zeiss Warm" -> { saturation(1.05f); contrast(1.07f); r += 8f; b -= 5f }
-        "Sony S-Cinetone" -> { saturation(0.88f); contrast(0.92f); r += 5f; b -= 2f }
-        "Sony S-Log3" -> { r = 64f + r * 0.72f; g = 64f + g * 0.72f; b = 64f + b * 0.72f }
-        "Cinematic Log" -> { saturation(0.78f); r = 42f + r * 0.78f; g = 42f + g * 0.78f; b = 42f + b * 0.78f }
-    }
-    return Triple(r.coerceIn(0f, 255f), g.coerceIn(0f, 255f), b.coerceIn(0f, 255f))
-}
-
-/**
- * Applies a built-in Fujifilm profile or a retained non-Fujifilm filter to the saved photo.
- * The image is processed row-by-row to avoid allocating a second full-resolution pixel array.
- */
 private fun applyCameraLookPixels(
     context: Context,
     bitmap: Bitmap,
     preset: String,
     cube: CubeLut?
 ): Boolean {
-    if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) return false
+    if (customCameraLutId(preset) != null && cube == null) return false
     val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
     val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
@@ -2568,16 +2467,17 @@ private fun applyCameraLookPixels(
             val red = AndroidColor.red(pixel).toFloat()
             val green = AndroidColor.green(pixel).toFloat()
             val blue = AndroidColor.blue(pixel).toFloat()
-            val mapped = if (cube != null) {
+            if (cube != null) {
                 cube.sampleInto(red / 255f, green / 255f, blue / 255f, lutOutput)
-                null
             } else {
-                transformPreset(preset, red, green, blue)
+                lutOutput[0] = red / 255f
+                lutOutput[1] = green / 255f
+                lutOutput[2] = blue / 255f
             }
 
-            var r = if (cube != null) lutOutput[0] else (mapped!!.first / 255f).coerceIn(0f, 1f)
-            var g = if (cube != null) lutOutput[1] else (mapped!!.second / 255f).coerceIn(0f, 1f)
-            var b = if (cube != null) lutOutput[2] else (mapped!!.third / 255f).coerceIn(0f, 1f)
+            var r = lutOutput[0]
+            var g = lutOutput[1]
+            var b = lutOutput[2]
             val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
             val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
             val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
@@ -2826,7 +2726,7 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
     return runCatching {
         // Film customizer controls are active even when the selected LUT/profile is None.
         val cube = if (preset == "None") null else readCameraLookLut(context, preset)
-        if ((preset in filmSimulationAssets || customCameraLutId(preset) != null) && cube == null) {
+        if (customCameraLutId(preset) != null && cube == null) {
             android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
             return@runCatching false
         }
@@ -3008,7 +2908,7 @@ fun applyCameraWatermark(
         return false
     }
     val filterCube = if (filterPreset == "None") null else readCameraLookLut(context, filterPreset)
-    if ((filterPreset in filmSimulationAssets || customCameraLutId(filterPreset) != null) && filterCube == null) {
+    if (customCameraLutId(filterPreset) != null && filterCube == null) {
         android.util.Log.e("FUJI_FILTER", "Missing LUT for final photo export: $filterPreset")
         return false
     }

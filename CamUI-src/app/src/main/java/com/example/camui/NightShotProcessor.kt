@@ -93,7 +93,7 @@ object NightShotProcessor {
         MergeMode.LUNA_DREAM_1_5 -> 3
         MergeMode.LUNA_DREAM_2_0 -> 5
         MergeMode.LUNA_DREAM_2_5 -> 6
-        MergeMode.LUNA_DREAM_3_0 -> 8
+        MergeMode.LUNA_DREAM_3_0 -> Tuning.LUNA_DREAM_30_WORKER_COUNT
         else -> 1
     }
 
@@ -405,7 +405,14 @@ object NightShotProcessor {
             val stackPixelLimit = when (mode) {
                 MergeMode.HDR_BRACKET, MergeMode.FOCUS_STACK -> 16_000_000L
                 MergeMode.NIGHT_AVERAGE, MergeMode.MILKY_WAY_STACK -> 60_000_000L
+                // LunaDream 3.0 keeps two decoded RGB_565 frames alive while merging.
+                // Bound its working stack so base + current frame do not demand 108MP
+                // bitmap pairs on devices with a smaller per-process heap.
+                MergeMode.LUNA_DREAM_3_0 -> Tuning.LUNA_DREAM_30_STACK_MAX_PIXELS
                 else -> MAX_OUTPUT_PIXELS
+            }
+            if (mode == MergeMode.LUNA_DREAM_3_0) {
+                Log.i(TAG, "LunaDream 3.0 stack memory policy: maxPixels=$stackPixelLimit; workers=${Tuning.LUNA_DREAM_30_WORKER_COUNT}")
             }
             currentStage = "decode first frame"
             val firstDecodeStartedAt = SystemClock.elapsedRealtime()

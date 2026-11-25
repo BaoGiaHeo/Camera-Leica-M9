@@ -17,6 +17,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -1351,6 +1352,10 @@ fun PixelOsdLayer(
     reducedMotion: Boolean = false,
     onProControlTap: (String) -> Unit = {}
 ) {
+    SideEffect {
+        if (frame.isPro) UiRecompositionCounters.recordHudComposition()
+        if (frame.showZoomBar) UiRecompositionCounters.recordZoomComposition()
+    }
     val context = androidx.compose.ui.platform.LocalContext.current
     val latestProControlTap = rememberUpdatedState(onProControlTap)
     val renderer = remember(context.applicationContext) {

@@ -3377,10 +3377,6 @@ fun CameraScreen(
         }
     }
 
-    fun openLastPhoto() {
-        onOpenAlbum(lastUri)
-    }
-
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {
         val captureRotation = targetRotation
         val captureIsLandscape = isLandscape
@@ -3589,11 +3585,6 @@ fun CameraScreen(
                                 )
                             )
                             listOf(stamped, metadata)
-                        }
-                        val previewThumb = withContext(Dispatchers.IO) {
-                            runCatching {
-                                decodeUprightBitmap(context, starUri, maxDimension = 512)?.asImageBitmap()
-                            }.getOrNull()
                         }
                         withContext(Dispatchers.Main) {
                             lastUri = starUri
@@ -4765,11 +4756,6 @@ fun CameraScreen(
                                             null
                                         ) > 0
                                     }.getOrDefault(false)
-                                    val originalThumbnail = if (preserved) {
-                                        runCatching {
-                                            decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()
-                                        }.getOrNull()
-                                    } else null
                                     withContext(Dispatchers.Main) {
                                         if (preserved) {
                                             lastUri = saved
@@ -5217,11 +5203,6 @@ fun CameraScreen(
                                         }
                                     )
                                     .apply()
-                                val finalThumbnail = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()
-                                    }.getOrNull()
-                                }
                                 withContext(Dispatchers.Main) {
                                     processingProgress = 98
                                     processingEtaSeconds = 1
@@ -5336,9 +5317,6 @@ fun CameraScreen(
                                     "Capture processing pipeline failed; publishing the last valid capture. reason=$reason",
                                     failure
                                 )
-                                val fallbackThumbnail = runCatching {
-                                    decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()
-                                }.getOrNull()
                                 runCatching {
                                     context.contentResolver.update(
                                         saved,

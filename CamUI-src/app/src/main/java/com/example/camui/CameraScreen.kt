@@ -1028,10 +1028,16 @@ fun CameraScreen(
     LaunchedEffect(Unit) {
         val filterPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
         val storedFilter = filterPrefs.getString("selected_filter", "None") ?: "None"
-        val activeLutPresets = activeCustomCameraLutIds(context)
+        val activeCustomPresets = activeCustomCameraLutIds(context)
             .map(::customCameraLutPreset)
             .toSet()
-        if (storedFilter != "None" && storedFilter !in activeLutPresets) {
+        val activeBuiltInPresets = if (hasBuiltInCameraLutPack(context)) {
+            builtInCameraLutDefinitions.map { builtInCameraLutPreset(it.id) }.toSet()
+        } else {
+            emptySet()
+        }
+        val validStoredPresets = activeCustomPresets + activeBuiltInPresets
+        if (storedFilter != "None" && storedFilter !in validStoredPresets) {
             filterPrefs.edit().putString("selected_filter", "None").apply()
             activeFilter = "None"
         }
@@ -8094,15 +8100,29 @@ private fun FilterLookDialog(
         }
     }
 
-    // Log-input transforms are intentionally kept in LUT Manage; they must not be
-    // applied to an ordinary sRGB camera JPEG as if they were creative photo filters.
+    // Camera Log conversion LUTs remain in LUT Manage. Creative built-in looks are
+    // read from the bundled 41-entry pack; custom imports remain available as additions.
+    val builtInLuts = if (hasBuiltInCameraLutPack(context)) {
+        builtInCameraLutDefinitions
+    } else {
+        emptyList()
+    }
     val activeCustomLuts = importedLuts.filter {
         activeLutIds.contains(it.id) && !it.category.startsWith("RAW/Log")
     }
-    val allLookEntries = listOf("all" to "None") +
-        activeCustomLuts.map { customCameraLookCategoryId(it.category) to customCameraLutPreset(it.id) }
+    val builtInLookEntries = builtInLuts.map {
+        it.categoryId to builtInCameraLutPreset(it.id)
+    }
+    val customLookEntries = activeCustomLuts.map {
+        customCameraLookCategoryId(it.category) to customCameraLutPreset(it.id)
+    }
+    val allLookEntries = (listOf("all" to "None") + builtInLookEntries + customLookEntries)
+        .distinctBy { it.second }
     val lookCategories = buildList {
         add(CameraLookCategory("all", R.string.filter_category_all))
+        builtInLuts.forEach { lut ->
+            add(CameraLookCategory(lut.categoryId, customLabel = lut.categoryName))
+        }
         activeCustomLuts.forEach { lut ->
             add(CameraLookCategory(customCameraLookCategoryId(lut.category), customLabel = lut.category))
         }

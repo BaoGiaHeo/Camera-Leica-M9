@@ -8423,7 +8423,7 @@ private fun FilterLookDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "TONE / BRIGHTNESS",
+                            stringResource(R.string.filter_tone_brightness),
                             color = Color.White,
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
@@ -8494,10 +8494,10 @@ private fun FilterLookDialog(
                                 }
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("SÁNG", color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text("NHẠT", color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text("ĐẬM", color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text("TỐI", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                                Text(stringResource(R.string.filter_tone_bright), color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                                Text(stringResource(R.string.filter_tone_faded), color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                                Text(stringResource(R.string.filter_tone_deep), color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                                Text(stringResource(R.string.filter_tone_dark), color = Color(0xFFE7E7E7), fontSize = 6.sp)
                             }
                             Text(
                                 "NHIỆT ${(recipePrefs.getFloat("film_custom_temperature", 0f) * 100).roundToInt()} · TONE ${(recipePrefs.getFloat("film_custom_tone", 0f) * 100).roundToInt()}",

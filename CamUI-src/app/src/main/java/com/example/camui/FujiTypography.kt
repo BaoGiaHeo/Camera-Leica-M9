@@ -46,6 +46,17 @@ object FujiTypography {
     val uiFont: FontFamily = FontFamily.SansSerif
 
     @Volatile private var cachedUiTypeface: Typeface? = null
+    @Volatile private var cachedUiFontFamily: FontFamily? = null
+
+    fun uiFontFamily(context: Context): FontFamily {
+        cachedUiFontFamily?.let { return it }
+        return synchronized(lock) {
+            cachedUiFontFamily ?: FontFamily(
+                Font(AppFonts.regular(context), FontWeight.Normal),
+                Font(AppFonts.bold(context), FontWeight.Bold)
+            ).also { cachedUiFontFamily = it }
+        }
+    }
 
     fun uiTypeface(context: Context): Typeface {
         cachedUiTypeface?.let { return it }
@@ -219,6 +230,7 @@ object FujiTypography {
             cachedSystemMonoTypeface = null
             cachedFontFamily = null
             cachedShareTechFontFamily = null
+            cachedUiFontFamily = null
             bundledFontLoaded = false
             fallbackWarningLogged = false
             startupReportLogged = false

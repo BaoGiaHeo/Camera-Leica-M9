@@ -2832,8 +2832,24 @@ fun applyCameraWatermark(
     preservePhotoAspectRatio: Boolean = true
 ): Boolean {
     val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    if (!preferences.getBoolean("watermark_enabled", true)) {
-        android.util.Log.d("FUJI_WATERMARK", "Watermark disabled in settings")
+    val watermarkEnabled = preferences.getBoolean("watermark_enabled", true)
+    val filterPreset = preferences.getString("selected_filter", "None") ?: "None"
+    val hasCustomAdjustments =
+        kotlin.math.abs(preferences.getFloat("film_custom_highlight", 0f)) > 0.001f ||
+        kotlin.math.abs(preferences.getFloat("film_custom_shadow", 0f)) > 0.001f ||
+        preferences.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
+        preferences.getFloat("film_custom_grain", 0f) > 0.001f ||
+        kotlin.math.abs(preferences.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+        kotlin.math.abs(preferences.getFloat("film_custom_tone", 0f)) > 0.001f ||
+        kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+    val filterRequested = filterPreset != "None" || hasCustomAdjustments
+    if (!watermarkEnabled && !filterRequested) {
+        android.util.Log.i("FUJI_WATERMARK", "No export overlay requested; watermark disabled intentionally")
+        return false
+    }
+    val filterCube = if (filterPreset == "None") null else readCameraLookLut(context, filterPreset)
+    if ((filterPreset in filmSimulationAssets || customCameraLutId(filterPreset) != null) && filterCube == null) {
+        android.util.Log.e("FUJI_FILTER", "Missing LUT for final photo export: $filterPreset")
         return false
     }
     val sourceExif = readImageExifAttributes(context, uri)
@@ -2893,7 +2909,7 @@ fun applyCameraWatermark(
     val timeText = capturedDate?.let { java.text.SimpleDateFormat("HH:mm", Locale.US).format(it) }.orEmpty()
     val location = watermarkLocationFromExif(context, sourceExif, preferences)
 
-    val filterRaw = preferences.getString("selected_filter", "STD")?.trim().orEmpty()
+    val filterRaw = filterPreset.trim().ifBlank { "None" }
     val standardFilter = filterRaw.isBlank() || filterRaw.equals("None", true) ||
         filterRaw.equals("STD", true) || filterRaw.equals("Standard", true)
     val filterName = if (standardFilter) "" else filterRaw
@@ -2958,7 +2974,7 @@ fun applyCameraWatermark(
 
     return runCatching {
         val estimatedPixels = bounds.outWidth.toLong() * bounds.outHeight.toLong()
-        val estimatedBytes = estimatedPixels * 4L
+        val estimatedBytes = estimatedPixels * 4L // RGB_565 source + RGB_565 final canvas
         val runtime = Runtime.getRuntime()
         val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
         val availableHeap = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
@@ -2966,7 +2982,7 @@ fun applyCameraWatermark(
             "Not enough memory to render watermark without reducing source resolution"
         }
 
-        val originalCopy = if (settings.saveMode.equals("both", true)) {
+        val originalCopy = if (watermarkEnabled && settings.saveMode.equals("both", true)) {
             duplicateOriginalWatermarkSource(context, uri)
                 ?: error("Original backup could not be saved; source image has not been overwritten")
         } else null
@@ -2983,11 +2999,19 @@ fun applyCameraWatermark(
                     "ULTRA_HDR_GAINMAP_NOT_PRESERVED: output is standard JPEG SDR; original backup=" + (originalCopy != null)
                 )
             }
-            outputBitmap = WatermarkRenderer.render(context, sourceBitmap, settings, metadata)
-            val outWidth = outputBitmap.width
-            val outHeight = outputBitmap.height
+            val filterApplied = if (filterRequested) {
+                check(applyCameraLookPixels(context, sourceBitmap, filterPreset, filterCube)) {
+                    "Selected film look could not be applied to the final photo"
+                }
+            } else false
+            if (watermarkEnabled) {
+                outputBitmap = WatermarkRenderer.render(context, sourceBitmap, settings, metadata)
+            }
+            val finalBitmap = outputBitmap ?: sourceBitmap
+            val outWidth = finalBitmap.width
+            val outHeight = finalBitmap.height
             val written = context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-                outputBitmap.compress(Bitmap.CompressFormat.JPEG, 96, output)
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 96, output)
             } ?: false
             check(written) { "Could not write watermarked JPEG" }
             val exifRestored = restoreImageExifAttributes(context, uri, sourceExif, outWidth, outHeight)
@@ -2995,7 +3019,8 @@ fun applyCameraWatermark(
             setMediaStoreOrientationUpright(context, uri)
             android.util.Log.i(
                 "FUJI_WATERMARK",
-                "OUTPUT_ASPECT layout=" + settings.layout.id +
+                "FINAL_EXPORT watermarkEnabled=$watermarkEnabled filter=$filterPreset filterApplied=$filterApplied " +
+                    "layout=" + settings.layout.id +
                     " original=" + bounds.outWidth + "x" + bounds.outHeight +
                     " output=" + outWidth + "x" + outHeight +
                     " ratio=" + outWidth + ":" + outHeight +

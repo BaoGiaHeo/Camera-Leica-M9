@@ -127,6 +127,12 @@ internal object ImageSink {
         val writeDurationMs: Long
     )
 
+    fun readWatermarkMarker(context: Context, uri: Uri): String? = runCatching {
+        context.contentResolver.openFileDescriptor(uri, "r")?.use {
+            ExifInterface(it.fileDescriptor).getAttribute(ExifInterface.TAG_USER_COMMENT)
+        }
+    }.getOrNull()
+
     fun write(
         context: Context,
         frame: WatermarkedFrame,

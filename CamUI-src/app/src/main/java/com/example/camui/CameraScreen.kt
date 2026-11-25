@@ -4656,6 +4656,10 @@ fun CameraScreen(
                                                             "RawDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
                                                         captureUseLunaDream20 ->
                                                             "LunaDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
+                                                        captureUseLunaDream25 ->
+                                                            "LunaDream 2.5: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
+                                                        captureUseLunaDream30 ->
+                                                            "LunaDream 3.0: căn chỉnh và phục hồi vi chi tiết " + stackedFrames.size + "/8 khung"
                                                         captureUseMilkyWayStack ->
                                                             "NightShotMode Milky Way: căn chỉnh và gộp " + stackedFrames.size + "/8 khung"
                                                         captureUseNightShot ->
@@ -4751,6 +4755,8 @@ fun CameraScreen(
                                                     captureUseLunaDream15 -> "LunaDream-1.5"
                                                     captureUseRawDream20 -> "RawDream-2.0"
                                                     captureUseLunaDream20 -> "LunaDream-2.0"
+                                                    captureUseLunaDream25 -> "LunaDream-2.5"
+                                                    captureUseLunaDream30 -> "LunaDream-3.0"
                                                     captureUseNightShot -> "NightShotMode-" + captureNightDurationSeconds + "s"
                                                     captureUseMilkyWayStack -> "MilkyWay-8"
                                                     captureUseUhdPlusAlgorithm -> "UHD+"

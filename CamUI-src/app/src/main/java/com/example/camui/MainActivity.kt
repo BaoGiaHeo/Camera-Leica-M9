@@ -47,6 +47,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -349,7 +351,11 @@ class MainActivity : AppCompatActivity() {
                             )
                             "camera" -> Spacer(Modifier.fillMaxSize())
                             "album" -> AlbumScreen(onBack = { page = "camera" })
-                            "settings" -> SettingsScreen(
+                            "settings" -> Box(
+                                Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SettingsScreen(
                                 onBack = { page = "camera" },
                                 onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },
                                 onOpenContentsManagement = { settingsSubpageReturnTarget = "settings"; page = "contents" },
@@ -367,8 +373,14 @@ class MainActivity : AppCompatActivity() {
                                 onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                                 focusPeaking = focusPeaking,
                                 onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                                onReplayActivation = { page = "activation" }
+                                onReplayActivation = { page = "activation" },
+                                onOpenWatermarkPanel = {
+                                    settingsSubpageReturnTarget = "settings"
+                                    page = "watermark_panel"
+                                },
+                                modifier = Modifier.fillMaxWidth(0.66f).fillMaxHeight(0.78f)
                             )
+                            }
                             "toolbox" -> ToolboxScreen(
                                 onBack = { page = settingsSubpageReturnTarget },
                                 showGrid = showGrid,

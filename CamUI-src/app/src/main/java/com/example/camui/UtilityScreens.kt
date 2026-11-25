@@ -2065,6 +2065,92 @@ private const val MAX_LUT_ARCHIVE_ENTRIES = 1500
 private const val MAX_LUT_EXPANDED_BYTES = 320L * 1024L * 1024L
 private const val MAX_LUTS_PER_IMPORT = 700
 private val customCameraLutCache = LinkedHashMap<String, CubeLut>()
+private const val BUILT_IN_CAMERA_LUT_PACK_ASSET = "camera_lut_pack.zip"
+private const val BUILT_IN_CAMERA_LUT_CACHE_DIRECTORY = "camera_luts_builtin_v1"
+private const val BUILT_IN_CAMERA_LUT_MAX_ENTRY_BYTES = 8 * 1024 * 1024
+private val builtInCameraLutExtractionLock = Any()
+private val builtInCameraLutsByPath = builtInCameraLutDefinitions.associateBy { it.archivePath }
+
+/** True only when the bundled 41-look ZIP payload is actually present in the APK assets. */
+internal fun hasBuiltInCameraLutPack(context: Context): Boolean =
+    runCatching {
+        context.assets.open(BUILT_IN_CAMERA_LUT_PACK_ASSET).use { it.read() >= 0 }
+    }.getOrDefault(false)
+
+private fun builtInCameraLutCacheDirectory(context: Context): File =
+    File(context.cacheDir, BUILT_IN_CAMERA_LUT_CACHE_DIRECTORY)
+
+private fun builtInCameraLutCacheFile(context: Context, id: String): File? {
+    if (builtInCameraLutDefinition(id) == null) return null
+    return File(builtInCameraLutCacheDirectory(context), "$id.lut")
+}
+
+/**
+ * Extracts the 41 verified LUT entries in a single ZIP pass. Only catalogued paths are
+ * written; archive traversal paths and unknown assets are ignored. Each entry is bounded
+ * and parsed before it becomes visible in the cache.
+ */
+private fun ensureBuiltInCameraLutsExtracted(context: Context): Boolean {
+    val destination = builtInCameraLutCacheDirectory(context)
+    val requiredFiles = builtInCameraLutDefinitions.mapNotNull { definition ->
+        builtInCameraLutCacheFile(context, definition.id)
+    }
+    if (requiredFiles.size == 41 && requiredFiles.all { it.isFile && it.length() > 0L }) return true
+
+    synchronized(builtInCameraLutExtractionLock) {
+        if (requiredFiles.size == 41 && requiredFiles.all { it.isFile && it.length() > 0L }) return true
+        val staging = File(context.cacheDir, "$BUILT_IN_CAMERA_LUT_CACHE_DIRECTORY.tmp")
+        runCatching { staging.deleteRecursively() }
+        if (!staging.mkdirs()) {
+            android.util.Log.e("FUJI_FILTER", "Cannot create built-in LUT staging directory")
+            return false
+        }
+
+        val extractedIds = HashSet<String>(41)
+        val result = runCatching {
+            context.assets.open(BUILT_IN_CAMERA_LUT_PACK_ASSET).use { assetInput ->
+                ZipInputStream(assetInput).use { zip ->
+                    while (true) {
+                        val entry = zip.nextEntry ?: break
+                        if (entry.isDirectory) {
+                            zip.closeEntry()
+                            continue
+                        }
+                        val definition = builtInCameraLutsByPath[entry.name]
+                        if (definition == null) {
+                            zip.closeEntry()
+                            continue
+                        }
+                        val bytes = readBoundedLutBytes(zip, BUILT_IN_CAMERA_LUT_MAX_ENTRY_BYTES)
+                        val lut = when (definition.archivePath.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+                            "bin" -> parseAnyBinaryLut(bytes)
+                            "cube" -> parseCubeLutText(String(bytes, StandardCharsets.UTF_8))
+                            else -> null
+                        } ?: error("Invalid built-in LUT asset: ${definition.archivePath}")
+                        require(lut.size >= 2) { "Built-in LUT has no 3D volume: ${definition.archivePath}" }
+                        File(staging, definition.id + ".lut").writeBytes(bytes)
+                        extractedIds.add(definition.id)
+                        zip.closeEntry()
+                    }
+                }
+            }
+            check(extractedIds.size == 41 && extractedIds.size == builtInCameraLutDefinitions.size) {
+                "Built-in LUT pack incomplete: extracted ${extractedIds.size}/41 entries"
+            }
+            File(staging, "catalog.version").writeText("1\n41\n", Charsets.US_ASCII)
+            runCatching { destination.deleteRecursively() }
+            check(staging.renameTo(destination)) { "Could not publish the built-in LUT cache" }
+            android.util.Log.i("FUJI_FILTER", "BUILT_IN_LUT_PACK_READY count=41 source=$BUILT_IN_CAMERA_LUT_PACK_ASSET")
+            true
+        }.onFailure {
+            android.util.Log.e("FUJI_FILTER", "Built-in LUT pack extraction failed", it)
+        }.getOrDefault(false)
+
+        if (!result) runCatching { staging.deleteRecursively() }
+        return result
+    }
+}
+
 
 private data class LutImportBudget(var entries: Int = 0, var expandedBytes: Long = 0L)
 
@@ -2259,6 +2345,9 @@ private fun customCameraLutId(preset: String): String? {
 }
 
 fun cameraLookDisplayName(context: Context, preset: String): String {
+    builtInCameraLutId(preset)?.let { id ->
+        return builtInCameraLutDefinition(id)?.name ?: "Built-in LUT"
+    }
     val id = customCameraLutId(preset) ?: return preset
     return loadCustomCameraLuts(context).firstOrNull { it.id == id }?.name ?: "LUT đã nhập"
 }
@@ -2367,26 +2456,40 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
         stagingDirectory.deleteRecursively()
     }
 }
-// All selectable creative looks now come from imported 3D LUT resources.
+// Built-in looks and imported custom looks share the same CubeLut sampler and pixel pipeline.
 private fun readCameraLookLut(context: Context, preset: String): CubeLut? {
-    val customId = customCameraLutId(preset) ?: return null
-    synchronized(customCameraLutCache) {
-        customCameraLutCache[customId]?.let { return it }
+    val builtInId = builtInCameraLutId(preset)
+    val customId = customCameraLutId(preset)
+    val cacheKey = when {
+        builtInId != null -> "builtin:$builtInId"
+        customId != null -> customId
+        else -> return null
     }
-    val file = customCameraLutFile(context, customId) ?: return null
+    synchronized(customCameraLutCache) {
+        customCameraLutCache[cacheKey]?.let { return it }
+    }
+
+    val file = if (builtInId != null) {
+        if (!ensureBuiltInCameraLutsExtracted(context)) return null
+        builtInCameraLutCacheFile(context, builtInId)
+    } else {
+        customCameraLutFile(context, customId!!)
+    } ?: return null
+
     val parsed = runCatching {
         val bytes = file.readBytes()
         parseAnyBinaryLut(bytes)
             ?: parseCubeLutText(String(bytes, StandardCharsets.UTF_8))
+    }.onFailure {
+        android.util.Log.e("FUJI_FILTER", "Could not parse camera LUT id=$cacheKey", it)
     }.getOrNull() ?: return null
+
     synchronized(customCameraLutCache) {
-        // A 33^3 RGB float LUT is ~430 KB; retain only a few so importing hundreds
-        // of profiles does not turn the picker into a large permanent heap allocation.
         if (customCameraLutCache.size >= 4) {
             val oldest = customCameraLutCache.keys.firstOrNull()
             if (oldest != null) customCameraLutCache.remove(oldest)
         }
-        customCameraLutCache[customId] = parsed
+        customCameraLutCache[cacheKey] = parsed
     }
     return parsed
 }
@@ -2444,7 +2547,7 @@ private fun applyCameraLookPixels(
     preset: String,
     cube: CubeLut?
 ): Boolean {
-    if (customCameraLutId(preset) != null && cube == null) return false
+    if ((customCameraLutId(preset) != null || builtInCameraLutId(preset) != null) && cube == null) return false
     val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
     val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
@@ -2726,7 +2829,7 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
     return runCatching {
         // Film customizer controls are active even when the selected LUT/profile is None.
         val cube = if (preset == "None") null else readCameraLookLut(context, preset)
-        if (customCameraLutId(preset) != null && cube == null) {
+        if ((customCameraLutId(preset) != null || builtInCameraLutId(preset) != null) && cube == null) {
             android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
             return@runCatching false
         }

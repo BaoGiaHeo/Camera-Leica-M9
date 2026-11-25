@@ -33,7 +33,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +76,7 @@ internal fun CameraGalleryDialog(
     var infoText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshToken, initialUri) {
+        android.util.Log.i("FUJI_GALLERY", "ALBUM_OPEN initialUri=$initialUri")
         isLoading = true
         val captured = withContext(Dispatchers.IO) {
             queryFujiFilmPhotos(context)
@@ -372,12 +372,6 @@ private fun GalleryPhoto(
         }
         failed = bitmap == null
     }
-    DisposableEffect(bitmap) {
-        onDispose {
-            bitmap?.takeIf { !it.isRecycled }?.recycle()
-        }
-    }
-
     when {
         bitmap != null -> Image(
             bitmap = bitmap!!.asImageBitmap(),

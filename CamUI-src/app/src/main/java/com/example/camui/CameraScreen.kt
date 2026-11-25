@@ -791,7 +791,7 @@ fun CameraScreen(
     var lensCorrectionEnabled by remember {
         mutableStateOf(appPrefs.getBoolean("lens_correction_enabled", true))
     }
-    // Chrome remains visible until the user explicitly presses DISP/BACK.
+    // Camera chrome remains visible until the user changes the display mode.
     var lcdDisplayMode by remember { mutableStateOf(CameraLcdDisplayMode.STANDARD) }
     val hudVisible = lcdDisplayMode != CameraLcdDisplayMode.CLEAN
     val dispReducedMotion = remember(context) { AnimaT.isSystemReducedMotion(context) }
@@ -958,7 +958,7 @@ fun CameraScreen(
         )
     }
     val proAfModeState = rememberUpdatedState(proAfMode)
-    var touchAfEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_touch_af_enabled", false)) }
+    var touchAfEnabled by remember { mutableStateOf(appPrefs.getBoolean("pro_touch_af_enabled", true)) }
     LaunchedEffect(touchAfEnabled) { appPrefs.edit().putBoolean("pro_touch_af_enabled", touchAfEnabled).apply() }
     BackHandler(enabled = proSel != null && mode == "Pro") {
         android.util.Log.i("FUJI_PRO_SCALE", "BACK source=system selected=$proSel")
@@ -3478,7 +3478,6 @@ fun CameraScreen(
                             if (unfilteredPreview != null) {
                                 withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                             }
-                            val look = runCatching { applyCameraLook(context, starUri) }.getOrDefault(false)
                             val stamped = runCatching {
                                 applyCameraWatermark(
                                     context,
@@ -3495,7 +3494,7 @@ fun CameraScreen(
                             val metadata = runCatching {
                                 finalizeCapturedImageMetadata(context, starUri)
                             }.getOrDefault(false)
-                            listOf(look, stamped, metadata)
+                            listOf(stamped, metadata)
                         }
                         val previewThumb = withContext(Dispatchers.IO) {
                             runCatching {
@@ -4652,8 +4651,17 @@ fun CameraScreen(
                                 if (unfilteredPreview != null) {
                                     withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                                 }
-                                val lookApplied = if (captureIsUltraHdr) false else
-                                    runCatching { applyCameraLook(context, saved) }.getOrDefault(false)
+                                val lookPrefs = appPrefs
+                                val lookApplied = !captureIsUltraHdr && (
+                                    (lookPrefs.getString("selected_filter", "None") ?: "None") != "None" ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_highlight", 0f)) > 0.001f ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_shadow", 0f)) > 0.001f ||
+                                    lookPrefs.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
+                                    lookPrefs.getFloat("film_custom_grain", 0f) > 0.001f ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
+                                )
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
                                 val outputResolutionResult = if (
@@ -4765,7 +4773,8 @@ fun CameraScreen(
                                     processingLabel = "Đang đóng watermark ở độ phân giải cuối"
                                     processingEtaSeconds = -1
                                 }
-                                val stamped = if (captureIsUltraHdr || (captureUseLunaDream && !lunaDreamApplied)) false else runCatching {
+                                val watermarkStartedAtMs = SystemClock.elapsedRealtime()
+                                val stamped = if (captureIsUltraHdr) false else runCatching {
                                     applyCameraWatermark(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
@@ -5343,15 +5352,15 @@ fun CameraScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Column(Modifier.widthIn(min = 100.dp, max = 136.dp), verticalArrangement = Arrangement.Center) {
-                Image(painter = painterResource(R.drawable.fujifilm_logo), contentDescription = "FUJIFILM",
+                Image(painter = painterResource(R.drawable.fujifilm_logo_white), contentDescription = "FUJIFILM",
                     modifier = Modifier.fillMaxWidth().height(22.dp), contentScale = ContentScale.Fit)
                 Text("MODE · DIGITAL CAMERA", color = Color(0xFFE4E6E4), fontSize = 6.sp,
                     fontWeight = FontWeight.Bold, letterSpacing = 1.05.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth())
             }
             Spacer(Modifier.weight(1f))
-            FujiTopKey(label = "PEAK", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
-            FujiTopKey(label = "HISTO", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
+            FujiTopKey(label = "NÉT ĐỈNH", icon = "af", selected = focusPeaking, onClick = { onFocusPeaking(!focusPeaking) })
+            FujiTopKey(label = "BIỂU ĐỒ", icon = "histogram", selected = showHist, onClick = { onShowHist(!showHist) })
             FujiTopKey(
                 label = if (mode == "Pro") "PRO" else "PHOTO", icon = "q", selected = mode == "Pro",
                 onClick = {
@@ -5369,7 +5378,7 @@ fun CameraScreen(
                     } else mode = "Pro"
                 }
             )
-            FujiTopKey(label = "MENU", icon = "q", selected = false, onClick = onOpenSettings)
+            FujiTopKey(label = "CÀI ĐẶT", icon = "settings", selected = false, onClick = onOpenSettings)
         }
     }
 
@@ -5439,7 +5448,7 @@ fun CameraScreen(
                                             if (focusLocked) {
                                                 invalidatePendingFocusLock(active)
                                                 runCatching { active.cameraControl.cancelFocusAndMetering() }
-                                                val aeUnlocked = applyCameraAeLock(active, locked = false)
+                                                val aeUnlocked = applyCameraAfAeLock(active, locked = false)
                                                 manualAfOverrideUntilMs = 0L
                                                 centerAfStatus = 0
                                                 android.util.Log.i(
@@ -5447,9 +5456,8 @@ fun CameraScreen(
                                                     "AF_LOCK_TOGGLE unlocked=true aeUnlockApplied=$aeUnlocked " +
                                                         "point=${tapPoint.x},${tapPoint.y}"
                                                 )
-                                                return@detectTapGestures
                                             }
-                                            if (mode != "Pro" || !touchAfEnabled) {
+                                            if (mode == "Pro" && !touchAfEnabled) {
                                                 android.util.Log.d("FUJI_AF_TOUCH", "TOUCH_AF_IGNORED mode=$mode enabled=$touchAfEnabled tap=${tapPoint.x},${tapPoint.y}")
                                                 return@detectTapGestures
                                             }
@@ -6885,8 +6893,6 @@ fun CameraScreen(
                 if (image != null) Image(image, "Ảnh gần nhất", Modifier.fillMaxSize().padding(2.dp), contentScale = ContentScale.Crop)
                 else FujiIconGlyph("film", Modifier.size(22.dp), FujiSkin.lcdGreen)
             }
-            Text("PLAY", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = 0.6.sp, modifier = Modifier.clickable { galleryVisible = true; galleryRefreshToken++ })
             Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF6D7476)))
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
@@ -6897,7 +6903,7 @@ fun CameraScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 FujiIconGlyph("film", Modifier.size(18.dp), if (filterDialogVisible || activeFilter != "None") FujiSkin.orange else FujiSkin.ivory)
-                Text("FILTER", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                Text("BỘ LỌC", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp))
@@ -6913,7 +6919,7 @@ fun CameraScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 FujiIconGlyph("moon", Modifier.size(18.dp), FujiSkin.orange)
-                Text("LUNA", color = FujiSkin.ivory, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                Text("LUNADREAM", color = FujiSkin.ivory, fontSize = 6.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }
@@ -6939,12 +6945,12 @@ fun CameraScreen(
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 FujiKey(
-                    if (timerSec == 0) "TIMER" else "TIMER $timerSec",
-                    onClick = { timerSec = when (timerSec) { 0 -> 2; 2 -> 5; 5 -> 10; else -> 0 } },
+                    if (timerSec == 0) "HẸN GIỜ · TẮT" else "HẸN GIỜ · ${timerSec}s",
+                    onClick = { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } },
                     modifier = Modifier.weight(1f)
                 )
                 FujiKey(
-                    if (flash == ImageCapture.FLASH_MODE_ON) "FLASH ON" else "FLASH",
+                    if (flash == ImageCapture.FLASH_MODE_ON) "FLASH · BẬT" else "FLASH · TẮT",
                     onClick = { flash = if (flash == ImageCapture.FLASH_MODE_OFF) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF },
                     modifier = Modifier.weight(1f)
                 )
@@ -7047,20 +7053,21 @@ fun CameraScreen(
                 }
                 Column(Modifier.width(88.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FujiKey(
-                        if (focusLocked) "AF LOCKED" else "AF LOCK",
+                        if (focusLocked) "ĐÃ KHÓA" else "KHOÁ AF",
                         onClick = {
                             camera?.let { active ->
                                 if (focusLocked) {
                                     invalidatePendingFocusLock(active)
                                     runCatching { active.cameraControl.cancelFocusAndMetering() }
-                                    applyCameraAeLock(active, locked = false)
-                                    focusLocked = false
-                                } else focusLocked = applyCameraAeLock(active, locked = true)
+                                    focusLocked = !applyCameraAfAeLock(active, locked = false)
+                                } else {
+                                    focusLocked = applyCameraAfAeLock(active, locked = true)
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    FujiKey("MENU", onClick = onOpenSettings, modifier = Modifier.fillMaxWidth())
+                    FujiKey("CÀI ĐẶT", onClick = onOpenSettings, modifier = Modifier.fillMaxWidth())
                 }
             }
             FujiShutterButton(
@@ -7084,9 +7091,9 @@ fun CameraScreen(
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                FujiKey("SWAP", onClick = { front = !front; manualFocus = 0f }, modifier = Modifier.weight(0.75f))
+                FujiKey("ĐỔI CAM", onClick = { front = !front; manualFocus = 0f }, modifier = Modifier.weight(0.75f))
                 FujiKey(
-                    "DISP/BACK · ${stringResource(lcdDisplayMode.labelResource)}",
+                    "HIỂN THỊ · ${stringResource(lcdDisplayMode.labelResource)}",
                     onClick = {
                         if (proSel != null && mode == "Pro") {
                             android.util.Log.i("FUJI_PRO_SCALE", "BACK source=DISP selected=$proSel")
@@ -7938,6 +7945,72 @@ private fun applyCameraAeLock(camera: Camera, locked: Boolean): Boolean {
         true
     }.onFailure {
         android.util.Log.w("FUJI_AF", "Could not apply CONTROL_AE_LOCK=$locked cameraId=$cameraId", it)
+    }.getOrDefault(false)
+}
+
+
+/**
+ * Full AF/AE lock for devices that advertise the corresponding Camera2 controls.
+ * AF is triggered once and kept in AUTO when supported; AE lock is applied only
+ * when CONTROL_AE_LOCK_AVAILABLE is true. Unsupported locks are reported, never
+ * represented as a completed AF/AE lock.
+ */
+private fun applyCameraAfAeLock(camera: Camera, locked: Boolean): Boolean {
+    val info = runCatching { Camera2CameraInfo.from(camera.cameraInfo) }.getOrNull()
+        ?: return false
+    val afModes = runCatching {
+        info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+    }.getOrNull() ?: intArrayOf()
+    if (afModes.isEmpty()) {
+        android.util.Log.w("FUJI_AF", "AF lock unavailable: camera does not advertise AF modes")
+        return false
+    }
+    val aeAvailable = runCatching {
+        info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_LOCK_AVAILABLE) == true
+    }.getOrDefault(false)
+    val afMode = when {
+        locked && afModes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO) ->
+            CaptureRequest.CONTROL_AF_MODE_AUTO
+        afModes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE) ->
+            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+        afModes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO) ->
+            CaptureRequest.CONTROL_AF_MODE_AUTO
+        else -> return false
+    }
+    return runCatching {
+        val builder = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, afMode)
+            .setCaptureRequestOption(
+                CaptureRequest.CONTROL_AF_TRIGGER,
+                if (locked) CaptureRequest.CONTROL_AF_TRIGGER_START else CaptureRequest.CONTROL_AF_TRIGGER_CANCEL
+            )
+        if (aeAvailable) {
+            builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, locked)
+        }
+        Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(builder.build())
+        if (locked) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                runCatching {
+                    val settle = CaptureRequestOptions.Builder()
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, afMode)
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
+                    if (aeAvailable) settle.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, true)
+                    Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(settle.build())
+                }.onFailure {
+                    android.util.Log.w("FUJI_AF", "Could not retain AF/AE lock", it)
+                }
+            }, 450L)
+        }
+        android.util.Log.i(
+            "FUJI_AF",
+            "AF lock request=$locked afMode=$afMode aeAvailable=$aeAvailable aeApplied=${aeAvailable}"
+        )
+        // Do not claim a combined AF/AE lock if the device cannot actually lock AE.
+        !locked || aeAvailable
+    }.onFailure {
+        android.util.Log.w("FUJI_AF", "AF/AE lock request failed locked=$locked", it)
     }.getOrDefault(false)
 }
 

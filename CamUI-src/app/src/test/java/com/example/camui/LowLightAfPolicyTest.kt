@@ -85,3 +85,12 @@ class LowLightAfPolicyTest {
         assertFalse(lowLightLuminanceSceneChanged(Float.NaN, 0.18f, false))
     }
 }
+
+    @Test
+    fun gyroMotionUsesAngularVelocityAndRejectsInvalidSamples() {
+        assertFalse(lowLightAfGyroMotionDetected(0.02f, 0.01f, 0.02f))
+        assertTrue(lowLightAfGyroMotionDetected(0.13f, 0f, 0f))
+        assertTrue(lowLightAfGyroMotionDetected(0f, 0.10f, 0.08f))
+        assertFalse(lowLightAfGyroMotionDetected(Float.NaN, 0f, 0f))
+        assertFalse(lowLightAfGyroMotionDetected(0.4f, 0f, 0f, thresholdRadiansPerSecond = Float.NaN))
+    }

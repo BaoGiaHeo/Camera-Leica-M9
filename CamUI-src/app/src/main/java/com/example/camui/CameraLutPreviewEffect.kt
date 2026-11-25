@@ -10,6 +10,7 @@ import android.os.Build
 import android.util.Log
 import android.view.View
 import java.util.LinkedHashMap
+import java.util.WeakHashMap
 import kotlin.math.ceil
 import kotlin.math.sqrt
 
@@ -173,7 +174,7 @@ internal object CameraLutPreviewEffect {
         }
     """
 
-    private data class PreparedEffect(
+    internal data class PreparedEffect(
         val shader: RuntimeShader,
         val lutSize: Int,
         val tileColumns: Int,
@@ -181,6 +182,11 @@ internal object CameraLutPreviewEffect {
     )
 
     private val preparedCache = LinkedHashMap<String, PreparedEffect>()
+    private data class ViewEffectState(
+        var baseEffect: RenderEffect?,
+        var appliedEffect: RenderEffect?
+    )
+    private val viewEffects = WeakHashMap<View, ViewEffectState>()
 
     @Synchronized
     fun prepare(context: Context, preset: String): PreparedEffect? {
@@ -244,7 +250,7 @@ internal object CameraLutPreviewEffect {
         context: Context,
         view: View,
         preset: String,
-        prepared: Any?
+        prepared: PreparedEffect?
     ): String {
         if (Build.VERSION.SDK_INT < 33) {
             clear(view)
@@ -269,12 +275,37 @@ internal object CameraLutPreviewEffect {
         effect.shader.setFloatUniform("uSaturation", preferences.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
         effect.shader.setFloatUniform("uHueShift", preferences.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
         effect.shader.setFloatUniform("uLightnessShift", preferences.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
-        view.setRenderEffect(RenderEffect.createRuntimeShaderEffect(effect.shader, "source"))
+        val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
+        val currentEffect = view.renderEffect
+        val state = synchronized(viewEffects) {
+            val existing = viewEffects[view]
+            if (existing == null) {
+                ViewEffectState(baseEffect = currentEffect, appliedEffect = null).also {
+                    viewEffects[view] = it
+                }
+            } else {
+                // DigitalZoomPreviewEffect can replace/clear its own RenderEffect between
+                // zoom gestures. Treat that new value as the base before chaining the LUT.
+                if (currentEffect !== existing.appliedEffect) existing.baseEffect = currentEffect
+                existing
+            }
+        }
+        val composed = state.baseEffect?.let { base ->
+            RenderEffect.createChainEffect(lutEffect, base)
+        } ?: lutEffect
+        state.appliedEffect = composed
+        view.setRenderEffect(composed)
         Log.i(TAG, "LUT_PREVIEW_APPLIED preset=$preset path=PreviewView.RenderEffect")
         return "AGSL_LUT"
     }
 
     fun clear(view: View) {
-        if (Build.VERSION.SDK_INT >= 31) view.setRenderEffect(null)
+        if (Build.VERSION.SDK_INT < 31) return
+        val state = synchronized(viewEffects) { viewEffects.remove(view) }
+        if (state != null) {
+            if (view.renderEffect === state.appliedEffect) {
+                view.setRenderEffect(state.baseEffect)
+            }
+        }
     }
 }

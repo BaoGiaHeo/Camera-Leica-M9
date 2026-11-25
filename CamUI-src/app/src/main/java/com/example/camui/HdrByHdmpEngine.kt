@@ -39,6 +39,7 @@ internal object HdrByHdmpEngine {
         return try {
             val attributes = readExif(context, uri)
             context.contentResolver.openInputStream(uri)?.use { input ->
+// JPEG_INTERMEDIATE_ALLOWLIST: HDRbyHDMP staging/backup/rollback write; final camera capture is finalized through ImageSink.
                 FileOutputStream(backup).use { output ->
                     input.copyTo(output)
                     output.fd.sync()
@@ -154,7 +155,9 @@ internal object HdrByHdmpEngine {
                 }
             }
 
+// JPEG_INTERMEDIATE_ALLOWLIST: HDRbyHDMP staging/backup/rollback write; final camera capture is finalized through ImageSink.
             FileOutputStream(temp).use { stream ->
+// JPEG_INTERMEDIATE_ALLOWLIST: HDRbyHDMP staging/backup/rollback write; final camera capture is finalized through ImageSink.
                 check(frame.compress(Bitmap.CompressFormat.JPEG, 98, stream)) {
                     "HDRbyHDMP JPEG encode failed"
                 }
@@ -163,6 +166,7 @@ internal object HdrByHdmpEngine {
             }
             writeExif(temp, attributes)
             replaced = true
+// JPEG_INTERMEDIATE_ALLOWLIST: HDRbyHDMP staging/backup/rollback write; final camera capture is finalized through ImageSink.
             val written = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                 temp.inputStream().use { it.copyTo(destination) }
                 true
@@ -186,6 +190,7 @@ internal object HdrByHdmpEngine {
             true
         } catch (failure: Throwable) {
             if (replaced && backup.exists()) runCatching {
+// JPEG_INTERMEDIATE_ALLOWLIST: HDRbyHDMP staging/backup/rollback write; final camera capture is finalized through ImageSink.
                 context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                     backup.inputStream().use { it.copyTo(destination) }
                 } ?: error("HDRbyHDMP rollback stream unavailable")

@@ -39,7 +39,11 @@ class PixelOsdGeometryTest {
         assertTrue("EV readout must show compensation", values.contains("0.3"))
         assertTrue("WB readout must show real Kelvin", values.contains("5500K"))
         assertTrue("Pro readouts must not overlap", plan.overlaps().isEmpty())
-        assertTrue("Pro readouts must stay inside safe area", plan.outOfSafeBounds().isEmpty())
+        assertTrue(
+            "Pro readouts must stay inside safe area: " +
+                plan.outOfSafeBounds().joinToString { "${it.id}=${it.bounds}" },
+            plan.outOfSafeBounds().isEmpty()
+        )
     }
 
     @Test

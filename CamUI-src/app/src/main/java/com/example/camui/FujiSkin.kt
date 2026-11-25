@@ -264,6 +264,18 @@ fun FujiIconGlyph(
             }
         }
         when (name) {
+            "settings", "gear" -> {
+                circle(12f, 12f, 8f)
+                circle(12f, 12f, 2.8f)
+                line(12f, 1.5f, 12f, 4f)
+                line(12f, 20f, 12f, 22.5f)
+                line(1.5f, 12f, 4f, 12f)
+                line(20f, 12f, 22.5f, 12f)
+                line(4.3f, 4.3f, 6.1f, 6.1f)
+                line(17.9f, 17.9f, 19.7f, 19.7f)
+                line(17.9f, 6.1f, 19.7f, 4.3f)
+                line(4.3f, 19.7f, 6.1f, 17.9f)
+            }
             "flash", "flash_on", "flash_off" -> {
                 poly(13f, 2.5f, 6.5f, 13.5f, 11.5f, 13.5f, 9.5f, 21.5f, 17.5f, 10.5f, 12.5f, 10.5f, 13f, 2.5f)
                 if (name == "flash_off") line(3f, 4f, 21f, 21f, stroke)

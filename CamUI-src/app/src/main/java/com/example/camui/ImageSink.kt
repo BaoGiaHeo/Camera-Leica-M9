@@ -149,7 +149,7 @@ internal object ImageSink {
         }
 
         val bitmap = frame.bitmap ?: error("WatermarkedFrame has no image payload")
-        check(frame.watermarkPrinted) { "Final JPEG must be printed or intentionally skipped" }
+        check(frame.watermarkPrinted || frame.intentionalSkip) { "Final JPEG must be printed or watermark must be intentionally skipped" }
         val temp = File.createTempFile("fuji-image-sink-", ".jpg", context.cacheDir)
         var encodeMs = 0L
         var writeMs = 0L
@@ -193,11 +193,11 @@ internal object ImageSink {
             }
             Log.i(
                 TAG,
-                "FINAL_WRITE uri=${frame.uri} marker=$marker watermark=printed " +
+                "FINAL_WRITE uri=${frame.uri} marker=$marker watermark=${frame.watermarkPrinted} " +
                     "size=${frame.width}x${frame.height} encode=${encodeMs}ms write=${writeMs}ms " +
                     "regionVerified=$regionVerified"
             )
-            return Result(true, true, marker, regionVerified, encodeMs, writeMs)
+            return Result(true, frame.watermarkPrinted && regionVerified != false, marker, regionVerified, encodeMs, writeMs)
         } catch (failure: Throwable) {
             Log.e(TAG, "Final JPEG sink failed uri=${frame.uri}", failure)
             throw failure

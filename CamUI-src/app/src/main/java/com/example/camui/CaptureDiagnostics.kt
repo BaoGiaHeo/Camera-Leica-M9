@@ -169,11 +169,13 @@ internal object CaptureDiagnostics {
                 appendLine("#${index + 1} ${dateFormat.format(Date(entry.timestamp))}")
                 appendLine("Chế độ: ${entry.mode} | Bộ lọc: ${entry.filter}")
                 appendLine(
-                    "Watermark: ${if (entry.watermarkEnabled) "BẬT" else "TẮT"} · " +
-                        if (entry.watermarkEnabled) {
-                            if (entry.watermarkPrinted) "ĐÃ IN" else "KHÔNG IN"
-                        } else "TẮT CÓ CHỦ Ý"
+                    "WM: " + when {
+                        entry.watermarkEnabled && entry.watermarkPrinted -> "ĐÃ IN"
+                        !entry.watermarkEnabled -> "TẮT CÓ CHỦ Ý"
+                        else -> "KHÔNG IN"
+                    }
                 )
+                appendLine("Watermark: ${if (entry.watermarkEnabled) "BẬT" else "TẮT"}")
                 appendLine(
                     "Đầu ra: ${entry.outputWidth}×${entry.outputHeight} · " +
                         String.format(Locale.US, "%.2f MP", entry.megapixels)
@@ -305,8 +307,12 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "Lọc: ${entry.filter} · Watermark: " +
-                                if (!entry.watermarkEnabled) "TẮT" else if (entry.watermarkPrinted) "ĐÃ IN" else "KHÔNG IN",
+                            "Lọc: ${entry.filter} · WM: " +
+                                when {
+                                    entry.watermarkEnabled && entry.watermarkPrinted -> "ĐÃ IN"
+                                    !entry.watermarkEnabled -> "TẮT CÓ CHỦ Ý"
+                                    else -> "KHÔNG IN"
+                                },
                             color = Color(0xFFD0D0D0),
                             fontSize = 10.sp
                         )

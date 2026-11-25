@@ -1,12 +1,15 @@
 package com.example.camui
 
 import android.content.ContentUris
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Size
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,8 +28,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +73,8 @@ internal fun CameraGalleryDialog(
     var photos by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    var deleteTarget by remember { mutableStateOf<Uri?>(null) }
+    var infoText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshToken, initialUri) {
         isLoading = true
@@ -97,25 +105,28 @@ internal fun CameraGalleryDialog(
                 val start = selectedIndex!!.coerceIn(0, photos.lastIndex)
                 val pagerState = keyPagerState(start, photos.size)
                 Column(Modifier.fillMaxSize()) {
+                    val currentUri = photos.getOrNull(pagerState.currentPage) ?: photos[start]
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             "ẢNH ĐÃ CHỤP",
                             color = Color.White,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.8.sp
+                            letterSpacing = 1.2.sp
                         )
-                        Text(
-                            "ĐÓNG",
-                            color = Color(0xFFE4002B),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable { selectedIndex = null }.padding(10.dp)
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                            galleryAction("CHIA SẺ") { shareGalleryPhoto(context, currentUri) }
+                            galleryAction("THÔNG TIN") {
+                                infoText = queryGalleryPhotoInfo(context, currentUri)
+                            }
+                            galleryAction("MỞ NGOÀI") { openGalleryPhotoExternally(context, currentUri) }
+                            galleryAction("XÓA") { deleteTarget = currentUri }
+                            galleryAction("ĐÓNG") { selectedIndex = null; infoText = null }
+                        }
                     }
                     HorizontalPager(
                         state = pagerState,
@@ -124,16 +135,17 @@ internal fun CameraGalleryDialog(
                     ) { page ->
                         GalleryPhoto(
                             uri = photos[page],
-                            target = Size(2048, 2048),
+                            target = Size(3072, 3072),
                             modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp),
-                            fit = ContentScale.Fit
+                            fit = ContentScale.Fit,
+                            allowZoom = true
                         )
                     }
                     Text(
-                        "${pagerState.currentPage + 1} / ${photos.size}",
+                        "${pagerState.currentPage + 1} / ${photos.size}  ·  CHỤM/MỞ HAI NGÓN ĐỂ PHÓNG TO",
                         color = Color(0xFFBDBDBD),
-                        fontSize = 11.sp,
-                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(12.dp)
+                        fontSize = 10.sp,
+                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(10.dp)
                     )
                 }
             } else {
@@ -208,7 +220,109 @@ internal fun CameraGalleryDialog(
             }
         }
     }
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Xóa ảnh này?") },
+            text = { Text("Ảnh sẽ bị xóa khỏi thư mục Pictures/FujifilmMode trên thiết bị.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val deleted = runCatching { context.contentResolver.delete(target, null, null) > 0 }
+                        .getOrDefault(false)
+                    if (deleted) {
+                        photos = photos.filterNot { it == target }
+                        selectedIndex = null
+                        infoText = null
+                    }
+                    deleteTarget = null
+                }) { Text("XÓA") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("HỦY") } }
+        )
+    }
+    infoText?.let { details ->
+        AlertDialog(
+            onDismissRequest = { infoText = null },
+            title = { Text("Thông tin ảnh") },
+            text = { Text(details) },
+            confirmButton = { TextButton(onClick = { infoText = null }) { Text("ĐÓNG") } }
+        )
+    }
 }
+
+@Composable
+private fun galleryAction(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        color = Color(0xFFF4F4F4),
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.clip(RoundedCornerShape(5.dp))
+            .background(Color(0xFF25292C))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 7.dp, vertical = 8.dp)
+    )
+}
+
+private fun shareGalleryPhoto(context: android.content.Context, uri: Uri) {
+    runCatching {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = android.content.ClipData.newUri(context.contentResolver, "FujiFilm Mode photo", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(send, "Chia sẻ ảnh"))
+    }.onFailure {
+        android.util.Log.e("FUJI_GALLERY", "Could not share photo", it)
+    }
+}
+
+private fun openGalleryPhotoExternally(context: android.content.Context, uri: Uri) {
+    runCatching {
+        val view = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "image/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(view)
+    }.onFailure {
+        android.util.Log.e("FUJI_GALLERY", "No external viewer could open image", it)
+    }
+}
+
+private fun queryGalleryPhotoInfo(context: android.content.Context, uri: Uri): String =
+    runCatching {
+        val columns = arrayOf(
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.MIME_TYPE,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT,
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.DATE_ADDED
+        )
+        context.contentResolver.query(uri, columns, null, null, null)?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use "Không đọc được siêu dữ liệu ảnh."
+            fun value(column: String): String {
+                val index = cursor.getColumnIndex(column)
+                return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else "—"
+            }
+            val bytes = value(MediaStore.Images.Media.SIZE).toLongOrNull()
+            val mp = value(MediaStore.Images.Media.WIDTH).toLongOrNull()
+                ?.times(value(MediaStore.Images.Media.HEIGHT).toLongOrNull() ?: 0L)
+                ?.div(1_000_000.0)
+            buildString {
+                appendLine("Tên: ${value(MediaStore.Images.Media.DISPLAY_NAME)}")
+                appendLine("Định dạng: ${value(MediaStore.Images.Media.MIME_TYPE)}")
+                appendLine("Kích thước: ${value(MediaStore.Images.Media.WIDTH)} × ${value(MediaStore.Images.Media.HEIGHT)}")
+                appendLine("Độ phân giải: ${mp?.let { String.format(java.util.Locale.US, "%.2f MP", it) } ?: "—"}")
+                appendLine("Dung lượng: ${bytes?.let { String.format(java.util.Locale.US, "%.2f MB", it / 1_048_576.0) } ?: "—"}")
+                append("Thư mục: Pictures/FujifilmMode")
+            }
+        } ?: "Không đọc được thông tin ảnh."
+    }.getOrElse { failure ->
+        android.util.Log.w("FUJI_GALLERY", "Could not read image details", failure)
+        "Không đọc được thông tin ảnh: ${failure.message ?: "lỗi không xác định"}"
+    }
 
 @Composable
 private fun keyPagerState(initialPage: Int, pageCount: Int) =
@@ -221,9 +335,31 @@ private fun GalleryPhoto(
     uri: Uri,
     target: Size,
     modifier: Modifier,
-    fit: ContentScale
+    fit: ContentScale,
+    allowZoom: Boolean = false
 ) {
     val context = LocalContext.current
+    var zoom by remember(uri) { mutableStateOf(1f) }
+    var panX by remember(uri) { mutableStateOf(0f) }
+    var panY by remember(uri) { mutableStateOf(0f) }
+    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+        zoom = (zoom * zoomChange).coerceIn(1f, 5f)
+        panX += panChange.x
+        panY += panChange.y
+        if (zoom <= 1.01f) {
+            zoom = 1f
+            panX = 0f
+            panY = 0f
+        }
+    }
+    val zoomModifier = if (allowZoom) {
+        Modifier.transformable(state = transformState).graphicsLayer {
+            scaleX = zoom
+            scaleY = zoom
+            translationX = panX
+            translationY = panY
+        }
+    } else Modifier
     var bitmap by remember(uri, target) { mutableStateOf<Bitmap?>(null) }
     var failed by remember(uri, target) { mutableStateOf(false) }
 
@@ -246,7 +382,7 @@ private fun GalleryPhoto(
         bitmap != null -> Image(
             bitmap = bitmap!!.asImageBitmap(),
             contentDescription = "Ảnh đã chụp",
-            modifier = modifier,
+            modifier = modifier.then(zoomModifier),
             contentScale = fit
         )
         failed -> Box(modifier.background(Color(0xFF202020)), contentAlignment = Alignment.Center) {

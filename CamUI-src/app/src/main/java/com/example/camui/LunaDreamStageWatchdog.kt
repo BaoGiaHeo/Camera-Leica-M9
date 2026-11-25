@@ -71,6 +71,9 @@ internal class LunaDreamStageWatchdog(
             "FUJI_LUNADREAM_WATCHDOG",
             "WATCHDOG_TIMEOUT mode=$mode stage=$stageName stageMs=$stageElapsed totalMs=$totalElapsed reason=$reason"
         )
+        CrashContextDiagnostics.recordUiEvent(
+            "LUNADREAM_WATCHDOG_TIMEOUT mode=$mode stage=$stageName stageMs=$stageElapsed totalMs=$totalElapsed"
+        )
         LunaDreamDiagnostics.record(
             context,
             "WATCHDOG_TIMEOUT",
@@ -80,6 +83,9 @@ internal class LunaDreamStageWatchdog(
     }
 
     private fun recordStageComplete(stageElapsed: Long, totalElapsed: Long) {
+        CrashContextDiagnostics.recordUiEvent(
+            "LUNADREAM_STAGE_COMPLETE mode=$mode stage=$stageName elapsedMs=$stageElapsed totalMs=$totalElapsed"
+        )
         LunaDreamDiagnostics.record(
             context,
             "STAGE_COMPLETE",

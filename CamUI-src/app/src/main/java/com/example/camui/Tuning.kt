@@ -11,8 +11,8 @@ import android.util.Log
 internal object Tuning {
     const val LOW_LIGHT_ISO_ENTER = 1600
     const val LOW_LIGHT_ISO_EXIT = 1100
-    const val LOW_LIGHT_LUMA_ENTER = 0.105f
-    const val LOW_LIGHT_LUMA_EXIT = 0.145f
+    const val LOW_LIGHT_LUMA_ENTER = 0.20f
+    const val LOW_LIGHT_LUMA_EXIT = 0.24f
     const val LOW_LIGHT_HYSTERESIS_MS = 1_200L
     const val LOW_LIGHT_SCENE_CHANGE_LUMA = 0.12f
     const val LOW_LIGHT_SCENE_CHANGE_GYRO_DEGREES = 2.5f

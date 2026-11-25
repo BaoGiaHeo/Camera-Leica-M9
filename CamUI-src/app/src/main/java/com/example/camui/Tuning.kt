@@ -28,9 +28,9 @@ internal object Tuning {
     const val ASPECT_RATIO_ANIMATION_MS = 220
     const val JANK_DIAGNOSTICS_ENABLED = true
     const val CAPTURE_DIAGNOSTICS_LIMIT = 30
-    const val FILM_ROLL_PANEL_WIDTH_FRACTION = 0.32f
-    const val FILM_ROLL_PANEL_MIN_WIDTH_DP = 250f
-    const val FILM_ROLL_PANEL_MAX_WIDTH_DP = 380f
+    const val FILM_ROLL_PANEL_WIDTH_FRACTION = 0.40f
+    const val FILM_ROLL_PANEL_MIN_WIDTH_DP = 300f
+    const val FILM_ROLL_PANEL_MAX_WIDTH_DP = 460f
     const val FILM_ROLL_FILTER_ROW_HEIGHT_DP = 74
     const val FILM_ROLL_TONE_PAD_HEIGHT_DP = 60
     const val FILM_ROLL_RESET_TOUCH_TARGET_DP = 48

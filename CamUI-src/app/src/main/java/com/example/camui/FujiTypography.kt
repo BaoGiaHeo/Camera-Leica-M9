@@ -47,25 +47,14 @@ object FujiTypography {
      * through composeFamily()/androidTypeface(); watermark typography is rendered
      * by WatermarkRenderer and is intentionally kept independent.
      */
-    val uiFont: FontFamily by lazy {
-        FontFamily(
-            Font(R.font.saira_semicondensed_semibold, FontWeight.SemiBold),
-            Font(R.font.saira_semicondensed_bold, FontWeight.Bold)
-        )
-    }
+    val uiFont: FontFamily = FontFamily.SansSerif
 
     @Volatile private var cachedUiTypeface: Typeface? = null
 
     fun uiTypeface(context: Context): Typeface {
         cachedUiTypeface?.let { return it }
         return synchronized(lock) {
-            cachedUiTypeface ?: runCatching {
-                ResourcesCompat.getFont(context.applicationContext, R.font.saira_semicondensed_semibold)
-                    ?: error("Saira Semi Condensed SemiBold font resource is missing.")
-            }.getOrElse {
-                Log.w(TAG, "Saira UI font could not be loaded; using sans-serif fallback.", it)
-                Typeface.create("sans-serif-condensed", Typeface.BOLD)
-            }.also { cachedUiTypeface = it }
+            cachedUiTypeface ?: AppFonts.regular(context).also { cachedUiTypeface = it }
         }
     }
 
@@ -107,20 +96,14 @@ object FujiTypography {
     fun androidTypeface(context: Context): Typeface {
         cachedTypeface?.let { return it }
         val loaded = synchronized(lock) {
-            cachedTypeface ?: runCatching {
-                ResourcesCompat.getFont(context.applicationContext, R.font.vcr_osd_mono_kk7)
-                    ?: error("Android returned a null KK7 font resource.")
-            }.onSuccess {
-                bundledFontLoaded = true
-            }.onFailure { error ->
+            cachedTypeface ?: AppFonts.regular(context).also {
                 bundledFontLoaded = false
+                cachedTypeface = it
                 if (!fallbackWarningLogged) {
-                    Log.w(TAG, "KK7 font resource could not be loaded; using system monospace fallback.", error)
+                    Log.i(TAG, "Arial asset not found in source; OSD uses system sans-serif fallback.")
                     fallbackWarningLogged = true
                 }
-            }.getOrElse {
-                Typeface.create("monospace", Typeface.NORMAL)
-            }.also { cachedTypeface = it }
+            }
         }
         logStartupDiagnostics(context.applicationContext, loaded)
         return loaded
@@ -129,20 +112,14 @@ object FujiTypography {
     fun shareTechTypeface(context: Context): Typeface {
         cachedShareTechTypeface?.let { return it }
         return synchronized(lock) {
-            cachedShareTechTypeface ?: runCatching {
-                ResourcesCompat.getFont(context.applicationContext, R.font.share_tech_mono)
-                    ?: error("Android returned a null Share Tech Mono font resource.")
-            }.getOrElse { error ->
-                Log.w(TAG, "Share Tech Mono fallback resource could not be loaded.", error)
-                Typeface.create("monospace", Typeface.NORMAL)
-            }.also { cachedShareTechTypeface = it }
+            cachedShareTechTypeface ?: AppFonts.regular(context).also { cachedShareTechTypeface = it }
         }
     }
 
     fun systemMonoTypeface(): Typeface {
         cachedSystemMonoTypeface?.let { return it }
         return synchronized(lock) {
-            cachedSystemMonoTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+            cachedSystemMonoTypeface ?: Typeface.create("sans-serif", Typeface.NORMAL)
                 .also { cachedSystemMonoTypeface = it }
         }
     }
@@ -199,8 +176,7 @@ object FujiTypography {
     private fun shareTechComposeFamily(): FontFamily {
         cachedShareTechFontFamily?.let { return it }
         return synchronized(lock) {
-            cachedShareTechFontFamily ?: FontFamily(Font(R.font.share_tech_mono))
-                .also { cachedShareTechFontFamily = it }
+            cachedShareTechFontFamily ?: FontFamily.SansSerif.also { cachedShareTechFontFamily = it }
         }
     }
 
@@ -227,10 +203,7 @@ object FujiTypography {
         if (startupReportLogged) return
         synchronized(lock) {
             if (startupReportLogged) return
-            val fallback = runCatching {
-                ResourcesCompat.getFont(context, R.font.share_tech_mono)
-                    ?: Typeface.create("monospace", Typeface.NORMAL)
-            }.getOrElse { Typeface.create("monospace", Typeface.NORMAL) }
+            val fallback = AppFonts.regular(context)
             cachedShareTechTypeface = fallback
             val report = computeGlyphCoverage(primary, fallback)
             Log.i(

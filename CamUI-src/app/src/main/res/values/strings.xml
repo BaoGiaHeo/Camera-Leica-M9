@@ -242,4 +242,13 @@
     <string name="capture_diagnostics_share">Chia sẻ nhật ký (.txt)</string>
     <string name="common_close">Đóng</string>
     <string name="gallery_image_open_failed">Unable to open image</string>
+    <string name="filter_lut_import">IMPORT LUT</string>
+    <string name="filter_lut_importing">IMPORTING…</string>
+    <string name="filter_reset">RST</string>
+    <string name="filter_adjustments_title">COLOR ADJUSTMENTS</string>
+    <string name="filter_adjust_highlights">Highlights</string>
+    <string name="filter_adjust_shadows">Shadows</string>
+    <string name="filter_adjust_color_chrome">Color Chrome</string>
+    <string name="filter_adjust_grain">Film Grain</string>
+    <string name="filter_adjust_saturation">Saturation</string>
 </resources>

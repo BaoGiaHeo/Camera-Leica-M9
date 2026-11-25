@@ -7176,7 +7176,7 @@ fun CameraScreen(
             Box(
                 Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFF070909))
                     .border(1.5.dp, FujiSkin.silver, RoundedCornerShape(5.dp))
-                    .animaTClickable { galleryVisible = true; galleryRefreshToken++ },
+                    .animaTClickable { CrashContextDiagnostics.recordUiEvent("ALBUM_BUTTON_TAP"); galleryVisible = true; galleryRefreshToken++ },
                 contentAlignment = Alignment.Center
             ) {
                 val image = thumb

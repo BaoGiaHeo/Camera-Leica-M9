@@ -241,4 +241,5 @@
     <string name="capture_diagnostics_title">Nhật ký chẩn đoán</string>
     <string name="capture_diagnostics_share">Chia sẻ nhật ký (.txt)</string>
     <string name="common_close">Đóng</string>
+    <string name="gallery_image_open_failed">Không mở được ảnh</string>
 </resources>

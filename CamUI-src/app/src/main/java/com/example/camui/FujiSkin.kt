@@ -469,10 +469,12 @@ fun FujiKey(
     val latestPressEnd by rememberUpdatedState(onPressEnd)
     val latestClick by rememberUpdatedState(onClick)
     var rawPressed by remember { mutableStateOf(false) }
-    val y by animateDpAsState(
-        if (if (hasPressCallbacks) rawPressed else clickPressed) 1.dp else 0.dp,
-        tween(90),
-        label = "fuji-wide-key"
+    val isPressed = if (hasPressCallbacks) rawPressed else clickPressed
+    val y by animateDpAsState(if (isPressed) 1.dp else 0.dp, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-wide-key")
+    val pressScale by androidx.compose.animation.core.animateFloatAsState(
+        if (isPressed) Tuning.BUTTON_PRESS_SCALE else 1f,
+        tween(Tuning.BUTTON_PRESS_MS),
+        label = "fuji-wide-key-scale"
     )
 
     val inputModifier = if (hasPressCallbacks) {
@@ -558,9 +560,10 @@ fun FujiKey(
 
     Box(
         modifier.heightIn(min = 36.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF4B5255), Color(0xFF15191A))))
-            .border(1.dp, Color(0xFF7C8588), RoundedCornerShape(3.dp))
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
+            .clip(RoundedCornerShape(12.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF2A2C2E), Color(0xFF1A1B1D))))
+            .border(1.dp, Color(0xFF5A5D60), RoundedCornerShape(12.dp))
             .then(inputModifier)
             .padding(horizontal = 3.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
@@ -611,7 +614,7 @@ fun FujiScreenScaffold(
                 }
             }
             if (onBack != null) {
-                FujiKey("DISP/BACK", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))
+                FujiKey("THOÁT", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))
             }
         }
         Column(

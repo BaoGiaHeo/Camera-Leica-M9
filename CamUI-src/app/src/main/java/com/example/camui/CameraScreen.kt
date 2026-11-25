@@ -3571,7 +3571,7 @@ fun CameraScreen(
                             CaptureDiagnostics.record(
                                 context,
                                 CaptureDiagnosticEntry(
-                                    timestamp = System.currentTimeMillis(),
+                                    timestamp = captureTimestampMillis,
                                     mode = "Star Trails",
                                     filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
                                     watermarkEnabled = watermarkWasRequested,
@@ -3869,7 +3869,7 @@ fun CameraScreen(
                     CaptureDiagnostics.record(
                         context,
                         CaptureDiagnosticEntry(
-                            timestamp = System.currentTimeMillis(),
+                            timestamp = captureTimestampMillis,
                             mode = if (useHdrBracket) "HDR Bracketing" else "Focus Bracketing",
                             filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
                             watermarkEnabled = watermarkWasRequested,
@@ -4030,7 +4030,7 @@ fun CameraScreen(
                     CaptureDiagnostics.record(
                         context,
                         CaptureDiagnosticEntry(
-                            timestamp = System.currentTimeMillis(),
+                            timestamp = captureTimestampMillis,
                             mode = "Burst",
                             filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
                             watermarkEnabled = watermarkWasRequested,
@@ -5127,7 +5127,7 @@ fun CameraScreen(
                                 CaptureDiagnostics.record(
                                     context,
                                     CaptureDiagnosticEntry(
-                                        timestamp = System.currentTimeMillis(),
+                                        timestamp = captureTimestampMillis,
                                         mode = diagnosticMode,
                                         filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
                                         watermarkEnabled = watermarkWasRequested,

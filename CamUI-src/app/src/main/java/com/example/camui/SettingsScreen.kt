@@ -385,10 +385,15 @@ var nightShotMode by remember {
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 9.dp))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf("Thấp", "Vừa", "Cao", "Tốt nhất").forEach { option ->
-                        FujiChip(option, imageQuality == option, {
-                            imageQuality = option
-                            prefs.edit().putString("image_quality", option).apply()
+                    listOf(
+                        "Thấp" to "Low",
+                        "Vừa" to "Medium",
+                        "Cao" to "High",
+                        "Tốt nhất" to "Best"
+                    ).forEach { (label, storedValue) ->
+                        FujiChip(label, imageQuality == storedValue, {
+                            imageQuality = storedValue
+                            prefs.edit().putString("image_quality", storedValue).apply()
                         }, Modifier.width(75.dp))
                     }
                 }

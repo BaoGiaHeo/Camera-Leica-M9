@@ -119,6 +119,23 @@ class PhotoOutputGeometryTest {
     }
 
     @Test
+    fun lunaDreamThreeOutputDimensionsAreAlignedToSixteenPixels() {
+        val geometry = PhotoOutputGeometry.calculate(
+            sourceWidth = 4000,
+            sourceHeight = 3000,
+            targetPixels = 200_000_000L,
+            targetHeightOverWidth = 4f / 3f,
+            dimensionAlignment = 16
+        )
+
+        assertEquals(0, geometry.outputWidth % 16)
+        assertEquals(0, geometry.outputHeight % 16)
+        assertTrue(geometry.outputPixels <= 200_000_000L)
+        assertTrue(geometry.outputPixels >= 199_000_000L)
+        assertTrue(abs(geometry.outputWidth.toDouble() / geometry.outputHeight - 3.0 / 4.0) < 0.001)
+    }
+
+    @Test
     fun missingOrInvalidRatioPreservesTheSourceAspectRatio() {
         val default = PhotoOutputGeometry.calculate(4000, 3000, 60_000_000L)
         val invalid = PhotoOutputGeometry.calculate(4000, 3000, 60_000_000L, Float.NaN)

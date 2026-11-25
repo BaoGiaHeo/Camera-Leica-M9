@@ -2003,7 +2003,7 @@ private const val CANON_LUT_BYTE_COUNT = CANON_LUT_SIZE * CANON_LUT_SIZE * CANON
  * binary. Its companion shader describes the lattice as LUT[R][G][B], with B
  * varying fastest in the flattened RGB triplets, matching standard .cube order.
  */
-private fun parseFloatBinaryLut(bytes: ByteArray): CubeLut? {
+internal fun parseFloatBinaryLut(bytes: ByteArray): CubeLut? {
     val size = when (bytes.size) {
         33 * 33 * 33 * 3 * 4 -> 33
         65 * 65 * 65 * 3 * 4 -> 65

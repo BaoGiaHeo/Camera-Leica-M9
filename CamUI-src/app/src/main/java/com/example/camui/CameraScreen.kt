@@ -4920,28 +4920,8 @@ fun CameraScreen(
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_lightness", 0f)) > 0.001f
                                 )
                                 val exportStageDurations = linkedMapOf<String, Long>()
-                                val filterStartedAtMs = SystemClock.elapsedRealtime()
-                                val lookApplied = if (lookRequested) {
-                                    withContext(Dispatchers.IO) {
-                                        runCatching { applyCameraLook(context, saved) }
-                                            .onFailure {
-                                                android.util.Log.e("FUJI_FILTER", "Final still-photo LUT processing failed", it)
-                                            }
-                                            .getOrDefault(false)
-                                    }
-                                } else false
-                                exportStageDurations["Bộ lọc"] = if (lookRequested) {
-                                    SystemClock.elapsedRealtime() - filterStartedAtMs
-                                } else -1L
-                                CrashContextDiagnostics.recordUiEvent(
-                                    "FILTER_EXPORT requested=$lookRequested applied=$lookApplied durationMs=${exportStageDurations["Bộ lọc"]}"
-                                )
-                                if (lookRequested && !lookApplied) {
-                                    android.util.Log.e(
-                                        "FUJI_FILTER",
-                                        "A filter or color adjustment was selected but could not be applied; original pixels were retained"
-                                    )
-                                }
+                                // LUT is deferred into the final WatermarkStage bitmap pass.
+                                // This prevents a first JPEG encode before watermark rendering.
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
                                 val outputResolutionStartedAtMs = SystemClock.elapsedRealtime()
@@ -5085,6 +5065,16 @@ fun CameraScreen(
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
+                                val lookApplied = lookRequested && stamped
+                                CrashContextDiagnostics.recordUiEvent(
+                                    "FILTER_EXPORT requested=$lookRequested applied=$lookApplied durationMs=${exportStageDurations["Bộ lọc"] ?: -1L} method=WatermarkStage"
+                                )
+                                if (lookRequested && !lookApplied) {
+                                    android.util.Log.e(
+                                        "FUJI_FILTER",
+                                        "A filter or color adjustment was selected but the common final export did not report success"
+                                    )
+                                }
 
                                 if (captureUseLunaDream && !lunaDreamApplied) {
                                     val reason = lunaDreamFailureReason

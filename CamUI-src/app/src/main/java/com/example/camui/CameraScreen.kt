@@ -8021,6 +8021,7 @@ private fun FilterLookDialog(
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
     var showAdjustmentControls by remember { mutableStateOf(false) }
+    var showTonePad by remember { mutableStateOf(false) }
     var customPreviewRevision by remember { mutableIntStateOf(0) }
     val recipePrefs = remember(context) {
         context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -8414,102 +8415,96 @@ private fun FilterLookDialog(
                         )
                     }
                     if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                    Column(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
-                            .background(Color(0xFF25292A)).padding(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Row(
+                        Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF202526))
+                            .clickable { showTonePad = !showTonePad }
+                            .padding(start = 9.dp, end = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                        Text(
+                            "TONE / BRIGHTNESS",
+                            color = Color.White,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.4.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(
+                            Modifier.size(Tuning.FILM_ROLL_RESET_TOUCH_TARGET_DP.dp).clickable {
+                                updatePalette(Offset(0.5f, 0.5f))
+                            },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                "TONE / BRIGHTNESS",
-                                color = Color.White,
-                                fontSize = 7.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.4.sp,
-                                modifier = Modifier.weight(1f)
-                            )
                             Box(
-                                Modifier.size(Tuning.FILM_ROLL_RESET_TOUCH_TARGET_DP.dp).clickable {
-                                    updatePalette(Offset(0.5f, 0.5f))
-                                },
+                                Modifier.size(Tuning.FILM_ROLL_RESET_ICON_SIZE_DP.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(Color(0xFF383F41)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    Modifier.size(Tuning.FILM_ROLL_RESET_ICON_SIZE_DP.dp).clip(RoundedCornerShape(5.dp))
-                                        .background(Color(0xFF383F41)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "↺",
-                                        color = FujiSkin.lcdGreen,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                Text("↺", color = FujiSkin.lcdGreen, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-                        Box(
-                            Modifier.fillMaxWidth().height(Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp).clip(RoundedCornerShape(7.dp))
-                                .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
-                                .onSizeChanged {
-                                    paletteWidth = it.width.toFloat().coerceAtLeast(1f)
-                                    paletteHeight = it.height.toFloat().coerceAtLeast(1f)
-                                }
-                                .pointerInput(paletteWidth, paletteHeight) {
-                                    detectTapGestures { position ->
-                                        updatePalette(Offset(
-                                            position.x / paletteWidth,
-                                            position.y / paletteHeight
-                                        ))
-                                    }
-                                }
-                                .pointerInput(paletteWidth, paletteHeight) {
-                                    detectDragGestures(
-                                        onDragStart = { position ->
-                                            updatePalette(Offset(
-                                                position.x / paletteWidth,
-                                                position.y / paletteHeight
-                                            ))
-                                        },
-                                        onDrag = { change, _ ->
-                                            updatePalette(Offset(
-                                                change.position.x / paletteWidth,
-                                                change.position.y / paletteHeight
-                                            ))
-                                            change.consume()
-                                        }
-                                    )
-                                }
+                        Text(
+                            if (showTonePad) "−" else "+",
+                            color = FujiSkin.lcdGreen,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 5.dp)
+                        )
+                    }
+                    if (showTonePad) {
+                        Column(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
+                                .background(Color(0xFF25292A)).padding(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Canvas(Modifier.fillMaxSize()) {
-                                drawRect(Brush.horizontalGradient(listOf(Color.White, Color(0xFFB8B8B8), Color(0xFF333638))))
-                                drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                                val center = Offset(size.width * palettePoint.x, size.height * palettePoint.y)
-                                drawCircle(Color.White, 6.dp.toPx(), center)
-                                drawCircle(Color.Black, 8.dp.toPx(), center, style = Stroke(1.dp.toPx()))
+                            Box(
+                                Modifier.fillMaxWidth()
+                                    .height(Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp)
+                                    .clip(RoundedCornerShape(7.dp))
+                                    .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
+                                    .onSizeChanged {
+                                        paletteWidth = it.width.toFloat().coerceAtLeast(1f)
+                                        paletteHeight = it.height.toFloat().coerceAtLeast(1f)
+                                    }
+                                    .pointerInput(paletteWidth, paletteHeight) {
+                                        detectTapGestures { position ->
+                                            updatePalette(Offset(position.x / paletteWidth, position.y / paletteHeight))
+                                        }
+                                    }
+                                    .pointerInput(paletteWidth, paletteHeight) {
+                                        detectDragGestures(
+                                            onDragStart = { position ->
+                                                updatePalette(Offset(position.x / paletteWidth, position.y / paletteHeight))
+                                            },
+                                            onDrag = { change, _ ->
+                                                updatePalette(Offset(change.position.x / paletteWidth, change.position.y / paletteHeight))
+                                                change.consume()
+                                            }
+                                        )
+                                    }
+                            ) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    drawRect(Brush.horizontalGradient(listOf(Color.White, Color(0xFFB8B8B8), Color(0xFF333638))))
+                                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+                                    val center = Offset(size.width * palettePoint.x, size.height * palettePoint.y)
+                                    drawCircle(Color.White, 6.dp.toPx(), center)
+                                    drawCircle(Color.Black, 8.dp.toPx(), center, style = Stroke(1.dp.toPx()))
+                                }
                             }
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("SÁNG", color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                            Text("NHẠT", color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                            Text("ĐẬM", color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                            Text("TỐI", color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                        }
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("SÁNG", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                                Text("NHẠT", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                                Text("ĐẬM", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                                Text("TỐI", color = Color(0xFFE7E7E7), fontSize = 6.sp)
+                            }
                             Text(
                                 "NHIỆT ${(recipePrefs.getFloat("film_custom_temperature", 0f) * 100).roundToInt()} · TONE ${(recipePrefs.getFloat("film_custom_tone", 0f) * 100).roundToInt()}",
                                 color = Color(0xFFD4D7D8),
                                 fontSize = 6.sp,
                                 maxLines = 1
                             )
-                            Spacer(Modifier.weight(1f))
-                            Canvas(Modifier.width(78.dp).height(12.dp)) {
-                                drawLine(Color(0xFFBFC3C4), Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), 2.dp.toPx())
-                                drawCircle(Color.White, 5.dp.toPx(), Offset(size.width - 5.dp.toPx(), size.height / 2f))
-                            }
                         }
                     }
                     Text(if (showingOriginal) "ORIGINAL" else activeFilterName, color = FujiSkin.lcdGreen, fontSize = 7.sp, maxLines = 1)

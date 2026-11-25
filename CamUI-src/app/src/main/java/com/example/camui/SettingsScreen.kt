@@ -149,8 +149,7 @@ fun SettingsScreen(
                         fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
                 SettingsDetailPage(
-                    title = selectedCategory,            SettingsDetailPage(
-                title = selectedCategory,
+                    title = selectedCategory,
                 onBack = {},
                 ratioIdx = ratioIdx,
                 onRatio = onRatio,

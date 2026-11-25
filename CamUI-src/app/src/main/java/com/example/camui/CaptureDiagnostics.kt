@@ -159,6 +159,7 @@ internal object CaptureDiagnostics {
             appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             appendLine("Phiên bản: ${BuildConfig.VERSION_NAME}")
             appendLine("Số lần chụp: ${entries.size}")
+            appendLine(UiRecompositionCounters.snapshot())
             appendLine("Cảnh báo gần đây: ${warnings.size}")
             warnings.forEach { appendLine("! $it") }
             appendLine()
@@ -231,6 +232,8 @@ internal object CaptureDiagnostics {
 internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val entries = remember { CaptureDiagnostics.read(context) }
+    val warnings = remember { CaptureDiagnostics.readWarnings(context) }
+    val uiCounterSummary = remember { UiRecompositionCounters.snapshot() }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -258,6 +261,30 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
                     color = Color(0xFFF0A030),
                     modifier = Modifier.clickable(onClick = onDismiss).padding(8.dp)
                 )
+            }
+            Text(
+                stringResource(R.string.diagnostics_ui_counters, uiCounterSummary),
+                color = Color(0xFFBFC7C9),
+                fontSize = 9.sp
+            )
+            if (warnings.isNotEmpty()) {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF351919))
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.diagnostics_recent_warnings),
+                        color = Color(0xFFFF6B62),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    warnings.take(5).forEach { warning ->
+                        Text(warning, color = Color(0xFFFFB3AC), fontSize = 9.sp)
+                    }
+                }
             }
             LazyColumn(
                 Modifier.weight(1f).fillMaxWidth(),

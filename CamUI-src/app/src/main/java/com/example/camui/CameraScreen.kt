@@ -7701,18 +7701,51 @@ private fun FilterLookDialog(
         )
     }
     val categoryPane: @Composable (Modifier) -> Unit = { paneModifier ->
-        Row(
-            paneModifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 7.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            lookCategories.forEach { category ->
-                val label = category.labelResource?.let { stringResource(it) }
-                    ?: category.customLabel.orEmpty()
-                FujiChip(
-                    text = label,
-                    selected = selectedLookCategory == category.id,
-                    onClick = { selectedLookCategory = category.id }
-                )
+        if (isLandscape) {
+            Column(
+                paneModifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                lookCategories.forEach { category ->
+                    val label = category.labelResource?.let { stringResource(it) }
+                        ?: category.customLabel.orEmpty()
+                    val selected = selectedLookCategory == category.id
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (selected) Color(0xFF303A38) else Color(0xFF14191A))
+                            .border(
+                                1.dp,
+                                if (selected) FujiSkin.orange else Color(0xFF3B4649),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .animaTClickable { selectedLookCategory = category.id }
+                            .padding(horizontal = 8.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            label,
+                            color = if (selected) FujiSkin.orange else Color(0xFFE2E7E7),
+                            fontSize = 9.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 2
+                        )
+                    }
+                }
+            }
+        } else {
+            Row(
+                paneModifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 7.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                lookCategories.forEach { category ->
+                    val label = category.labelResource?.let { stringResource(it) }
+                        ?: category.customLabel.orEmpty()
+                    FujiChip(
+                        text = label,
+                        selected = selectedLookCategory == category.id,
+                        onClick = { selectedLookCategory = category.id }
+                    )
+                }
             }
         }
     }
@@ -7825,15 +7858,37 @@ private fun FilterLookDialog(
                         Modifier.weight(1.12f).fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        searchPane(Modifier)
-                        categoryPane(Modifier)
-                        Text(
-                            stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
-                            color = FujiSkin.lcdGreen,
-                            fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
-                            fontSize = 9.sp
-                        )
-                        presetGrid(Modifier.weight(1f).fillMaxWidth())
+                        Row(
+                            Modifier.weight(1f).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column(
+                                Modifier.weight(0.34f).fillMaxHeight(),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    "CATEGORIES",
+                                    color = FujiSkin.lcdGreen,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp
+                                )
+                                categoryPane(Modifier.weight(1f).fillMaxWidth())
+                            }
+                            Column(
+                                Modifier.weight(0.66f).fillMaxHeight(),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                searchPane(Modifier)
+                                Text(
+                                    stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
+                                    color = FujiSkin.lcdGreen,
+                                    fontFamily = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current),
+                                    fontSize = 9.sp
+                                )
+                                presetGrid(Modifier.weight(1f).fillMaxWidth())
+                            }
+                        }
                     }
                 }
             } else {

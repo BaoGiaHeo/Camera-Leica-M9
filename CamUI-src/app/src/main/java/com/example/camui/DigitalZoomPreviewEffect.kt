@@ -58,6 +58,9 @@ internal class DigitalZoomPreviewEffect {
         return "VIEW_SCALE_FALLBACK"
     }
 
+    fun currentRenderEffect(): RenderEffect? =
+        renderEffect.takeIf { renderEffectApplied }
+
     fun clear(view: View) {
         if (Build.VERSION.SDK_INT >= 31 && renderEffectApplied) {
             view.setRenderEffect(null)

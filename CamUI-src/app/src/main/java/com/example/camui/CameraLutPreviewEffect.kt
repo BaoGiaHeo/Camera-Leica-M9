@@ -344,8 +344,11 @@ internal object CameraLutPreviewEffect {
         val prepared = preparedCache[preset]
             ?: if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null
             ?: return
-        if (viewEffects[view]?.appliedEffect == null) return
-        updateRecipeUniforms(context, prepared.shader)
+        if (viewEffects[view]?.appliedEffect == null) {
+            install(context, view, preset, prepared)
+        } else {
+            updateRecipeUniforms(context, prepared.shader)
+        }
     }
 
     fun clear(view: View) {

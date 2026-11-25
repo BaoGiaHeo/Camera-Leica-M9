@@ -2382,6 +2382,48 @@ private fun readCameraLookLut(context: Context, preset: String): CubeLut? {
 
 private fun clamp8(value: Float): Int = value.toInt().coerceIn(0, 255)
 
+/** Converts normalized RGB to normalized HSL without allocating per pixel. */
+private fun rgbToHsl(red: Float, green: Float, blue: Float, out: FloatArray) {
+    val maximum = maxOf(red, green, blue)
+    val minimum = minOf(red, green, blue)
+    val delta = maximum - minimum
+    val lightness = (maximum + minimum) * 0.5f
+    var hue = 0f
+    var saturation = 0f
+    if (delta > 0.000001f) {
+        saturation = delta / (1f - kotlin.math.abs(2f * lightness - 1f)).coerceAtLeast(0.000001f)
+        hue = when (maximum) {
+            red -> ((green - blue) / delta) % 6f
+            green -> (blue - red) / delta + 2f
+            else -> (red - green) / delta + 4f
+        } / 6f
+        if (hue < 0f) hue += 1f
+    }
+    out[0] = hue
+    out[1] = saturation.coerceIn(0f, 1f)
+    out[2] = lightness.coerceIn(0f, 1f)
+}
+
+/** Converts normalized HSL back to normalized RGB without allocating per pixel. */
+private fun hslToRgb(hue: Float, saturation: Float, lightness: Float, out: FloatArray) {
+    val chroma = (1f - kotlin.math.abs(2f * lightness - 1f)) * saturation
+    val h6 = ((hue % 1f + 1f) % 1f) * 6f
+    val x = chroma * (1f - kotlin.math.abs((h6 % 2f) - 1f))
+    val sector = h6.toInt().coerceIn(0, 5)
+    val (r1, g1, b1) = when (sector) {
+        0 -> Triple(chroma, x, 0f)
+        1 -> Triple(x, chroma, 0f)
+        2 -> Triple(0f, chroma, x)
+        3 -> Triple(0f, x, chroma)
+        4 -> Triple(x, 0f, chroma)
+        else -> Triple(chroma, 0f, x)
+    }
+    val match = lightness - chroma * 0.5f
+    out[0] = (r1 + match).coerceIn(0f, 1f)
+    out[1] = (g1 + match).coerceIn(0f, 1f)
+    out[2] = (b1 + match).coerceIn(0f, 1f)
+}
+
 private fun transformPreset(name: String, red: Float, green: Float, blue: Float): Triple<Float, Float, Float> {
     val luma = red * 0.2126f + green * 0.7152f + blue * 0.0722f
     var r = red
@@ -2479,8 +2521,12 @@ private fun applyCameraLookPixels(
     val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
     val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
     val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
+    val hueShift = recipe.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f)
+    val lightnessShift = recipe.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f)
     val row = IntArray(bitmap.width)
     val lutOutput = FloatArray(3)
+    val hsl = FloatArray(3)
+    val hslRgb = FloatArray(3)
     for (y in 0 until bitmap.height) {
         bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
         for (x in row.indices) {
@@ -2522,6 +2568,21 @@ private fun applyCameraLookPixels(
             r += tone * 0.018f
             g -= tone * 0.035f
             b += tone * 0.018f
+
+            if (kotlin.math.abs(hueShift) > 0.0001f ||
+                kotlin.math.abs(lightnessShift) > 0.0001f
+            ) {
+                rgbToHsl(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f), hsl)
+                hslToRgb(
+                    hsl[0] + hueShift,
+                    hsl[1],
+                    (hsl[2] + lightnessShift).coerceIn(0f, 1f),
+                    hslRgb
+                )
+                r = hslRgb[0]
+                g = hslRgb[1]
+                b = hslRgb[2]
+            }
 
             if (grain > 0.001f) {
                 // Deterministic per-pixel grain keeps a given image stable across preview/export passes.

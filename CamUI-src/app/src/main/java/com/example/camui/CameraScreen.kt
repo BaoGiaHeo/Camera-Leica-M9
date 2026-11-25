@@ -1788,7 +1788,7 @@ fun CameraScreen(
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
-        hasCam, front, ratioIdx, ultraHdr, isLandscape, targetRotation, renderEngine,
+        hasCam, front, ratioIdx, ultraHdr, isLandscape, renderEngine,
         nativeImageProcessingEnabled, livePhotoEnabled, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode,
         previewFpsMode

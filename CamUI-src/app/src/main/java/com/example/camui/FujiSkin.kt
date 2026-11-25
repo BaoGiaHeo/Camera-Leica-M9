@@ -428,7 +428,7 @@ fun FujiTopKey(
         }
         Text(
             label.uppercase(),
-            color = Color(0xFF2A2A2A),
+            color = Color(0xFFF2F2F2),
             fontSize = 9.sp,
             lineHeight = 10.sp,
             fontWeight = FontWeight.SemiBold,

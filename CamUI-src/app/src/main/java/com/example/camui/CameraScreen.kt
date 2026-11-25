@@ -133,6 +133,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -1024,6 +1025,17 @@ fun CameraScreen(
     }
     LaunchedEffect(lunaDreamMode) {
         appPrefs.edit().putString("lunadream_mode", lunaDreamMode).apply()
+    }
+    LaunchedEffect(Unit) {
+        val filterPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        val storedFilter = filterPrefs.getString("selected_filter", "None") ?: "None"
+        val activeLutPresets = activeCustomCameraLutIds(context)
+            .map(::customCameraLutPreset)
+            .toSet()
+        if (storedFilter != "None" && storedFilter !in activeLutPresets) {
+            filterPrefs.edit().putString("selected_filter", "None").apply()
+            activeFilter = "None"
+        }
     }
     LaunchedEffect(Unit) {
         appPrefs.edit()
@@ -4162,7 +4174,8 @@ fun CameraScreen(
             val captureUseRawDream20 = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Photo" && rawCaptureMode == "raw_dream"
             val lunaDreamSelected = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                mode == "Photo" && (lunaDreamMode != "off" || captureUseRawDream20)
+                (mode == "Photo" || mode == "Pro") &&
+                (lunaDreamMode != "off" || captureUseRawDream20)
             val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
                 !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
@@ -7807,6 +7820,74 @@ private fun FilterLookPreviewImage(
 }
 
 @Composable
+private fun CompactFilterAdjustmentSlider(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    valueLabel: String,
+    onValueChange: (Float) -> Unit
+) {
+    val fraction = ((value - valueRange.start) /
+        (valueRange.endInclusive - valueRange.start).coerceAtLeast(0.0001f)).coerceIn(0f, 1f)
+    Row(
+        Modifier.fillMaxWidth().height(27.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(
+            label,
+            color = Color(0xFFD4D7D8),
+            fontSize = 7.sp,
+            maxLines = 1,
+            modifier = Modifier.width(76.dp)
+        )
+        Box(
+            Modifier.weight(1f).height(18.dp)
+                .pointerInput(valueRange, onValueChange) {
+                    detectTapGestures { position ->
+                        val next = valueRange.start +
+                            (position.x / size.width.coerceAtLeast(1f)).coerceIn(0f, 1f) *
+                            (valueRange.endInclusive - valueRange.start)
+                        onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+                    }
+                }
+                .pointerInput(valueRange, onValueChange) {
+                    detectDragGestures { change, _ ->
+                        val next = valueRange.start +
+                            (change.position.x / size.width.coerceAtLeast(1f)).coerceIn(0f, 1f) *
+                            (valueRange.endInclusive - valueRange.start)
+                        onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+                        change.consume()
+                    }
+                }
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                val centerY = size.height / 2f
+                drawLine(
+                    Color(0xFF9CA5A6),
+                    Offset(0f, centerY),
+                    Offset(size.width, centerY),
+                    strokeWidth = 2.dp.toPx()
+                )
+                drawCircle(
+                    FujiSkin.orange,
+                    radius = 4.dp.toPx(),
+                    center = Offset(size.width * fraction, centerY)
+                )
+            }
+        }
+        Text(
+            valueLabel,
+            color = Color.White,
+            fontSize = 7.sp,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            modifier = Modifier.width(34.dp)
+        )
+    }
+}
+
+@Composable
 private fun FilterLookDialog(
     previewSource: Bitmap,
     activeFilter: String,
@@ -7829,6 +7910,21 @@ private fun FilterLookDialog(
     val recipePrefs = remember(context) {
         context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     }
+    var customHighlights by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f))
+    }
+    var customShadows by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f))
+    }
+    var customColorChrome by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f))
+    }
+    var customGrain by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f))
+    }
+    var customSaturation by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
+    }
     var palettePoint by remember {
         mutableStateOf(
             Offset(
@@ -7850,6 +7946,45 @@ private fun FilterLookDialog(
             .putFloat("film_custom_tone", tone)
             .apply()
         customPreviewRevision++
+    }
+    fun persistRecipeValue(key: String, value: Float) {
+        recipePrefs.edit().putFloat(key, value).apply()
+        customPreviewRevision++
+    }
+    val adjustmentControls: @Composable (Modifier) -> Unit = { adjustmentModifier ->
+        Column(
+            adjustmentModifier.fillMaxWidth().background(Color(0xFF25292A))
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                stringResource(R.string.filter_adjustments_title),
+                color = Color.White,
+                fontSize = 7.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            )
+            CompactFilterAdjustmentSlider(
+                stringResource(R.string.filter_adjust_highlights),
+                customHighlights, -1f..1f, "%+.2f".format(Locale.US, customHighlights)
+            ) { customHighlights = it; persistRecipeValue("film_custom_highlight", it) }
+            CompactFilterAdjustmentSlider(
+                stringResource(R.string.filter_adjust_shadows),
+                customShadows, -1f..1f, "%+.2f".format(Locale.US, customShadows)
+            ) { customShadows = it; persistRecipeValue("film_custom_shadow", it) }
+            CompactFilterAdjustmentSlider(
+                stringResource(R.string.filter_adjust_color_chrome),
+                customColorChrome, 0f..1f, "%.2f".format(Locale.US, customColorChrome)
+            ) { customColorChrome = it; persistRecipeValue("film_custom_color_chrome", it) }
+            CompactFilterAdjustmentSlider(
+                stringResource(R.string.filter_adjust_grain),
+                customGrain, 0f..1f, "%.2f".format(Locale.US, customGrain)
+            ) { customGrain = it; persistRecipeValue("film_custom_grain", it) }
+            CompactFilterAdjustmentSlider(
+                stringResource(R.string.filter_adjust_saturation),
+                customSaturation, 0.5f..1.5f, "%.2f".format(Locale.US, customSaturation)
+            ) { customSaturation = it; persistRecipeValue("film_custom_saturation", it) }
+        }
     }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -7885,14 +8020,10 @@ private fun FilterLookDialog(
     val activeCustomLuts = importedLuts.filter {
         activeLutIds.contains(it.id) && !it.category.startsWith("RAW/Log")
     }
-    val allLookEntries = cameraLookGroups.flatMap { group ->
-        group.presets.map { group.id to it }
-    } + activeCustomLuts.map { customCameraLookCategoryId(it.category) to customCameraLutPreset(it.id) }
+    val allLookEntries = listOf("all" to "None") +
+        activeCustomLuts.map { customCameraLookCategoryId(it.category) to customCameraLutPreset(it.id) }
     val lookCategories = buildList {
         add(CameraLookCategory("all", R.string.filter_category_all))
-        cameraLookGroups.forEach { group ->
-            add(CameraLookCategory(group.id, group.labelResource))
-        }
         activeCustomLuts.forEach { lut ->
             add(CameraLookCategory(customCameraLookCategoryId(lut.category), customLabel = lut.category))
         }
@@ -7956,6 +8087,21 @@ private fun FilterLookDialog(
             modifier = paneModifier.fillMaxWidth(),
             placeholder = stringResource(R.string.filter_search_placeholder)
         )
+    }
+    val importPane: @Composable (Modifier) -> Unit = { paneModifier ->
+        Row(
+            paneModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            FujiKey(
+                if (isImportingLut) stringResource(R.string.filter_lut_importing)
+                else stringResource(R.string.filter_lut_import),
+                onClick = { if (!isImportingLut) lutPicker.launch(arrayOf("*/*")) },
+                enabled = !isImportingLut,
+                modifier = Modifier.width(82.dp)
+            )
+        }
     }
     val categoryPane: @Composable (Modifier) -> Unit = { paneModifier ->
         if (isLandscape) {
@@ -8089,6 +8235,7 @@ private fun FilterLookDialog(
                             modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp))
                     }
                     searchPane(Modifier.fillMaxWidth())
+                    importPane(Modifier.fillMaxWidth())
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         lookCategories.forEach { category ->
                             val label = category.labelResource?.let { stringResource(it) } ?: category.customLabel.orEmpty()
@@ -8100,12 +8247,30 @@ private fun FilterLookDialog(
                         color = FujiSkin.lcdGreen, fontSize = 7.sp
                     )
                     presetGrid(Modifier.weight(1f).fillMaxWidth())
+                    adjustmentControls(Modifier.fillMaxWidth())
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
                             .background(Color(0xFF25292A)).padding(6.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("TONE / BRIGHTNESS", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "TONE / BRIGHTNESS",
+                                color = Color.White,
+                                fontSize = 7.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.4.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            FujiKey(
+                                stringResource(R.string.filter_reset),
+                                onClick = { updatePalette(Offset(0.5f, 0.5f)) },
+                                modifier = Modifier.width(34.dp)
+                            )
+                        }
                         Box(
                             Modifier.fillMaxWidth().height(84.dp).clip(RoundedCornerShape(7.dp))
                                 .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
@@ -8183,7 +8348,9 @@ private fun FilterLookDialog(
                 )
                 previewPane(Modifier.fillMaxWidth().height(140.dp))
                 searchPane(Modifier)
+                importPane(Modifier)
                 categoryPane(Modifier)
+                adjustmentControls(Modifier.fillMaxWidth())
                 Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
                 presetGrid(Modifier.weight(1f))
             }

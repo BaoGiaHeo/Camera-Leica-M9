@@ -245,6 +245,11 @@
     <string name="filter_lut_import">NHẬP LUT</string>
     <string name="filter_lut_importing">ĐANG NHẬP…</string>
     <string name="filter_reset">RST</string>
+    <string name="filter_tone_brightness">TONE / ĐỘ SÁNG</string>
+    <string name="filter_tone_bright">SÁNG</string>
+    <string name="filter_tone_faded">NHẠT</string>
+    <string name="filter_tone_deep">ĐẬM</string>
+    <string name="filter_tone_dark">TỐI</string>
     <string name="filter_adjustments_title">ĐIỀU CHỈNH MÀU</string>
     <string name="filter_adjust_highlights">Vùng sáng</string>
     <string name="filter_adjust_shadows">Vùng tối</string>

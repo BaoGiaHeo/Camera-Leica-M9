@@ -3714,7 +3714,8 @@ fun CameraScreen(
                 (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                     uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode))
         )
-        if (!nativeImageProcessingEnabled && rawCaptureMode == "raw_dream" &&
+        if (mode == "Photo" && !nativeImageProcessingEnabled &&
+            rawCaptureMode == "raw_dream" &&
             imageCapture?.outputFormat != ImageCapture.OUTPUT_FORMAT_RAW_JPEG
         ) {
             localizedToast(

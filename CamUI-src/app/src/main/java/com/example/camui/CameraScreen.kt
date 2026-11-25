@@ -7932,6 +7932,12 @@ private fun FilterLookDialog(
     var customSaturation by remember {
         mutableFloatStateOf(recipePrefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
     }
+    var customHue by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
+    }
+    var customLightness by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
+    }
     var palettePoint by remember {
         mutableStateOf(
             Offset(
@@ -7991,74 +7997,14 @@ private fun FilterLookDialog(
                 stringResource(R.string.filter_adjust_saturation),
                 customSaturation, 0.5f..1.5f, "%.2f".format(Locale.US, customSaturation)
             ) { customSaturation = it; persistRecipeValue("film_custom_saturation", it) }
-        }
-    }
-
-    val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            scope.launch {
-                isImportingLut = true
-                try {
-                    val imported = withContext(Dispatchers.IO) {
-                        importCustomCameraLuts(context, uri)
-                    }
-                    importedLuts = loadCustomCameraLuts(context)
-                    activeLutIds = activeCustomCameraLutIds(context)
-                    Toast.makeText(
-                        context,
-                        "Đã nhập và bật " + imported.size + " LUT.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } catch (failure: Throwable) {
-                    Toast.makeText(
-                        context,
-                        "Import LUT thất bại: " + (failure.message ?: "không rõ lỗi"),
-                        Toast.LENGTH_LONG
-                    ).show()
-                } finally {
-                    isImportingLut = false
-                }
-            }
-        }
-    }
-
-    // Log-input transforms are intentionally kept in LUT Manage; they must not be
-    // applied to an ordinary sRGB camera JPEG as if they were creative photo filters.
-    val activeCustomLuts = importedLuts.filter {
-        activeLutIds.contains(it.id) && !it.category.startsWith("RAW/Log")
-    }
-    val allLookEntries = listOf("all" to "None") +
-        activeCustomLuts.map { customCameraLookCategoryId(it.category) to customCameraLutPreset(it.id) }
-    val lookCategories = buildList {
-        add(CameraLookCategory("all", R.string.filter_category_all))
-        activeCustomLuts.forEach { lut ->
-            add(CameraLookCategory(customCameraLookCategoryId(lut.category), customLabel = lut.category))
-        }
-    }.distinctBy { it.id }
-    val visiblePresets = allLookEntries
-        .filter { selectedLookCategory == "all" || it.first == selectedLookCategory }
-        .map { it.second }
-        .filter {
-            filterSearch.isBlank() ||
-                cameraLookDisplayName(context, it).contains(filterSearch.trim(), ignoreCase = true)
-        }
-    val activeFilterName = cameraLookDisplayName(context, activeFilter)
-
-    val previewPane: @Composable (Modifier) -> Unit = { paneModifier ->
-        Box(
-            paneModifier.fillMaxWidth()
-                .then(if (isLandscape) Modifier.fillMaxHeight() else Modifier.height(previewHeight))
-                .clip(RoundedCornerShape(3.dp)).background(FujiSkin.lcd)
-                .border(1.dp, Color(0xFF758084), RoundedCornerShape(3.dp))
-                .pointerInput(activeFilter) {
-                    detectTapGestures(
-                        onPress = {
-                            showingOriginal = true
-                            tryAwaitRelease()
-                            showingOriginal = false
-                        }
-                    )
-                }
+            CompactFilterAdjustmentSlider(
+                stringResource(R.string.filter_adjust_hue),
+                customHue, -0.5f..0.5f, "%+.2f".format(Locale.US, customHue)
+            ) { customHue = it; persistRecipeValue("film_custom_hue", it) }
+            CompactFilterAdjustmentSlider(
+                stringResource(R.string.filter_adjust_lightness),
+                customLightness, -0.5f..0.5f, "%+.2f".format(Locale.US, customLightness)
+            ) { customLightness = it; persistRecipeValue("film_custom_lightness", it) }
         ) {
             FilterLookPreviewImage(
                 source = previewSource,

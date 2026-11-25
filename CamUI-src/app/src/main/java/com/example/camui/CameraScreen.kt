@@ -984,7 +984,6 @@ fun CameraScreen(
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
-    var previewRecipeRevision by remember { mutableIntStateOf(0) }
     var filterPreviewSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val fallbackFilterPreviewBitmap = remember(context) { createFilmLookPreviewSample(context) }
     val shutterEffectProgress = remember { Animatable(0f) }
@@ -1716,7 +1715,7 @@ fun CameraScreen(
         )
         android.util.Log.d("FUJI_ZOOM_PREVIEW_TRANSFORM", previewTransformText)
     }
-    LaunchedEffect(previewView, activeFilter, previewRecipeRevision, digitalZoomCropScale) {
+    LaunchedEffect(previewView, activeFilter, digitalZoomCropScale) {
         val prepared = withContext(Dispatchers.IO) {
             runCatching { CameraLutPreviewEffect.prepare(context, activeFilter) }
                 .onFailure {
@@ -7692,7 +7691,9 @@ fun CameraScreen(
                     activeFilter = nextFilter
                     appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 },
-                onRecipeChanged = { previewRecipeRevision++ }
+                onRecipeChanged = {
+                    CameraLutPreviewEffect.updateRecipe(context, previewView, activeFilter)
+                }
             )
         }
 

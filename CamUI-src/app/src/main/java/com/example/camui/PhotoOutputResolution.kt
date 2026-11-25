@@ -188,7 +188,9 @@ object PhotoOutputResolution {
             // Release the source before JPEG compression; the resized output is now complete.
             if (!src.isRecycled) src.recycle()
             source = null
+// JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
             FileOutputStream(temp).use { stream ->
+// JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
                 check(output!!.compress(Bitmap.CompressFormat.JPEG, 98, stream)) {
                     "JPEG encoding failed"
                 }
@@ -199,6 +201,7 @@ object PhotoOutputResolution {
             writeExif(temp, tags)
 
             context.contentResolver.openInputStream(uri)?.use { input ->
+// JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
                 FileOutputStream(backup).use { stream ->
                     input.copyTo(stream)
                     stream.fd.sync()
@@ -206,6 +209,7 @@ object PhotoOutputResolution {
             } ?: error("Cannot back up source image")
 
             replacing = true
+// JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
             val copied = context.contentResolver.openOutputStream(uri, "wt")?.use { dest ->
                 temp.inputStream().use { it.copyTo(dest) }
                 true
@@ -254,6 +258,7 @@ object PhotoOutputResolution {
         } catch (failure: Throwable) {
             if (replacing && backup.exists()) {
                 runCatching {
+// JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
                     context.contentResolver.openOutputStream(uri, "wt")?.use { dest ->
                         backup.inputStream().use { it.copyTo(dest) }
                     } ?: error("Rollback failed")

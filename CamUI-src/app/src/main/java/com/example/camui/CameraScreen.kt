@@ -4175,18 +4175,24 @@ fun CameraScreen(
             val lunaDreamSelected = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 (mode == "Photo" || mode == "Pro") &&
                 (lunaDreamMode != "off" || captureUseRawDream20)
-            val captureUseLunaDream15 = lunaDreamSelected && lunaDreamMode == "luna15" &&
-                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
-                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
-            val captureUseLunaDream20 = lunaDreamSelected && lunaDreamMode == "luna20" &&
-                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
-                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
-            val captureUseLunaDream25 = lunaDreamSelected && lunaDreamMode == "luna25" &&
-                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
-                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
-            val captureUseLunaDream30 = lunaDreamSelected && lunaDreamMode == "luna30" &&
-                rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
-                !captureIsUltraHdr && !burstMode && !hdrBracketMode && !focusBracketMode
+            val lunaDreamJpegCaptureAllowed = LunaDreamCapturePolicy.supportsStackedJpegCapture(
+                cameraMode = mode,
+                imageCaptureUsesRaw = captureRawPlus || captureRawOnly,
+                ultraHdr = captureIsUltraHdr,
+                burstMode = burstMode,
+                hdrBracketMode = hdrBracketMode,
+                focusBracketMode = focusBracketMode,
+                nativeProcessingEnabled = nativeImageProcessingEnabled,
+                livePhotoEnabled = livePhotoEnabled
+            )
+            val captureUseLunaDream15 = lunaDreamSelected && lunaDreamJpegCaptureAllowed &&
+                lunaDreamMode == "luna15"
+            val captureUseLunaDream20 = lunaDreamSelected && lunaDreamJpegCaptureAllowed &&
+                lunaDreamMode == "luna20"
+            val captureUseLunaDream25 = lunaDreamSelected && lunaDreamJpegCaptureAllowed &&
+                lunaDreamMode == "luna25"
+            val captureUseLunaDream30 = lunaDreamSelected && lunaDreamJpegCaptureAllowed &&
+                lunaDreamMode == "luna30"
             val captureUseLunaDream = captureUseLunaDream15 || captureUseLunaDream20 ||
                 captureUseLunaDream25 || captureUseLunaDream30 || captureUseRawDream20
             val captureUseLunaDream20Stack = captureUseLunaDream20 || captureUseLunaDream25 ||

@@ -5099,7 +5099,8 @@ fun CameraScreen(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
                                         preservePhotoAspectRatio = true,
-                                        onStageDuration = { stage, duration -> exportStageDurations[stage] = duration }
+                                        onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
+                                        applyFilter = false
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs

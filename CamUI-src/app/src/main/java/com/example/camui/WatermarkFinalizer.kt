@@ -28,7 +28,7 @@ internal object WatermarkFinalizer {
         val expected = if (enabled) "FM-WM=1" else "FM-WM=0"
         val existing = ImageSink.readWatermarkMarker(context, uri)
         if (existing == expected) {
-            return enabled
+            return true
         }
 
         val rendered = runCatching {
@@ -57,6 +57,6 @@ internal object WatermarkFinalizer {
             return false
         }
         Log.i(TAG, "FINALIZER_OK uri=$uri marker=$actual rendered=$rendered")
-        return enabled && rendered
+        return verified && rendered
     }
 }

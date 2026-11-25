@@ -28,10 +28,12 @@ internal object PhotoOutputGeometry {
         sourceWidth: Int,
         sourceHeight: Int,
         targetPixels: Long,
-        targetHeightOverWidth: Float? = null
+        targetHeightOverWidth: Float? = null,
+        dimensionAlignment: Int = 1
     ): PhotoOutputGeometryResult {
         require(sourceWidth >= 2 && sourceHeight >= 2) { "Source dimensions must be at least 2x2" }
         require(targetPixels >= 4L) { "Target pixel count must be at least four pixels" }
+        require(dimensionAlignment >= 1) { "Dimension alignment must be positive" }
 
         val requestedHeightOverWidth = targetHeightOverWidth
             ?.takeIf { it.isFinite() && it > 0f }
@@ -39,23 +41,24 @@ internal object PhotoOutputGeometry {
             ?: (sourceHeight.toDouble() / sourceWidth.toDouble())
         val requestedWidthOverHeight = 1.0 / requestedHeightOverWidth
 
-        var outputHeight = sqrt(targetPixels.toDouble() / requestedWidthOverHeight)
-            .roundToInt()
-            .coerceAtLeast(2)
-        var outputWidth = (outputHeight * requestedWidthOverHeight)
-            .roundToInt()
-            .coerceAtLeast(2)
+        fun alignDown(value: Int): Int =
+            (value / dimensionAlignment * dimensionAlignment).coerceAtLeast(dimensionAlignment)
 
-        // Keep the requested pixel budget after integer rounding without changing the
-        // selected ratio by more than the unavoidable one-pixel quantization.
+        var outputHeight = alignDown(
+            sqrt(targetPixels.toDouble() / requestedWidthOverHeight).roundToInt()
+        )
+        var outputWidth = alignDown((outputHeight * requestedWidthOverHeight).roundToInt())
+
+        // Keep the requested pixel budget and preserve the requested block alignment.
+        // LunaDream 3.0 requests 16-pixel dimensions for block/tile-friendly processing.
         while (outputWidth.toLong() * outputHeight.toLong() > targetPixels) {
             val actualAspect = outputWidth.toDouble() / outputHeight.toDouble()
-            if (actualAspect > requestedWidthOverHeight && outputWidth > 2) {
-                outputWidth--
-            } else if (outputHeight > 2) {
-                outputHeight--
-            } else if (outputWidth > 2) {
-                outputWidth--
+            if (actualAspect > requestedWidthOverHeight && outputWidth > dimensionAlignment) {
+                outputWidth -= dimensionAlignment
+            } else if (outputHeight > dimensionAlignment) {
+                outputHeight -= dimensionAlignment
+            } else if (outputWidth > dimensionAlignment) {
+                outputWidth -= dimensionAlignment
             } else {
                 error("Cannot fit output dimensions into target pixel budget")
             }

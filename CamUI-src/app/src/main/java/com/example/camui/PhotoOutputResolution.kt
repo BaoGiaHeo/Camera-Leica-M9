@@ -33,6 +33,21 @@ data class PhotoOutputResult(
  * requested target only when the current device heap cannot safely hold the output bitmap.
  * Resampling sets pixel dimensions; it does not create optical detail.
  */
+/**
+ * Returns the largest output target that can fit in the currently available RGB_565
+ * heap budget. The 10% margin protects encoder and MediaStore allocations.
+ */
+internal fun adaptivePhotoOutputTargetPixels(
+    requestedPixels: Long,
+    usableHeapBytes: Long,
+    minimumPixels: Long
+): Long? {
+    if (requestedPixels <= 0L || usableHeapBytes <= 0L || minimumPixels <= 0L) return null
+    val safeBytes = (usableHeapBytes.toDouble() * 0.90).toLong()
+    val safePixels = (safeBytes / 2L).coerceAtMost(requestedPixels)
+    return safePixels.takeIf { it >= minimumPixels }
+}
+
 object PhotoOutputResolution {
     private const val TAG = "FUJI_LUNADREAM_RESAMPLE"
     private const val MIN_OUTPUT_PIXELS = 4L
@@ -78,7 +93,8 @@ object PhotoOutputResolution {
         context: Context,
         uri: Uri,
         targetPixels: Long,
-        targetHeightOverWidth: Float? = null
+        targetHeightOverWidth: Float? = null,
+        adaptiveMinimumPixels: Long? = null
     ): PhotoOutputResult? {
         require(targetPixels in MIN_OUTPUT_PIXELS..250_000_000L) {
             "Unsupported output pixel target"
@@ -99,14 +115,39 @@ object PhotoOutputResolution {
             val sourceHeight = src.height
             require(sourceWidth > 0 && sourceHeight > 0) { "Invalid source size" }
 
+            // Measure remaining heap after the source RGB_565 bitmap has been decoded.
+            // LunaDream 3.0 may reduce only its output pixel target when the desired size
+            // cannot fit; every other mode keeps the strict exact-target behavior.
+            val runtime = Runtime.getRuntime()
+            val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+            val freeHeapHeadroom = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
+            val usableHeap = (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L)
+            val effectiveTargetPixels = if (adaptiveMinimumPixels != null) {
+                adaptivePhotoOutputTargetPixels(targetPixels, usableHeap, adaptiveMinimumPixels)
+                    ?: error(
+                        "Not enough heap for LunaDream 3.0 minimum output " +
+                            "${adaptiveMinimumPixels / 1_000_000L}MP; original photo retained"
+                    )
+            } else {
+                targetPixels
+            }
+            if (effectiveTargetPixels < targetPixels) {
+                Log.w(
+                    TAG,
+                    "Adaptive memory output: requested=${targetPixels / 1_000_000L}MP " +
+                        "safeTarget=${effectiveTargetPixels / 1_000_000L}MP " +
+                        "usableHeapBytes=$usableHeap"
+                )
+            }
+
             // Geometry is independently unit-tested. Portrait uses a center crop from
             // the original Bitmap; null target ratio preserves the complete landscape frame.
             val geometry = PhotoOutputGeometry.calculate(
                 sourceWidth,
                 sourceHeight,
-                targetPixels,
+                effectiveTargetPixels,
                 targetHeightOverWidth,
-                dimensionAlignment = if (targetPixels >= 200_000_000L) 16 else 1
+                dimensionAlignment = if (effectiveTargetPixels >= 200_000_000L) 16 else 1
             )
             val sourceRect = Rect(
                 geometry.sourceLeft,
@@ -116,20 +157,12 @@ object PhotoOutputResolution {
             )
             val destinationRect = Rect(0, 0, geometry.outputWidth, geometry.outputHeight)
 
-            // Never silently lower the requested MP count. The caller either receives the
-            // requested output size or an explicit failure with the original photo untouched.
-            // Keep 64 MiB free for JPEG/EXIF/MediaStore and transient Android allocations.
-            val runtime = Runtime.getRuntime()
-            val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
-            val freeHeapHeadroom = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
-            val usableHeap = (freeHeapHeadroom - RESERVED_HEAP_BYTES).coerceAtLeast(0L)
-
             val width = geometry.outputWidth
             val height = geometry.outputHeight
             val outputPixels = geometry.outputPixels
             val outputBytes = outputPixels * 2L // RGB_565.
-            require(outputPixels >= targetPixels * 995L / 1000L) {
-                "Requested MP geometry was not reached; original photo retained"
+            require(outputPixels >= effectiveTargetPixels * 995L / 1000L) {
+                "Selected MP geometry was not reached; original photo retained"
             }
             require(outputBytes <= usableHeap) {
                 "Not enough free heap for the requested output; original photo retained"

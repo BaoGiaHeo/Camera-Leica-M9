@@ -1169,14 +1169,8 @@ fun CameraScreen(
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
-    var galleryVisible by remember { mutableStateOf(false) }
-    var galleryRefreshToken by remember { mutableStateOf(0) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
-    var thumbUri by remember { mutableStateOf<Uri?>(null) }
-    var viewerBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-    var viewerOriginalBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-    var viewerShowsOriginal by remember { mutableStateOf(false) }
-    var photoViewerVisible by remember { mutableStateOf(false) }
+    var thumbnailRequestKey by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
@@ -3367,65 +3361,24 @@ fun CameraScreen(
         }
     }
 
-    LaunchedEffect(lastUri, thumbUri) {
+    LaunchedEffect(lastUri, thumbnailRequestKey) {
         val uri = lastUri
         if (uri == null) {
             thumb = null
-            thumbUri = null
             return@LaunchedEffect
         }
-        if (thumbUri == uri && thumb != null) return@LaunchedEffect
-        val decodedThumbnail = withContext(Dispatchers.IO) {
+        thumb = withContext(Dispatchers.IO) {
             runCatching {
-                decodeUprightBitmap(context, uri, maxDimension = 320)?.asImageBitmap()
+                context.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+                    .asImageBitmap()
+            }.onFailure {
+                android.util.Log.e("FUJI_GALLERY", "Could not load latest-photo thumbnail", it)
             }.getOrNull()
         }
-        thumb = decodedThumbnail
-        thumbUri = uri.takeIf { decodedThumbnail != null }
-    }
-
-    LaunchedEffect(photoViewerVisible, lastUri) {
-        if (!photoViewerVisible) {
-            viewerOriginalBitmap = null
-            viewerShowsOriginal = false
-            return@LaunchedEffect
-        }
-        val uri = lastUri ?: return@LaunchedEffect
-        val previews = withContext(Dispatchers.IO) {
-            val processed = runCatching {
-                // Decode EXIF into the pixels instead of trusting a stale MediaStore thumbnail.
-                decodeUprightBitmap(context, uri, maxDimension = 2048)?.asImageBitmap()
-            }.getOrNull()
-            val original: ImageBitmap? = null
-            processed to original
-        }
-        viewerBitmap = previews.first
-        viewerOriginalBitmap = previews.second
-        viewerShowsOriginal = false
     }
 
     fun openLastPhoto() {
-        val uri = lastUri
-        if (uri == null) {
-            localizedToast(context, "Chưa có ảnh trong Pictures/FujifilmMode.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        // Open the saved MediaStore item in the device's native photo/gallery app.
-        // The in-app viewer is retained only as a fallback when no external handler exists.
-        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "image/*")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        runCatching {
-            context.startActivity(viewIntent)
-        }.onFailure { failure ->
-            android.util.Log.w(
-                "FUJI_GALLERY",
-                "No native image viewer could open the latest photo; using the built-in viewer.",
-                failure
-            )
-            photoViewerVisible = true
-        }
+        onOpenAlbum(lastUri)
     }
 
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {
@@ -3644,8 +3597,7 @@ fun CameraScreen(
                         }
                         withContext(Dispatchers.Main) {
                             lastUri = starUri
-                            thumb = previewThumb
-                            thumbUri = starUri.takeIf { previewThumb != null }
+                            thumbnailRequestKey++
                             processingProgress = 100
                             localizedToast(
                                 context,
@@ -3942,12 +3894,7 @@ fun CameraScreen(
                         android.util.Log.w("FUJI_BRACKET", "Merged output retained without metadata confirmation")
                     }
                     lastUri = finalUri
-                    thumb = withContext(Dispatchers.IO) {
-                        runCatching {
-                            decodeUprightBitmap(context, finalUri, maxDimension = 320)?.asImageBitmap()
-                        }.getOrNull()
-                    }
-                    thumbUri = finalUri.takeIf { thumb != null }
+                    thumbnailRequestKey++
                 }
                 val mergeMessage = when {
                     bracketSavedUris.size < 2 -> "Không đủ khung hình để ghép; các ảnh chụp thành công vẫn được giữ."
@@ -4115,12 +4062,7 @@ fun CameraScreen(
                 }
                 if (lastSuccessfulUri != null) {
                     lastUri = lastSuccessfulUri
-                    thumb = withContext(Dispatchers.IO) {
-                        runCatching {
-                            decodeUprightBitmap(context, lastSuccessfulUri!!, maxDimension = 320)?.asImageBitmap()
-                        }.getOrNull()
-                    }
-                    thumbUri = lastSuccessfulUri.takeIf { thumb != null }
+                    thumbnailRequestKey++
                 }
                 localizedToast(
                     context,
@@ -4463,22 +4405,12 @@ fun CameraScreen(
                                 try {
                                 // Publish a small preview of the first valid JPEG immediately,
                                 // before multi-frame stacking, AI render, HDR or watermark work.
-                                val initialThumbnail = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        decodeUprightBitmap(context, saved, maxDimension = 320)?.asImageBitmap()
-                                    }.getOrNull()
-                                }
                                 withContext(Dispatchers.Main.immediate) {
                                     lastUri = saved
-                                    galleryRefreshToken++
-                                    if (initialThumbnail != null) {
-                                        thumb = initialThumbnail
-                                        thumbUri = saved
-                                    }
                                 }
                                 android.util.Log.d(
                                     "FUJI_THUMBNAIL",
-                                    "Initial capture thumbnail published=${initialThumbnail != null} uri=$saved before post-processing"
+                                    "Capture URI recorded; latest-photo thumbnail refreshes after final processing uri=$saved"
                                 )
                                 var nightShotMerged = false
                                 var mergeDurationMs = -1L
@@ -4841,9 +4773,7 @@ fun CameraScreen(
                                     withContext(Dispatchers.Main) {
                                         if (preserved) {
                                             lastUri = saved
-                                    galleryRefreshToken++
-                                            thumb = originalThumbnail
-                                            thumbUri = saved.takeIf { originalThumbnail != null }
+                                    thumbnailRequestKey++
                                         }
                                         nightShotCaptureInProgress = false
                                         multiFrameHoldActive = false
@@ -5298,9 +5228,7 @@ fun CameraScreen(
                                 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
-                                    galleryRefreshToken++
-                                    thumb = finalThumbnail
-                                    thumbUri = saved.takeIf { finalThumbnail != null }
+                                    thumbnailRequestKey++
                                     processingProgress = 100
                                     val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
                                     if (captureIsUltraHdr && watermarkRequested) {
@@ -5425,9 +5353,7 @@ fun CameraScreen(
                                 }
                                 withContext(Dispatchers.Main) {
                                     lastUri = saved
-                                    galleryRefreshToken++
-                                    thumb = fallbackThumbnail
-                                    thumbUri = saved.takeIf { fallbackThumbnail != null }
+                                    thumbnailRequestKey++
                                     isProcessing = false
                                     processingProgress = 0
                                     processingEtaSeconds = -1
@@ -7286,7 +7212,10 @@ fun CameraScreen(
             Box(
                 Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFF070909))
                     .border(1.5.dp, FujiSkin.silver, RoundedCornerShape(5.dp))
-                    .animaTClickable { CrashContextDiagnostics.recordUiEvent("ALBUM_BUTTON_TAP"); galleryVisible = true; galleryRefreshToken++ },
+                    .animaTClickable {
+                        CrashContextDiagnostics.recordUiEvent("ALBUM_BUTTON_TAP")
+                        onOpenAlbum(lastUri)
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 val image = thumb
@@ -7745,72 +7674,6 @@ fun CameraScreen(
             )
         }
 
-        if (photoViewerVisible) {
-            Dialog(
-                onDismissRequest = { photoViewerVisible = false; viewerBitmap = null; viewerOriginalBitmap = null; viewerShowsOriginal = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                Box(Modifier.fillMaxSize().background(Color.Black)) {
-                    val image = if (viewerShowsOriginal) viewerOriginalBitmap else (viewerBitmap ?: thumb)
-                    if (image != null) {
-                        Image(
-                            bitmap = image,
-                            contentDescription = if (viewerShowsOriginal) "Ảnh gốc trước LunaDream" else "Ảnh sau LunaDream",
-                            modifier = Modifier.fillMaxSize().padding(12.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                    } else {
-                        Text("Đang tải ảnh...", color = Color.White, modifier = Modifier.align(Alignment.Center))
-                    }
-                    if (viewerOriginalBitmap != null) {
-                        Column(
-                            Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                if (viewerShowsOriginal) "ẢNH GỐC · TRƯỚC LUNADREAM" else "ẢNH ĐÃ XỬ LÝ · LUNADREAM",
-                                color = FujiSkin.orange,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            Row(
-                                Modifier.clip(RoundedCornerShape(24.dp)).background(Color(0xDD252525))
-                                    .padding(4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                listOf(false to "Sau LunaDream", true to "Ảnh gốc").forEach { (showOriginal, label) ->
-                                    Text(
-                                        label,
-                                        color = if (viewerShowsOriginal == showOriginal) Color.Black else Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.clip(RoundedCornerShape(18.dp))
-                                            .background(if (viewerShowsOriginal == showOriginal) FujiSkin.orange else Color.Transparent)
-                                            .clickable { viewerShowsOriginal = showOriginal }
-                                            .padding(horizontal = 14.dp, vertical = 9.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
-                        FujiKey(
-                            "ĐÓNG",
-                            onClick = { photoViewerVisible = false; viewerBitmap = null; viewerOriginalBitmap = null; viewerShowsOriginal = false },
-                            modifier = Modifier.width(60.dp)
-                        )
-                    }
-                }
-            }
-        }
-        if (galleryVisible) {
-            CameraGalleryDialog(
-                refreshToken = galleryRefreshToken,
-                initialUri = lastUri,
-                onDismiss = { galleryVisible = false }
-            )
-        }
         if (ratioTransitionInProgress) {
             Box(
                 Modifier.fillMaxSize()

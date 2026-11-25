@@ -2732,7 +2732,28 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         }
 
         val sourceExif = readImageExifAttributes(context, uri)
-        val bitmap = decodeRawPixelBitmap(context, uri) ?: return@runCatching false
+        val sourceBounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val boundsRead = runCatching {
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, sourceBounds)
+            }
+        }.isSuccess
+        if (!boundsRead || sourceBounds.outWidth <= 0 || sourceBounds.outHeight <= 0) {
+            return@runCatching false
+        }
+        val estimatedPixels = sourceBounds.outWidth.toLong() * sourceBounds.outHeight.toLong()
+        val estimatedBytes = estimatedPixels * 2L // RGB_565 working bitmap
+        val runtime = Runtime.getRuntime()
+        val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+        val availableHeap = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
+        if (estimatedBytes + 64L * 1024L * 1024L > availableHeap) {
+            android.util.Log.w(
+                "FUJI_FILTER",
+                "Insufficient heap for full-resolution LUT processing: pixels=$estimatedPixels required=$estimatedBytes available=$availableHeap"
+            )
+            return@runCatching false
+        }
+        val bitmap = decodeWatermarkPixelBitmap(context, uri) ?: return@runCatching false
         try {
             if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
             val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
@@ -2889,7 +2910,8 @@ fun applyCameraWatermark(
     shutter: String,
     iso: String,
     preservePhotoAspectRatio: Boolean = true,
-    onStageDuration: ((String, Long) -> Unit)? = null
+    onStageDuration: ((String, Long) -> Unit)? = null,
+    applyFilter: Boolean = true
 ): Boolean {
     val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     val watermarkEnabled = preferences.getBoolean("watermark_enabled", true)
@@ -2902,13 +2924,13 @@ fun applyCameraWatermark(
         kotlin.math.abs(preferences.getFloat("film_custom_temperature", 0f)) > 0.001f ||
         kotlin.math.abs(preferences.getFloat("film_custom_tone", 0f)) > 0.001f ||
         kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f
-    val filterRequested = filterPreset != "None" || hasCustomAdjustments
+    val filterRequested = applyFilter && (filterPreset != "None" || hasCustomAdjustments)
     if (!watermarkEnabled && !filterRequested) {
         android.util.Log.i("FUJI_WATERMARK", "No export overlay requested; watermark disabled intentionally")
         return false
     }
-    val filterCube = if (filterPreset == "None") null else readCameraLookLut(context, filterPreset)
-    if (customCameraLutId(filterPreset) != null && filterCube == null) {
+    val filterCube = if (!applyFilter || filterPreset == "None") null else readCameraLookLut(context, filterPreset)
+    if (applyFilter && customCameraLutId(filterPreset) != null && filterCube == null) {
         android.util.Log.e("FUJI_FILTER", "Missing LUT for final photo export: $filterPreset")
         return false
     }

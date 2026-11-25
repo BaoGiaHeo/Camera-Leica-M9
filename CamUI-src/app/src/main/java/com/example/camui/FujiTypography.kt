@@ -51,10 +51,26 @@ object FujiTypography {
     fun uiFontFamily(context: Context): FontFamily {
         cachedUiFontFamily?.let { return it }
         return synchronized(lock) {
-            cachedUiFontFamily ?: FontFamily(
-                Font(AppFonts.regular(context), FontWeight.Normal),
-                Font(AppFonts.bold(context), FontWeight.Bold)
-            ).also { cachedUiFontFamily = it }
+            cachedUiFontFamily ?: run {
+                val hasRegularArial = runCatching {
+                    context.assets.open("fonts/arial.ttf").use { }
+                    true
+                }.getOrDefault(false)
+                val hasBoldArial = runCatching {
+                    context.assets.open("fonts/arial_bold.ttf").use { }
+                    true
+                }.getOrDefault(false)
+                when {
+                    hasRegularArial && hasBoldArial -> FontFamily(
+                        Font("fonts/arial.ttf", context.assets, FontWeight.Normal),
+                        Font("fonts/arial_bold.ttf", context.assets, FontWeight.Bold)
+                    )
+                    hasRegularArial -> FontFamily(
+                        Font("fonts/arial.ttf", context.assets, FontWeight.Normal)
+                    )
+                    else -> FontFamily.SansSerif
+                }.also { cachedUiFontFamily = it }
+            }
         }
     }
 

@@ -5934,7 +5934,7 @@ fun CameraScreen(
                             PixelOsdLayer(
                                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = dispOsdAlpha.value },
                                 frame = PixelOsdFrame(
-                                    showPixelTexture = lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
+                                    showPixelTexture = false,
                                     gridMode = gridOverlayMode,
                                     gridColor = gridOverlayColor,
                                     gridOpacity = gridOverlayOpacity,

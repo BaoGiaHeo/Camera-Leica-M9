@@ -3672,7 +3672,7 @@ fun CameraScreen(
     fun takePhoto() {
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
-            (nightShotMode != "off" || lunaDreamMode == "luna20" || starTrailCaptureInProgress)
+            (nightShotMode != "off" || lunaDreamMode in setOf("luna20", "luna25", "luna30") || starTrailCaptureInProgress)
         if (needsCriticalBatteryProtection) {
             localizedToast(
                 context,
@@ -4223,7 +4223,8 @@ fun CameraScreen(
                         captureUseLunaDream25 -> "LunaDream 2.5"
                         captureUseLunaDream30 -> "LunaDream 3.0"
                         else -> "LunaDream 2.0"
-                    }) + "; zoom=$zoomSel; rawMode=$rawCaptureMode; ultraHdr=$captureIsUltraHdr"
+                    }) + "; cameraMode=$mode; zoom=$zoomSel; rawMode=$rawCaptureMode; " +
+                        "captureOutputFormat=${capture.outputFormat}; ultraHdr=$captureIsUltraHdr"
                 )
             }
             val captureUseNightShot = !nativeImageProcessingEnabled && !livePhotoEnabled &&
@@ -5013,7 +5014,12 @@ fun CameraScreen(
                                                     context,
                                                     saved,
                                                     requestedMp,
-                                                    outputHeightOverWidth
+                                                    outputHeightOverWidth,
+                                                    adaptiveMinimumPixels = if (captureUseLunaDream30) {
+                                                        Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS
+                                                    } else {
+                                                        null
+                                                    }
                                                 )
                                             } else {
                                                 PhotoOutputResolution.applyAspectRatio(
@@ -5033,6 +5039,19 @@ fun CameraScreen(
                                 } else null
                                 val outputResolutionDurationMs = SystemClock.elapsedRealtime() - outputResolutionStartedAtMs
                                 val outputResolutionApplied = outputResolutionResult != null
+                                if (captureUseLunaDream30) {
+                                    val actualPixels = outputResolutionResult?.actualPixels ?: runCatching {
+                                        val dimensions = CaptureDiagnostics.readImageDimensions(context, saved)
+                                        dimensions.first.toLong() * dimensions.second.toLong()
+                                    }.getOrDefault(0L)
+                                    val requestedPixels = 200_000_000L
+                                    val outputDetails = "cameraMode=$mode; merged=$nightShotMerged; " +
+                                        "requestedPixels=$requestedPixels; actualPixels=$actualPixels; " +
+                                        "memoryAdaptive=${outputResolutionResult != null && !outputResolutionResult.reachedRequestedSize}; " +
+                                        "outputSizeApplied=$outputResolutionApplied"
+                                    android.util.Log.i("FUJI_LUNADREAM_30", "OUTPUT_RESULT $outputDetails")
+                                    LunaDreamDiagnostics.record(context, "LUNADREAM_30_OUTPUT", outputDetails)
+                                }
 
                                 if (captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied) {
                                     // Keep the last valid LunaDream image, but do not skip the

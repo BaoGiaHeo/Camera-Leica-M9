@@ -3372,8 +3372,12 @@ fun CameraScreen(
                 context.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
                     .asImageBitmap()
             }.onFailure {
-                android.util.Log.e("FUJI_GALLERY", "Could not load latest-photo thumbnail", it)
-            }.getOrNull()
+                android.util.Log.e("FUJI_GALLERY", "ALBUM_THUMB_LOAD id=${uri.lastPathSegment} result=fail", it)
+                CrashContextDiagnostics.recordUiEvent("ALBUM_THUMB_LOAD id=${uri.lastPathSegment} fail")
+            }.getOrNull()?.also {
+                android.util.Log.i("FUJI_GALLERY", "ALBUM_THUMB_LOAD id=${uri.lastPathSegment} result=ok")
+                CrashContextDiagnostics.recordUiEvent("ALBUM_THUMB_LOAD id=${uri.lastPathSegment} ok")
+            }
         }
     }
 

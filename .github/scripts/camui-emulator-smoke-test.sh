@@ -77,13 +77,13 @@ adb logcat -d -v threadtime -t 16000 > emulator-artifacts/logcat-landscape.txt 2
 
 # Keep raw logs even when startup fails; report app crash signatures separately.
 app_pid="$(tr -d '\r\n ' < emulator-artifacts/app-pid.txt)"
-if grep -Eq 'FATAL EXCEPTION|am_crash|Process: com\.fujifilm\.mode\.debug' emulator-artifacts/logcat-landscape.txt; then
-  if grep -Eq 'Process: com\.fujifilm\.mode\.debug|am_crash.*com\.fujifilm\.mode\.debug' emulator-artifacts/logcat-landscape.txt; then
+if grep -Eq 'FATAL EXCEPTION|am_crash|Process: com\.fujiflim\.mode' emulator-artifacts/logcat-landscape.txt; then
+  if grep -Eq 'Process: com\.fujiflim\.mode|am_crash.*com\.fujiflim\.mode' emulator-artifacts/logcat-landscape.txt; then
     echo "app_crash_signature=1" >> emulator-artifacts/command-status.txt
     exit 22
   fi
 fi
-if [ -n "$app_pid" ] && grep -Eq "Fatal signal [0-9]+.*pid $app_pid \(com\.fujifilm\.mode\.debug" emulator-artifacts/logcat-landscape.txt; then
+if [ -n "$app_pid" ] && grep -Eq "Fatal signal [0-9]+.*pid $app_pid \(com\.fujiflim\.mode" emulator-artifacts/logcat-landscape.txt; then
   echo "app_native_crash_signature=1" >> emulator-artifacts/command-status.txt
   exit 22
 fi

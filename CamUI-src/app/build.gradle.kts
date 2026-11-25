@@ -48,7 +48,8 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("mp3")
+        // The nested built-in LUT ZIP is already compressed; store it unchanged in APK assets.
+        noCompress += listOf("mp3", "zip")
     }
 
     packaging {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -145,7 +146,7 @@ internal object CaptureDiagnostics {
                         String.format(Locale.US, "%.2f MP", entry.megapixels)
                 )
                 appendLine(
-                    "Bộ nhớ đỉnh: ${entry.peakMemoryBytes / (1024L * 1024L)} MB"
+                    "Mẫu heap khi hoàn tất: ${entry.peakMemoryBytes / (1024L * 1024L)} MB"
                 )
                 appendLine("Thời gian giai đoạn (ms):")
                 listOf("Chụp", "Ghép", "Nâng", "Bộ lọc", "Watermark", "Mã hóa", "Ghi file").forEach { stage ->
@@ -253,9 +254,16 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
                         Text(
                             "${entry.outputWidth}×${entry.outputHeight} · " +
                                 String.format(Locale.US, "%.2f MP", entry.megapixels) +
-                                " · RAM đỉnh ${entry.peakMemoryBytes / (1024L * 1024L)} MB",
+                                " · RAM ghi nhận ${entry.peakMemoryBytes / (1024L * 1024L)} MB",
                             color = Color(0xFFD0D0D0),
                             fontSize = 10.sp
+                        )
+                        Text(
+                            entry.stageTimesMs.entries.joinToString(" · ") { (name, millis) ->
+                                "$name: ${if (millis >= 0L) millis.toString() + " ms" else "Chưa đo"}"
+                            },
+                            color = Color(0xFFB0B0B0),
+                            fontSize = 9.sp
                         )
                     }
                 }

@@ -3378,6 +3378,7 @@ fun CameraScreen(
     }
 
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {
+        val captureTimestampMillis = System.currentTimeMillis()
         val captureRotation = targetRotation
         val captureIsLandscape = isLandscape
         if (boundCameraRotation != captureRotation ||
@@ -3548,7 +3549,8 @@ fun CameraScreen(
                                     preservePhotoAspectRatio = true,
                                     onStageDuration = { stage, duration ->
                                         exportStageDurations[stage] = duration
-                                    }
+                                    },
+                                    captureTimestampMillis = captureTimestampMillis
                                 )
                             }.onFailure {
                                 android.util.Log.e("FUJI_STAR_TRAILS", "Final filter/watermark export failed", it)
@@ -3638,6 +3640,7 @@ fun CameraScreen(
     }
 
     fun takePhoto() {
+        val captureTimestampMillis = System.currentTimeMillis()
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
             (nightShotMode != "off" || lunaDreamMode in setOf("luna20", "luna25", "luna30") || starTrailCaptureInProgress)
@@ -3842,7 +3845,8 @@ fun CameraScreen(
                                 if (useHdrBracket) "HDR Bracketing" else "Focus Stack",
                                 iso.takeIf { it > 0 }?.toString() ?: "AUTO",
                                 preservePhotoAspectRatio = true,
-                                onStageDuration = { stage, duration -> exportStageDurations[stage] = duration }
+                                onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
+                                captureTimestampMillis = captureTimestampMillis
                             )
                         }.onFailure {
                             android.util.Log.e("FUJI_BRACKET", "Final filter/watermark export failed; merged source retained", it)
@@ -3990,7 +3994,8 @@ fun CameraScreen(
                                         preservePhotoAspectRatio = true,
                                         onStageDuration = { stage, duration ->
                                             exportStageDurations[stage] = duration
-                                        }
+                                        },
+                                        captureTimestampMillis = captureTimestampMillis
                                     )
                                 }.onFailure {
                                     android.util.Log.e("FUJI_BURST", "Frame " + (index + 1) + " watermark/LUT export failed; original JPEG retained", it)
@@ -5075,7 +5080,8 @@ fun CameraScreen(
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
                                         preservePhotoAspectRatio = true,
                                         onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
-                                        applyFilter = false
+                                        applyFilter = true,
+                                        captureTimestampMillis = captureTimestampMillis
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs

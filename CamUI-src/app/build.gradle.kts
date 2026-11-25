@@ -10,7 +10,7 @@ plugins {
 }
 
 androidComponents {
-    // The 2.7.0 package publishes a single Debug variant; do not create a Release APK.
+    // The 2.8.0 package publishes a single Debug variant; do not create a Release APK.
     beforeVariants(selector().withBuildType("release")) { variantBuilder ->
         variantBuilder.enable = false
     }
@@ -24,12 +24,12 @@ android {
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 37
-        versionCode = 18
-        versionName = "2.7.0"
+        versionCode = 19
+        versionName = "2.8.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // 2.7.0 intentionally publishes one installable Debug APK only.
+    // 2.8.0 intentionally publishes one installable Debug APK only.
     // No developer/release variants, signing overrides, or minification are required.
     buildTypes {
         debug {

@@ -13,11 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.res.ResourcesCompat
 
 /**
- * The one typography source for Compose text and the native pixel OSD renderer.
- *
- * KK7 remains the primary face. The Gradle resource task inflates the checked-in
- * compressed source into the Android resource res/font/vcr_osd_mono_kk7.ttf.
- * Share Tech Mono is the per-glyph fallback for characters not present in KK7.
+ * Cached font adapter for Compose and the native OSD renderer.
+ * Arial assets are used when present; Android sans-serif is the safe fallback.
  */
 object FujiTypography {
     const val FONT_ASSET_PATH = "fonts/vcr_osd_mono_kk7.ttf.gz"
@@ -43,9 +40,8 @@ object FujiTypography {
     private val lock = Any()
 
     /**
-     * Saira is the application UI face. KK7 remains isolated to the viewfinder OSD
-     * through composeFamily()/androidTypeface(); watermark typography is rendered
-     * by WatermarkRenderer and is intentionally kept independent.
+     * Application UI and OSD use Arial assets when present, otherwise sans-serif.
+     * Watermark typography remains independent in WatermarkRenderer.
      */
     val uiFont: FontFamily = FontFamily.SansSerif
 
@@ -61,7 +57,7 @@ object FujiTypography {
     fun withUiMissingGlyphFallback(context: Context, value: String): AnnotatedString {
         val primary = Paint().apply { typeface = uiTypeface(context) }
         val fallbackPaint = Paint().apply {
-            typeface = cachedShareTechTypeface ?: Typeface.create("monospace", Typeface.NORMAL)
+            typeface = cachedShareTechTypeface ?: Typeface.create("sans-serif", Typeface.NORMAL)
         }
         val systemPaint = Paint().apply { typeface = systemMonoTypeface() }
         val fallbackFamily = shareTechComposeFamily()
@@ -75,7 +71,7 @@ object FujiTypography {
                 if (!primary.hasGlyph(glyph)) {
                     val family = when {
                         fallbackPaint.hasGlyph(glyph) -> fallbackFamily
-                        systemPaint.hasGlyph(glyph) -> FontFamily.Monospace
+                        systemPaint.hasGlyph(glyph) -> FontFamily.SansSerif
                         else -> FontFamily.Monospace
                     }
                     addStyle(SpanStyle(fontFamily = family), index, index + charCount)
@@ -133,9 +129,7 @@ object FujiTypography {
         computeGlyphCoverage(androidTypeface(context), shareTechTypeface(context))
 
     /**
-     * Selects Share Tech Mono for each code point missing from KK7. Combining
-     * marks are kept as separate spans, so decomposed Vietnamese text is not
-     * silently dropped even when the primary bitmap face lacks those marks.
+     * Uses the system sans-serif family for glyphs not covered by the selected font.
      */
     fun withMissingGlyphFallback(value: String): AnnotatedString {
         val primary = cachedTypeface ?: Typeface.create("monospace", Typeface.NORMAL)

@@ -198,8 +198,8 @@
     <string name="grid_color_auto">Auto</string>
     <string name="grid_opacity_title">Opacity</string>
     <string name="sound_master_volume">MASTER VOLUME · %1$d%%</string>
-    <string name="sound_master_enabled">ZOOM MOTOR &amp; DETENT SOUND</string>
-    <string name="sound_zoom_description">Servo loop and tactile ticks while operating W/T. Disabled when the phone is in silent mode.</string>
+    <string name="sound_master_enabled">INTERFACE SOUND</string>
+    <string name="sound_zoom_description">Zoom is silent. This setting controls interface feedback sounds only.</string>
     <string name="sound_shutter_title">Shutter sound</string>
     <string name="sound_shutter_description">Mechanical shutter WAV, using the master volume setting.</string>
     <string name="sound_ui_title">UI mechanical sounds</string>

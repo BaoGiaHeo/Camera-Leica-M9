@@ -5,6 +5,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
 import org.junit.Test
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class CubeLutParserTest {
     @Test
@@ -89,6 +91,35 @@ class CubeLutParserTest {
         assertEquals("Cinema / Log", catalogLutCategory("bundleable/Panasonic Lumix/V-Log/Look.cube"))
         assertEquals("Cinema / Log", catalogLutCategory("bundleable/Sony/CineAlta/S-Log3.cube"))
         assertEquals("Khác", catalogLutCategory("local-only/Other/Custom.cube"))
+    }
+
+    @Test
+    fun parsesLittleEndianFloat32BinaryLutWithBlueFastestAxis() {
+        val size = 33
+        val bytes = ByteBuffer.allocate(size * size * size * 3 * 4)
+            .order(ByteOrder.LITTLE_ENDIAN)
+        for (red in 0 until size) {
+            for (green in 0 until size) {
+                for (blue in 0 until size) {
+                    bytes.putFloat(red / 32f)
+                    bytes.putFloat(green / 32f)
+                    bytes.putFloat(blue / 32f)
+                }
+            }
+        }
+
+        val lut = requireNotNull(parseFloatBinaryLut(bytes.array()))
+        val sampled = lut.sample(0.25f, 0.50f, 0.75f)
+        assertEquals(33, lut.size)
+        assertEquals(0.25f, sampled.first, 0.001f)
+        assertEquals(0.50f, sampled.second, 0.001f)
+        assertEquals(0.75f, sampled.third, 0.001f)
+    }
+
+    @Test
+    fun rejectsUnsupportedFloat32BinaryLutSizes() {
+        assertNull(parseFloatBinaryLut(ByteArray(1596)))
+        assertNull(parseFloatBinaryLut(ByteArray(33 * 33 * 33 * 3 * 2)))
     }
 
     @Test

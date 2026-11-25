@@ -251,4 +251,6 @@
     <string name="filter_adjust_color_chrome">Color Chrome</string>
     <string name="filter_adjust_grain">Film Grain</string>
     <string name="filter_adjust_saturation">Saturation</string>
+    <string name="filter_adjust_hue">Hue</string>
+    <string name="filter_adjust_lightness">HSL Lightness</string>
 </resources>

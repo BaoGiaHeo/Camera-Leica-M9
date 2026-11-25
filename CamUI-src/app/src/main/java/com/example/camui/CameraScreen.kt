@@ -133,7 +133,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -7846,7 +7845,7 @@ private fun CompactFilterAdjustmentSlider(
                 .pointerInput(valueRange, onValueChange) {
                     detectTapGestures { position ->
                         val next = valueRange.start +
-                            (position.x / size.width.coerceAtLeast(1f)).coerceIn(0f, 1f) *
+                            (position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) *
                             (valueRange.endInclusive - valueRange.start)
                         onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
                     }
@@ -7854,7 +7853,7 @@ private fun CompactFilterAdjustmentSlider(
                 .pointerInput(valueRange, onValueChange) {
                     detectDragGestures { change, _ ->
                         val next = valueRange.start +
-                            (change.position.x / size.width.coerceAtLeast(1f)).coerceIn(0f, 1f) *
+                            (change.position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) *
                             (valueRange.endInclusive - valueRange.start)
                         onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
                         change.consume()
@@ -7999,7 +7998,7 @@ private fun FilterLookDialog(
                     activeLutIds = activeCustomCameraLutIds(context)
                     Toast.makeText(
                         context,
-                        "Đã nhập " + imported.size + " LUT. Vào Content Manager để Add LUT vào bộ lọc.",
+                        "Đã nhập và bật " + imported.size + " LUT.",
                         Toast.LENGTH_LONG
                     ).show()
                 } catch (failure: Throwable) {

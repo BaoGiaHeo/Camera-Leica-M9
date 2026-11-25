@@ -1324,9 +1324,9 @@ fun CameraScreen(
 
     var lowLightGyroMoving by remember { mutableStateOf(false) }
     val lowLightGyroMovingState = rememberUpdatedState(lowLightGyroMoving)
-    DisposableEffect(sensorManager) {
+    DisposableEffect(sensorManager, lowLightDetected, lowLightIsoActive) {
         val gyroSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
-        if (sensorManager == null || gyroSensor == null) {
+        if (sensorManager == null || gyroSensor == null || !(lowLightDetected || lowLightIsoActive)) {
             lowLightGyroMoving = false
             onDispose { }
         } else {

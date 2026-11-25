@@ -2128,6 +2128,12 @@ internal fun catalogLutCategory(path: String): String {
         hasFolder("Arri", "ARRI") -> "Cinema / Log"
         hasFolder("RED") -> "Cinema / Log"
         hasFolder("Other", "Khác") || parts.any { it == "风格" } -> "Creative"
+        lower.contains("lut_fuji_") || lower.contains("lut_fuji") -> "Fujifilm"
+        lower.contains("lut_hassel_") || lower.contains("lut_hassel") -> "Hasselblad"
+        lower.contains("lut_kodak_") || lower.contains("lut_kodak") -> "Kodak"
+        lower.contains("lut_arri") || lower.contains("lut_alexa") -> "Cinema / Log"
+        lower.contains("lut_r_") -> "Creative Film"
+        lower.contains("lut_p9vibrant") -> "P9"
         lower.contains("panasonic-standard") -> "Panasonic Lumix"
         else -> "LUT nhập"
     }
@@ -2148,12 +2154,19 @@ private fun scanLutZip(
                 "ZIP chứa quá nhiều tệp."
             }
             if (!entry.isDirectory) {
+                val extension = entry.name.substringAfterLast('.', "").lowercase()
+                // The supplied APK asset pack also contains large ONNX models, native
+                // libraries, shader files and style data. Ignore non-LUT resources
+                // before reading them so they cannot trip the per-entry LUT size cap.
+                if (extension !in setOf("zip", "cube", "bin")) {
+                    zip.closeEntry()
+                    continue
+                }
                 val bytes = readBoundedLutBytes(zip, MAX_LUT_ENTRY_BYTES)
                 budget.expandedBytes += bytes.size.toLong()
                 require(budget.expandedBytes <= MAX_LUT_EXPANDED_BYTES) {
                     "Dung lượng giải nén ZIP vượt giới hạn an toàn."
                 }
-                val extension = entry.name.substringAfterLast('.', "").lowercase()
                 val innerName = englishLutDisplayName(
                     entry.name.substringAfterLast('/').substringBeforeLast('.')
                         .ifBlank { "Imported LUT" }
@@ -2168,10 +2181,11 @@ private fun scanLutZip(
                         found.add(LutImportEntry(innerName, category, bytes, false))
                     }
                     "bin" -> {
-                        require(parseAnyBinaryLut(bytes) != null) {
-                            "Unsupported .bin LUT. Expected float32 RGB 33^3/65^3 or Canon RGB8 33^3."
+                        // Some APK packs use .bin for style/model data too. Import only
+                        // recognised RGB 33^3/65^3 LUTs and skip every other binary.
+                        if (parseAnyBinaryLut(bytes) != null) {
+                            found.add(LutImportEntry(innerName, category, bytes, true))
                         }
-                        found.add(LutImportEntry(innerName, category, bytes, true))
                     }
                 }
             }
@@ -2265,8 +2279,8 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
             }
             listOf(
                 LutImportEntry(
-                    displayName.substringBeforeLast('.'),
-                    "LUT tùy chỉnh",
+                    englishLutDisplayName(displayName.substringBeforeLast('.')),
+                    catalogLutCategory(displayName),
                     inputBytes,
                     false
                 )
@@ -2278,15 +2292,15 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
             }
             listOf(
                 LutImportEntry(
-                    displayName.substringBeforeLast('.'),
-                    "Canon Picture Styles",
+                    englishLutDisplayName(displayName.substringBeforeLast('.')),
+                    catalogLutCategory(displayName),
                     inputBytes,
                     true
                 )
             )
         }
         "zip" -> scanLutZip(inputBytes, 0, LutImportBudget())
-        else -> error("Hỗ trợ .cube, LUT .bin RGB 33x33x33 và ZIP chứa các định dạng này.")
+        else -> error("Hỗ trợ .cube, LUT .bin RGB float32 33³/65³, Canon RGB8 33³ và ZIP chứa các định dạng này.")
     }
     require(entries.isNotEmpty()) {
         "Không tìm thấy LUT .cube hoặc .bin hợp lệ bên trong ZIP."

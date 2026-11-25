@@ -1,6 +1,9 @@
 name: Manual FujiFilm Mode 2.9.0 Debug APK
 
 on:
+  push:
+    branches:
+      - fuji-2.9.0
   workflow_dispatch:
 
 permissions:

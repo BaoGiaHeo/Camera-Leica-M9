@@ -2410,18 +2410,21 @@ private fun hslToRgb(hue: Float, saturation: Float, lightness: Float, out: Float
     val h6 = ((hue % 1f + 1f) % 1f) * 6f
     val x = chroma * (1f - kotlin.math.abs((h6 % 2f) - 1f))
     val sector = h6.toInt().coerceIn(0, 5)
-    val (r1, g1, b1) = when (sector) {
-        0 -> Triple(chroma, x, 0f)
-        1 -> Triple(x, chroma, 0f)
-        2 -> Triple(0f, chroma, x)
-        3 -> Triple(0f, x, chroma)
-        4 -> Triple(x, 0f, chroma)
-        else -> Triple(chroma, 0f, x)
+    var red = 0f
+    var green = 0f
+    var blue = 0f
+    when (sector) {
+        0 -> { red = chroma; green = x }
+        1 -> { red = x; green = chroma }
+        2 -> { green = chroma; blue = x }
+        3 -> { green = x; blue = chroma }
+        4 -> { red = x; blue = chroma }
+        else -> { red = chroma; blue = x }
     }
     val match = lightness - chroma * 0.5f
-    out[0] = (r1 + match).coerceIn(0f, 1f)
-    out[1] = (g1 + match).coerceIn(0f, 1f)
-    out[2] = (b1 + match).coerceIn(0f, 1f)
+    out[0] = (red + match).coerceIn(0f, 1f)
+    out[1] = (green + match).coerceIn(0f, 1f)
+    out[2] = (blue + match).coerceIn(0f, 1f)
 }
 
 private fun transformPreset(name: String, red: Float, green: Float, blue: Float): Triple<Float, Float, Float> {

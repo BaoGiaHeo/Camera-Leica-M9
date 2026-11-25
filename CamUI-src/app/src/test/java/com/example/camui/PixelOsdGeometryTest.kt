@@ -48,19 +48,19 @@ class PixelOsdGeometryTest {
     }
 
     @Test
-    fun fineIsTheDefaultAndUsesTwoDisplayPixelsPerLogicPixel() {
+    fun fineIsTheDefaultAndUsesNativeDisplayPixelResolution() {
         val geometry = PixelOsdGeometry.fromDisplayPixels(1920, 1080)
-        assertEquals(2, geometry.pixelScale)
-        assertEquals(960, geometry.logicWidth)
-        assertEquals(540, geometry.logicHeight)
+        assertEquals(1, geometry.pixelScale)
+        assertEquals(1920, geometry.logicWidth)
+        assertEquals(1080, geometry.logicHeight)
     }
 
     @Test
     fun mediumAndChunkyUseTheirExplicitGridScale() {
         val medium = PixelOsdGeometry.fromDisplayPixels(1920, 1080, "medium")
-        assertEquals(3, medium.pixelScale)
-        assertEquals(640, medium.logicWidth)
-        assertEquals(360, medium.logicHeight)
+        assertEquals(2, medium.pixelScale)
+        assertEquals(960, medium.logicWidth)
+        assertEquals(540, medium.logicHeight)
 
         val chunky = PixelOsdGeometry.fromDisplayPixels(1920, 1080, "chunky")
         assertEquals(4, chunky.pixelScale)
@@ -220,11 +220,11 @@ class PixelOsdGeometryTest {
     fun normalizedCoordinatesAreRoundedToIntegerLogicPixels() {
         val geometry = PixelOsdGeometry.fromDisplayPixels(1920, 1080, "fine")
         assertEquals(0, geometry.x(0f))
-        assertEquals(480, geometry.x(0.5f))
-        assertEquals(959, geometry.x(1f))
+        assertEquals(960, geometry.x(0.5f))
+        assertEquals(1919, geometry.x(1f))
         assertEquals(0, geometry.y(0f))
-        assertEquals(270, geometry.y(0.5f))
-        assertEquals(539, geometry.y(1f))
+        assertEquals(540, geometry.y(0.5f))
+        assertEquals(1079, geometry.y(1f))
     }
 
     @Test
@@ -234,13 +234,13 @@ class PixelOsdGeometryTest {
         assertEquals(geometry.logicWidth - 1, geometry.x(1.2f))
         assertEquals(0, geometry.y(-0.2f))
         assertEquals(geometry.logicHeight - 1, geometry.y(1.2f))
-        assertTrue(geometry.pixelScale == 2)
+        assertTrue(geometry.pixelScale == 1)
     }
 
     @Test
     fun unknownPixelModeSafelyFallsBackToFine() {
         assertEquals(
-            2,
+            1,
             PixelOsdGeometry.fromDisplayPixels(1920, 1080, "unknown").pixelScale
         )
     }

@@ -2100,7 +2100,7 @@ private fun copyBoundedLutFile(input: InputStream, destination: File, maxBytes: 
     }
 }
 
-private fun englishLutDisplayName(name: String): String = when (name.trim()) {
+internal fun englishLutDisplayName(name: String): String = when (name.trim()) {
     "哈苏 经典" -> "Hasselblad Classic"
     "哈苏 鲜艳" -> "Hasselblad Vivid"
     "富士 标准" -> "Fujifilm Standard"

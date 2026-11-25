@@ -86,8 +86,11 @@ fun SettingsScreen(
     focusPeaking: Boolean, onFocusPeaking: (Boolean) -> Unit,
     onOpenToolbox: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {},
-    onReplayActivation: () -> Unit = {}
+    onReplayActivation: () -> Unit = {},
+    onOpenWatermarkPanel: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
+    var showCaptureDiagnostics by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Capture & Quality") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
     val displayVersionName = BuildConfig.VERSION_NAME
@@ -107,17 +110,17 @@ fun SettingsScreen(
     }
     val visibleSettingItems = localizedSettingItems
     FujiScreenScaffold(
-        title = stringResource(R.string.settings_screen_title), modifier = Modifier.fillMaxSize(),
+        title = stringResource(R.string.settings_screen_title), modifier = modifier.fillMaxSize(),
         onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
     ) {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Column(
-                Modifier.width(72.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp))
+                Modifier.width(88.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp))
                     .background(Color(0xFF101416)).border(1.dp, Color(0xFF3E484B), RoundedCornerShape(4.dp))
                     .verticalScroll(rememberScrollState()).padding(vertical = 5.dp, horizontal = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text("SHOOTING MENU", color = FujiSkin.lcdGreen, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+                Text("MENU CÀI ĐẶT", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp, modifier = Modifier.padding(start = 5.dp, top = 3.dp, bottom = 4.dp))
                 visibleSettingItems.forEach { item ->
                     val selected = selectedCategory == item.title
@@ -130,8 +133,8 @@ fun SettingsScreen(
                     ) {
                         Box(Modifier.width(3.dp).fillMaxHeight().background(if (selected) FujiSkin.orange else Color.Transparent))
                         FujiIconGlyph(item.icon, Modifier.size(17.dp), if (selected) FujiSkin.orange else FujiSkin.muted)
-                        Text(item.title.take(2).uppercase(), color = if (selected) Color.White else Color(0xFFB4BBBD),
-                            fontSize = 6.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                        Text(stringResource(item.titleResource), color = if (selected) Color.White else Color(0xFFB4BBBD),
+                            fontSize = 7.sp, fontWeight = FontWeight.Bold, maxLines = 2,
                             modifier = Modifier.weight(1f).padding(end = 2.dp))
                     }
                 }
@@ -142,7 +145,7 @@ fun SettingsScreen(
                     .padding(horizontal = 9.dp, vertical = 7.dp)
             ) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("SHOOTING SETTING", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                    Text("CÀI ĐẶT CHỤP", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
                     Spacer(Modifier.weight(1f))
                     val activeIndex = visibleSettingItems.indexOfFirst { it.title == selectedCategory }.coerceAtLeast(0) + 1
                     Text("%02d/%02d".format(activeIndex, visibleSettingItems.size), color = FujiSkin.lcdGreen,
@@ -167,10 +170,15 @@ fun SettingsScreen(
                 },
                 onOpenToolbox = onOpenToolbox,
                 onOpenContentsManagement = onOpenContentsManagement,
-                onReplayActivation = onReplayActivation
+                onReplayActivation = onReplayActivation,
+                onOpenWatermarkPanel = onOpenWatermarkPanel,
+                onOpenDiagnostics = { showCaptureDiagnostics = true }
                 )
             }
         }
+    }
+    if (showCaptureDiagnostics) {
+        CaptureDiagnosticsDialog(onDismiss = { showCaptureDiagnostics = false })
     }
 }
 
@@ -191,7 +199,9 @@ private fun SettingsDetailPage(
     onOpenBackup: () -> Unit = {},
     onOpenToolbox: () -> Unit = {},
     onOpenContentsManagement: () -> Unit = {},
-    onReplayActivation: () -> Unit = {}
+    onReplayActivation: () -> Unit = {},
+    onOpenWatermarkPanel: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -281,7 +291,8 @@ var nightShotMode by remember {
                 Text("Viewfinder overlays are configured in Toolbox.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
                 FujiListRow("Toolbox", "OPEN", onClick = onOpenToolbox, description = "Grid · Level · Histogram · Focus peaking · HUD")
-                FujiListRow("Contents Management", "OPEN", onClick = onOpenContentsManagement, description = "LUT Manager")
+                FujiListRow("Quản lý LUT", "MỞ", onClick = onOpenContentsManagement, description = "Nhập và quản lý LUT")
+                FujiListRow("Nhật ký chẩn đoán", "MỞ", onClick = onOpenDiagnostics, description = "30 lần chụp gần nhất · xuất tệp TXT")
             }
             "Focus & Lens" -> {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -383,7 +394,9 @@ var nightShotMode by remember {
                 }
                 Text("Ảnh được lưu vào Pictures/FujifilmMode.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
-                FujiListRow("Sao lưu & Khôi phục", "BACKUP", onClick = onOpenBackup,
+                FujiListRow("Watermark", "MỞ", onClick = onOpenWatermarkPanel,
+                    description = "Bật/tắt, kiểu, nội dung, ngày giờ và vị trí")
+                FujiListRow("Sao lưu & Khôi phục", "SAO LƯU", onClick = onOpenBackup,
                     description = "Lưu hoặc nạp lại các thiết lập camera")
             }
             "Display / Appearance", "Appearance" -> {

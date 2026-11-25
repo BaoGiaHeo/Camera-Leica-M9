@@ -2812,217 +2812,16 @@ private fun restoreImageExifAttributes(
 }
 
 fun applyCameraLook(context: Context, uri: Uri): Boolean {
-    val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    val preset = prefs.getString("selected_filter", "None") ?: "None"
-    val hasCustomAdjustments =
-        kotlin.math.abs(prefs.getFloat("film_custom_highlight", 0f)) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_shadow", 0f)) > 0.001f ||
-        prefs.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
-        prefs.getFloat("film_custom_grain", 0f) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_temperature", 0f)) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_hue", 0f)) > 0.001f ||
-        kotlin.math.abs(prefs.getFloat("film_custom_lightness", 0f)) > 0.001f
-    if (preset == "None" && !hasCustomAdjustments) return false
-
-    return runCatching {
-        // Film customizer controls are active even when the selected LUT/profile is None.
-        val cube = if (preset == "None") null else readCameraLookLut(context, preset)
-        if ((customCameraLutId(preset) != null || builtInCameraLutId(preset) != null) && cube == null) {
-            android.util.Log.e("FUJI_FILTER", "Missing film simulation asset for $preset")
-            return@runCatching false
-        }
-
-        val sourceExif = readImageExifAttributes(context, uri)
-        val sourceBounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        val boundsRead = runCatching {
-            context.contentResolver.openInputStream(uri)?.use {
-                BitmapFactory.decodeStream(it, null, sourceBounds)
-            }
-        }.isSuccess
-        if (!boundsRead || sourceBounds.outWidth <= 0 || sourceBounds.outHeight <= 0) {
-            return@runCatching false
-        }
-        val estimatedPixels = sourceBounds.outWidth.toLong() * sourceBounds.outHeight.toLong()
-        val runtime = Runtime.getRuntime()
-        val usedHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
-        val availableHeap = (runtime.maxMemory() - usedHeap).coerceAtLeast(0L)
-        val reservedHeap = 64L * 1024L * 1024L
-        val rgb565Bytes = estimatedPixels * 2L
-        val argb8888Bytes = estimatedPixels * 4L
-        val bitmapConfig = when {
-            argb8888Bytes + reservedHeap <= availableHeap -> Bitmap.Config.ARGB_8888
-            rgb565Bytes + reservedHeap <= availableHeap -> Bitmap.Config.RGB_565
-            else -> {
-                android.util.Log.w(
-                    "FUJI_FILTER",
-                    "Insufficient heap for full-resolution LUT processing: pixels=$estimatedPixels " +
-                        "argbRequired=$argb8888Bytes rgb565Required=$rgb565Bytes available=$availableHeap"
-                )
-                return@runCatching false
-            }
-        }
-        val bitmapOptions = BitmapFactory.Options().apply {
-            inPreferredConfig = bitmapConfig
-            inMutable = true
-            inDither = bitmapConfig == Bitmap.Config.RGB_565
-        }
-        val bitmap = context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bitmapOptions)
-        } ?: return@runCatching false
-        android.util.Log.d(
-            "FUJI_FILTER",
-            "Processing LUT at " + sourceBounds.outWidth + "x" + sourceBounds.outHeight + " config=" + bitmapConfig
-        )
-        try {
-            if (!applyCameraLookPixels(context, bitmap, preset, cube)) return@runCatching false
-            val written = context.contentResolver.openOutputStream(uri, "wt")?.use {
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
-            } ?: false
-            if (!written) return@runCatching false
-
-            val exifWritten = restoreImageExifAttributes(context, uri, sourceExif, bitmap.width, bitmap.height)
-            setMediaStoreOrientationUpright(context, uri)
-            exifWritten
-        } finally {
-            if (!bitmap.isRecycled) bitmap.recycle()
-        }
-    }.onFailure {
-        android.util.Log.e("FUJI_FILTER", "Could not apply selected filter", it)
-    }.getOrDefault(false)
+    return WatermarkFinalizer.ensure(
+        context = context,
+        uri = uri,
+        focal = "",
+        aperture = "",
+        shutter = "",
+        iso = "",
+        captureTimestampMillis = System.currentTimeMillis()
+    )
 }
-
-/**
- * Draws a camera-spec frame directly onto the upright pixel matrix. No portrait/landscape
- * heuristic is applied here: the image pixels, metadata and watermark all share one orientation.
- */
-/**
- * Centers a watermark text line by its actual embedded-font cap height.
- * The optical anchor is the midpoint between the top of capital H and baseline;
- * accents above capitals are intentionally excluded from this optical measurement.
- */
-private fun readWatermarkMarketName(): String? = runCatching {
-    val properties = Class.forName("android.os.SystemProperties")
-    val get = properties.getMethod("get", String::class.java)
-    (get.invoke(null, "ro.product.marketname") as? String)?.trim()?.takeIf { it.isNotBlank() }
-}.getOrNull()
-
-private fun watermarkOpticalBaseline(paint: Paint, centerY: Float): Float {
-    val capBounds = android.graphics.Rect()
-    paint.getTextBounds("H", 0, 1, capBounds)
-    val capHeight = (-capBounds.top).toFloat().coerceAtLeast(paint.textSize * 0.5f)
-    return watermarkBaselineFromCapHeight(centerY, capHeight)
-}
-
-private fun parseWatermarkExifNumber(value: String?): Double? {
-    val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    return runCatching {
-        if ('/' in raw) {
-            val parts = raw.split('/', limit = 2)
-            parts[0].toDouble() / parts[1].toDouble()
-        } else raw.toDouble()
-    }.getOrNull()?.takeIf { it.isFinite() }
-}
-
-private fun formatWatermarkDms(latitude: Double, longitude: Double): String {
-    fun part(value: Double, positive: String, negative: String): String {
-        val absolute = kotlin.math.abs(value)
-        val degrees = absolute.toInt()
-        val minutes = (((absolute - degrees) * 60.0).toInt()).coerceIn(0, 59)
-        val hemisphere = if (value < 0.0) negative else positive
-        return String.format(Locale.US, "%d°%02d'%s", degrees, minutes, hemisphere)
-    }
-    return part(latitude, "N", "S") + " " + part(longitude, "E", "W")
-}
-
-private fun watermarkLocationFromExif(
-    context: Context,
-    attributes: Map<String, String>,
-    preferences: android.content.SharedPreferences
-): Pair<String, String> {
-    val decimal = formatWatermarkGpsCoordinates(attributes)
-    val values = decimal?.split(',')?.map { it.trim().toDoubleOrNull() }
-    val latitude = values?.getOrNull(0)
-    val longitude = values?.getOrNull(1)
-    val coordinates = if (latitude != null && longitude != null) {
-        formatWatermarkDms(latitude, longitude)
-    } else ""
-    val place = if (latitude != null && longitude != null && Geocoder.isPresent()) {
-        runCatching {
-            @Suppress("DEPRECATION")
-            Geocoder(context, Locale.getDefault()).getFromLocation(latitude, longitude, 1)
-                ?.firstOrNull()
-                ?.let { address ->
-                    address.locality ?: address.subAdminArea ?: address.adminArea ?: address.subLocality
-                }
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
-        }.onFailure {
-            android.util.Log.d("FUJI_WATERMARK_GPS", "Reverse geocoding unavailable; use EXIF coordinates", it)
-        }.getOrNull().orEmpty()
-    } else ""
-    val customPlace = preferences.getString("watermark_custom_location", "")?.trim().orEmpty()
-    return (place.ifBlank { customPlace }.ifBlank { coordinates }) to coordinates
-}
-
-private fun duplicateOriginalWatermarkSource(context: Context, uri: Uri): Uri? {
-    val resolver = context.contentResolver
-    var displayName = "FujiFilm_original_" + System.currentTimeMillis() + ".jpg"
-    var relativePath: String? = null
-    var mimeType = "image/jpeg"
-    runCatching {
-        resolver.query(
-            uri,
-            arrayOf(MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.RELATIVE_PATH, MediaStore.Images.Media.MIME_TYPE),
-            null, null, null
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val nameIndex = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
-                val pathIndex = cursor.getColumnIndex(MediaStore.Images.Media.RELATIVE_PATH)
-                val mimeIndex = cursor.getColumnIndex(MediaStore.Images.Media.MIME_TYPE)
-                if (nameIndex >= 0) {
-                    val originalName = cursor.getString(nameIndex)?.trim().orEmpty()
-                    if (originalName.isNotBlank()) {
-                        val extension = originalName.substringAfterLast('.', "jpg")
-                        val stem = originalName.substringBeforeLast('.', originalName)
-                        displayName = stem + "_original." + extension
-                    }
-                }
-                if (pathIndex >= 0) relativePath = cursor.getString(pathIndex)
-                if (mimeIndex >= 0) mimeType = cursor.getString(mimeIndex)?.takeIf { it.isNotBlank() } ?: mimeType
-            }
-        }
-    }
-    val values = ContentValues().apply {
-        put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
-        put(MediaStore.Images.Media.MIME_TYPE, mimeType)
-        if (android.os.Build.VERSION.SDK_INT >= 29 && !relativePath.isNullOrBlank()) {
-            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
-            put(MediaStore.Images.Media.IS_PENDING, 1)
-        }
-    }
-    val copyUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return null
-    return runCatching {
-        val input = resolver.openInputStream(uri) ?: error("Could not read original source photo")
-        val output = resolver.openOutputStream(copyUri, "w") ?: error("Could not create original photo copy")
-        input.use { source -> output.use { destination -> source.copyTo(destination) } }
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            resolver.update(
-                copyUri,
-                ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
-                null, null
-            )
-        }
-        android.util.Log.i("FUJI_WATERMARK", "ORIGINAL_COPY_SAVED uri=" + copyUri + " name=" + displayName)
-        copyUri
-    }.getOrElse {
-        resolver.delete(copyUri, null, null)
-        android.util.Log.e("FUJI_WATERMARK", "Could not preserve original photo; watermark write cancelled", it)
-        null
-    }
-}
-
 fun applyCameraWatermark(
     context: Context,
     uri: Uri,
@@ -3259,6 +3058,13 @@ fun applyCameraWatermark(
             check(sinkResult.marker == if (watermarkEnabled) "FM-WM=1" else "FM-WM=0") {
                 "ImageSink watermark marker does not match the selected preference"
             }
+            if (watermarkEnabled && !sinkResult.watermarkPrinted) {
+                CaptureDiagnostics.recordWarning(
+                    context,
+                    "CẢNH BÁO ĐỎ: EXIF marker tồn tại nhưng chưa xác minh được vùng pixel watermark"
+                )
+                return@runCatching false
+            }
             android.util.Log.i(
                 "FUJI_WATERMARK",
                 "FINAL_EXPORT watermarkEnabled=$watermarkEnabled filter=$filterPreset filterApplied=$filterApplied " +
@@ -3269,7 +3075,7 @@ fun applyCameraWatermark(
                     " captureTimestamp=$captureTimestampMillis saveMode=" + settings.saveMode +
                     " GPS_EXIF_PRESERVED=" + sourceExif.containsKey(ExifInterface.TAG_GPS_LATITUDE)
             )
-            true
+            sinkResult.written && (!watermarkEnabled || sinkResult.watermarkPrinted)
         } finally {
             outputBitmap?.takeIf { !it.isRecycled }?.recycle()
             sourceBitmap.takeIf { !it.isRecycled }?.recycle()

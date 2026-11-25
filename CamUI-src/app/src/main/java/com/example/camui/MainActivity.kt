@@ -119,8 +119,9 @@ class MainActivity : AppCompatActivity() {
         val photoUri = latestPhoto ?: mostRecentPhotoUri()
         if (photoUri != null) {
             val imageIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(photoUri, "image/*")
+                setDataAndType(photoUri, "image/jpeg")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
                 startActivity(imageIntent)
@@ -130,9 +131,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // If no recent image is readable, open the system image picker instead of Gallery home.
+        // With no photo, open the device's Gallery application rather than an in-app album.
+        val galleryIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_APP_GALLERY)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            startActivity(galleryIntent)
+            return true
+        } catch (_: ActivityNotFoundException) {
+        } catch (_: SecurityException) {
+        }
+
+        // Some devices expose the gallery only through the media picker contract.
         val pickerIntent = Intent(Intent.ACTION_PICK).apply {
             setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image/*")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         return try {
             startActivity(pickerIntent)
@@ -314,7 +328,13 @@ class MainActivity : AppCompatActivity() {
                         onOpenToolbox = { settingsSubpageReturnTarget = "camera"; page = "toolbox" },
                         onOpenContentManagement = { settingsSubpageReturnTarget = "camera"; page = "contents" },
                         onOpenAlbum = { latestPhoto ->
-                            if (!openDeviceGallery(latestPhoto)) page = "album"
+                            if (!openDeviceGallery(latestPhoto)) {
+                                android.widget.Toast.makeText(
+                                    this@MainActivity,
+                                    getString(R.string.gallery_app_unavailable),
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
                         },
                         showGrid = showGrid,
                         onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
@@ -350,7 +370,6 @@ class MainActivity : AppCompatActivity() {
                                 }
                             )
                             "camera" -> Spacer(Modifier.fillMaxSize())
-                            "album" -> AlbumScreen(onBack = { page = "camera" })
                             "settings" -> Box(
                                 Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center

@@ -123,6 +123,17 @@ class CubeLutParserTest {
     }
 
     @Test
+    fun translatesAllChineseCubeDisplayNamesIntoEnglish() {
+        assertEquals("Hasselblad Classic", englishLutDisplayName("哈苏 经典"))
+        assertEquals("Hasselblad Vivid", englishLutDisplayName("哈苏 鲜艳"))
+        assertEquals("Fujifilm Standard", englishLutDisplayName("富士 标准"))
+        assertEquals("Fujifilm Classic Positive", englishLutDisplayName("富士 经典正片"))
+        assertEquals("Leica CLS Film Look", englishLutDisplayName("徕卡 CLS 胶片质感"))
+        assertEquals("Kodak Ultramax 400", englishLutDisplayName("柯达 Ultramax 400"))
+        assertEquals("Milk Tea Still Life", englishLutDisplayName("奶茶色静物"))
+    }
+
+    @Test
     fun classifiesChineseNamedCubeFilesIntoEnglishGroups() {
         assertEquals("Hasselblad", catalogLutCategory("assets/film_sims/哈苏 经典.cube"))
         assertEquals("Hasselblad", catalogLutCategory("assets/film_sims/哈苏 鲜艳.cube"))

@@ -105,7 +105,8 @@ object PhotoOutputResolution {
                 sourceWidth,
                 sourceHeight,
                 targetPixels,
-                targetHeightOverWidth
+                targetHeightOverWidth,
+                dimensionAlignment = if (targetPixels >= 200_000_000L) 16 else 1
             )
             val sourceRect = Rect(
                 geometry.sourceLeft,

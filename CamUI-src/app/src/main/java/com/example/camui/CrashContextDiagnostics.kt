@@ -7,10 +7,10 @@ import java.util.Locale
 
 /**
  * Small, process-local crash context. It intentionally stores no image, URI, EXIF,
- * location, camera ID, or user-entered text. The ring buffer is bounded to 20 UI events.
+ * location, camera ID, or user-entered text. The ring buffer is bounded to 50 UI events.
  */
 internal object CrashContextDiagnostics {
-    private const val MAX_EVENTS = 20
+    private const val MAX_EVENTS = 50
     private val lock = Any()
     private val recentEvents = ArrayDeque<String>()
 

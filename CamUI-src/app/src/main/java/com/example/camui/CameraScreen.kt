@@ -7684,14 +7684,16 @@ private fun FilterLookPreviewImage(
     source: Bitmap,
     preset: String,
     modifier: Modifier,
-    maxDimension: Int
+    maxDimension: Int,
+    previewRevision: Int = 0
 ) {
     val context = LocalContext.current
     val renderedState by produceState(
         initialValue = Pair(false, null as ImageBitmap?),
         source,
         preset,
-        maxDimension
+        maxDimension,
+        previewRevision
     ) {
         val rendered = withContext(Dispatchers.Default) {
             renderCameraLookPreview(context, source, preset, maxDimension)
@@ -7760,6 +7762,31 @@ private fun FilterLookDialog(
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
+    var customPreviewRevision by remember { mutableIntStateOf(0) }
+    val recipePrefs = remember(context) {
+        context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    }
+    var palettePoint by remember {
+        mutableStateOf(
+            Offset(
+                ((recipePrefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f) + 1f) / 2f),
+                (0.5f - recipePrefs.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f) / 2f)
+            )
+        )
+    }
+    var paletteWidth by remember { mutableFloatStateOf(1f) }
+    var paletteHeight by remember { mutableFloatStateOf(1f) }
+    fun updatePalette(point: Offset) {
+        val clamped = Offset(point.x.coerceIn(0f, 1f), point.y.coerceIn(0f, 1f))
+        palettePoint = clamped
+        val temperature = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
+        val tone = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
+        recipePrefs.edit()
+            .putFloat("film_custom_temperature", temperature)
+            .putFloat("film_custom_tone", tone)
+            .apply()
+        customPreviewRevision++
+    }
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -7836,6 +7863,7 @@ private fun FilterLookDialog(
                 preset = if (showingOriginal) "None" else activeFilter,
                 modifier = Modifier.fillMaxSize(),
                 maxDimension = 480,
+                previewRevision = customPreviewRevision
             )
             Text(
                 if (showingOriginal) "ẢNH GỐC · THẢ ĐỂ XEM LỌC" else "GIỮ ĐỂ XEM ẢNH GỐC",
@@ -7983,7 +8011,6 @@ private fun FilterLookDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         if (isLandscape) {
-            var palettePoint by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
             Box(Modifier.fillMaxSize().padding(end = 12.dp, top = 10.dp, bottom = 10.dp), contentAlignment = Alignment.CenterEnd) {
                 Column(
                     Modifier.width(206.dp).fillMaxHeight().clip(RoundedCornerShape(26.dp))
@@ -8018,6 +8045,35 @@ private fun FilterLookDialog(
                         Box(
                             Modifier.fillMaxWidth().height(84.dp).clip(RoundedCornerShape(7.dp))
                                 .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
+                                .onSizeChanged {
+                                    paletteWidth = it.width.toFloat().coerceAtLeast(1f)
+                                    paletteHeight = it.height.toFloat().coerceAtLeast(1f)
+                                }
+                                .pointerInput(paletteWidth, paletteHeight) {
+                                    detectTapGestures { position ->
+                                        updatePalette(Offset(
+                                            position.x / paletteWidth,
+                                            position.y / paletteHeight
+                                        ))
+                                    }
+                                }
+                                .pointerInput(paletteWidth, paletteHeight) {
+                                    detectDragGestures(
+                                        onDragStart = { position ->
+                                            updatePalette(Offset(
+                                                position.x / paletteWidth,
+                                                position.y / paletteHeight
+                                            ))
+                                        },
+                                        onDrag = { change, _ ->
+                                            updatePalette(Offset(
+                                                change.position.x / paletteWidth,
+                                                change.position.y / paletteHeight
+                                            ))
+                                            change.consume()
+                                        }
+                                    )
+                                }
                         ) {
                             Canvas(Modifier.fillMaxSize()) {
                                 drawRect(Brush.horizontalGradient(listOf(Color.White, Color(0xFFB8B8B8), Color(0xFF333638))))
@@ -8034,7 +8090,12 @@ private fun FilterLookDialog(
                             Text("TỐI", color = Color(0xFFE7E7E7), fontSize = 6.sp)
                         }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Palette: 100%", color = Color(0xFFD4D7D8), fontSize = 7.sp)
+                            Text(
+                                "NHIỆT ${(recipePrefs.getFloat("film_custom_temperature", 0f) * 100).roundToInt()} · TONE ${(recipePrefs.getFloat("film_custom_tone", 0f) * 100).roundToInt()}",
+                                color = Color(0xFFD4D7D8),
+                                fontSize = 6.sp,
+                                maxLines = 1
+                            )
                             Spacer(Modifier.weight(1f))
                             Canvas(Modifier.width(78.dp).height(12.dp)) {
                                 drawLine(Color(0xFFBFC3C4), Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), 2.dp.toPx())

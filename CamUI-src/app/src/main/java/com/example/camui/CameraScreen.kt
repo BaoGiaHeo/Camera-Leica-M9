@@ -3551,8 +3551,7 @@ fun CameraScreen(
                                         Locale.US, effectiveExposureNs / 1_000_000_000.0
                                     ) else "AUTO",
                                     if (manualSensorSupported) effectiveIso.toString() else "AUTO",
-                                    preservePhotoAspectRatio = true,
-                                    onStageDuration = { stage, duration ->
+                                                                        onStageDuration = { stage, duration ->
                                         exportStageDurations[stage] = duration
                                     },
                                     captureTimestampMillis = captureTimestampMillis
@@ -3849,8 +3848,7 @@ fun CameraScreen(
                                 bracketAperture,
                                 if (useHdrBracket) "HDR Bracketing" else "Focus Stack",
                                 iso.takeIf { it > 0 }?.toString() ?: "AUTO",
-                                preservePhotoAspectRatio = true,
-                                onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
+                                                                onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
                                 captureTimestampMillis = captureTimestampMillis
                             )
                         }.onFailure {
@@ -3996,8 +3994,7 @@ fun CameraScreen(
                                         "",
                                         "",
                                         "AUTO",
-                                        preservePhotoAspectRatio = true,
-                                        onStageDuration = { stage, duration ->
+                                                                                onStageDuration = { stage, duration ->
                                             exportStageDurations[stage] = duration
                                         },
                                         captureTimestampMillis = captureTimestampMillis
@@ -5065,8 +5062,7 @@ fun CameraScreen(
                                     WatermarkFinalizer.ensure(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                        preservePhotoAspectRatio = true,
-                                        onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
+                                                                                onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
                                         captureTimestampMillis = captureTimestampMillis
                                     )
                                 }.getOrDefault(false)

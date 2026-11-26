@@ -1,6 +1,16 @@
 package com.example.camui
 
 import androidx.compose.ui.res.stringResource
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 import android.content.Context
 import android.media.AudioManager
@@ -115,16 +125,16 @@ object FujiFeedback {
 }
 
 object FujiSkin {
-    val body = Color(0xFF202020)
-    val bodyDeep = Color(0xFF0E0E0E)
+    val body = Color(0xFF1C1E20)
+    val bodyDeep = Color(0xFF0E0F10)
     val silver = Color(0xFFC1C1C1)
-    val ivory = Color(0xFFFFFFFF)
+    val ivory = Color(0xFFF2F2F2)
     val lcd = Color(0xFF080808)
-    val lcdGreen = Color(0xFF7FDB9B)
-    val orange = Color(0xFFE4002B)
-    val line = Color(0xFF5F5F5F)
-    val muted = Color(0xFF8A8A8A)
-    val manualBlue = Color(0xFF4A90E2)
+    val lcdGreen = Color(0xFF5ED08A)
+    val orange = Color(0xFFF0A030)
+    val line = Color(0xFF5A5D60)
+    val muted = Color(0xFF9A9DA1)
+    val manualBlue = Color(0xFF3B8EE6)
 }
 
 /**
@@ -138,25 +148,77 @@ fun FujiLeatherSurface(
     simpleMode: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val texture = androidx.compose.ui.res.painterResource(R.drawable.fuji_leather_texture)
-    Box(
-        modifier = modifier.background(FujiSkin.bodyDeep)
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val targetWidth = (configuration.screenWidthDp * density.density).roundToInt().coerceAtLeast(1)
+    val targetHeight = (configuration.screenHeightDp * density.density).roundToInt().coerceAtLeast(1)
+    val leatherBitmap by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+        initialValue = null,
+        targetWidth,
+        targetHeight
     ) {
-        androidx.compose.foundation.Image(
-            painter = texture,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop
-        )
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeResource(context.resources, R.drawable.fuji_leather_texture, options)
+                var sample = 1
+                while (options.outWidth / (sample * 2) >= targetWidth &&
+                    options.outHeight / (sample * 2) >= targetHeight
+                ) sample *= 2
+                val decoded = BitmapFactory.decodeResource(
+                    context.resources,
+                    R.drawable.fuji_leather_texture,
+                    BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                    }
+                ) ?: return@runCatching null
+                decoded.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    Box(modifier.background(FujiSkin.bodyDeep)) {
+        val image = leatherBitmap
+        if (image != null) {
+            Box(
+                Modifier.fillMaxSize().drawWithCache {
+                    val destinationWidth = size.width.roundToInt().coerceAtLeast(1)
+                    val destinationHeight = size.height.roundToInt().coerceAtLeast(1)
+                    val sourceAspect = image.width.toFloat() / image.height.coerceAtLeast(1)
+                    val destinationAspect = destinationWidth.toFloat() / destinationHeight
+                    val sourceWidth: Int
+                    val sourceHeight: Int
+                    val sourceX: Int
+                    val sourceY: Int
+                    if (sourceAspect > destinationAspect) {
+                        sourceHeight = image.height
+                        sourceWidth = (image.height * destinationAspect).roundToInt().coerceIn(1, image.width)
+                        sourceX = (image.width - sourceWidth) / 2
+                        sourceY = 0
+                    } else {
+                        sourceWidth = image.width
+                        sourceHeight = (image.width / destinationAspect).roundToInt().coerceIn(1, image.height)
+                        sourceX = 0
+                        sourceY = (image.height - sourceHeight) / 2
+                    }
+                    onDrawBehind {
+                        drawImage(
+                            image = image,
+                            srcOffset = IntOffset(sourceX, sourceY),
+                            srcSize = IntSize(sourceWidth, sourceHeight),
+                            dstSize = IntSize(destinationWidth, destinationHeight)
+                        )
+                    }
+                }
+            )
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
         if (!simpleMode) {
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.radialGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.16f),
-                            Color.Black.copy(alpha = 0.38f)
-                        )
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.10f), Color.Black.copy(alpha = 0.24f))
                     )
                 )
             )

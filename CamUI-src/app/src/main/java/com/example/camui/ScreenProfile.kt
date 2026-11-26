@@ -60,11 +60,12 @@ internal data class ScreenProfile(
     fun layoutFor(widthDp: Float = this.widthDp, heightDp: Float = this.heightDp): ScreenLayoutMetrics {
         val safeWidth = widthDp.takeIf { it.isFinite() && it > 0f } ?: this.widthDp
         val safeHeight = heightDp.takeIf { it.isFinite() && it > 0f } ?: this.heightDp
+        val designScale = FujiCameraDesign.scale(safeWidth, safeHeight)
         return ScreenLayoutMetrics(
-            topPlateHeight = (safeHeight * 0.105f).coerceIn(40f, 52f).dp,
-            leftColumnWidth = (safeWidth * 0.075f).coerceIn(54f, 70f).dp,
-            rightColumnWidth = (safeWidth * 0.34f).coerceIn(260f, 310f).dp,
-            proControlHeight = (safeHeight * 0.12f).coerceIn(64f, 92f).dp
+            topPlateHeight = (55f * designScale).dp,
+            leftColumnWidth = (98f * designScale).dp,
+            rightColumnWidth = (310f * designScale).dp,
+            proControlHeight = (60f * designScale).dp
         )
     }
 

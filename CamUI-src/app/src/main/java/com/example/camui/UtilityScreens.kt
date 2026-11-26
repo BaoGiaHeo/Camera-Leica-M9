@@ -2703,96 +2703,135 @@ private fun applyCameraLookPixels(
     cube: CubeLut?
 ): Boolean {
     if ((customCameraLutId(preset) != null || builtInCameraLutId(preset) != null) && cube == null) return false
-    val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
-    val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
-    val colorChrome = recipe.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)
-    val grain = recipe.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)
-    val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
-    val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
-    val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
-    val hueShift = recipe.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f)
-    val lightnessShift = recipe.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f)
-    val row = IntArray(bitmap.width)
+    val params = ColorPipelineParams.from(context, preset)
+    val width = bitmap.width
+    val height = bitmap.height
+    if (width <= 0 || height <= 0) return false
+
+    // Three reusable rows let the CPU path use the same radius-scaled neighbourhood
+    // sharpening/denoise as the preview shader without a full-frame second bitmap.
+    var rowAbove = IntArray(width)
+    var rowCurrent = IntArray(width)
+    var rowBelow = IntArray(width)
+    val outputRow = IntArray(width)
     val lutOutput = FloatArray(3)
-    val hsl = FloatArray(3)
-    val hslRgb = FloatArray(3)
-    for (y in 0 until bitmap.height) {
-        bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
-        for (x in row.indices) {
-            val pixel = row[x]
+    val radius = (minOf(width, height) * 0.001f).roundToInt().coerceIn(1, 4)
+    val exposure = Math.pow(2.0, params.toneY.toDouble()).toFloat().coerceIn(0.5f, 2f)
+    val contrast = 1f + kotlin.math.abs(params.toneX) * 0.18f
+    val toneChroma = 1f + params.toneX * 0.36f
+
+    fun fillProcessedRow(y: Int, destination: IntArray) {
+        bitmap.getPixels(destination, 0, width, 0, y.coerceIn(0, height - 1), width, 1)
+        for (x in destination.indices) {
+            val pixel = destination[x]
             val alpha = AndroidColor.alpha(pixel)
-            val red = AndroidColor.red(pixel).toFloat()
-            val green = AndroidColor.green(pixel).toFloat()
-            val blue = AndroidColor.blue(pixel).toFloat()
+            val sourceRed = AndroidColor.red(pixel) / 255f
+            val sourceGreen = AndroidColor.green(pixel) / 255f
+            val sourceBlue = AndroidColor.blue(pixel) / 255f
             if (cube != null) {
-                cube.sampleInto(red / 255f, green / 255f, blue / 255f, lutOutput)
+                cube.sampleInto(sourceRed, sourceGreen, sourceBlue, lutOutput)
             } else {
-                lutOutput[0] = red / 255f
-                lutOutput[1] = green / 255f
-                lutOutput[2] = blue / 255f
+                lutOutput[0] = sourceRed
+                lutOutput[1] = sourceGreen
+                lutOutput[2] = sourceBlue
             }
 
-            var r = lutOutput[0]
-            var g = lutOutput[1]
-            var b = lutOutput[2]
-            val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
+            var red = sourceRed + (lutOutput[0] - sourceRed) * params.intensity
+            var green = sourceGreen + (lutOutput[1] - sourceGreen) * params.intensity
+            var blue = sourceBlue + (lutOutput[2] - sourceBlue) * params.intensity
+            val luma = (0.2126f * red + 0.7152f * green + 0.0722f * blue).coerceIn(0f, 1f)
             val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
             val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
-            val tonalShift = highlight * highlightWeight * 0.12f +
-                shadow * shadowWeight * 0.12f
-            r += tonalShift
-            g += tonalShift
-            b += tonalShift
+            val tonalShift = params.highlights * highlightWeight * 0.12f +
+                params.shadows * shadowWeight * 0.12f
+            red += tonalShift
+            green += tonalShift
+            blue += tonalShift
 
-            val chromeChroma = maxOf(abs(r - luma), abs(g - luma), abs(b - luma))
-            val chromeFactor = 1f + colorChrome * (0.05f + chromeChroma * 0.18f)
-            val saturationFactor = saturation * chromeFactor
-            r = luma + (r - luma) * saturationFactor
-            g = luma + (g - luma) * saturationFactor
-            b = luma + (b - luma) * saturationFactor
+            red *= exposure
+            green *= exposure
+            blue *= exposure
+            val exposedLuma = (0.2126f * red + 0.7152f * green + 0.0722f * blue).coerceIn(0f, 1f)
+            val highlightRoll = maxOf(0f, exposedLuma - 0.72f) * maxOf(0f, params.toneY) * 0.22f
+            red -= highlightRoll
+            green -= highlightRoll
+            blue -= highlightRoll
 
-            r += temperature * 0.045f
-            g += temperature * 0.006f
-            b -= temperature * 0.045f
-            // Color Tone shifts green/magenta independently from global color temperature.
-            r += tone * 0.018f
-            g -= tone * 0.035f
-            b += tone * 0.018f
+            red = (red - 0.5f) * contrast + 0.5f
+            green = (green - 0.5f) * contrast + 0.5f
+            blue = (blue - 0.5f) * contrast + 0.5f
+            val contrastLuma = (0.2126f * red + 0.7152f * green + 0.0722f * blue).coerceIn(0f, 1f)
+            val chromeChroma = maxOf(
+                kotlin.math.abs(red - contrastLuma),
+                kotlin.math.abs(green - contrastLuma),
+                kotlin.math.abs(blue - contrastLuma)
+            )
+            val chromeFactor = 1f + params.colorChrome * (0.05f + chromeChroma * 0.18f)
+            val saturationFactor = toneChroma * chromeFactor
+            red = contrastLuma + (red - contrastLuma) * saturationFactor
+            green = contrastLuma + (green - contrastLuma) * saturationFactor
+            blue = contrastLuma + (blue - contrastLuma) * saturationFactor
 
-            if (kotlin.math.abs(hueShift) > 0.0001f ||
-                kotlin.math.abs(lightnessShift) > 0.0001f
-            ) {
-                rgbToHsl(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f), hsl)
-                hslToRgb(
-                    hsl[0] + hueShift,
-                    hsl[1],
-                    (hsl[2] + lightnessShift).coerceIn(0f, 1f),
-                    hslRgb
-                )
-                r = hslRgb[0]
-                g = hslRgb[1]
-                b = hslRgb[2]
-            }
-
-            if (grain > 0.001f) {
-                // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
-                val seed = (x.toLong() * 73_856_093L) xor
-                    (y.toLong() * 19_349_663L) xor preset.hashCode().toLong()
-                val noise = ((((seed ushr 13) and 0xFFFFL).toFloat() / 32_767.5f) - 1f) *
-                    grain * 0.035f
-                r += noise
-                g += noise
-                b += noise
-            }
-            row[x] = AndroidColor.argb(
+            destination[x] = AndroidColor.argb(
                 alpha,
-                clamp8(r.coerceIn(0f, 1f) * 255f),
-                clamp8(g.coerceIn(0f, 1f) * 255f),
-                clamp8(b.coerceIn(0f, 1f) * 255f)
+                clamp8(red.coerceIn(0f, 1f) * 255f),
+                clamp8(green.coerceIn(0f, 1f) * 255f),
+                clamp8(blue.coerceIn(0f, 1f) * 255f)
             )
         }
-        bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
+    }
+
+    fillProcessedRow(0, rowAbove)
+    fillProcessedRow(0, rowCurrent)
+    fillProcessedRow(if (height > 1) 1 else 0, rowBelow)
+
+    for (y in 0 until height) {
+        val above = if (y == 0) rowCurrent else rowAbove
+        val below = if (y == height - 1) rowCurrent else rowBelow
+        for (x in 0 until width) {
+            val centre = rowCurrent[x]
+            val alpha = AndroidColor.alpha(centre)
+            val leftX = (x - radius).coerceAtLeast(0)
+            val rightX = (x + radius).coerceAtMost(width - 1)
+            val neighbours = intArrayOf(
+                above[leftX], above[x], above[rightX],
+                rowCurrent[leftX], rowCurrent[rightX],
+                below[leftX], below[x], below[rightX]
+            )
+            var sumRed = 0f
+            var sumGreen = 0f
+            var sumBlue = 0f
+            for (neighbour in neighbours) {
+                sumRed += AndroidColor.red(neighbour)
+                sumGreen += AndroidColor.green(neighbour)
+                sumBlue += AndroidColor.blue(neighbour)
+            }
+            val averageRed = sumRed / (8f * 255f)
+            val averageGreen = sumGreen / (8f * 255f)
+            val averageBlue = sumBlue / (8f * 255f)
+            val centreRed = AndroidColor.red(centre) / 255f
+            val centreGreen = AndroidColor.green(centre) / 255f
+            val centreBlue = AndroidColor.blue(centre) / 255f
+            val denoiseMix = params.denoise * 0.35f
+            val denoisedRed = centreRed + (averageRed - centreRed) * denoiseMix
+            val denoisedGreen = centreGreen + (averageGreen - centreGreen) * denoiseMix
+            val denoisedBlue = centreBlue + (averageBlue - centreBlue) * denoiseMix
+            val sharpness = params.sharpness * 0.55f
+            outputRow[x] = AndroidColor.argb(
+                alpha,
+                clamp8((denoisedRed + (centreRed - averageRed) * sharpness).coerceIn(0f, 1f) * 255f),
+                clamp8((denoisedGreen + (centreGreen - averageGreen) * sharpness).coerceIn(0f, 1f) * 255f),
+                clamp8((denoisedBlue + (centreBlue - averageBlue) * sharpness).coerceIn(0f, 1f) * 255f)
+            )
+        }
+        bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+        if (y < height - 1) {
+            val reusable = rowAbove
+            rowAbove = rowCurrent
+            rowCurrent = rowBelow
+            rowBelow = reusable
+            fillProcessedRow((y + 2).coerceAtMost(height - 1), rowBelow)
+        }
     }
     return true
 }

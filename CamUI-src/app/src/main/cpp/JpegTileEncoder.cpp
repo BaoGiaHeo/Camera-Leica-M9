@@ -1,10 +1,10 @@
 #include <jni.h>
 #include <android/log.h>
-#include <jpeglib.h>
-#include <setjmp.h>
-#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <setjmp.h>
+#include <time.h>
+#include <jpeglib.h>
 #include <string.h>
 #include <math.h>
 #include <stdint.h>

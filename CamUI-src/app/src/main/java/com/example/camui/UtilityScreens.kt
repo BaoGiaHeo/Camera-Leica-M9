@@ -2703,7 +2703,7 @@ private fun applyCameraLookPixels(
     cube: CubeLut?
 ): Boolean {
     if ((customCameraLutId(preset) != null || builtInCameraLutId(preset) != null) && cube == null) return false
-    val params = ColorPipelineParams.from(context, preset)
+    val params = ColorPipelineParamsStore.current(context, preset)
     val width = bitmap.width
     val height = bitmap.height
     if (width <= 0 || height <= 0) return false

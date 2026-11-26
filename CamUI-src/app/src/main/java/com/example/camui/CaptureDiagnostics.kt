@@ -47,6 +47,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicLong
 
 internal data class CaptureDiagnosticEntry(
     val timestamp: Long,
@@ -75,7 +76,25 @@ internal object CaptureDiagnostics {
     private const val WARNING_KEY = "capture_diagnostics_warnings_v1"
     private const val TAG = "FUJI_CAPTURE_DIAGNOSTICS"
     private val lock = Any()
+    private val peakHeap = AtomicLong(0L)
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+    fun resetPeakMemory() {
+        peakHeap.set(currentHeapBytes())
+    }
+
+    fun samplePeakMemory(): Long {
+        val current = currentHeapBytes()
+        peakHeap.accumulateAndGet(current) { previous, next -> maxOf(previous, next) }
+        return peakHeap.get()
+    }
+
+    fun peakMemoryBytes(): Long = peakHeap.get()
+
+    private fun currentHeapBytes(): Long {
+        val runtime = Runtime.getRuntime()
+        return (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+    }
 
     fun record(context: Context, entry: CaptureDiagnosticEntry) {
         runCatching {

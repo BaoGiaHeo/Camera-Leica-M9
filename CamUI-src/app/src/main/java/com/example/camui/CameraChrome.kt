@@ -184,7 +184,7 @@ internal fun FujiProFocusStrip(
 
 @Composable
 internal fun FujiProHud(
-    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int
+    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, hudHeight: Dp = 60.dp
 ) {
     var clock by remember { mutableStateOf("--:--:--") }
     LaunchedEffect(Unit) {
@@ -192,7 +192,7 @@ internal fun FujiProHud(
         while (true) { clock = formatter.format(Date()); delay(1_000L) }
     }
     Row(
-        Modifier.fillMaxWidth(0.58f).height(60.dp).clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth(0.58f).height(hudHeight).clip(RoundedCornerShape(16.dp))
             .background(Color(0x80000000)).padding(horizontal = 14.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -282,7 +282,7 @@ internal fun FujiPhotoStatus(
                             }
                     ) {
                         Box(Modifier.fillMaxHeight().fillMaxWidth(0.28f).align(Alignment.CenterStart)
-                            .offset(x = (72.dp * fraction) - 10.dp).clip(RoundedCornerShape(4.dp)).background(Color.White))
+                            .offset(x = 52.dp * fraction).clip(RoundedCornerShape(4.dp)).background(Color.White))
                     }
                     Text("T", color = Color.White, fontSize = 12.sp)
                 }

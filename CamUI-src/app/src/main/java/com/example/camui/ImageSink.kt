@@ -18,8 +18,8 @@ import java.util.Locale
  * Final JPEG payload. The constructor is private; production instances are created
  * by WatermarkStage only after a deliberate print or deliberate skip decision.
  */
-private const val WATERMARK_WATERMARK_SAMPLE_COLUMNS = 128
-private const val WATERMARK_WATERMARK_SAMPLE_ROWS = 64
+private const val WATERMARK_SAMPLE_COLUMNS = 128
+private const val WATERMARK_SAMPLE_ROWS = 64
 
 internal class WatermarkedFrame private constructor(
     internal val uri: Uri,
@@ -139,12 +139,12 @@ internal object WatermarkStage {
             region.bottom.coerceIn(1, bitmap.height)
         )
         require(safe.width() > 1 && safe.height() > 1) { "Watermark verification region is empty" }
-        val rgb = ByteArray(SAMPLE_COLUMNS * SAMPLE_ROWS * 3)
+        val rgb = ByteArray(WATERMARK_SAMPLE_COLUMNS * WATERMARK_SAMPLE_ROWS * 3)
         var offset = 0
-        for (row in 0 until SAMPLE_ROWS) {
-            val y = safe.top + ((row + 0.5f) * safe.height() / SAMPLE_ROWS).toInt().coerceAtMost(safe.height() - 1)
-            for (column in 0 until SAMPLE_COLUMNS) {
-                val x = safe.left + ((column + 0.5f) * safe.width() / SAMPLE_COLUMNS).toInt().coerceAtMost(safe.width() - 1)
+        for (row in 0 until WATERMARK_SAMPLE_ROWS) {
+            val y = safe.top + ((row + 0.5f) * safe.height() / WATERMARK_SAMPLE_ROWS).toInt().coerceAtMost(safe.height() - 1)
+            for (column in 0 until WATERMARK_SAMPLE_COLUMNS) {
+                val x = safe.left + ((column + 0.5f) * safe.width() / WATERMARK_SAMPLE_COLUMNS).toInt().coerceAtMost(safe.width() - 1)
                 val color = bitmap.getPixel(x, y)
                 rgb[offset++] = android.graphics.Color.red(color).toByte()
                 rgb[offset++] = android.graphics.Color.green(color).toByte()
@@ -361,15 +361,15 @@ internal object ImageSink {
                 try {
                     val baseline = runCatching { Base64.decode(baselineBase64, Base64.NO_WRAP) }.getOrNull()
                         ?: return false
-                    val expectedBytes = SAMPLE_COLUMNS * SAMPLE_ROWS * 3
+                    val expectedBytes = WATERMARK_SAMPLE_COLUMNS * WATERMARK_SAMPLE_ROWS * 3
                     if (baseline.size != expectedBytes) return false
                     var different = 0
-                    for (row in 0 until SAMPLE_ROWS) {
-                        val y = ((row + 0.5f) * bitmap.height / SAMPLE_ROWS).toInt().coerceIn(0, bitmap.height - 1)
-                        for (column in 0 until SAMPLE_COLUMNS) {
-                            val x = ((column + 0.5f) * bitmap.width / SAMPLE_COLUMNS).toInt().coerceIn(0, bitmap.width - 1)
+                    for (row in 0 until WATERMARK_SAMPLE_ROWS) {
+                        val y = ((row + 0.5f) * bitmap.height / WATERMARK_SAMPLE_ROWS).toInt().coerceIn(0, bitmap.height - 1)
+                        for (column in 0 until WATERMARK_SAMPLE_COLUMNS) {
+                            val x = ((column + 0.5f) * bitmap.width / WATERMARK_SAMPLE_COLUMNS).toInt().coerceIn(0, bitmap.width - 1)
                             val pixel = bitmap.getPixel(x, y)
-                            val offset = (row * SAMPLE_COLUMNS + column) * 3
+                            val offset = (row * WATERMARK_SAMPLE_COLUMNS + column) * 3
                             val delta = kotlin.math.abs(android.graphics.Color.red(pixel) - (baseline[offset].toInt() and 0xff)) +
                                 kotlin.math.abs(android.graphics.Color.green(pixel) - (baseline[offset + 1].toInt() and 0xff)) +
                                 kotlin.math.abs(android.graphics.Color.blue(pixel) - (baseline[offset + 2].toInt() and 0xff))

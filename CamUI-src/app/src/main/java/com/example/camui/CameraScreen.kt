@@ -1030,6 +1030,11 @@ fun CameraScreen(
         appPrefs.edit().putString("lunadream_mode", lunaDreamMode).apply()
     }
     LaunchedEffect(Unit) {
+        val loadedLookCount = builtInCameraLutDefinitions.size
+        Log.i("FUJI_FILTER", "BUILT_IN_FILTERS_LOADED count=$loadedLookCount categories=${builtInCameraLookGroupDefinitions.size} source=generated-3d-lut")
+        CrashContextDiagnostics.recordUiEvent(
+            "BUILT_IN_FILTERS_LOADED count=$loadedLookCount categories=${builtInCameraLookGroupDefinitions.size} source=generated-3d-lut"
+        )
         val filterPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
         val storedFilter = filterPrefs.getString("selected_filter", "None") ?: "None"
         val activeCustomPresets = activeCustomCameraLutIds(context)
@@ -8269,13 +8274,8 @@ private fun FilterLookDialog(
         }
     }
 
-    // Camera Log conversion LUTs remain in LUT Manage. Creative built-in looks are
-    // read from the bundled 41-entry pack; custom imports remain available as additions.
-    val builtInLuts = if (hasBuiltInCameraLutPack(context)) {
-        builtInCameraLutDefinitions
-    } else {
-        emptyList()
-    }
+    // Built-in 46 look profiles are generated as valid 3D LUT volumes; custom imports remain additions.
+    val builtInLuts = builtInCameraLutDefinitions
     val activeCustomLuts = importedLuts.filter {
         activeLutIds.contains(it.id) && !it.category.startsWith("RAW/Log")
     }
@@ -8304,6 +8304,8 @@ private fun FilterLookDialog(
                 cameraLookDisplayName(context, it).contains(filterSearch.trim(), ignoreCase = true)
         }
     val activeFilterName = cameraLookDisplayName(context, activeFilter)
+    val totalFilterCount = builtInLuts.size + activeCustomLuts.size
+    val visibleFilterCount = visiblePresets.count { it != "None" }
 
     val previewPane: @Composable (Modifier) -> Unit = { paneModifier ->
         Box(
@@ -8527,7 +8529,7 @@ private fun FilterLookDialog(
                         }
                     }
                     Text(
-                        stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
+                        stringResource(R.string.filter_count, visibleFilterCount, totalFilterCount),
                         color = FujiSkin.lcdGreen, fontSize = 7.sp
                     )
                     presetGrid(Modifier.weight(1f).fillMaxWidth())

@@ -1,8 +1,8 @@
 package com.example.camui
 
 /**
- * Legacy look-group metadata retained for UI compatibility. These names are not used as
- * selectable presets; selectable presets are supplied by the verified 41-entry LUT catalog.
+ * Original look-group metadata retained as the source of the 46 selectable built-in looks.
+ * Each definition is converted to a deterministic 3D LUT profile on a worker thread.
  */
 internal data class BuiltInCameraLookGroupDefinition(
     val id: String,
@@ -82,7 +82,7 @@ internal val builtInCameraLutDefinitions: List<BuiltInCameraLutDefinition> =
                     "cinema_log" -> "Điện ảnh"
                     else -> "Cơ bản"
                 },
-                archivePath = "generated/\${group.id}/\${lookId(group.id, name)}"
+                archivePath = "generated/" + group.id + "/" + lookId(group.id, name)
             )
         }
     }

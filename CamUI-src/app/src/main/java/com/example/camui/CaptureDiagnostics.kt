@@ -22,7 +22,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +44,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 internal data class CaptureDiagnosticEntry(
     val timestamp: Long,
@@ -236,6 +243,9 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
     val entries = remember { CaptureDiagnostics.read(context) }
     val warnings = remember { CaptureDiagnostics.readWarnings(context) }
     val uiCounterSummary = remember { UiRecompositionCounters.snapshot() }
+    var selfTestRunning by remember { mutableStateOf(false) }
+    var selfTestReport by remember { mutableStateOf<LunaDreamSelfTestReport?>(null) }
+    val scope = rememberCoroutineScope()
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -343,6 +353,53 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
             }
             if (entries.isEmpty()) {
                 Text("Chưa có bản ghi chụp.", color = Color(0xFFBDBDBD), fontSize = 12.sp)
+            }
+            Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF303A40))
+                    .clickable(enabled = !selfTestRunning) {
+                        if (!selfTestRunning) {
+                            selfTestRunning = true
+                            selfTestReport = null
+                            scope.launch {
+                                val report = withContext(Dispatchers.IO) {
+                                    LunaDreamSelfTest.run(context)
+                                }
+                                selfTestReport = report
+                                selfTestRunning = false
+                            }
+                        }
+                    }
+                    .padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (selfTestRunning) "ĐANG KIỂM TRA LUNADREAM 3.0…" else "CHẠY SELF-TEST LUNADREAM 3.0",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            selfTestReport?.let { report ->
+                Text(
+                    (if (report.success) "SELF-TEST PASS" else "SELF-TEST FAIL") +
+                        " · ${report.outputWidth}×${report.outputHeight} · " +
+                        String.format(Locale.US, "%.2f MP", report.outputMegapixels) +
+                        " · RAM ${report.peakHeapBytes / (1024L * 1024L)} MB\n" + report.message,
+                    color = if (report.success) Color(0xFF9FE0A8) else Color(0xFFFF8D84),
+                    fontSize = 9.sp
+                )
+                Box(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF46545B))
+                        .clickable { LunaDreamSelfTest.share(context, report) }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("CHIA SẺ BÁO CÁO SELF-TEST (.TXT)", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
             }
             Box(
                 Modifier.fillMaxWidth()

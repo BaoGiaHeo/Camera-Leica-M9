@@ -2427,6 +2427,8 @@ fun CameraScreen(
                 val preview = previewBuilder.build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
+                val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled && !livePhotoEnabled &&
+                    appPrefs.getString("lunadream_mode", "off") != "off"
                 val captureBuilder = ImageCapture.Builder()
                     .also { builder ->
                         if (distortionCorrectionMode != null &&
@@ -2446,9 +2448,7 @@ fun CameraScreen(
                                 .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                         }
                     }
-                val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                    appPrefs.getString("lunadream_mode", "off") != "off"
-                                    .setCaptureMode(
+                    .setCaptureMode(
                         if (!lunaDreamRequestedInPrefs && !rawCaptureActive && !livePhotoEnabled) {
                             ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                         } else {

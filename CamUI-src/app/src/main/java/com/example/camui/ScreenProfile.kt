@@ -62,9 +62,9 @@ internal data class ScreenProfile(
         val safeHeight = heightDp.takeIf { it.isFinite() && it > 0f } ?: this.heightDp
         val designScale = FujiCameraDesign.scale(safeWidth, safeHeight)
         return ScreenLayoutMetrics(
-            topPlateHeight = (55f * designScale).dp,
-            leftColumnWidth = (98f * designScale).dp,
-            rightColumnWidth = (310f * designScale).dp,
+            topPlateHeight = (Tuning.CAMERA_TOP_BAR_HEIGHT_DP * designScale).dp,
+            leftColumnWidth = (Tuning.CAMERA_LEFT_COLUMN_WIDTH_DP * designScale).dp,
+            rightColumnWidth = (Tuning.CAMERA_RIGHT_COLUMN_WIDTH_DP * designScale).dp,
             proControlHeight = (60f * designScale).dp
         )
     }

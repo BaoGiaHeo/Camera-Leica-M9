@@ -9,6 +9,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
@@ -98,6 +99,12 @@ object PhotoOutputResolution {
     ): PhotoOutputResult? {
         require(targetPixels in MIN_OUTPUT_PIXELS..250_000_000L) {
             "Unsupported output pixel target"
+        }
+        if (adaptiveMinimumPixels != null) {
+            require(adaptiveMinimumPixels == Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS) {
+                "LunaDream 3.0 tile output must use its strict 200MP acceptance target"
+            }
+            return interpolateToMpByTiles(context, uri, targetPixels, targetHeightOverWidth)
         }
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
         val temp = File(context.cacheDir, "fuji-lunadream-$stamp.jpg")
@@ -302,6 +309,161 @@ object PhotoOutputResolution {
     }
 
     /**
+     * LunaDream 3.0 path: decode only source scanlines, resample a bounded 64-row stripe,
+     * and stream those stripes into one JPEG through libjpeg-turbo. No source-sized or
+     * destination-sized Bitmap is allocated on the Kotlin heap.
+     */
+    private fun interpolateToMpByTiles(
+        context: Context,
+        uri: Uri,
+        targetPixels: Long,
+        targetHeightOverWidth: Float?
+    ): PhotoOutputResult? {
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val sourceBackup = File(context.cacheDir, "fuji-lunadream-30-source-$stamp.jpg")
+        val encodedTemp = File(context.cacheDir, "fuji-lunadream-30-tile-$stamp.jpg")
+        val watchdog = LunaDreamStageWatchdog(context, "LunaDream 3.0 tile upscale")
+        var replacing = false
+        return try {
+            watchdog.beginStage("đọc EXIF và sao lưu JPEG nguồn", Tuning.LUNA_DREAM_30_EXIF_BUDGET_MS)
+            val tags = readExif(context, uri)
+            val orientation = context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                ExifInterface(descriptor.fileDescriptor).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } ?: error("Không đọc được EXIF Orientation của ảnh nguồn.")
+            check(orientation == ExifInterface.ORIENTATION_NORMAL) {
+                "Ảnh nguồn chưa chuẩn hóa hướng (EXIF=$orientation); không được nâng theo tile sai chiều."
+            }
+
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(sourceBackup).use { backup ->
+                    input.copyTo(backup)
+                    backup.flush()
+                    backup.fd.sync()
+                }
+            } ?: error("Không mở được JPEG nguồn để sao lưu.")
+            check(sourceBackup.length() > 0L) { "JPEG nguồn rỗng; không thể chạy tile encoder." }
+
+            watchdog.beginStage("đọc kích thước và tính hình học tile", Tuning.LUNA_DREAM_30_DECODE_BUDGET_MS)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            sourceBackup.inputStream().use { input -> BitmapFactory.decodeStream(input, null, bounds) }
+            val sourceWidth = bounds.outWidth
+            val sourceHeight = bounds.outHeight
+            check(sourceWidth >= 2 && sourceHeight >= 2) {
+                "Không đọc được kích thước JPEG nguồn."
+            }
+            check(sourceWidth.toLong() * sourceHeight.toLong() <= 250_000_000L) {
+                "Ảnh nguồn vượt giới hạn pixel an toàn của JPEG decoder."
+            }
+            val geometry = PhotoOutputGeometry.calculate(
+                sourceWidth = sourceWidth,
+                sourceHeight = sourceHeight,
+                targetPixels = targetPixels,
+                targetHeightOverWidth = targetHeightOverWidth,
+                dimensionAlignment = 16
+            )
+            val width = geometry.outputWidth
+            val height = geometry.outputHeight
+            val outputPixels = geometry.outputPixels
+            check(outputPixels >= Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS * 995L / 1000L) {
+                "Kích thước hình học thấp hơn nghiệm thu 200MP: ${width}x$height."
+            }
+            check(width <= 65_000 && height <= 65_000) {
+                "Kích thước đầu ra vượt giới hạn JPEG."
+            }
+            watchdog.checkpoint()
+
+            watchdog.beginStage("nâng ảnh và mã hóa JPEG theo tile 64 hàng", Tuning.LUNA_DREAM_30_ENCODE_BUDGET_MS)
+            val deadlineMs = SystemClock.elapsedRealtime() +
+                Tuning.LUNA_DREAM_30_ENCODE_BUDGET_MS * Tuning.LUNA_DREAM_30_STAGE_WATCHDOG_FACTOR
+            val nativeFailure = JpegTileEncoder.encode(
+                sourcePath = sourceBackup.absolutePath,
+                outputPath = encodedTemp.absolutePath,
+                targetWidth = width,
+                targetHeight = height,
+                cropLeft = geometry.sourceLeft,
+                cropTop = geometry.sourceTop,
+                cropWidth = geometry.sourceWidth,
+                cropHeight = geometry.sourceHeight,
+                quality = 98,
+                deadlineElapsedRealtimeMs = deadlineMs
+            )
+            check(nativeFailure == null) {
+                nativeFailure ?: "Native JPEG tile encoder không hoàn tất."
+            }
+            check(encodedTemp.isFile && encodedTemp.length() > 0L) {
+                "Native JPEG tile encoder không tạo được file."
+            }
+            watchdog.checkpoint()
+
+            watchdog.beginStage("ghi JPEG đã mã hóa và xác minh", Tuning.LUNA_DREAM_30_PUBLISH_BUDGET_MS)
+            writeExif(encodedTemp, tags)
+            replacing = true
+            val written = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
+                encodedTemp.inputStream().use { it.copyTo(destination) }
+                destination.flush()
+                true
+            } ?: false
+            check(written) { "MediaStore không nhận được JPEG đã nâng theo tile." }
+
+            if (uri.authority != context.packageName + ".fileprovider") {
+                context.contentResolver.update(
+                    uri,
+                    ContentValues().apply {
+                        put(MediaStore.Images.Media.ORIENTATION, 0)
+                        put(MediaStore.Images.Media.WIDTH, width)
+                        put(MediaStore.Images.Media.HEIGHT, height)
+                    },
+                    null,
+                    null
+                )
+            }
+            watchdog.beginStage("xác minh JPEG 200MP đã lưu", Tuning.LUNA_DREAM_30_VERIFY_BUDGET_MS)
+            verifyStoredOutput(context, uri, width, height)
+            watchdog.finish()
+            Log.i(
+                TAG,
+                "LUNADREAM_30_TILE_SUCCESS source=${sourceWidth}x$sourceHeight " +
+                    "crop=${geometry.sourceWidth}x${geometry.sourceHeight} " +
+                    "output=${width}x$height pixels=$outputPixels tileRows=64 " +
+                    "bytes=${encodedTemp.length()}"
+            )
+            CrashContextDiagnostics.recordUiEvent(
+                "LUNADREAM_30_TILE_SUCCESS output=${width}x$height pixels=$outputPixels tileRows=64"
+            )
+            PhotoOutputResult(width, height, targetPixels, outputPixels)
+        } catch (failure: Throwable) {
+            val stage = watchdog.currentStage
+            val reason = failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName
+            val message = "LunaDream 3.0 dừng ở bước $stage: $reason"
+            if (replacing && sourceBackup.isFile && sourceBackup.length() > 0L) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
+                        sourceBackup.inputStream().use { it.copyTo(destination) }
+                        destination.flush()
+                    } ?: error("Không mở được MediaStore để khôi phục ảnh gốc.")
+                }.onFailure { rollbackFailure ->
+                    Log.e(TAG, "LunaDream 3.0 rollback failed: ${rollbackFailure.message}", rollbackFailure)
+                    CaptureDiagnostics.recordWarning(
+                        context,
+                        "LunaDream 3.0 không khôi phục được ảnh gốc: ${rollbackFailure.message ?: rollbackFailure.javaClass.simpleName}"
+                    )
+                }
+            }
+            CaptureDiagnostics.recordWarning(context, message)
+            CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_TILE_FAILED stage=$stage reason=$reason")
+            LunaDreamDiagnostics.record(context, "TILE_UPSCALE_FAILED", "stage=$stage; reason=$reason", failure)
+            Log.e(TAG, message, failure)
+            null
+        } finally {
+            runCatching { sourceBackup.delete() }
+            runCatching { encodedTemp.delete() }
+        }
+    }
+
+    /**
      * Reopen the final MediaStore item and verify the data that other apps will read.
      * The in-memory output dimensions alone are not sufficient because stream replacement,
      * EXIF writes or MediaStore metadata can fail independently.
@@ -410,7 +572,17 @@ object PhotoOutputResolution {
             ExifInterface.TAG_ISO_SPEED_RATINGS,
             ExifInterface.TAG_FOCAL_LENGTH,
             ExifInterface.TAG_WHITE_BALANCE,
-            ExifInterface.TAG_FLASH
+            ExifInterface.TAG_FLASH,
+            ExifInterface.TAG_IMAGE_DESCRIPTION,
+            ExifInterface.TAG_USER_COMMENT,
+            ExifInterface.TAG_GPS_LATITUDE,
+            ExifInterface.TAG_GPS_LATITUDE_REF,
+            ExifInterface.TAG_GPS_LONGITUDE,
+            ExifInterface.TAG_GPS_LONGITUDE_REF,
+            ExifInterface.TAG_GPS_ALTITUDE,
+            ExifInterface.TAG_GPS_ALTITUDE_REF,
+            ExifInterface.TAG_GPS_TIMESTAMP,
+            ExifInterface.TAG_GPS_DATESTAMP
         )
         return runCatching {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { fd ->

@@ -238,7 +238,7 @@ internal object CaptureDiagnostics {
 }
 
 @Composable
-internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
+internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit, onTestPreviewColor: () -> Unit = {}) {
     val context = LocalContext.current
     val entries = remember { CaptureDiagnostics.read(context) }
     val warnings = remember { CaptureDiagnostics.readWarnings(context) }
@@ -378,6 +378,21 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
                     if (selfTestRunning) "ĐANG KIỂM TRA LUNADREAM 3.0…" else "CHẠY SELF-TEST LUNADREAM 3.0",
                     color = Color.White,
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF243C42))
+                    .clickable(onClick = onTestPreviewColor)
+                    .padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "THỬ MÀU PREVIEW (ĐỎ · 3 GIÂY)",
+                    color = Color.White,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
             }

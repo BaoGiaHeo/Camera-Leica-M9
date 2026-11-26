@@ -5711,13 +5711,13 @@ fun CameraScreen(
                     Image(
                         painter = painterResource(R.drawable.fujifilm_logo_white),
                         contentDescription = "FUJIFILM",
-                        modifier = Modifier.width(154.dp).height(30.dp),
+                        modifier = Modifier.width(154.dp * designScale).height(30.dp * designScale),
                         contentScale = ContentScale.Fit
                     )
                     Text(
                         stringResource(R.string.camera_brand_subtitle),
                         color = FujiCameraDesign.muted,
-                        fontSize = 11.sp,
+                        fontSize = 11.sp * designScale,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.7.sp
                     )
@@ -5766,8 +5766,12 @@ fun CameraScreen(
                             animationSpec = tween(220, easing = FastOutSlowInEasing),
                             label = "camera-preview-ratio"
                         )
-                        val frameWidth = minOf(maxWidth, maxHeight * animatedFrameWidthOverHeight)
-                        val frameHeight = frameWidth / animatedFrameWidthOverHeight
+                        val previewMaxWidth = (maxWidth - 10.dp).coerceAtLeast(1.dp)
+                        val previewMaxHeight = (maxHeight - 12.dp).coerceAtLeast(1.dp)
+                        val previewWidth = minOf(previewMaxWidth, previewMaxHeight * animatedFrameWidthOverHeight)
+                        val previewHeight = previewWidth / animatedFrameWidthOverHeight
+                        val frameWidth = previewWidth + 10.dp
+                        val frameHeight = previewHeight + 12.dp
                         Box(
                             Modifier
                                 .width(frameWidth)
@@ -5775,7 +5779,7 @@ fun CameraScreen(
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Brush.verticalGradient(listOf(Color(0xFF25282A), Color(0xFF050607))))
                                 .border(5.dp, Color(0xFF090A0B), RoundedCornerShape(16.dp))
-                                .padding(start = 5.dp, top = 5.dp, end = 5.dp, bottom = 12.dp)
+                                .padding(start = 5.dp, top = 5.dp, end = 5.dp, bottom = 7.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(FujiSkin.lcd)
                                 .graphicsLayer { alpha = previewOrientationAlpha.value }
@@ -7316,7 +7320,7 @@ fun CameraScreen(
             }
             FujiCameraKey(
                 stringResource(R.string.camera_filter),
-                modifier = Modifier.size(88.dp, 60.dp),
+                modifier = Modifier.size(88.dp * designScale, 60.dp * designScale),
                 icon = "film",
                 selected = filterDialogVisible || activeFilter != "None"
             ) {
@@ -7376,7 +7380,7 @@ fun CameraScreen(
                 ) { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } }
                 FujiCameraKey(
                     stringResource(R.string.camera_flash),
-                    modifier = Modifier.size(124.dp, 54.dp),
+                    modifier = Modifier.size(124.dp * designScale, 54.dp * designScale),
                     icon = if (flash == ImageCapture.FLASH_MODE_OFF) "flash-off" else "flash",
                     secondary = when (flash) {
                         ImageCapture.FLASH_MODE_AUTO -> stringResource(R.string.camera_auto)
@@ -7404,7 +7408,7 @@ fun CameraScreen(
                         camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
                     }
                 })
-                FujiCameraKey("+", modifier = Modifier.size(44.dp), onClick = {
+                FujiCameraKey("+", modifier = Modifier.size(44.dp * designScale), onClick = {
                     if (range != null) {
                         val next = (evIndex + 1).coerceIn(range.lower, range.upper)
                         evIndex = next

@@ -58,9 +58,9 @@ internal fun FujiCameraKey(
     val view = LocalView.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-key-press")
+    val pressScale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-key-press")
     Column(
-        modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+        modifier.graphicsLayer { scaleX = pressScale; scaleY = pressScale }
             .shadow(Tuning.CAMERA_BUTTON_SHADOW_DP.dp * safeScale, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
             .clip(RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
             .background(Brush.verticalGradient(listOf(Color(0xFF2A2C2E), Color(0xFF1A1B1D))))

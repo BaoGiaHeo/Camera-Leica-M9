@@ -8019,6 +8019,26 @@ private fun FilmRollIcon(preset: String, selected: Boolean, modifier: Modifier =
 }
 
 @Composable
+private fun FilmLookColorBar(preset: String, modifier: Modifier = Modifier) {
+    val category = builtInCameraLutId(preset)?.let(::builtInCameraLutDefinition)?.categoryId
+    val colors = when {
+        preset == "None" -> listOf(Color(0xFF777777), Color(0xFFBBBBBB), Color(0xFF777777))
+        category == "bw" -> listOf(Color(0xFF111111), Color(0xFF777777), Color(0xFFEEEEEE), Color(0xFF242424))
+        category == "fujifilm" -> listOf(Color(0xFF3D5B62), Color(0xFF96A58E), Color(0xFFD6B58A), Color(0xFF8B5F52))
+        category == "color_film" -> listOf(Color(0xFF3F6875), Color(0xFFB9A06D), Color(0xFFD28D6D), Color(0xFF674E48))
+        category == "classic" -> listOf(Color(0xFF536B66), Color(0xFF9A9778), Color(0xFFBBA37D))
+        category == "leica" -> listOf(Color(0xFF273D3A), Color(0xFF7F917C), Color(0xFFC2B49A))
+        category == "hasselblad" -> listOf(Color(0xFF4B6573), Color(0xFFB8A98F), Color(0xFF718D87))
+        category == "zeiss" -> listOf(Color(0xFF405B7A), Color(0xFFADBCC1), Color(0xFFB47F5D))
+        category == "sony" -> listOf(Color(0xFF3B5A65), Color(0xFF8A9B9E), Color(0xFFCB9872))
+        category == "cinema_log" -> listOf(Color(0xFF254C4F), Color(0xFFB1885A), Color(0xFF4E5153))
+        else -> listOf(Color(0xFF4D6C78), Color(0xFF98A18F), Color(0xFFD1A477))
+    }
+    Box(modifier.height(6.dp).clip(RoundedCornerShape(3.dp))
+        .background(Brush.horizontalGradient(colors)))
+}
+
+@Composable
 private fun FilmLookTonePad(
     point: Offset,
     modifier: Modifier = Modifier,

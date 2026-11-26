@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -82,17 +83,17 @@ internal fun FujiCameraKey(
 }
 
 @Composable
-internal fun FujiRoundTopKey(icon: String, selected: Boolean, onClick: () -> Unit) {
+internal fun FujiRoundTopKey(icon: String, selected: Boolean, diameter: Dp = 44.dp, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(80), label = "top-key-press")
     Box(
-        Modifier.size(44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape)
+        Modifier.size(diameter).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape)
             .background(Brush.verticalGradient(listOf(Color(0xFFE3E5E6), Color(0xFF777D81), Color(0xFF34383B))))
             .border(1.dp, if (selected) FujiCameraDesign.orange else Color(0xFFC7CBCE), CircleShape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
-    ) { FujiIconGlyph(icon, Modifier.size(23.dp), if (selected) FujiCameraDesign.orange else Color.White) }
+    ) { FujiIconGlyph(icon, Modifier.size(diameter * 0.52f), if (selected) FujiCameraDesign.orange else Color.White) }
 }
 
 

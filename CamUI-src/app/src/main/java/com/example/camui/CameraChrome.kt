@@ -57,8 +57,8 @@ internal fun FujiCameraKey(
     val scale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-key-press")
     Column(
         modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-            .shadow(6.dp, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
+            .shadow(Tuning.CAMERA_BUTTON_SHADOW_DP.dp, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp))
+            .clip(RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp))
             .background(Brush.verticalGradient(listOf(Color(0xFF2A2C2E), Color(0xFF1A1B1D))))
             .border(1.dp, if (selected) FujiCameraDesign.orange else FujiCameraDesign.stroke, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null) { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK); onClick() }
@@ -67,12 +67,12 @@ internal fun FujiCameraKey(
         verticalArrangement = Arrangement.Center
     ) {
         Canvas(Modifier.fillMaxWidth().height(1.dp)) { drawLine(Color.White.copy(alpha = 0.10f), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
-        if (icon != null) FujiIconGlyph(icon, Modifier.size(22.dp),
+        if (icon != null) FujiIconGlyph(icon, Modifier.size(Tuning.CAMERA_BUTTON_ICON_DP.dp),
             if (selected) FujiCameraDesign.orange else FujiCameraDesign.text)
-        Text(label, color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        Text(label, color = FujiCameraDesign.text, fontSize = Tuning.CAMERA_BUTTON_LABEL_SP.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         if (secondary != null) Text(secondary, color = if (selected) FujiCameraDesign.orange else FujiCameraDesign.muted,
-            fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            fontSize = Tuning.CAMERA_BUTTON_SECONDARY_SP.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -187,7 +187,7 @@ internal fun FujiProHud(
         while (true) { clock = formatter.format(Date()); delay(1_000L) }
     }
     Row(
-        Modifier.fillMaxWidth(0.58f).height(hudHeight).clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth(Tuning.CAMERA_HUD_WIDTH_FRACTION).height(hudHeight).clip(RoundedCornerShape(16.dp))
             .background(Color(0x80000000)).padding(horizontal = 14.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - fuji-2.9.1-g1
+      - fuji-2.9.1-g2
   workflow_dispatch:
 
 concurrency:
-  group: fuji-2.9.1-g1-debug
+  group: fuji-2.9.1-g2-debug
   cancel-in-progress: true
 
 permissions:
@@ -54,7 +55,7 @@ jobs:
       - name: Upload app-debug.apk
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-2.9.1-G1-Debug
+          name: FujiFilm-Mode-2.9.1-G2-Debug
           path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

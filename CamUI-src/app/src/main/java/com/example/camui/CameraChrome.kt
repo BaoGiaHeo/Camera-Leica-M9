@@ -238,7 +238,7 @@ internal fun FujiProHud(
             .background(Color(0x80000000)).padding(horizontal = 14.dp * safeScale, vertical = 5.dp * safeScale),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(0.20f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.weight(0.20f).clickable { onControlTap("Tv") }, horizontalAlignment = Alignment.CenterHorizontally) {
             Text("SS" + shutter.removePrefix("1/"), color = FujiCameraDesign.blue, fontSize = 22.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
         }
         Column(Modifier.weight(0.22f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -258,10 +258,10 @@ internal fun FujiProHud(
                 modifier = Modifier.clickable { onControlTap("ISO") }
             )
         }
-        Column(Modifier.weight(0.20f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.weight(0.20f).clickable { onControlTap("Tone") }, horizontalAlignment = Alignment.CenterHorizontally) {
             Text(kelvin, color = FujiCameraDesign.blue, fontSize = 22.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
         }
-        Column(Modifier.weight(0.16f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.weight(0.16f).clickable { onControlTap("EV") }, horizontalAlignment = Alignment.CenterHorizontally) {
             Text("EV", color = Color.White, fontSize = 14.sp * safeScale)
             Text(ev, color = Color.White, fontSize = 24.sp * safeScale, fontWeight = FontWeight.Bold, maxLines = 1)
         }

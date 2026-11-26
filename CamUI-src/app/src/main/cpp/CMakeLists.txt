@@ -37,14 +37,20 @@ ExternalProject_Add(fuji_libjpeg_turbo
     BUILD_BYPRODUCTS "${LIBJPEG_ARCHIVE}"
 )
 
+# CMake validates imported include directories at configure time, before ExternalProject
+# has downloaded and installed libjpeg-turbo. Create the directories now; the external
+# project populates the real headers/archive before the dependent native target compiles.
+file(MAKE_DIRECTORY "${LIBJPEG_INSTALL_DIR}/include")
+file(MAKE_DIRECTORY "${LIBJPEG_INSTALL_DIR}/lib")
+
 add_library(fuji_libjpeg_static STATIC IMPORTED GLOBAL)
 set_target_properties(fuji_libjpeg_static PROPERTIES
     IMPORTED_LOCATION "${LIBJPEG_ARCHIVE}"
     INTERFACE_INCLUDE_DIRECTORIES "${LIBJPEG_INSTALL_DIR}/include"
 )
-add_dependencies(fuji_libjpeg_static fuji_libjpeg_turbo)
 
 add_library(fuji_jpeg_tile SHARED JpegTileEncoder.cpp)
+add_dependencies(fuji_jpeg_tile fuji_libjpeg_turbo)
 target_include_directories(fuji_jpeg_tile PRIVATE "${LIBJPEG_INSTALL_DIR}/include")
 target_compile_options(fuji_jpeg_tile PRIVATE -O3 -fno-exceptions)
 target_link_libraries(fuji_jpeg_tile PRIVATE fuji_libjpeg_static android log m)

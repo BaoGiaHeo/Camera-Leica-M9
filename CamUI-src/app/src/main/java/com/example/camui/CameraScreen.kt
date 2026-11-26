@@ -7333,7 +7333,7 @@ fun CameraScreen(
                     "luna20" -> "2.0"
                     "luna25" -> "2.5"
                     "luna30" -> "3.0"
-                    else -> if (nightShotMode == "night") "Night Shot" else "Tắt"
+                    else -> if (nightShotMode == "night") stringResource(R.string.camera_night_shot) else stringResource(R.string.camera_off)
                 }
             ) {
                 when {
@@ -7372,16 +7372,16 @@ fun CameraScreen(
                     stringResource(R.string.camera_timer),
                     modifier = Modifier.size(124.dp * designScale, 54.dp * designScale),
                     icon = "timer",
-                    secondary = if (timerSec == 0) "Tắt" else "${timerSec}s"
+                    secondary = if (timerSec == 0) stringResource(R.string.camera_off) else "${timerSec}s"
                 ) { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } }
                 FujiCameraKey(
                     stringResource(R.string.camera_flash),
                     modifier = Modifier.size(124.dp, 54.dp),
                     icon = if (flash == ImageCapture.FLASH_MODE_OFF) "flash-off" else "flash",
                     secondary = when (flash) {
-                        ImageCapture.FLASH_MODE_AUTO -> "Tự động"
-                        ImageCapture.FLASH_MODE_ON -> "Bật"
-                        else -> "Tắt"
+                        ImageCapture.FLASH_MODE_AUTO -> stringResource(R.string.camera_auto)
+                        ImageCapture.FLASH_MODE_ON -> stringResource(R.string.camera_on)
+                        else -> stringResource(R.string.camera_off)
                     }
                 ) {
                     flash = when (flash) {
@@ -7427,7 +7427,7 @@ fun CameraScreen(
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("Zoom", color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.camera_zoom), color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FujiCameraKey("W", modifier = Modifier.weight(1f).height(54.dp * designScale), secondary = "Ra") {
                             animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))

@@ -8609,9 +8609,9 @@ private fun FilterLookDialog(
                         .background(Color(0xF5090B0C))
                         .border(1.dp, Color(0xFF596164), RoundedCornerShape(28.dp))
                         .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth().height(26.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             stringResource(R.string.film_filters_title),
                             color = Color.White,
@@ -8626,10 +8626,10 @@ private fun FilterLookDialog(
                             modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp)
                         )
                     }
-                    Row(Modifier.fillMaxWidth().height(28.dp), horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    Row(Modifier.fillMaxWidth().height(26.dp), horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         if (showCompactSearch) {
-                            searchPane(Modifier.weight(1f).height(28.dp))
+                            searchPane(Modifier.weight(1f).height(26.dp))
                             Text(
                                 "×",
                                 color = FujiSkin.muted,
@@ -8646,11 +8646,11 @@ private fun FilterLookDialog(
                             ) { Text("⌕", color = Color.White, fontSize = 18.sp) }
                         }
                         Box(Modifier.weight(if (showCompactSearch) 0.72f else 1f)) {
-                            importPane(Modifier.fillMaxWidth().height(28.dp))
+                            importPane(Modifier.fillMaxWidth().height(26.dp))
                         }
                     }
                     Row(
-                        Modifier.fillMaxWidth().height(24.dp).horizontalScroll(rememberScrollState()),
+                        Modifier.fillMaxWidth().height(22.dp).horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -8667,7 +8667,7 @@ private fun FilterLookDialog(
                     )
                     presetGrid(Modifier.weight(1f).fillMaxWidth().heightIn(min = 168.dp))
                     Row(
-                        Modifier.fillMaxWidth().height(118.dp),
+                        Modifier.fillMaxWidth().height(120.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -8726,12 +8726,6 @@ private fun FilterLookDialog(
                             }
                         }
                     }
-                    Text(
-                        if (showingOriginal) stringResource(R.string.filter_original_title) else activeFilterName,
-                        color = FujiSkin.lcdGreen,
-                        fontSize = 9.sp,
-                        maxLines = 1
-                    )
                 }
             }
         } else {

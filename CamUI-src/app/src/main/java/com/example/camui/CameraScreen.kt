@@ -528,12 +528,12 @@ fun CameraScreen(
         scope.launch {
             try {
                 ratioTransitionState = RatioUiTransitionState.FadingOut
-                ratioUiAlpha.animateTo(0f, animationSpec = tween(200, easing = FastOutSlowInEasing))
+                ratioUiAlpha.animateTo(0f, animationSpec = tween(100, easing = FastOutSlowInEasing))
                 ratioTransitionState = RatioUiTransitionState.Swapping
                 onRatio(safeIndex)
                 delay(24L)
                 ratioTransitionState = RatioUiTransitionState.FadingIn
-                ratioUiAlpha.animateTo(1f, animationSpec = tween(250, easing = FastOutSlowInEasing))
+                ratioUiAlpha.animateTo(1f, animationSpec = tween(120, easing = FastOutSlowInEasing))
             } finally {
                 withContext(NonCancellable) {
                     ratioUiAlpha.snapTo(1f)
@@ -5761,8 +5761,13 @@ fun CameraScreen(
                         } else {
                             1f / selectedPortraitHeightOverWidth
                         }
-                        val frameWidth = minOf(maxWidth, maxHeight * frameWidthOverHeight)
-                        val frameHeight = frameWidth / frameWidthOverHeight
+                        val animatedFrameWidthOverHeight by animateFloatAsState(
+                            targetValue = frameWidthOverHeight,
+                            animationSpec = tween(220, easing = FastOutSlowInEasing),
+                            label = "camera-preview-ratio"
+                        )
+                        val frameWidth = minOf(maxWidth, maxHeight * animatedFrameWidthOverHeight)
+                        val frameHeight = frameWidth / animatedFrameWidthOverHeight
                         Box(
                             Modifier
                                 .width(frameWidth)
@@ -6469,7 +6474,8 @@ fun CameraScreen(
                                         iso = isoText,
                                         kelvin = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
                                         ev = evText,
-                                        batteryPercent = batteryPercent
+                                        batteryPercent = batteryPercent,
+                                        hudHeight = (frameHeight * 0.14f).coerceAtLeast(40.dp)
                                     )
                                 }
                             } else {

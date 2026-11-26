@@ -8,6 +8,7 @@ import android.graphics.Rect
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import android.util.Base64
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.FileOutputStream
@@ -26,7 +27,8 @@ internal class WatermarkedFrame private constructor(
     internal val watermarkPrinted: Boolean,
     internal val intentionalSkip: Boolean,
     internal val verificationRegion: Rect?,
-    internal val verificationBackgroundColor: Int
+    internal val verificationBackgroundColor: Int,
+    internal val verificationBaseline: String?
 ) {
     companion object {
         internal fun fromWatermarkStage(
@@ -38,7 +40,8 @@ internal class WatermarkedFrame private constructor(
             watermarkPrinted: Boolean,
             intentionalSkip: Boolean,
             verificationRegion: Rect?,
-            verificationBackgroundColor: Int
+            verificationBackgroundColor: Int,
+            verificationBaseline: String?
         ): WatermarkedFrame = WatermarkedFrame(
             uri = uri,
             bitmap = bitmap,
@@ -48,7 +51,8 @@ internal class WatermarkedFrame private constructor(
             watermarkPrinted = watermarkPrinted,
             intentionalSkip = intentionalSkip,
             verificationRegion = verificationRegion,
-            verificationBackgroundColor = verificationBackgroundColor
+            verificationBackgroundColor = verificationBackgroundColor,
+            verificationBaseline = verificationBaseline
         )
     }
 }
@@ -60,9 +64,15 @@ internal object WatermarkStage {
         bitmap: Bitmap,
         sourceExif: Map<String, String>,
         verificationRegion: Rect?,
-        verificationBackgroundColor: Int
+        verificationBackgroundColor: Int,
+        unwatermarkedBitmap: Bitmap
     ): WatermarkedFrame {
         require(!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0)
+        require(!unwatermarkedBitmap.isRecycled &&
+            unwatermarkedBitmap.width == bitmap.width &&
+            unwatermarkedBitmap.height == bitmap.height
+        ) { "Watermark baseline must match the rendered output dimensions" }
+        val baseline = verificationRegion?.let { encodeWatermarkBaseline(unwatermarkedBitmap, it) }
         return WatermarkedFrame.fromWatermarkStage(
             uri = uri,
             bitmap = bitmap,
@@ -72,7 +82,8 @@ internal object WatermarkStage {
             watermarkPrinted = true,
             intentionalSkip = false,
             verificationRegion = verificationRegion,
-            verificationBackgroundColor = verificationBackgroundColor
+            verificationBackgroundColor = verificationBackgroundColor,
+            verificationBaseline = baseline
         )
     }
 
@@ -92,7 +103,8 @@ internal object WatermarkStage {
             watermarkPrinted = false,
             intentionalSkip = true,
             verificationRegion = null,
-            verificationBackgroundColor = android.graphics.Color.BLACK
+            verificationBackgroundColor = android.graphics.Color.BLACK,
+            verificationBaseline = null
         )
     }
 
@@ -111,8 +123,35 @@ internal object WatermarkStage {
             watermarkPrinted = false,
             intentionalSkip = true,
             verificationRegion = null,
-            verificationBackgroundColor = android.graphics.Color.BLACK
+            verificationBackgroundColor = android.graphics.Color.BLACK,
+            verificationBaseline = null
         )
+    }
+
+    private const val SAMPLE_COLUMNS = 128
+    private const val SAMPLE_ROWS = 64
+
+    private fun encodeWatermarkBaseline(bitmap: Bitmap, region: Rect): String {
+        val safe = Rect(
+            region.left.coerceIn(0, bitmap.width - 1),
+            region.top.coerceIn(0, bitmap.height - 1),
+            region.right.coerceIn(1, bitmap.width),
+            region.bottom.coerceIn(1, bitmap.height)
+        )
+        require(safe.width() > 1 && safe.height() > 1) { "Watermark verification region is empty" }
+        val rgb = ByteArray(SAMPLE_COLUMNS * SAMPLE_ROWS * 3)
+        var offset = 0
+        for (row in 0 until SAMPLE_ROWS) {
+            val y = safe.top + ((row + 0.5f) * safe.height() / SAMPLE_ROWS).toInt().coerceAtMost(safe.height() - 1)
+            for (column in 0 until SAMPLE_COLUMNS) {
+                val x = safe.left + ((column + 0.5f) * safe.width() / SAMPLE_COLUMNS).toInt().coerceAtMost(safe.width() - 1)
+                val color = bitmap.getPixel(x, y)
+                rgb[offset++] = android.graphics.Color.red(color).toByte()
+                rgb[offset++] = android.graphics.Color.green(color).toByte()
+                rgb[offset++] = android.graphics.Color.blue(color).toByte()
+            }
+        }
+        return Base64.encodeToString(rgb, Base64.NO_WRAP)
     }
 }
 
@@ -181,7 +220,7 @@ internal object ImageSink {
             // Verify the actual JPEG bytes after replacement and BEFORE writing FM-WM=1.
             // An EXIF marker can no longer make a missing watermark look successful.
             val regionVerified = if (frame.watermarkPrinted) {
-                frame.verificationRegion?.let { verifyWatermarkRegion(context, frame.uri, it, frame.verificationBackgroundColor) } == true
+                frame.verificationRegion?.let { region -> frame.verificationBaseline?.let { baseline -> verifyWatermarkRegion(context, frame.uri, region, baseline) } } == true
             } else null
             val verifiedMarker = when {
                 frame.watermarkPrinted && regionVerified == true -> WATERMARK_COMMENT
@@ -196,7 +235,8 @@ internal object ImageSink {
                 frame.height,
                 verifiedMarker,
                 frame.verificationRegion.takeIf { regionVerified == true },
-                frame.verificationBackgroundColor
+                frame.verificationBackgroundColor,
+                frame.verificationBaseline
             )
             context.contentResolver.update(
                 frame.uri,
@@ -242,7 +282,8 @@ internal object ImageSink {
         height: Int,
         marker: String,
         verificationRegion: Rect?,
-        verificationBackgroundColor: Int = android.graphics.Color.BLACK
+        verificationBackgroundColor: Int = android.graphics.Color.BLACK,
+        verificationBaseline: String? = null
     ) {
         val descriptor = context.contentResolver.openFileDescriptor(uri, "rw")
             ?: error("Cannot open final image EXIF descriptor")
@@ -263,7 +304,8 @@ internal object ImageSink {
                     .filterNot { it.startsWith("FM-WM-RECT=") }
                     .joinToString("\n")
                 val regionDescription = verificationRegion?.let {
-                    "FM-WM-RECT=${it.left},${it.top},${it.right},${it.bottom};BG=$verificationBackgroundColor"
+                    val baseline = verificationBaseline ?: error("Watermark verification baseline is missing")
+                    "FM-WM-RECT=${it.left},${it.top},${it.right},${it.bottom};BG=$verificationBackgroundColor;BASE=$baseline"
                 }
                 val description = listOfNotNull(
                     originalDescription.takeIf { it.isNotBlank() },
@@ -287,10 +329,11 @@ internal object ImageSink {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
                 val description = ExifInterface(descriptor.fileDescriptor)
                     .getAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION).orEmpty()
-                val match = Regex("FM-WM-RECT=(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+);BG=(-?\\d+)")
+                val match = Regex("FM-WM-RECT=(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+);BG=(-?\\d+);BASE=([A-Za-z0-9+/=]+)")
                     .find(description) ?: return@use null
-                val values = match.groupValues.drop(1).map { it.toInt() }
-                Rect(values[0], values[1], values[2], values[3]) to values[4]
+                val values = match.groupValues.drop(1)
+                val rect = Rect(values[0].toInt(), values[1].toInt(), values[2].toInt(), values[3].toInt())
+                rect to values[5]
             }
         }.getOrNull() ?: return false
         return verifyWatermarkRegion(context, uri, spec.first, spec.second) == true
@@ -300,7 +343,7 @@ internal object ImageSink {
         context: Context,
         uri: Uri,
         requested: Rect,
-        expectedBackgroundColor: Int
+        baselineBase64: String
     ): Boolean? {
         val source = context.contentResolver.openInputStream(uri) ?: return false
         source.use { input ->
@@ -316,29 +359,25 @@ internal object ImageSink {
                 val sample = BitmapFactoryOptions.regionSample(safe.width(), safe.height())
                 val bitmap = decoder.decodeRegion(safe, sample) ?: return false
                 try {
-                    val strideX = (bitmap.width / 64).coerceAtLeast(1)
-                    val strideY = (bitmap.height / 32).coerceAtLeast(1)
-                    val expectedRed = android.graphics.Color.red(expectedBackgroundColor)
-                    val expectedGreen = android.graphics.Color.green(expectedBackgroundColor)
-                    val expectedBlue = android.graphics.Color.blue(expectedBackgroundColor)
+                    val baseline = runCatching { Base64.decode(baselineBase64, Base64.NO_WRAP) }.getOrNull()
+                        ?: return false
+                    val expectedBytes = SAMPLE_COLUMNS * SAMPLE_ROWS * 3
+                    if (baseline.size != expectedBytes) return false
                     var different = 0
-                    var sampled = 0
-                    var y = 0
-                    while (y < bitmap.height) {
-                        var x = 0
-                        while (x < bitmap.width) {
+                    for (row in 0 until SAMPLE_ROWS) {
+                        val y = ((row + 0.5f) * bitmap.height / SAMPLE_ROWS).toInt().coerceIn(0, bitmap.height - 1)
+                        for (column in 0 until SAMPLE_COLUMNS) {
+                            val x = ((column + 0.5f) * bitmap.width / SAMPLE_COLUMNS).toInt().coerceIn(0, bitmap.width - 1)
                             val pixel = bitmap.getPixel(x, y)
-                            val delta = kotlin.math.abs(android.graphics.Color.red(pixel) - expectedRed) +
-                                kotlin.math.abs(android.graphics.Color.green(pixel) - expectedGreen) +
-                                kotlin.math.abs(android.graphics.Color.blue(pixel) - expectedBlue)
+                            val offset = (row * SAMPLE_COLUMNS + column) * 3
+                            val delta = kotlin.math.abs(android.graphics.Color.red(pixel) - (baseline[offset].toInt() and 0xff)) +
+                                kotlin.math.abs(android.graphics.Color.green(pixel) - (baseline[offset + 1].toInt() and 0xff)) +
+                                kotlin.math.abs(android.graphics.Color.blue(pixel) - (baseline[offset + 2].toInt() and 0xff))
                             if (delta > 48) different++
-                            sampled++
-                            x += strideX
                         }
-                        y += strideY
                     }
-                    // Compare the decoded footer region against the pre-render blank-canvas color.
-                    return sampled > 8 && different >= 4
+                    // Compare the saved JPEG against the unwatermarked source samples.
+                    return different >= 8
                 } finally {
                     if (!bitmap.isRecycled) bitmap.recycle()
                 }

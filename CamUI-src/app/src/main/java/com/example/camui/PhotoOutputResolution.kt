@@ -531,7 +531,7 @@ object PhotoOutputResolution {
                 (clippedBottom - cropTop).toDouble() * outputHeight / cropHeight
             ).toInt().coerceIn(newTop + 1, outputHeight)
             "FM-WM-RECT=$newLeft,$newTop,$newRight,$newBottom;BG=${values[5]};BASE=${values[6]}"
-        }.joinToString("\\n")
+        }.joinToString("\n")
     }
 
     /**

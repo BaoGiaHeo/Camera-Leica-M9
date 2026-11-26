@@ -224,10 +224,10 @@ internal object CameraLutPreviewEffect {
     }
 
     @Synchronized
-    fun prepare(context: Context, preset: String): PreparedEffect? {
+    fun prepare(context: Context, preset: String, forceIdentity: Boolean = false): PreparedEffect? {
         if (preset.isBlank()) return null
         if (Build.VERSION.SDK_INT < 33) return null
-        if (preset == "None" && !hasActiveColorRecipe(context)) return null
+        if (preset == "None" && !forceIdentity && !hasActiveColorRecipe(context)) return null
         preparedCache[preset]?.let { return it }
 
         val lut = if (preset == "None") identityLut() else readCameraLookLut(context, preset) ?: return null
@@ -360,6 +360,7 @@ internal object CameraLutPreviewEffect {
         val effect = prepared as? PreparedEffect ?: run {
             clear(view)
             Log.e(TAG, "PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_PREPARE_FAILED")
+            CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_PREPARE_FAILED")
             return "LUT_UNAVAILABLE"
         }
         updateRecipeUniforms(context, preset, view, effect.shader)
@@ -381,6 +382,7 @@ internal object CameraLutPreviewEffect {
         state.appliedEffect = composed
         view.setRenderEffect(composed)
         Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU path=PreviewView.RenderEffect")
+        CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU")
         return "AGSL_GPU"
     }
 
@@ -391,14 +393,12 @@ internal object CameraLutPreviewEffect {
             if (Build.VERSION.SDK_INT >= 31) installColorMatrixFallback(context, view, preset, baseEffect)
             return
         }
-        val prepared = preparedCache[preset]
-            ?: (if (preset == "None" || preset.startsWith(BUILT_IN_CAMERA_LUT_PREFIX) ||
-                    preset.startsWith(BUILT_IN_CAMERA_LOOK_PREFIX) ||
-                    preset.startsWith(CUSTOM_CAMERA_LUT_PREFIX)) prepare(context, preset) else null)
+        val prepared = preparedCache[preset] ?: prepare(context, preset)
         if (prepared == null) {
             clear(view)
             if (preset != "None") {
                 Log.e(TAG, "PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_NOT_FOUND")
+                CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_NOT_FOUND")
             }
             return
         }
@@ -427,10 +427,11 @@ internal object CameraLutPreviewEffect {
                 "RenderEffect requires Android 12 or newer"
             }
             Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED reason=$reason")
+            CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_FAILED reason=$reason")
             onResult(false, reason)
             return
         }
-        val prepared = prepare(context, preset)
+        val prepared = prepare(context, preset, forceIdentity = true)
         if (prepared == null) {
             val reason = "LUT/shader could not be prepared for $preset"
             Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED reason=$reason")
@@ -456,8 +457,13 @@ internal object CameraLutPreviewEffect {
             }
             if (before != null && !before.isRecycled) before.recycle()
             if (after != null && !after.isRecycled) after.recycle()
-            if (passed) Log.i(TAG, "PREVIEW_COLOR_TEST_PASS $reason")
-            else Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED $reason")
+            if (passed) {
+                Log.i(TAG, "PREVIEW_COLOR_TEST_PASS $reason")
+                CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_PASS $reason")
+            } else {
+                Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED $reason")
+                CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_FAILED $reason")
+            }
             onResult(passed, reason)
         }, 650L)
         view.postDelayed({

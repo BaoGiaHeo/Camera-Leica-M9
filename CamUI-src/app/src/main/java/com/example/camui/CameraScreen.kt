@@ -8064,10 +8064,19 @@ private fun filterPaletteColors(preset: String): List<Color> {
 }
 
 @Composable
-private fun FilmLookColorBar(preset: String, modifier: Modifier = Modifier) {
+private fun FilmLookColorBar(context: Context, preset: String, modifier: Modifier = Modifier) {
+    val palette by produceState(
+        initialValue = filterPaletteColors(preset),
+        key1 = context,
+        key2 = preset
+    ) {
+        value = withContext(Dispatchers.IO) {
+            readCameraLookPalette(context, preset)?.map { Color(it) } ?: filterPaletteColors(preset)
+        }
+    }
     Box(
         modifier.height(6.dp).clip(RoundedCornerShape(3.dp))
-            .background(Brush.horizontalGradient(filterPaletteColors(preset)))
+            .background(Brush.horizontalGradient(palette))
     )
 }
 
@@ -8075,6 +8084,7 @@ private fun FilmLookColorBar(preset: String, modifier: Modifier = Modifier) {
 private fun FilmLookTonePad(
     preset: String,
     point: Offset,
+    paletteColors: List<Color>,
     modifier: Modifier = Modifier,
     onChange: (Offset) -> Unit
 ) {
@@ -8082,7 +8092,7 @@ private fun FilmLookTonePad(
     Box(
         modifier.size(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp, Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(filterPaletteColors(preset)))
+            .background(Brush.linearGradient(paletteColors.ifEmpty { filterPaletteColors(preset) }))
             .border(2.dp, Color(0xFFD6DADC), RoundedCornerShape(20.dp))
             .pointerInput(Unit) {
                 var lastTapTime = 0L
@@ -8216,6 +8226,15 @@ private fun FilterLookDialog(
     }
     var customIntensity by remember {
         mutableFloatStateOf(recipePrefs.getFloat("film_custom_intensity", 1f).coerceIn(0f, 1f))
+    }
+    val selectedTonePalette by produceState(
+        initialValue = filterPaletteColors(activeFilter),
+        key1 = context,
+        key2 = activeFilter
+    ) {
+        value = withContext(Dispatchers.IO) {
+            readCameraLookPalette(context, activeFilter)?.map { Color(it) } ?: filterPaletteColors(activeFilter)
+        }
     }
     var palettePoint by remember {
         mutableStateOf(
@@ -8544,7 +8563,7 @@ private fun FilterLookDialog(
                                 fontSize = 9.sp,
                                 maxLines = 1
                             )
-                            FilmLookColorBar(preset, Modifier.fillMaxWidth(0.62f))
+                            FilmLookColorBar(context, preset, Modifier.fillMaxWidth(0.62f))
                         }
                     }
                 }
@@ -8656,7 +8675,7 @@ private fun FilterLookDialog(
                             Modifier.width(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            FilmLookTonePad(activeFilter, palettePoint) { updatePalette(it) }
+                            FilmLookTonePad(activeFilter, palettePoint, selectedTonePalette) { updatePalette(it) }
                             Text(
                                 stringResource(R.string.filter_intensity_value, (customIntensity * 100f).roundToInt()),
                                 color = Color.White,

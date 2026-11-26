@@ -112,3 +112,58 @@ internal fun builtInCameraLutCatalogIsValid(): Boolean =
     builtInCameraLutDefinitions.size == 41 &&
         builtInCameraLutDefinitions.map { it.id }.toSet().size == 41 &&
         builtInCameraLutDefinitions.map { it.archivePath }.toSet().size == 41
+
+/** Selectable, app-authored legacy film looks restored independently of optional LUT ZIP assets. */
+internal data class BuiltInCameraLookPresetDefinition(
+    val id: String,
+    val name: String,
+    val categoryId: String,
+    val categoryName: String
+)
+
+private fun cameraLookSlug(value: String): String =
+    value.lowercase()
+        .replace(Regex("[^a-z0-9]+"), "_")
+        .trim('_')
+
+private val builtInCameraLookCategoryNames = mapOf(
+    "fujifilm" to "Fujifilm",
+    "color_film" to "Phim màu",
+    "classic" to "Cổ điển",
+    "bw" to "Đen trắng",
+    "leica" to "Leica",
+    "hasselblad" to "Hasselblad",
+    "zeiss" to "Zeiss",
+    "sony" to "Sony",
+    "cinema_log" to "Điện ảnh / Log",
+    "basic" to "Cơ bản"
+)
+
+internal val builtInCameraLookPresetDefinitions: List<BuiltInCameraLookPresetDefinition> =
+    builtInCameraLookGroupDefinitions.flatMap { group ->
+        val categoryName = builtInCameraLookCategoryNames[group.id] ?: group.id
+        group.presets.map { name ->
+            BuiltInCameraLookPresetDefinition(
+                id = group.id + "_" + cameraLookSlug(name),
+                name = name,
+                categoryId = group.id,
+                categoryName = categoryName
+            )
+        }
+    }
+
+internal const val BUILT_IN_CAMERA_LOOK_PREFIX = "builtin_camera_look:"
+
+internal fun builtInCameraLookPreset(id: String): String =
+    BUILT_IN_CAMERA_LOOK_PREFIX + id
+
+internal fun builtInCameraLookId(preset: String): String? =
+    preset.removePrefix(BUILT_IN_CAMERA_LOOK_PREFIX)
+        .takeIf { preset.startsWith(BUILT_IN_CAMERA_LOOK_PREFIX) }
+
+internal fun builtInCameraLookDefinition(id: String): BuiltInCameraLookPresetDefinition? =
+    builtInCameraLookPresetDefinitions.firstOrNull { it.id == id }
+
+internal fun builtInCameraLookCatalogIsValid(): Boolean =
+    builtInCameraLookPresetDefinitions.size == 46 &&
+        builtInCameraLookPresetDefinitions.map { it.id }.toSet().size == 46

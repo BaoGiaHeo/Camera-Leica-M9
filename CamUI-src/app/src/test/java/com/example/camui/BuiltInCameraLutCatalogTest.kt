@@ -7,23 +7,18 @@ import org.junit.Test
 
 class BuiltInCameraLutCatalogTest {
     @Test
-    fun containsExactlyFortyOneUniqueLutEntries() {
+    fun containsExactlyFortySixUniqueLutProfiles() {
         assertTrue(builtInCameraLutCatalogIsValid())
-        assertEquals(41, builtInCameraLutDefinitions.size)
-        assertEquals(41, builtInCameraLutDefinitions.map { it.id }.toSet().size)
-        assertEquals(41, builtInCameraLutDefinitions.map { it.archivePath }.toSet().size)
+        assertEquals(46, builtInCameraLutDefinitions.size)
+        assertEquals(46, builtInCameraLutDefinitions.map { it.id }.toSet().size)
+        assertEquals(46, builtInCameraLutDefinitions.map { it.archivePath }.toSet().size)
     }
 
     @Test
-    fun containsThirtyFourBinaryAndSevenCubeEntries() {
-        assertEquals(
-            34,
-            builtInCameraLutDefinitions.count { it.archivePath.endsWith(".bin", ignoreCase = true) }
-        )
-        assertEquals(
-            7,
-            builtInCameraLutDefinitions.count { it.archivePath.endsWith(".cube", ignoreCase = true) }
-        )
+    fun everyPresetUsesAnInternalGeneratedThreeDimensionalProfile() {
+        assertTrue(builtInCameraLutDefinitions.all { it.archivePath.startsWith("generated/") })
+        assertEquals(10, builtInCameraLookGroupDefinitions.size)
+        assertEquals(46, builtInCameraLookCatalog().size)
     }
 
     @Test

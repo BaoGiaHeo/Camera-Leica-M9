@@ -7972,6 +7972,116 @@ private fun CompactFilterAdjustmentSlider(
 }
 
 @Composable
+private fun FilmRollIcon(preset: String, selected: Boolean, modifier: Modifier = Modifier) {
+    val labelColor = when {
+        preset.contains("Velvia", true) || preset.contains("Vivid", true) -> Color(0xFFB84E35)
+        preset.contains("Portra", true) || preset.contains("Gold", true) -> Color(0xFFD7A45E)
+        preset.contains("Acros", true) || preset.contains("Mono", true) || preset.contains("Tri-X", true) -> Color(0xFF777D82)
+        preset.contains("Cine", true) || preset.contains("Vision", true) -> Color(0xFF557A7C)
+        preset.contains("Chrome", true) || preset.contains("Log", true) -> Color(0xFF718B93)
+        else -> Color(0xFF9D806C)
+    }
+    Box(
+        modifier.size(28.dp, 44.dp).clip(RoundedCornerShape(5.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF44494B), Color(0xFF141719))))
+            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF81898C), RoundedCornerShape(5.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawRoundRect(Color(0xFF080A0B), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+            drawRoundRect(
+                Color(0xFF9DA4A6),
+                topLeft = Offset(3.dp.toPx(), 2.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(size.width - 6.dp.toPx(), size.height - 4.dp.toPx()),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+            )
+            drawRect(
+                labelColor,
+                topLeft = Offset(4.dp.toPx(), size.height * 0.28f),
+                size = androidx.compose.ui.geometry.Size(size.width - 8.dp.toPx(), size.height * 0.46f)
+            )
+            for (index in 0..3) {
+                val y = size.height * (0.12f + index * 0.22f)
+                drawCircle(Color(0xFF111416), 1.25.dp.toPx(), Offset(size.width * 0.18f, y))
+                drawCircle(Color(0xFF111416), 1.25.dp.toPx(), Offset(size.width * 0.82f, y))
+            }
+            drawLine(Color.White.copy(alpha = 0.28f), Offset(size.width * 0.5f, 0f), Offset(size.width * 0.5f, size.height), 0.6.dp.toPx())
+        }
+        Text(
+            preset.take(5).uppercase(Locale.ROOT),
+            color = Color.White,
+            fontSize = 5.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            modifier = Modifier.graphicsLayer { rotationZ = 270f }
+        )
+    }
+}
+
+@Composable
+private fun FilmLookTonePad(
+    point: Offset,
+    modifier: Modifier = Modifier,
+    onChange: (Offset) -> Unit
+) {
+    Box(
+        modifier.size(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp, Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFFB9C8C9), Color(0xFF6B8B91), Color(0xFF27383E), Color(0xFF101618))
+                )
+            )
+            .border(2.dp, Color(0xFFD6DADC), RoundedCornerShape(20.dp))
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = { onChange(Offset(0.5f, 0.5f)) },
+                    onTap = { position ->
+                        onChange(Offset(position.x / size.width, position.y / size.height))
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { position ->
+                        onChange(Offset(position.x / size.width, position.y / size.height))
+                    },
+                    onDrag = { change, _ ->
+                        onChange(Offset(change.position.x / size.width, change.position.y / size.height))
+                        change.consume()
+                    }
+                )
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawRect(Brush.horizontalGradient(listOf(Color(0x22FFFFFF), Color.Transparent, Color(0x55000000))))
+            drawRect(Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color.Transparent, Color(0x99000000))))
+            val center = Offset(size.width * point.x.coerceIn(0f, 1f), size.height * point.y.coerceIn(0f, 1f))
+            for (row in 0..6) {
+                for (column in 0..8) {
+                    val dot = Offset(size.width * column / 8f, size.height * row / 6f)
+                    val distance = kotlin.math.sqrt(
+                        (dot.x - center.x) * (dot.x - center.x) + (dot.y - center.y) * (dot.y - center.y)
+                    )
+                    val radius = if (distance < 28.dp.toPx()) 2.0.dp.toPx() else 1.15.dp.toPx()
+                    drawCircle(Color.White.copy(alpha = if (distance < 28.dp.toPx()) 0.96f else 0.62f), radius, dot)
+                }
+            }
+            drawCircle(Color.Black.copy(alpha = 0.72f), 12.dp.toPx(), center, style = Stroke(1.5.dp.toPx()))
+            drawCircle(Color.White, 10.dp.toPx(), center)
+        }
+        Text("Sáng", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 2.dp))
+        Text("Tối", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp))
+        Text("Nhạt", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.CenterStart).graphicsLayer { rotationZ = 270f })
+        Text("Đậm", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.CenterEnd).graphicsLayer { rotationZ = 90f })
+    }
+}
+
+@Composable
 private fun FilterLookDialog(
     previewSource: Bitmap,
     activeFilter: String,

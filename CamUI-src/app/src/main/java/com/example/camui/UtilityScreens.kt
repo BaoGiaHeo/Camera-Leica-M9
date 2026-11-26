@@ -2825,6 +2825,127 @@ fun applyCameraLook(context: Context, uri: Uri): Boolean {
         captureTimestampMillis = System.currentTimeMillis()
     )
 }
+private fun readWatermarkMarketName(): String? = runCatching {
+    val properties = Class.forName("android.os.SystemProperties")
+    val get = properties.getMethod("get", String::class.java)
+    (get.invoke(null, "ro.product.marketname") as? String)?.trim()?.takeIf { it.isNotBlank() }
+}.getOrNull()
+
+private fun watermarkOpticalBaseline(paint: Paint, centerY: Float): Float {
+    val capBounds = android.graphics.Rect()
+    paint.getTextBounds("H", 0, 1, capBounds)
+    val capHeight = (-capBounds.top).toFloat().coerceAtLeast(paint.textSize * 0.5f)
+    return watermarkBaselineFromCapHeight(centerY, capHeight)
+}
+
+private fun parseWatermarkExifNumber(value: String?): Double? {
+    val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    return runCatching {
+        if ('/' in raw) {
+            val parts = raw.split('/', limit = 2)
+            parts[0].toDouble() / parts[1].toDouble()
+        } else raw.toDouble()
+    }.getOrNull()?.takeIf { it.isFinite() }
+}
+
+private fun formatWatermarkDms(latitude: Double, longitude: Double): String {
+    fun part(value: Double, positive: String, negative: String): String {
+        val absolute = kotlin.math.abs(value)
+        val degrees = absolute.toInt()
+        val minutes = (((absolute - degrees) * 60.0).toInt()).coerceIn(0, 59)
+        val hemisphere = if (value < 0.0) negative else positive
+        return String.format(Locale.US, "%d°%02d'%s", degrees, minutes, hemisphere)
+    }
+    return part(latitude, "N", "S") + " " + part(longitude, "E", "W")
+}
+
+private fun watermarkLocationFromExif(
+    context: Context,
+    attributes: Map<String, String>,
+    preferences: android.content.SharedPreferences
+): Pair<String, String> {
+    val decimal = formatWatermarkGpsCoordinates(attributes)
+    val values = decimal?.split(',')?.map { it.trim().toDoubleOrNull() }
+    val latitude = values?.getOrNull(0)
+    val longitude = values?.getOrNull(1)
+    val coordinates = if (latitude != null && longitude != null) {
+        formatWatermarkDms(latitude, longitude)
+    } else ""
+    val place = if (latitude != null && longitude != null && Geocoder.isPresent()) {
+        runCatching {
+            @Suppress("DEPRECATION")
+            Geocoder(context, Locale.getDefault()).getFromLocation(latitude, longitude, 1)
+                ?.firstOrNull()
+                ?.let { address ->
+                    address.locality ?: address.subAdminArea ?: address.adminArea ?: address.subLocality
+                }
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+        }.onFailure {
+            android.util.Log.d("FUJI_WATERMARK_GPS", "Reverse geocoding unavailable; use EXIF coordinates", it)
+        }.getOrNull().orEmpty()
+    } else ""
+    val customPlace = preferences.getString("watermark_custom_location", "")?.trim().orEmpty()
+    return (place.ifBlank { customPlace }.ifBlank { coordinates }) to coordinates
+}
+
+private fun duplicateOriginalWatermarkSource(context: Context, uri: Uri): Uri? {
+    val resolver = context.contentResolver
+    var displayName = "FujiFilm_original_" + System.currentTimeMillis() + ".jpg"
+    var relativePath: String? = null
+    var mimeType = "image/jpeg"
+    runCatching {
+        resolver.query(
+            uri,
+            arrayOf(MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.RELATIVE_PATH, MediaStore.Images.Media.MIME_TYPE),
+            null, null, null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+                val pathIndex = cursor.getColumnIndex(MediaStore.Images.Media.RELATIVE_PATH)
+                val mimeIndex = cursor.getColumnIndex(MediaStore.Images.Media.MIME_TYPE)
+                if (nameIndex >= 0) {
+                    val originalName = cursor.getString(nameIndex)?.trim().orEmpty()
+                    if (originalName.isNotBlank()) {
+                        val extension = originalName.substringAfterLast('.', "jpg")
+                        val stem = originalName.substringBeforeLast('.', originalName)
+                        displayName = stem + "_original." + extension
+                    }
+                }
+                if (pathIndex >= 0) relativePath = cursor.getString(pathIndex)
+                if (mimeIndex >= 0) mimeType = cursor.getString(mimeIndex)?.takeIf { it.isNotBlank() } ?: mimeType
+            }
+        }
+    }
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+        put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+        if (android.os.Build.VERSION.SDK_INT >= 29 && !relativePath.isNullOrBlank()) {
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+    }
+    val copyUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return null
+    return runCatching {
+        val input = resolver.openInputStream(uri) ?: error("Could not read original source photo")
+        val output = resolver.openOutputStream(copyUri, "w") ?: error("Could not create original photo copy")
+        input.use { source -> output.use { destination -> source.copyTo(destination) } }
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            resolver.update(
+                copyUri,
+                ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                null, null
+            )
+        }
+        android.util.Log.i("FUJI_WATERMARK", "ORIGINAL_COPY_SAVED uri=" + copyUri + " name=" + displayName)
+        copyUri
+    }.getOrElse {
+        resolver.delete(copyUri, null, null)
+        android.util.Log.e("FUJI_WATERMARK", "Could not preserve original photo; watermark write cancelled", it)
+        null
+    }
+}
+
 fun applyCameraWatermark(
     context: Context,
     uri: Uri,
@@ -3058,7 +3179,7 @@ fun applyCameraWatermark(
             ) {
                 0xFF0F0F12.toInt()
             } else {
-                Color.WHITE
+                AndroidColor.WHITE
             }
             val frame = if (watermarkEnabled) {
                 WatermarkStage.printed(

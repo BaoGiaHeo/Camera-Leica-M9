@@ -358,6 +358,19 @@ Java_com_example_camui_JpegTileEncoder_encode(
         );
     }
 
+    // libjpeg requires every source scanline to be consumed before finish_decompress,
+    // including rows outside the selected center crop or skipped by downsampling.
+    while (decoder.output_scanline < decoder.output_height) {
+        if (!readOneSourceRow(&decoder, sourceRowA)) {
+            snprintf(error.message, sizeof(error.message), "%s", "Không thể hoàn tất đọc các hàng JPEG nguồn còn lại.");
+            cleanup();
+            remove(outputPath);
+            jstring result = env->NewStringUTF(error.message);
+            env->ReleaseStringUTFChars(sourcePathValue, sourcePath);
+            env->ReleaseStringUTFChars(outputPathValue, outputPath);
+            return result;
+        }
+    }
     jpeg_finish_compress(&encoder);
     jpeg_finish_decompress(&decoder);
     cleanup();

@@ -19,6 +19,10 @@ internal object UiRecompositionCounters {
         zoom.incrementAndGet()
     }
 
+    fun hudCompositionCount(): Long = hud.get()
+
+    fun zoomCompositionCount(): Long = zoom.get()
+
     fun snapshot(): String =
         "PixelOsdLayer HUD compositions=${hud.get()}, zoom-bar-active compositions=${zoom.get()}"
 

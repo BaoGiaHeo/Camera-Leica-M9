@@ -752,12 +752,14 @@ object NightShotProcessor {
                 "Merged output could not be reopened as a valid JPEG"
             }
             checkStageWatchdog()
-            context.contentResolver.update(
-                destinationUri,
-                ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
-                null,
-                null
-            )
+            if (destinationUri.authority != context.packageName + ".fileprovider") {
+                context.contentResolver.update(
+                    destinationUri,
+                    ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
+                    null,
+                    null
+                )
+            }
             publishing = false
             publishMs = SystemClock.elapsedRealtime() - publishStartedAt
             checkStageWatchdog()

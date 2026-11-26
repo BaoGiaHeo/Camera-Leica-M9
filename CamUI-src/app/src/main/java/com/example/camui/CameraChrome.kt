@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -123,10 +124,12 @@ internal fun FujiEvRuler(
     minimum: Int,
     maximum: Int,
     heightDp: Dp = 24.dp,
+    scale: Float = 1f,
     onPositionChange: (Int) -> Unit
 ) {
     val safeMin = minimum.coerceAtMost(maximum)
     val safeMax = maximum.coerceAtLeast(safeMin)
+    val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     Box(
         Modifier.fillMaxWidth().height(heightDp)
             .pointerInput(safeMin, safeMax) {
@@ -146,18 +149,26 @@ internal fun FujiEvRuler(
         Canvas(Modifier.fillMaxSize()) {
             val y = size.height * 0.72f
             drawLine(Color(0xFF777D81), androidx.compose.ui.geometry.Offset(0f, y),
-                androidx.compose.ui.geometry.Offset(size.width, y), 1.dp.toPx())
+                androidx.compose.ui.geometry.Offset(size.width, y), 1.dp.toPx() * safeScale)
             for (i in 0..32) {
                 val x = size.width * i / 32f
                 val major = i % 4 == 0
                 drawLine(Color.White.copy(alpha = if (major) 0.95f else 0.45f),
-                    androidx.compose.ui.geometry.Offset(x, if (major) 1.dp.toPx() else 6.dp.toPx()),
+                    androidx.compose.ui.geometry.Offset(x, if (major) 1.dp.toPx() * safeScale else 6.dp.toPx() * safeScale),
                     androidx.compose.ui.geometry.Offset(x, y),
-                    if (major) 1.2.dp.toPx() else 0.7.dp.toPx())
+                    (if (major) 1.2.dp.toPx() else 0.7.dp.toPx()) * safeScale)
             }
             val cursorX = size.width * position.coerceIn(0f, 1f)
-            drawLine(Color.White, androidx.compose.ui.geometry.Offset(cursorX, 0f),
-                androidx.compose.ui.geometry.Offset(cursorX, size.height), 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            val marker = Path().apply {
+                moveTo(cursorX - 4.dp.toPx() * safeScale, 0f)
+                lineTo(cursorX + 4.dp.toPx() * safeScale, 0f)
+                lineTo(cursorX, 5.dp.toPx() * safeScale)
+                close()
+            }
+            drawPath(marker, Color.White)
+            drawLine(Color.White, androidx.compose.ui.geometry.Offset(cursorX, 5.dp.toPx() * safeScale),
+                androidx.compose.ui.geometry.Offset(cursorX, size.height), 2.dp.toPx() * safeScale,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round)
         }
     }
 }
@@ -234,7 +245,7 @@ internal fun FujiProHud(
         }
     }
     Row(
-        Modifier.fillMaxWidth(Tuning.CAMERA_HUD_WIDTH_FRACTION).height(hudHeight).clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth(Tuning.CAMERA_HUD_WIDTH_FRACTION).height(hudHeight).clip(RoundedCornerShape(16.dp * safeScale))
             .background(Color(0x80000000)).padding(horizontal = 14.dp * safeScale, vertical = 5.dp * safeScale),
         verticalAlignment = Alignment.CenterVertically
     ) {

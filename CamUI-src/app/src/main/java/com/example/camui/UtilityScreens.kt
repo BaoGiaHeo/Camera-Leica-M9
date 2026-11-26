@@ -2074,11 +2074,15 @@ private const val BUILT_IN_CAMERA_LUT_MAX_ENTRY_BYTES = 8 * 1024 * 1024
 private val builtInCameraLutExtractionLock = Any()
 private val builtInCameraLutsByPath = builtInCameraLutDefinitions.associateBy { it.archivePath }
 
-/** True only when the bundled 41-look ZIP payload is actually present in the APK assets. */
-internal fun hasBuiltInCameraLutPack(context: Context): Boolean =
-    runCatching {
-        context.assets.open(BUILT_IN_CAMERA_LUT_PACK_ASSET).use { it.read() >= 0 }
-    }.getOrDefault(false)
+/** The 46-entry built-in look catalog is generated locally; it never depends on a ZIP asset. */
+internal fun hasBuiltInCameraLutPack(context: Context): Boolean {
+    val available = builtInCameraLutCatalogIsValid()
+    android.util.Log.i(
+        "FUJI_FILTER",
+        "BUILT_IN_LOOK_CATALOG_READY count=${if (available) builtInCameraLutDefinitions.size else 0} source=generated-3d-lut"
+    )
+    return available
+}
 
 private fun builtInCameraLutCacheDirectory(context: Context): File =
     File(context.cacheDir, BUILT_IN_CAMERA_LUT_CACHE_DIRECTORY)
@@ -2460,39 +2464,187 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
     }
 }
 // Built-in looks and imported custom looks share the same CubeLut sampler and pixel pipeline.
+private data class GeneratedLookStyle(
+    val saturation: Float,
+    val contrast: Float,
+    val warmth: Float,
+    val greenBias: Float,
+    val lift: Float,
+    val highlightRolloff: Float,
+    val monochrome: Boolean,
+    val sepia: Float
+)
+
+private fun generatedLookStyle(definition: BuiltInCameraLutDefinition): GeneratedLookStyle {
+    val name = definition.name.lowercase(Locale.ROOT)
+    val category = definition.categoryId
+    var saturation = 1.0f
+    var contrast = 1.0f
+    var warmth = 0.0f
+    var greenBias = 0.0f
+    var lift = 0.0f
+    var rolloff = 0.0f
+    var mono = category == "bw"
+    var sepia = 0.0f
+
+    when {
+        name.contains("velvia") -> { saturation = 1.34f; contrast = 1.10f }
+        name.contains("provia") -> { saturation = 1.04f; contrast = 1.02f }
+        name.contains("astia") -> { saturation = 0.91f; contrast = 0.95f; lift = 0.025f }
+        name.contains("classic chrome") -> { saturation = 0.72f; contrast = 1.12f; warmth = -0.08f; greenBias = 0.018f }
+        name.contains("classic neg") -> { saturation = 0.91f; contrast = 1.13f; warmth = 0.08f; greenBias = -0.025f; lift = 0.012f }
+        name.contains("eterna") -> { saturation = 0.76f; contrast = 0.88f; warmth = 0.025f; lift = 0.035f; rolloff = 0.12f }
+        name.contains("pro neg std") -> { saturation = 0.88f; contrast = 0.95f; warmth = 0.025f; rolloff = 0.08f }
+        name.contains("pro neg hi") -> { saturation = 0.94f; contrast = 1.12f; warmth = 0.01f }
+        name.contains("nostalgic") -> { saturation = 0.92f; contrast = 0.94f; warmth = 0.12f; greenBias = -0.018f; lift = 0.035f }
+        name.contains("reala") -> { saturation = 1.02f; contrast = 1.02f; warmth = 0.015f }
+        name.contains("bleach") -> { saturation = 0.46f; contrast = 1.28f; warmth = -0.018f }
+        name.contains("acros") || name.contains("tri-x") || name.contains("t-max") || name.contains("mono") -> {
+            mono = true
+            contrast = if (name.contains("tri-x")) 1.20f else 1.09f
+            sepia = if (name.contains("leica")) 0.035f else 0f
+        }
+        name.contains("portra 160") -> { saturation = 0.88f; contrast = 0.91f; warmth = 0.055f; lift = 0.025f }
+        name.contains("portra 400") -> { saturation = 0.93f; contrast = 0.95f; warmth = 0.065f; lift = 0.018f }
+        name.contains("portra 800") -> { saturation = 0.94f; contrast = 1.02f; warmth = 0.075f }
+        name.contains("gold") || name.contains("colorplus") -> { saturation = 1.08f; contrast = 1.04f; warmth = 0.14f }
+        name.contains("ektar") -> { saturation = 1.24f; contrast = 1.12f; warmth = 0.015f }
+        name.contains("kodachrome") -> { saturation = 1.13f; contrast = 1.14f; warmth = 0.045f }
+        name.contains("cinestill") -> { saturation = 1.04f; contrast = 1.06f; warmth = -0.045f; greenBias = 0.01f; rolloff = 0.05f }
+        name.contains("vision3 250d") -> { saturation = 0.88f; contrast = 0.91f; warmth = 0.025f; lift = 0.02f }
+        name.contains("vision3 500t") -> { saturation = 0.86f; contrast = 0.94f; warmth = -0.09f; greenBias = 0.018f; lift = 0.02f }
+        name.contains("400h") -> { saturation = 0.86f; contrast = 0.90f; warmth = -0.015f; greenBias = 0.055f; lift = 0.035f }
+        name.contains("ektachrome") -> { saturation = 1.12f; contrast = 1.12f; warmth = -0.015f }
+        name.contains("agfa") -> { saturation = 1.10f; contrast = 1.04f; warmth = 0.07f; greenBias = -0.012f }
+        name.contains("leica") -> { saturation = 1.03f; contrast = 1.08f; warmth = 0.01f }
+        name.contains("hasselblad") -> { saturation = 1.02f; contrast = 1.02f; warmth = 0.018f; rolloff = 0.06f }
+        name.contains("zeiss cool") || name.contains("sony s-log") || name.contains("cool") -> {
+            saturation = 0.96f; contrast = 1.05f; warmth = -0.12f
+        }
+        name.contains("zeiss warm") || name.contains("warm") -> {
+            saturation = 1.03f; contrast = 1.04f; warmth = 0.13f
+        }
+        name.contains("s-cinetone") || name.contains("cine tone") -> {
+            saturation = 0.92f; contrast = 0.96f; warmth = 0.035f; rolloff = 0.09f
+        }
+        name.contains("log") -> { saturation = 0.82f; contrast = 0.82f; lift = 0.045f; rolloff = 0.15f }
+        name.contains("vivid") -> { saturation = 1.25f; contrast = 1.08f }
+        name.contains("natural") -> { saturation = 0.98f; contrast = 0.98f }
+        category == "classic" -> { saturation = 0.92f; contrast = 1.04f; warmth = 0.045f }
+    }
+
+    // Stable, restrained per-look offsets prevent near-duplicate presets without random grain.
+    val seed = (definition.id.hashCode() and 0x7fffffff) % 17
+    val fineWarmth = ((seed % 5) - 2) * 0.004f
+    val fineContrast = (((seed / 5) % 5) - 2) * 0.006f
+    return GeneratedLookStyle(
+        saturation = saturation.coerceIn(0.35f, 1.45f),
+        contrast = (contrast + fineContrast).coerceIn(0.72f, 1.32f),
+        warmth = (warmth + fineWarmth).coerceIn(-0.18f, 0.18f),
+        greenBias = greenBias.coerceIn(-0.08f, 0.08f),
+        lift = lift.coerceIn(0f, 0.08f),
+        highlightRolloff = rolloff.coerceIn(0f, 0.20f),
+        monochrome = mono,
+        sepia = sepia.coerceIn(0f, 0.06f)
+    )
+}
+
+private val generatedBuiltInLookCache = LinkedHashMap<String, CubeLut>()
+
+private fun generateBuiltInCameraLookLut(definition: BuiltInCameraLutDefinition): CubeLut {
+    synchronized(generatedBuiltInLookCache) {
+        generatedBuiltInLookCache[definition.id]?.let { return it }
+    }
+    val style = generatedLookStyle(definition)
+    val size = 17
+    val values = FloatArray(size * size * size * 3)
+    var offset = 0
+    for (redIndex in 0 until size) {
+        val inputRed = redIndex.toFloat() / (size - 1)
+        for (greenIndex in 0 until size) {
+            val inputGreen = greenIndex.toFloat() / (size - 1)
+            for (blueIndex in 0 until size) {
+                val inputBlue = blueIndex.toFloat() / (size - 1)
+                val luma = (0.2126f * inputRed + 0.7152f * inputGreen + 0.0722f * inputBlue).coerceIn(0f, 1f)
+                var r = inputRed
+                var g = inputGreen
+                var b = inputBlue
+                if (style.monochrome) {
+                    val mono = (luma + style.sepia * (inputRed - inputBlue)).coerceIn(0f, 1f)
+                    r = mono
+                    g = (mono - style.sepia * 0.18f).coerceIn(0f, 1f)
+                    b = (mono - style.sepia * 0.48f).coerceIn(0f, 1f)
+                } else {
+                    r = luma + (r - luma) * style.saturation
+                    g = luma + (g - luma) * style.saturation
+                    b = luma + (b - luma) * style.saturation
+                }
+                val shadowWeight = ((0.55f - luma) / 0.55f).coerceIn(0f, 1f)
+                val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                val shadowLift = style.lift * shadowWeight
+                val highlightSoftening = style.highlightRolloff * highlightWeight * (1f - luma)
+                r = (r + shadowLift - highlightSoftening * 0.28f).coerceIn(0f, 1f)
+                g = (g + shadowLift - highlightSoftening * 0.10f).coerceIn(0f, 1f)
+                b = (b + shadowLift + highlightSoftening * 0.12f).coerceIn(0f, 1f)
+                r = ((r - 0.5f) * style.contrast + 0.5f + style.warmth * 0.16f).coerceIn(0f, 1f)
+                g = ((g - 0.5f) * style.contrast + 0.5f + style.greenBias * 0.14f).coerceIn(0f, 1f)
+                b = ((b - 0.5f) * style.contrast + 0.5f - style.warmth * 0.18f - style.greenBias * 0.05f).coerceIn(0f, 1f)
+                values[offset++] = r
+                values[offset++] = g
+                values[offset++] = b
+            }
+        }
+    }
+    val lut = CubeLut(
+        size = size,
+        domainMin = floatArrayOf(0f, 0f, 0f),
+        domainMax = floatArrayOf(1f, 1f, 1f),
+        values = values,
+        redFastest = false
+    )
+    synchronized(generatedBuiltInLookCache) {
+        generatedBuiltInLookCache[definition.id] = lut
+        while (generatedBuiltInLookCache.size > 46) {
+            val oldest = generatedBuiltInLookCache.keys.firstOrNull() ?: break
+            generatedBuiltInLookCache.remove(oldest)
+        }
+    }
+    return lut
+}
+
 internal fun readCameraLookLut(context: Context, preset: String): CubeLut? {
     val builtInId = builtInCameraLutId(preset)
-    val customId = customCameraLutId(preset)
-    val cacheKey = when {
-        builtInId != null -> "builtin:$builtInId"
-        customId != null -> customId
-        else -> return null
+    if (builtInId != null) {
+        val cacheKey = "generated:$builtInId"
+        synchronized(customCameraLutCache) {
+            customCameraLutCache[cacheKey]?.let { return it }
+        }
+        val definition = builtInCameraLutDefinition(builtInId) ?: return null
+        val generated = generateBuiltInCameraLookLut(definition)
+        synchronized(customCameraLutCache) {
+            customCameraLutCache[cacheKey] = generated
+        }
+        android.util.Log.d("FUJI_FILTER", "Generated 3D LUT id=$builtInId size=\${generated.size}")
+        return generated
     }
+
+    val customId = customCameraLutId(preset) ?: return null
     synchronized(customCameraLutCache) {
-        customCameraLutCache[cacheKey]?.let { return it }
+        customCameraLutCache[customId]?.let { return it }
     }
-
-    val file = if (builtInId != null) {
-        if (!ensureBuiltInCameraLutsExtracted(context)) return null
-        builtInCameraLutCacheFile(context, builtInId)
-    } else {
-        customCameraLutFile(context, customId!!)
-    } ?: return null
-
+    val file = customCameraLutFile(context, customId) ?: return null
     val parsed = runCatching {
         val bytes = file.readBytes()
-        parseAnyBinaryLut(bytes)
-            ?: parseCubeLutText(String(bytes, StandardCharsets.UTF_8))
+        parseAnyBinaryLut(bytes) ?: parseCubeLutText(String(bytes, StandardCharsets.UTF_8))
     }.onFailure {
-        android.util.Log.e("FUJI_FILTER", "Could not parse camera LUT id=$cacheKey", it)
+        android.util.Log.e("FUJI_FILTER", "Could not parse camera LUT id=$customId", it)
     }.getOrNull() ?: return null
-
     synchronized(customCameraLutCache) {
-        if (customCameraLutCache.size >= 4) {
+        if (customCameraLutCache.size >= 52) {
             val oldest = customCameraLutCache.keys.firstOrNull()
             if (oldest != null) customCameraLutCache.remove(oldest)
         }
-        customCameraLutCache[cacheKey] = parsed
+        customCameraLutCache[customId] = parsed
     }
     return parsed
 }

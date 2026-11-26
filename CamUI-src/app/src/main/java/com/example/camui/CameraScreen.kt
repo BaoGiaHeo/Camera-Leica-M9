@@ -5734,9 +5734,9 @@ fun CameraScreen(
                     modifier = Modifier.align(Alignment.Bottom))
             }
             Spacer(Modifier.weight(1f))
-            FujiRoundTopKey("focus-dot", focusPeaking, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) { onFocusPeaking(!focusPeaking) }
+            FujiRoundTopKey("af", focusPeaking, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) { onFocusPeaking(!focusPeaking) }
             FujiRoundTopKey("histogram", showHist, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) { onShowHist(!showHist) }
-            FujiRoundTopKey("q", mode == "Pro", Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) {
+            FujiRoundTopKey("tab_03", mode == "Pro", Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) {
                 if (mode == "Pro") {
                     mode = "Photo"
                     proSel = null
@@ -7392,22 +7392,24 @@ fun CameraScreen(
                 .clip(RoundedCornerShape(20.dp * designScale))
                 .background(Color(0xB81C1E20))
                 .border(1.dp * designScale, FujiCameraDesign.stroke, RoundedCornerShape(20.dp * designScale))
-                .padding(horizontal = 3.dp * designScale, vertical = 4.dp * designScale),
+                .padding(horizontal = 3.dp * designScale, vertical = 2.dp * designScale),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp * designScale)
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp * designScale)) {
                 FujiCameraKey(
                     stringResource(R.string.camera_timer),
                     modifier = Modifier.size(Tuning.CAMERA_TIMER_FLASH_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
                     icon = "timer",
+                    horizontalContent = true,
                     secondary = if (timerSec == 0) stringResource(R.string.camera_off) else "${timerSec}s",
                     scale = designScale
                 ) { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } }
                 FujiCameraKey(
                     stringResource(R.string.camera_flash),
                     modifier = Modifier.size(Tuning.CAMERA_TIMER_FLASH_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
-                    icon = if (flash == ImageCapture.FLASH_MODE_OFF) "flash-off" else "flash",
+                    icon = if (flash == ImageCapture.FLASH_MODE_OFF) "flash_off" else "flash",
+                    horizontalContent = true,
                     secondary = when (flash) {
                         ImageCapture.FLASH_MODE_AUTO -> stringResource(R.string.camera_auto)
                         ImageCapture.FLASH_MODE_ON -> stringResource(R.string.camera_on)
@@ -7423,7 +7425,7 @@ fun CameraScreen(
                 }
             }
             Row(Modifier.fillMaxWidth().height(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(7.dp * designScale)) {
                 Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(evText, color = FujiCameraDesign.text, fontSize = 28.sp * designScale, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
@@ -7467,10 +7469,10 @@ fun CameraScreen(
                     fontSize = 9.sp * designScale
                 )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp * designScale),
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    verticalArrangement = Arrangement.spacedBy(3.dp * designScale)) {
                     Text(stringResource(R.string.camera_zoom), color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FujiCameraKey(
@@ -7491,11 +7493,11 @@ fun CameraScreen(
                         }
                     }
                 }
-                Column(Modifier.width(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.width(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale), verticalArrangement = Arrangement.spacedBy(8.dp * designScale)) {
                     FujiCameraKey(
                         stringResource(R.string.camera_af_lock),
                         modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
-                        icon = "lock",
+                        icon = "af",
                         selected = focusLocked,
                         scale = designScale
                     ) {

@@ -1123,6 +1123,23 @@ fun CameraScreen(
             )
         }
     }
+    LaunchedEffect(
+        isProcessing,
+        burstCaptureActive,
+        nightShotCaptureInProgress,
+        starTrailCaptureInProgress,
+        bracketCaptureActive
+    ) {
+        val captureBusy = isProcessing || burstCaptureActive ||
+            nightShotCaptureInProgress || starTrailCaptureInProgress || bracketCaptureActive
+        if (captureBusy) {
+            CaptureDiagnostics.resetPeakMemory()
+            while (true) {
+                CaptureDiagnostics.samplePeakMemory()
+                delay(100L)
+            }
+        }
+    }
     LaunchedEffect(isProcessing) {
         if (isProcessing) {
             while (isProcessing) {
@@ -4104,7 +4121,7 @@ fun CameraScreen(
                                 "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
                                 "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                             ),
-                            peakMemoryBytes = sampledHeapBytes,
+                            peakMemoryBytes = maxOf(sampledHeapBytes, CaptureDiagnostics.peakMemoryBytes()),
                             burstFramesPerSecond = burstFps,
                             aeLocked = aeLocked,
                             afLocked = focusLocked
@@ -5206,7 +5223,7 @@ fun CameraScreen(
                                             "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
                                             "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                                         ),
-                                        peakMemoryBytes = sampledUsedHeapBytes,
+                                        peakMemoryBytes = maxOf(sampledUsedHeapBytes, CaptureDiagnostics.peakMemoryBytes()),
                                         aeLocked = aeLocked,
                                         afLocked = focusLocked,
                                         errorMessage = if (captureUseLunaDream && !lunaDreamApplied) {

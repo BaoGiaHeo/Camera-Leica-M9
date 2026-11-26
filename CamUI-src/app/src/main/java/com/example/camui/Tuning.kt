@@ -60,8 +60,8 @@ internal object Tuning {
     const val FILM_ROLL_PANEL_MIN_WIDTH_DP = 240f
     const val FILM_ROLL_PANEL_MAX_WIDTH_DP = 300f
     const val FILM_ROLL_FILTER_ROW_HEIGHT_DP = 56
-    const val FILM_ROLL_TONE_PAD_HEIGHT_DP = 100
-    const val FILM_ROLL_TONE_PAD_WIDTH_DP = 108f
+    const val FILM_ROLL_TONE_PAD_HEIGHT_DP = 89
+    const val FILM_ROLL_TONE_PAD_WIDTH_DP = 96f
     const val FILTER_PREVIEW_CROSSFADE_MS = 150
     const val FILTER_PREVIEW_COLOR_TEST_MS = 3_000L
     const val FILM_ROLL_RESET_TOUCH_TARGET_DP = 48

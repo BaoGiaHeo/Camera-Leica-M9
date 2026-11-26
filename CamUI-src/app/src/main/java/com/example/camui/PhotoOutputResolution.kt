@@ -284,6 +284,14 @@ object PhotoOutputResolution {
                 }
             }
             Log.e(TAG, "LunaDream output sizing skipped; original retained", failure)
+            if (stageWatchdog != null) {
+                val stage = stageWatchdog.currentStage
+                val reason = failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName
+                val message = "LunaDream 3.0 dừng ở bước $stage: $reason"
+                CaptureDiagnostics.recordWarning(context, message)
+                CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_STAGE_FAILED stage=$stage reason=$reason")
+                Log.e(TAG, message, failure)
+            }
             null
         } finally {
             source?.let { if (!it.isRecycled) it.recycle() }

@@ -8187,10 +8187,11 @@ private fun FilterLookDialog(
     var showingOriginal by remember { mutableStateOf(false) }
     var showAdjustmentControls by remember { mutableStateOf(false) }
     var showCompactSearch by remember { mutableStateOf(false) }
-    var customPreviewRevision by remember { mutableIntStateOf(0) }
     val recipePrefs = remember(context) {
         context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
     }
+    val recipeScope = rememberCoroutineScope()
+    var recipePersistJob by remember { mutableStateOf<Job?>(null) }
     var customHighlights by remember {
         mutableFloatStateOf(recipePrefs.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f))
     }
@@ -8219,29 +8220,44 @@ private fun FilterLookDialog(
             )
         )
     }
+    fun currentColorPipelineParams(lutId: String = activeFilter): ColorPipelineParams {
+        return ColorPipelineParams(
+            lutId = lutId,
+            intensity = customIntensity.coerceIn(0f, 1f),
+            toneX = (palettePoint.x * 2f - 1f).coerceIn(-1f, 1f),
+            toneY = ((0.5f - palettePoint.y) * 2f).coerceIn(-1f, 1f),
+            highlights = customHighlights.coerceIn(-1f, 1f),
+            shadows = customShadows.coerceIn(-1f, 1f),
+            colorChrome = customColorChrome.coerceIn(0f, 1f),
+            sharpness = customSharpness.coerceIn(0f, 1f),
+            denoise = customDenoise.coerceIn(0f, 1f)
+        )
+    }
+    fun scheduleColorPipelineUpdate(persistNow: Boolean = false) {
+        val snapshot = currentColorPipelineParams()
+        ColorPipelineParamsStore.update(snapshot)
+        onRecipeChanged()
+        recipePersistJob?.cancel()
+        if (persistNow) {
+            ColorPipelineParamsStore.persist(context, snapshot)
+            recipePersistJob = null
+        } else {
+            recipePersistJob = recipeScope.launch {
+                delay(220L)
+                ColorPipelineParamsStore.persist(context, snapshot)
+            }
+        }
+    }
     fun updatePalette(point: Offset) {
-        val clamped = Offset(point.x.coerceIn(0f, 1f), point.y.coerceIn(0f, 1f))
-        palettePoint = clamped
-        val toneX = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
-        val toneY = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
-        recipePrefs.edit()
-            .putFloat("film_custom_tone_x", toneX)
-            .putFloat("film_custom_tone_y", toneY)
-            .putFloat("film_custom_temperature", toneX)
-            .putFloat("film_custom_tone", toneY)
-            .apply()
+        palettePoint = Offset(point.x.coerceIn(0f, 1f), point.y.coerceIn(0f, 1f))
+        val toneX = (palettePoint.x * 2f - 1f).coerceIn(-1f, 1f)
+        val toneY = ((0.5f - palettePoint.y) * 2f).coerceIn(-1f, 1f)
         CrashContextDiagnostics.recordUiEvent(
-            "TONE_DRAG x=\${"%.3f".format(Locale.US, clamped.x)} y=\${"%.3f".format(Locale.US, clamped.y)} " +
+            "TONE_DRAG x=\${"%.3f".format(Locale.US, palettePoint.x)} y=\${"%.3f".format(Locale.US, palettePoint.y)} " +
                 "toneX=\${"%.3f".format(Locale.US, toneX)} toneY=\${"%.3f".format(Locale.US, toneY)} " +
                 "pipeline=ColorPipelineParams"
         )
-        customPreviewRevision++
-        onRecipeChanged()
-    }
-    fun persistRecipeValue(key: String, value: Float) {
-        recipePrefs.edit().putFloat(key, value).apply()
-        customPreviewRevision++
-        onRecipeChanged()
+        scheduleColorPipelineUpdate()
     }
     fun resetColorAdjustments() {
         customHighlights = 0f
@@ -8251,21 +8267,21 @@ private fun FilterLookDialog(
         customDenoise = 0f
         customIntensity = 1f
         palettePoint = Offset(0.5f, 0.5f)
-        recipePrefs.edit()
-            .putFloat("film_custom_highlight", 0f)
-            .putFloat("film_custom_shadow", 0f)
-            .putFloat("film_custom_color_chrome", 0f)
-            .putFloat("film_custom_sharpness", 0f)
-            .putFloat("film_custom_denoise", 0f)
-            .putFloat("film_custom_intensity", 1f)
-            .putFloat("film_custom_tone_x", 0f)
-            .putFloat("film_custom_tone_y", 0f)
-            .putFloat("film_custom_temperature", 0f)
-            .putFloat("film_custom_tone", 0f)
-            .apply()
-        customPreviewRevision++
-        onRecipeChanged()
+        scheduleColorPipelineUpdate(persistNow = true)
         CrashContextDiagnostics.recordUiEvent("FILTER_COLOR_RESET")
+    }
+    fun chooseFilter(preset: String) {
+        val snapshot = currentColorPipelineParams(preset)
+        ColorPipelineParamsStore.update(snapshot)
+        ColorPipelineParamsStore.persist(context, snapshot)
+        recipePersistJob?.cancel()
+        onSelectFilter(preset)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            recipePersistJob?.cancel()
+            ColorPipelineParamsStore.persist(context, currentColorPipelineParams())
+        }
     }
     val adjustmentControls: @Composable (Modifier) -> Unit = { adjustmentModifier ->
         Column(
@@ -8275,23 +8291,23 @@ private fun FilterLookDialog(
             CompactFilterAdjustmentSlider(
                 stringResource(R.string.filter_adjust_highlights),
                 customHighlights, -1f..1f, "%+.2f".format(Locale.US, customHighlights)
-            ) { customHighlights = it; persistRecipeValue("film_custom_highlight", it) }
+            ) { customHighlights = it; scheduleColorPipelineUpdate() }
             CompactFilterAdjustmentSlider(
                 stringResource(R.string.filter_adjust_shadows),
                 customShadows, -1f..1f, "%+.2f".format(Locale.US, customShadows)
-            ) { customShadows = it; persistRecipeValue("film_custom_shadow", it) }
+            ) { customShadows = it; scheduleColorPipelineUpdate() }
             CompactFilterAdjustmentSlider(
                 stringResource(R.string.filter_adjust_color_chrome),
                 customColorChrome, 0f..1f, "%.2f".format(Locale.US, customColorChrome)
-            ) { customColorChrome = it; persistRecipeValue("film_custom_color_chrome", it) }
+            ) { customColorChrome = it; scheduleColorPipelineUpdate() }
             CompactFilterAdjustmentSlider(
                 stringResource(R.string.filter_adjust_sharpness),
                 customSharpness, 0f..1f, "%.2f".format(Locale.US, customSharpness)
-            ) { customSharpness = it; persistRecipeValue("film_custom_sharpness", it) }
+            ) { customSharpness = it; scheduleColorPipelineUpdate() }
             CompactFilterAdjustmentSlider(
                 stringResource(R.string.filter_adjust_denoise),
                 customDenoise, 0f..1f, "%.2f".format(Locale.US, customDenoise)
-            ) { customDenoise = it; persistRecipeValue("film_custom_denoise", it) }
+            ) { customDenoise = it; scheduleColorPipelineUpdate() }
         }
     }
 
@@ -8491,7 +8507,7 @@ private fun FilterLookDialog(
                                 if (selected) FujiSkin.orange else Color(0xFF3C4649),
                                 RoundedCornerShape(14.dp)
                             )
-                            .animaTClickable { onSelectFilter(preset) }
+                            .animaTClickable { chooseFilter(preset) }
                             .padding(horizontal = 7.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -8645,7 +8661,7 @@ private fun FilterLookDialog(
                                 value = customIntensity,
                                 onValueChange = {
                                     customIntensity = it
-                                    persistRecipeValue("film_custom_intensity", it)
+                                    scheduleColorPipelineUpdate()
                                 },
                                 modifier = Modifier.fillMaxWidth().height(18.dp),
                                 colors = SliderDefaults.colors(
@@ -8731,7 +8747,7 @@ private fun FilterLookDialog(
                             value = customIntensity,
                             onValueChange = {
                                 customIntensity = it
-                                persistRecipeValue("film_custom_intensity", it)
+                                scheduleColorPipelineUpdate()
                             },
                             modifier = Modifier.fillMaxWidth().height(18.dp),
                             colors = SliderDefaults.colors(

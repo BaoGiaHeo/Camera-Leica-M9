@@ -1013,10 +1013,9 @@ fun FujiShutterButton(
 ) {
     val view = LocalView.current
     var pressed by remember { mutableStateOf(false) }
-    val pressScale by animateFloatAsState(if (pressed) 0.94f else 1f, tween(90), label = "fuji-shutter")
+    val pressScale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-shutter")
     Box(
         modifier
-            .size(76.dp)
             .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
             .clip(CircleShape)
             .background(Brush.radialGradient(listOf(Color(0xFF52585B), Color(0xFF111516))))
@@ -1047,13 +1046,13 @@ fun FujiShutterButton(
         contentAlignment = Alignment.Center
     ) {
         Box(
-            Modifier.size(62.dp).clip(CircleShape)
+            Modifier.fillMaxSize(0.82f).clip(CircleShape)
                 .background(Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFD6D8D8), Color(0xFF737B7F))))
                 .border(2.dp, Color(0xFF222729), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Box(
-                Modifier.size(50.dp).clip(CircleShape)
+                Modifier.fillMaxSize(0.80f).clip(CircleShape)
                     .background(Brush.verticalGradient(listOf(Color(0xFFEEF0EE), Color(0xFF9DA4A7), Color(0xFF6F777A))))
                     .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape),
                 contentAlignment = Alignment.Center,

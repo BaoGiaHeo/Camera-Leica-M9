@@ -1,6 +1,9 @@
 package com.example.camui
 
 import android.content.Context
+import android.animation.ValueAnimator
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.RenderEffect
@@ -13,13 +16,13 @@ import java.util.LinkedHashMap
 import java.util.WeakHashMap
 import kotlin.math.ceil
 import kotlin.math.sqrt
+import kotlin.math.max
 
 /**
  * Applies a 3D LUT to the real CameraX PreviewView RenderNode.
  *
- * API 33+ uses AGSL through RenderEffect. Older Android versions are left untouched rather
- * than displaying a false "live LUT" state. Still-photo rendering continues to use the
- * same CubeLut sampler and the full CPU adjustment pipeline.
+ * API 33+ uses a 3D LUT atlas in AGSL. API 31-32 use a ColorMatrix approximation when a
+ * runtime 3D shader is unavailable. CameraX PreviewView is COMPATIBLE/TextureView-backed.
  */
 internal object CameraLutPreviewEffect {
     private const val TAG = "FUJI_LIVE_LUT"
@@ -34,12 +37,12 @@ internal object CameraLutPreviewEffect {
         uniform float uHighlight;
         uniform float uShadow;
         uniform float uColorChrome;
-        uniform float uGrain;
-        uniform float uTemperature;
-        uniform float uTone;
-        uniform float uSaturation;
-        uniform float uHueShift;
-        uniform float uLightnessShift;
+        uniform float uToneX;
+        uniform float uToneY;
+        uniform float uSharpness;
+        uniform float uDenoise;
+        uniform float uRadius;
+        uniform float uDebugTint;
 
         float3 lutAt(float r, float g, float b) {
             float tileX = mod(b, uTileColumns);
@@ -130,7 +133,7 @@ internal object CameraLutPreviewEffect {
             return clamp(rgb + float3(matchValue), 0.0, 1.0);
         }
 
-        float3 applyColorRecipe(float3 rgb, float2 pixel) {
+        float3 applyColorRecipe(float3 rgb) {
             float luma = clamp(dot(rgb, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
             float highlightWeight = clamp((luma - 0.55) / 0.45, 0.0, 1.0);
             float shadowWeight = clamp((0.45 - luma) / 0.45, 0.0, 1.0);
@@ -138,39 +141,45 @@ internal object CameraLutPreviewEffect {
                 uShadow * shadowWeight * 0.12;
             rgb += float3(tonalShift);
 
-            float chromeChroma = max(abs(rgb.r - luma), max(abs(rgb.g - luma), abs(rgb.b - luma)));
+            float exposed = exp2(uToneY);
+            rgb *= exposed;
+            float exposedLuma = clamp(dot(rgb, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+            float roll = max(0.0, exposedLuma - 0.72) * max(0.0, uToneY) * 0.22;
+            rgb -= float3(roll);
+
+            float toneContrast = 1.0 + abs(uToneX) * 0.18;
+            rgb = (rgb - float3(0.5)) * toneContrast + float3(0.5);
+            float toneChroma = 1.0 + uToneX * 0.36;
+            float chromeChroma = max(abs(rgb.r - exposedLuma), max(abs(rgb.g - exposedLuma), abs(rgb.b - exposedLuma)));
             float chromeFactor = 1.0 + uColorChrome * (0.05 + chromeChroma * 0.18);
-            float saturationFactor = uSaturation * chromeFactor;
-            rgb = float3(luma) + (rgb - float3(luma)) * saturationFactor;
-
-            rgb.r += uTemperature * 0.045;
-            rgb.g += uTemperature * 0.006;
-            rgb.b -= uTemperature * 0.045;
-            rgb.r += uTone * 0.018;
-            rgb.g -= uTone * 0.035;
-            rgb.b += uTone * 0.018;
-
-            if (abs(uHueShift) > 0.0001 || abs(uLightnessShift) > 0.0001) {
-                float3 hsl = rgbToHsl(clamp(rgb, 0.0, 1.0));
-                hsl.x += uHueShift;
-                hsl.z = clamp(hsl.z + uLightnessShift, 0.0, 1.0);
-                rgb = hslToRgb(hsl);
-            }
-
-            if (uGrain > 0.001) {
-                float2 p = floor(pixel);
-                float noise = fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
-                noise = (noise * 2.0 - 1.0) * uGrain * 0.035;
-                rgb += float3(noise);
-            }
+            rgb = float3(exposedLuma) + (rgb - float3(exposedLuma)) * toneChroma * chromeFactor;
             return clamp(rgb, 0.0, 1.0);
+        }
+
+        float3 mapColour(float3 inputColour) {
+            float3 lutColour = applyLut(inputColour);
+            return applyColorRecipe(mix(inputColour, lutColour, uMix));
+        }
+
+        float3 applyDetail(float2 coordinate, float3 centre) {
+            if (uSharpness <= 0.001 && uDenoise <= 0.001) return centre;
+            float2 dx = float2(max(1.0, uRadius), 0.0);
+            float2 dy = float2(0.0, max(1.0, uRadius));
+            float3 left = mapColour(float3(source.eval(coordinate - dx).rgb));
+            float3 right = mapColour(float3(source.eval(coordinate + dx).rgb));
+            float3 top = mapColour(float3(source.eval(coordinate - dy).rgb));
+            float3 bottom = mapColour(float3(source.eval(coordinate + dy).rgb));
+            float3 neighbourhood = (left + right + top + bottom) * 0.25;
+            float3 denoised = mix(centre, neighbourhood, uDenoise * 0.35);
+            return clamp(denoised + (centre - neighbourhood) * (uSharpness * 0.55), 0.0, 1.0);
         }
 
         half4 main(float2 fragCoord) {
             half4 original = source.eval(fragCoord);
-            float3 mapped = applyLut(float3(original.rgb));
-            mapped = applyColorRecipe(mix(float3(original.rgb), mapped, uMix), fragCoord);
-            return half4(half3(mapped), original.a);
+            float3 mapped = mapColour(float3(original.rgb));
+            mapped = applyDetail(fragCoord, mapped);
+            mapped = mix(mapped, float3(1.0, 0.015, 0.005), uDebugTint * 0.84);
+            return half4(half3(clamp(mapped, 0.0, 1.0)), original.a);
         }
     """
 
@@ -189,16 +198,15 @@ internal object CameraLutPreviewEffect {
     private val viewEffects = WeakHashMap<View, ViewEffectState>()
 
     private fun hasActiveColorRecipe(context: Context): Boolean {
-        val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        return kotlin.math.abs(preferences.getFloat("film_custom_highlight", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_shadow", 0f)) > 0.001f ||
-            preferences.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
-            preferences.getFloat("film_custom_grain", 0f) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_temperature", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_tone", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_hue", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_lightness", 0f)) > 0.001f
+        val params = ColorPipelineParams.from(context, "None")
+        return kotlin.math.abs(params.toneX) > 0.001f ||
+            kotlin.math.abs(params.toneY) > 0.001f ||
+            kotlin.math.abs(params.highlights) > 0.001f ||
+            kotlin.math.abs(params.shadows) > 0.001f ||
+            params.colorChrome > 0.001f ||
+            params.sharpness > 0.001f ||
+            params.denoise > 0.001f ||
+            params.intensity < 0.999f
     }
 
     private fun identityLut(): CubeLut {
@@ -222,10 +230,10 @@ internal object CameraLutPreviewEffect {
     }
 
     @Synchronized
-    fun prepare(context: Context, preset: String): PreparedEffect? {
+    fun prepare(context: Context, preset: String, forceIdentity: Boolean = false): PreparedEffect? {
         if (preset.isBlank()) return null
         if (Build.VERSION.SDK_INT < 33) return null
-        if (preset == "None" && !hasActiveColorRecipe(context)) return null
+        if (preset == "None" && !hasActiveColorRecipe(context) && !forceIdentity) return null
         preparedCache[preset]?.let { return it }
 
         val lut = if (preset == "None") identityLut() else readCameraLookLut(context, preset) ?: return null
@@ -280,18 +288,49 @@ internal object CameraLutPreviewEffect {
         return prepared
     }
 
-    private fun updateRecipeUniforms(context: Context, shader: RuntimeShader) {
-        val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        shader.setFloatUniform("uMix", 1f)
-        shader.setFloatUniform("uHighlight", preferences.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uShadow", preferences.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uColorChrome", preferences.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f))
-        shader.setFloatUniform("uGrain", preferences.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f))
-        shader.setFloatUniform("uTemperature", preferences.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uTone", preferences.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uSaturation", preferences.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
-        shader.setFloatUniform("uHueShift", preferences.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
-        shader.setFloatUniform("uLightnessShift", preferences.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
+    private fun updateRecipeUniforms(context: Context, shader: RuntimeShader, preset: String, view: View) {
+        val params = ColorPipelineParams.from(context, preset)
+        shader.setFloatUniform("uMix", params.intensity)
+        shader.setFloatUniform("uHighlight", params.highlights)
+        shader.setFloatUniform("uShadow", params.shadows)
+        shader.setFloatUniform("uColorChrome", params.colorChrome)
+        shader.setFloatUniform("uToneX", params.toneX)
+        shader.setFloatUniform("uToneY", params.toneY)
+        shader.setFloatUniform("uSharpness", params.sharpness)
+        shader.setFloatUniform("uDenoise", params.denoise)
+        val width = view.width.coerceAtLeast(1)
+        val height = view.height.coerceAtLeast(1)
+        shader.setFloatUniform("uRadius", (minOf(width, height) * 0.001f).coerceAtLeast(1f))
+        shader.setFloatUniform("uDebugTint", 0f)
+    }
+
+    private fun colorMatrix(context: Context, preset: String, debugTint: Boolean): ColorMatrix {
+        val params = ColorPipelineParams.from(context, preset)
+        val saturation = (1f + params.toneX * 0.36f + params.colorChrome * 0.05f).coerceIn(0.35f, 1.55f)
+        val exposure = (Math.pow(2.0, params.toneY.toDouble()).toFloat()).coerceIn(0.5f, 2f)
+        val contrast = (1f + kotlin.math.abs(params.toneX) * 0.18f).coerceIn(0.8f, 1.2f)
+        val warmth = params.toneX * 4f + (params.highlights - params.shadows) * 1.5f
+        val redScale = exposure * contrast
+        val greenScale = exposure * contrast
+        val blueScale = exposure * contrast
+        val offset = 128f * (1f - contrast)
+        val matrix = ColorMatrix()
+        matrix.set(floatArrayOf(
+            redScale, 0f, 0f, 0f, offset + warmth,
+            0f, greenScale, 0f, 0f, offset,
+            0f, 0f, blueScale, 0f, offset - warmth,
+            0f, 0f, 0f, 1f, 0f
+        ))
+        matrix.postConcat(ColorMatrix().apply { setSaturation(saturation) })
+        if (debugTint) {
+            matrix.postConcat(ColorMatrix(floatArrayOf(
+                1.15f, 0f, 0f, 0f, 12f,
+                0f, 0.28f, 0f, 0f, 0f,
+                0f, 0f, 0.22f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f
+            )))
+        }
+        return matrix
     }
 
     fun install(
@@ -299,54 +338,95 @@ internal object CameraLutPreviewEffect {
         view: View,
         preset: String,
         prepared: PreparedEffect?,
-        baseEffect: RenderEffect? = null
+        baseEffect: RenderEffect? = null,
+        debugTint: Boolean = false
     ): String {
-        if (Build.VERSION.SDK_INT < 33) {
+        if (Build.VERSION.SDK_INT < 31) {
             clear(view)
-            return "UNSUPPORTED_API_33_REQUIRED"
+            return "UNSUPPORTED_API_31_REQUIRED"
         }
-        if (preset.isBlank() || (preset == "None" && prepared == null)) {
+        if (preset.isBlank() || (preset == "None" && prepared == null && !hasActiveColorRecipe(context) && !debugTint)) {
             clear(view)
             return "OFF"
         }
-        val effect = prepared as? PreparedEffect ?: run {
-            clear(view)
-            return "LUT_UNAVAILABLE"
-        }
-        updateRecipeUniforms(context, effect.shader)
-        val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
+
         val state = synchronized(viewEffects) {
             val existing = viewEffects[view]
             if (existing == null) {
-                ViewEffectState(baseEffect = baseEffect, appliedEffect = null).also {
-                    viewEffects[view] = it
-                }
+                ViewEffectState(baseEffect = baseEffect, appliedEffect = null).also { viewEffects[view] = it }
             } else {
                 existing.baseEffect = baseEffect
                 existing
             }
         }
-        val composed = baseEffect?.let { base ->
-            RenderEffect.createChainEffect(lutEffect, base)
-        } ?: lutEffect
+
+        if (Build.VERSION.SDK_INT in 31..32) {
+            val filter = ColorMatrixColorFilter(colorMatrix(context, preset, debugTint))
+            val colourEffect = RenderEffect.createColorFilterEffect(filter)
+            val composed = baseEffect?.let { RenderEffect.createChainEffect(colourEffect, it) } ?: colourEffect
+            state.appliedEffect = composed
+            view.setRenderEffect(composed)
+            Log.i(TAG, "PREVIEW_FILTER_APPLIED preset=$preset path=ColorMatrix api=${Build.VERSION.SDK_INT}")
+            return "ColorMatrix"
+        }
+
+        val effect = prepared ?: run {
+            clear(view)
+            return "LUT_UNAVAILABLE"
+        }
+        updateRecipeUniforms(context, effect.shader, preset, view)
+        effect.shader.setFloatUniform("uDebugTint", if (debugTint) 1f else 0f)
+        val targetMix = ColorPipelineParams.from(context, preset).intensity
+        effect.shader.setFloatUniform("uMix", 0f)
+        val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
+        val composed = baseEffect?.let { base -> RenderEffect.createChainEffect(lutEffect, base) } ?: lutEffect
         state.appliedEffect = composed
         view.setRenderEffect(composed)
-        Log.i(TAG, "LUT_PREVIEW_APPLIED preset=$preset path=PreviewView.RenderEffect")
-        return "AGSL_LUT"
+        val animator = ValueAnimator.ofFloat(0f, targetMix.coerceIn(0f, 1f)).apply {
+            duration = Tuning.FILTER_PREVIEW_CROSSFADE_MS.toLong()
+            addUpdateListener { value ->
+                runCatching { effect.shader.setFloatUniform("uMix", value.animatedValue as Float) }
+            }
+        }
+        animator.start()
+        Log.i(TAG, "PREVIEW_FILTER_APPLIED preset=$preset path=AGSL api=${Build.VERSION.SDK_INT}")
+        return "AGSL"
     }
 
-    /** Update uniforms on the cached shader during Tone Pad drags without rebuilding its LUT atlas. */
+    /** Update cached uniforms during tone-pad and adjustment drags; no LUT atlas is rebuilt. */
     @Synchronized
     fun updateRecipe(context: Context, view: View, preset: String, baseEffect: RenderEffect? = null) {
-        if (Build.VERSION.SDK_INT < 33) return
-        val prepared = (preparedCache[preset]
-            ?: (if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null))
+        if (Build.VERSION.SDK_INT < 31) return
+        if (Build.VERSION.SDK_INT in 31..32) {
+            install(context, view, preset, null, baseEffect)
+            return
+        }
+        val prepared = preparedCache[preset]
+            ?: (if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null)
             ?: return
         if (viewEffects[view]?.appliedEffect == null) {
             install(context, view, preset, prepared, baseEffect)
         } else {
-            updateRecipeUniforms(context, prepared.shader)
+            updateRecipeUniforms(context, prepared.shader, preset, view)
         }
+    }
+
+    fun setDebugTint(
+        context: Context,
+        view: View,
+        preset: String,
+        baseEffect: RenderEffect?,
+        enabled: Boolean
+    ): String {
+        if (Build.VERSION.SDK_INT in 31..32) {
+            return install(context, view, preset, null, baseEffect, debugTint = enabled)
+        }
+        if (Build.VERSION.SDK_INT < 31) return "UNSUPPORTED"
+        val prepared = preparedCache[preset] ?: prepare(context, preset, forceIdentity = true)
+            ?: return "LUT_UNAVAILABLE"
+        if (viewEffects[view]?.appliedEffect == null) install(context, view, preset, prepared, baseEffect)
+        prepared.shader.setFloatUniform("uDebugTint", if (enabled) 1f else 0f)
+        return "AGSL"
     }
 
     fun clear(view: View) {

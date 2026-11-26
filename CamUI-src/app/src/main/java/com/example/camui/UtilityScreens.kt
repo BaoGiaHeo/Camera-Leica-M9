@@ -2793,19 +2793,29 @@ private fun applyCameraLookPixels(
             val alpha = AndroidColor.alpha(centre)
             val leftX = (x - radius).coerceAtLeast(0)
             val rightX = (x + radius).coerceAtMost(width - 1)
-            val neighbours = intArrayOf(
-                above[leftX], above[x], above[rightX],
-                rowCurrent[leftX], rowCurrent[rightX],
-                below[leftX], below[x], below[rightX]
-            )
-            var sumRed = 0f
-            var sumGreen = 0f
-            var sumBlue = 0f
-            for (neighbour in neighbours) {
-                sumRed += AndroidColor.red(neighbour)
-                sumGreen += AndroidColor.green(neighbour)
-                sumBlue += AndroidColor.blue(neighbour)
-            }
+            val aboveLeft = above[leftX]
+            val aboveMiddle = above[x]
+            val aboveRight = above[rightX]
+            val middleLeft = rowCurrent[leftX]
+            val middleRight = rowCurrent[rightX]
+            val belowLeft = below[leftX]
+            val belowMiddle = below[x]
+            val belowRight = below[rightX]
+            val sumRed = (
+                AndroidColor.red(aboveLeft) + AndroidColor.red(aboveMiddle) + AndroidColor.red(aboveRight) +
+                    AndroidColor.red(middleLeft) + AndroidColor.red(middleRight) +
+                    AndroidColor.red(belowLeft) + AndroidColor.red(belowMiddle) + AndroidColor.red(belowRight)
+                ).toFloat()
+            val sumGreen = (
+                AndroidColor.green(aboveLeft) + AndroidColor.green(aboveMiddle) + AndroidColor.green(aboveRight) +
+                    AndroidColor.green(middleLeft) + AndroidColor.green(middleRight) +
+                    AndroidColor.green(belowLeft) + AndroidColor.green(belowMiddle) + AndroidColor.green(belowRight)
+                ).toFloat()
+            val sumBlue = (
+                AndroidColor.blue(aboveLeft) + AndroidColor.blue(aboveMiddle) + AndroidColor.blue(aboveRight) +
+                    AndroidColor.blue(middleLeft) + AndroidColor.blue(middleRight) +
+                    AndroidColor.blue(belowLeft) + AndroidColor.blue(belowMiddle) + AndroidColor.blue(belowRight)
+                ).toFloat()
             val averageRed = sumRed / (8f * 255f)
             val averageGreen = sumGreen / (8f * 255f)
             val averageBlue = sumBlue / (8f * 255f)

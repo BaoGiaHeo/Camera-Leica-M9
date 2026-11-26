@@ -5711,7 +5711,7 @@ fun CameraScreen(
                     Image(
                         painter = painterResource(R.drawable.fujifilm_logo_white),
                         contentDescription = "FUJIFILM",
-                        modifier = Modifier.width(1Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale).height(30.dp * designScale),
+                        modifier = Modifier.width(154.dp * designScale).height(30.dp * designScale),
                         contentScale = ContentScale.Fit
                     )
                     Text(

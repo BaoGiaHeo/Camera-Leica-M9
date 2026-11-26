@@ -19,6 +19,7 @@ androidComponents {
 android {
     namespace = "com.example.camui"
     compileSdk = 37
+    ndkVersion = "27.2.12479018"
     defaultConfig {
         applicationId = "com.fujiflim.mode"
         minSdk = 29
@@ -27,6 +28,18 @@ android {
         versionCode = 22
         versionName = "2.9.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                cppFlags += listOf("-std=c++17")
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     // 2.9.2 intentionally publishes one installable Debug APK only.

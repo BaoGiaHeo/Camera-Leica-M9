@@ -8631,35 +8631,13 @@ private fun FilterLookDialog(
                     )
                     presetGrid(Modifier.weight(1f).fillMaxWidth())
                     Row(
-                        Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(5.dp))
-                            .background(Color(0xFF202526))
-                            .clickable { showAdjustmentControls = !showAdjustmentControls }
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(R.string.filter_adjustments_title),
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            if (showAdjustmentControls) "−" else "+",
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                    Row(
                         Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
                             .background(Color(0xFF202526))
                             .padding(start = 9.dp, end = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            stringResource(R.string.filter_tone_brightness),
+                            "Bảng tông màu",
                             color = Color.White,
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
@@ -8702,6 +8680,40 @@ private fun FilterLookDialog(
                             }
                         )
                     }
+                    Row(
+                        Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(5.dp))
+                            .background(Color(0xFF202526))
+                            .clickable { showAdjustmentControls = !showAdjustmentControls }
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.filter_adjustments_title),
+                            color = Color.White,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "Đặt lại",
+                            color = FujiSkin.orange,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { resetColorControls() }.padding(horizontal = 5.dp)
+                        )
+                        Text(
+                            if (showAdjustmentControls) "−" else "+",
+                            color = FujiSkin.lcdGreen,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
+                    FujiKey(
+                        "Thử màu preview",
+                        onClick = onPreviewColorTest,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Text(if (showingOriginal) "ORIGINAL" else activeFilterName, color = FujiSkin.lcdGreen, fontSize = 7.sp, maxLines = 1)
                 }
             }
@@ -8720,6 +8732,19 @@ private fun FilterLookDialog(
                 searchPane(Modifier)
                 importPane(Modifier)
                 categoryPane(Modifier)
+                Text("$visibleFilterCount / $totalFilterCount bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
+                presetGrid(Modifier.weight(1f))
+                FilmTonePad(
+                    activeFilter = activeFilter,
+                    point = palettePoint,
+                    intensity = filterIntensity,
+                    valueLabel = "Sáng ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_tone", 0f))} · Đậm ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_temperature", 0f))}",
+                    onPointChange = { updatePalette(it) },
+                    onIntensityChange = {
+                        filterIntensity = it
+                        persistRecipeValue("film_filter_intensity", it)
+                    }
+                )
                 Row(
                     Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
                         .background(Color(0xFF202526))
@@ -8735,6 +8760,13 @@ private fun FilterLookDialog(
                         modifier = Modifier.weight(1f)
                     )
                     Text(
+                        "Đặt lại",
+                        color = FujiSkin.orange,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { resetColorControls() }.padding(horizontal = 5.dp)
+                    )
+                    Text(
                         if (showAdjustmentControls) "−" else "+",
                         color = FujiSkin.lcdGreen,
                         fontSize = 16.sp,
@@ -8742,8 +8774,11 @@ private fun FilterLookDialog(
                     )
                 }
                 if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                Text("$visibleFilterCount / $totalFilterCount bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
-                presetGrid(Modifier.weight(1f))
+                FujiKey(
+                    "Thử màu preview",
+                    onClick = onPreviewColorTest,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

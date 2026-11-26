@@ -1179,6 +1179,9 @@ fun CameraScreen(
     var captureStartedRealtimeForThumbnail by remember { mutableLongStateOf(0L) }
     var aeLockedAtCapture by remember { mutableStateOf(false) }
     var afLockedAtCapture by remember { mutableStateOf(false) }
+    var hudRecompositionsAtCapture by remember { mutableLongStateOf(0L) }
+    var zoomRecompositionsAtCapture by remember { mutableLongStateOf(0L) }
+    var droppedFrameReportsAtCapture by remember { mutableLongStateOf(0L) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var thumbnailRequestKey by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
@@ -3447,6 +3450,9 @@ fun CameraScreen(
         val captureTimestampMillis = System.currentTimeMillis()
         captureTimestampForThumbnail = captureTimestampMillis
         captureStartedRealtimeForThumbnail = SystemClock.elapsedRealtime()
+        hudRecompositionsAtCapture = UiRecompositionCounters.hudCompositionCount()
+        zoomRecompositionsAtCapture = UiRecompositionCounters.zoomCompositionCount()
+        droppedFrameReportsAtCapture = CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount()
         val captureRotation = targetRotation
         val captureIsLandscape = isLandscape
         if (boundCameraRotation != captureRotation ||
@@ -3712,6 +3718,9 @@ fun CameraScreen(
         captureStartedRealtimeForThumbnail = SystemClock.elapsedRealtime()
         aeLockedAtCapture = aeLocked
         afLockedAtCapture = focusLocked
+        hudRecompositionsAtCapture = UiRecompositionCounters.hudCompositionCount()
+        zoomRecompositionsAtCapture = UiRecompositionCounters.zoomCompositionCount()
+        droppedFrameReportsAtCapture = CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount()
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
             (nightShotMode != "off" || lunaDreamMode in setOf("luna20", "luna25", "luna30") || starTrailCaptureInProgress)

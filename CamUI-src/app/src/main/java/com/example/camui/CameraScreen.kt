@@ -7341,6 +7341,7 @@ fun CameraScreen(
                 stringResource(R.string.camera_lunadream),
                 modifier = Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale),
                 icon = "moon",
+                iconColor = FujiCameraDesign.red,
                 selected = lunaDreamMode != "off" || nightShotMode == "night",
                 secondary = when (lunaDreamMode) {
                     "luna15" -> "1.5"

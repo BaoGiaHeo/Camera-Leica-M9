@@ -5775,17 +5775,17 @@ fun CameraScreen(
                             animationSpec = tween(Tuning.ASPECT_RATIO_ANIMATION_MS, easing = FastOutSlowInEasing),
                             label = "camera-preview-ratio"
                         )
-                        val previewMaxWidth = (maxWidth - 10.dp).coerceAtLeast(1.dp)
-                        val previewMaxHeight = (maxHeight - 12.dp).coerceAtLeast(1.dp)
+                        val previewMaxWidth = (maxWidth - 10.dp * designScale).coerceAtLeast(1.dp)
+                        val previewMaxHeight = (maxHeight - 12.dp * designScale).coerceAtLeast(1.dp)
                         val previewWidth = minOf(previewMaxWidth, previewMaxHeight * animatedFrameWidthOverHeight)
                         val previewHeight = previewWidth / animatedFrameWidthOverHeight
-                        val frameWidth = previewWidth + 10.dp
-                        val frameHeight = previewHeight + 12.dp
+                        val frameWidth = previewWidth + 10.dp * designScale
+                        val frameHeight = previewHeight + 12.dp * designScale
                         Box(
                             Modifier
                                 .width(frameWidth)
                                 .height(frameHeight)
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp * designScale))
                                 .background(Brush.verticalGradient(listOf(Color(0xFF25282A), Color(0xFF050607))))
                                 .border(Tuning.CAMERA_PREVIEW_BORDER_DP.dp * designScale, Color(0xFF090A0B), RoundedCornerShape(Tuning.CAMERA_PREVIEW_OUTER_RADIUS_DP.dp * designScale))
                                 .padding(start = 5.dp * designScale, top = 5.dp * designScale, end = 5.dp * designScale, bottom = Tuning.CAMERA_PREVIEW_CHIN_EXTRA_DP.dp * designScale)

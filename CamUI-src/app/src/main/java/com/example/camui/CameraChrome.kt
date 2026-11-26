@@ -50,6 +50,7 @@ internal fun FujiCameraKey(
     modifier: Modifier = Modifier,
     icon: String? = null,
     iconColor: Color? = null,
+    horizontalContent: Boolean = false,
     selected: Boolean = false,
     secondary: String? = null,
     scale: Float = 1f,
@@ -76,12 +77,29 @@ internal fun FujiCameraKey(
         verticalArrangement = Arrangement.Center
     ) {
         Canvas(Modifier.fillMaxWidth().height(1.dp * safeScale)) { drawLine(Color.White.copy(alpha = 0.10f), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
-        if (icon != null) FujiIconGlyph(icon, Modifier.size(Tuning.CAMERA_BUTTON_ICON_DP.dp * safeScale),
-            iconColor ?: if (selected) FujiCameraDesign.orange else FujiCameraDesign.text)
-        Text(label, color = FujiCameraDesign.text, fontSize = Tuning.CAMERA_BUTTON_LABEL_SP.sp * safeScale, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-        if (secondary != null) Text(secondary, color = if (selected) FujiCameraDesign.orange else FujiCameraDesign.muted,
-            fontSize = Tuning.CAMERA_BUTTON_SECONDARY_SP.sp * safeScale, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (horizontalContent && icon != null) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp * safeScale)
+            ) {
+                FujiIconGlyph(icon, Modifier.size(Tuning.CAMERA_BUTTON_ICON_DP.dp * safeScale),
+                    iconColor ?: if (selected) FujiCameraDesign.orange else FujiCameraDesign.text)
+                Column(horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.Center) {
+                    Text(label, color = FujiCameraDesign.text, fontSize = Tuning.CAMERA_BUTTON_LABEL_SP.sp * safeScale,
+                        fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (secondary != null) Text(secondary, color = if (selected) FujiCameraDesign.orange else FujiCameraDesign.muted,
+                        fontSize = Tuning.CAMERA_BUTTON_SECONDARY_SP.sp * safeScale, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        } else {
+            if (icon != null) FujiIconGlyph(icon, Modifier.size(Tuning.CAMERA_BUTTON_ICON_DP.dp * safeScale),
+                iconColor ?: if (selected) FujiCameraDesign.orange else FujiCameraDesign.text)
+            Text(label, color = FujiCameraDesign.text, fontSize = Tuning.CAMERA_BUTTON_LABEL_SP.sp * safeScale, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            if (secondary != null) Text(secondary, color = if (selected) FujiCameraDesign.orange else FujiCameraDesign.muted,
+                fontSize = Tuning.CAMERA_BUTTON_SECONDARY_SP.sp * safeScale, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

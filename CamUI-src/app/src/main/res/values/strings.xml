@@ -261,4 +261,14 @@
     <string name="gallery_app_unavailable">No gallery app is available to open this photo.</string>
     <string name="diagnostics_ui_counters">UI layer counts: %1$s</string>
     <string name="diagnostics_recent_warnings">Recent warnings</string>
+
+    <string name="camera_brand_subtitle">DIGITAL CAMERA</string>
+    <string name="camera_filter">Film</string>
+    <string name="camera_lunadream">LunaDream</string>
+    <string name="camera_timer">Timer</string>
+    <string name="camera_flash">Flash</string>
+    <string name="camera_af_lock">AF Lock</string>
+    <string name="camera_settings">Settings</string>
+    <string name="camera_shutter">Capture</string>
+
 </resources>

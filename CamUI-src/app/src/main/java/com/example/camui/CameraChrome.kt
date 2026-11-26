@@ -49,30 +49,32 @@ internal fun FujiCameraKey(
     icon: String? = null,
     selected: Boolean = false,
     secondary: String? = null,
+    scale: Float = 1f,
     onClick: () -> Unit
 ) {
+    val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     val view = LocalView.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-key-press")
     Column(
         modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-            .shadow(Tuning.CAMERA_BUTTON_SHADOW_DP.dp, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp))
-            .clip(RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp))
+            .shadow(Tuning.CAMERA_BUTTON_SHADOW_DP.dp * safeScale, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
+            .clip(RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
             .background(Brush.verticalGradient(listOf(Color(0xFF2A2C2E), Color(0xFF1A1B1D))))
-            .border(1.dp, if (selected) FujiCameraDesign.orange else FujiCameraDesign.stroke, RoundedCornerShape(12.dp))
+            .border(1.dp, if (selected) FujiCameraDesign.orange else FujiCameraDesign.stroke, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale)))
             .clickable(interactionSource = interaction, indication = null) { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK); onClick() }
-            .padding(horizontal = 6.dp, vertical = 5.dp),
+            .padding(horizontal = 6.dp * safeScale, vertical = 5.dp * safeScale),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Canvas(Modifier.fillMaxWidth().height(1.dp)) { drawLine(Color.White.copy(alpha = 0.10f), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
-        if (icon != null) FujiIconGlyph(icon, Modifier.size(Tuning.CAMERA_BUTTON_ICON_DP.dp),
+        Canvas(Modifier.fillMaxWidth().height(1.dp * safeScale)) { drawLine(Color.White.copy(alpha = 0.10f), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
+        if (icon != null) FujiIconGlyph(icon, Modifier.size(Tuning.CAMERA_BUTTON_ICON_DP.dp * safeScale),
             if (selected) FujiCameraDesign.orange else FujiCameraDesign.text)
-        Text(label, color = FujiCameraDesign.text, fontSize = Tuning.CAMERA_BUTTON_LABEL_SP.sp, fontWeight = FontWeight.Bold,
+        Text(label, color = FujiCameraDesign.text, fontSize = Tuning.CAMERA_BUTTON_LABEL_SP.sp * safeScale, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         if (secondary != null) Text(secondary, color = if (selected) FujiCameraDesign.orange else FujiCameraDesign.muted,
-            fontSize = Tuning.CAMERA_BUTTON_SECONDARY_SP.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            fontSize = Tuning.CAMERA_BUTTON_SECONDARY_SP.sp * safeScale, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -139,23 +141,25 @@ internal fun FujiEvRuler(
 @Composable
 internal fun FujiProFocusStrip(
     focusPosition: Float,
+    scale: Float = 1f,
     automatic: Boolean,
     touchEnabled: Boolean,
     onFocusPosition: (Float) -> Unit,
     onAuto: () -> Unit,
     onTouchToggle: () -> Unit
 ) {
+    val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     Row(
-        Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(10.dp))
-            .background(Color(0x70000000)).padding(horizontal = 8.dp),
+        Modifier.fillMaxWidth().height(36.dp * safeScale).clip(RoundedCornerShape(10.dp))
+            .background(Color(0x70000000)).padding(horizontal = 8.dp * safeScale),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp)
+        horizontalArrangement = Arrangement.spacedBy(7.dp * safeScale)
     ) {
-        Text(stringResource(R.string.camera_focus), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.camera_focus), color = Color.White, fontSize = 12.sp * safeScale, fontWeight = FontWeight.Bold)
         androidx.compose.material3.Slider(
             value = focusPosition.coerceIn(0f, 1f),
             onValueChange = onFocusPosition,
-            modifier = Modifier.fillMaxWidth(0.40f).height(28.dp),
+            modifier = Modifier.fillMaxWidth(0.40f).height(28.dp * safeScale),
             colors = androidx.compose.material3.SliderDefaults.colors(
                 thumbColor = Color.White,
                 activeTrackColor = FujiCameraDesign.orange,
@@ -163,24 +167,25 @@ internal fun FujiProFocusStrip(
             )
         )
         Box(
-            Modifier.height(28.dp).clip(RoundedCornerShape(14.dp))
+            Modifier.height(28.dp * safeScale).clip(RoundedCornerShape(14.dp * safeScale))
                 .background(if (automatic) FujiCameraDesign.orange else Color(0xFF35393B))
-                .clickable(onClick = onAuto).padding(horizontal = 12.dp),
+                .clickable(onClick = onAuto).padding(horizontal = 12.dp * safeScale),
             contentAlignment = Alignment.Center
-        ) { Text(stringResource(R.string.camera_auto), color = if (automatic) Color.Black else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        ) { Text(stringResource(R.string.camera_auto), color = if (automatic) Color.Black else Color.White, fontSize = 11.sp * safeScale, fontWeight = FontWeight.Bold) }
         Box(
-            Modifier.size(32.dp).clip(CircleShape)
+            Modifier.size(32.dp * safeScale).clip(CircleShape)
                 .background(if (touchEnabled) FujiCameraDesign.orange else Color(0xFF35393B))
                 .clickable(onClick = onTouchToggle),
             contentAlignment = Alignment.Center
-        ) { FujiIconGlyph("focus-dot", Modifier.size(18.dp), Color.White) }
+        ) { FujiIconGlyph("focus-dot", Modifier.size(18.dp * safeScale), Color.White) }
     }
 }
 
 @Composable
 internal fun FujiProHud(
-    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, hudHeight: Dp = 60.dp
+    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, hudHeight: Dp = 60.dp, scale: Float = 1f
 ) {
+    val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     var clock by remember { mutableStateOf("--:--:--") }
     LaunchedEffect(Unit) {
         val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -188,34 +193,34 @@ internal fun FujiProHud(
     }
     Row(
         Modifier.fillMaxWidth(Tuning.CAMERA_HUD_WIDTH_FRACTION).height(hudHeight).clip(RoundedCornerShape(16.dp))
-            .background(Color(0x80000000)).padding(horizontal = 14.dp, vertical = 5.dp),
+            .background(Color(0x80000000)).padding(horizontal = 14.dp * safeScale, vertical = 5.dp * safeScale),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(0.20f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("SS$shutter", color = FujiCameraDesign.blue, fontSize = 19.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text("SS" + shutter.removePrefix("1/"), color = FujiCameraDesign.blue, fontSize = 19.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
         }
         Column(Modifier.weight(0.22f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$aperture  $focus", color = FujiCameraDesign.blue, fontSize = 15.sp, maxLines = 1)
-            Text("ISO : $iso", color = Color.White, fontSize = 13.sp, maxLines = 1)
+            Text("$aperture  $focus", color = FujiCameraDesign.blue, fontSize = 15.sp * safeScale, maxLines = 1)
+            Text("ISO : $iso", color = Color.White, fontSize = 13.sp * safeScale, maxLines = 1)
         }
         Column(Modifier.weight(0.20f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(kelvin, color = FujiCameraDesign.blue, fontSize = 18.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(kelvin, color = FujiCameraDesign.blue, fontSize = 18.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
         }
         Column(Modifier.weight(0.16f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("EV", color = Color.White, fontSize = 11.sp)
-            Text(ev, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text("EV", color = Color.White, fontSize = 11.sp * safeScale)
+            Text(ev, color = Color.White, fontSize = 18.sp * safeScale, fontWeight = FontWeight.Bold, maxLines = 1)
         }
         Column(Modifier.weight(0.22f), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Canvas(Modifier.size(17.dp, 10.dp)) {
+                Canvas(Modifier.size(17.dp * safeScale, 10.dp * safeScale)) {
                     drawRoundRect(Color.White, cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()), style = Stroke(1.dp.toPx()))
                     drawRect(Color.White, size = androidx.compose.ui.geometry.Size(size.width * batteryPercent.coerceIn(0, 100) / 100f, size.height))
                     drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.3f),
                         size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height * 0.4f))
                 }
-                Text(" $batteryPercent", color = Color.White, fontSize = 11.sp, maxLines = 1)
+                Text(" $batteryPercent", color = Color.White, fontSize = 11.sp * safeScale, maxLines = 1)
             }
-            Text(clock, color = Color.White, fontSize = 10.sp, maxLines = 1)
+            Text(clock, color = Color.White, fontSize = 10.sp * safeScale, maxLines = 1)
         }
     }
 }
@@ -223,8 +228,9 @@ internal fun FujiProHud(
 @Composable
 internal fun FujiPhotoStatus(
     batteryPercent: Int, resolution: String, fps: Float?, targetFps: Float?, zoom: Float,
-    minimumZoom: Float, maximumZoom: Float, onZoom: (Float) -> Unit
+    minimumZoom: Float, maximumZoom: Float, onZoom: (Float) -> Unit, scale: Float = 1f
 ) {
+    val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     var dragging by remember { mutableStateOf(false) }
     var clock by remember { mutableStateOf("--:--:--") }
     LaunchedEffect(Unit) {
@@ -237,11 +243,11 @@ internal fun FujiPhotoStatus(
         (ln(zoom.coerceIn(minZoom, maxZoom) / minZoom) / ln(maxZoom / minZoom)).coerceIn(0f, 1f)
     val actualFps = fps?.takeIf { it.isFinite() && it > 0f }
     val lowFps = actualFps != null && targetFps != null && actualFps < targetFps * 0.8f
-    Column(Modifier.fillMaxSize().padding(10.dp)) {
+    Column(Modifier.fillMaxSize().padding(10.dp * safeScale)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Canvas(Modifier.size(56.dp, 26.dp)) {
+                    Canvas(Modifier.size(56.dp * safeScale, 26.dp * safeScale)) {
                         drawRoundRect(Color.White, cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
                         drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.32f),
                             size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height * 0.36f))
@@ -250,14 +256,14 @@ internal fun FujiPhotoStatus(
                             size = androidx.compose.ui.geometry.Size(fillWidth, size.height - 8.dp.toPx()),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
                     }
-                    Text("$batteryPercent%", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(start = 5.dp))
+                    Text("$batteryPercent%", color = Color.White, fontSize = 13.sp * safeScale, modifier = Modifier.padding(start = 5.dp * safeScale))
                 }
-                Text(clock, color = Color.White, fontSize = 11.sp)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp)) {
-                    Text("W", color = Color.White, fontSize = 12.sp)
+                Text(clock, color = Color.White, fontSize = 11.sp * safeScale)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp * safeScale)) {
+                    Text("W", color = Color.White, fontSize = 12.sp * safeScale)
                     Box(
-                        Modifier.padding(horizontal = 5.dp).width(72.dp).height(24.dp).clip(CircleShape)
-                            .border(2.5.dp, Color(0xFFCFCFCF), CircleShape)
+                        Modifier.padding(horizontal = 5.dp * safeScale).width(72.dp * safeScale).height(24.dp * safeScale).clip(CircleShape)
+                            .border(2.5.dp * safeScale, Color(0xFFCFCFCF), CircleShape)
                             .pointerInput(minZoom, maxZoom) {
                                 detectTapGestures { point ->
                                     val f = (point.x / size.width).coerceIn(0f, 1f)
@@ -277,16 +283,16 @@ internal fun FujiPhotoStatus(
                             }
                     ) {
                         Box(Modifier.fillMaxHeight().fillMaxWidth(0.28f).align(Alignment.CenterStart)
-                            .offset(x = 52.dp * fraction).clip(RoundedCornerShape(4.dp)).background(Color.White))
+                            .offset(x = 52.dp * safeScale * fraction).clip(RoundedCornerShape(4.dp)).background(Color.White))
                     }
-                    Text("T", color = Color.White, fontSize = 12.sp)
+                    Text("T", color = Color.White, fontSize = 12.sp * safeScale)
                 }
-                if (dragging) Text("%.1fx".format(Locale.US, zoom), color = FujiCameraDesign.orange, fontSize = 11.sp)
+                if (dragging) Text("%.1fx".format(Locale.US, zoom), color = FujiCameraDesign.orange, fontSize = 11.sp * safeScale)
             }
             Text(
                 "$resolution " + (actualFps?.let { String.format(Locale.US, "%.2f", it) } ?: "--"),
-                color = if (lowFps) FujiCameraDesign.orange else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0x70000000)).padding(horizontal = 8.dp, vertical = 4.dp)
+                color = if (lowFps) FujiCameraDesign.orange else Color.White, fontSize = 13.sp * safeScale, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp * safeScale)).background(Color(0x70000000)).padding(horizontal = 8.dp * safeScale, vertical = 4.dp * safeScale)
             )
         }
     }

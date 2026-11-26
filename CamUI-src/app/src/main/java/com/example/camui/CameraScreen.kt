@@ -1123,23 +1123,6 @@ fun CameraScreen(
             )
         }
     }
-    LaunchedEffect(
-        isProcessing,
-        burstCaptureActive,
-        nightShotCaptureInProgress,
-        starTrailCaptureInProgress,
-        bracketCaptureActive
-    ) {
-        val captureBusy = isProcessing || burstCaptureActive ||
-            nightShotCaptureInProgress || starTrailCaptureInProgress || bracketCaptureActive
-        if (captureBusy) {
-            CaptureDiagnostics.resetPeakMemory()
-            while (true) {
-                CaptureDiagnostics.samplePeakMemory()
-                delay(100L)
-            }
-        }
-    }
     LaunchedEffect(isProcessing) {
         if (isProcessing) {
             while (isProcessing) {
@@ -1358,6 +1341,24 @@ fun CameraScreen(
     var lowLightIsoActive by remember { mutableStateOf(false) }
     val lowLightDetectedState = rememberUpdatedState(lowLightDetected)
     val lowLightMeanLumaState = rememberUpdatedState(lowLightMeanLuma)
+
+    LaunchedEffect(
+        isProcessing,
+        burstCaptureActive,
+        nightShotCaptureInProgress,
+        starTrailCaptureInProgress,
+        bracketCaptureActive
+    ) {
+        val captureBusy = isProcessing || burstCaptureActive ||
+            nightShotCaptureInProgress || starTrailCaptureInProgress || bracketCaptureActive
+        if (captureBusy) {
+            CaptureDiagnostics.resetPeakMemory()
+            while (true) {
+                CaptureDiagnostics.samplePeakMemory()
+                delay(100L)
+            }
+        }
+    }
     val lowLightIsoState = rememberUpdatedState(lowLightIsoActive)
 
     var lowLightGyroMoving by remember { mutableStateOf(false) }
@@ -4043,7 +4044,6 @@ fun CameraScreen(
                     android.util.Log.i("FUJI_BURST", "Continuous burst frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=$burstFps");
                     if (frameIndex >= Tuning.MAX_CONTINUOUS_BURST_FRAMES && !burstStopRequested) {
                         CaptureDiagnostics.recordWarning(context, "Burst tự dừng ở giới hạn an toàn ${Tuning.MAX_CONTINUOUS_BURST_FRAMES} khung hình.")
-                    }
                     }
                 } finally {
                     countdown = 0

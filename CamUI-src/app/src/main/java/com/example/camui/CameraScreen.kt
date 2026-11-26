@@ -5778,9 +5778,9 @@ fun CameraScreen(
                                 .height(frameHeight)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Brush.verticalGradient(listOf(Color(0xFF25282A), Color(0xFF050607))))
-                                .border(5.dp, Color(0xFF090A0B), RoundedCornerShape(16.dp))
-                                .padding(start = 5.dp, top = 5.dp, end = 5.dp, bottom = 7.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .border(5.dp * designScale, Color(0xFF090A0B), RoundedCornerShape(16.dp * designScale))
+                                .padding(start = 5.dp * designScale, top = 5.dp * designScale, end = 5.dp * designScale, bottom = 7.dp * designScale)
+                                .clip(RoundedCornerShape(12.dp * designScale))
                                 .background(FujiSkin.lcd)
                                 .graphicsLayer { alpha = previewOrientationAlpha.value }
                                 .pointerInput(camera, mode) {
@@ -7329,7 +7329,7 @@ fun CameraScreen(
             }
             FujiCameraKey(
                 stringResource(R.string.camera_lunadream),
-                modifier = Modifier.size(88.dp, 60.dp),
+                modifier = Modifier.size(88.dp * designScale, 60.dp * designScale),
                 icon = "moon",
                 selected = lunaDreamMode != "off" || nightShotMode == "night",
                 secondary = when (lunaDreamMode) {
@@ -7395,7 +7395,7 @@ fun CameraScreen(
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically,
+            Row(Modifier.fillMaxWidth().height(44.dp * designScale), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(evText, color = FujiCameraDesign.text, fontSize = 26.sp, fontWeight = FontWeight.Bold,
@@ -7420,7 +7420,8 @@ fun CameraScreen(
             FujiEvRuler(
                 position = if (evMaximum > evMinimum) ((evIndex - evMinimum).toFloat() / (evMaximum - evMinimum)) else 0.5f,
                 minimum = evMinimum,
-                maximum = evMaximum
+                maximum = evMaximum,
+                heightDp = 24.dp * designScale
             ) { next ->
                 evIndex = next
                 manualExposure = false
@@ -7433,10 +7434,10 @@ fun CameraScreen(
                     verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(stringResource(R.string.camera_zoom), color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FujiCameraKey("W", modifier = Modifier.weight(1f).height(54.dp * designScale), secondary = "Ra") {
+                        FujiCameraKey("W", modifier = Modifier.weight(1f).height(54.dp * designScale), secondary = stringResource(R.string.camera_out)) {
                             animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
                         }
-                        FujiCameraKey("T", modifier = Modifier.weight(1f).height(54.dp), secondary = "Vào") {
+                        FujiCameraKey("T", modifier = Modifier.weight(1f).height(54.dp * designScale), secondary = stringResource(R.string.camera_in)) {
                             animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom))
                         }
                     }
@@ -7459,7 +7460,7 @@ fun CameraScreen(
                     }
                     FujiCameraKey(
                         stringResource(R.string.camera_settings),
-                        modifier = Modifier.size(108.dp, 54.dp),
+                        modifier = Modifier.size(108.dp * designScale, 54.dp * designScale),
                         icon = "settings"
                     ) { onOpenSettings() }
                 }

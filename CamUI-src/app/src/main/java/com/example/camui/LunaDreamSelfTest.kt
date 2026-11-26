@@ -6,12 +6,15 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import android.os.SystemClock
+import android.os.Debug
 import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 import kotlin.random.Random
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 internal data class LunaDreamSelfTestReport(
     val success: Boolean,
@@ -33,7 +36,7 @@ internal data class LunaDreamSelfTestReport(
         appendLine()
         appendLine(message)
         appendLine()
-        appendLine("Bài kiểm tra tạo 8 khung JPEG tổng hợp có dịch chuyển và nhiễu, chạy merge LunaDream 3.0, yêu cầu upscale 200MP với ngưỡng an toàn 50MP, encode và xác minh JPEG đã ghi.")
+        appendLine("Bài kiểm tra tạo 8 khung JPEG tổng hợp có dịch chuyển và nhiễu, chạy merge LunaDream 3.0, nâng 200MP bằng native JPEG tile 64 hàng, mã hóa và đọc xác minh JPEG đã ghi.")
         appendLine("Bài kiểm tra này không thay thế việc kiểm tra chất lượng ảnh thực tế trên thiết bị.")
     }
 }
@@ -50,12 +53,28 @@ internal object LunaDreamSelfTest {
         val startedAt = SystemClock.elapsedRealtime()
         val stages = linkedMapOf<String, Long>()
         val runtime = Runtime.getRuntime()
-        var peakHeap = usedHeap(runtime)
+        var peakHeap = currentMemoryBytes(runtime)
         var width = 0
         var height = 0
         var megapixels = 0.0
         var message = "Self-test chưa hoàn tất."
         var success = false
+        val sampledPeakBytes = AtomicLong(currentMemoryBytes(runtime))
+        val sampling = AtomicBoolean(true)
+        val memorySampler = Thread({
+            while (sampling.get()) {
+                val sample = currentMemoryBytes(runtime)
+                sampledPeakBytes.accumulateAndGet(sample) { previous, next -> maxOf(previous, next) }
+                try {
+                    Thread.sleep(25L)
+                } catch (_: InterruptedException) {
+                    break
+                }
+            }
+        }, "Fuji-LunaDream-SelfTest-Memory").apply {
+            isDaemon = true
+            start()
+        }
         val directory = File(context.cacheDir, "lunadream_self_test")
         val frames = mutableListOf<File>()
         val output = File(directory, "lunadream-30-self-test-output.jpg")
@@ -70,7 +89,7 @@ internal object LunaDreamSelfTest {
                 frames += frame
             }
             stages["Tạo 8 khung"] = SystemClock.elapsedRealtime() - generationStart
-            peakHeap = maxOf(peakHeap, usedHeap(runtime))
+            peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
 
             check(output.exists() || output.createNewFile()) { "Không tạo được file JPEG tạm." }
             outputUri = FileProvider.getUriForFile(
@@ -113,23 +132,28 @@ internal object LunaDreamSelfTest {
             val actualPixels = width.toLong() * height.toLong()
             megapixels = actualPixels / 1_000_000.0
             check(actualPixels >= TEST_MINIMUM_OUTPUT_PIXELS * 995L / 1000L) {
-                "Kích thước đầu ra thấp hơn ngưỡng self-test 50MP: ${width}x$height."
+                "Kích thước đầu ra thấp hơn ngưỡng self-test 200MP: ${width}x$height."
+            }
+            check(output.length() > 64_000L) {
+                "JPEG đầu ra quá nhỏ; dữ liệu nén có thể bị thiếu."
             }
             check(resized.width == width && resized.height == height) {
                 "Kích thước PhotoOutputResolution trả về không khớp file JPEG."
             }
             stages["Đọc lại và xác minh"] = SystemClock.elapsedRealtime() - verifyStart
             peakHeap = maxOf(peakHeap, usedHeap(runtime))
-            // The current output implementation allocates a full RGB_565 Bitmap.
-            // Do not report a tile-streaming acceptance pass until a true tile encoder exists.
-            success = false
-            message = "CHƯA ĐẠT TILE-STREAMING: pipeline hiện tại dùng Bitmap toàn ảnh, không phải mã hóa theo tile. Kiểm tra full-bitmap đạt ${String.format(Locale.US, "%.2f", megapixels)}MP; requestedReached=${resized.reachedRequestedSize}. Không được coi đây là nghiệm thu LunaDream 3.0 200MP theo tile."
+            success = resized.reachedRequestedSize &&
+                actualPixels >= TEST_MINIMUM_OUTPUT_PIXELS * 995L / 1000L
+            check(success) {
+                "Native tile encoder không đạt đủ 200MP: actual=${String.format(Locale.US, "%.2f", megapixels)}MP."
+            }
+            message = "PASS: đã tạo 8 khung mẫu, chạy merge LunaDream 3.0, nâng ảnh bằng native JPEG tile 64 hàng, ghi và đọc xác minh JPEG 200MP. Kích thước thực tế ${width}x$height (${String.format(Locale.US, "%.2f", megapixels)}MP)."
             LunaDreamDiagnostics.record(
                 context,
-                "SELF_TEST_TILE_STREAMING_NOT_IMPLEMENTED",
-                "frames=$FRAME_COUNT; output=${width}x$height; mp=${String.format(Locale.US, "%.2f", megapixels)}; stages=$stages; peakHeap=$peakHeap"
+                "SELF_TEST_TILE_STREAMING_SUCCESS",
+                "frames=$FRAME_COUNT; output=${width}x$height; mp=${String.format(Locale.US, "%.2f", megapixels)}; tileRows=64; stages=$stages; peakHeap=${sampledPeakBytes.get()}"
             )
-            CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_SELF_TEST_TILE_STREAMING_BLOCKED output=${width}x$height stages=$stages")
+            CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_SELF_TEST_TILE_STREAMING_PASS output=${width}x$height stages=$stages")
         } catch (failure: Throwable) {
             message = "FAIL: ${failure.javaClass.simpleName}: ${failure.message ?: "không có chi tiết"}"
             Log.e(TAG, message, failure)
@@ -142,6 +166,10 @@ internal object LunaDreamSelfTest {
             CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_SELF_TEST_FAIL stages=$stages reason=$message")
             CaptureDiagnostics.recordWarning(context, "LunaDream 3.0 self-test: $message")
         } finally {
+            sampling.set(false)
+            memorySampler.interrupt()
+            runCatching { memorySampler.join(150L) }
+            peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
             frames.forEach { runCatching { it.delete() } }
             runCatching { output.delete() }
             runCatching { directory.delete() }
@@ -154,7 +182,7 @@ internal object LunaDreamSelfTest {
             outputHeight = height,
             outputMegapixels = megapixels,
             stageTimesMs = stages.toMap(),
-            peakHeapBytes = peakHeap,
+            peakHeapBytes = maxOf(peakHeap, sampledPeakBytes.get()),
             message = message
         )
     }
@@ -221,6 +249,9 @@ internal object LunaDreamSelfTest {
         }
     }
 
-    private fun usedHeap(runtime: Runtime): Long =
-        (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+    private fun currentMemoryBytes(runtime: Runtime): Long {
+        val javaHeap = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+        val nativeHeap = Debug.getNativeHeapAllocatedSize().coerceAtLeast(0L)
+        return javaHeap + nativeHeap
+    }
 }

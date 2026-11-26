@@ -12,6 +12,10 @@ import android.util.Base64
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.FileOutputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.util.Locale
 
 /**
@@ -75,7 +79,7 @@ internal object WatermarkStage {
             unwatermarkedBitmap.width == bitmap.width &&
             unwatermarkedBitmap.height == bitmap.height
         ) { "Watermark baseline must match the rendered output dimensions" }
-        val baseline = verificationRegion?.let { encodeWatermarkBaseline(unwatermarkedBitmap, it) }
+        val baseline = verificationRegion?.let { encodeWatermarkBaseline(unwatermarkedBitmap, bitmap, it) }
         return WatermarkedFrame.fromWatermarkStage(
             uri = uri,
             bitmap = bitmap,
@@ -131,27 +135,54 @@ internal object WatermarkStage {
         )
     }
 
-    private fun encodeWatermarkBaseline(bitmap: Bitmap, region: Rect): String {
+    private fun encodeWatermarkBaseline(
+        unwatermarkedBitmap: Bitmap,
+        renderedBitmap: Bitmap,
+        region: Rect
+    ): String {
         val safe = Rect(
-            region.left.coerceIn(0, bitmap.width - 1),
-            region.top.coerceIn(0, bitmap.height - 1),
-            region.right.coerceIn(1, bitmap.width),
-            region.bottom.coerceIn(1, bitmap.height)
+            region.left.coerceIn(0, unwatermarkedBitmap.width - 1),
+            region.top.coerceIn(0, unwatermarkedBitmap.height - 1),
+            region.right.coerceIn(1, unwatermarkedBitmap.width),
+            region.bottom.coerceIn(1, unwatermarkedBitmap.height)
         )
         require(safe.width() > 1 && safe.height() > 1) { "Watermark verification region is empty" }
-        val rgb = ByteArray(WATERMARK_SAMPLE_COLUMNS * WATERMARK_SAMPLE_ROWS * 3)
-        var offset = 0
-        for (row in 0 until WATERMARK_SAMPLE_ROWS) {
-            val y = safe.top + ((row + 0.5f) * safe.height() / WATERMARK_SAMPLE_ROWS).toInt().coerceAtMost(safe.height() - 1)
-            for (column in 0 until WATERMARK_SAMPLE_COLUMNS) {
-                val x = safe.left + ((column + 0.5f) * safe.width() / WATERMARK_SAMPLE_COLUMNS).toInt().coerceAtMost(safe.width() - 1)
-                val color = bitmap.getPixel(x, y)
-                rgb[offset++] = android.graphics.Color.red(color).toByte()
-                rgb[offset++] = android.graphics.Color.green(color).toByte()
-                rgb[offset++] = android.graphics.Color.blue(color).toByte()
+        require(
+            renderedBitmap.width == unwatermarkedBitmap.width &&
+                renderedBitmap.height == unwatermarkedBitmap.height
+        ) { "Rendered watermark dimensions do not match source bitmap" }
+        val samples = ByteArrayOutputStream()
+        var changedSamples = 0
+        DataOutputStream(samples).use { output ->
+            output.writeShort(0) // Replaced with the number of encoded changed-pixel samples below.
+            for (row in 0 until WATERMARK_SAMPLE_ROWS) {
+                val y = safe.top + ((row + 0.5f) * safe.height() / WATERMARK_SAMPLE_ROWS)
+                    .toInt().coerceAtMost(safe.height() - 1)
+                for (column in 0 until WATERMARK_SAMPLE_COLUMNS) {
+                    val x = safe.left + ((column + 0.5f) * safe.width() / WATERMARK_SAMPLE_COLUMNS)
+                        .toInt().coerceAtMost(safe.width() - 1)
+                    val before = unwatermarkedBitmap.getPixel(x, y)
+                    val after = renderedBitmap.getPixel(x, y)
+                    val delta = kotlin.math.abs(android.graphics.Color.red(before) - android.graphics.Color.red(after)) +
+                        kotlin.math.abs(android.graphics.Color.green(before) - android.graphics.Color.green(after)) +
+                        kotlin.math.abs(android.graphics.Color.blue(before) - android.graphics.Color.blue(after))
+                    if (delta < 36) continue
+                    val sampleIndex = row * WATERMARK_SAMPLE_COLUMNS + column
+                    output.writeShort(sampleIndex)
+                    output.writeByte(android.graphics.Color.red(after))
+                    output.writeByte(android.graphics.Color.green(after))
+                    output.writeByte(android.graphics.Color.blue(after))
+                    changedSamples++
+                }
             }
         }
-        return Base64.encodeToString(rgb, Base64.NO_WRAP)
+        require(changedSamples >= 8) {
+            "Watermark renderer did not change enough pixels in its verification region"
+        }
+        val payload = samples.toByteArray()
+        payload[0] = ((changedSamples ushr 8) and 0xff).toByte()
+        payload[1] = (changedSamples and 0xff).toByte()
+        return Base64.encodeToString(payload, Base64.NO_WRAP)
     }
 }
 
@@ -361,23 +392,37 @@ internal object ImageSink {
                 try {
                     val baseline = runCatching { Base64.decode(baselineBase64, Base64.NO_WRAP) }.getOrNull()
                         ?: return false
-                    val expectedBytes = WATERMARK_SAMPLE_COLUMNS * WATERMARK_SAMPLE_ROWS * 3
-                    if (baseline.size != expectedBytes) return false
-                    var different = 0
-                    for (row in 0 until WATERMARK_SAMPLE_ROWS) {
-                        val y = ((row + 0.5f) * bitmap.height / WATERMARK_SAMPLE_ROWS).toInt().coerceIn(0, bitmap.height - 1)
-                        for (column in 0 until WATERMARK_SAMPLE_COLUMNS) {
-                            val x = ((column + 0.5f) * bitmap.width / WATERMARK_SAMPLE_COLUMNS).toInt().coerceIn(0, bitmap.width - 1)
-                            val pixel = bitmap.getPixel(x, y)
-                            val offset = (row * WATERMARK_SAMPLE_COLUMNS + column) * 3
-                            val delta = kotlin.math.abs(android.graphics.Color.red(pixel) - (baseline[offset].toInt() and 0xff)) +
-                                kotlin.math.abs(android.graphics.Color.green(pixel) - (baseline[offset + 1].toInt() and 0xff)) +
-                                kotlin.math.abs(android.graphics.Color.blue(pixel) - (baseline[offset + 2].toInt() and 0xff))
-                            if (delta > 48) different++
+                    if (baseline.size < 2) return false
+                    var verifiedSamples = 0
+                    var totalSamples = 0
+                    DataInputStream(ByteArrayInputStream(baseline)).use { input ->
+                        val sampleCount = input.readUnsignedShort()
+                        val expectedSize = 2 + sampleCount * 5
+                        if (sampleCount < 8 || baseline.size != expectedSize) return false
+                        repeat(sampleCount) {
+                            val sampleIndex = input.readUnsignedShort()
+                            val row = sampleIndex / WATERMARK_SAMPLE_COLUMNS
+                            val column = sampleIndex % WATERMARK_SAMPLE_COLUMNS
+                            if (row !in 0 until WATERMARK_SAMPLE_ROWS ||
+                                column !in 0 until WATERMARK_SAMPLE_COLUMNS
+                            ) return false
+                            val expectedRed = input.readUnsignedByte()
+                            val expectedGreen = input.readUnsignedByte()
+                            val expectedBlue = input.readUnsignedByte()
+                            val x = ((column + 0.5f) * bitmap.width / WATERMARK_SAMPLE_COLUMNS)
+                                .toInt().coerceIn(0, bitmap.width - 1)
+                            val y = ((row + 0.5f) * bitmap.height / WATERMARK_SAMPLE_ROWS)
+                                .toInt().coerceIn(0, bitmap.height - 1)
+                            val actual = bitmap.getPixel(x, y)
+                            val delta = kotlin.math.abs(android.graphics.Color.red(actual) - expectedRed) +
+                                kotlin.math.abs(android.graphics.Color.green(actual) - expectedGreen) +
+                                kotlin.math.abs(android.graphics.Color.blue(actual) - expectedBlue)
+                            if (delta <= 90) verifiedSamples++
+                            totalSamples++
                         }
                     }
-                    // Compare the saved JPEG against the unwatermarked source samples.
-                    return different >= 8
+                    // Require at least 70% of changed source/render sample points to survive JPEG encode.
+                    return totalSamples >= 8 && verifiedSamples * 100 >= totalSamples * 70
                 } finally {
                     if (!bitmap.isRecycled) bitmap.recycle()
                 }

@@ -271,4 +271,12 @@
     <string name="camera_settings">Settings</string>
     <string name="camera_shutter">Capture</string>
 
+    <string name="camera_focus">Focus</string>
+    <string name="camera_auto">Auto</string>
+    <string name="camera_zoom">Zoom</string>
+    <string name="camera_out">Out</string>
+    <string name="camera_in">In</string>
+    <string name="camera_off">Off</string>
+    <string name="camera_on">On</string>
+    <string name="camera_night_shot">Night Shot</string>
 </resources>

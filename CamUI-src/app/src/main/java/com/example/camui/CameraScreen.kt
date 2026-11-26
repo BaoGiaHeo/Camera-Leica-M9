@@ -8046,10 +8046,9 @@ private fun FilmRollIcon(preset: String, selected: Boolean, modifier: Modifier =
     }
 }
 
-@Composable
-private fun FilmLookColorBar(preset: String, modifier: Modifier = Modifier) {
+private fun filterPaletteColors(preset: String): List<Color> {
     val category = builtInCameraLutId(preset)?.let(::builtInCameraLutDefinition)?.categoryId
-    val colors = when {
+    return when {
         preset == "None" -> listOf(Color(0xFF777777), Color(0xFFBBBBBB), Color(0xFF777777))
         category == "bw" -> listOf(Color(0xFF111111), Color(0xFF777777), Color(0xFFEEEEEE), Color(0xFF242424))
         category == "fujifilm" -> listOf(Color(0xFF3D5B62), Color(0xFF96A58E), Color(0xFFD6B58A), Color(0xFF8B5F52))
@@ -8062,12 +8061,19 @@ private fun FilmLookColorBar(preset: String, modifier: Modifier = Modifier) {
         category == "cinema_log" -> listOf(Color(0xFF254C4F), Color(0xFFB1885A), Color(0xFF4E5153))
         else -> listOf(Color(0xFF4D6C78), Color(0xFF98A18F), Color(0xFFD1A477))
     }
-    Box(modifier.height(6.dp).clip(RoundedCornerShape(3.dp))
-        .background(Brush.horizontalGradient(colors)))
+}
+
+@Composable
+private fun FilmLookColorBar(preset: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier.height(6.dp).clip(RoundedCornerShape(3.dp))
+            .background(Brush.horizontalGradient(filterPaletteColors(preset)))
+    )
 }
 
 @Composable
 private fun FilmLookTonePad(
+    preset: String,
     point: Offset,
     modifier: Modifier = Modifier,
     onChange: (Offset) -> Unit
@@ -8076,11 +8082,7 @@ private fun FilmLookTonePad(
     Box(
         modifier.size(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp, Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(Color(0xFFB9C8C9), Color(0xFF6B8B91), Color(0xFF27383E), Color(0xFF101618))
-                )
-            )
+            .background(Brush.linearGradient(filterPaletteColors(preset)))
             .border(2.dp, Color(0xFFD6DADC), RoundedCornerShape(20.dp))
             .pointerInput(Unit) {
                 var lastTapTime = 0L
@@ -8654,7 +8656,7 @@ private fun FilterLookDialog(
                             Modifier.width(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            FilmLookTonePad(palettePoint) { updatePalette(it) }
+                            FilmLookTonePad(activeFilter, palettePoint) { updatePalette(it) }
                             Text(
                                 stringResource(R.string.filter_intensity_value, (customIntensity * 100f).roundToInt()),
                                 color = Color.White,

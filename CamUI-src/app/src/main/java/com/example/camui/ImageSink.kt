@@ -148,7 +148,7 @@ internal object ImageSink {
         val marker = if (frame.watermarkPrinted) WATERMARK_COMMENT else SKIPPED_COMMENT
         if (frame.intentionalSkip && frame.bitmap == null) {
             val start = android.os.SystemClock.elapsedRealtime()
-            writeExif(context, frame.uri, frame.sourceExif, frame.width, frame.height, marker)
+            writeExif(context, frame.uri, frame.sourceExif, frame.width, frame.height, marker, null)
             val elapsed = android.os.SystemClock.elapsedRealtime() - start
             onStageDuration?.invoke("Ghi file", elapsed)
             Log.i(TAG, "FINAL_SKIP uri=${frame.uri} marker=$marker reason=watermark-off-and-no-filter")
@@ -178,7 +178,26 @@ internal object ImageSink {
                 true
             } ?: false
             check(written) { "ImageSink could not write final JPEG to MediaStore" }
-            writeExif(context, frame.uri, frame.sourceExif, frame.width, frame.height, marker)
+            // Verify the actual JPEG bytes after replacement and BEFORE writing FM-WM=1.
+            // An EXIF marker can no longer make a missing watermark look successful.
+            val regionVerified = if (frame.watermarkPrinted) {
+                frame.verificationRegion?.let { verifyWatermarkRegion(context, frame.uri, it, frame.verificationBackgroundColor) } == true
+            } else null
+            val verifiedMarker = when {
+                frame.watermarkPrinted && regionVerified == true -> WATERMARK_COMMENT
+                frame.intentionalSkip -> SKIPPED_COMMENT
+                else -> "FM-WM=UNVERIFIED"
+            }
+            writeExif(
+                context,
+                frame.uri,
+                frame.sourceExif,
+                frame.width,
+                frame.height,
+                verifiedMarker,
+                frame.verificationRegion.takeIf { regionVerified == true },
+                frame.verificationBackgroundColor
+            )
             context.contentResolver.update(
                 frame.uri,
                 ContentValues().apply { put(MediaStore.Images.Media.ORIENTATION, 0) },
@@ -188,23 +207,25 @@ internal object ImageSink {
             writeMs = android.os.SystemClock.elapsedRealtime() - writeStarted
             onStageDuration?.invoke("Ghi file", writeMs)
 
-            val regionVerified = if (frame.watermarkPrinted) {
-                frame.verificationRegion?.let { verifyWatermarkRegion(context, frame.uri, it, frame.verificationBackgroundColor) }
-            } else null
-            if (regionVerified == false) {
-                CaptureDiagnostics.recordWarning(
-                    context,
-                    "CẢNH BÁO ĐỎ: watermark bật nhưng vùng watermark sau lưu không có đủ biến thiên điểm ảnh; uri=${frame.uri}"
-                )
-                Log.e(TAG, "RED_WARNING watermark region not verified uri=${frame.uri}")
+            if (frame.watermarkPrinted && regionVerified != true) {
+                val message = "CẢNH BÁO ĐỎ: watermark được yêu cầu nhưng vùng ảnh đã lưu chưa xác minh; marker=$verifiedMarker uri=${frame.uri}"
+                CaptureDiagnostics.recordWarning(context, message)
+                Log.e(TAG, message)
             }
             Log.i(
                 TAG,
-                "FINAL_WRITE uri=${frame.uri} marker=$marker watermark=${frame.watermarkPrinted} " +
+                "FINAL_WRITE uri=${frame.uri} marker=$verifiedMarker watermark=${frame.watermarkPrinted} " +
                     "size=${frame.width}x${frame.height} encode=${encodeMs}ms write=${writeMs}ms " +
                     "regionVerified=$regionVerified"
             )
-            return Result(true, frame.watermarkPrinted && regionVerified != false, marker, regionVerified, encodeMs, writeMs)
+            return Result(
+                written = true,
+                watermarkPrinted = frame.watermarkPrinted && regionVerified == true,
+                marker = verifiedMarker,
+                regionVerified = regionVerified,
+                encodeDurationMs = encodeMs,
+                writeDurationMs = writeMs
+            )
         } catch (failure: Throwable) {
             Log.e(TAG, "Final JPEG sink failed uri=${frame.uri}", failure)
             throw failure
@@ -219,7 +240,9 @@ internal object ImageSink {
         sourceExif: Map<String, String>,
         width: Int,
         height: Int,
-        marker: String
+        marker: String,
+        verificationRegion: Rect?,
+        verificationBackgroundColor: Int = android.graphics.Color.BLACK
     ) {
         val descriptor = context.contentResolver.openFileDescriptor(uri, "rw")
             ?: error("Cannot open final image EXIF descriptor")
@@ -235,6 +258,20 @@ internal object ImageSink {
                 setAttribute(ExifInterface.TAG_IMAGE_WIDTH, width.toString())
                 setAttribute(ExifInterface.TAG_IMAGE_LENGTH, height.toString())
                 setAttribute(ExifInterface.TAG_USER_COMMENT, marker)
+                val originalDescription = sourceExif[ExifInterface.TAG_IMAGE_DESCRIPTION].orEmpty()
+                    .lineSequence()
+                    .filterNot { it.startsWith("FM-WM-RECT=") }
+                    .joinToString("\n")
+                val regionDescription = verificationRegion?.let {
+                    "FM-WM-RECT=${it.left},${it.top},${it.right},${it.bottom};BG=$verificationBackgroundColor"
+                }
+                val description = listOfNotNull(
+                    originalDescription.takeIf { it.isNotBlank() },
+                    regionDescription
+                ).joinToString("\n")
+                if (description.isNotBlank()) {
+                    setAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION, description)
+                }
                 saveAttributes()
             }
         }
@@ -242,6 +279,21 @@ internal object ImageSink {
             ExifInterface(it.fileDescriptor).getAttribute(ExifInterface.TAG_USER_COMMENT)
         }
         check(verification == marker) { "Final EXIF watermark marker mismatch: expected=$marker actual=$verification" }
+    }
+
+    /** Re-reads the persisted watermark rectangle from EXIF and verifies image pixels. */
+    fun verifyStoredWatermark(context: Context, uri: Uri): Boolean {
+        val spec = runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                val description = ExifInterface(descriptor.fileDescriptor)
+                    .getAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION).orEmpty()
+                val match = Regex("FM-WM-RECT=(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+);BG=(-?\\d+)")
+                    .find(description) ?: return@use null
+                val values = match.groupValues.drop(1).map { it.toInt() }
+                Rect(values[0], values[1], values[2], values[3]) to values[4]
+            }
+        }.getOrNull() ?: return false
+        return verifyWatermarkRegion(context, uri, spec.first, spec.second) == true
     }
 
     private fun verifyWatermarkRegion(

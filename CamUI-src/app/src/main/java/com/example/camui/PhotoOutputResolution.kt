@@ -105,10 +105,15 @@ object PhotoOutputResolution {
         var source: Bitmap? = null
         var output: Bitmap? = null
         var replacing = false
+        val stageWatchdog = if (adaptiveMinimumPixels != null) {
+            LunaDreamStageWatchdog(context, "LunaDream 3.0 upscale")
+        } else null
         return try {
+            stageWatchdog?.beginStage("đọc EXIF và giải mã ảnh nguồn", Tuning.LUNA_DREAM_30_DECODE_BUDGET_MS)
             val tags = readExif(context, uri)
             source = decodeExifOrientedBitmap(context, uri)
                 ?: error("Cannot decode original JPEG")
+            stageWatchdog?.checkpoint()
 
             val src = source!!
             val sourceWidth = src.width
@@ -172,10 +177,13 @@ object PhotoOutputResolution {
                 sourceRect.left == 0 && sourceRect.top == 0 &&
                 sourceRect.width() == sourceWidth && sourceRect.height() == sourceHeight
             ) {
+                stageWatchdog?.beginStage("xác minh JPEG đầu ra", Tuning.LUNA_DREAM_30_VERIFY_BUDGET_MS)
                 verifyStoredOutput(context, uri, width, height)
+                stageWatchdog?.finish()
                 return PhotoOutputResult(width, height, targetPixels, outputPixels)
             }
 
+            stageWatchdog?.beginStage("upscale và dựng ảnh đầu ra", Tuning.LUNA_DREAM_30_DETAIL_BUDGET_MS)
             output = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
             Canvas(output!!).drawBitmap(
                 src,
@@ -188,6 +196,8 @@ object PhotoOutputResolution {
             // Release the source before JPEG compression; the resized output is now complete.
             if (!src.isRecycled) src.recycle()
             source = null
+            stageWatchdog?.checkpoint()
+            stageWatchdog?.beginStage("mã hóa JPEG", Tuning.LUNA_DREAM_30_ENCODE_BUDGET_MS)
 // JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
             FileOutputStream(temp).use { stream ->
 // JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
@@ -199,6 +209,8 @@ object PhotoOutputResolution {
             }
             check(temp.length() > 0L)
             writeExif(temp, tags)
+            stageWatchdog?.checkpoint()
+            stageWatchdog?.beginStage("ghi JPEG và tạo bản khôi phục", Tuning.LUNA_DREAM_30_PUBLISH_BUDGET_MS)
 
             context.contentResolver.openInputStream(uri)?.use { input ->
 // JPEG_INTERMEDIATE_ALLOWLIST: resolution-conversion staging/backup/rollback JPEG; final capture is written by ImageSink.
@@ -215,6 +227,7 @@ object PhotoOutputResolution {
                 true
             } ?: false
             check(copied) { "MediaStore replacement failed" }
+            stageWatchdog?.checkpoint()
 
             context.contentResolver.openFileDescriptor(uri, "rw")?.use { fd ->
                 ExifInterface(fd.fileDescriptor).apply {
@@ -242,6 +255,7 @@ object PhotoOutputResolution {
                 )
             }
 
+            stageWatchdog?.beginStage("xác minh JPEG đã ghi", Tuning.LUNA_DREAM_30_VERIFY_BUDGET_MS)
             verifyStoredOutput(context, uri, width, height)
             val actualAspect = width.toDouble() / height.toDouble()
             Log.i(
@@ -256,6 +270,7 @@ object PhotoOutputResolution {
                 "Output verification fell below the requested megapixel target"
             }
             Log.i(TAG, "Exact requested output accepted: requested=${targetPixels} actual=${outputPixels}")
+            stageWatchdog?.finish()
             PhotoOutputResult(width, height, targetPixels, outputPixels)
         } catch (failure: Throwable) {
             if (replacing && backup.exists()) {

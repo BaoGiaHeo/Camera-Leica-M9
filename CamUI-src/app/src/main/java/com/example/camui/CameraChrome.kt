@@ -62,7 +62,7 @@ internal fun FujiCameraKey(
             .shadow(Tuning.CAMERA_BUTTON_SHADOW_DP.dp * safeScale, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
             .clip(RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
             .background(Brush.verticalGradient(listOf(Color(0xFF2A2C2E), Color(0xFF1A1B1D))))
-            .border(1.dp, if (selected) FujiCameraDesign.orange else FujiCameraDesign.stroke, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale)))
+            .border(1.dp, if (selected) FujiCameraDesign.orange else FujiCameraDesign.stroke, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
             .clickable(interactionSource = interaction, indication = null) { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK); onClick() }
             .padding(horizontal = 6.dp * safeScale, vertical = 5.dp * safeScale),
         horizontalAlignment = Alignment.CenterHorizontally,

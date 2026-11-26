@@ -10,7 +10,7 @@ internal enum class WatermarkLayoutType(val id: String) {
         fun fromPreference(value: String?): WatermarkLayoutType = when (value?.lowercase()) {
             "caption", "b", "center_stack", "minimal_overlay" -> CAPTION
             "gallery", "d", "film_strip", "polaroid" -> GALLERY
-            "black", "e", "lcd_osd" -> BLACK
+            "black", "e", "lcd_osd" -> BAR
             // Legacy CARD and glass/data-card presets migrate to DOT LIGHT.
             "card", "c", "data_card", "glass_card", "dot", "dot_light", "dot-light", "f" -> DOT_LIGHT
             "dot_dark", "dot-dark", "viewfinder", "g" -> DOT_DARK

@@ -8422,38 +8422,54 @@ private fun FilterLookDialog(
     }
     val presetGrid: @Composable (Modifier) -> Unit = { listModifier ->
         if (isLandscape) {
-            LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            LazyColumn(listModifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(visiblePresets, key = { it }) { preset ->
                     val selected = activeFilter == preset
-                    val itemName = cameraLookDisplayName(context, preset)
+                    val itemName = if (preset == "None") {
+                        stringResource(R.string.filter_original_title)
+                    } else {
+                        cameraLookDisplayName(context, preset)
+                    }
                     Row(
-                        Modifier.fillMaxWidth().height(Tuning.FILM_ROLL_FILTER_ROW_HEIGHT_DP.dp).clip(RoundedCornerShape(4.dp))
-                            .background(if (selected) Color(0xFF303638) else Color(0xFF15191A))
-                            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
-                            .animaTClickable { onSelectFilter(preset) }.padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Modifier.fillMaxWidth().height(Tuning.FILM_ROLL_FILTER_ROW_HEIGHT_DP.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1C1E20))
+                            .border(
+                                if (selected) 1.5.dp else 1.dp,
+                                if (selected) FujiSkin.orange else Color(0xFF3C4649),
+                                RoundedCornerShape(14.dp)
+                            )
+                            .animaTClickable { onSelectFilter(preset) }
+                            .padding(horizontal = 7.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(Modifier.width(62.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp))
-                            .background(Color(0xFF070909))
-                            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
-                            Row(Modifier.fillMaxSize().padding(horizontal = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.width(5.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                                    repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) }
-                                }
-                                Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 3.dp)) {
-                                    FilterLookPreviewImage(source = previewSource, preset = preset, modifier = Modifier.fillMaxSize(), maxDimension = 192)
-                                }
-                                Column(Modifier.width(5.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                                    repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) }
+                        FilmRollIcon(preset, selected)
+                        Column(
+                            Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    itemName,
+                                    color = if (selected) Color.White else Color(0xFFE2E7E7),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (selected) {
+                                    Text("✓", color = FujiSkin.orange, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
-                            if (selected) Text("✓", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.align(Alignment.TopEnd).background(FujiSkin.orange).padding(horizontal = 3.dp, vertical = 1.dp))
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(itemName, color = if (selected) Color.White else Color(0xFFE2E7E7),
-                                fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(stringResource(R.string.camera_film_35mm), color = FujiSkin.lcdGreen, fontSize = 7.sp, letterSpacing = 0.8.sp)
+                            Text(
+                                if (preset == "None") stringResource(R.string.filter_original_description)
+                                else stringResource(R.string.filter_profile_description),
+                                color = FujiSkin.muted,
+                                fontSize = 9.sp,
+                                maxLines = 1
+                            )
+                            FilmLookColorBar(preset, Modifier.fillMaxWidth(0.62f))
                         }
                     }
                 }

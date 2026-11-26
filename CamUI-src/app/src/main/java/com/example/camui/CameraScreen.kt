@@ -956,7 +956,7 @@ fun CameraScreen(
     LaunchedEffect(Unit) { appPrefs.edit().putBoolean("ultra_hdr_enabled", false).apply() }
     LaunchedEffect(Unit) { appPrefs.edit().remove("camera_stabilization_enabled").remove("icon_rotation_enabled").apply() }
     var renderEngine by remember { mutableStateOf(appPrefs.getString("camera_render_engine", "Performance") ?: "Performance") }
-    var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)?.takeUnless { it == "AUTO" }) }
+    var proSel by remember { mutableStateOf(appPrefs.getString("pro_selected_control", null)?.takeUnless { it == "AUTO" || it == "AF" }) }
     var proAfMode by remember {
         mutableStateOf(
             appPrefs.getString("pro_af_mode", "AF-S")?.takeIf { it in setOf("AF-S", "AF-C", "MF") } ?: "AF-S"
@@ -6253,12 +6253,6 @@ fun CameraScreen(
                                     gridColor = gridOverlayColor,
                                     gridOpacity = gridOverlayOpacity,
                                     showGrid = false,
-                                    /*showGrid = when (lcdDisplayMode) {
-                                        CameraLcdDisplayMode.FULL_INFO,
-                                        CameraLcdDisplayMode.LEVEL_GRID -> true
-                                        CameraLcdDisplayMode.CLEAN -> false
-                                        CameraLcdDisplayMode.STANDARD -> showGrid
-                                    },*/
                                     faceCenter = faceTrackCenter.takeIf {
                                         faceTrackingEnabled &&
                                             !manualAfReticleOverrideActive &&
@@ -6294,18 +6288,20 @@ fun CameraScreen(
                                         CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()
                                         else -> emptyList()
                                     },
-                                    showLevel = levelVisible && when (lcdDisplayMode) {
+                                    showLevel = false,
+                                    /*showLevel = levelVisible && when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
                                         CameraLcdDisplayMode.LEVEL_GRID -> true
                                         CameraLcdDisplayMode.STANDARD -> levelEnabled
                                         CameraLcdDisplayMode.CLEAN -> false
-                                    },
+                                    },*/
                                     horizonRollDegrees = horizonRollDegrees,
-                                    showZebra = when (lcdDisplayMode) {
+                                    showZebra = false,
+                                    /*showZebra = when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO -> true
                                         CameraLcdDisplayMode.STANDARD -> zebraEnabled
                                         else -> false
-                                    },
+                                    },*/
                                     zebraPoints = zebraPoints,
                                     showStatus = false,
                                     resolutionText = when (lunaDreamMode) {
@@ -6494,7 +6490,7 @@ fun CameraScreen(
                                         else -> "FHD"
                                     },
                                     fps = measuredPreviewFps,
-                                    targetFps = previewFpsTarget.toFloat(),
+                                    targetFps = previewFpsTarget,
                                     zoom = zoomDisplayValue,
                                     minimumZoom = photoMin,
                                     maximumZoom = photoMax,

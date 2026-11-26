@@ -8655,7 +8655,6 @@ private fun FilterLookDialog(
                     Row(
                         Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
                             .background(Color(0xFF202526))
-                            .clickable { showTonePad = !showTonePad }
                             .padding(start = 9.dp, end = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -8683,7 +8682,7 @@ private fun FilterLookDialog(
                             }
                         }
                         Text(
-                            if (showTonePad) "−" else "+",
+                            "●",
                             color = FujiSkin.lcdGreen,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
@@ -8691,58 +8690,17 @@ private fun FilterLookDialog(
                         )
                     }
                     if (showTonePad) {
-                        Column(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
-                                .background(Color(0xFF25292A)).padding(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(
-                                Modifier.fillMaxWidth()
-                                    .height(Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp)
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
-                                    .onSizeChanged {
-                                        paletteWidth = it.width.toFloat().coerceAtLeast(1f)
-                                        paletteHeight = it.height.toFloat().coerceAtLeast(1f)
-                                    }
-                                    .pointerInput(paletteWidth, paletteHeight) {
-                                        detectTapGestures { position ->
-                                            updatePalette(Offset(position.x / paletteWidth, position.y / paletteHeight))
-                                        }
-                                    }
-                                    .pointerInput(paletteWidth, paletteHeight) {
-                                        detectDragGestures(
-                                            onDragStart = { position ->
-                                                updatePalette(Offset(position.x / paletteWidth, position.y / paletteHeight))
-                                            },
-                                            onDrag = { change, _ ->
-                                                updatePalette(Offset(change.position.x / paletteWidth, change.position.y / paletteHeight))
-                                                change.consume()
-                                            }
-                                        )
-                                    }
-                            ) {
-                                Canvas(Modifier.fillMaxSize()) {
-                                    drawRect(Brush.horizontalGradient(listOf(Color.White, Color(0xFFB8B8B8), Color(0xFF333638))))
-                                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                                    val center = Offset(size.width * palettePoint.x, size.height * palettePoint.y)
-                                    drawCircle(Color.White, 6.dp.toPx(), center)
-                                    drawCircle(Color.Black, 8.dp.toPx(), center, style = Stroke(1.dp.toPx()))
-                                }
+                        FilmTonePad(
+                            activeFilter = activeFilter,
+                            point = palettePoint,
+                            intensity = filterIntensity,
+                            valueLabel = "Sáng ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_tone", 0f))} · Đậm ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_temperature", 0f))}",
+                            onPointChange = { updatePalette(it) },
+                            onIntensityChange = {
+                                filterIntensity = it
+                                persistRecipeValue("film_filter_intensity", it)
                             }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(stringResource(R.string.filter_tone_bright), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text(stringResource(R.string.filter_tone_faded), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text(stringResource(R.string.filter_tone_deep), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text(stringResource(R.string.filter_tone_dark), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                            }
-                            Text(
-                                "NHIỆT ${(recipePrefs.getFloat("film_custom_temperature", 0f) * 100).roundToInt()} · TONE ${(recipePrefs.getFloat("film_custom_tone", 0f) * 100).roundToInt()}",
-                                color = Color(0xFFD4D7D8),
-                                fontSize = 6.sp,
-                                maxLines = 1
-                            )
-                        }
+                        )
                     }
                     Text(if (showingOriginal) "ORIGINAL" else activeFilterName, color = FujiSkin.lcdGreen, fontSize = 7.sp, maxLines = 1)
                 }
@@ -8940,8 +8898,9 @@ private fun FilmTonePad(
             "Cường độ",
             intensity,
             0f..1f,
-            "${(intensity * 100f).roundToInt()}%"
-        )(onIntensityChange)
+            "${(intensity * 100f).roundToInt()}%",
+            onIntensityChange
+        )
     }
 }
 

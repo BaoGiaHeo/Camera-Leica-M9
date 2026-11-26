@@ -100,9 +100,11 @@ class MainActivity : AppCompatActivity() {
     private fun mostRecentPhotoUri(): Uri? {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(MediaStore.Images.Media._ID)
+        val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Images.Media.MIME_TYPE} = ?"
+        val selectionArgs = arrayOf("Pictures/FujifilmMode/%", "image/jpeg")
         val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
         return runCatching {
-            contentResolver.query(collection, projection, null, null, sortOrder)?.use { cursor ->
+            contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
                 if (!cursor.moveToFirst()) null else {
                     val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
                     ContentUris.withAppendedId(collection, id)

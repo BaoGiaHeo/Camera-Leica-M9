@@ -41,20 +41,6 @@ import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.ln
 
-internal object FujiCameraDesign {
-    val background = Color(0xFF0E0F10)
-    val surface = Color(0xFF1C1E20)
-    val elevated = Color(0xFF2A2C2E)
-    val stroke = Color(0xFF5A5D60)
-    val text = Color(0xFFF2F2F2)
-    val muted = Color(0xFF9A9DA1)
-    val blue = Color(0xFF3B8EE6)
-    val orange = Color(0xFFF0A030)
-    val red = Color(0xFFD8283C)
-    val green = Color(0xFF5ED08A)
-    fun scale(widthDp: Float, heightDp: Float): Float =
-        minOf(widthDp / 924f, heightDp / 427f).coerceIn(0.85f, 1.25f)
-}
 
 @Composable
 internal fun FujiCameraKey(

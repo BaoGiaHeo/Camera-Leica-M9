@@ -11,6 +11,8 @@ PATTERN = re.compile(
     r"openOutputStream\s*\(|"
     r"FileOutputStream\s*\(|"
     r"OutputFileOptions\.Builder\s*\(|"
+    r"jpeg_stdio_dest\s*\(|"
+    r'\bfopen\s*\([^;\n]*,\s*"wb"|'
     r"\b(?:writeJpeg|encodeJpeg)\s*\(",
 )
 ALLOW_MARKER = "JPEG_INTERMEDIATE_ALLOWLIST:"

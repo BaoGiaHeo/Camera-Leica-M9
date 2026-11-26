@@ -51,7 +51,7 @@ internal object Tuning {
     const val CAMERA_HUD_HEIGHT_FRACTION = 0.14f
     const val CAMERA_BUTTON_RADIUS_DP = 12f
     const val CAMERA_BUTTON_SHADOW_DP = 6f
-    const val CAMERA_BUTTON_ICON_DP = 22f
+    const val CAMERA_BUTTON_ICON_DP = 24f
     const val CAMERA_BUTTON_LABEL_SP = 12f
     const val CAMERA_BUTTON_SECONDARY_SP = 10f
     const val JANK_DIAGNOSTICS_ENABLED = true

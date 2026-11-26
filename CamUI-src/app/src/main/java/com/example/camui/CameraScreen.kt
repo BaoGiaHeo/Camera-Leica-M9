@@ -8104,7 +8104,7 @@ private fun FilterLookDialog(
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
     var showAdjustmentControls by remember { mutableStateOf(false) }
-    var showTonePad by remember { mutableStateOf(false) }
+    var showCompactSearch by remember { mutableStateOf(false) }
     var customPreviewRevision by remember { mutableIntStateOf(0) }
     val recipePrefs = remember(context) {
         context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -8118,38 +8118,41 @@ private fun FilterLookDialog(
     var customColorChrome by remember {
         mutableFloatStateOf(recipePrefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f))
     }
-    var customGrain by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f))
+    var customSharpness by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_sharpness", 0f).coerceIn(0f, 1f))
     }
-    var customSaturation by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
+    var customDenoise by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_denoise", 0f).coerceIn(0f, 1f))
     }
-    var customHue by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
-    }
-    var customLightness by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
+    var customIntensity by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_intensity", 1f).coerceIn(0f, 1f))
     }
     var palettePoint by remember {
         mutableStateOf(
             Offset(
-                ((recipePrefs.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f) + 1f) / 2f),
-                (0.5f - recipePrefs.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f) / 2f)
+                ((recipePrefs.getFloat("film_custom_tone_x",
+                    recipePrefs.getFloat("film_custom_temperature", 0f)).coerceIn(-1f, 1f) + 1f) / 2f),
+                (0.5f - recipePrefs.getFloat("film_custom_tone_y",
+                    recipePrefs.getFloat("film_custom_tone", 0f)).coerceIn(-1f, 1f) / 2f)
             )
         )
     }
-    var paletteWidth by remember { mutableFloatStateOf(1f) }
-    var paletteHeight by remember { mutableFloatStateOf(1f) }
     fun updatePalette(point: Offset) {
         val clamped = Offset(point.x.coerceIn(0f, 1f), point.y.coerceIn(0f, 1f))
         palettePoint = clamped
-        val temperature = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
-        val tone = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
-        CrashContextDiagnostics.recordUiEvent("TONE_DRAG x=${clamped.x} y=${clamped.y} temperature=$temperature tone=$tone method=live-preview+still-export")
+        val toneX = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
+        val toneY = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
         recipePrefs.edit()
-            .putFloat("film_custom_temperature", temperature)
-            .putFloat("film_custom_tone", tone)
+            .putFloat("film_custom_tone_x", toneX)
+            .putFloat("film_custom_tone_y", toneY)
+            .putFloat("film_custom_temperature", toneX)
+            .putFloat("film_custom_tone", toneY)
             .apply()
+        CrashContextDiagnostics.recordUiEvent(
+            "TONE_DRAG x=\${"%.3f".format(Locale.US, clamped.x)} y=\${"%.3f".format(Locale.US, clamped.y)} " +
+                "toneX=\${"%.3f".format(Locale.US, toneX)} toneY=\${"%.3f".format(Locale.US, toneY)} " +
+                "pipeline=ColorPipelineParams"
+        )
         customPreviewRevision++
         onRecipeChanged()
     }
@@ -8158,19 +8161,43 @@ private fun FilterLookDialog(
         customPreviewRevision++
         onRecipeChanged()
     }
+    fun resetColorAdjustments() {
+        customHighlights = 0f
+        customShadows = 0f
+        customColorChrome = 0f
+        customSharpness = 0f
+        customDenoise = 0f
+        customIntensity = 1f
+        palettePoint = Offset(0.5f, 0.5f)
+        recipePrefs.edit()
+            .putFloat("film_custom_highlight", 0f)
+            .putFloat("film_custom_shadow", 0f)
+            .putFloat("film_custom_color_chrome", 0f)
+            .putFloat("film_custom_sharpness", 0f)
+            .putFloat("film_custom_denoise", 0f)
+            .putFloat("film_custom_intensity", 1f)
+            .putFloat("film_custom_tone_x", 0f)
+            .putFloat("film_custom_tone_y", 0f)
+            .putFloat("film_custom_temperature", 0f)
+            .putFloat("film_custom_tone", 0f)
+            .apply()
+        customPreviewRevision++
+        onRecipeChanged()
+        CrashContextDiagnostics.recordUiEvent("FILTER_COLOR_RESET")
+    }
     val adjustmentControls: @Composable (Modifier) -> Unit = { adjustmentModifier ->
         Column(
-            adjustmentModifier.fillMaxWidth().background(Color(0xFF25292A))
-                .padding(horizontal = 6.dp, vertical = 4.dp),
+            adjustmentModifier.fillMaxWidth().background(Color(0xFF202526))
+                .padding(horizontal = 5.dp, vertical = 3.dp),
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
-            Text(
-                stringResource(R.string.filter_adjustments_title),
-                color = Color.White,
-                fontSize = 7.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
+                    fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.filter_color_reset), color = FujiSkin.orange,
+                    fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { resetColorAdjustments() }.padding(horizontal = 4.dp, vertical = 3.dp))
+            }
             CompactFilterAdjustmentSlider(
                 stringResource(R.string.filter_adjust_highlights),
                 customHighlights, -1f..1f, "%+.2f".format(Locale.US, customHighlights)
@@ -8184,21 +8211,13 @@ private fun FilterLookDialog(
                 customColorChrome, 0f..1f, "%.2f".format(Locale.US, customColorChrome)
             ) { customColorChrome = it; persistRecipeValue("film_custom_color_chrome", it) }
             CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_grain),
-                customGrain, 0f..1f, "%.2f".format(Locale.US, customGrain)
-            ) { customGrain = it; persistRecipeValue("film_custom_grain", it) }
+                stringResource(R.string.filter_adjust_sharpness),
+                customSharpness, 0f..1f, "%.2f".format(Locale.US, customSharpness)
+            ) { customSharpness = it; persistRecipeValue("film_custom_sharpness", it) }
             CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_saturation),
-                customSaturation, 0.5f..1.5f, "%.2f".format(Locale.US, customSaturation)
-            ) { customSaturation = it; persistRecipeValue("film_custom_saturation", it) }
-            CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_hue),
-                customHue, -0.5f..0.5f, "%+.2f".format(Locale.US, customHue)
-            ) { customHue = it; persistRecipeValue("film_custom_hue", it) }
-            CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_lightness),
-                customLightness, -0.5f..0.5f, "%+.2f".format(Locale.US, customLightness)
-            ) { customLightness = it; persistRecipeValue("film_custom_lightness", it) }
+                stringResource(R.string.filter_adjust_denoise),
+                customDenoise, 0f..1f, "%.2f".format(Locale.US, customDenoise)
+            ) { customDenoise = it; persistRecipeValue("film_custom_denoise", it) }
         }
     }
 

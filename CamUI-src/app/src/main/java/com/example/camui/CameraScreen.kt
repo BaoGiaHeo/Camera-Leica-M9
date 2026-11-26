@@ -98,6 +98,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -168,6 +170,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -181,6 +184,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -8075,24 +8079,62 @@ private fun FilmLookTonePad(
                 )
             )
             .border(2.dp, Color(0xFFD6DADC), RoundedCornerShape(20.dp))
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = { onChange(Offset(0.5f, 0.5f)) },
-                    onTap = { position ->
-                        onChange(Offset(position.x / size.width, position.y / size.height))
+            .pointerInput(onChange) {
+                var lastTapTime = 0L
+                var lastTapPosition = Offset.Zero
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    var lastPosition = down.position
+                    var moved = false
+                    var released = false
+                    val dragThreshold = viewConfiguration.touchSlop
+                    while (!released) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: continue
+                        if (change.pressed) {
+                            val dx = change.position.x - down.position.x
+                            val dy = change.position.y - down.position.y
+                            if (!moved && (dx * dx + dy * dy) > dragThreshold * dragThreshold) moved = true
+                            if (moved) {
+                                onChange(Offset(
+                                    change.position.x / size.width.coerceAtLeast(1),
+                                    change.position.y / size.height.coerceAtLeast(1)
+                                ))
+                            }
+                            lastPosition = change.position
+                            change.consume()
+                        } else {
+                            change.consume()
+                            released = true
+                        }
                     }
-                )
-            }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { position ->
-                        onChange(Offset(position.x / size.width, position.y / size.height))
-                    },
-                    onDrag = { change, _ ->
-                        onChange(Offset(change.position.x / size.width, change.position.y / size.height))
-                        change.consume()
+                    if (moved) {
+                        onChange(Offset(
+                            lastPosition.x / size.width.coerceAtLeast(1),
+                            lastPosition.y / size.height.coerceAtLeast(1)
+                        ))
+                        lastTapTime = 0L
+                    } else {
+                        val elapsed = down.uptimeMillis - lastTapTime
+                        val doubleTapDx = down.position.x - lastTapPosition.x
+                        val doubleTapDy = down.position.y - lastTapPosition.y
+                        if (lastTapTime > 0L &&
+                            elapsed in 1..Tuning.FILM_ROLL_TONE_DOUBLE_TAP_MS &&
+                            (doubleTapDx * doubleTapDx + doubleTapDy * doubleTapDy) < (40.dp.toPx() * 40.dp.toPx())
+                        ) {
+                            onChange(Offset(0.5f, 0.5f))
+                            lastTapTime = 0L
+                        } else {
+                            onChange(Offset(
+                                down.position.x / size.width.coerceAtLeast(1),
+                                down.position.y / size.height.coerceAtLeast(1)
+                            ))
+                            lastTapTime = down.uptimeMillis
+                            lastTapPosition = down.position
+                        }
                     }
-                )
+                }
             }
     ) {
         Canvas(Modifier.fillMaxSize()) {

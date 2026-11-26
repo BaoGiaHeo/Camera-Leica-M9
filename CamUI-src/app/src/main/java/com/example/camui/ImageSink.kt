@@ -18,6 +18,9 @@ import java.util.Locale
  * Final JPEG payload. The constructor is private; production instances are created
  * by WatermarkStage only after a deliberate print or deliberate skip decision.
  */
+private const val WATERMARK_WATERMARK_SAMPLE_COLUMNS = 128
+private const val WATERMARK_WATERMARK_SAMPLE_ROWS = 64
+
 internal class WatermarkedFrame private constructor(
     internal val uri: Uri,
     internal val bitmap: Bitmap?,
@@ -127,9 +130,6 @@ internal object WatermarkStage {
             verificationBaseline = null
         )
     }
-
-    private const val SAMPLE_COLUMNS = 128
-    private const val SAMPLE_ROWS = 64
 
     private fun encodeWatermarkBaseline(bitmap: Bitmap, region: Rect): String {
         val safe = Rect(

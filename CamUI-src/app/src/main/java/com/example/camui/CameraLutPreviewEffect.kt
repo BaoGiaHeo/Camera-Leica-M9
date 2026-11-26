@@ -2,6 +2,8 @@ package com.example.camui
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.BitmapShader
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
@@ -191,16 +193,14 @@ internal object CameraLutPreviewEffect {
     private val viewEffects = WeakHashMap<View, ViewEffectState>()
 
     private fun hasActiveColorRecipe(context: Context): Boolean {
-        val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        return kotlin.math.abs(preferences.getFloat("film_custom_highlight", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_shadow", 0f)) > 0.001f ||
-            preferences.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
-            preferences.getFloat("film_custom_grain", 0f) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_temperature", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_tone", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_hue", 0f)) > 0.001f ||
-            kotlin.math.abs(preferences.getFloat("film_custom_lightness", 0f)) > 0.001f
+        val params = ColorPipelineParams.from(context, "None")
+        return kotlin.math.abs(params.highlights) > 0.001f ||
+            kotlin.math.abs(params.shadows) > 0.001f ||
+            params.colorChrome > 0.001f ||
+            kotlin.math.abs(params.toneX) > 0.001f ||
+            kotlin.math.abs(params.toneY) > 0.001f ||
+            params.sharpness > 0.001f ||
+            params.noiseReduction > 0.001f
     }
 
     private fun identityLut(): CubeLut {
@@ -282,18 +282,65 @@ internal object CameraLutPreviewEffect {
         return prepared
     }
 
-    private fun updateRecipeUniforms(context: Context, shader: RuntimeShader) {
-        val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        shader.setFloatUniform("uMix", 1f)
-        shader.setFloatUniform("uHighlight", preferences.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uShadow", preferences.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uColorChrome", preferences.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f))
-        shader.setFloatUniform("uGrain", preferences.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f))
-        shader.setFloatUniform("uTemperature", preferences.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uTone", preferences.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f))
-        shader.setFloatUniform("uSaturation", preferences.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
-        shader.setFloatUniform("uHueShift", preferences.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
-        shader.setFloatUniform("uLightnessShift", preferences.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
+    private fun updateRecipeUniforms(
+        context: Context,
+        preset: String,
+        view: View,
+        shader: RuntimeShader
+    ) {
+        val params = ColorPipelineParams.from(context, preset)
+        shader.setFloatUniform("uIntensity", params.intensity)
+        shader.setFloatUniform("uToneX", params.toneX)
+        shader.setFloatUniform("uToneY", params.toneY)
+        shader.setFloatUniform("uHighlight", params.highlights)
+        shader.setFloatUniform("uShadow", params.shadows)
+        shader.setFloatUniform("uColorChrome", params.colorChrome)
+        shader.setFloatUniform("uSharpness", params.sharpness)
+        shader.setFloatUniform("uNoiseReduction", params.noiseReduction)
+        shader.setFloatUniform(
+            "uSpatialRadius",
+            params.spatialRadius(view.width.coerceAtLeast(1), view.height.coerceAtLeast(1)).toFloat()
+        )
+        shader.setFloatUniform("uTestRed", 0f)
+    }
+
+    private fun installColorMatrixFallback(
+        context: Context,
+        view: View,
+        preset: String,
+        baseEffect: RenderEffect?
+    ): String {
+        if (Build.VERSION.SDK_INT < 31) {
+            clear(view)
+            return "UNSUPPORTED_API_31_REQUIRED"
+        }
+        val params = ColorPipelineParams.from(context, preset)
+        val saturation = (1f + params.toneX * 0.50f).coerceIn(0.5f, 1.5f)
+        val exposure = Math.pow(2.0, params.toneY.toDouble()).toFloat()
+        val tint = params.highlights * 8f + params.shadows * 8f
+        val matrix = ColorMatrix().apply {
+            setSaturation(saturation)
+            postConcat(
+                ColorMatrix(
+                    floatArrayOf(
+                        exposure, 0f, 0f, 0f, tint,
+                        0f, exposure, 0f, 0f, tint,
+                        0f, 0f, exposure, 0f, tint,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                )
+            )
+        }
+        val colorEffect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(matrix))
+        val composed = baseEffect?.let { base ->
+            RenderEffect.createChainEffect(colorEffect, base)
+        } ?: colorEffect
+        synchronized(viewEffects) {
+            viewEffects[view] = ViewEffectState(baseEffect, composed)
+        }
+        view.setRenderEffect(composed)
+        Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=ColorMatrix_APPROX")
+        return "COLOR_MATRIX_APPROX"
     }
 
     fun install(
@@ -303,19 +350,19 @@ internal object CameraLutPreviewEffect {
         prepared: PreparedEffect?,
         baseEffect: RenderEffect? = null
     ): String {
-        if (Build.VERSION.SDK_INT < 33) {
-            clear(view)
-            return "UNSUPPORTED_API_33_REQUIRED"
-        }
-        if (preset.isBlank() || (preset == "None" && prepared == null)) {
+        if (preset.isBlank() || (preset == "None" && prepared == null && !hasActiveColorRecipe(context))) {
             clear(view)
             return "OFF"
         }
+        if (Build.VERSION.SDK_INT < 33) {
+            return installColorMatrixFallback(context, view, preset, baseEffect)
+        }
         val effect = prepared as? PreparedEffect ?: run {
             clear(view)
+            Log.e(TAG, "PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_PREPARE_FAILED")
             return "LUT_UNAVAILABLE"
         }
-        updateRecipeUniforms(context, effect.shader)
+        updateRecipeUniforms(context, preset, view, effect.shader)
         val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
         val state = synchronized(viewEffects) {
             val existing = viewEffects[view]
@@ -333,21 +380,101 @@ internal object CameraLutPreviewEffect {
         } ?: lutEffect
         state.appliedEffect = composed
         view.setRenderEffect(composed)
-        Log.i(TAG, "LUT_PREVIEW_APPLIED preset=$preset path=PreviewView.RenderEffect")
-        return "AGSL_LUT"
+        Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU path=PreviewView.RenderEffect")
+        return "AGSL_GPU"
     }
 
-    /** Update uniforms on the cached shader during Tone Pad drags without rebuilding its LUT atlas. */
+    /** Uniform-only live update; the cached LUT texture and RenderEffect graph are reused. */
     @Synchronized
     fun updateRecipe(context: Context, view: View, preset: String, baseEffect: RenderEffect? = null) {
-        if (Build.VERSION.SDK_INT < 33) return
-        val prepared = (preparedCache[preset]
-            ?: (if (preset == "None" && hasActiveColorRecipe(context)) prepare(context, preset) else null))
-            ?: return
+        if (Build.VERSION.SDK_INT < 33) {
+            if (Build.VERSION.SDK_INT >= 31) installColorMatrixFallback(context, view, preset, baseEffect)
+            return
+        }
+        val prepared = preparedCache[preset]
+            ?: (if (preset == "None" || preset.startsWith(BUILT_IN_CAMERA_LUT_PREFIX) ||
+                    preset.startsWith(BUILT_IN_CAMERA_LOOK_PREFIX) ||
+                    preset.startsWith(CUSTOM_CAMERA_LUT_PREFIX)) prepare(context, preset) else null)
+        if (prepared == null) {
+            clear(view)
+            if (preset != "None") {
+                Log.e(TAG, "PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_NOT_FOUND")
+            }
+            return
+        }
         if (viewEffects[view]?.appliedEffect == null) {
             install(context, view, preset, prepared, baseEffect)
         } else {
-            updateRecipeUniforms(context, prepared.shader)
+            updateRecipeUniforms(context, preset, view, prepared.shader)
+        }
+    }
+
+    /**
+     * Temporarily injects a strong red tint, samples the real PreviewView bitmap, then
+     * restores the current shader after three seconds. The result is recorded to diagnostics.
+     */
+    fun runPreviewColorTest(
+        context: Context,
+        view: androidx.camera.view.PreviewView,
+        preset: String,
+        baseEffect: RenderEffect?,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        if (Build.VERSION.SDK_INT < 33) {
+            val reason = if (Build.VERSION.SDK_INT >= 31) {
+                "ColorMatrix fallback does not expose the AGSL red-test uniform"
+            } else {
+                "RenderEffect requires Android 12 or newer"
+            }
+            Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED reason=$reason")
+            onResult(false, reason)
+            return
+        }
+        val prepared = prepare(context, preset)
+        if (prepared == null) {
+            val reason = "LUT/shader could not be prepared for $preset"
+            Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED reason=$reason")
+            onResult(false, reason)
+            return
+        }
+        val method = install(context, view, preset, prepared, baseEffect)
+        val shader = prepared.shader
+        val before = runCatching { view.bitmap }.getOrNull()
+        shader.setFloatUniform("uTestRed", 0.92f)
+        view.invalidate()
+        view.postDelayed({
+            val after = runCatching { view.bitmap }.getOrNull()
+            val beforeMean = before?.let(::sampleMeanRed)
+            val afterMean = after?.let(::sampleMeanRed)
+            val delta = if (beforeMean != null && afterMean != null) afterMean - beforeMean else null
+            val passed = delta != null && delta > 0.08f
+            val reason = when {
+                before == null || after == null -> "PreviewView.bitmap unavailable"
+                delta == null -> "Cannot compare preview frames"
+                !passed -> "Red tint was not visible in the captured preview (delta=$delta)"
+                else -> "red-channel delta=$delta method=$method"
+            }
+            if (before != null && !before.isRecycled) before.recycle()
+            if (after != null && !after.isRecycled) after.recycle()
+            if (passed) Log.i(TAG, "PREVIEW_COLOR_TEST_PASS $reason")
+            else Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED $reason")
+            onResult(passed, reason)
+        }, 650L)
+        view.postDelayed({
+            shader.setFloatUniform("uTestRed", 0f)
+            view.invalidate()
+            Log.i(TAG, "PREVIEW_COLOR_TEST_RESTORED id=$preset")
+        }, 3_000L)
+    }
+
+    private fun sampleMeanRed(bitmap: Bitmap): Float {
+        val pixels = IntArray(16 * 16)
+        val sample = Bitmap.createScaledBitmap(bitmap, 16, 16, true)
+        return try {
+            sample.getPixels(pixels, 0, 16, 0, 0, 16, 16)
+            pixels.sumOf { android.graphics.Color.red(it).toLong() }.toFloat() / (pixels.size * 255f)
+        } finally {
+            if (!sample.isRecycled) sample.recycle()
         }
     }
 

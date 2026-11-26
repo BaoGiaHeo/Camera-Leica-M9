@@ -51,11 +51,16 @@ jobs:
         run: |
           gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
+      - name: Calculate APK SHA-256
+        run: |
+          sha256sum CamUI-src/app/build/outputs/apk/debug/app-debug.apk | tee CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt
 
       - name: Upload app-debug.apk
         uses: actions/upload-artifact@v4
         with:
           name: FujiFilm-Mode-2.9.1-G2-Debug
-          path: CamUI-src/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            CamUI-src/app/build/outputs/apk/debug/app-debug.apk
+            CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14

@@ -2551,7 +2551,7 @@ private fun generatedLookStyle(definition: BuiltInCameraLutDefinition): Generate
 
 private val generatedBuiltInLookCache = LinkedHashMap<String, CubeLut>()
 
-private fun generateBuiltInCameraLookLut(definition: BuiltInCameraLutDefinition): CubeLut {
+internal fun generateBuiltInCameraLookLut(definition: BuiltInCameraLutDefinition): CubeLut {
     synchronized(generatedBuiltInLookCache) {
         generatedBuiltInLookCache[definition.id]?.let { return it }
     }

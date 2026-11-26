@@ -2671,179 +2671,103 @@ private fun hslToRgb(hue: Float, saturation: Float, lightness: Float, out: Float
     out[2] = (blue + match).coerceIn(0f, 1f)
 }
 
-
-/** Applies LUT → manual tone → color controls to one source RGB sample. */
-private fun applyColorPipelinePixel(
-    red: Float,
-    green: Float,
-    blue: Float,
-    cube: CubeLut?,
-    params: ColorPipelineParams,
-    lutSample: FloatArray,
-    output: FloatArray
-) {
-    if (cube != null) {
-        cube.sampleInto(red, green, blue, lutSample)
-    } else {
-        lutSample[0] = red
-        lutSample[1] = green
-        lutSample[2] = blue
-    }
-
-    val intensity = params.intensity
-    var r = red + (lutSample[0] - red) * intensity
-    var g = green + (lutSample[1] - green) * intensity
-    var b = blue + (lutSample[2] - blue) * intensity
-
-    // Tone Pad vertical axis: ±1 EV with a soft roll-off in high luminance regions.
-    val lumaBeforeExposure = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
-    val highlightRollOff = ((lumaBeforeExposure - 0.55f) / 0.45f).coerceIn(0f, 1f)
-    val exposure = Math.pow(2.0, params.toneY.toDouble()).toFloat()
-    val appliedExposure = 1f + (exposure - 1f) * (1f - 0.75f * highlightRollOff)
-    r *= appliedExposure
-    g *= appliedExposure
-    b *= appliedExposure
-
-    // Tone Pad horizontal axis: faded ↔ rich (saturation plus contrast).
-    val toneLuma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
-    val toneSaturation = 1f + params.toneX * 0.50f
-    val toneContrast = 1f + params.toneX * 0.18f
-    r = (toneLuma + (r - toneLuma) * toneSaturation - 0.5f) * toneContrast + 0.5f
-    g = (toneLuma + (g - toneLuma) * toneSaturation - 0.5f) * toneContrast + 0.5f
-    b = (toneLuma + (b - toneLuma) * toneSaturation - 0.5f) * toneContrast + 0.5f
-
-    // Dedicated highlight and shadow controls.
-    val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
-    val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
-    val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
-    val tonalShift = params.highlights * highlightWeight * 0.12f +
-        params.shadows * shadowWeight * 0.12f
-    r += tonalShift
-    g += tonalShift
-    b += tonalShift
-
-    val chromeLuma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
-    val chroma = maxOf(
-        kotlin.math.abs(r - chromeLuma),
-        kotlin.math.abs(g - chromeLuma),
-        kotlin.math.abs(b - chromeLuma)
-    )
-    val chromeFactor = 1f + params.colorChrome * (0.05f + chroma * 0.18f)
-    r = chromeLuma + (r - chromeLuma) * chromeFactor
-    g = chromeLuma + (g - chromeLuma) * chromeFactor
-    b = chromeLuma + (b - chromeLuma) * chromeFactor
-
-    output[0] = r.coerceIn(0f, 1f)
-    output[1] = g.coerceIn(0f, 1f)
-    output[2] = b.coerceIn(0f, 1f)
-}
-
 private fun applyCameraLookPixels(
     context: Context,
     bitmap: Bitmap,
     preset: String,
     cube: CubeLut?
 ): Boolean {
-    if (
-        (customCameraLutId(preset) != null ||
-            builtInCameraLutId(preset) != null ||
-            builtInCameraLookId(preset) != null) && cube == null
-    ) return false
-
-    val params = ColorPipelineParams.from(context, preset)
-    val width = bitmap.width
-    val height = bitmap.height
-    val radius = params.spatialRadius(width, height)
-    val ring = Array(radius * 2 + 1) { IntArray(width) }
-    val outputRow = IntArray(width)
-    val lutSample = FloatArray(3)
-    val center = FloatArray(3)
-    val north = FloatArray(3)
-    val south = FloatArray(3)
-    val west = FloatArray(3)
-    val east = FloatArray(3)
-
-    for (slot in ring.indices) {
-        val sourceY = (slot - radius).coerceIn(0, height - 1)
-        bitmap.getPixels(ring[slot], 0, width, 0, sourceY, width, 1)
-    }
-
-    for (y in 0 until height) {
-        val above = ring[0]
-        val current = ring[radius]
-        val below = ring[ring.lastIndex]
-        for (x in 0 until width) {
-            val westX = (x - radius).coerceAtLeast(0)
-            val eastX = (x + radius).coerceAtMost(width - 1)
-            val centerPixel = current[x]
-            val northPixel = above[x]
-            val southPixel = below[x]
-            val westPixel = current[westX]
-            val eastPixel = current[eastX]
-
-            applyColorPipelinePixel(
-                AndroidColor.red(centerPixel) / 255f,
-                AndroidColor.green(centerPixel) / 255f,
-                AndroidColor.blue(centerPixel) / 255f,
-                cube, params, lutSample, center
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(northPixel) / 255f,
-                AndroidColor.green(northPixel) / 255f,
-                AndroidColor.blue(northPixel) / 255f,
-                cube, params, lutSample, north
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(southPixel) / 255f,
-                AndroidColor.green(southPixel) / 255f,
-                AndroidColor.blue(southPixel) / 255f,
-                cube, params, lutSample, south
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(westPixel) / 255f,
-                AndroidColor.green(westPixel) / 255f,
-                AndroidColor.blue(westPixel) / 255f,
-                cube, params, lutSample, west
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(eastPixel) / 255f,
-                AndroidColor.green(eastPixel) / 255f,
-                AndroidColor.blue(eastPixel) / 255f,
-                cube, params, lutSample, east
-            )
-
-            for (channel in 0..2) {
-                val average = (
-                    center[channel] * 4f + north[channel] + south[channel] +
-                        west[channel] + east[channel]
-                    ) * 0.125f
-                val denoised = center[channel] +
-                    (average - center[channel]) * params.noiseReduction
-                val sharpened = denoised +
-                    (center[channel] - average) * params.sharpness * 0.85f
-                when (channel) {
-                    0 -> outputRow[x] = AndroidColor.argb(
-                        AndroidColor.alpha(centerPixel),
-                        clamp8(sharpened.coerceIn(0f, 1f) * 255f),
-                        0,
-                        0
-                    )
-                    1 -> outputRow[x] = (outputRow[x] and 0xFFFF00FF.toInt()) or
-                        (clamp8(sharpened.coerceIn(0f, 1f) * 255f) shl 8)
-                    2 -> outputRow[x] = (outputRow[x] and 0xFFFFFF00.toInt()) or
-                        clamp8(sharpened.coerceIn(0f, 1f) * 255f)
-                }
+    if ((customCameraLutId(preset) != null || builtInCameraLutId(preset) != null) && cube == null) return false
+    val recipe = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+    val highlight = recipe.getFloat("film_custom_highlight", 0f).coerceIn(-1f, 1f)
+    val shadow = recipe.getFloat("film_custom_shadow", 0f).coerceIn(-1f, 1f)
+    val colorChrome = recipe.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f)
+    val grain = recipe.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f)
+    val temperature = recipe.getFloat("film_custom_temperature", 0f).coerceIn(-1f, 1f)
+    val tone = recipe.getFloat("film_custom_tone", 0f).coerceIn(-1f, 1f)
+    val saturation = recipe.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f)
+    val hueShift = recipe.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f)
+    val lightnessShift = recipe.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f)
+    val row = IntArray(bitmap.width)
+    val lutOutput = FloatArray(3)
+    val hsl = FloatArray(3)
+    val hslRgb = FloatArray(3)
+    for (y in 0 until bitmap.height) {
+        bitmap.getPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
+        for (x in row.indices) {
+            val pixel = row[x]
+            val alpha = AndroidColor.alpha(pixel)
+            val red = AndroidColor.red(pixel).toFloat()
+            val green = AndroidColor.green(pixel).toFloat()
+            val blue = AndroidColor.blue(pixel).toFloat()
+            if (cube != null) {
+                cube.sampleInto(red / 255f, green / 255f, blue / 255f, lutOutput)
+            } else {
+                lutOutput[0] = red / 255f
+                lutOutput[1] = green / 255f
+                lutOutput[2] = blue / 255f
             }
-        }
-        bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
 
-        if (y < height - 1) {
-            val recycled = ring[0]
-            for (slot in 0 until ring.lastIndex) ring[slot] = ring[slot + 1]
-            ring[ring.lastIndex] = recycled
-            val nextSourceY = (y + radius + 1).coerceAtMost(height - 1)
-            bitmap.getPixels(ring[ring.lastIndex], 0, width, 0, nextSourceY, width, 1)
+            var r = lutOutput[0]
+            var g = lutOutput[1]
+            var b = lutOutput[2]
+            val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).coerceIn(0f, 1f)
+            val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
+            val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
+            val tonalShift = highlight * highlightWeight * 0.12f +
+                shadow * shadowWeight * 0.12f
+            r += tonalShift
+            g += tonalShift
+            b += tonalShift
+
+            val chromeChroma = maxOf(abs(r - luma), abs(g - luma), abs(b - luma))
+            val chromeFactor = 1f + colorChrome * (0.05f + chromeChroma * 0.18f)
+            val saturationFactor = saturation * chromeFactor
+            r = luma + (r - luma) * saturationFactor
+            g = luma + (g - luma) * saturationFactor
+            b = luma + (b - luma) * saturationFactor
+
+            r += temperature * 0.045f
+            g += temperature * 0.006f
+            b -= temperature * 0.045f
+            // Color Tone shifts green/magenta independently from global color temperature.
+            r += tone * 0.018f
+            g -= tone * 0.035f
+            b += tone * 0.018f
+
+            if (kotlin.math.abs(hueShift) > 0.0001f ||
+                kotlin.math.abs(lightnessShift) > 0.0001f
+            ) {
+                rgbToHsl(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f), hsl)
+                hslToRgb(
+                    hsl[0] + hueShift,
+                    hsl[1],
+                    (hsl[2] + lightnessShift).coerceIn(0f, 1f),
+                    hslRgb
+                )
+                r = hslRgb[0]
+                g = hslRgb[1]
+                b = hslRgb[2]
+            }
+
+            if (grain > 0.001f) {
+                // Deterministic per-pixel grain keeps a given image stable across preview/export passes.
+                val seed = (x.toLong() * 73_856_093L) xor
+                    (y.toLong() * 19_349_663L) xor preset.hashCode().toLong()
+                val noise = ((((seed ushr 13) and 0xFFFFL).toFloat() / 32_767.5f) - 1f) *
+                    grain * 0.035f
+                r += noise
+                g += noise
+                b += noise
+            }
+            row[x] = AndroidColor.argb(
+                alpha,
+                clamp8(r.coerceIn(0f, 1f) * 255f),
+                clamp8(g.coerceIn(0f, 1f) * 255f),
+                clamp8(b.coerceIn(0f, 1f) * 255f)
+            )
         }
+        bitmap.setPixels(row, 0, bitmap.width, 0, y, bitmap.width, 1)
     }
     return true
 }

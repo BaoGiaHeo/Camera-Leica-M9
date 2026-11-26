@@ -30,16 +30,16 @@ internal object CameraLutPreviewEffect {
         uniform shader lutAtlas;
         uniform float uLutSize;
         uniform float uTileColumns;
-        uniform float uMix;
+        uniform float uIntensity;
+        uniform float uToneX;
+        uniform float uToneY;
         uniform float uHighlight;
         uniform float uShadow;
         uniform float uColorChrome;
-        uniform float uGrain;
-        uniform float uTemperature;
-        uniform float uTone;
-        uniform float uSaturation;
-        uniform float uHueShift;
-        uniform float uLightnessShift;
+        uniform float uSharpness;
+        uniform float uNoiseReduction;
+        uniform float uSpatialRadius;
+        uniform float uTestRed;
 
         float3 lutAt(float r, float g, float b) {
             float tileX = mod(b, uTileColumns);
@@ -130,7 +130,22 @@ internal object CameraLutPreviewEffect {
             return clamp(rgb + float3(matchValue), 0.0, 1.0);
         }
 
-        float3 applyColorRecipe(float3 rgb, float2 pixel) {
+        float3 applyColorPipeline(float3 rawRgb) {
+            float3 lutRgb = applyLut(rawRgb);
+            float3 rgb = mix(rawRgb, lutRgb, uIntensity);
+
+            float lumaBeforeExposure = clamp(dot(rgb, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+            float highlightRollOff = clamp((lumaBeforeExposure - 0.55) / 0.45, 0.0, 1.0);
+            float exposure = exp2(uToneY);
+            float appliedExposure = 1.0 + (exposure - 1.0) * (1.0 - 0.75 * highlightRollOff);
+            rgb *= appliedExposure;
+
+            float toneLuma = clamp(dot(rgb, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+            float toneSaturation = 1.0 + uToneX * 0.50;
+            float toneContrast = 1.0 + uToneX * 0.18;
+            rgb = float3(toneLuma) + (rgb - float3(toneLuma)) * toneSaturation;
+            rgb = (rgb - float3(0.5)) * toneContrast + float3(0.5);
+
             float luma = clamp(dot(rgb, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
             float highlightWeight = clamp((luma - 0.55) / 0.45, 0.0, 1.0);
             float shadowWeight = clamp((0.45 - luma) / 0.45, 0.0, 1.0);
@@ -138,39 +153,26 @@ internal object CameraLutPreviewEffect {
                 uShadow * shadowWeight * 0.12;
             rgb += float3(tonalShift);
 
-            float chromeChroma = max(abs(rgb.r - luma), max(abs(rgb.g - luma), abs(rgb.b - luma)));
-            float chromeFactor = 1.0 + uColorChrome * (0.05 + chromeChroma * 0.18);
-            float saturationFactor = uSaturation * chromeFactor;
-            rgb = float3(luma) + (rgb - float3(luma)) * saturationFactor;
-
-            rgb.r += uTemperature * 0.045;
-            rgb.g += uTemperature * 0.006;
-            rgb.b -= uTemperature * 0.045;
-            rgb.r += uTone * 0.018;
-            rgb.g -= uTone * 0.035;
-            rgb.b += uTone * 0.018;
-
-            if (abs(uHueShift) > 0.0001 || abs(uLightnessShift) > 0.0001) {
-                float3 hsl = rgbToHsl(clamp(rgb, 0.0, 1.0));
-                hsl.x += uHueShift;
-                hsl.z = clamp(hsl.z + uLightnessShift, 0.0, 1.0);
-                rgb = hslToRgb(hsl);
-            }
-
-            if (uGrain > 0.001) {
-                float2 p = floor(pixel);
-                float noise = fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
-                noise = (noise * 2.0 - 1.0) * uGrain * 0.035;
-                rgb += float3(noise);
-            }
+            float chromeLuma = clamp(dot(rgb, float3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+            float chroma = max(abs(rgb.r - chromeLuma),
+                max(abs(rgb.g - chromeLuma), abs(rgb.b - chromeLuma)));
+            float chromeFactor = 1.0 + uColorChrome * (0.05 + chroma * 0.18);
+            rgb = float3(chromeLuma) + (rgb - float3(chromeLuma)) * chromeFactor;
             return clamp(rgb, 0.0, 1.0);
         }
 
         half4 main(float2 fragCoord) {
-            half4 original = source.eval(fragCoord);
-            float3 mapped = applyLut(float3(original.rgb));
-            mapped = applyColorRecipe(mix(float3(original.rgb), mapped, uMix), fragCoord);
-            return half4(half3(mapped), original.a);
+            float radius = max(uSpatialRadius, 1.0);
+            float3 center = applyColorPipeline(float3(source.eval(fragCoord).rgb));
+            float3 north = applyColorPipeline(float3(source.eval(fragCoord + float2(0.0, -radius)).rgb));
+            float3 south = applyColorPipeline(float3(source.eval(fragCoord + float2(0.0, radius)).rgb));
+            float3 west = applyColorPipeline(float3(source.eval(fragCoord + float2(-radius, 0.0)).rgb));
+            float3 east = applyColorPipeline(float3(source.eval(fragCoord + float2(radius, 0.0)).rgb));
+            float3 average = (center * 4.0 + north + south + west + east) * 0.125;
+            float3 denoised = mix(center, average, uNoiseReduction);
+            float3 outputRgb = denoised + (center - average) * uSharpness * 0.85;
+            outputRgb = mix(outputRgb, float3(1.0, 0.0, 0.0), uTestRed);
+            return half4(half3(clamp(outputRgb, 0.0, 1.0)), half(1.0));
         }
     """
 

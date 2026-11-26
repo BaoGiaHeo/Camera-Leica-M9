@@ -28,6 +28,7 @@ private const val WATERMARK_SAMPLE_ROWS = 32
 internal class WatermarkedFrame private constructor(
     internal val uri: Uri,
     internal val bitmap: Bitmap?,
+    internal val encodedJpeg: File?,
     internal val sourceExif: Map<String, String>,
     internal val width: Int,
     internal val height: Int,
@@ -41,6 +42,7 @@ internal class WatermarkedFrame private constructor(
         internal fun fromWatermarkStage(
             uri: Uri,
             bitmap: Bitmap?,
+            encodedJpeg: File?,
             sourceExif: Map<String, String>,
             width: Int,
             height: Int,
@@ -52,6 +54,7 @@ internal class WatermarkedFrame private constructor(
         ): WatermarkedFrame = WatermarkedFrame(
             uri = uri,
             bitmap = bitmap,
+            encodedJpeg = encodedJpeg,
             sourceExif = sourceExif,
             width = width,
             height = height,
@@ -83,6 +86,7 @@ internal object WatermarkStage {
         return WatermarkedFrame.fromWatermarkStage(
             uri = uri,
             bitmap = bitmap,
+            encodedJpeg = null,
             sourceExif = sourceExif,
             width = bitmap.width,
             height = bitmap.height,
@@ -91,6 +95,54 @@ internal object WatermarkStage {
             verificationRegion = verificationRegion,
             verificationBackgroundColor = verificationBackgroundColor,
             verificationBaseline = baseline
+        )
+    }
+
+    /**
+     * Creates a final-save payload from a JPEG already encoded by the native tile path.
+     * The output still has to pass through ImageSink; native code only writes a cache file.
+     */
+    fun encodedTileJpeg(
+        uri: Uri,
+        encodedJpeg: File,
+        sourceExif: Map<String, String>,
+        width: Int,
+        height: Int
+    ): WatermarkedFrame {
+        require(encodedJpeg.isFile && encodedJpeg.length() > 0L) {
+            "Native tile JPEG file is missing or empty"
+        }
+        require(width > 0 && height > 0)
+        val exif = ExifInterface(encodedJpeg.absolutePath)
+        val marker = exif.getAttribute(ExifInterface.TAG_USER_COMMENT)
+        val description = exif.getAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION).orEmpty()
+        val match = Regex(
+            "FM-WM-RECT=(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+);BG=(-?\\d+);BASE=([A-Za-z0-9+/=]+)"
+        ).find(description)
+        val printed = marker == "FM-WM=1"
+        val skipped = marker == "FM-WM=0"
+        require(printed || skipped) {
+            "Native tile JPEG must carry a WatermarkStage decision marker; actual=$marker"
+        }
+        if (printed) require(match != null) {
+            "Watermark is marked printed but its pixel-verification sample is missing"
+        }
+        val values = match?.groupValues
+        return WatermarkedFrame.fromWatermarkStage(
+            uri = uri,
+            bitmap = null,
+            encodedJpeg = encodedJpeg,
+            sourceExif = sourceExif,
+            width = width,
+            height = height,
+            watermarkPrinted = printed,
+            intentionalSkip = skipped,
+            verificationRegion = values?.let {
+                Rect(it[1].toInt(), it[2].toInt(), it[3].toInt(), it[4].toInt())
+            },
+            verificationBackgroundColor = values?.get(5)?.toInt()
+                ?: android.graphics.Color.BLACK,
+            verificationBaseline = values?.get(6)
         )
     }
 
@@ -104,6 +156,7 @@ internal object WatermarkStage {
         return WatermarkedFrame.fromWatermarkStage(
             uri = uri,
             bitmap = null,
+            encodedJpeg = null,
             sourceExif = sourceExif,
             width = width,
             height = height,
@@ -124,6 +177,7 @@ internal object WatermarkStage {
         return WatermarkedFrame.fromWatermarkStage(
             uri = uri,
             bitmap = bitmap,
+            encodedJpeg = null,
             sourceExif = sourceExif,
             width = bitmap.width,
             height = bitmap.height,
@@ -216,7 +270,7 @@ internal object ImageSink {
         onStageDuration: ((String, Long) -> Unit)? = null
     ): Result {
         val marker = if (frame.watermarkPrinted) WATERMARK_COMMENT else SKIPPED_COMMENT
-        if (frame.intentionalSkip && frame.bitmap == null) {
+        if (frame.intentionalSkip && frame.bitmap == null && frame.encodedJpeg == null) {
             val start = android.os.SystemClock.elapsedRealtime()
             writeExif(context, frame.uri, frame.sourceExif, frame.width, frame.height, marker, null)
             val elapsed = android.os.SystemClock.elapsedRealtime() - start
@@ -225,26 +279,42 @@ internal object ImageSink {
             return Result(true, false, marker, null, 0L, elapsed)
         }
 
-        val bitmap = frame.bitmap ?: error("WatermarkedFrame has no image payload")
-        check(frame.watermarkPrinted || frame.intentionalSkip) { "Final JPEG must be printed or watermark must be intentionally skipped" }
-        val temp = File.createTempFile("fuji-image-sink-", ".jpg", context.cacheDir)
+        val bitmap = frame.bitmap
+        val encodedJpeg = frame.encodedJpeg
+        check(bitmap != null || encodedJpeg?.isFile == true) {
+            "WatermarkedFrame has neither a bitmap nor a native encoded JPEG"
+        }
+        check(frame.watermarkPrinted || frame.intentionalSkip) {
+            "Final JPEG must be printed or watermark must be intentionally skipped"
+        }
+        val temp = if (bitmap != null) {
+            File.createTempFile("fuji-image-sink-", ".jpg", context.cacheDir)
+        } else null
         var encodeMs = 0L
         var writeMs = 0L
         try {
-            val encodeStarted = android.os.SystemClock.elapsedRealtime()
-            FileOutputStream(temp).use { output ->
-                check(bitmap.compress(Bitmap.CompressFormat.JPEG, 96, output)) {
-                    "ImageSink could not encode final JPEG"
+            if (bitmap != null && temp != null) {
+                val encodeStarted = android.os.SystemClock.elapsedRealtime()
+                FileOutputStream(temp).use { output ->
+                    check(bitmap.compress(Bitmap.CompressFormat.JPEG, 96, output)) {
+                        "ImageSink could not encode final JPEG"
+                    }
+                    output.flush()
+                    output.fd.sync()
                 }
-                output.flush()
-                output.fd.sync()
+                encodeMs = android.os.SystemClock.elapsedRealtime() - encodeStarted
+                onStageDuration?.invoke("Mã hóa", encodeMs)
+            } else {
+                check(encodedJpeg != null && encodedJpeg.length() > 0L) {
+                    "Native encoded JPEG is missing or empty"
+                }
             }
-            encodeMs = android.os.SystemClock.elapsedRealtime() - encodeStarted
-            onStageDuration?.invoke("Mã hóa", encodeMs)
 
+            val finalInput = encodedJpeg ?: temp ?: error("ImageSink has no encoded JPEG source")
             val writeStarted = android.os.SystemClock.elapsedRealtime()
             val written = context.contentResolver.openOutputStream(frame.uri, "wt")?.use { destination ->
-                temp.inputStream().use { it.copyTo(destination) }
+                finalInput.inputStream().use { it.copyTo(destination) }
+                destination.flush()
                 true
             } ?: false
             check(written) { "ImageSink could not write final JPEG to MediaStore" }
@@ -301,7 +371,7 @@ internal object ImageSink {
             Log.e(TAG, "Final JPEG sink failed uri=${frame.uri}", failure)
             throw failure
         } finally {
-            runCatching { temp.delete() }
+            runCatching { temp?.delete() }
         }
     }
 

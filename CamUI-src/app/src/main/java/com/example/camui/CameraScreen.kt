@@ -7948,7 +7948,7 @@ private fun CompactFilterAdjustmentSlider(
     val fraction = ((value - valueRange.start) /
         (valueRange.endInclusive - valueRange.start).coerceAtLeast(0.0001f)).coerceIn(0f, 1f)
     Row(
-        Modifier.fillMaxWidth().height(22.dp),
+        Modifier.fillMaxWidth().height(18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
@@ -7958,10 +7958,10 @@ private fun CompactFilterAdjustmentSlider(
             fontSize = 7.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(45.dp)
+            modifier = Modifier.width(40.dp)
         )
         Box(
-            Modifier.weight(1f).height(14.dp)
+            Modifier.weight(1f).height(12.dp)
                 .pointerInput(valueRange, onValueChange) {
                     detectTapGestures { position ->
                         val next = valueRange.start +
@@ -7982,8 +7982,8 @@ private fun CompactFilterAdjustmentSlider(
         ) {
             Canvas(Modifier.fillMaxSize()) {
                 val centerY = size.height / 2f
-                drawLine(Color(0xFF9CA5A6), Offset(0f, centerY), Offset(size.width, centerY), 1.5.dp.toPx())
-                drawCircle(FujiSkin.orange, radius = 3.dp.toPx(), center = Offset(size.width * fraction, centerY))
+                drawLine(Color(0xFF9CA5A6), Offset(0f, centerY), Offset(size.width, centerY), 1.2.dp.toPx())
+                drawCircle(FujiSkin.orange, radius = 2.5.dp.toPx(), center = Offset(size.width * fraction, centerY))
             }
         }
         Text(
@@ -7992,7 +7992,7 @@ private fun CompactFilterAdjustmentSlider(
             fontSize = 7.sp,
             textAlign = TextAlign.End,
             maxLines = 1,
-            modifier = Modifier.width(25.dp)
+            modifier = Modifier.width(23.dp)
         )
     }
 }

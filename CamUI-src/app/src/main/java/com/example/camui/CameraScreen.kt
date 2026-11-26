@@ -8354,7 +8354,7 @@ private fun FilterLookDialog(
         FujiSearchField(
             value = filterSearch,
             onValueChange = { filterSearch = it },
-            modifier = paneModifier.fillMaxWidth(),
+            modifier = paneModifier.fillMaxWidth().height(28.dp),
             placeholder = stringResource(R.string.filter_search_placeholder)
         )
     }
@@ -8369,7 +8369,7 @@ private fun FilterLookDialog(
                 else stringResource(R.string.filter_lut_import),
                 onClick = { if (!isImportingLut) lutPicker.launch(arrayOf("*/*")) },
                 enabled = !isImportingLut,
-                modifier = Modifier.width(82.dp)
+                modifier = Modifier.width(74.dp).height(28.dp)
             )
         }
     }
@@ -8575,7 +8575,7 @@ private fun FilterLookDialog(
                     )
                     presetGrid(Modifier.weight(1f).fillMaxWidth().heightIn(min = 168.dp))
                     Row(
-                        Modifier.fillMaxWidth().height(106.dp),
+                        Modifier.fillMaxWidth().height(118.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -8676,7 +8676,7 @@ private fun FilterLookDialog(
                     fontSize = 10.sp
                 )
                 presetGrid(Modifier.weight(1f))
-                Row(Modifier.fillMaxWidth().height(114.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().height(120.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Column(
                         Modifier.width(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)

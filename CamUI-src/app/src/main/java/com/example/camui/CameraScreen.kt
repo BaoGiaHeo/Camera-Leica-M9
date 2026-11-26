@@ -5094,9 +5094,18 @@ fun CameraScreen(
                                                 )
                                             }
                                         }.onFailure {
+                                            val reason = it.message?.takeIf { detail -> detail.isNotBlank() }
+                                                ?: it.javaClass.simpleName
+                                            if (captureUseLunaDream30) {
+                                                lunaDreamFailureReason = reason
+                                                CaptureDiagnostics.recordWarning(
+                                                    context,
+                                                    "LunaDream 3.0 dừng ở bước nâng JPEG theo tile: $reason"
+                                                )
+                                            }
                                             android.util.Log.e(
                                                 "FUJI_OUTPUT",
-                                                "Final aspect-ratio/MP output failed; original retained",
+                                                "Final aspect-ratio/MP output failed; original retained: $reason",
                                                 it
                                             )
                                         }.getOrNull()
@@ -5370,6 +5379,10 @@ fun CameraScreen(
                                             "LunaDream không hoàn tất: " + (lunaDreamFailureReason ?: "engine không cung cấp nguyên nhân") + ". Đã lưu JPEG gốc làm ảnh dự phòng."
                                         captureUseRawDream20 && lunaDreamApplied && !outputResolutionApplied ->
                                             "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn."
+                                        captureUseLunaDream30 && lunaDreamApplied && !outputResolutionApplied ->
+                                            "LunaDream 3.0 dừng ở bước nâng JPEG theo tile: " +
+                                                (lunaDreamFailureReason ?: "không đạt nghiệm thu 200MP") +
+                                                ". Đã giữ ảnh ghép hợp lệ."
                                         captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied ->
                                             "LunaDream đã ghép và phục hồi ảnh nhưng không thể đạt kích thước đầu ra an toàn; ảnh đã xử lý được giữ lại."
                                         captureUseNightShot && nightShotMerged && orientationLabelFixed ->

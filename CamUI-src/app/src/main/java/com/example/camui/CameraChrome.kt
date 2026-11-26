@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -156,7 +157,7 @@ internal fun FujiProFocusStrip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Text("Nét", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.camera_focus), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         androidx.compose.material3.Slider(
             value = focusPosition.coerceIn(0f, 1f),
             onValueChange = onFocusPosition,
@@ -172,7 +173,7 @@ internal fun FujiProFocusStrip(
                 .background(if (automatic) FujiCameraDesign.orange else Color(0xFF35393B))
                 .clickable(onClick = onAuto).padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center
-        ) { Text("Tự động", color = if (automatic) Color.Black else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        ) { Text(stringResource(R.string.camera_auto), color = if (automatic) Color.Black else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         Box(
             Modifier.size(32.dp).clip(CircleShape)
                 .background(if (touchEnabled) FujiCameraDesign.orange else Color(0xFF35393B))

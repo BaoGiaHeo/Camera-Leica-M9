@@ -409,9 +409,21 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
                         Text(
                             "${entry.outputWidth}×${entry.outputHeight} · " +
                                 String.format(Locale.US, "%.2f MP", entry.megapixels) +
-                                " · RAM ghi nhận ${entry.peakMemoryBytes / (1024L * 1024L)} MB",
+                                " · RAM đỉnh ${entry.peakMemoryBytes / (1024L * 1024L)} MB",
                             color = Color(0xFFD0D0D0),
                             fontSize = 10.sp
+                        )
+                        Text(
+                            "Bấm→thumbnail: ${entry.captureToThumbnailMs?.let { "${it}ms" } ?: "Chưa đo"} · " +
+                                "Burst: ${entry.burstFramesPerSecond?.let { String.format(Locale.US, "%.2f khung/s", it) } ?: "—"}",
+                            color = Color(0xFFB0B0B0),
+                            fontSize = 9.sp
+                        )
+                        Text(
+                            "AE-L: ${entry.aeLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"} · " +
+                                "AF-L: ${entry.afLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"}",
+                            color = Color(0xFFB0B0B0),
+                            fontSize = 9.sp
                         )
                         Text(
                             entry.stageTimesMs.entries.joinToString(" · ") { (name, millis) ->

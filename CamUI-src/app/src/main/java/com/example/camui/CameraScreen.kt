@@ -7455,7 +7455,8 @@ fun CameraScreen(
                 position = if (evMaximum > evMinimum) ((evIndex - evMinimum).toFloat() / (evMaximum - evMinimum)) else 0.5f,
                 minimum = evMinimum,
                 maximum = evMaximum,
-                heightDp = 24.dp * designScale
+                heightDp = 24.dp * designScale,
+                scale = designScale
             ) { next ->
                 evIndex = next
                 manualExposure = false

@@ -7943,6 +7943,7 @@ private fun CompactFilterAdjustmentSlider(
     valueLabel: String,
     onValueChange: (Float) -> Unit
 ) {
+    val latestOnValueChange by rememberUpdatedState(onValueChange)
     val fraction = ((value - valueRange.start) /
         (valueRange.endInclusive - valueRange.start).coerceAtLeast(0.0001f)).coerceIn(0f, 1f)
     Row(
@@ -7960,12 +7961,12 @@ private fun CompactFilterAdjustmentSlider(
         )
         Box(
             Modifier.weight(1f).height(12.dp)
-                .pointerInput(valueRange, onValueChange) {
+                .pointerInput(valueRange) {
                     detectTapGestures { position ->
                         val next = valueRange.start +
                             (position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) *
                             (valueRange.endInclusive - valueRange.start)
-                        onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+                        latestOnValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
                     }
                 }
                 .pointerInput(valueRange, onValueChange) {
@@ -8068,6 +8069,7 @@ private fun FilmLookTonePad(
     modifier: Modifier = Modifier,
     onChange: (Offset) -> Unit
 ) {
+    val latestOnChange by rememberUpdatedState(onChange)
     Box(
         modifier.size(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp, Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp)
             .clip(RoundedCornerShape(20.dp))
@@ -8077,7 +8079,7 @@ private fun FilmLookTonePad(
                 )
             )
             .border(2.dp, Color(0xFFD6DADC), RoundedCornerShape(20.dp))
-            .pointerInput(onChange) {
+            .pointerInput(Unit) {
                 var lastTapTime = 0L
                 var lastTapPosition = Offset.Zero
                 awaitEachGesture {
@@ -8095,7 +8097,7 @@ private fun FilmLookTonePad(
                             val dy = change.position.y - down.position.y
                             if (!moved && (dx * dx + dy * dy) > dragThreshold * dragThreshold) moved = true
                             if (moved) {
-                                onChange(Offset(
+                                latestOnChange(Offset(
                                     change.position.x / size.width.coerceAtLeast(1),
                                     change.position.y / size.height.coerceAtLeast(1)
                                 ))
@@ -8108,7 +8110,7 @@ private fun FilmLookTonePad(
                         }
                     }
                     if (moved) {
-                        onChange(Offset(
+                        latestOnChange(Offset(
                             lastPosition.x / size.width.coerceAtLeast(1),
                             lastPosition.y / size.height.coerceAtLeast(1)
                         ))
@@ -8121,10 +8123,10 @@ private fun FilmLookTonePad(
                             elapsed in 1..Tuning.FILM_ROLL_TONE_DOUBLE_TAP_MS &&
                             (doubleTapDx * doubleTapDx + doubleTapDy * doubleTapDy) < (40.dp.toPx() * 40.dp.toPx())
                         ) {
-                            onChange(Offset(0.5f, 0.5f))
+                            latestOnChange(Offset(0.5f, 0.5f))
                             lastTapTime = 0L
                         } else {
-                            onChange(Offset(
+                            latestOnChange(Offset(
                                 down.position.x / size.width.coerceAtLeast(1),
                                 down.position.y / size.height.coerceAtLeast(1)
                             ))

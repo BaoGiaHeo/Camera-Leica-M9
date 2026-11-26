@@ -8507,22 +8507,61 @@ private fun FilterLookDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         if (isLandscape) {
-            Box(Modifier.fillMaxSize().padding(end = 12.dp, top = 10.dp, bottom = 10.dp), contentAlignment = Alignment.CenterEnd) {
+            Box(
+                Modifier.fillMaxSize().padding(end = 10.dp, top = 6.dp, bottom = 6.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
                 Column(
-                    Modifier.width(landscapePanelWidth).fillMaxHeight().clip(RoundedCornerShape(26.dp))
-                        .background(Color(0xF50A0C0D)).border(1.dp, Color(0xFF465054), RoundedCornerShape(26.dp))
-                        .padding(horizontal = 11.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Modifier.width(landscapePanelWidth).fillMaxHeight()
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color(0xF5090B0C))
+                        .border(1.dp, Color(0xFF596164), RoundedCornerShape(28.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.film_filters_title), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp)
+                    Row(Modifier.fillMaxWidth().height(26.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.film_filters_title),
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Spacer(Modifier.weight(1f))
-                        Text("×", color = Color.White, fontSize = 20.sp,
-                            modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp))
+                        Text(
+                            "✕",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp)
+                        )
                     }
-                    searchPane(Modifier.fillMaxWidth())
-                    importPane(Modifier.fillMaxWidth())
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth().height(28.dp), horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        if (showCompactSearch) {
+                            searchPane(Modifier.weight(1f).height(28.dp))
+                            Text(
+                                "×",
+                                color = FujiSkin.muted,
+                                fontSize = 14.sp,
+                                modifier = Modifier.clickable { showCompactSearch = false }.padding(horizontal = 2.dp)
+                            )
+                        } else {
+                            Box(
+                                Modifier.size(28.dp).clip(RoundedCornerShape(7.dp))
+                                    .background(Color(0xFF252A2C))
+                                    .border(1.dp, FujiSkin.line, RoundedCornerShape(7.dp))
+                                    .clickable { showCompactSearch = true },
+                                contentAlignment = Alignment.Center
+                            ) { Text("⌕", color = Color.White, fontSize = 18.sp) }
+                        }
+                        Box(Modifier.weight(if (showCompactSearch) 0.72f else 1f)) {
+                            importPane(Modifier.fillMaxWidth().height(28.dp))
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().height(24.dp).horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         lookCategories.forEach { category ->
                             val label = category.labelResource?.let { stringResource(it) } ?: category.customLabel.orEmpty()
                             FujiChip(label, selectedLookCategory == category.id, { selectedLookCategory = category.id })
@@ -8530,124 +8569,87 @@ private fun FilterLookDialog(
                     }
                     Text(
                         stringResource(R.string.filter_count, visibleFilterCount, totalFilterCount),
-                        color = FujiSkin.lcdGreen, fontSize = 7.sp
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    presetGrid(Modifier.weight(1f).fillMaxWidth())
+                    presetGrid(Modifier.weight(1f).fillMaxWidth().heightIn(min = 168.dp))
                     Row(
-                        Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(5.dp))
-                            .background(Color(0xFF202526))
-                            .clickable { showAdjustmentControls = !showAdjustmentControls }
-                            .padding(horizontal = 8.dp),
+                        Modifier.fillMaxWidth().height(106.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            stringResource(R.string.filter_adjustments_title),
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            if (showAdjustmentControls) "−" else "+",
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                    Row(
-                        Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF202526))
-                            .clickable { showTonePad = !showTonePad }
-                            .padding(start = 9.dp, end = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(R.string.filter_tone_brightness),
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.4.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Box(
-                            Modifier.size(Tuning.FILM_ROLL_RESET_TOUCH_TARGET_DP.dp).clickable {
-                                updatePalette(Offset(0.5f, 0.5f))
-                            },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                Modifier.size(Tuning.FILM_ROLL_RESET_ICON_SIZE_DP.dp)
-                                    .clip(RoundedCornerShape(5.dp))
-                                    .background(Color(0xFF383F41)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("↺", color = FujiSkin.lcdGreen, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Text(
-                            if (showTonePad) "−" else "+",
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp)
-                        )
-                    }
-                    if (showTonePad) {
                         Column(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
-                                .background(Color(0xFF25292A)).padding(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            Modifier.width(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Box(
-                                Modifier.fillMaxWidth()
-                                    .height(Tuning.FILM_ROLL_TONE_PAD_HEIGHT_DP.dp)
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .border(1.dp, Color(0xFF8A9092), RoundedCornerShape(7.dp))
-                                    .onSizeChanged {
-                                        paletteWidth = it.width.toFloat().coerceAtLeast(1f)
-                                        paletteHeight = it.height.toFloat().coerceAtLeast(1f)
-                                    }
-                                    .pointerInput(paletteWidth, paletteHeight) {
-                                        detectTapGestures { position ->
-                                            updatePalette(Offset(position.x / paletteWidth, position.y / paletteHeight))
-                                        }
-                                    }
-                                    .pointerInput(paletteWidth, paletteHeight) {
-                                        detectDragGestures(
-                                            onDragStart = { position ->
-                                                updatePalette(Offset(position.x / paletteWidth, position.y / paletteHeight))
-                                            },
-                                            onDrag = { change, _ ->
-                                                updatePalette(Offset(change.position.x / paletteWidth, change.position.y / paletteHeight))
-                                                change.consume()
-                                            }
-                                        )
-                                    }
-                            ) {
-                                Canvas(Modifier.fillMaxSize()) {
-                                    drawRect(Brush.horizontalGradient(listOf(Color.White, Color(0xFFB8B8B8), Color(0xFF333638))))
-                                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                                    val center = Offset(size.width * palettePoint.x, size.height * palettePoint.y)
-                                    drawCircle(Color.White, 6.dp.toPx(), center)
-                                    drawCircle(Color.Black, 8.dp.toPx(), center, style = Stroke(1.dp.toPx()))
-                                }
-                            }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(stringResource(R.string.filter_tone_bright), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text(stringResource(R.string.filter_tone_faded), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text(stringResource(R.string.filter_tone_deep), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                                Text(stringResource(R.string.filter_tone_dark), color = Color(0xFFE7E7E7), fontSize = 6.sp)
-                            }
+                            FilmLookTonePad(palettePoint) { updatePalette(it) }
                             Text(
-                                "NHIỆT ${(recipePrefs.getFloat("film_custom_temperature", 0f) * 100).roundToInt()} · TONE ${(recipePrefs.getFloat("film_custom_tone", 0f) * 100).roundToInt()}",
-                                color = Color(0xFFD4D7D8),
-                                fontSize = 6.sp,
+                                stringResource(R.string.filter_intensity_value, (customIntensity * 100f).roundToInt()),
+                                color = Color.White,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = 1
                             )
+                            androidx.compose.material3.Slider(
+                                value = customIntensity,
+                                onValueChange = {
+                                    customIntensity = it
+                                    persistRecipeValue("film_custom_intensity", it)
+                                },
+                                modifier = Modifier.fillMaxWidth().height(18.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.White,
+                                    activeTrackColor = FujiSkin.orange,
+                                    inactiveTrackColor = Color(0xFF586063)
+                                )
+                            )
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(7.dp))
+                                    .background(Color(0xFF202526))
+                                    .clickable { showAdjustmentControls = !showAdjustmentControls }
+                                    .padding(horizontal = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    stringResource(R.string.filter_adjustments_title),
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1
+                                )
+                                Text(
+                                    if (showAdjustmentControls) "−" else "+",
+                                    color = FujiSkin.orange,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
+                            else {
+                                Text(
+                                    stringResource(R.string.filter_adjustments_hint),
+                                    color = FujiSkin.muted,
+                                    fontSize = 8.sp
+                                )
+                                Text(
+                                    stringResource(R.string.filter_reset_shortcut),
+                                    color = FujiSkin.orange,
+                                    fontSize = 8.sp,
+                                    modifier = Modifier.clickable { resetColorAdjustments() }
+                                )
+                            }
                         }
                     }
-                    Text(if (showingOriginal) "ORIGINAL" else activeFilterName, color = FujiSkin.lcdGreen, fontSize = 7.sp, maxLines = 1)
+                    Text(
+                        if (showingOriginal) stringResource(R.string.filter_original_title) else activeFilterName,
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 9.sp,
+                        maxLines = 1
+                    )
                 }
             }
         } else {
@@ -8657,38 +8659,69 @@ private fun FilterLookDialog(
                 onBack = onDismiss
             ) {
                 Text(
-                    if (activeFilter == "None") stringResource(R.string.filter_preview_original) else stringResource(R.string.filter_preview_name, activeFilterName),
-                    color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                    if (activeFilter == "None") stringResource(R.string.filter_preview_original)
+                    else stringResource(R.string.filter_preview_name, activeFilterName),
+                    color = FujiSkin.lcdGreen,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 5.dp)
                 )
-                previewPane(Modifier.fillMaxWidth().height(140.dp))
+                previewPane(Modifier.fillMaxWidth().height(previewHeight))
                 searchPane(Modifier)
                 importPane(Modifier)
                 categoryPane(Modifier)
-                Row(
-                    Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF202526))
-                        .clickable { showAdjustmentControls = !showAdjustmentControls }
-                        .padding(horizontal = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.filter_adjustments_title),
-                        color = Color.White,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        if (showAdjustmentControls) "−" else "+",
-                        color = FujiSkin.lcdGreen,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
+                Text(
+                    stringResource(R.string.filter_count, visibleFilterCount, totalFilterCount),
+                    color = FujiSkin.lcdGreen,
+                    fontSize = 10.sp
+                )
                 presetGrid(Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth().height(114.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        Modifier.width(Tuning.FILM_ROLL_TONE_PAD_WIDTH_DP.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        FilmLookTonePad(palettePoint) { updatePalette(it) }
+                        Text(
+                            stringResource(R.string.filter_intensity_value, (customIntensity * 100f).roundToInt()),
+                            color = Color.White,
+                            fontSize = 8.sp
+                        )
+                        androidx.compose.material3.Slider(
+                            value = customIntensity,
+                            onValueChange = {
+                                customIntensity = it
+                                persistRecipeValue("film_custom_intensity", it)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(18.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = FujiSkin.orange,
+                                inactiveTrackColor = Color(0xFF586063)
+                            )
+                        )
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Row(
+                            Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(7.dp))
+                                .background(Color(0xFF202526))
+                                .clickable { showAdjustmentControls = !showAdjustmentControls }
+                                .padding(horizontal = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
+                                fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            Text(if (showAdjustmentControls) "−" else "+", color = FujiSkin.orange, fontSize = 14.sp)
+                        }
+                        if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
+                        else Text(
+                            stringResource(R.string.filter_adjustments_hint),
+                            color = FujiSkin.muted,
+                            fontSize = 9.sp,
+                            modifier = Modifier.padding(top = 5.dp)
+                        )
+                    }
+                }
             }
         }
     }

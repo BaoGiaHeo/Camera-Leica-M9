@@ -5711,7 +5711,7 @@ fun CameraScreen(
                     Image(
                         painter = painterResource(R.drawable.fujifilm_logo_white),
                         contentDescription = "FUJIFILM",
-                        modifier = Modifier.width(154.dp * designScale).height(30.dp * designScale),
+                        modifier = Modifier.width(1Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale).height(30.dp * designScale),
                         contentScale = ContentScale.Fit
                     )
                     Text(
@@ -5726,9 +5726,9 @@ fun CameraScreen(
                     modifier = Modifier.align(Alignment.Bottom))
             }
             Spacer(Modifier.weight(1f))
-            FujiRoundTopKey("focus-dot", focusPeaking, 44.dp * designScale) { onFocusPeaking(!focusPeaking) }
-            FujiRoundTopKey("histogram", showHist, 44.dp * designScale) { onShowHist(!showHist) }
-            FujiRoundTopKey("q", mode == "Pro", 44.dp * designScale) {
+            FujiRoundTopKey("focus-dot", focusPeaking, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) { onFocusPeaking(!focusPeaking) }
+            FujiRoundTopKey("histogram", showHist, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) { onShowHist(!showHist) }
+            FujiRoundTopKey("q", mode == "Pro", Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) {
                 if (mode == "Pro") {
                     mode = "Photo"
                     proSel = null
@@ -5742,7 +5742,7 @@ fun CameraScreen(
                     camera?.let { active -> runCatching { applyAutoWhiteBalance(active); applyAutoFocus(active) } }
                 } else mode = "Pro"
             }
-            FujiRoundTopKey("settings", false, 44.dp * designScale, onClick = onOpenSettings)
+            FujiRoundTopKey("settings", false, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale, onClick = onOpenSettings)
         }
     }
 
@@ -5778,9 +5778,9 @@ fun CameraScreen(
                                 .height(frameHeight)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Brush.verticalGradient(listOf(Color(0xFF25282A), Color(0xFF050607))))
-                                .border(5.dp * designScale, Color(0xFF090A0B), RoundedCornerShape(16.dp * designScale))
-                                .padding(start = 5.dp * designScale, top = 5.dp * designScale, end = 5.dp * designScale, bottom = 7.dp * designScale)
-                                .clip(RoundedCornerShape(12.dp * designScale))
+                                .border(Tuning.CAMERA_PREVIEW_BORDER_DP.dp * designScale, Color(0xFF090A0B), RoundedCornerShape(Tuning.CAMERA_PREVIEW_OUTER_RADIUS_DP.dp * designScale))
+                                .padding(start = 5.dp * designScale, top = 5.dp * designScale, end = 5.dp * designScale, bottom = Tuning.CAMERA_PREVIEW_CHIN_EXTRA_DP.dp * designScale)
+                                .clip(RoundedCornerShape(Tuning.CAMERA_PREVIEW_INNER_RADIUS_DP.dp * designScale))
                                 .background(FujiSkin.lcd)
                                 .graphicsLayer { alpha = previewOrientationAlpha.value }
                                 .pointerInput(camera, mode) {
@@ -6479,7 +6479,7 @@ fun CameraScreen(
                                         kelvin = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
                                         ev = evText,
                                         batteryPercent = batteryPercent,
-                                        hudHeight = (frameHeight * 0.14f).coerceAtLeast(40.dp)
+                                        hudHeight = (frameHeight * Tuning.CAMERA_HUD_HEIGHT_FRACTION).coerceAtLeast(40.dp)
                                     )
                                 }
                             } else {
@@ -7306,7 +7306,7 @@ fun CameraScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Box(
-                Modifier.size(88.dp * designScale, 60.dp * designScale).clip(RoundedCornerShape(10.dp))
+                Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale).clip(RoundedCornerShape(10.dp))
                     .background(Color(0xFF17191B)).border(1.dp, FujiCameraDesign.stroke, RoundedCornerShape(10.dp))
                     .animaTClickable {
                         CrashContextDiagnostics.recordUiEvent("ALBUM_BUTTON_TAP")
@@ -7320,7 +7320,7 @@ fun CameraScreen(
             }
             FujiCameraKey(
                 stringResource(R.string.camera_filter),
-                modifier = Modifier.size(88.dp * designScale, 60.dp * designScale),
+                modifier = Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale),
                 icon = "film",
                 selected = filterDialogVisible || activeFilter != "None"
             ) {
@@ -7329,7 +7329,7 @@ fun CameraScreen(
             }
             FujiCameraKey(
                 stringResource(R.string.camera_lunadream),
-                modifier = Modifier.size(88.dp * designScale, 60.dp * designScale),
+                modifier = Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale),
                 icon = "moon",
                 selected = lunaDreamMode != "off" || nightShotMode == "night",
                 secondary = when (lunaDreamMode) {
@@ -7374,13 +7374,13 @@ fun CameraScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FujiCameraKey(
                     stringResource(R.string.camera_timer),
-                    modifier = Modifier.size(124.dp * designScale, 54.dp * designScale),
+                    modifier = Modifier.size(Tuning.CAMERA_TIMER_FLASH_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
                     icon = "timer",
                     secondary = if (timerSec == 0) stringResource(R.string.camera_off) else "${timerSec}s"
                 ) { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } }
                 FujiCameraKey(
                     stringResource(R.string.camera_flash),
-                    modifier = Modifier.size(124.dp * designScale, 54.dp * designScale),
+                    modifier = Modifier.size(Tuning.CAMERA_TIMER_FLASH_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
                     icon = if (flash == ImageCapture.FLASH_MODE_OFF) "flash-off" else "flash",
                     secondary = when (flash) {
                         ImageCapture.FLASH_MODE_AUTO -> stringResource(R.string.camera_auto)
@@ -7395,12 +7395,12 @@ fun CameraScreen(
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth().height(44.dp * designScale), verticalAlignment = Alignment.CenterVertically,
+            Row(Modifier.fillMaxWidth().height(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(evText, color = FujiCameraDesign.text, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                FujiCameraKey("−", modifier = Modifier.size(44.dp * designScale), onClick = {
+                FujiCameraKey("−", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), onClick = {
                     if (range != null) {
                         val next = (evIndex - 1).coerceIn(range.lower, range.upper)
                         evIndex = next
@@ -7408,7 +7408,7 @@ fun CameraScreen(
                         camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
                     }
                 })
-                FujiCameraKey("+", modifier = Modifier.size(44.dp * designScale), onClick = {
+                FujiCameraKey("+", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), onClick = {
                     if (range != null) {
                         val next = (evIndex + 1).coerceIn(range.lower, range.upper)
                         evIndex = next
@@ -7434,18 +7434,18 @@ fun CameraScreen(
                     verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(stringResource(R.string.camera_zoom), color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FujiCameraKey("W", modifier = Modifier.weight(1f).height(54.dp * designScale), secondary = stringResource(R.string.camera_out)) {
+                        FujiCameraKey("W", modifier = Modifier.weight(1f).height(Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale), secondary = stringResource(R.string.camera_out)) {
                             animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
                         }
-                        FujiCameraKey("T", modifier = Modifier.weight(1f).height(54.dp * designScale), secondary = stringResource(R.string.camera_in)) {
+                        FujiCameraKey("T", modifier = Modifier.weight(1f).height(Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale), secondary = stringResource(R.string.camera_in)) {
                             animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom))
                         }
                     }
                 }
-                Column(Modifier.width(108.dp * designScale), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.width(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FujiCameraKey(
                         stringResource(R.string.camera_af_lock),
-                        modifier = Modifier.size(108.dp * designScale, 54.dp * designScale),
+                        modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
                         icon = "lock",
                         selected = focusLocked
                     ) {
@@ -7460,7 +7460,7 @@ fun CameraScreen(
                     }
                     FujiCameraKey(
                         stringResource(R.string.camera_settings),
-                        modifier = Modifier.size(108.dp * designScale, 54.dp * designScale),
+                        modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
                         icon = "settings"
                     ) { onOpenSettings() }
                 }
@@ -7476,7 +7476,7 @@ fun CameraScreen(
                     }
                 },
                 onCapture = { takePhoto() },
-                modifier = Modifier.size(100.dp * designScale)
+                modifier = Modifier.size(Tuning.CAMERA_SHUTTER_SIZE_DP.dp * designScale)
             ) {
                 if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
                     FujiIconGlyph("close", Modifier.size(25.dp), Color.White)

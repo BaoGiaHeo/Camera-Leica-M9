@@ -3188,7 +3188,8 @@ fun applyCameraWatermark(
                     finalBitmap,
                     sourceExif,
                     verificationRect,
-                    watermarkBackgroundColor
+                    watermarkBackgroundColor,
+                    unwatermarkedBitmap = sourceBitmap
                 )
             } else {
                 WatermarkStage.filteredWithoutWatermark(uri, finalBitmap, sourceExif)

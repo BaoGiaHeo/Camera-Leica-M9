@@ -229,16 +229,18 @@ object PhotoOutputResolution {
                     saveAttributes()
                 }
             }
-            context.contentResolver.update(
-                uri,
-                ContentValues().apply {
-                    put(MediaStore.Images.Media.ORIENTATION, 0)
-                    put(MediaStore.Images.Media.WIDTH, width)
-                    put(MediaStore.Images.Media.HEIGHT, height)
-                },
-                null,
-                null
-            )
+            if (uri.authority != context.packageName + ".fileprovider") {
+                context.contentResolver.update(
+                    uri,
+                    ContentValues().apply {
+                        put(MediaStore.Images.Media.ORIENTATION, 0)
+                        put(MediaStore.Images.Media.WIDTH, width)
+                        put(MediaStore.Images.Media.HEIGHT, height)
+                    },
+                    null,
+                    null
+                )
+            }
 
             verifyStoredOutput(context, uri, width, height)
             val actualAspect = width.toDouble() / height.toDouble()

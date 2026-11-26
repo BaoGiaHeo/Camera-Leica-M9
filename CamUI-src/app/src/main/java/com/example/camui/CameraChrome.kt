@@ -21,8 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -63,6 +65,10 @@ internal fun FujiCameraKey(
             .clip(RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
             .background(Brush.verticalGradient(listOf(Color(0xFF2A2C2E), Color(0xFF1A1B1D))))
             .border(1.dp, if (selected) FujiCameraDesign.orange else FujiCameraDesign.stroke, RoundedCornerShape(Tuning.CAMERA_BUTTON_RADIUS_DP.dp * safeScale))
+            .drawWithContent {
+                drawContent()
+                if (selected) drawCircle(FujiCameraDesign.orange, 3.dp.toPx(), Offset(size.width - 7.dp.toPx(), 7.dp.toPx()))
+            }
             .clickable(interactionSource = interaction, indication = null) { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK); onClick() }
             .padding(horizontal = 6.dp * safeScale, vertical = 5.dp * safeScale),
         horizontalAlignment = Alignment.CenterHorizontally,

@@ -472,6 +472,7 @@ fun CameraScreen(
     val configuration = LocalConfiguration.current
     val localView = LocalView.current
     val screenProfile = rememberScreenProfile()
+    val designScale = remember(screenProfile.widthDp, screenProfile.heightDp) { FujiCameraDesign.scale(screenProfile.widthDp, screenProfile.heightDp) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
@@ -5725,9 +5726,9 @@ fun CameraScreen(
                     modifier = Modifier.align(Alignment.Bottom))
             }
             Spacer(Modifier.weight(1f))
-            FujiRoundTopKey("focus-dot", focusPeaking) { onFocusPeaking(!focusPeaking) }
-            FujiRoundTopKey("histogram", showHist) { onShowHist(!showHist) }
-            FujiRoundTopKey("q", mode == "Pro") {
+            FujiRoundTopKey("focus-dot", focusPeaking, 44.dp * designScale) { onFocusPeaking(!focusPeaking) }
+            FujiRoundTopKey("histogram", showHist, 44.dp * designScale) { onShowHist(!showHist) }
+            FujiRoundTopKey("q", mode == "Pro", 44.dp * designScale) {
                 if (mode == "Pro") {
                     mode = "Photo"
                     proSel = null
@@ -5741,7 +5742,7 @@ fun CameraScreen(
                     camera?.let { active -> runCatching { applyAutoWhiteBalance(active); applyAutoFocus(active) } }
                 } else mode = "Pro"
             }
-            FujiRoundTopKey("settings", false, onClick = onOpenSettings)
+            FujiRoundTopKey("settings", false, 44.dp * designScale, onClick = onOpenSettings)
         }
     }
 
@@ -7299,7 +7300,7 @@ fun CameraScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Box(
-                Modifier.size(88.dp, 60.dp).clip(RoundedCornerShape(10.dp))
+                Modifier.size(88.dp * designScale, 60.dp * designScale).clip(RoundedCornerShape(10.dp))
                     .background(Color(0xFF17191B)).border(1.dp, FujiCameraDesign.stroke, RoundedCornerShape(10.dp))
                     .animaTClickable {
                         CrashContextDiagnostics.recordUiEvent("ALBUM_BUTTON_TAP")
@@ -7367,7 +7368,7 @@ fun CameraScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FujiCameraKey(
                     stringResource(R.string.camera_timer),
-                    modifier = Modifier.size(124.dp, 54.dp),
+                    modifier = Modifier.size(124.dp * designScale, 54.dp * designScale),
                     icon = "timer",
                     secondary = if (timerSec == 0) "Tắt" else "${timerSec}s"
                 ) { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } }
@@ -7393,7 +7394,7 @@ fun CameraScreen(
                 Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(evText, color = FujiCameraDesign.text, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                FujiCameraKey("−", modifier = Modifier.size(44.dp), onClick = {
+                FujiCameraKey("−", modifier = Modifier.size(44.dp * designScale), onClick = {
                     if (range != null) {
                         val next = (evIndex - 1).coerceIn(range.lower, range.upper)
                         evIndex = next
@@ -7426,7 +7427,7 @@ fun CameraScreen(
                     verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("Zoom", color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FujiCameraKey("W", modifier = Modifier.weight(1f).height(54.dp), secondary = "Ra") {
+                        FujiCameraKey("W", modifier = Modifier.weight(1f).height(54.dp * designScale), secondary = "Ra") {
                             animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
                         }
                         FujiCameraKey("T", modifier = Modifier.weight(1f).height(54.dp), secondary = "Vào") {
@@ -7434,10 +7435,10 @@ fun CameraScreen(
                         }
                     }
                 }
-                Column(Modifier.width(108.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.width(108.dp * designScale), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FujiCameraKey(
                         stringResource(R.string.camera_af_lock),
-                        modifier = Modifier.size(108.dp, 54.dp),
+                        modifier = Modifier.size(108.dp * designScale, 54.dp * designScale),
                         icon = "lock",
                         selected = focusLocked
                     ) {
@@ -7468,7 +7469,7 @@ fun CameraScreen(
                     }
                 },
                 onCapture = { takePhoto() },
-                modifier = Modifier.size(100.dp)
+                modifier = Modifier.size(100.dp * designScale)
             ) {
                 if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
                     FujiIconGlyph("close", Modifier.size(25.dp), Color.White)

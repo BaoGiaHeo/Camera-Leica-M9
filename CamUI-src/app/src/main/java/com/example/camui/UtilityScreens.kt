@@ -2612,6 +2612,30 @@ internal fun generateBuiltInCameraLookLut(definition: BuiltInCameraLutDefinition
     return lut
 }
 
+internal fun readCameraLookPalette(context: Context, preset: String): IntArray? {
+    if (preset == "None") {
+        return intArrayOf(0xFF777777.toInt(), 0xFFBBBBBB.toInt(), 0xFF777777.toInt())
+    }
+    val lut = readCameraLookLut(context, preset) ?: return null
+    val inputs = arrayOf(
+        floatArrayOf(0.12f, 0.16f, 0.22f),
+        floatArrayOf(0.78f, 0.56f, 0.42f),
+        floatArrayOf(0.18f, 0.58f, 0.32f),
+        floatArrayOf(0.18f, 0.40f, 0.82f),
+        floatArrayOf(0.88f, 0.88f, 0.84f)
+    )
+    val sample = FloatArray(3)
+    return IntArray(inputs.size) { index ->
+        val input = inputs[index]
+        lut.sampleInto(input[0], input[1], input[2], sample)
+        AndroidColor.rgb(
+            clamp8(sample[0].coerceIn(0f, 1f) * 255f),
+            clamp8(sample[1].coerceIn(0f, 1f) * 255f),
+            clamp8(sample[2].coerceIn(0f, 1f) * 255f)
+        )
+    }
+}
+
 internal fun readCameraLookLut(context: Context, preset: String): CubeLut? {
     val builtInId = builtInCameraLutId(preset)
     if (builtInId != null) {

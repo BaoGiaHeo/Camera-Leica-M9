@@ -24,6 +24,9 @@ internal class LunaDreamStageWatchdog(
     private val mergeStartedAtMs: Long = stageStartedAtMs
     private var lastRecordedStage: String? = null
 
+    val currentStage: String
+        get() = stageName
+
     fun beginStage(name: String, budgetMs: Long) {
         checkpoint()
         if (stageName != "initializing merge") {

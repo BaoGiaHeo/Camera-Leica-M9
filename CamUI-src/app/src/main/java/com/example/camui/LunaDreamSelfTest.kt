@@ -33,7 +33,7 @@ internal data class LunaDreamSelfTestReport(
         appendLine()
         appendLine(message)
         appendLine()
-        appendLine("Bài kiểm tra tạo 8 khung JPEG tổng hợp có dịch chuyển và nhiễu, chạy merge LunaDream 3.0, upscale và xác minh JPEG đã ghi.")
+        appendLine("Bài kiểm tra tạo 8 khung JPEG tổng hợp có dịch chuyển và nhiễu, chạy merge LunaDream 3.0, yêu cầu upscale 200MP với ngưỡng an toàn 50MP, encode và xác minh JPEG đã ghi.")
         appendLine("Bài kiểm tra này không thay thế việc kiểm tra chất lượng ảnh thực tế trên thiết bị.")
     }
 }
@@ -43,7 +43,8 @@ internal object LunaDreamSelfTest {
     private const val FRAME_WIDTH = 640
     private const val FRAME_HEIGHT = 480
     private const val FRAME_COUNT = 8
-    private const val TEST_OUTPUT_PIXELS = 50_000_000L
+    private const val TEST_REQUESTED_OUTPUT_PIXELS = 200_000_000L
+    private const val TEST_MINIMUM_OUTPUT_PIXELS = 50_000_000L
 
     fun run(context: Context): LunaDreamSelfTestReport {
         val startedAt = SystemClock.elapsedRealtime()
@@ -97,10 +98,10 @@ internal object LunaDreamSelfTest {
             val resized = PhotoOutputResolution.interpolateToMp(
                 context = context,
                 uri = outputUri,
-                targetPixels = TEST_OUTPUT_PIXELS,
+                targetPixels = TEST_REQUESTED_OUTPUT_PIXELS,
                 targetHeightOverWidth = null,
-                adaptiveMinimumPixels = TEST_OUTPUT_PIXELS
-            ) ?: error("Upscale/encode 50MP thất bại hoặc không đủ bộ nhớ an toàn.")
+                adaptiveMinimumPixels = TEST_MINIMUM_OUTPUT_PIXELS
+            ) ?: error("Upscale/encode yêu cầu 200MP (tối thiểu 50MP) thất bại hoặc không đủ bộ nhớ an toàn.")
             stages["Upscale + mã hóa JPEG"] = SystemClock.elapsedRealtime() - upscaleStart
             peakHeap = maxOf(peakHeap, usedHeap(runtime))
 
@@ -111,7 +112,7 @@ internal object LunaDreamSelfTest {
             check(width > 0 && height > 0) { "Không đọc lại được kích thước JPEG đầu ra." }
             val actualPixels = width.toLong() * height.toLong()
             megapixels = actualPixels / 1_000_000.0
-            check(actualPixels >= TEST_OUTPUT_PIXELS * 995L / 1000L) {
+            check(actualPixels >= TEST_MINIMUM_OUTPUT_PIXELS * 995L / 1000L) {
                 "Kích thước đầu ra thấp hơn ngưỡng self-test 50MP: ${width}x$height."
             }
             check(resized.width == width && resized.height == height) {
@@ -120,7 +121,7 @@ internal object LunaDreamSelfTest {
             stages["Đọc lại và xác minh"] = SystemClock.elapsedRealtime() - verifyStart
             peakHeap = maxOf(peakHeap, usedHeap(runtime))
             success = true
-            message = "PASS: merge, upscale và JPEG encode thực tế đã hoàn tất; file cache đã được đọc lại và xác minh."
+            message = "PASS: yêu cầu 200MP, ngưỡng an toàn tối thiểu 50MP; thực tế đạt ${String.format(Locale.US, "%.2f", megapixels)}MP (requestedReached=${resized.reachedRequestedSize}). Merge, upscale và JPEG encode đã chạy thật; file cache đã được đọc lại và xác minh."
             LunaDreamDiagnostics.record(
                 context,
                 "SELF_TEST_SUCCESS",

@@ -15,5 +15,9 @@ class CameraLookCatalogTest {
             catalog.map { it.first }.toSet()
         )
         assertTrue(catalog.all { (category, name) -> category.isNotBlank() && name.isNotBlank() })
+        assertEquals(46, builtInCameraLutDefinitions.size)
+        assertEquals(46, builtInCameraLutDefinitions.map { it.id }.distinct().size)
+        assertTrue(builtInCameraLutCatalogIsValid())
+        assertTrue(builtInCameraLutDefinitions.all { it.archivePath.startsWith("generated/") })
     }
 }

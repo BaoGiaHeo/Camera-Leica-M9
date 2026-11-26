@@ -27,8 +27,18 @@ internal object WatermarkFinalizer {
             .getBoolean("watermark_enabled", true)
         val expected = if (enabled) "FM-WM=1" else "FM-WM=0"
         val existing = ImageSink.readWatermarkMarker(context, uri)
-        if (existing == expected) {
+        if (!enabled && existing == "FM-WM=0") {
+            Log.i(TAG, "FINALIZER_OK uri=$uri marker=FM-WM=0 intentionalSkip=true")
             return true
+        }
+        if (enabled && existing == "FM-WM=1" && ImageSink.verifyStoredWatermark(context, uri)) {
+            Log.i(TAG, "FINALIZER_OK uri=$uri marker=FM-WM=1 pixelRegionVerified=true")
+            return true
+        }
+        if (enabled && existing == "FM-WM=1") {
+            val warning = "CẢNH BÁO ĐỎ: EXIF FM-WM=1 tồn tại nhưng vùng pixel watermark không xác minh được; đang thử đóng watermark lại."
+            CaptureDiagnostics.recordWarning(context, warning)
+            Log.e(TAG, "$warning uri=$uri")
         }
 
         val rendered = runCatching {
@@ -49,14 +59,15 @@ internal object WatermarkFinalizer {
         }.getOrDefault(false)
 
         val actual = ImageSink.readWatermarkMarker(context, uri)
-        val verified = actual == expected
+        val pixelVerified = !enabled || (actual == "FM-WM=1" && ImageSink.verifyStoredWatermark(context, uri))
+        val verified = actual == expected && pixelVerified
         if (!verified) {
-            val message = "Watermark bật=$enabled nhưng marker cuối không khớp: expected=$expected actual=$actual"
+            val message = "CẢNH BÁO ĐỎ: watermark cuối không được xác minh: enabled=$enabled expected=$expected actual=$actual pixelVerified=$pixelVerified rendered=$rendered"
             CaptureDiagnostics.recordWarning(context, message)
-            Log.e(TAG, "RED_WARNING $message uri=$uri")
+            Log.e(TAG, "$message uri=$uri")
             return false
         }
-        Log.i(TAG, "FINALIZER_OK uri=$uri marker=$actual rendered=$rendered")
-        return verified && rendered
+        Log.i(TAG, "FINALIZER_OK uri=$uri marker=$actual rendered=$rendered pixelVerified=$pixelVerified")
+        return rendered && verified
     }
 }

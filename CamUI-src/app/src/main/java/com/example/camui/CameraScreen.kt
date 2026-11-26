@@ -1055,10 +1055,10 @@ fun CameraScreen(
         val packPresent = hasBuiltInCameraLutPack(context)
         android.util.Log.i(
             "FUJI_FILTER",
-            "BUILT_IN_LOOK_CATALOG_READY loaded=$legacyCount/46 source=app-authored pack41=$packPresent"
+            "BUILT_IN_LOOK_CATALOG_READY catalog_loaded=$legacyCount/46 lut_data=lazy_recipe pack41=$packPresent"
         )
         CrashContextDiagnostics.recordUiEvent(
-            "BUILT_IN_LOOK_CATALOG_READY loaded=$legacyCount/46 pack41=$packPresent"
+            "BUILT_IN_LOOK_CATALOG_READY catalog_loaded=$legacyCount/46 lut_data=lazy_recipe pack41=$packPresent"
         )
     }
     LaunchedEffect(Unit) {
@@ -8161,6 +8161,7 @@ private fun CompactFilterAdjustmentSlider(
     valueLabel: String,
     onValueChange: (Float) -> Unit
 ) {
+    val latestOnValueChange by rememberUpdatedState(onValueChange)
     val fraction = ((value - valueRange.start) /
         (valueRange.endInclusive - valueRange.start).coerceAtLeast(0.0001f)).coerceIn(0f, 1f)
     Row(
@@ -8177,20 +8178,20 @@ private fun CompactFilterAdjustmentSlider(
         )
         Box(
             Modifier.weight(1f).height(18.dp)
-                .pointerInput(valueRange, onValueChange) {
+                .pointerInput(valueRange) {
                     detectTapGestures { position ->
                         val next = valueRange.start +
                             (position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) *
                             (valueRange.endInclusive - valueRange.start)
-                        onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+                        latestOnValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
                     }
                 }
-                .pointerInput(valueRange, onValueChange) {
+                .pointerInput(valueRange) {
                     detectDragGestures { change, _ ->
                         val next = valueRange.start +
                             (change.position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) *
                             (valueRange.endInclusive - valueRange.start)
-                        onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+                        latestOnValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
                         change.consume()
                     }
                 }
@@ -8795,6 +8796,7 @@ private fun FilmTonePad(
     onIntensityChange: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val latestOnPointChange by rememberUpdatedState(onPointChange)
     val filterName = activeFilter.lowercase(Locale.ROOT)
     val gradientColors = when {
         filterName.contains("acros") || filterName.contains("mono") ||
@@ -8823,11 +8825,11 @@ private fun FilmTonePad(
                 .clip(RoundedCornerShape(16.dp))
                 .background(Brush.horizontalGradient(gradientColors))
                 .border(2.dp, Color(0xFFE6E8E7), RoundedCornerShape(16.dp))
-                .pointerInput(onPointChange) {
+                .pointerInput(Unit) {
                     detectTapGestures(
-                        onDoubleTap = { onPointChange(Offset(0.5f, 0.5f)) },
+                        onDoubleTap = { latestOnPointChange(Offset(0.5f, 0.5f)) },
                         onTap = { position ->
-                            onPointChange(
+                            latestOnPointChange(
                                 Offset(
                                     (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                     (position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
@@ -8836,10 +8838,10 @@ private fun FilmTonePad(
                         }
                     )
                 }
-                .pointerInput(onPointChange) {
+                .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { position ->
-                            onPointChange(
+                            latestOnPointChange(
                                 Offset(
                                     (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                     (position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
@@ -8847,7 +8849,7 @@ private fun FilmTonePad(
                             )
                         },
                         onDrag = { change, _ ->
-                            onPointChange(
+                            latestOnPointChange(
                                 Offset(
                                     (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
                                     (change.position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)

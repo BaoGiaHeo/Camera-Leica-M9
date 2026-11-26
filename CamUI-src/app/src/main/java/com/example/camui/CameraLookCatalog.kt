@@ -1,8 +1,8 @@
 package com.example.camui
 
 /**
- * Legacy look-group metadata retained for UI compatibility. These names are not used as
- * selectable presets; selectable presets are supplied by the verified 41-entry LUT catalog.
+ * Legacy film-look groups retained as the 46 selectable app-authored film recipes.
+ * The separate 41-entry archive catalog is optional and does not gate these entries.
  */
 internal data class BuiltInCameraLookGroupDefinition(
     val id: String,

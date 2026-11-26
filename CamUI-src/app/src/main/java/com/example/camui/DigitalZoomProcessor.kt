@@ -163,7 +163,9 @@ internal object DigitalZoomProcessor {
             }
 
             output = gl.renderLanczos3(sourceRegion!!, width, height, DIGITAL_ZOOM_TILE_SIZE)
+            // JPEG_INTERMEDIATE_ALLOWLIST: processed digital-zoom cache JPEG; the camera pipeline applies WatermarkFinalizer/ImageSink afterwards.
             FileOutputStream(outputFile).use { stream ->
+                // JPEG_INTERMEDIATE_ALLOWLIST: encode the digital-zoom intermediate cache file, not a published final photo.
                 check(output!!.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)) {
                     "JPEG compression failed"
                 }
@@ -173,6 +175,7 @@ internal object DigitalZoomProcessor {
 
             // Keep the original on disk until the replacement has been written completely.
             context.contentResolver.openInputStream(uri)?.use { source ->
+                // JPEG_INTERMEDIATE_ALLOWLIST: rollback backup of the original capture before replacing it with the zoom intermediate.
                 FileOutputStream(backupFile).use { backup ->
                     source.copyTo(backup, 1024 * 1024)
                     backup.flush()
@@ -181,12 +184,14 @@ internal object DigitalZoomProcessor {
             } ?: error("Cannot back up the captured JPEG before replacement")
 
             try {
+                // JPEG_INTERMEDIATE_ALLOWLIST: publish the digital-zoom intermediate; final watermark/filter pass follows this stage.
                 context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                     outputFile.inputStream().use { source -> source.copyTo(destination, 1024 * 1024) }
                     destination.flush()
                 } ?: error("Cannot replace the captured JPEG")
             } catch (writeFailure: Throwable) {
                 runCatching {
+                    // JPEG_INTERMEDIATE_ALLOWLIST: rollback restore of the original capture if the intermediate replacement fails.
                     context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                         backupFile.inputStream().use { source -> source.copyTo(destination, 1024 * 1024) }
                         destination.flush()

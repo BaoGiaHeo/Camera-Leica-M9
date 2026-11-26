@@ -2708,17 +2708,11 @@ private fun applyCameraLookPixels(
     val height = bitmap.height
     if (width <= 0 || height <= 0) return false
 
-    // Three reusable rows let the CPU path use the same radius-scaled neighbourhood
-    // sharpening/denoise as the preview shader without a full-frame second bitmap.
-    var rowAbove = IntArray(width)
-    var rowCurrent = IntArray(width)
-    var rowBelow = IntArray(width)
-    val outputRow = IntArray(width)
     val lutOutput = FloatArray(3)
-    val radius = (minOf(width, height) * 0.001f).roundToInt().coerceIn(1, 4)
     val exposure = Math.pow(2.0, params.toneY.toDouble()).toFloat().coerceIn(0.5f, 2f)
     val contrast = 1f + kotlin.math.abs(params.toneX) * 0.18f
     val toneChroma = 1f + params.toneX * 0.36f
+    val hasDetail = params.sharpness > 0.001f || params.denoise > 0.001f
 
     fun fillProcessedRow(y: Int, destination: IntArray) {
         bitmap.getPixels(destination, 0, width, 0, y.coerceIn(0, height - 1), width, 1)
@@ -2739,6 +2733,7 @@ private fun applyCameraLookPixels(
             var red = sourceRed + (lutOutput[0] - sourceRed) * params.intensity
             var green = sourceGreen + (lutOutput[1] - sourceGreen) * params.intensity
             var blue = sourceBlue + (lutOutput[2] - sourceBlue) * params.intensity
+
             val luma = (0.2126f * red + 0.7152f * green + 0.0722f * blue).coerceIn(0f, 1f)
             val highlightWeight = ((luma - 0.55f) / 0.45f).coerceIn(0f, 1f)
             val shadowWeight = ((0.45f - luma) / 0.45f).coerceIn(0f, 1f)
@@ -2781,66 +2776,83 @@ private fun applyCameraLookPixels(
         }
     }
 
-    fillProcessedRow(0, rowAbove)
-    fillProcessedRow(0, rowCurrent)
-    fillProcessedRow(if (height > 1) 1 else 0, rowBelow)
+    val outputRow = IntArray(width)
+    if (!hasDetail) {
+        for (y in 0 until height) {
+            fillProcessedRow(y, outputRow)
+            bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
+        }
+        return true
+    }
+
+    val radius = (minOf(width, height) * 0.001f).roundToInt().coerceIn(1, 4)
+    val bufferCount = radius * 2 + 1
+    val rowBuffers = Array(bufferCount) { IntArray(width) }
+
+    // Prefill rows needed by the first output row. The ring buffer is reused for the
+    // entire image so no full-frame IntArray and no per-pixel allocation are required.
+    for (sourceY in 0..minOf(radius, height - 1)) {
+        fillProcessedRow(sourceY, rowBuffers[sourceY % bufferCount])
+    }
 
     for (y in 0 until height) {
-        val above = if (y == 0) rowCurrent else rowAbove
-        val below = if (y == height - 1) rowCurrent else rowBelow
+        val aboveY = (y - radius).coerceAtLeast(0)
+        val belowY = (y + radius).coerceAtMost(height - 1)
+        val above = rowBuffers[aboveY % bufferCount]
+        val centreRow = rowBuffers[y % bufferCount]
+        val below = rowBuffers[belowY % bufferCount]
+
         for (x in 0 until width) {
-            val centre = rowCurrent[x]
+            val centre = centreRow[x]
             val alpha = AndroidColor.alpha(centre)
             val leftX = (x - radius).coerceAtLeast(0)
             val rightX = (x + radius).coerceAtMost(width - 1)
+
             val aboveLeft = above[leftX]
             val aboveMiddle = above[x]
             val aboveRight = above[rightX]
-            val middleLeft = rowCurrent[leftX]
-            val middleRight = rowCurrent[rightX]
+            val middleLeft = centreRow[leftX]
+            val middleRight = centreRow[rightX]
             val belowLeft = below[leftX]
             val belowMiddle = below[x]
             val belowRight = below[rightX]
-            val sumRed = (
+
+            val averageRed = (
                 AndroidColor.red(aboveLeft) + AndroidColor.red(aboveMiddle) + AndroidColor.red(aboveRight) +
                     AndroidColor.red(middleLeft) + AndroidColor.red(middleRight) +
                     AndroidColor.red(belowLeft) + AndroidColor.red(belowMiddle) + AndroidColor.red(belowRight)
-                ).toFloat()
-            val sumGreen = (
+                ) / (8f * 255f)
+            val averageGreen = (
                 AndroidColor.green(aboveLeft) + AndroidColor.green(aboveMiddle) + AndroidColor.green(aboveRight) +
                     AndroidColor.green(middleLeft) + AndroidColor.green(middleRight) +
                     AndroidColor.green(belowLeft) + AndroidColor.green(belowMiddle) + AndroidColor.green(belowRight)
-                ).toFloat()
-            val sumBlue = (
+                ) / (8f * 255f)
+            val averageBlue = (
                 AndroidColor.blue(aboveLeft) + AndroidColor.blue(aboveMiddle) + AndroidColor.blue(aboveRight) +
                     AndroidColor.blue(middleLeft) + AndroidColor.blue(middleRight) +
                     AndroidColor.blue(belowLeft) + AndroidColor.blue(belowMiddle) + AndroidColor.blue(belowRight)
-                ).toFloat()
-            val averageRed = sumRed / (8f * 255f)
-            val averageGreen = sumGreen / (8f * 255f)
-            val averageBlue = sumBlue / (8f * 255f)
+                ) / (8f * 255f)
+
             val centreRed = AndroidColor.red(centre) / 255f
             val centreGreen = AndroidColor.green(centre) / 255f
             val centreBlue = AndroidColor.blue(centre) / 255f
             val denoiseMix = params.denoise * 0.35f
-            val denoisedRed = centreRed + (averageRed - centreRed) * denoiseMix
-            val denoisedGreen = centreGreen + (averageGreen - centreGreen) * denoiseMix
-            val denoisedBlue = centreBlue + (averageBlue - centreBlue) * denoiseMix
             val sharpness = params.sharpness * 0.55f
             outputRow[x] = AndroidColor.argb(
                 alpha,
-                clamp8((denoisedRed + (centreRed - averageRed) * sharpness).coerceIn(0f, 1f) * 255f),
-                clamp8((denoisedGreen + (centreGreen - averageGreen) * sharpness).coerceIn(0f, 1f) * 255f),
-                clamp8((denoisedBlue + (centreBlue - averageBlue) * sharpness).coerceIn(0f, 1f) * 255f)
+                clamp8((centreRed + (averageRed - centreRed) * denoiseMix +
+                    (centreRed - averageRed) * sharpness).coerceIn(0f, 1f) * 255f),
+                clamp8((centreGreen + (averageGreen - centreGreen) * denoiseMix +
+                    (centreGreen - averageGreen) * sharpness).coerceIn(0f, 1f) * 255f),
+                clamp8((centreBlue + (averageBlue - centreBlue) * denoiseMix +
+                    (centreBlue - averageBlue) * sharpness).coerceIn(0f, 1f) * 255f)
             )
         }
         bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
-        if (y < height - 1) {
-            val reusable = rowAbove
-            rowAbove = rowCurrent
-            rowCurrent = rowBelow
-            rowBelow = reusable
-            fillProcessedRow((y + 2).coerceAtMost(height - 1), rowBelow)
+
+        val nextSourceY = y + radius + 1
+        if (nextSourceY < height) {
+            fillProcessedRow(nextSourceY, rowBuffers[nextSourceY % bufferCount])
         }
     }
     return true

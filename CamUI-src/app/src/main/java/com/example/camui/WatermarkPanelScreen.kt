@@ -62,7 +62,12 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var enabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
-    var layout by remember { mutableStateOf(WatermarkLayoutType.fromPreference(prefs.getString("watermark_template", "bar"))) }
+    var layout by remember {
+        mutableStateOf(
+            WatermarkLayoutType.fromPreference(prefs.getString("watermark_template", "bar"))
+                .let { if (it == WatermarkLayoutType.BLACK) WatermarkLayoutType.BAR else it }
+        )
+    }
     var invert by remember { mutableStateOf(prefs.getBoolean("watermark_invert", false)) }
     var sizeStep by remember { mutableStateOf(prefs.getInt("watermark_size_step", 0).coerceIn(-2, 2)) }
     var fields by remember {
@@ -226,7 +231,7 @@ fun WatermarkPanelScreen(onBack: () -> Unit) {
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    WatermarkLayoutType.values().forEach { item ->
+                    WatermarkLayoutType.values().filterNot { it == WatermarkLayoutType.BLACK }.forEach { item ->
                         val selected = layout == item
                         Button(
                             onClick = { layout = item },

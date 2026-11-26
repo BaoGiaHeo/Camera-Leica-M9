@@ -266,8 +266,8 @@ object PhotoOutputResolution {
                     "requestedWidthOverHeight=${"%.5f".format(Locale.US, geometry.requestedWidthOverHeight)}, " +
                     "dimensions=${width}x${height} aspect=${"%.5f".format(Locale.US, actualAspect)}"
             )
-            check(outputPixels >= targetPixels * 995L / 1000L) {
-                "Output verification fell below the requested megapixel target"
+            check(outputPixels >= effectiveTargetPixels * 995L / 1000L) {
+                "Output verification fell below the safe memory-adaptive megapixel target"
             }
             Log.i(TAG, "Exact requested output accepted: requested=${targetPixels} actual=${outputPixels}")
             stageWatchdog?.finish()

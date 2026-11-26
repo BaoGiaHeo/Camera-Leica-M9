@@ -1194,6 +1194,8 @@ fun CameraScreen(
     var lastUri by remember { mutableStateOf<Uri?>(null) }
     var captureTimestampForThumbnail by remember { mutableLongStateOf(0L) }
     var captureStartedRealtimeForThumbnail by remember { mutableLongStateOf(0L) }
+    var aeLockedAtCapture by remember { mutableStateOf(false) }
+    var afLockedAtCapture by remember { mutableStateOf(false) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var thumbnailRequestKey by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
@@ -3409,8 +3411,8 @@ fun CameraScreen(
         val uri = lastUri
         val shutterTimestamp = captureTimestampForThumbnail
         val shutterStartedRealtime = captureStartedRealtimeForThumbnail
-        val aeLockAtCapture = aeLocked
-        val afLockAtCapture = focusLocked
+        val aeLockAtCapture = aeLockedAtCapture
+        val afLockAtCapture = afLockedAtCapture
         if (uri == null) {
             thumb = null
             return@LaunchedEffect
@@ -3707,6 +3709,8 @@ fun CameraScreen(
         val captureTimestampMillis = System.currentTimeMillis()
         captureTimestampForThumbnail = captureTimestampMillis
         captureStartedRealtimeForThumbnail = SystemClock.elapsedRealtime()
+        aeLockedAtCapture = aeLocked
+        afLockedAtCapture = focusLocked
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
             (nightShotMode != "off" || lunaDreamMode in setOf("luna20", "luna25", "luna30") || starTrailCaptureInProgress)
@@ -4123,8 +4127,8 @@ fun CameraScreen(
                             ),
                             peakMemoryBytes = maxOf(sampledHeapBytes, CaptureDiagnostics.peakMemoryBytes()),
                             burstFramesPerSecond = burstFps,
-                            aeLocked = aeLocked,
-                            afLocked = focusLocked
+                            aeLocked = aeLockedAtCapture,
+                            afLocked = afLockedAtCapture
                         )
                     )
                     lastSuccessfulUri = burstUri
@@ -5224,8 +5228,8 @@ fun CameraScreen(
                                             "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                                         ),
                                         peakMemoryBytes = maxOf(sampledUsedHeapBytes, CaptureDiagnostics.peakMemoryBytes()),
-                                        aeLocked = aeLocked,
-                                        afLocked = focusLocked,
+                                        aeLocked = aeLockedAtCapture,
+                                        afLocked = afLockedAtCapture,
                                         errorMessage = if (captureUseLunaDream && !lunaDreamApplied) {
                                             "LunaDream dừng: " + (lunaDreamFailureReason ?: "Không hoàn tất ghép ảnh")
                                         } else null

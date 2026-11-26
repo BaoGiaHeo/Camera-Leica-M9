@@ -1,6 +1,7 @@
 package com.example.camui
 
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material3.CircularProgressIndicator
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.drawWithCache

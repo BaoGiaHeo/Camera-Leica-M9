@@ -1045,6 +1045,13 @@ fun FujiShutterButton(
             },
         contentAlignment = Alignment.Center
     ) {
+        if (!enabled) {
+            CircularProgressIndicator(
+                modifier = Modifier.fillMaxSize(0.96f),
+                color = Color.White,
+                strokeWidth = 2.dp
+            )
+        }
         Box(
             Modifier.fillMaxSize(0.82f).clip(CircleShape)
                 .background(Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFD6D8D8), Color(0xFF737B7F))))

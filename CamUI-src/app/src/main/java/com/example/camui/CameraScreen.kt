@@ -152,6 +152,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
@@ -5703,6 +5704,12 @@ fun CameraScreen(
         Row(
             toolbarModifier.fillMaxWidth().height(plateHeight)
                 .background(Brush.verticalGradient(listOf(Color(0xFF292C2F), Color(0xFF090A0B))))
+                .drawWithContent {
+                    drawContent()
+                    val lineY = size.height - 0.5.dp.toPx()
+                    drawLine(Color.White.copy(alpha = 0.14f), androidx.compose.ui.geometry.Offset(0f, lineY),
+                        androidx.compose.ui.geometry.Offset(size.width, lineY), 1.dp.toPx())
+                }
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -5783,6 +5790,7 @@ fun CameraScreen(
                                 .padding(start = 5.dp * designScale, top = 5.dp * designScale, end = 5.dp * designScale, bottom = Tuning.CAMERA_PREVIEW_CHIN_EXTRA_DP.dp * designScale)
                                 .clip(RoundedCornerShape(Tuning.CAMERA_PREVIEW_INNER_RADIUS_DP.dp * designScale))
                                 .background(FujiSkin.lcd)
+                                .border(1.dp * designScale, Color.White.copy(alpha = 0.08f), RoundedCornerShape(Tuning.CAMERA_PREVIEW_INNER_RADIUS_DP.dp * designScale))
                                 .graphicsLayer { alpha = previewOrientationAlpha.value }
                                 .pointerInput(camera, mode) {
                                     awaitPointerEventScope {
@@ -7417,7 +7425,7 @@ fun CameraScreen(
             Row(Modifier.fillMaxWidth().height(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(evText, color = FujiCameraDesign.text, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                Text(evText, color = FujiCameraDesign.text, fontSize = 28.sp * designScale, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 FujiCameraKey("−", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), scale = designScale, onClick = {
                     if (range != null) {

@@ -113,6 +113,23 @@ internal object LunaDreamSelfTest {
             peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
             check(merged) { "Ghép thất bại: ${mergeFailure.ifBlank { "không có thông tin lỗi" }}" }
 
+            // The tile path accepts only a WatermarkStage decision payload (FM-WM=1/0).
+            // Run the same finalizer used by real captures before exercising the native encoder.
+            val watermarkStart = SystemClock.elapsedRealtime()
+            check(
+                WatermarkFinalizer.ensure(
+                    context = context,
+                    uri = outputUri,
+                    focal = "23mm",
+                    aperture = "f/2.0",
+                    shutter = "1/125s",
+                    iso = "400",
+                    captureTimestampMillis = System.currentTimeMillis()
+                )
+            ) { "Không đóng/xác minh được LUT và watermark trước khi nâng theo tile." }
+            stages["LUT + watermark"] = SystemClock.elapsedRealtime() - watermarkStart
+            peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
+
             val upscaleStart = SystemClock.elapsedRealtime()
             val resized = PhotoOutputResolution.interpolateToMp(
                 context = context,

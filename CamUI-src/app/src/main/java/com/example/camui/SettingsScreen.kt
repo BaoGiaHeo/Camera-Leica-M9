@@ -178,7 +178,15 @@ fun SettingsScreen(
         }
     }
     if (showCaptureDiagnostics) {
-        CaptureDiagnosticsDialog(onDismiss = { showCaptureDiagnostics = false })
+        CaptureDiagnosticsDialog(
+            onDismiss = { showCaptureDiagnostics = false },
+            onTestPreviewColor = {
+                LocalContext.current.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                    .edit().putBoolean("preview_color_test_requested", true).apply()
+                showCaptureDiagnostics = false
+                onBack()
+            }
+        )
     }
 }
 

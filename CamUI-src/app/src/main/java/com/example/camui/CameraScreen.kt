@@ -152,6 +152,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
@@ -5655,7 +5656,7 @@ fun CameraScreen(
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
     val evText = if (evStep > 0f) "%+.1f".format(Locale.US, evIndex * evStep) else "0.0"
     val currentIso = if (manualIsoEnabled) manualIso else iso
-    val isoText = if (manualIsoEnabled) manualIso.toString() else "AUTO"
+    val isoText = currentIso.takeIf { it > 0 }?.toString() ?: "AUTO"
     val currentShutter = if (manualShutterEnabled) manualShutterNs else shutterNs
     val shutterText = if (currentShutter > 0) {
         val seconds = currentShutter / 1_000_000_000.0
@@ -6452,6 +6453,7 @@ fun CameraScreen(
                                     FujiProFocusStrip(
                                         focusPosition = if (focusMax > 0.001f) (manualFocus / focusMax).coerceIn(0f, 1f) else 0f,
                                         automatic = manualFocus <= 0f && !milkyWayInfinityFocusEnabled,
+                                        scale = designScale,
                                         touchEnabled = touchAfEnabled,
                                         onFocusPosition = { fraction ->
                                             manualFocus = fraction * focusMax
@@ -6471,15 +6473,16 @@ fun CameraScreen(
                                         onTouchToggle = { touchAfEnabled = !touchAfEnabled }
                                     )
                                     FujiProHud(
-                                        shutter = shutterText,
+                                        shutter = if (shutterText == "AUTO") stringResource(R.string.camera_auto) else shutterText,
                                         aperture = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
                                             ?.let { "F%.1f".format(Locale.US, it) } ?: "F--",
                                         focus = if (manualFocus > 0f || milkyWayInfinityFocusEnabled) "MF" else "AF",
-                                        iso = isoText,
-                                        kelvin = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
+                                        iso = if (isoText == "AUTO") stringResource(R.string.camera_auto) else isoText,
+                                        kelvin = if (manualColorTempEnabled) "${manualColorTemp}K" else stringResource(R.string.camera_auto),
                                         ev = evText,
                                         batteryPercent = batteryPercent,
-                                        hudHeight = (frameHeight * Tuning.CAMERA_HUD_HEIGHT_FRACTION).coerceAtLeast(40.dp)
+                                        hudHeight = (frameHeight * Tuning.CAMERA_HUD_HEIGHT_FRACTION).coerceAtLeast(40.dp),
+                                        scale = designScale
                                     )
                                 }
                             } else {
@@ -6504,7 +6507,8 @@ fun CameraScreen(
                                     zoom = zoomDisplayValue,
                                     minimumZoom = photoMin,
                                     maximumZoom = photoMax,
-                                    onZoom = { requested -> animateZoomTo(requested.coerceIn(photoMin, photoMax)) }
+                                    onZoom = { requested -> animateZoomTo(requested.coerceIn(photoMin, photoMax)) },
+                                    scale = designScale
                                 )
                             }
                             if (mode == "Pro" && proSel != null) {
@@ -7301,7 +7305,12 @@ fun CameraScreen(
 
     val leftHardwareContent: @Composable (Modifier) -> Unit = { sideModifier ->
         Column(
-            sideModifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 8.dp),
+            sideModifier.fillMaxSize().padding(2.dp * designScale)
+                .shadow(6.dp * designScale, RoundedCornerShape(20.dp * designScale))
+                .clip(RoundedCornerShape(20.dp * designScale))
+                .background(Color(0xB81C1E20))
+                .border(1.dp * designScale, FujiCameraDesign.stroke, RoundedCornerShape(20.dp * designScale))
+                .padding(horizontal = 2.dp * designScale, vertical = 6.dp * designScale),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -7322,7 +7331,8 @@ fun CameraScreen(
                 stringResource(R.string.camera_filter),
                 modifier = Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale),
                 icon = "film",
-                selected = filterDialogVisible || activeFilter != "None"
+                selected = filterDialogVisible || activeFilter != "None",
+                scale = designScale
             ) {
                 activeFilter = appPrefs.getString("selected_filter", activeFilter) ?: activeFilter
                 filterDialogVisible = true
@@ -7338,7 +7348,8 @@ fun CameraScreen(
                     "luna25" -> "2.5"
                     "luna30" -> "3.0"
                     else -> if (nightShotMode == "night") stringResource(R.string.camera_night_shot) else stringResource(R.string.camera_off)
-                }
+                },
+                scale = designScale
             ) {
                 when {
                     livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
@@ -7367,7 +7378,12 @@ fun CameraScreen(
         val evMinimum = range?.lower ?: 0
         val evMaximum = range?.upper ?: 0
         Column(
-            sideModifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 5.dp),
+            sideModifier.fillMaxSize().padding(2.dp * designScale)
+                .shadow(6.dp * designScale, RoundedCornerShape(20.dp * designScale))
+                .clip(RoundedCornerShape(20.dp * designScale))
+                .background(Color(0xB81C1E20))
+                .border(1.dp * designScale, FujiCameraDesign.stroke, RoundedCornerShape(20.dp * designScale))
+                .padding(horizontal = 3.dp * designScale, vertical = 4.dp * designScale),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
@@ -7376,7 +7392,8 @@ fun CameraScreen(
                     stringResource(R.string.camera_timer),
                     modifier = Modifier.size(Tuning.CAMERA_TIMER_FLASH_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
                     icon = "timer",
-                    secondary = if (timerSec == 0) stringResource(R.string.camera_off) else "${timerSec}s"
+                    secondary = if (timerSec == 0) stringResource(R.string.camera_off) else "${timerSec}s",
+                    scale = designScale
                 ) { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } }
                 FujiCameraKey(
                     stringResource(R.string.camera_flash),
@@ -7386,7 +7403,8 @@ fun CameraScreen(
                         ImageCapture.FLASH_MODE_AUTO -> stringResource(R.string.camera_auto)
                         ImageCapture.FLASH_MODE_ON -> stringResource(R.string.camera_on)
                         else -> stringResource(R.string.camera_off)
-                    }
+                    },
+                    scale = designScale
                 ) {
                     flash = when (flash) {
                         ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO
@@ -7400,7 +7418,7 @@ fun CameraScreen(
                 Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(evText, color = FujiCameraDesign.text, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                FujiCameraKey("−", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), onClick = {
+                FujiCameraKey("−", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), scale = designScale, onClick = {
                     if (range != null) {
                         val next = (evIndex - 1).coerceIn(range.lower, range.upper)
                         evIndex = next
@@ -7408,7 +7426,7 @@ fun CameraScreen(
                         camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
                     }
                 })
-                FujiCameraKey("+", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), onClick = {
+                FujiCameraKey("+", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), scale = designScale, onClick = {
                     if (range != null) {
                         val next = (evIndex + 1).coerceIn(range.lower, range.upper)
                         evIndex = next
@@ -7447,7 +7465,8 @@ fun CameraScreen(
                         stringResource(R.string.camera_af_lock),
                         modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
                         icon = "lock",
-                        selected = focusLocked
+                        selected = focusLocked,
+                        scale = designScale
                     ) {
                         camera?.let { active ->
                             if (focusLocked) {
@@ -7461,7 +7480,8 @@ fun CameraScreen(
                     FujiCameraKey(
                         stringResource(R.string.camera_settings),
                         modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
-                        icon = "settings"
+                        icon = "settings",
+                        scale = designScale
                     ) { onOpenSettings() }
                 }
             }

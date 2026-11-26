@@ -37,6 +37,7 @@ internal object DigitalZoomXmpWriter {
         val rewritten = File(context.cacheDir, "fuji-xmp-output-${System.nanoTime()}.jpg")
         return try {
             context.contentResolver.openInputStream(uri)?.use { input ->
+                // JPEG_INTERMEDIATE_ALLOWLIST: cache copy of the current JPEG for metadata rewrite; the final capture is subsequently passed through WatermarkFinalizer/ImageSink.
                 FileOutputStream(original).use { output ->
                     input.copyTo(output, 1024 * 1024)
                     output.flush()
@@ -45,6 +46,7 @@ internal object DigitalZoomXmpWriter {
             } ?: error("Cannot open image to add XMP")
 
             FileInputStream(original).use { input ->
+                // JPEG_INTERMEDIATE_ALLOWLIST: rewritten cache JPEG staging XMP metadata; final image still returns through WatermarkFinalizer/ImageSink.
                 FileOutputStream(rewritten).use { output ->
                     injectXmp(
                         input = BufferedInputStream(input),
@@ -61,6 +63,7 @@ internal object DigitalZoomXmpWriter {
             }
 
             try {
+                // JPEG_INTERMEDIATE_ALLOWLIST: publish digital-zoom XMP metadata before the final WatermarkFinalizer/ImageSink pass.
                 context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                     FileInputStream(rewritten).use { source -> source.copyTo(destination, 1024 * 1024) }
                     destination.flush()
@@ -68,6 +71,7 @@ internal object DigitalZoomXmpWriter {
             } catch (writeFailure: Throwable) {
                 // A failed MediaStore write should not destroy the captured original.
                 runCatching {
+                    // JPEG_INTERMEDIATE_ALLOWLIST: restore the untouched captured JPEG after failed XMP metadata rewrite; finalizer follows.
                     context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                         FileInputStream(original).use { source -> source.copyTo(destination, 1024 * 1024) }
                         destination.flush()

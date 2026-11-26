@@ -95,6 +95,92 @@ internal fun FujiRoundTopKey(icon: String, selected: Boolean, onClick: () -> Uni
     ) { FujiIconGlyph(icon, Modifier.size(23.dp), if (selected) FujiCameraDesign.orange else Color.White) }
 }
 
+
+@Composable
+internal fun FujiEvRuler(
+    position: Float,
+    minimum: Int,
+    maximum: Int,
+    onPositionChange: (Int) -> Unit
+) {
+    val safeMin = minimum.coerceAtMost(maximum)
+    val safeMax = maximum.coerceAtLeast(safeMin)
+    Box(
+        Modifier.fillMaxWidth().height(24.dp)
+            .pointerInput(safeMin, safeMax) {
+                detectTapGestures { point ->
+                    val fraction = (point.x / size.width).coerceIn(0f, 1f)
+                    onPositionChange((safeMin + fraction * (safeMax - safeMin)).toInt())
+                }
+            }
+            .pointerInput(safeMin, safeMax) {
+                detectDragGestures { change, _ ->
+                    change.consume()
+                    val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                    onPositionChange((safeMin + fraction * (safeMax - safeMin)).toInt())
+                }
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val y = size.height * 0.72f
+            drawLine(Color(0xFF777D81), androidx.compose.ui.geometry.Offset(0f, y),
+                androidx.compose.ui.geometry.Offset(size.width, y), 1.dp.toPx())
+            for (i in 0..32) {
+                val x = size.width * i / 32f
+                val major = i % 4 == 0
+                drawLine(Color.White.copy(alpha = if (major) 0.95f else 0.45f),
+                    androidx.compose.ui.geometry.Offset(x, if (major) 1.dp.toPx() else 6.dp.toPx()),
+                    androidx.compose.ui.geometry.Offset(x, y),
+                    if (major) 1.2.dp.toPx() else 0.7.dp.toPx())
+            }
+            val cursorX = size.width * position.coerceIn(0f, 1f)
+            drawLine(Color.White, androidx.compose.ui.geometry.Offset(cursorX, 0f),
+                androidx.compose.ui.geometry.Offset(cursorX, size.height), 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+    }
+}
+
+@Composable
+internal fun FujiProFocusStrip(
+    focusPosition: Float,
+    automatic: Boolean,
+    touchEnabled: Boolean,
+    onFocusPosition: (Float) -> Unit,
+    onAuto: () -> Unit,
+    onTouchToggle: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(10.dp))
+            .background(Color(0x70000000)).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text("Nét", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        androidx.compose.material3.Slider(
+            value = focusPosition.coerceIn(0f, 1f),
+            onValueChange = onFocusPosition,
+            modifier = Modifier.fillMaxWidth(0.40f).height(28.dp),
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = FujiCameraDesign.orange,
+                inactiveTrackColor = Color(0xFF424649)
+            )
+        )
+        Box(
+            Modifier.height(28.dp).clip(RoundedCornerShape(14.dp))
+                .background(if (automatic) FujiCameraDesign.orange else Color(0xFF35393B))
+                .clickable(onClick = onAuto).padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center
+        ) { Text("Tự động", color = if (automatic) Color.Black else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        Box(
+            Modifier.size(32.dp).clip(CircleShape)
+                .background(if (touchEnabled) FujiCameraDesign.orange else Color(0xFF35393B))
+                .clickable(onClick = onTouchToggle),
+            contentAlignment = Alignment.Center
+        ) { FujiIconGlyph("focus-dot", Modifier.size(18.dp), Color.White) }
+    }
+}
+
 @Composable
 internal fun FujiProHud(
     shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int

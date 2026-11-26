@@ -256,7 +256,7 @@ internal object CaptureDiagnostics {
                         "AF-L: ${entry.afLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"}"
                 )
                 appendLine(
-                    "Đầu ra: ${entry.outputWidth}×${entry.outputHeight} · "
+                    "Đầu ra: ${entry.outputWidth}×${entry.outputHeight} · " +
                         String.format(Locale.US, "%.2f MP", entry.megapixels)
                 )
                 appendLine(

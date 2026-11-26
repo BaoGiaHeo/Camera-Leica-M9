@@ -37,8 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.ln
@@ -206,15 +205,32 @@ internal fun FujiProFocusStrip(
     }
 }
 
+internal fun formatCameraClock(hour: Int, minute: Int, second: Int): String =
+    String.format(
+        Locale.US,
+        "%02dh%02dm%02ds",
+        hour.coerceIn(0, 23),
+        minute.coerceIn(0, 59),
+        second.coerceIn(0, 59)
+    )
+
 @Composable
 internal fun FujiProHud(
     shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, hudHeight: Dp = 60.dp, scale: Float = 1f
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
-    var clock by remember { mutableStateOf("--:--:--") }
+    var clock by remember { mutableStateOf("--h--m--s") }
     LaunchedEffect(Unit) {
-        val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        while (true) { clock = formatter.format(Date()); delay(1_000L) }
+        val calendar = Calendar.getInstance()
+        while (true) {
+            calendar.timeInMillis = System.currentTimeMillis()
+            clock = formatCameraClock(
+                calendar.get(Calendar.HOUR_OF_DAY),
+                calendar.get(Calendar.MINUTE),
+                calendar.get(Calendar.SECOND)
+            )
+            delay(1_000L)
+        }
     }
     Row(
         Modifier.fillMaxWidth(Tuning.CAMERA_HUD_WIDTH_FRACTION).height(hudHeight).clip(RoundedCornerShape(16.dp))
@@ -222,30 +238,33 @@ internal fun FujiProHud(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(0.20f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("SS" + shutter.removePrefix("1/"), color = FujiCameraDesign.blue, fontSize = 19.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text("SS" + shutter.removePrefix("1/"), color = FujiCameraDesign.blue, fontSize = 22.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
         }
         Column(Modifier.weight(0.22f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$aperture  $focus", color = FujiCameraDesign.blue, fontSize = 15.sp * safeScale, maxLines = 1)
-            Text("ISO : $iso", color = Color.White, fontSize = 13.sp * safeScale, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp * safeScale)) {
+                Text(aperture, color = FujiCameraDesign.blue, fontSize = 18.sp * safeScale, maxLines = 1)
+                Text(focus, color = Color.White, fontSize = 11.sp * safeScale, maxLines = 1)
+            }
+            Text("ISO : $iso", color = Color.White, fontSize = 18.sp * safeScale, maxLines = 1)
         }
         Column(Modifier.weight(0.20f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(kelvin, color = FujiCameraDesign.blue, fontSize = 18.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(kelvin, color = FujiCameraDesign.blue, fontSize = 22.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
         }
         Column(Modifier.weight(0.16f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("EV", color = Color.White, fontSize = 11.sp * safeScale)
-            Text(ev, color = Color.White, fontSize = 18.sp * safeScale, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text("EV", color = Color.White, fontSize = 14.sp * safeScale)
+            Text(ev, color = Color.White, fontSize = 24.sp * safeScale, fontWeight = FontWeight.Bold, maxLines = 1)
         }
         Column(Modifier.weight(0.22f), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Canvas(Modifier.size(17.dp * safeScale, 10.dp * safeScale)) {
+                Canvas(Modifier.size(20.dp * safeScale, 12.dp * safeScale)) {
                     drawRoundRect(Color.White, cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()), style = Stroke(1.dp.toPx()))
                     drawRect(Color.White, size = androidx.compose.ui.geometry.Size(size.width * batteryPercent.coerceIn(0, 100) / 100f, size.height))
                     drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.3f),
                         size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height * 0.4f))
                 }
-                Text(" $batteryPercent", color = Color.White, fontSize = 11.sp * safeScale, maxLines = 1)
+                Text(" $batteryPercent", color = Color.White, fontSize = 13.sp * safeScale, maxLines = 1)
             }
-            Text(clock, color = Color.White, fontSize = 10.sp * safeScale, maxLines = 1)
+            Text(clock, color = Color.White, fontSize = 12.sp * safeScale, maxLines = 1)
         }
     }
 }
@@ -257,10 +276,18 @@ internal fun FujiPhotoStatus(
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     var dragging by remember { mutableStateOf(false) }
-    var clock by remember { mutableStateOf("--:--:--") }
+    var clock by remember { mutableStateOf("--h--m--s") }
     LaunchedEffect(Unit) {
-        val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        while (true) { clock = formatter.format(Date()); delay(1_000L) }
+        val calendar = Calendar.getInstance()
+        while (true) {
+            calendar.timeInMillis = System.currentTimeMillis()
+            clock = formatCameraClock(
+                calendar.get(Calendar.HOUR_OF_DAY),
+                calendar.get(Calendar.MINUTE),
+                calendar.get(Calendar.SECOND)
+            )
+            delay(1_000L)
+        }
     }
     val minZoom = minimumZoom.takeIf { it > 0f } ?: 1f
     val maxZoom = maximumZoom.coerceAtLeast(minZoom)
@@ -283,7 +310,7 @@ internal fun FujiPhotoStatus(
                     }
                     Text("$batteryPercent%", color = Color.White, fontSize = 13.sp * safeScale, modifier = Modifier.padding(start = 5.dp * safeScale))
                 }
-                Text(clock, color = Color.White, fontSize = 11.sp * safeScale)
+                Text(clock, color = Color.White, fontSize = 12.sp * safeScale)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp * safeScale)) {
                     Text("W", color = Color.White, fontSize = 12.sp * safeScale)
                     Box(

@@ -1740,26 +1740,24 @@ fun CameraScreen(
         if (method == "LUT_UNAVAILABLE" || method.startsWith("UNSUPPORTED")) {
             CaptureDiagnostics.recordWarning(context, "Không áp dụng được bộ lọc live preview: $method")
         }
-    }
-    LaunchedEffect(previewView, activeFilter) {
         val filterPrefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
         if (filterPrefs.getBoolean("preview_color_test_requested", false)) {
             filterPrefs.edit().putBoolean("preview_color_test_requested", false).apply()
             val baseEffect = digitalZoomPreviewEffect.currentRenderEffect()
-            val method = CameraLutPreviewEffect.setDebugTint(
+            val testMethod = CameraLutPreviewEffect.setDebugTint(
                 context, previewView, activeFilter, baseEffect, enabled = true
             )
-            CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_START method=$method preset=$activeFilter")
-            if (method == "AGSL" || method == "ColorMatrix") {
+            CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_START method=$testMethod preset=$activeFilter")
+            if (testMethod == "AGSL" || testMethod == "ColorMatrix") {
                 Toast.makeText(context, "Đang thử màu đỏ trên preview trong 3 giây", Toast.LENGTH_SHORT).show()
                 delay(Tuning.FILTER_PREVIEW_COLOR_TEST_MS)
                 val restored = CameraLutPreviewEffect.setDebugTint(
                     context, previewView, activeFilter, baseEffect, enabled = false
                 )
-                CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_RESULT pass=true method=$method restore=$restored")
+                CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_RESULT pass=true method=$testMethod restore=$restored")
             } else {
-                CaptureDiagnostics.recordWarning(context, "Thử màu preview thất bại: $method")
-                CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_RESULT pass=false method=$method")
+                CaptureDiagnostics.recordWarning(context, "Thử màu preview thất bại: $testMethod")
+                CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_RESULT pass=false method=$testMethod")
             }
         }
     }

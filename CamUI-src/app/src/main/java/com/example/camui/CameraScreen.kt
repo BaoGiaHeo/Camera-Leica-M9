@@ -6348,6 +6348,7 @@ fun CameraScreen(
                                     showHistogram = mode == "Pro" && showHist && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
                                     histogram = hist.toList(),
                                     isPro = lcdDisplayMode.showsProHud(mode == "Pro"),
+                                    showProHud = false,
                                     afModeText = when {
                                         focusLocked -> "AF-L"
                                         mode == "Pro" && (manualFocus > 0f || milkyWayInfinityFocusEnabled) -> "MF"
@@ -6491,7 +6492,10 @@ fun CameraScreen(
                                         ev = evText,
                                         batteryPercent = batteryPercent,
                                         hudHeight = (frameHeight * Tuning.CAMERA_HUD_HEIGHT_FRACTION).coerceAtLeast(40.dp),
-                                        scale = designScale
+                                        scale = designScale,
+                                        onControlTap = { selectedControl ->
+                                            proSel = if (proSel == selectedControl) null else selectedControl
+                                        }
                                     )
                                 }
                             } else {

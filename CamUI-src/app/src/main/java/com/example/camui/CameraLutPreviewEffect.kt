@@ -202,7 +202,7 @@ internal object CameraLutPreviewEffect {
     private val viewEffects = WeakHashMap<View, ViewEffectState>()
 
     private fun hasActiveColorRecipe(context: Context): Boolean {
-        val params = ColorPipelineParams.from(context, "None")
+        val params = ColorPipelineParamsStore.current(context, "None")
         return kotlin.math.abs(params.toneX) > 0.001f ||
             kotlin.math.abs(params.toneY) > 0.001f ||
             kotlin.math.abs(params.highlights) > 0.001f ||
@@ -293,7 +293,7 @@ internal object CameraLutPreviewEffect {
     }
 
     private fun updateRecipeUniforms(context: Context, shader: RuntimeShader, preset: String, view: View) {
-        val params = ColorPipelineParams.from(context, preset)
+        val params = ColorPipelineParamsStore.current(context, preset)
         shader.setFloatUniform("uMix", params.intensity)
         shader.setFloatUniform("uHighlight", params.highlights)
         shader.setFloatUniform("uShadow", params.shadows)
@@ -309,7 +309,7 @@ internal object CameraLutPreviewEffect {
     }
 
     private fun colorMatrix(context: Context, preset: String, debugTint: Boolean): ColorMatrix {
-        val params = ColorPipelineParams.from(context, preset)
+        val params = ColorPipelineParamsStore.current(context, preset)
         val saturation = (1f + params.toneX * 0.36f + params.colorChrome * 0.05f).coerceIn(0.35f, 1.55f)
         val exposure = (Math.pow(2.0, params.toneY.toDouble()).toFloat()).coerceIn(0.5f, 2f)
         val contrast = (1f + kotlin.math.abs(params.toneX) * 0.18f).coerceIn(0.8f, 1.2f)
@@ -380,7 +380,7 @@ internal object CameraLutPreviewEffect {
         }
         updateRecipeUniforms(context, effect.shader, preset, view)
         effect.shader.setFloatUniform("uDebugTint", if (debugTint) 1f else 0f)
-        val targetMix = ColorPipelineParams.from(context, preset).intensity
+        val targetMix = ColorPipelineParamsStore.current(context, preset).intensity
         effect.shader.setFloatUniform("uMix", 0f)
         val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
         val composed = baseEffect?.let { base -> RenderEffect.createChainEffect(lutEffect, base) } ?: lutEffect

@@ -5710,6 +5710,7 @@ fun CameraScreen(
                     drawLine(Color.White.copy(alpha = 0.14f), androidx.compose.ui.geometry.Offset(0f, lineY),
                         androidx.compose.ui.geometry.Offset(size.width, lineY), 1.dp.toPx())
                 }
+                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -7493,7 +7494,7 @@ fun CameraScreen(
                         }
                     }
                 }
-                Column(Modifier.width(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale), verticalArrangement = Arrangement.spacedBy(8.dp * designScale)) {
+                Column(Modifier.width(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale), verticalArrangement = Arrangement.spacedBy(10.dp * designScale)) {
                     FujiCameraKey(
                         stringResource(R.string.camera_af_lock),
                         modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
@@ -7566,7 +7567,7 @@ fun CameraScreen(
                     Modifier.fillMaxWidth().height(topPlateHeight).graphicsLayer { alpha = chromeAlpha }
                         .onSizeChanged { Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)") }
                 ) {
-                    toolbarContent(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)), topPlateHeight)
+                    toolbarContent(Modifier.fillMaxSize(), topPlateHeight)
                 }
                 Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     val leftPaneWidth = if (leftHandedLayout) layoutMetrics.rightColumnWidth else leftColumnWidth

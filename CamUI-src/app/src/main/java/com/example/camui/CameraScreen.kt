@@ -3996,6 +3996,7 @@ fun CameraScreen(
                 var lastSuccessfulUri: Uri? = null
                 val burstSavedUris = ArrayList<Uri>()
                 val burstCaptureDurationsMs = ArrayList<Long>()
+                var burstFps = 0.0
                 val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
                 try {
                     if (timerSec > 0) {
@@ -4037,7 +4038,7 @@ fun CameraScreen(
                         frameIndex++
                     }
                     val burstElapsedMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
-                    val burstFps = burstSavedUris.size * 1000.0 / burstElapsedMs
+                    burstFps = burstSavedUris.size * 1000.0 / burstElapsedMs
                     CrashContextDiagnostics.recordUiEvent(
                         "BURST_CAPTURE_COMPLETE frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=${"%.2f".format(Locale.US, burstFps)}"
                     )

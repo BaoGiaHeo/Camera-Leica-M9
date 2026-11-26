@@ -4078,7 +4078,7 @@ fun CameraScreen(
                         "BURST_CAPTURE_COMPLETE frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=${"%.2f".format(Locale.US, burstFps)}"
                     )
                     android.util.Log.i("FUJI_BURST", "Continuous burst frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=$burstFps");
-                    if (frameIndex >= Tuning.MAX_CONTINUOUS_BURST_FRAMES && !burstStopRequested) {
+                    if (nextFrameIndex >= Tuning.MAX_CONTINUOUS_BURST_FRAMES && !burstStopRequested) {
                         CaptureDiagnostics.recordWarning(context, "Burst tự dừng ở giới hạn an toàn ${Tuning.MAX_CONTINUOUS_BURST_FRAMES} khung hình.")
                     }
                 } finally {

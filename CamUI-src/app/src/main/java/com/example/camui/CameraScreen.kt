@@ -8792,6 +8792,159 @@ private fun FilterLookDialog(
 
 }
 
+@Composable
+private fun FilmTonePad(
+    activeFilter: String,
+    point: Offset,
+    intensity: Float,
+    valueLabel: String,
+    onPointChange: (Offset) -> Unit,
+    onIntensityChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val filterName = activeFilter.lowercase(Locale.ROOT)
+    val gradientColors = when {
+        filterName.contains("acros") || filterName.contains("mono") ||
+            filterName.contains("tri_x") || filterName.contains("t_max") ->
+            listOf(Color(0xFF22272B), Color(0xFF777D82), Color(0xFFE0E1DE))
+        filterName.contains("gold") || filterName.contains("portra") ||
+            filterName.contains("warm") || filterName.contains("nostalgic") ->
+            listOf(Color(0xFF728DA4), Color(0xFFC6A477), Color(0xFFCE784B))
+        filterName.contains("velvia") || filterName.contains("vivid") ->
+            listOf(Color(0xFF496FA4), Color(0xFF9A668F), Color(0xFFD07A40))
+        else ->
+            listOf(Color(0xFF688EA7), Color(0xFF9B9A83), Color(0xFFB86F4C))
+    }
+
+    Column(
+        modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF202426))
+            .border(1.dp, Color(0xFF596164), RoundedCornerShape(20.dp))
+            .padding(7.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Box(
+            Modifier.fillMaxWidth()
+                .aspectRatio(1.08f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Brush.horizontalGradient(gradientColors))
+                .border(2.dp, Color(0xFFE6E8E7), RoundedCornerShape(16.dp))
+                .pointerInput(onPointChange) {
+                    detectTapGestures(
+                        onDoubleTap = { onPointChange(Offset(0.5f, 0.5f)) },
+                        onTap = { position ->
+                            onPointChange(
+                                Offset(
+                                    (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                                    (position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                )
+                            )
+                        }
+                    )
+                }
+                .pointerInput(onPointChange) {
+                    detectDragGestures(
+                        onDragStart = { position ->
+                            onPointChange(
+                                Offset(
+                                    (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                                    (position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                )
+                            )
+                        },
+                        onDrag = { change, _ ->
+                            onPointChange(
+                                Offset(
+                                    (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                                    (change.position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                )
+                            )
+                            change.consume()
+                        }
+                    )
+                }
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                drawRect(Brush.verticalGradient(listOf(
+                    Color.White.copy(alpha = 0.14f),
+                    Color.Transparent,
+                    Color.Black.copy(alpha = 0.48f)
+                )))
+                val center = Offset(size.width * point.x, size.height * point.y)
+                val nearRadius = 42.dp.toPx()
+                for (row in 0..6) {
+                    for (column in 0..8) {
+                        val dot = Offset(
+                            size.width * column / 8f,
+                            size.height * row / 6f
+                        )
+                        val distance = (dot - center).getDistance()
+                        val radius = if (distance < nearRadius) 2.0.dp.toPx() else 1.25.dp.toPx()
+                        drawCircle(
+                            Color.White.copy(alpha = if (distance < nearRadius) 0.92f else 0.58f),
+                            radius,
+                            dot
+                        )
+                    }
+                }
+                drawCircle(Color.Black.copy(alpha = 0.7f), 12.dp.toPx(), center)
+                drawCircle(Color.White, 10.dp.toPx(), center)
+                drawCircle(Color(0xFF303335), 11.dp.toPx(), center, style = Stroke(1.dp.toPx()))
+            }
+            Text(
+                "Sáng",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopCenter)
+                    .background(Color(0x99000000), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
+            )
+            Text(
+                "Tối",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .background(Color(0x99000000), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
+            )
+            Text(
+                "Nhạt",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.CenterStart)
+                    .background(Color(0x99000000), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 4.dp, vertical = 3.dp)
+            )
+            Text(
+                "Đậm",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.CenterEnd)
+                    .background(Color(0x99000000), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 4.dp, vertical = 3.dp)
+            )
+        }
+        Text(
+            valueLabel,
+            color = Color(0xFFE8E9E8),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
+        CompactFilterAdjustmentSlider(
+            "Cường độ",
+            intensity,
+            0f..1f,
+            "${(intensity * 100f).roundToInt()}%"
+        )(onIntensityChange)
+    }
+}
+
 // Filter groups include the original brand/film looks which were previously hidden
 // when the picker was flattened into a single "Bộ lọc" category.
 private data class CameraLookGroup(

@@ -8276,19 +8276,17 @@ private fun FilterLookDialog(
             )
         )
     }
-    var paletteWidth by remember { mutableFloatStateOf(1f) }
-    var paletteHeight by remember { mutableFloatStateOf(1f) }
     fun updatePalette(point: Offset) {
         val clamped = Offset(point.x.coerceIn(0f, 1f), point.y.coerceIn(0f, 1f))
         palettePoint = clamped
-        val temperature = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
-        val tone = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
+        val toneX = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
+        val toneY = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
         CrashContextDiagnostics.recordUiEvent(
-            "TONE_DRAG Sáng=${"%.2f".format(Locale.US, tone)} Đậm=${"%.2f".format(Locale.US, temperature)}"
+            "TONE_DRAG Sáng=${"%+.2f".format(Locale.US, toneY)} Đậm=${"%+.2f".format(Locale.US, toneX)}"
         )
         recipePrefs.edit()
-            .putFloat("film_custom_temperature", temperature)
-            .putFloat("film_custom_tone", tone)
+            .putFloat("film_custom_temperature", toneX)
+            .putFloat("film_custom_tone", toneY)
             .apply()
         customPreviewRevision++
         onRecipeChanged()
@@ -8298,47 +8296,54 @@ private fun FilterLookDialog(
         customPreviewRevision++
         onRecipeChanged()
     }
+    fun resetColorControls() {
+        customHighlights = 0f
+        customShadows = 0f
+        customColorChrome = 0f
+        customSharpness = 0f
+        customNoiseReduction = 0f
+        filterIntensity = 1f
+        palettePoint = Offset(0.5f, 0.5f)
+        recipePrefs.edit()
+            .putFloat("film_custom_highlight", 0f)
+            .putFloat("film_custom_shadow", 0f)
+            .putFloat("film_custom_color_chrome", 0f)
+            .putFloat("film_custom_sharpness", 0f)
+            .putFloat("film_custom_noise_reduction", 0f)
+            .putFloat("film_filter_intensity", 1f)
+            .putFloat("film_custom_temperature", 0f)
+            .putFloat("film_custom_tone", 0f)
+            .apply()
+        customPreviewRevision++
+        onRecipeChanged()
+        Toast.makeText(context, "Đã đặt lại chỉnh màu", Toast.LENGTH_SHORT).show()
+    }
     val adjustmentControls: @Composable (Modifier) -> Unit = { adjustmentModifier ->
         Column(
             adjustmentModifier.fillMaxWidth().background(Color(0xFF25292A))
                 .padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(
-                stringResource(R.string.filter_adjustments_title),
-                color = Color.White,
-                fontSize = 7.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
-            )
             CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_highlights),
+                "Vùng sáng",
                 customHighlights, -1f..1f, "%+.2f".format(Locale.US, customHighlights)
             ) { customHighlights = it; persistRecipeValue("film_custom_highlight", it) }
             CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_shadows),
+                "Vùng tối",
                 customShadows, -1f..1f, "%+.2f".format(Locale.US, customShadows)
             ) { customShadows = it; persistRecipeValue("film_custom_shadow", it) }
             CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_color_chrome),
+                "Color Chrome",
                 customColorChrome, 0f..1f, "%.2f".format(Locale.US, customColorChrome)
             ) { customColorChrome = it; persistRecipeValue("film_custom_color_chrome", it) }
             CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_grain),
-                customGrain, 0f..1f, "%.2f".format(Locale.US, customGrain)
-            ) { customGrain = it; persistRecipeValue("film_custom_grain", it) }
+                "Độ nét",
+                customSharpness, 0f..1f, "${(customSharpness * 100f).roundToInt()}%"
+            ) { customSharpness = it; persistRecipeValue("film_custom_sharpness", it) }
             CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_saturation),
-                customSaturation, 0.5f..1.5f, "%.2f".format(Locale.US, customSaturation)
-            ) { customSaturation = it; persistRecipeValue("film_custom_saturation", it) }
-            CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_hue),
-                customHue, -0.5f..0.5f, "%+.2f".format(Locale.US, customHue)
-            ) { customHue = it; persistRecipeValue("film_custom_hue", it) }
-            CompactFilterAdjustmentSlider(
-                stringResource(R.string.filter_adjust_lightness),
-                customLightness, -0.5f..0.5f, "%+.2f".format(Locale.US, customLightness)
-            ) { customLightness = it; persistRecipeValue("film_custom_lightness", it) }
+                "Giảm nhiễu",
+                customNoiseReduction, 0f..1f, "${(customNoiseReduction * 100f).roundToInt()}%"
+            ) { customNoiseReduction = it; persistRecipeValue("film_custom_noise_reduction", it) }
         }
     }
 

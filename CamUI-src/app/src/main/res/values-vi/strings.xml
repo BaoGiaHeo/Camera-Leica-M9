@@ -261,4 +261,14 @@
     <string name="gallery_app_unavailable">Không tìm thấy ứng dụng Thư viện để mở ảnh này.</string>
     <string name="diagnostics_ui_counters">Bộ đếm giao diện: %1$s</string>
     <string name="diagnostics_recent_warnings">Cảnh báo gần đây</string>
+
+    <string name="camera_brand_subtitle">MÁY ẢNH KỸ THUẬT SỐ</string>
+    <string name="camera_filter">Bộ lọc</string>
+    <string name="camera_lunadream">LunaDream</string>
+    <string name="camera_timer">Hẹn giờ</string>
+    <string name="camera_flash">Flash</string>
+    <string name="camera_af_lock">Khoá AF</string>
+    <string name="camera_settings">Cài đặt</string>
+    <string name="camera_shutter">Chụp</string>
+
 </resources>

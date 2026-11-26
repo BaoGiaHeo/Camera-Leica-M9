@@ -836,6 +836,7 @@ fun CameraScreen(
     }
     var burstCaptureActive by remember { mutableStateOf(false) }
     var burstStopRequested by remember { mutableStateOf(false) }
+    var burstShutterHeld by remember { mutableStateOf(false) }
     var burstCompletedFrames by remember { mutableIntStateOf(0) }
     var hdrBracketMode by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_bracketing_enabled", false))
@@ -4006,7 +4007,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             scope.launch {
                 val activeCapture = imageCapture ?: return@launch
                 burstCaptureActive = true
-                burstStopRequested = false
+                // Preserve an early finger release that may arrive before this coroutine starts.
+                burstStopRequested = !burstShutterHeld
                 burstCompletedFrames = 0
                 var lastSuccessfulUri: Uri? = null
                 val burstSavedUris = ArrayList<Uri>()
@@ -4052,7 +4054,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         }
                     }
 
-                    while (!burstStopRequested &&
+                    while (burstShutterHeld && !burstStopRequested &&
                         nextFrameIndex < Tuning.MAX_CONTINUOUS_BURST_FRAMES
                     ) {
                         // A full queue applies back-pressure instead of dropping a frame or allocating more work.
@@ -4100,6 +4102,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     countdown = 0
                     burstCaptureActive = false
                     burstStopRequested = false
+                    burstShutterHeld = false
                 }
                 if (burstSavedUris.isNotEmpty()) {
                     isProcessing = true
@@ -7741,8 +7744,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             }
             FujiShutterButton(
                 enabled = !isProcessing,
-                onLongPress = { takePhoto(forceBurst = true) },
-                onRelease = { if (burstCaptureActive) burstStopRequested = true },
+                onLongPress = {
+                    burstShutterHeld = true
+                    takePhoto(forceBurst = true)
+                },
+                onRelease = {
+                    burstShutterHeld = false
+                    if (burstCaptureActive) burstStopRequested = true
+                },
                 onHalfPress = {
                     invalidatePendingFocusLock(camera)
                     centerAfStatus = 0

@@ -125,16 +125,16 @@ object FujiFeedback {
 }
 
 object FujiSkin {
-    val body = Color(0xFF1C1E20)
-    val bodyDeep = Color(0xFF0E0F10)
+    val body = FujiCameraDesign.surface
+    val bodyDeep = FujiCameraDesign.background
     val silver = Color(0xFFC1C1C1)
-    val ivory = Color(0xFFF2F2F2)
+    val ivory = FujiCameraDesign.text
     val lcd = Color(0xFF080808)
-    val lcdGreen = Color(0xFF5ED08A)
-    val orange = Color(0xFFF0A030)
-    val line = Color(0xFF5A5D60)
-    val muted = Color(0xFF9A9DA1)
-    val manualBlue = Color(0xFF3B8EE6)
+    val lcdGreen = FujiCameraDesign.green
+    val orange = FujiCameraDesign.orange
+    val line = FujiCameraDesign.stroke
+    val muted = FujiCameraDesign.muted
+    val manualBlue = FujiCameraDesign.blue
 }
 
 /**

@@ -2928,6 +2928,7 @@ private fun duplicateOriginalWatermarkSource(context: Context, uri: Uri): Uri? {
     val copyUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return null
     return runCatching {
         val input = resolver.openInputStream(uri) ?: error("Could not read original source photo")
+        // JPEG_INTERMEDIATE_ALLOWLIST: deliberate untouched-original preservation copy; the processed capture itself is published through ImageSink.
         val output = resolver.openOutputStream(copyUri, "w") ?: error("Could not create original photo copy")
         input.use { source -> output.use { destination -> source.copyTo(destination) } }
         if (android.os.Build.VERSION.SDK_INT >= 29) {

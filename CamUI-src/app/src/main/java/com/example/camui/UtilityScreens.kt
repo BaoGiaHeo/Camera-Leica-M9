@@ -2348,6 +2348,9 @@ private fun customCameraLutId(preset: String): String? {
 }
 
 fun cameraLookDisplayName(context: Context, preset: String): String {
+    builtInCameraLookId(preset)?.let { id ->
+        return builtInCameraLookDefinition(id)?.name ?: "Film look"
+    }
     builtInCameraLutId(preset)?.let { id ->
         return builtInCameraLutDefinition(id)?.name ?: "Built-in LUT"
     }
@@ -2460,10 +2463,129 @@ fun importCustomCameraLuts(context: Context, uri: Uri): List<CustomCameraLut> {
     }
 }
 // Built-in looks and imported custom looks share the same CubeLut sampler and pixel pipeline.
+
+private data class LegacyCameraLookRecipe(
+    val saturation: Float = 1f,
+    val contrast: Float = 1f,
+    val warmth: Float = 0f,
+    val tint: Float = 0f,
+    val fade: Float = 0f,
+    val blueShadow: Float = 0f,
+    val greenBias: Float = 0f,
+    val monochrome: Boolean = false
+)
+
+/**
+ * App-authored approximations for the 46 legacy film looks. They are generated from
+ * compact color recipes, so the selectable catalog does not depend on a missing ZIP.
+ * These are creative looks, not claims of pixel-identical camera manufacturer profiles.
+ */
+private fun legacyCameraLookRecipe(definition: BuiltInCameraLookPresetDefinition): LegacyCameraLookRecipe {
+    val name = definition.name.lowercase(Locale.ROOT)
+    val category = definition.categoryId
+    val mono = category == "bw" || name.contains("acros") || name.contains("mono") ||
+        name.contains("tri-x") || name.contains("t-max")
+    val saturation = when {
+        mono -> 0f
+        name.contains("velvia") || name.contains("ektar") || name.contains("vivid") -> 1.34f
+        name.contains("chrome") || name.contains("classic neg") -> 0.82f
+        name.contains("eterna") || name.contains("soft log") || name.contains("s-log") -> 0.78f
+        name.contains("portra") || name.contains("400h") || name.contains("astia") -> 0.91f
+        name.contains("kodachrome") || name.contains("cross") -> 1.17f
+        category == "basic" -> if (name == "natural") 0.96f else 1.13f
+        else -> 1.02f
+    }
+    val contrast = when {
+        name.contains("bleach") || name.contains("tri-x") || name.contains("street") -> 1.20f
+        name.contains("eterna") || name.contains("soft log") || name.contains("s-log") -> 0.84f
+        name.contains("portra") || name.contains("400h") || name.contains("astia") -> 0.93f
+        name.contains("velvia") || name.contains("ektar") || name.contains("vivid") -> 1.12f
+        name.contains("classic chrome") -> 1.08f
+        else -> 1.0f
+    }
+    val warmth = when {
+        name.contains("gold") || name.contains("portra") || name.contains("warm") ||
+            name.contains("nostalgic") || name.contains("positive") -> 0.24f
+        name.contains("800t") || name.contains("cool") || name.contains("s-cinetone") -> -0.20f
+        name.contains("kodachrome") || name.contains("ektachrome") -> 0.12f
+        else -> 0f
+    }
+    val tint = when {
+        name.contains("agfa") || name.contains("classic neg") || name.contains("nostalgic") -> 0.10f
+        name.contains("magenta") || name.contains("leica") -> -0.04f
+        else -> 0f
+    }
+    val fade = when {
+        name.contains("eterna") || name.contains("soft log") || name.contains("s-log") -> 0.10f
+        name.contains("classic chrome") || name.contains("portra") -> 0.035f
+        else -> 0f
+    }
+    val blueShadow = when {
+        name.contains("800t") || name.contains("cool") || name.contains("cinematic") -> 0.16f
+        name.contains("gold") || name.contains("warm") -> -0.06f
+        else -> 0f
+    }
+    return LegacyCameraLookRecipe(
+        saturation = saturation,
+        contrast = contrast,
+        warmth = warmth,
+        tint = tint,
+        fade = fade,
+        blueShadow = blueShadow,
+        greenBias = if (name.contains("agfa")) 0.08f else 0f,
+        monochrome = mono
+    )
+}
+
+private fun createLegacyCameraLookLut(definition: BuiltInCameraLookPresetDefinition): CubeLut {
+    val recipe = legacyCameraLookRecipe(definition)
+    val size = 33
+    val values = FloatArray(size * size * size * 3)
+    var index = 0
+    for (redIndex in 0 until size) {
+        val inputRed = redIndex.toFloat() / (size - 1)
+        for (greenIndex in 0 until size) {
+            val inputGreen = greenIndex.toFloat() / (size - 1)
+            for (blueIndex in 0 until size) {
+                val inputBlue = blueIndex.toFloat() / (size - 1)
+                val luma = (0.2126f * inputRed + 0.7152f * inputGreen + 0.0722f * inputBlue)
+                    .coerceIn(0f, 1f)
+                var r = luma + (inputRed - luma) * recipe.saturation
+                var g = luma + (inputGreen - luma) * recipe.saturation
+                var b = luma + (inputBlue - luma) * recipe.saturation
+                r = (r - 0.5f) * recipe.contrast + 0.5f
+                g = (g - 0.5f) * recipe.contrast + 0.5f
+                b = (b - 0.5f) * recipe.contrast + 0.5f
+                val lift = recipe.fade * (1f - luma)
+                r += recipe.warmth * 0.055f + lift
+                g += recipe.tint * 0.035f + recipe.greenBias * 0.025f + lift * 0.72f
+                b -= recipe.warmth * 0.060f
+                b += recipe.blueShadow * (1f - luma) * 0.055f + lift * 0.52f
+                val highlightWeight = ((luma - 0.58f) / 0.42f).coerceIn(0f, 1f)
+                r += recipe.warmth * highlightWeight * 0.018f
+                b -= recipe.warmth * highlightWeight * 0.018f
+                values[index++] = r.coerceIn(0f, 1f)
+                values[index++] = g.coerceIn(0f, 1f)
+                values[index++] = b.coerceIn(0f, 1f)
+            }
+        }
+    }
+    return CubeLut(
+        size = size,
+        domainMin = floatArrayOf(0f, 0f, 0f),
+        domainMax = floatArrayOf(1f, 1f, 1f),
+        values = values,
+        redFastest = false
+    )
+}
+
+// Built-in looks and imported custom looks share the same CubeLut sampler and pixel pipeline.
 internal fun readCameraLookLut(context: Context, preset: String): CubeLut? {
+    val legacyId = builtInCameraLookId(preset)
     val builtInId = builtInCameraLutId(preset)
     val customId = customCameraLutId(preset)
     val cacheKey = when {
+        legacyId != null -> "legacy:$legacyId"
         builtInId != null -> "builtin:$builtInId"
         customId != null -> customId
         else -> return null
@@ -2472,23 +2594,28 @@ internal fun readCameraLookLut(context: Context, preset: String): CubeLut? {
         customCameraLutCache[cacheKey]?.let { return it }
     }
 
-    val file = if (builtInId != null) {
-        if (!ensureBuiltInCameraLutsExtracted(context)) return null
-        builtInCameraLutCacheFile(context, builtInId)
+    val parsed = if (legacyId != null) {
+        val definition = builtInCameraLookDefinition(legacyId) ?: return null
+        createLegacyCameraLookLut(definition)
     } else {
-        customCameraLutFile(context, customId!!)
-    } ?: return null
+        val file = if (builtInId != null) {
+            if (!ensureBuiltInCameraLutsExtracted(context)) return null
+            builtInCameraLutCacheFile(context, builtInId)
+        } else {
+            customCameraLutFile(context, customId!!)
+        } ?: return null
 
-    val parsed = runCatching {
-        val bytes = file.readBytes()
-        parseAnyBinaryLut(bytes)
-            ?: parseCubeLutText(String(bytes, StandardCharsets.UTF_8))
-    }.onFailure {
-        android.util.Log.e("FUJI_FILTER", "Could not parse camera LUT id=$cacheKey", it)
-    }.getOrNull() ?: return null
+        runCatching {
+            val bytes = file.readBytes()
+            parseAnyBinaryLut(bytes)
+                ?: parseCubeLutText(String(bytes, StandardCharsets.UTF_8))
+        }.onFailure {
+            android.util.Log.e("FUJI_FILTER", "Could not parse camera LUT id=$cacheKey", it)
+        }.getOrNull() ?: return null
+    }
 
     synchronized(customCameraLutCache) {
-        if (customCameraLutCache.size >= 4) {
+        if (customCameraLutCache.size >= 8) {
             val oldest = customCameraLutCache.keys.firstOrNull()
             if (oldest != null) customCameraLutCache.remove(oldest)
         }

@@ -5044,8 +5044,46 @@ fun CameraScreen(
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_lightness", 0f)) > 0.001f
                                 )
                                 val exportStageDurations = linkedMapOf<String, Long>()
-                                // LUT is deferred into the final WatermarkStage bitmap pass.
-                                // This prevents a first JPEG encode before watermark rendering.
+                                // For LunaDream 3.0, stamp LUT/watermark on the merged source before
+                                // the native tile resampler. The verified pixel region and EXIF sample
+                                // map are carried through the same resampling transform.
+                                val lunaDream30PreFinalized = if (
+                                    captureUseLunaDream30 && lunaDreamApplied && !captureIsUltraHdr
+                                ) {
+                                    val preStampStartedAtMs = SystemClock.elapsedRealtime()
+                                    val preStamped = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            WatermarkFinalizer.ensure(
+                                                context = context,
+                                                uri = saved,
+                                                focal = focal,
+                                                aperture = aperture,
+                                                shutter = shutterLabel,
+                                                iso = if (actualIso > 0) actualIso.toString() else "AUTO",
+                                                captureTimestampMillis = captureTimestampMillis,
+                                                onStageDuration = { stage, duration ->
+                                                    exportStageDurations[stage] = duration
+                                                }
+                                            )
+                                        }.onFailure {
+                                            val reason = it.message?.takeIf { detail -> detail.isNotBlank() }
+                                                ?: it.javaClass.simpleName
+                                            lunaDreamFailureReason = "Đóng LUT/watermark trước tile thất bại: $reason"
+                                            CaptureDiagnostics.recordWarning(context, lunaDreamFailureReason!!)
+                                        }.getOrDefault(false)
+                                    }
+                                    exportStageDurations["Watermark"] = maxOf(
+                                        exportStageDurations["Watermark"] ?: 0L,
+                                        SystemClock.elapsedRealtime() - preStampStartedAtMs
+                                    )
+                                    if (!preStamped) {
+                                        lunaDreamFailureReason = lunaDreamFailureReason
+                                            ?: "Không xác minh được watermark/LUT trên ảnh ghép trước khi nâng tile."
+                                        CaptureDiagnostics.recordWarning(context, lunaDreamFailureReason!!)
+                                    }
+                                    preStamped
+                                } else false
+
                                 withContext(Dispatchers.Main) { processingProgress = maxOf(processingProgress, 72) }
 
                                 val outputResolutionStartedAtMs = SystemClock.elapsedRealtime()
@@ -5058,7 +5096,7 @@ fun CameraScreen(
                                         captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
                                         captureUseLunaDream20Stack && lunaDreamStackFallbackApplied -> 50_000_000L
                                         captureUseRawDream20 && lunaDreamApplied -> 108_000_000L
-                                        captureUseLunaDream30 && lunaDreamApplied -> 200_000_000L
+                                        captureUseLunaDream30 && lunaDreamApplied && lunaDream30PreFinalized -> 200_000_000L
                                         captureUseLunaDream25 && lunaDreamApplied -> 150_000_000L
                                         captureUseLunaDream20 && lunaDreamApplied -> 108_000_000L
                                         else -> null
@@ -5074,12 +5112,21 @@ fun CameraScreen(
                                     }
                                     withContext(Dispatchers.IO) {
                                         runCatching {
+                                            if (captureUseLunaDream30 && !lunaDream30PreFinalized) {
+                                                error(
+                                                    "LunaDream 3.0 dừng ở bước đóng LUT/watermark trước tile: " +
+                                                        (lunaDreamFailureReason ?: "không xác minh được ảnh ghép.")
+                                                )
+                                            }
                                             if (requestedMp != null) {
                                                 PhotoOutputResolution.interpolateToMp(
                                                     context,
                                                     saved,
                                                     requestedMp,
-                                                    outputHeightOverWidth,
+                                                    targetHeightOverWidth = if (
+                                                        captureUseLunaDream30 && lunaDream30PreFinalized &&
+                                                        appPrefs.getBoolean("watermark_enabled", true)
+                                                    ) null else outputHeightOverWidth,
                                                     adaptiveMinimumPixels = if (captureUseLunaDream30) {
                                                         Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS
                                                     } else {

@@ -1009,6 +1009,8 @@ fun FujiShutterButton(
     enabled: Boolean,
     onHalfPress: () -> Unit,
     onCapture: () -> Unit,
+    onLongPress: () -> Unit = onCapture,
+    onRelease: () -> Unit = {},
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit = {}
 ) {
@@ -1032,6 +1034,15 @@ fun FujiShutterButton(
                             onHalfPress()
                             tryAwaitRelease()
                             pressed = false
+                            onRelease()
+                        }
+                    },
+                    onLongPress = {
+                        if (enabled) {
+                            if (view.context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                                    .getBoolean("haptic_feedback_enabled", true)
+                            ) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            onLongPress()
                         }
                     },
                     onTap = {

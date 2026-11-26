@@ -1,5 +1,7 @@
 package com.example.camui
 
+import android.view.HapticFeedbackConstants
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -11,6 +13,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -61,19 +65,22 @@ internal fun FujiCameraKey(
     secondary: String? = null,
     onClick: () -> Unit
 ) {
+    val view = LocalView.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(80), label = "fuji-key-press")
+    val scale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-key-press")
     Column(
         modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+            .shadow(6.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Brush.verticalGradient(listOf(Color(0xFF2A2C2E), Color(0xFF1A1B1D))))
             .border(1.dp, if (selected) FujiCameraDesign.orange else FujiCameraDesign.stroke, RoundedCornerShape(12.dp))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .clickable(interactionSource = interaction, indication = null) { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK); onClick() }
             .padding(horizontal = 6.dp, vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Canvas(Modifier.fillMaxWidth().height(1.dp)) { drawLine(Color.White.copy(alpha = 0.10f), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx()) }
         if (icon != null) FujiIconGlyph(icon, Modifier.size(22.dp),
             if (selected) FujiCameraDesign.orange else FujiCameraDesign.text)
         Text(label, color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
@@ -87,7 +94,7 @@ internal fun FujiCameraKey(
 internal fun FujiRoundTopKey(icon: String, selected: Boolean, diameter: Dp = 44.dp, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(80), label = "top-key-press")
+    val scale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "top-key-press")
     Box(
         Modifier.size(diameter).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape)
             .background(Brush.verticalGradient(listOf(Color(0xFFE3E5E6), Color(0xFF777D81), Color(0xFF34383B))))

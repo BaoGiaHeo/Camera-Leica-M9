@@ -64,6 +64,7 @@ internal object Tuning {
     const val FILM_ROLL_TONE_PAD_WIDTH_DP = 96f
     const val FILTER_PREVIEW_CROSSFADE_MS = 150
     const val FILTER_PREVIEW_COLOR_TEST_MS = 3_000L
+    const val FILM_ROLL_TONE_DOUBLE_TAP_MS = 300L
     const val FILM_ROLL_RESET_TOUCH_TARGET_DP = 48
     const val FILM_ROLL_RESET_ICON_SIZE_DP = 24
     const val LUNA_DREAM_30_STACK_MAX_PIXELS = 48_000_000L

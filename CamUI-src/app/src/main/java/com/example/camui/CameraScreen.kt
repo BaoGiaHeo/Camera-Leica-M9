@@ -7446,16 +7446,38 @@ fun CameraScreen(
                 camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
                 appPrefs.edit().putInt("pro_ev_index", next).apply()
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    String.format(Locale.US, "%.1f", evMinimum * evStep),
+                    color = FujiCameraDesign.muted,
+                    fontSize = 9.sp * designScale
+                )
+                Text(
+                    String.format(Locale.US, "%+.1f", evMaximum * evStep),
+                    color = FujiCameraDesign.muted,
+                    fontSize = 9.sp * designScale
+                )
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(stringResource(R.string.camera_zoom), color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FujiCameraKey("W", modifier = Modifier.weight(1f).height(Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale), secondary = stringResource(R.string.camera_out)) {
+                        FujiCameraKey(
+                            "W",
+                            modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
+                            secondary = stringResource(R.string.camera_out),
+                            scale = designScale
+                        ) {
                             animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
                         }
-                        FujiCameraKey("T", modifier = Modifier.weight(1f).height(Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale), secondary = stringResource(R.string.camera_in)) {
+                        FujiCameraKey(
+                            "T",
+                            modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
+                            secondary = stringResource(R.string.camera_in),
+                            scale = designScale
+                        ) {
                             animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom))
                         }
                     }

@@ -5763,7 +5763,7 @@ fun CameraScreen(
                         }
                         val animatedFrameWidthOverHeight by animateFloatAsState(
                             targetValue = frameWidthOverHeight,
-                            animationSpec = tween(220, easing = FastOutSlowInEasing),
+                            animationSpec = tween(Tuning.ASPECT_RATIO_ANIMATION_MS, easing = FastOutSlowInEasing),
                             label = "camera-preview-ratio"
                         )
                         val previewMaxWidth = (maxWidth - 10.dp).coerceAtLeast(1.dp)

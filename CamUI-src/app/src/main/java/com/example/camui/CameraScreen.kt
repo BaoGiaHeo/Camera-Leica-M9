@@ -7766,7 +7766,7 @@ private fun LensTransitionOverlay(
                 .padding(horizontal = 22.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("LENS TRANSITION", color = Color(0xFFBDBDBD), fontSize = 9.sp,
+            Text(stringResource(R.string.camera_lens_transition), color = Color(0xFFBDBDBD), fontSize = 9.sp,
                 letterSpacing = 1.5.sp)
             Text(lensLabel, color = FujiSkin.orange,
                 fontSize = 17.sp, fontWeight = FontWeight.Bold,
@@ -8240,7 +8240,7 @@ private fun FilterLookDialog(
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(itemName, color = if (selected) Color.White else Color(0xFFE2E7E7),
                                 fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text("35MM FILM LOOK", color = FujiSkin.lcdGreen, fontSize = 7.sp, letterSpacing = 0.8.sp)
+                            Text(stringResource(R.string.camera_film_35mm), color = FujiSkin.lcdGreen, fontSize = 7.sp, letterSpacing = 0.8.sp)
                         }
                     }
                 }
@@ -8284,7 +8284,7 @@ private fun FilterLookDialog(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("FILM ROLL", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp)
+                        Text(stringResource(R.string.film_filters_title), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp)
                         Spacer(Modifier.weight(1f))
                         Text("×", color = Color.White, fontSize = 20.sp,
                             modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp))

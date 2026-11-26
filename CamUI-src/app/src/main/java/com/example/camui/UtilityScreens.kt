@@ -3085,8 +3085,15 @@ fun applyCameraWatermark(
         location = preferences.getBoolean("watermark_field_location", legacyLocationEnabled),
         filter = preferences.getBoolean("watermark_field_filter", true)
     )
+    val storedWatermarkLayout = preferences.getString("watermark_template", "bar")
+    val effectiveWatermarkLayout = WatermarkLayoutType.fromPreference(storedWatermarkLayout)
+    if (storedWatermarkLayout?.lowercase() in setOf("black", "e", "lcd_osd")) {
+        preferences.edit()
+            .putString("watermark_template", WatermarkLayoutType.preferenceValue(WatermarkLayoutType.BAR))
+            .apply()
+    }
     val settings = WatermarkLayoutSettings(
-        layout = WatermarkLayoutType.fromPreference(preferences.getString("watermark_template", "bar")),
+        layout = effectiveWatermarkLayout,
         sizeStep = preferences.getInt("watermark_size_step", 0).coerceIn(-2, 2),
         invert = preferences.getBoolean("watermark_invert", false),
         fields = fields,

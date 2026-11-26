@@ -2624,7 +2624,7 @@ internal fun readCameraLookLut(context: Context, preset: String): CubeLut? {
         synchronized(customCameraLutCache) {
             customCameraLutCache[cacheKey] = generated
         }
-        android.util.Log.d("FUJI_FILTER", "Generated 3D LUT id=$builtInId size=\${generated.size}")
+        android.util.Log.d("FUJI_FILTER", "Generated 3D LUT id=$builtInId size=${generated.size}")
         return generated
     }
 
@@ -3623,7 +3623,7 @@ fun ContentManagementScreen(onBack: () -> Unit) {
                         it.category.contains(lutSearch.trim(), ignoreCase = true)
                 }
                 Text(
-                    "Hiển thị \${matchingLuts.size.coerceAtMost(100)} / \${matchingLuts.size} LUT khớp · Tổng \${luts.size}",
+                    "Hiển thị ${matchingLuts.size.coerceAtMost(100)} / ${matchingLuts.size} LUT khớp · Tổng ${luts.size}",
                     color = FujiSkin.muted,
                     fontSize = 9.sp,
                     modifier = Modifier.padding(vertical = 4.dp)

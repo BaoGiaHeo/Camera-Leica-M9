@@ -74,6 +74,7 @@ Java_com_example_camui_JpegTileEncoder_encode(
         env->ReleaseStringUTFChars(outputPathValue, outputPath);
         return result;
     }
+    // JPEG_INTERMEDIATE_ALLOWLIST: native encoder writes a cache-only tile JPEG; ImageSink alone publishes the final MediaStore JPEG.
     FILE* output = fopen(outputPath, "wb");
     if (output == nullptr) {
         fclose(input);
@@ -199,6 +200,7 @@ Java_com_example_camui_JpegTileEncoder_encode(
 
     jpeg_create_compress(&encoder);
     encoderCreated = true;
+    // JPEG_INTERMEDIATE_ALLOWLIST: libjpeg-turbo encodes the staged cache JPEG; the final MediaStore write is performed by ImageSink.
     jpeg_stdio_dest(&encoder, output);
     encoder.image_width = static_cast<JDIMENSION>(targetWidth);
     encoder.image_height = static_cast<JDIMENSION>(targetHeight);

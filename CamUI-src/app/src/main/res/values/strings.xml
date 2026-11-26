@@ -279,4 +279,6 @@
     <string name="camera_off">Off</string>
     <string name="camera_on">On</string>
     <string name="camera_night_shot">Night Shot</string>
+    <string name="camera_film_35mm">35 mm film simulation</string>
+    <string name="camera_lens_transition">Lens transition</string>
 </resources>

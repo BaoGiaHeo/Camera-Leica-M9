@@ -338,6 +338,7 @@ object PhotoOutputResolution {
             }
 
             context.contentResolver.openInputStream(uri)?.use { input ->
+// JPEG_INTERMEDIATE_ALLOWLIST: source backup used only to restore the pre-tile JPEG if native encoding or ImageSink publication fails.
                 FileOutputStream(sourceBackup).use { backup ->
                     input.copyTo(backup)
                     backup.flush()
@@ -398,7 +399,7 @@ object PhotoOutputResolution {
             }
             watchdog.checkpoint()
 
-            watchdog.beginStage("ghi JPEG đã mã hóa và xác minh", Tuning.LUNA_DREAM_30_PUBLISH_BUDGET_MS)
+            watchdog.beginStage("ghi JPEG đã mã hóa qua ImageSink và xác minh watermark", Tuning.LUNA_DREAM_30_PUBLISH_BUDGET_MS)
             val outputTags = tags[ExifInterface.TAG_IMAGE_DESCRIPTION]?.let { description ->
                 val remapped = remapWatermarkVerificationRect(
                     description,
@@ -413,13 +414,22 @@ object PhotoOutputResolution {
                 else tags - ExifInterface.TAG_IMAGE_DESCRIPTION
             } ?: tags
             writeExif(encodedTemp, outputTags)
+            val tileFrame = WatermarkStage.encodedTileJpeg(
+                uri = uri,
+                encodedJpeg = encodedTemp,
+                sourceExif = outputTags,
+                width = width,
+                height = height
+            )
             replacing = true
-            val written = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
-                encodedTemp.inputStream().use { it.copyTo(destination) }
-                destination.flush()
-                true
-            } ?: false
-            check(written) { "MediaStore không nhận được JPEG đã nâng theo tile." }
+            val sinkResult = ImageSink.write(context, tileFrame)
+            check(sinkResult.written) { "ImageSink không thể xuất JPEG LunaDream 3.0 theo tile." }
+            check(sinkResult.marker == if (tileFrame.watermarkPrinted) "FM-WM=1" else "FM-WM=0") {
+                "ImageSink xác minh marker watermark của JPEG tile không thành công: ${sinkResult.marker}"
+            }
+            check(!tileFrame.watermarkPrinted || sinkResult.watermarkPrinted) {
+                "Watermark trên JPEG tile không vượt qua xác minh pixel sau khi ghi."
+            }
 
             if (uri.authority != context.packageName + ".fileprovider") {
                 context.contentResolver.update(
@@ -453,6 +463,7 @@ object PhotoOutputResolution {
             val message = "LunaDream 3.0 dừng ở bước $stage: $reason"
             if (replacing && sourceBackup.isFile && sourceBackup.length() > 0L) {
                 runCatching {
+// JPEG_INTERMEDIATE_ALLOWLIST: rollback restores the original source JPEG only after ImageSink tile publication or pixel verification fails.
                     context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                         sourceBackup.inputStream().use { it.copyTo(destination) }
                         destination.flush()

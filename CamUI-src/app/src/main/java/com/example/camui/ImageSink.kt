@@ -22,8 +22,8 @@ import java.util.Locale
  * Final JPEG payload. The constructor is private; production instances are created
  * by WatermarkStage only after a deliberate print or deliberate skip decision.
  */
-private const val WATERMARK_SAMPLE_COLUMNS = 128
-private const val WATERMARK_SAMPLE_ROWS = 64
+private const val WATERMARK_SAMPLE_COLUMNS = 64
+private const val WATERMARK_SAMPLE_ROWS = 32
 
 internal class WatermarkedFrame private constructor(
     internal val uri: Uri,

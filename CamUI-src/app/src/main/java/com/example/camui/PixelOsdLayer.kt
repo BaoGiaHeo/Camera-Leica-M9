@@ -178,6 +178,7 @@ data class PixelOsdFrame(
     val showHistogram: Boolean = false,
     val histogram: List<Int> = emptyList(),
     val isPro: Boolean = false,
+    val showProHud: Boolean = true,
     val afModeText: String = "AF",
     val meteringText: String = "C",
     val shutterText: String = "AUTO",
@@ -444,7 +445,7 @@ class PixelOsdRenderer(context: Context) {
         if (frame.showStatus) drawStatusHud(canvas, frame, layout)
         if (frame.showEvScale) drawEvScale(canvas, frame, layout)
         layout.histogramBounds?.let { drawHistogram(canvas, frame.histogram, it) }
-        if (frame.isPro) drawProHud(canvas, frame, layout)
+        if (frame.isPro && frame.showProHud) drawProHud(canvas, frame, layout)
         if (frame.showZoomBar) drawZoomBar(canvas, frame, layout)
         if (frame.showLevel) {
             val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
@@ -1353,7 +1354,7 @@ fun PixelOsdLayer(
     onProControlTap: (String) -> Unit = {}
 ) {
     SideEffect {
-        if (frame.isPro) UiRecompositionCounters.recordHudComposition()
+        if (frame.isPro && frame.showProHud) UiRecompositionCounters.recordHudComposition()
         if (frame.showZoomBar) UiRecompositionCounters.recordZoomComposition()
     }
     val context = androidx.compose.ui.platform.LocalContext.current

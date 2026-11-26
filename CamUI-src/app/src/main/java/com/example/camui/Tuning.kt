@@ -56,7 +56,8 @@ internal object Tuning {
     const val CAMERA_BUTTON_SECONDARY_SP = 10f
     const val JANK_DIAGNOSTICS_ENABLED = true
     const val CAPTURE_DIAGNOSTICS_LIMIT = 30
-    const val MAX_CONTINUOUS_BURST_FRAMES = 25
+    const val MAX_CONTINUOUS_BURST_FRAMES = 300
+    const val BURST_CAPTURE_QUEUE_CAPACITY = 6
     const val CONTINUOUS_BURST_MIN_FPS_TARGET = 3.0
     const val FILM_ROLL_PANEL_WIDTH_FRACTION = 0.40f
     const val FILM_ROLL_PANEL_MIN_WIDTH_DP = 300f

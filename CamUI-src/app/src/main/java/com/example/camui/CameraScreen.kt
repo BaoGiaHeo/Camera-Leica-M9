@@ -978,6 +978,7 @@ fun CameraScreen(
     fun invalidatePendingFocusLock(activeCamera: Camera? = null) {
         focusLockRequestGeneration++
         focusLocked = false
+        aeLocked = false
         activeCamera?.let { cameraToUnlock ->
             runCatching { applyCameraAfAeLock(cameraToUnlock, locked = false) }
         }
@@ -3956,7 +3957,7 @@ fun CameraScreen(
             localizedToast(context, "Đang dừng Burst sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
             return
         }
-        if (!livePhotoEnabled && forceBurst && mode == "Photo" &&
+        if (!livePhotoEnabled && forceBurst &&
             nightShotMode == "off" && rawCaptureMode == "jpeg" &&
             lunaDreamMode == "off" && !uhdCaptureEnabled &&
             !fhdCaptureEnabled && !uhdPlusCaptureEnabled
@@ -6002,6 +6003,7 @@ fun CameraScreen(
                                                             ) return@addListener
                                                             val aeLockApplied = applyCameraAeLock(active, locked = true)
                                                             focusLocked = aeLockApplied
+                                                            aeLocked = aeLockApplied
                                                             centerAfStatus = if (aeLockApplied) 1 else -1
                                                             if (!aeLockApplied) {
                                                                 manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
@@ -6018,6 +6020,7 @@ fun CameraScreen(
                                                 }
                                                 val aeLockApplied = applyCameraAeLock(active, locked = true)
                                                 focusLocked = aeLockApplied
+                                                aeLocked = aeLockApplied
                                                 centerAfStatus = if (aeLockApplied) 1 else -1
                                                 if (!aeLockApplied) {
                                                     manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
@@ -6042,6 +6045,7 @@ fun CameraScreen(
                                                 val triggerSent = triggerCamera2AfOnce(active)
                                                 val aeLockApplied = applyCameraAeLock(active, locked = true)
                                                 focusLocked = aeLockApplied
+                                                aeLocked = aeLockApplied
                                                 centerAfStatus = if (aeLockApplied) 1 else -1
                                                 if (!aeLockApplied) {
                                                     manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
@@ -6080,6 +6084,7 @@ fun CameraScreen(
                                                 // A normal tap selects and focuses the AF point; it does not lock AF/AE.
                                                 // AF-L/AE-L is reserved for the 500 ms long-press gesture below.
                                                 focusLocked = false
+                                                aeLocked = false
                                                 centerAfStatus = if (focusSuccess) 1 else -1
                                                 android.util.Log.i(
                                                     "FUJI_AF",
@@ -6153,6 +6158,7 @@ fun CameraScreen(
                                                 val triggerSent = triggerCamera2AfOnce(active)
                                                 if (maxAeRegions <= 0) {
                                                     focusLocked = triggerSent
+                                                    aeLocked = false
                                                     centerAfStatus = if (triggerSent) 1 else -1
                                                     android.util.Log.i(
                                                         "FUJI_AF",
@@ -6181,6 +6187,7 @@ fun CameraScreen(
                                                 }.getOrDefault(false)
                                                 val aeLockApplied = focusSuccess && applyCameraAeLock(active, locked = true)
                                                 focusLocked = focusSuccess
+                                                aeLocked = aeLockApplied
                                                 centerAfStatus = if (focusSuccess) 1 else -1
                                                 android.util.Log.i(
                                                     "FUJI_AF",
@@ -6210,6 +6217,7 @@ fun CameraScreen(
                                             preferredFaceCenter = digitalPreviewPointToCamera(center, digitalZoomCropScale)
                                             centerAfStatus = 0
                                             focusLocked = false
+                                            aeLocked = false
                                             manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
                                             applyAutoFocus(active)
                                             val previewWidth = previewView.width

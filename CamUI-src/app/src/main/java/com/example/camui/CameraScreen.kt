@@ -1038,16 +1038,28 @@ fun CameraScreen(
         val activeCustomPresets = activeCustomCameraLutIds(context)
             .map(::customCameraLutPreset)
             .toSet()
-        val activeBuiltInPresets = if (hasBuiltInCameraLutPack(context)) {
+        val activeLegacyPresets = builtInCameraLookPresetDefinitions
+            .map { builtInCameraLookPreset(it.id) }
+            .toSet()
+        val activePackedPresets = if (hasBuiltInCameraLutPack(context)) {
             builtInCameraLutDefinitions.map { builtInCameraLutPreset(it.id) }.toSet()
         } else {
             emptySet()
         }
-        val validStoredPresets = activeCustomPresets + activeBuiltInPresets
+        val validStoredPresets = activeCustomPresets + activeLegacyPresets + activePackedPresets
         if (storedFilter != "None" && storedFilter !in validStoredPresets) {
             filterPrefs.edit().putString("selected_filter", "None").apply()
             activeFilter = "None"
         }
+        val legacyCount = builtInCameraLookPresetDefinitions.size
+        val packPresent = hasBuiltInCameraLutPack(context)
+        android.util.Log.i(
+            "FUJI_FILTER",
+            "BUILT_IN_LOOK_CATALOG_READY loaded=$legacyCount/46 source=app-authored pack41=$packPresent"
+        )
+        CrashContextDiagnostics.recordUiEvent(
+            "BUILT_IN_LOOK_CATALOG_READY loaded=$legacyCount/46 pack41=$packPresent"
+        )
     }
     LaunchedEffect(Unit) {
         appPrefs.edit()
@@ -8358,9 +8370,10 @@ private fun FilterLookDialog(
         }
     }
 
-    // Camera Log conversion LUTs remain in LUT Manage. Creative built-in looks are
-    // read from the bundled 41-entry pack; custom imports remain available as additions.
-    val builtInLuts = if (hasBuiltInCameraLutPack(context)) {
+    // The 46 selectable legacy film looks are generated from app-authored recipes.
+    // The optional 41-entry external pack is additive and never gates the base catalog.
+    val legacyLookDefinitions = builtInCameraLookPresetDefinitions
+    val packedLuts = if (hasBuiltInCameraLutPack(context)) {
         builtInCameraLutDefinitions
     } else {
         emptyList()
@@ -8368,17 +8381,23 @@ private fun FilterLookDialog(
     val activeCustomLuts = importedLuts.filter {
         activeLutIds.contains(it.id) && !it.category.startsWith("RAW/Log")
     }
-    val builtInLookEntries = builtInLuts.map {
+    val legacyLookEntries = legacyLookDefinitions.map {
+        it.categoryId to builtInCameraLookPreset(it.id)
+    }
+    val packedLookEntries = packedLuts.map {
         it.categoryId to builtInCameraLutPreset(it.id)
     }
     val customLookEntries = activeCustomLuts.map {
         customCameraLookCategoryId(it.category) to customCameraLutPreset(it.id)
     }
-    val allLookEntries = (listOf("all" to "None") + builtInLookEntries + customLookEntries)
+    val allLookEntries = (listOf("all" to "None") + legacyLookEntries + packedLookEntries + customLookEntries)
         .distinctBy { it.second }
     val lookCategories = buildList {
         add(CameraLookCategory("all", R.string.filter_category_all))
-        builtInLuts.forEach { lut ->
+        legacyLookDefinitions.forEach { look ->
+            add(CameraLookCategory(look.categoryId, customLabel = look.categoryName))
+        }
+        packedLuts.forEach { lut ->
             add(CameraLookCategory(lut.categoryId, customLabel = lut.categoryName))
         }
         activeCustomLuts.forEach { lut ->
@@ -8393,6 +8412,8 @@ private fun FilterLookDialog(
                 cameraLookDisplayName(context, it).contains(filterSearch.trim(), ignoreCase = true)
         }
     val activeFilterName = cameraLookDisplayName(context, activeFilter)
+    val totalFilterCount = allLookEntries.count { it.second != "None" }
+    val visibleFilterCount = visiblePresets.count { it != "None" }
 
     val previewPane: @Composable (Modifier) -> Unit = { paneModifier ->
         Box(
@@ -8600,7 +8621,7 @@ private fun FilterLookDialog(
                         }
                     }
                     Text(
-                        stringResource(R.string.filter_count, visiblePresets.size, allLookEntries.size),
+                        "$visibleFilterCount / $totalFilterCount bộ lọc",
                         color = FujiSkin.lcdGreen, fontSize = 7.sp
                     )
                     presetGrid(Modifier.weight(1f).fillMaxWidth())
@@ -8758,7 +8779,7 @@ private fun FilterLookDialog(
                     )
                 }
                 if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                Text("${visiblePresets.size} bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
+                Text("$visibleFilterCount / $totalFilterCount bộ lọc", color = FujiSkin.lcdGreen, fontSize = 9.sp)
                 presetGrid(Modifier.weight(1f))
             }
         }

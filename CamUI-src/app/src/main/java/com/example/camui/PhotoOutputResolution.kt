@@ -399,7 +399,20 @@ object PhotoOutputResolution {
             watchdog.checkpoint()
 
             watchdog.beginStage("ghi JPEG đã mã hóa và xác minh", Tuning.LUNA_DREAM_30_PUBLISH_BUDGET_MS)
-            writeExif(encodedTemp, tags)
+            val outputTags = tags[ExifInterface.TAG_IMAGE_DESCRIPTION]?.let { description ->
+                val remapped = remapWatermarkVerificationRect(
+                    description,
+                    geometry.sourceLeft,
+                    geometry.sourceTop,
+                    geometry.sourceWidth,
+                    geometry.sourceHeight,
+                    width,
+                    height
+                )
+                if (remapped.isNotBlank()) tags + (ExifInterface.TAG_IMAGE_DESCRIPTION to remapped)
+                else tags - ExifInterface.TAG_IMAGE_DESCRIPTION
+            } ?: tags
+            writeExif(encodedTemp, outputTags)
             replacing = true
             val written = context.contentResolver.openOutputStream(uri, "wt")?.use { destination ->
                 encodedTemp.inputStream().use { it.copyTo(destination) }
@@ -461,6 +474,53 @@ object PhotoOutputResolution {
             runCatching { sourceBackup.delete() }
             runCatching { encodedTemp.delete() }
         }
+    }
+
+    /**
+     * Remap the watermark verification rectangle into the resampled JPEG coordinate space.
+     * The compact BASE payload stores sample colours in a normalized 64×32 grid, so those
+     * samples remain valid when the complete watermarked frame is resampled without cropping.
+     */
+    private fun remapWatermarkVerificationRect(
+        description: String,
+        cropLeft: Int,
+        cropTop: Int,
+        cropWidth: Int,
+        cropHeight: Int,
+        outputWidth: Int,
+        outputHeight: Int
+    ): String {
+        val pattern = Regex(
+            "FM-WM-RECT=(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+);BG=(-?\\d+);BASE=([A-Za-z0-9+/=]+)"
+        )
+        return description.lineSequence().mapNotNull { line ->
+            val match = pattern.matchEntire(line) ?: return@mapNotNull line.takeIf { it.isNotBlank() }
+            val values = match.groupValues
+            val left = values[1].toInt()
+            val top = values[2].toInt()
+            val right = values[3].toInt()
+            val bottom = values[4].toInt()
+            val clippedLeft = left.coerceIn(cropLeft, cropLeft + cropWidth)
+            val clippedTop = top.coerceIn(cropTop, cropTop + cropHeight)
+            val clippedRight = right.coerceIn(cropLeft, cropLeft + cropWidth)
+            val clippedBottom = bottom.coerceIn(cropTop, cropTop + cropHeight)
+            if (clippedRight - clippedLeft < 2 || clippedBottom - clippedTop < 2) {
+                return@mapNotNull null
+            }
+            val newLeft = kotlin.math.floor(
+                (clippedLeft - cropLeft).toDouble() * outputWidth / cropWidth
+            ).toInt().coerceIn(0, outputWidth - 1)
+            val newTop = kotlin.math.floor(
+                (clippedTop - cropTop).toDouble() * outputHeight / cropHeight
+            ).toInt().coerceIn(0, outputHeight - 1)
+            val newRight = kotlin.math.ceil(
+                (clippedRight - cropLeft).toDouble() * outputWidth / cropWidth
+            ).toInt().coerceIn(newLeft + 1, outputWidth)
+            val newBottom = kotlin.math.ceil(
+                (clippedBottom - cropTop).toDouble() * outputHeight / cropHeight
+            ).toInt().coerceIn(newTop + 1, outputHeight)
+            "FM-WM-RECT=$newLeft,$newTop,$newRight,$newBottom;BG=${values[5]};BASE=${values[6]}"
+        }.joinToString("\\n")
     }
 
     /**

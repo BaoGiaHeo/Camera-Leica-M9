@@ -3656,7 +3656,10 @@ fun CameraScreen(
                                         "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
                                         "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                                     ),
-                                    peakMemoryBytes = sampledHeapBytes
+                                    peakMemoryBytes = sampledHeapBytes,
+                                    hudRecompositions = (UiRecompositionCounters.hudCompositionCount() - hudRecompositionsAtCapture).coerceAtLeast(0L),
+zoomRecompositions = (UiRecompositionCounters.zoomCompositionCount() - zoomRecompositionsAtCapture).coerceAtLeast(0L),
+droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount() - droppedFrameReportsAtCapture).coerceAtLeast(0L)
                                 )
                             )
                             listOf(stamped, metadata)
@@ -3961,7 +3964,10 @@ fun CameraScreen(
                                 "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
                                 "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                             ),
-                            peakMemoryBytes = sampledHeapBytes
+                            peakMemoryBytes = sampledHeapBytes,
+                                    hudRecompositions = (UiRecompositionCounters.hudCompositionCount() - hudRecompositionsAtCapture).coerceAtLeast(0L),
+zoomRecompositions = (UiRecompositionCounters.zoomCompositionCount() - zoomRecompositionsAtCapture).coerceAtLeast(0L),
+droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount() - droppedFrameReportsAtCapture).coerceAtLeast(0L)
                         )
                     )
                     if (!metadataPublished) {
@@ -4173,7 +4179,10 @@ fun CameraScreen(
                             peakMemoryBytes = maxOf(sampledHeapBytes, CaptureDiagnostics.peakMemoryBytes()),
                             burstFramesPerSecond = burstFps,
                             aeLocked = aeLockedAtCapture,
-                            afLocked = afLockedAtCapture
+                            afLocked = afLockedAtCapture,
+                            hudRecompositions = (UiRecompositionCounters.hudCompositionCount() - hudRecompositionsAtCapture).coerceAtLeast(0L),
+zoomRecompositions = (UiRecompositionCounters.zoomCompositionCount() - zoomRecompositionsAtCapture).coerceAtLeast(0L),
+droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount() - droppedFrameReportsAtCapture).coerceAtLeast(0L)
                         )
                     )
                     lastSuccessfulUri = burstUri
@@ -5331,6 +5340,9 @@ fun CameraScreen(
                                         peakMemoryBytes = maxOf(sampledUsedHeapBytes, CaptureDiagnostics.peakMemoryBytes()),
                                         aeLocked = aeLockedAtCapture,
                                         afLocked = afLockedAtCapture,
+                                        hudRecompositions = (UiRecompositionCounters.hudCompositionCount() - hudRecompositionsAtCapture).coerceAtLeast(0L),
+zoomRecompositions = (UiRecompositionCounters.zoomCompositionCount() - zoomRecompositionsAtCapture).coerceAtLeast(0L),
+droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount() - droppedFrameReportsAtCapture).coerceAtLeast(0L),
                                         errorMessage = if (captureUseLunaDream && !lunaDreamApplied) {
                                             "LunaDream dừng: " + (lunaDreamFailureReason ?: "Không hoàn tất ghép ảnh")
                                         } else null
@@ -5535,6 +5547,9 @@ fun CameraScreen(
                                         outputHeight = failedDimensions.second,
                                         stageTimesMs = mapOf("Lỗi hậu kỳ" to 0L),
                                         peakMemoryBytes = failedHeapBytes,
+                                        hudRecompositions = (UiRecompositionCounters.hudCompositionCount() - hudRecompositionsAtCapture).coerceAtLeast(0L),
+zoomRecompositions = (UiRecompositionCounters.zoomCompositionCount() - zoomRecompositionsAtCapture).coerceAtLeast(0L),
+droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount() - droppedFrameReportsAtCapture).coerceAtLeast(0L),
                                         errorMessage = reason
                                     )
                                 )

@@ -1,5 +1,8 @@
 package com.example.camui
 
+import android.os.Handler
+import android.os.Looper
+
 import android.Manifest
 import android.content.ContentValues
 import android.content.BroadcastReceiver
@@ -8255,8 +8258,8 @@ private fun FilterLookDialog(
         val toneX = (palettePoint.x * 2f - 1f).coerceIn(-1f, 1f)
         val toneY = ((0.5f - palettePoint.y) * 2f).coerceIn(-1f, 1f)
         CrashContextDiagnostics.recordUiEvent(
-            "TONE_DRAG x=\${"%.3f".format(Locale.US, palettePoint.x)} y=\${"%.3f".format(Locale.US, palettePoint.y)} " +
-                "toneX=\${"%.3f".format(Locale.US, toneX)} toneY=\${"%.3f".format(Locale.US, toneY)} " +
+            "TONE_DRAG x=${"%.3f".format(Locale.US, palettePoint.x)} y=${"%.3f".format(Locale.US, palettePoint.y)} " +
+                "toneX=${"%.3f".format(Locale.US, toneX)} toneY=${"%.3f".format(Locale.US, toneY)} " +
                 "pipeline=ColorPipelineParams"
         )
         scheduleColorPipelineUpdate()

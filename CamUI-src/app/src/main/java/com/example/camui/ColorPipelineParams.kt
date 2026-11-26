@@ -40,3 +40,36 @@ internal data class ColorPipelineParams(
         }
     }
 }
+
+/**
+ * In-memory snapshot shared by the preview shader and the JPEG renderer.
+ * UI drags update this object synchronously; persistent preferences are written once
+ * after the drag settles, avoiding a disk write for every pointer sample.
+ */
+internal object ColorPipelineParamsStore {
+    @Volatile
+    private var currentSnapshot: ColorPipelineParams? = null
+
+    fun update(params: ColorPipelineParams) {
+        currentSnapshot = params
+    }
+
+    fun current(context: Context, lutId: String): ColorPipelineParams =
+        currentSnapshot?.takeIf { it.lutId == lutId } ?: ColorPipelineParams.from(context, lutId)
+
+    fun persist(context: Context, params: ColorPipelineParams) {
+        context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+            .edit()
+            .putFloat("film_custom_intensity", params.intensity)
+            .putFloat("film_custom_tone_x", params.toneX)
+            .putFloat("film_custom_tone_y", params.toneY)
+            .putFloat("film_custom_temperature", params.toneX)
+            .putFloat("film_custom_tone", params.toneY)
+            .putFloat("film_custom_highlight", params.highlights)
+            .putFloat("film_custom_shadow", params.shadows)
+            .putFloat("film_custom_color_chrome", params.colorChrome)
+            .putFloat("film_custom_sharpness", params.sharpness)
+            .putFloat("film_custom_denoise", params.denoise)
+            .apply()
+    }
+}

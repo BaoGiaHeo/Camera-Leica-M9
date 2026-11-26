@@ -4009,33 +4009,68 @@ fun CameraScreen(
                     activeCapture.targetRotation = targetRotation
                     previewUseCase?.targetRotation = targetRotation
                     analysisUseCase?.targetRotation = targetRotation
-                    var frameIndex = 0
+                    var nextFrameIndex = 0
+                    val pendingCaptures = ArrayList<Pair<Int, Deferred<Pair<Uri?, Long>>>>()
                     val burstStartedAtMs = SystemClock.elapsedRealtime()
-                    while (!burstStopRequested && frameIndex < Tuning.MAX_CONTINUOUS_BURST_FRAMES) {
-                        val frameStartedAt = SystemClock.elapsedRealtime()
-                        val savedUri = runCatching {
-                            saveBurstFrame(
-                                context,
-                                activeCapture,
-                                mainExecutor,
-                                sessionId,
-                                frameIndex,
-                                publishOnSave = true
-                            )
-                        }.onFailure {
-                            android.util.Log.w("FUJI_BURST", "Could not enqueue frame ${frameIndex + 1}", it)
-                        }.getOrNull()
+
+                    suspend fun consumeOldestBurstCapture() {
+                        val (submittedIndex, pending) = pendingCaptures.removeAt(0)
+                        val completed = runCatching { pending.await() }
+                            .onFailure {
+                                android.util.Log.e("FUJI_BURST", "Queued frame ${submittedIndex + 1} failed", it)
+                            }
+                            .getOrNull()
+                        val savedUri = completed?.first
+                        val captureDurationMs = completed?.second ?: -1L
                         if (savedUri != null) {
                             burstSavedUris += savedUri
-                            burstCaptureDurationsMs += (SystemClock.elapsedRealtime() - frameStartedAt).coerceAtLeast(0L)
+                            burstCaptureDurationsMs += captureDurationMs.coerceAtLeast(0L)
                             burstCompletedFrames += 1
-                            // Make each captured frame visible in the device Gallery thumbnail immediately.
+                            // Every published frame gets its own thumbnail request; no bitmap is recycled here.
                             lastUri = savedUri
                             thumbnailRequestKey++
                         } else {
-                            android.util.Log.w("FUJI_BURST", "Frame $frameIndex was not saved; continuing while the shutter remains held")
+                            android.util.Log.w(
+                                "FUJI_BURST",
+                                "Frame ${submittedIndex + 1} failed; queued frames are retained and the queue continues"
+                            )
                         }
-                        frameIndex++
+                    }
+
+                    while (!burstStopRequested &&
+                        nextFrameIndex < Tuning.MAX_CONTINUOUS_BURST_FRAMES
+                    ) {
+                        // A full queue applies back-pressure instead of dropping a frame or allocating more work.
+                        if (pendingCaptures.size >= Tuning.BURST_CAPTURE_QUEUE_CAPACITY) {
+                            consumeOldestBurstCapture()
+                            continue
+                        }
+                        val submittedIndex = nextFrameIndex++
+                        val captureStartedAtMs = SystemClock.elapsedRealtime()
+                        pendingCaptures += submittedIndex to async(Dispatchers.Main.immediate) {
+                            val uri = runCatching {
+                                saveBurstFrame(
+                                    context,
+                                    activeCapture,
+                                    mainExecutor,
+                                    sessionId,
+                                    submittedIndex,
+                                    publishOnSave = true
+                                )
+                            }.onFailure {
+                                android.util.Log.w(
+                                    "FUJI_BURST",
+                                    "Could not capture queued frame ${submittedIndex + 1}",
+                                    it
+                                )
+                            }.getOrNull()
+                            uri to (SystemClock.elapsedRealtime() - captureStartedAtMs).coerceAtLeast(0L)
+                        }
+                    }
+
+                    // Releasing the shutter stops new submissions, not the six captures already in flight.
+                    while (pendingCaptures.isNotEmpty()) {
+                        consumeOldestBurstCapture()
                     }
                     val burstElapsedMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
                     burstFps = burstSavedUris.size * 1000.0 / burstElapsedMs

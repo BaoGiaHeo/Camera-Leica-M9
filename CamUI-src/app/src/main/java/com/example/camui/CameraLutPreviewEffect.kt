@@ -165,11 +165,15 @@ internal object CameraLutPreviewEffect {
             if (uSharpness <= 0.001 && uDenoise <= 0.001) return centre;
             float2 dx = float2(max(1.0, uRadius), 0.0);
             float2 dy = float2(0.0, max(1.0, uRadius));
+            float3 topLeft = mapColour(float3(source.eval(coordinate - dx - dy).rgb));
+            float3 top = mapColour(float3(source.eval(coordinate - dy).rgb));
+            float3 topRight = mapColour(float3(source.eval(coordinate + dx - dy).rgb));
             float3 left = mapColour(float3(source.eval(coordinate - dx).rgb));
             float3 right = mapColour(float3(source.eval(coordinate + dx).rgb));
-            float3 top = mapColour(float3(source.eval(coordinate - dy).rgb));
+            float3 bottomLeft = mapColour(float3(source.eval(coordinate - dx + dy).rgb));
             float3 bottom = mapColour(float3(source.eval(coordinate + dy).rgb));
-            float3 neighbourhood = (left + right + top + bottom) * 0.25;
+            float3 bottomRight = mapColour(float3(source.eval(coordinate + dx + dy).rgb));
+            float3 neighbourhood = (topLeft + top + topRight + left + right + bottomLeft + bottom + bottomRight) * 0.125;
             float3 denoised = mix(centre, neighbourhood, uDenoise * 0.35);
             return clamp(denoised + (centre - neighbourhood) * (uSharpness * 0.55), 0.0, 1.0);
         }

@@ -110,7 +110,7 @@ internal object LunaDreamSelfTest {
                 }
             )
             stages["Ghép LunaDream 3.0"] = SystemClock.elapsedRealtime() - mergeStart
-            peakHeap = maxOf(peakHeap, usedHeap(runtime))
+            peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
             check(merged) { "Ghép thất bại: ${mergeFailure.ifBlank { "không có thông tin lỗi" }}" }
 
             val upscaleStart = SystemClock.elapsedRealtime()
@@ -122,7 +122,7 @@ internal object LunaDreamSelfTest {
                 adaptiveMinimumPixels = TEST_MINIMUM_OUTPUT_PIXELS
             ) ?: error("Upscale/encode yêu cầu đủ 200MP thất bại hoặc không đủ bộ nhớ an toàn.")
             stages["Upscale + mã hóa JPEG"] = SystemClock.elapsedRealtime() - upscaleStart
-            peakHeap = maxOf(peakHeap, usedHeap(runtime))
+            peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
 
             val verifyStart = SystemClock.elapsedRealtime()
             val dimensions = CaptureDiagnostics.readImageDimensions(context, outputUri)
@@ -141,7 +141,7 @@ internal object LunaDreamSelfTest {
                 "Kích thước PhotoOutputResolution trả về không khớp file JPEG."
             }
             stages["Đọc lại và xác minh"] = SystemClock.elapsedRealtime() - verifyStart
-            peakHeap = maxOf(peakHeap, usedHeap(runtime))
+            peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
             success = resized.reachedRequestedSize &&
                 actualPixels >= TEST_MINIMUM_OUTPUT_PIXELS * 995L / 1000L
             check(success) {

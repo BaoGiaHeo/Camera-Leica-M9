@@ -2458,8 +2458,10 @@ fun CameraScreen(
                     .setTargetRotation(rotation)
                 val zslSupported = runCatching {
                     val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                    val capabilities = cameraManager.getCameraCharacteristics(activeFacingId)
-                        .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                    val capabilities = activeFacingId?.takeIf { it.isNotBlank() }?.let { cameraId ->
+                        cameraManager.getCameraCharacteristics(cameraId)
+                            .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                    }
                     capabilities?.any {
                         it == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_PRIVATE_REPROCESSING ||
                             it == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING

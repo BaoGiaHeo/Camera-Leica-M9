@@ -202,7 +202,7 @@ internal fun FujiProFocusStrip(
                 .background(if (touchEnabled) FujiCameraDesign.orange else Color(0xFF35393B))
                 .clickable(onClick = onTouchToggle),
             contentAlignment = Alignment.Center
-        ) { FujiIconGlyph("focus-dot", Modifier.size(18.dp * safeScale), Color.White) }
+        ) { FujiIconGlyph("af", Modifier.size(18.dp * safeScale), Color.White) }
     }
 }
 

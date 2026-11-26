@@ -358,7 +358,7 @@ internal object PixelOsdLayoutEngine {
             }
         } else null
 
-        if (frame.isPro) {
+        if (frame.isPro && frame.showProHud) {
             data class Part(
                 val id: String,
                 val text: String? = null,

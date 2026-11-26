@@ -7972,7 +7972,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 onDismiss = { filterDialogVisible = false },
                 onSelectFilter = { selected ->
                     val nextFilter = if (selected == activeFilter) "None" else selected
-                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$nextFilter method=live-preview+still-export")
+                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_REQUESTED id=$nextFilter")
                     activeFilter = nextFilter
                     appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 },
@@ -7981,6 +7981,18 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         context, previewView, activeFilter,
                         digitalZoomPreviewEffect.currentRenderEffect()
                     )
+                },
+                onPreviewColorTest = {
+                    CameraLutPreviewEffect.runPreviewColorTest(
+                        context, previewView, activeFilter,
+                        digitalZoomPreviewEffect.currentRenderEffect()
+                    ) { passed, detail ->
+                        Toast.makeText(
+                            context,
+                            (if (passed) "Preview đổi màu: ĐẠT · " else "Preview đổi màu: LỖI · ") + detail,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             )
         }
@@ -8203,7 +8215,8 @@ private fun FilterLookDialog(
     activeFilter: String,
     onDismiss: () -> Unit,
     onSelectFilter: (String) -> Unit,
-    onRecipeChanged: () -> Unit
+    onRecipeChanged: () -> Unit,
+    onPreviewColorTest: () -> Unit
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -8219,8 +8232,8 @@ private fun FilterLookDialog(
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
-    var showAdjustmentControls by remember { mutableStateOf(false) }
-    var showTonePad by remember { mutableStateOf(false) }
+    var showAdjustmentControls by remember { mutableStateOf(true) }
+    var showTonePad by remember { mutableStateOf(true) }
     var customPreviewRevision by remember { mutableIntStateOf(0) }
     val recipePrefs = remember(context) {
         context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
@@ -8234,17 +8247,14 @@ private fun FilterLookDialog(
     var customColorChrome by remember {
         mutableFloatStateOf(recipePrefs.getFloat("film_custom_color_chrome", 0f).coerceIn(0f, 1f))
     }
-    var customGrain by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_grain", 0f).coerceIn(0f, 1f))
+    var customSharpness by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_sharpness", 0f).coerceIn(0f, 1f))
     }
-    var customSaturation by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_saturation", 1f).coerceIn(0.5f, 1.5f))
+    var customNoiseReduction by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_custom_noise_reduction", 0f).coerceIn(0f, 1f))
     }
-    var customHue by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_hue", 0f).coerceIn(-0.5f, 0.5f))
-    }
-    var customLightness by remember {
-        mutableFloatStateOf(recipePrefs.getFloat("film_custom_lightness", 0f).coerceIn(-0.5f, 0.5f))
+    var filterIntensity by remember {
+        mutableFloatStateOf(recipePrefs.getFloat("film_filter_intensity", 1f).coerceIn(0f, 1f))
     }
     var palettePoint by remember {
         mutableStateOf(
@@ -8261,7 +8271,9 @@ private fun FilterLookDialog(
         palettePoint = clamped
         val temperature = (clamped.x * 2f - 1f).coerceIn(-1f, 1f)
         val tone = ((0.5f - clamped.y) * 2f).coerceIn(-1f, 1f)
-        CrashContextDiagnostics.recordUiEvent("TONE_DRAG x=${clamped.x} y=${clamped.y} temperature=$temperature tone=$tone method=live-preview+still-export")
+        CrashContextDiagnostics.recordUiEvent(
+            "TONE_DRAG Sáng=${"%.2f".format(Locale.US, tone)} Đậm=${"%.2f".format(Locale.US, temperature)}"
+        )
         recipePrefs.edit()
             .putFloat("film_custom_temperature", temperature)
             .putFloat("film_custom_tone", tone)

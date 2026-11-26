@@ -281,4 +281,13 @@
     <string name="camera_night_shot">Night Shot</string>
     <string name="camera_film_35mm">35 mm film simulation</string>
     <string name="camera_lens_transition">Lens transition</string>
+    <string name="filter_original_title">Không (ảnh gốc)</string>
+    <string name="filter_original_description">Giữ nguyên màu gốc</string>
+    <string name="filter_profile_description">Mô phỏng màu phim · LUT 3D</string>
+    <string name="filter_intensity_value">Cường độ %1$d</string>
+    <string name="filter_adjust_sharpness">Độ nét</string>
+    <string name="filter_adjust_denoise">Giảm nhiễu</string>
+    <string name="filter_color_reset">Đặt lại</string>
+    <string name="filter_adjustments_hint">5 thông số màu</string>
+    <string name="filter_reset_shortcut">Đặt lại màu</string>
 </resources>

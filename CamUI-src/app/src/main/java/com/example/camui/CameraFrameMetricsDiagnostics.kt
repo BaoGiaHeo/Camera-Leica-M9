@@ -10,6 +10,7 @@ import android.view.Window
 import java.io.Closeable
 import java.util.ArrayDeque
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.ceil
 
 internal data class CameraFrameSample(
@@ -101,7 +102,9 @@ internal class CameraFrameMetricsDiagnostics private constructor(
                 samples.removeFirst()
             }
             samples.addLast(TimedSample(now, sample))
-            droppedReports += dropped.coerceAtLeast(0)
+            val safeDropped = dropped.coerceAtLeast(0)
+            droppedReports += safeDropped
+            totalDroppedCallbackReports.addAndGet(safeDropped.toLong())
             if (lastReportNanos == 0L) {
                 lastReportNanos = now
             } else if (now - lastReportNanos >= WINDOW_NANOS) {
@@ -163,6 +166,9 @@ internal class CameraFrameMetricsDiagnostics private constructor(
     companion object {
         private const val TAG = "FUJI_FRAME_METRICS"
         private const val WINDOW_NANOS = 5_000_000_000L
+        private val totalDroppedCallbackReports = AtomicLong(0L)
+
+        fun totalDroppedCallbackReportCount(): Long = totalDroppedCallbackReports.get()
 
         fun attach(window: Window): CameraFrameMetricsDiagnostics? =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

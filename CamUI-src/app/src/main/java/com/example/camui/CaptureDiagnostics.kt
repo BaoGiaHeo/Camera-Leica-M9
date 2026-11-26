@@ -63,7 +63,10 @@ internal data class CaptureDiagnosticEntry(
     val captureToThumbnailMs: Long? = null,
     val burstFramesPerSecond: Double? = null,
     val aeLocked: Boolean? = null,
-    val afLocked: Boolean? = null
+    val afLocked: Boolean? = null,
+    val hudRecompositions: Long? = null,
+    val zoomRecompositions: Long? = null,
+    val droppedFrameReports: Long? = null
 ) {
     val megapixels: Double
         get() = outputWidth.toLong().coerceAtLeast(0L)
@@ -125,6 +128,9 @@ internal object CaptureDiagnostics {
                     entry.burstFramesPerSecond?.let { put("burstFramesPerSecond", it) }
                     entry.aeLocked?.let { put("aeLocked", it) }
                     entry.afLocked?.let { put("afLocked", it) }
+                    entry.hudRecompositions?.let { put("hudRecompositions", it) }
+                    entry.zoomRecompositions?.let { put("zoomRecompositions", it) }
+                    entry.droppedFrameReports?.let { put("droppedFrameReports", it) }
                 })
                 prefs.edit().putString(KEY, next.toString()).apply()
             }
@@ -158,7 +164,10 @@ internal object CaptureDiagnostics {
                 captureToThumbnailMs = item.optLong("captureToThumbnailMs", -1L).takeIf { it >= 0L },
                 burstFramesPerSecond = if (item.has("burstFramesPerSecond")) item.optDouble("burstFramesPerSecond").takeIf { it.isFinite() } else null,
                 aeLocked = if (item.has("aeLocked")) item.optBoolean("aeLocked") else null,
-                afLocked = if (item.has("afLocked")) item.optBoolean("afLocked") else null
+                afLocked = if (item.has("afLocked")) item.optBoolean("afLocked") else null,
+                hudRecompositions = item.optLong("hudRecompositions", -1L).takeIf { it >= 0L },
+                zoomRecompositions = item.optLong("zoomRecompositions", -1L).takeIf { it >= 0L },
+                droppedFrameReports = item.optLong("droppedFrameReports", -1L).takeIf { it >= 0L }
             )
         }.takeLast(Tuning.CAPTURE_DIAGNOSTICS_LIMIT).reversed()
     }.onFailure { android.util.Log.e(TAG, "Could not read capture diagnostic entries", it) }
@@ -253,7 +262,10 @@ internal object CaptureDiagnostics {
                     "Bấm→thumbnail: ${entry.captureToThumbnailMs?.let { "${it}ms" } ?: "Chưa đo"} | " +
                         "Burst: ${entry.burstFramesPerSecond?.let { String.format(Locale.US, "%.2f khung/s", it) } ?: "—"} | " +
                         "AE-L: ${entry.aeLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"} | " +
-                        "AF-L: ${entry.afLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"}"
+                        "AF-L: ${entry.afLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"} | " +
+                        "HUD recompose: ${entry.hudRecompositions?.toString() ?: "—"} | " +
+                        "Zoom recompose: ${entry.zoomRecompositions?.toString() ?: "—"} | " +
+                        "Khung rớt: ${entry.droppedFrameReports?.toString() ?: "—"}"
                 )
                 appendLine(
                     "Đầu ra: ${entry.outputWidth}×${entry.outputHeight} · " +
@@ -422,6 +434,12 @@ internal fun CaptureDiagnosticsDialog(onDismiss: () -> Unit) {
                         Text(
                             "AE-L: ${entry.aeLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"} · " +
                                 "AF-L: ${entry.afLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"}",
+                            color = Color(0xFFB0B0B0),
+                            fontSize = 9.sp
+                        )
+                        Text(
+                            "HUD/Zoom recompose: ${entry.hudRecompositions?.toString() ?: "—"}/${entry.zoomRecompositions?.toString() ?: "—"} · " +
+                                "Khung rớt: ${entry.droppedFrameReports?.toString() ?: "—"}",
                             color = Color(0xFFB0B0B0),
                             fontSize = 9.sp
                         )

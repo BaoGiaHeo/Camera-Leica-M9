@@ -8269,17 +8269,9 @@ private fun FilterLookDialog(
     }
     val adjustmentControls: @Composable (Modifier) -> Unit = { adjustmentModifier ->
         Column(
-            adjustmentModifier.fillMaxWidth().background(Color(0xFF202526))
-                .padding(horizontal = 5.dp, vertical = 3.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+            adjustmentModifier.fillMaxWidth().padding(horizontal = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
-                    fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text(stringResource(R.string.filter_color_reset), color = FujiSkin.orange,
-                    fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { resetColorAdjustments() }.padding(horizontal = 4.dp, vertical = 3.dp))
-            }
             CompactFilterAdjustmentSlider(
                 stringResource(R.string.filter_adjust_highlights),
                 customHighlights, -1f..1f, "%+.2f".format(Locale.US, customHighlights)
@@ -8302,6 +8294,7 @@ private fun FilterLookDialog(
             ) { customDenoise = it; persistRecipeValue("film_custom_denoise", it) }
         }
     }
+
 
     val lutPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -8662,42 +8655,32 @@ private fun FilterLookDialog(
                                 )
                             )
                         }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(7.dp))
-                                    .background(Color(0xFF202526))
-                                    .clickable { showAdjustmentControls = !showAdjustmentControls }
-                                    .padding(horizontal = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    stringResource(R.string.filter_adjustments_title),
-                                    color = Color.White,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1
-                                )
-                                Text(
-                                    if (showAdjustmentControls) "−" else "+",
-                                    color = FujiSkin.orange,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                            else {
-                                Text(
-                                    stringResource(R.string.filter_adjustments_hint),
-                                    color = FujiSkin.muted,
-                                    fontSize = 8.sp
-                                )
-                                Text(
-                                    stringResource(R.string.filter_reset_shortcut),
-                                    color = FujiSkin.orange,
-                                    fontSize = 8.sp,
-                                    modifier = Modifier.clickable { resetColorAdjustments() }
-                                )
+                        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            if (showAdjustmentControls) {
+                                Row(Modifier.fillMaxWidth().height(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
+                                        fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text("Đặt lại", color = FujiSkin.orange, fontSize = 8.sp,
+                                        modifier = Modifier.clickable { resetColorAdjustments() }.padding(horizontal = 2.dp))
+                                    Text("−", color = Color.White, fontSize = 13.sp,
+                                        modifier = Modifier.clickable { showAdjustmentControls = false }.padding(horizontal = 2.dp))
+                                }
+                                adjustmentControls(Modifier.fillMaxWidth())
+                            } else {
+                                Row(
+                                    Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(7.dp))
+                                        .background(Color(0xFF202526))
+                                        .clickable { showAdjustmentControls = true }
+                                        .padding(horizontal = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
+                                        fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text("+", color = FujiSkin.orange, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(stringResource(R.string.filter_adjustments_hint), color = FujiSkin.muted, fontSize = 8.sp)
+                                Text(stringResource(R.string.filter_reset_shortcut), color = FujiSkin.orange,
+                                    fontSize = 8.sp, modifier = Modifier.clickable { resetColorAdjustments() })
                             }
                         }
                     }
@@ -8759,24 +8742,31 @@ private fun FilterLookDialog(
                         )
                     }
                     Column(Modifier.weight(1f)) {
-                        Row(
-                            Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(7.dp))
-                                .background(Color(0xFF202526))
-                                .clickable { showAdjustmentControls = !showAdjustmentControls }
-                                .padding(horizontal = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
-                                fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                            Text(if (showAdjustmentControls) "−" else "+", color = FujiSkin.orange, fontSize = 14.sp)
+                        if (showAdjustmentControls) {
+                            Row(Modifier.fillMaxWidth().height(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
+                                    fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                Text(stringResource(R.string.filter_color_reset), color = FujiSkin.orange,
+                                    fontSize = 8.sp, modifier = Modifier.clickable { resetColorAdjustments() })
+                                Text("−", color = Color.White, fontSize = 14.sp,
+                                    modifier = Modifier.clickable { showAdjustmentControls = false }.padding(horizontal = 3.dp))
+                            }
+                            adjustmentControls(Modifier.fillMaxWidth())
+                        } else {
+                            Row(
+                                Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(7.dp))
+                                    .background(Color(0xFF202526))
+                                    .clickable { showAdjustmentControls = true }
+                                    .padding(horizontal = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(stringResource(R.string.filter_adjustments_title), color = Color.White,
+                                    fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                Text("+", color = FujiSkin.orange, fontSize = 14.sp)
+                            }
+                            Text(stringResource(R.string.filter_adjustments_hint), color = FujiSkin.muted,
+                                fontSize = 9.sp, modifier = Modifier.padding(top = 5.dp))
                         }
-                        if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                        else Text(
-                            stringResource(R.string.filter_adjustments_hint),
-                            color = FujiSkin.muted,
-                            fontSize = 9.sp,
-                            modifier = Modifier.padding(top = 5.dp)
-                        )
                     }
                 }
             }

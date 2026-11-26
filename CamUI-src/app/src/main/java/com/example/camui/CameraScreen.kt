@@ -973,6 +973,7 @@ fun CameraScreen(
     }
     var proAdjustmentContent: (@Composable (Modifier) -> Unit)? = null
     var focusLocked by remember { mutableStateOf(false) }
+    var aeLocked by remember { mutableStateOf(false) }
     var focusLockRequestGeneration by remember { mutableIntStateOf(0) }
     fun invalidatePendingFocusLock(activeCamera: Camera? = null) {
         focusLockRequestGeneration++
@@ -1173,6 +1174,8 @@ fun CameraScreen(
     var peakPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var zebraPoints by remember { mutableStateOf(emptyList<Offset>()) }
     var lastUri by remember { mutableStateOf<Uri?>(null) }
+    var captureTimestampForThumbnail by remember { mutableLongStateOf(0L) }
+    var captureStartedRealtimeForThumbnail by remember { mutableLongStateOf(0L) }
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var thumbnailRequestKey by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
@@ -3386,6 +3389,10 @@ fun CameraScreen(
 
     LaunchedEffect(lastUri, thumbnailRequestKey) {
         val uri = lastUri
+        val shutterTimestamp = captureTimestampForThumbnail
+        val shutterStartedRealtime = captureStartedRealtimeForThumbnail
+        val aeLockAtCapture = aeLocked
+        val afLockAtCapture = focusLocked
         if (uri == null) {
             thumb = null
             return@LaunchedEffect
@@ -3400,12 +3407,25 @@ fun CameraScreen(
             }.getOrNull()?.also {
                 android.util.Log.i("FUJI_GALLERY", "ALBUM_THUMB_LOAD id=${uri.lastPathSegment} result=ok")
                 CrashContextDiagnostics.recordUiEvent("ALBUM_THUMB_LOAD id=${uri.lastPathSegment} ok")
+                if (shutterTimestamp > 0L && shutterStartedRealtime > 0L) {
+                    val latencyMs = (SystemClock.elapsedRealtime() - shutterStartedRealtime).coerceAtLeast(0L)
+                    CaptureDiagnostics.updateCaptureMetrics(
+                        context = context,
+                        timestamp = shutterTimestamp,
+                        captureToThumbnailMs = latencyMs,
+                        aeLocked = aeLockAtCapture,
+                        afLocked = afLockAtCapture
+                    )
+                    CrashContextDiagnostics.recordUiEvent("CAPTURE_TO_THUMBNAIL timestamp=$shutterTimestamp durationMs=$latencyMs")
+                }
             }
         }
     }
 
     fun startStarTrailSession(activeCapture: ImageCapture, activeCamera: Camera) {
         val captureTimestampMillis = System.currentTimeMillis()
+        captureTimestampForThumbnail = captureTimestampMillis
+        captureStartedRealtimeForThumbnail = SystemClock.elapsedRealtime()
         val captureRotation = targetRotation
         val captureIsLandscape = isLandscape
         if (boundCameraRotation != captureRotation ||
@@ -3667,6 +3687,8 @@ fun CameraScreen(
 
     fun takePhoto(forceBurst: Boolean = false) {
         val captureTimestampMillis = System.currentTimeMillis()
+        captureTimestampForThumbnail = captureTimestampMillis
+        captureStartedRealtimeForThumbnail = SystemClock.elapsedRealtime()
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
             (nightShotMode != "off" || lunaDreamMode in setOf("luna20", "luna25", "luna30") || starTrailCaptureInProgress)
@@ -4081,7 +4103,10 @@ fun CameraScreen(
                                 "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
                                 "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                             ),
-                            peakMemoryBytes = sampledHeapBytes
+                            peakMemoryBytes = sampledHeapBytes,
+                            burstFramesPerSecond = burstFps,
+                            aeLocked = aeLocked,
+                            afLocked = focusLocked
                         )
                     )
                     lastSuccessfulUri = burstUri
@@ -5181,6 +5206,8 @@ fun CameraScreen(
                                             "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
                                         ),
                                         peakMemoryBytes = sampledUsedHeapBytes,
+                                        aeLocked = aeLocked,
+                                        afLocked = focusLocked,
                                         errorMessage = if (captureUseLunaDream && !lunaDreamApplied) {
                                             "LunaDream dừng: " + (lunaDreamFailureReason ?: "Không hoàn tất ghép ảnh")
                                         } else null
@@ -7547,7 +7574,12 @@ fun CameraScreen(
                                 runCatching { active.cameraControl.cancelFocusAndMetering() }
                                 runCatching { applyCameraAfAeLock(active, locked = false) }
                                 focusLocked = false
-                            } else focusLocked = applyCameraAfAeLock(active, locked = true)
+                                aeLocked = false
+                            } else {
+                                val lockApplied = applyCameraAfAeLock(active, locked = true)
+                                focusLocked = lockApplied
+                                aeLocked = lockApplied
+                            }
                         }
                     }
                     FujiCameraKey(

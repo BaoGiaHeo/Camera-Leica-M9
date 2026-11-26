@@ -216,7 +216,8 @@ internal fun formatCameraClock(hour: Int, minute: Int, second: Int): String =
 
 @Composable
 internal fun FujiProHud(
-    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, hudHeight: Dp = 60.dp, scale: Float = 1f
+    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, hudHeight: Dp = 60.dp, scale: Float = 1f,
+    onControlTap: (String) -> Unit = {}
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     var clock by remember { mutableStateOf("--h--m--s") }
@@ -241,11 +242,21 @@ internal fun FujiProHud(
             Text("SS" + shutter.removePrefix("1/"), color = FujiCameraDesign.blue, fontSize = 22.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)
         }
         Column(Modifier.weight(0.22f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp * safeScale)) {
+            Row(
+                Modifier.fillMaxWidth().clickable { onControlTap("AF") },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp * safeScale)
+            ) {
                 Text(aperture, color = FujiCameraDesign.blue, fontSize = 18.sp * safeScale, maxLines = 1)
                 Text(focus, color = Color.White, fontSize = 11.sp * safeScale, maxLines = 1)
             }
-            Text("ISO : $iso", color = Color.White, fontSize = 18.sp * safeScale, maxLines = 1)
+            Text(
+                "ISO : $iso",
+                color = Color.White,
+                fontSize = 18.sp * safeScale,
+                maxLines = 1,
+                modifier = Modifier.clickable { onControlTap("ISO") }
+            )
         }
         Column(Modifier.weight(0.20f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(kelvin, color = FujiCameraDesign.blue, fontSize = 22.sp * safeScale, fontWeight = FontWeight.Medium, maxLines = 1)

@@ -58,7 +58,11 @@ internal data class CaptureDiagnosticEntry(
     val outputHeight: Int,
     val stageTimesMs: Map<String, Long>,
     val peakMemoryBytes: Long,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val captureToThumbnailMs: Long? = null,
+    val burstFramesPerSecond: Double? = null,
+    val aeLocked: Boolean? = null,
+    val afLocked: Boolean? = null
 ) {
     val megapixels: Double
         get() = outputWidth.toLong().coerceAtLeast(0L)
@@ -98,6 +102,10 @@ internal object CaptureDiagnostics {
                     put("stages", stages)
                     put("peakMemoryBytes", entry.peakMemoryBytes)
                     put("errorMessage", entry.errorMessage)
+                    entry.captureToThumbnailMs?.let { put("captureToThumbnailMs", it) }
+                    entry.burstFramesPerSecond?.let { put("burstFramesPerSecond", it) }
+                    entry.aeLocked?.let { put("aeLocked", it) }
+                    entry.afLocked?.let { put("afLocked", it) }
                 })
                 prefs.edit().putString(KEY, next.toString()).apply()
             }
@@ -127,11 +135,50 @@ internal object CaptureDiagnostics {
                 outputHeight = item.optInt("height"),
                 stageTimesMs = stages,
                 peakMemoryBytes = item.optLong("peakMemoryBytes"),
-                errorMessage = item.optString("errorMessage").takeIf { it.isNotBlank() && it != "null" }
+                errorMessage = item.optString("errorMessage").takeIf { it.isNotBlank() && it != "null" },
+                captureToThumbnailMs = item.optLong("captureToThumbnailMs", -1L).takeIf { it >= 0L },
+                burstFramesPerSecond = if (item.has("burstFramesPerSecond")) item.optDouble("burstFramesPerSecond").takeIf { it.isFinite() } else null,
+                aeLocked = if (item.has("aeLocked")) item.optBoolean("aeLocked") else null,
+                afLocked = if (item.has("afLocked")) item.optBoolean("afLocked") else null
             )
         }.takeLast(Tuning.CAPTURE_DIAGNOSTICS_LIMIT).reversed()
     }.onFailure { android.util.Log.e(TAG, "Could not read capture diagnostic entries", it) }
         .getOrDefault(emptyList())
+
+    /**
+     * Adds timings discovered after a JPEG is saved (for example loadThumbnail completion)
+     * to every capture row from the same shutter timestamp. Burst frames intentionally share
+     * one capture timestamp, so one measured session metric is attached to all its frame rows.
+     */
+    fun updateCaptureMetrics(
+        context: Context,
+        timestamp: Long,
+        captureToThumbnailMs: Long? = null,
+        burstFramesPerSecond: Double? = null,
+        aeLocked: Boolean? = null,
+        afLocked: Boolean? = null
+    ) {
+        if (captureToThumbnailMs == null && burstFramesPerSecond == null &&
+            aeLocked == null && afLocked == null
+        ) return
+        runCatching {
+            synchronized(lock) {
+                val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val current = JSONArray(prefs.getString(KEY, "[]") ?: "[]")
+                var changed = false
+                for (index in 0 until current.length()) {
+                    val item = current.optJSONObject(index) ?: continue
+                    if (item.optLong("timestamp", Long.MIN_VALUE) != timestamp) continue
+                    captureToThumbnailMs?.let { item.put("captureToThumbnailMs", it) }
+                    burstFramesPerSecond?.let { item.put("burstFramesPerSecond", it) }
+                    aeLocked?.let { item.put("aeLocked", it) }
+                    afLocked?.let { item.put("afLocked", it) }
+                    changed = true
+                }
+                if (changed) prefs.edit().putString(KEY, current.toString()).apply()
+            }
+        }.onFailure { android.util.Log.e(TAG, "Could not update capture metrics", it) }
+    }
 
     fun recordWarning(context: Context, warning: String) {
         val safe = warning.replace('\n', ' ').take(300)
@@ -184,7 +231,13 @@ internal object CaptureDiagnostics {
                 )
                 appendLine("Watermark: ${if (entry.watermarkEnabled) "BẬT" else "TẮT"}")
                 appendLine(
-                    "Đầu ra: ${entry.outputWidth}×${entry.outputHeight} · " +
+                    "Bấm→thumbnail: ${entry.captureToThumbnailMs?.let { "${it}ms" } ?: "Chưa đo"} | " +
+                        "Burst: ${entry.burstFramesPerSecond?.let { String.format(Locale.US, "%.2f khung/s", it) } ?: "—"} | " +
+                        "AE-L: ${entry.aeLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"} | " +
+                        "AF-L: ${entry.afLocked?.let { if (it) "BẬT" else "TẮT" } ?: "—"}"
+                )
+                appendLine(
+                    "Đầu ra: ${entry.outputWidth}×${entry.outputHeight} · "
                         String.format(Locale.US, "%.2f MP", entry.megapixels)
                 )
                 appendLine(

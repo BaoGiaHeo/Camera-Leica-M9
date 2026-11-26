@@ -2446,11 +2446,30 @@ fun CameraScreen(
                                 .setCaptureRequestOption(CaptureRequest.SHADING_MODE, shadingCorrectionMode)
                         }
                     }
-                    .setCaptureMode(
-                        if (mode == "Photo" && (nightShotMode == "night" || burstMode)) ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
-                        else ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+                val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled && !livePhotoEnabled &&
+                    appPrefs.getString("lunadream_mode", "off") != "off"
+                                    .setCaptureMode(
+                        if (!lunaDreamRequestedInPrefs && !rawCaptureActive && !livePhotoEnabled) {
+                            ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                        } else {
+                            ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+                        }
                     )
                     .setTargetRotation(rotation)
+                val zslSupported = runCatching {
+                    val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                    val capabilities = cameraManager.getCameraCharacteristics(activeFacingId)
+                        .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                    capabilities?.any {
+                        it == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_PRIVATE_REPROCESSING ||
+                            it == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING
+                    } == true
+                }.getOrDefault(false)
+                if (zslSupported && !lunaDreamRequestedInPrefs && !rawCaptureActive) {
+                    Camera2Interop.Extender(captureBuilder)
+                        .setCaptureRequestOption(CaptureRequest.CONTROL_ENABLE_ZSL, true)
+                    android.util.Log.i("FUJI_CAPTURE", "ZSL enabled from CameraCharacteristics capability")
+                }
                 if (outputFormat != ImageCapture.OUTPUT_FORMAT_JPEG) {
                     captureBuilder.setOutputFormat(outputFormat)
                 }
@@ -2468,8 +2487,6 @@ fun CameraScreen(
                 }
                 // Pro exposure is sent through dynamic CameraControl options. CameraX copies
                 // repeating options into one-shot still captures; avoid stale builder values.
-                val lunaDreamRequestedInPrefs = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                    appPrefs.getString("lunadream_mode", "off") != "off"
                 val isComputationalHighResolution = !livePhotoEnabled &&
                     (lunaDreamRequestedInPrefs || uhdCaptureEnabled || fhdCaptureEnabled ||
                         uhdPlusCaptureEnabled || (mode == "Photo" && nightShotMode == "night"))
@@ -3646,7 +3663,7 @@ fun CameraScreen(
         }
     }
 
-    fun takePhoto() {
+    fun takePhoto(forceBurst: Boolean = false) {
         val captureTimestampMillis = System.currentTimeMillis()
         val needsCriticalBatteryProtection = !batteryCharging &&
             batteryPercent in 0..5 &&
@@ -3915,7 +3932,7 @@ fun CameraScreen(
             localizedToast(context, "Đang dừng Burst sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
             return
         }
-        if (!livePhotoEnabled && burstMode && mode == "Photo" &&
+        if (!livePhotoEnabled && forceBurst && mode == "Photo" &&
             nightShotMode == "off" && rawCaptureMode == "jpeg" &&
             lunaDreamMode == "off" && !uhdCaptureEnabled &&
             !fhdCaptureEnabled && !uhdPlusCaptureEnabled
@@ -3944,8 +3961,9 @@ fun CameraScreen(
                     activeCapture.targetRotation = targetRotation
                     previewUseCase?.targetRotation = targetRotation
                     analysisUseCase?.targetRotation = targetRotation
-                    for (frameIndex in 0 until 25) {
-                        if (burstStopRequested) break
+                    var frameIndex = 0
+                    val burstStartedAtMs = SystemClock.elapsedRealtime()
+                    while (!burstStopRequested && frameIndex < Tuning.MAX_CONTINUOUS_BURST_FRAMES) {
                         val frameStartedAt = SystemClock.elapsedRealtime()
                         val savedUri = runCatching {
                             saveBurstFrame(
@@ -3954,7 +3972,7 @@ fun CameraScreen(
                                 mainExecutor,
                                 sessionId,
                                 frameIndex,
-                                publishOnSave = false
+                                publishOnSave = true
                             )
                         }.onFailure {
                             android.util.Log.w("FUJI_BURST", "Could not enqueue frame ${frameIndex + 1}", it)
@@ -3963,11 +3981,23 @@ fun CameraScreen(
                             burstSavedUris += savedUri
                             burstCaptureDurationsMs += (SystemClock.elapsedRealtime() - frameStartedAt).coerceAtLeast(0L)
                             burstCompletedFrames += 1
+                            // Make each captured frame visible in the device Gallery thumbnail immediately.
+                            lastUri = savedUri
+                            thumbnailRequestKey++
+                        } else {
+                            android.util.Log.w("FUJI_BURST", "Frame $frameIndex was not saved; continuing while the shutter remains held")
                         }
-                        // Best effort: do not add delay when the camera itself takes longer than 200 ms.
-                        val elapsed = SystemClock.elapsedRealtime() - frameStartedAt
-                        val remaining = 200L - elapsed
-                        if (remaining > 0L && frameIndex < 24 && !burstStopRequested) delay(remaining)
+                        frameIndex++
+                    }
+                    val burstElapsedMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
+                    val burstFps = burstSavedUris.size * 1000.0 / burstElapsedMs
+                    CrashContextDiagnostics.recordUiEvent(
+                        "BURST_CAPTURE_COMPLETE frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=${"%.2f".format(Locale.US, burstFps)}"
+                    )
+                    android.util.Log.i("FUJI_BURST", "Continuous burst frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=$burstFps");
+                    if (frameIndex >= Tuning.MAX_CONTINUOUS_BURST_FRAMES && !burstStopRequested) {
+                        CaptureDiagnostics.recordWarning(context, "Burst tự dừng ở giới hạn an toàn ${Tuning.MAX_CONTINUOUS_BURST_FRAMES} khung hình.")
+                    }
                     }
                 } finally {
                     countdown = 0
@@ -4053,6 +4083,8 @@ fun CameraScreen(
                         )
                     )
                     lastSuccessfulUri = burstUri
+                    lastUri = burstUri
+                    thumbnailRequestKey++
                     processingProgress = ((index + 1) * 100 / burstSavedUris.size).coerceIn(0, 100)
                     }
                 } finally {
@@ -7526,6 +7558,8 @@ fun CameraScreen(
             }
             FujiShutterButton(
                 enabled = !isProcessing,
+                onLongPress = { takePhoto(forceBurst = true) },
+                onRelease = { if (burstCaptureActive) burstStopRequested = true },
                 onHalfPress = {
                     invalidatePendingFocusLock(camera)
                     centerAfStatus = 0

@@ -23,6 +23,9 @@ for source in SOURCE_ROOT.rglob("*"):
         continue
     if source.name == "ImageSink.kt":
         continue
+    # Settings backup is application/json, not a JPEG/image output path.
+    if source.name == "BackupSettings.kt":
+        continue
     try:
         lines = source.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError) as error:

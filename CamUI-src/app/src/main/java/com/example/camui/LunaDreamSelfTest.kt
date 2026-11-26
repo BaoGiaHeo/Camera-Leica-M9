@@ -44,7 +44,7 @@ internal object LunaDreamSelfTest {
     private const val FRAME_HEIGHT = 480
     private const val FRAME_COUNT = 8
     private const val TEST_REQUESTED_OUTPUT_PIXELS = 200_000_000L
-    private const val TEST_MINIMUM_OUTPUT_PIXELS = 50_000_000L
+    private const val TEST_MINIMUM_OUTPUT_PIXELS = 200_000_000L
 
     fun run(context: Context): LunaDreamSelfTestReport {
         val startedAt = SystemClock.elapsedRealtime()
@@ -101,7 +101,7 @@ internal object LunaDreamSelfTest {
                 targetPixels = TEST_REQUESTED_OUTPUT_PIXELS,
                 targetHeightOverWidth = null,
                 adaptiveMinimumPixels = TEST_MINIMUM_OUTPUT_PIXELS
-            ) ?: error("Upscale/encode yêu cầu 200MP (tối thiểu 50MP) thất bại hoặc không đủ bộ nhớ an toàn.")
+            ) ?: error("Upscale/encode yêu cầu đủ 200MP thất bại hoặc không đủ bộ nhớ an toàn.")
             stages["Upscale + mã hóa JPEG"] = SystemClock.elapsedRealtime() - upscaleStart
             peakHeap = maxOf(peakHeap, usedHeap(runtime))
 
@@ -120,14 +120,16 @@ internal object LunaDreamSelfTest {
             }
             stages["Đọc lại và xác minh"] = SystemClock.elapsedRealtime() - verifyStart
             peakHeap = maxOf(peakHeap, usedHeap(runtime))
-            success = true
-            message = "PASS: yêu cầu 200MP, ngưỡng an toàn tối thiểu 50MP; thực tế đạt ${String.format(Locale.US, "%.2f", megapixels)}MP (requestedReached=${resized.reachedRequestedSize}). Merge, upscale và JPEG encode đã chạy thật; file cache đã được đọc lại và xác minh."
+            // The current output implementation allocates a full RGB_565 Bitmap.
+            // Do not report a tile-streaming acceptance pass until a true tile encoder exists.
+            success = false
+            message = "CHƯA ĐẠT TILE-STREAMING: pipeline hiện tại dùng Bitmap toàn ảnh, không phải mã hóa theo tile. Kiểm tra full-bitmap đạt ${String.format(Locale.US, "%.2f", megapixels)}MP; requestedReached=${resized.reachedRequestedSize}. Không được coi đây là nghiệm thu LunaDream 3.0 200MP theo tile."
             LunaDreamDiagnostics.record(
                 context,
-                "SELF_TEST_SUCCESS",
+                "SELF_TEST_TILE_STREAMING_NOT_IMPLEMENTED",
                 "frames=$FRAME_COUNT; output=${width}x$height; mp=${String.format(Locale.US, "%.2f", megapixels)}; stages=$stages; peakHeap=$peakHeap"
             )
-            CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_SELF_TEST_PASS output=${width}x$height stages=$stages")
+            CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_SELF_TEST_TILE_STREAMING_BLOCKED output=${width}x$height stages=$stages")
         } catch (failure: Throwable) {
             message = "FAIL: ${failure.javaClass.simpleName}: ${failure.message ?: "không có chi tiết"}"
             Log.e(TAG, message, failure)

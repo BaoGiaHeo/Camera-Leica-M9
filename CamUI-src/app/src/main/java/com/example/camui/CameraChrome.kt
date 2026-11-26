@@ -103,12 +103,13 @@ internal fun FujiEvRuler(
     position: Float,
     minimum: Int,
     maximum: Int,
+    heightDp: Dp = 24.dp,
     onPositionChange: (Int) -> Unit
 ) {
     val safeMin = minimum.coerceAtMost(maximum)
     val safeMax = maximum.coerceAtLeast(safeMin)
     Box(
-        Modifier.fillMaxWidth().height(24.dp)
+        Modifier.fillMaxWidth().height(heightDp)
             .pointerInput(safeMin, safeMax) {
                 detectTapGestures { point ->
                     val fraction = (point.x / size.width).coerceIn(0f, 1f)

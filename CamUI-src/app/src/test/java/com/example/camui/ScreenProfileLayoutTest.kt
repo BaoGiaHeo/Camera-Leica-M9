@@ -6,31 +6,45 @@ import org.junit.Test
 
 class ScreenProfileLayoutTest {
     @Test
-    fun layoutMetricsUseWindowDpAndClampToTouchSafeRanges() {
-        val compact = ScreenProfile(
-            2400, 1080, 440, 2.75f, 1f, 872.7f, 392.7f,
+    fun referenceLandscapeUsesFujiDesignDimensions() {
+        val reference = ScreenProfile(
+            924, 427, 440, 2.75f, 1f, 924f, 427f,
             ScreenAspectClass.TWENTY_NINE, ScreenWindowSizeClass.EXPANDED, 120f,
             android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor()
-        assertEquals(41.23f, compact.topPlateHeight.value, 0.1f)
-        assertTrue(compact.leftColumnWidth.value in 54f..70f)
-        assertTrue(compact.rightColumnWidth.value in 260f..310f)
-        assertTrue(compact.proControlHeight.value >= 64f)
+        assertEquals(55f, reference.topPlateHeight.value, 0.001f)
+        assertEquals(98f, reference.leftColumnWidth.value, 0.001f)
+        assertEquals(310f, reference.rightColumnWidth.value, 0.001f)
+        assertEquals(60f, reference.proControlHeight.value, 0.001f)
     }
 
     @Test
-    fun largeWindowValuesAreClamped() {
+    fun compactLandscapeClampsDesignScaleAtPointEightFive() {
+        val compact = ScreenProfile(
+            640, 360, 440, 2.75f, 1f, 640f, 360f,
+            ScreenAspectClass.SIXTEEN_NINE, ScreenWindowSizeClass.MEDIUM, 120f,
+            android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
+            android.graphics.Rect(), emptyList(), emptyList()
+        ).layoutFor()
+        assertEquals(46.75f, compact.topPlateHeight.value, 0.01f)
+        assertEquals(83.3f, compact.leftColumnWidth.value, 0.01f)
+        assertEquals(263.5f, compact.rightColumnWidth.value, 0.01f)
+        assertEquals(51f, compact.proControlHeight.value, 0.01f)
+    }
+
+    @Test
+    fun largeWindowValuesUseMaximumDesignScale() {
         val profile = ScreenProfile(
             3200, 1440, 560, 3.5f, 1.3f, 914.2f, 411.4f,
             ScreenAspectClass.TWENTY_NINE, ScreenWindowSizeClass.EXPANDED, 144f,
             android.graphics.Rect(), android.graphics.Rect(), android.graphics.Rect(),
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor(1600f, 900f)
-        assertEquals(52f, profile.topPlateHeight.value, 0.001f)
-        assertEquals(70f, profile.leftColumnWidth.value, 0.001f)
-        assertEquals(310f, profile.rightColumnWidth.value, 0.001f)
-        assertEquals(92f, profile.proControlHeight.value, 0.001f)
+        assertEquals(68.75f, profile.topPlateHeight.value, 0.001f)
+        assertEquals(122.5f, profile.leftColumnWidth.value, 0.001f)
+        assertEquals(387.5f, profile.rightColumnWidth.value, 0.001f)
+        assertEquals(75f, profile.proControlHeight.value, 0.001f)
     }
 
     @Test

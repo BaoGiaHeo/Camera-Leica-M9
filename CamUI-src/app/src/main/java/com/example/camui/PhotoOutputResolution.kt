@@ -456,7 +456,7 @@ object PhotoOutputResolution {
             CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_TILE_FAILED stage=$stage reason=$reason")
             LunaDreamDiagnostics.record(context, "TILE_UPSCALE_FAILED", "stage=$stage; reason=$reason", failure)
             Log.e(TAG, message, failure)
-            null
+            throw IllegalStateException(message, failure)
         } finally {
             runCatching { sourceBackup.delete() }
             runCatching { encodedTemp.delete() }

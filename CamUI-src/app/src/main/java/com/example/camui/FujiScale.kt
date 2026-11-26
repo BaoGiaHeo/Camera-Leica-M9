@@ -114,7 +114,6 @@ internal fun FujiScale(
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onPositionChange(advanceFujiScalePosition(safePosition, safeStep))
             })
-            ScaleKey("BACK", onClick = onBack, wide = true)
         }
 
         Row(

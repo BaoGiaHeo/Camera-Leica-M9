@@ -279,4 +279,6 @@
     <string name="camera_off">Tắt</string>
     <string name="camera_on">Bật</string>
     <string name="camera_night_shot">Night Shot</string>
+    <string name="camera_film_35mm">Mô phỏng phim 35 mm</string>
+    <string name="camera_lens_transition">Chuyển ống kính</string>
 </resources>

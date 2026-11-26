@@ -90,6 +90,7 @@ fun SettingsScreen(
     onOpenWatermarkPanel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var showCaptureDiagnostics by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Capture & Quality") }
     var categoryBeforeBackup by remember { mutableStateOf("Capture & Quality") }
@@ -181,7 +182,7 @@ fun SettingsScreen(
         CaptureDiagnosticsDialog(
             onDismiss = { showCaptureDiagnostics = false },
             onTestPreviewColor = {
-                LocalContext.current.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+                context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
                     .edit().putBoolean("preview_color_test_requested", true).apply()
                 showCaptureDiagnostics = false
                 onBack()

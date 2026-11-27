@@ -62,6 +62,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -268,7 +269,7 @@ class MainActivity : AppCompatActivity() {
                 var bootSplashVisible by remember { mutableStateOf(true) }
                 LaunchedEffect(Unit) {
                     // Keep the splash visible while the underlying camera composition starts.
-                    delay(1_050L)
+                    delay(1_000L)
                     bootSplashVisible = false
                 }
                 var page by remember { mutableStateOf("camera") }
@@ -502,15 +503,24 @@ class MainActivity : AppCompatActivity() {
 
 @androidx.compose.runtime.Composable
 private fun FujifilmBootSplash() {
-    Box(
-        Modifier.fillMaxSize().background(ComposeColor.Black),
-        contentAlignment = Alignment.Center
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 30.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         Image(
             painter = painterResource(R.drawable.fujifilm_logo_white),
             contentDescription = "FUJIFILM",
             modifier = Modifier.width(260.dp).height(58.dp),
             contentScale = ContentScale.Fit
+        )
+        Text(
+            "LƯU Ý APP NÀY LÀ GIẢ LẬP MÔ PHỎNG MÁY ẢNH FUJIFILM KHÔNG PHẢI SẢN PHẨM CHÍNH THỨC VUI LÒNG KHÔNG BÁN THƯƠNG MẠI VỚI BẤT KỲ HÌNH THỨC NÀO",
+            color = ComposeColor(0xFFD8283C),
+            fontSize = 8.sp,
+            lineHeight = 10.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }

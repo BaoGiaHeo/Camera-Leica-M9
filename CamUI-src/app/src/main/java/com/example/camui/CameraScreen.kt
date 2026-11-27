@@ -701,6 +701,7 @@ fun CameraScreen(
 
     var batteryPercent by remember { mutableIntStateOf(-1) }
     var batteryCharging by remember { mutableStateOf(false) }
+    var batterySaverEnabled by remember { mutableStateOf(false) }
     var batteryWarningState by remember { mutableStateOf(BatteryWarningState()) }
     var batteryLowBlinkOn by remember { mutableStateOf(true) }
     LaunchedEffect(batteryWarningState.blinking, batteryWarningState.showLowNotice) {
@@ -745,7 +746,23 @@ fun CameraScreen(
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         updateBattery(sticky)
-        onDispose { runCatching { context.unregisterReceiver(batteryReceiver) } }
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        fun updateBatterySaver() {
+            batterySaverEnabled = runCatching { powerManager?.isPowerSaveMode == true }.getOrDefault(false)
+        }
+        val powerSaveReceiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context?, intent: Intent?) { updateBatterySaver() }
+        }
+        ContextCompat.registerReceiver(
+            context, powerSaveReceiver,
+            IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        updateBatterySaver()
+        onDispose {
+            runCatching { context.unregisterReceiver(batteryReceiver) }
+            runCatching { context.unregisterReceiver(powerSaveReceiver) }
+        }
     }
 
     var hasCam by remember {
@@ -1201,6 +1218,11 @@ fun CameraScreen(
     var manualIso by remember { mutableIntStateOf(appPrefs.getInt("pro_manual_iso", 400).coerceAtLeast(50)) }
     var manualShutterNs by remember { mutableLongStateOf(appPrefs.getLong("pro_manual_shutter_ns", 10_000_000L).coerceAtLeast(1_000_000L)) }
     var manualFocus by remember { mutableFloatStateOf(appPrefs.getFloat("pro_manual_focus", 0f).coerceAtLeast(0f)) }
+    val manualFocusDrawPositionState = remember { mutableFloatStateOf(0f) }
+    val pendingManualFocusValue = remember { floatArrayOf(manualFocus) }
+    var lastManualFocusCommandAtMs by remember { mutableLongStateOf(0L) }
+    var manualFocusCommandJob by remember { mutableStateOf<Job?>(null) }
+    var manualFocusDragActive by remember { mutableStateOf(false) }
     val manualFocusState = rememberUpdatedState(manualFocus)
     val focusLockedState = rememberUpdatedState(focusLocked)
     var milkyWayInfinityFocusEnabled by remember { mutableStateOf(false) }
@@ -5820,6 +5842,28 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         }
     }
 
+    var zoomHoldLastFrameNanos by remember { mutableLongStateOf(0L) }
+    fun queueZoomHoldFrame(direction: Int, minimumZoom: Float, maximumZoom: Float) {
+        val now = SystemClock.elapsedRealtimeNanos()
+        val previous = zoomHoldLastFrameNanos
+        val elapsedSeconds = if (previous == 0L) 1f / 60f
+            else ((now - previous).coerceAtLeast(0L) / 1_000_000_000f).coerceIn(0f, 0.05f)
+        zoomHoldLastFrameNanos = now
+        zoomHoldDirection = direction
+        val current = zoomBarDrawRatio.floatValue
+        val next = (current * exp(direction * 0.85f * elapsedSeconds)).coerceIn(minimumZoom, maximumZoom)
+        if (abs(next - current) >= 0.0005f) {
+            zoomBarDrawRatio.floatValue = next
+            zoomBarRequests.trySend(next to false)
+        }
+    }
+
+    fun finishZoomHold() {
+        zoomHoldDirection = 0
+        zoomHoldLastFrameNanos = 0L
+        zoomBarRequests.trySend(zoomBarDrawRatio.floatValue to true)
+    }
+
     fun animateZoomTo(targetRatio: Float) {
         val activeCamera = camera ?: return
         val state = activeCamera.cameraInfo.zoomState.value ?: return
@@ -5943,6 +5987,80 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE
     ) else null
     val maxFocus = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+
+    LaunchedEffect(manualFocus, maxFocus) {
+        if (!manualFocusDragActive) {
+            manualFocusDrawPositionState.floatValue =
+                if (maxFocus > 0f) (manualFocus / maxFocus).coerceIn(0f, 1f) else 0f
+        }
+    }
+
+    fun applyManualFocusCommandNow(value: Float, persist: Boolean) {
+        val safeMaximum = maxFocus.takeIf { it.isFinite() && it > 0f } ?: 0f
+        val safeValue = if (safeMaximum > 0f) value.coerceIn(0f, safeMaximum) else 0f
+        manualFocus = safeValue
+        manualFocusDrawPositionState.floatValue =
+            if (safeMaximum > 0f) (safeValue / safeMaximum).coerceIn(0f, 1f) else 0f
+        camera?.let { active ->
+            runCatching { applyManualFocus(active, safeValue) }
+                .onFailure { android.util.Log.w("FUJI_FOCUS", "Could not apply manual focus=$safeValue", it) }
+        }
+        lastManualFocusCommandAtMs = SystemClock.elapsedRealtime()
+        if (persist) {
+            appPrefs.edit().putFloat("pro_manual_focus", safeValue).putString("pro_af_mode", "MF").apply()
+        }
+    }
+
+    fun queueManualFocusFraction(fraction: Float) {
+        val safeFraction = fraction.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
+        val safeValue = safeFraction * maxFocus.coerceAtLeast(0f)
+        pendingManualFocusValue[0] = safeValue
+        manualFocusDrawPositionState.floatValue = safeFraction
+        if (!manualFocusDragActive) {
+            manualFocusDragActive = true
+            milkyWayInfinityFocusEnabled = false
+            proAfMode = "MF"
+            appPrefs.edit().putString("pro_af_mode", "MF").apply()
+            invalidatePendingFocusLock(camera)
+        }
+        val elapsed = SystemClock.elapsedRealtime() - lastManualFocusCommandAtMs
+        val waitMs = (67L - elapsed).coerceAtLeast(0L)
+        if (waitMs == 0L) {
+            manualFocusCommandJob?.cancel()
+            manualFocusCommandJob = null
+            applyManualFocusCommandNow(safeValue, persist = false)
+        } else if (manualFocusCommandJob?.isActive != true) {
+            manualFocusCommandJob = scope.launch {
+                delay(waitMs)
+                applyManualFocusCommandNow(pendingManualFocusValue[0], persist = false)
+                manualFocusCommandJob = null
+            }
+        }
+    }
+
+    fun commitManualFocusCommand() {
+        manualFocusCommandJob?.cancel()
+        manualFocusCommandJob = null
+        applyManualFocusCommandNow(pendingManualFocusValue[0], persist = true)
+        manualFocusDragActive = false
+        CrashContextDiagnostics.recordUiEvent(
+            "FOCUS_DRAG_COMMIT value=" + String.format(Locale.US, "%.2f", pendingManualFocusValue[0])
+        )
+    }
+
+    fun resetManualFocusToAuto() {
+        manualFocusCommandJob?.cancel()
+        manualFocusCommandJob = null
+        manualFocusDragActive = false
+        pendingManualFocusValue[0] = 0f
+        manualFocus = 0f
+        manualFocusDrawPositionState.floatValue = 0f
+        milkyWayInfinityFocusEnabled = false
+        appPrefs.edit().putFloat("pro_manual_focus", 0f).putString("pro_af_mode", "AF-S").apply()
+        proAfMode = "AF-S"
+        camera?.let { active -> runCatching { applyAutoFocus(active) } }
+    }
+
     val availableAfModes = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
     fun selectProAfMode(nextMode: String) {
         val safeMode = nextMode.takeIf { it in setOf("AF-S", "AF-C", "MF") } ?: "AF-S"
@@ -5995,6 +6113,12 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 android.util.Log.w("FUJI_PRO_AF", "Could not restore persisted AF mode=$proAfMode", it)
             }
         }
+    }
+    val batteryIndicatorColor = when {
+        batteryCharging -> Color(0xFF5ED08A)
+        batteryWarningState.lowRed -> Color(0xFFD8283C)
+        batterySaverEnabled -> Color(0xFFF2C230)
+        else -> Color.White
     }
     val evRange = camera?.cameraInfo?.exposureState?.exposureCompensationRange
     val evStep = camera?.cameraInfo?.exposureState?.exposureCompensationStep?.toFloat() ?: 0f
@@ -6098,25 +6222,19 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     "Focus : " + if (manualFocus > 0f) String.format(Locale.US, "%.1f", manualFocus) else "0.0",
                     color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.fillMaxWidth().clickable {
-                        manualFocus = 0f
-                        milkyWayInfinityFocusEnabled = false
-                        selectProAfMode("AF-S")
-                        camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                        resetManualFocusToAuto()
                     }
                 )
                 if (maxFocus > 0f && availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true) {
                     FujiEvRuler(
                         position = (manualFocus / maxFocus).coerceIn(0f, 1f),
-                        minimum = 0, maximum = 1000, heightDp = 22.dp
-                    ) { value ->
-                        manualFocus = maxFocus * (value / 1000f)
-                        milkyWayInfinityFocusEnabled = false
-                        proAfMode = "MF"
-                        appPrefs.edit().putString("pro_af_mode", "MF").putFloat("pro_manual_focus", manualFocus).apply()
-                        invalidatePendingFocusLock(camera)
-                        camera?.let { active -> runCatching { applyManualFocus(active, manualFocus) } }
-                        CrashContextDiagnostics.recordUiEvent("FOCUS_DRAG value=" + String.format(Locale.US, "%.2f", manualFocus))
-                    }
+                        minimum = 0,
+                        maximum = 1000,
+                        heightDp = 22.dp,
+                        positionState = manualFocusDrawPositionState,
+                        onPositionCommit = { commitManualFocusCommand() },
+                        onPositionChange = { value -> queueManualFocusFraction(value / 1000f) }
+                    )
                 } else {
                     Text("AF tự động", color = FujiCameraDesign.muted, fontSize = 8.sp)
                 }
@@ -6861,22 +6979,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         automatic = manualFocus <= 0f && !milkyWayInfinityFocusEnabled,
                                         scale = designScale,
                                         touchEnabled = touchAfEnabled,
-                                        onFocusPosition = { fraction ->
-                                            manualFocus = fraction * focusMax
-                                            proAfMode = "MF"
-                                            appPrefs.edit().putString("pro_af_mode", "MF").apply()
-                                            milkyWayInfinityFocusEnabled = false
-                                            invalidatePendingFocusLock(camera)
-                                            camera?.let { active -> runCatching { applyManualFocus(active, manualFocus) } }
-                                        },
-                                        onAuto = {
-                                            manualFocus = 0f
-                                            milkyWayInfinityFocusEnabled = false
-                                            proAfMode = "AF-S"
-                                            appPrefs.edit().putString("pro_af_mode", "AF-S").apply()
-                                            camera?.let { active -> runCatching { applyAutoFocus(active) } }
-                                        },
-                                        onTouchToggle = { touchAfEnabled = !touchAfEnabled }
+                                        onFocusPosition = { fraction -> queueManualFocusFraction(fraction) },
+                                        onAuto = { resetManualFocusToAuto() },
+                                        onTouchToggle = { touchAfEnabled = !touchAfEnabled },
+                                        positionState = manualFocusDrawPositionState,
+                                        onFocusPositionCommit = { commitManualFocusCommand() }
                                     )
                                     FujiProHud(
                                         shutter = if (shutterText == "AUTO") stringResource(R.string.camera_auto) else shutterText,
@@ -6887,6 +6994,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         kelvin = if (manualColorTempEnabled) "${manualColorTemp}K" else stringResource(R.string.camera_auto),
                                         ev = evText,
                                         batteryPercent = batteryPercent,
+                                        batteryColor = batteryIndicatorColor,
                                         hudHeight = (frameHeight * Tuning.CAMERA_HUD_HEIGHT_FRACTION).coerceAtLeast(40.dp),
                                         scale = designScale,
                                         onControlTap = { selectedControl ->
@@ -6904,6 +7012,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 ).coerceAtLeast(photoMin)
                                 FujiPhotoStatus(
                                     batteryPercent = batteryPercent,
+                                    batteryColor = batteryIndicatorColor,
                                     resolution = when (lunaDreamMode) {
                                         "luna15" -> "FHD+"
                                         "luna20" -> "UHD"
@@ -6924,8 +7033,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 val selectedPanel = proAdjustmentContent
                                 Box(
                                     Modifier.align(Alignment.BottomCenter)
-                                        .fillMaxWidth()
-                                        .height((frameHeight / 48f * 6f).coerceAtLeast(96.dp))
+                                        .width(300.dp * designScale)
+                                        .height(100.dp * designScale)
                                         .background(Color(0xE00B0B0B))
                                         .border(1.dp, Color(0xFF737B7D), RoundedCornerShape(6.dp))
                                         .padding(horizontal = 5.dp, vertical = 2.dp)
@@ -7870,14 +7979,16 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         "T",
                         modifier = Modifier.width(66.dp * designScale).height(64.dp * designScale),
                         secondary = stringResource(R.string.camera_in), scale = designScale,
-                        onHold = { animateZoomTo((zoomSel * 1.025f).coerceIn(minZoom, maxZoom)) }
+                        onHold = { queueZoomHoldFrame(1, minZoom, maxZoom) },
+                        onHoldEnd = { finishZoomHold() }
                     ) { animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom)) }
                     Spacer(Modifier.height(8.dp * designScale))
                     FujiCameraKey(
                         "W",
                         modifier = Modifier.width(66.dp * designScale).height(64.dp * designScale),
                         secondary = stringResource(R.string.camera_out), scale = designScale,
-                        onHold = { animateZoomTo((zoomSel / 1.025f).coerceIn(minZoom, maxZoom)) }
+                        onHold = { queueZoomHoldFrame(-1, minZoom, maxZoom) },
+                        onHoldEnd = { finishZoomHold() }
                     ) { animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom)) }
                 }
             }

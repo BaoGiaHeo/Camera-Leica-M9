@@ -1,6 +1,7 @@
 package com.example.camui
 
 import android.graphics.Paint
+import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,8 +19,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +43,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -67,6 +78,41 @@ internal fun FujiScale(
     val safeStep = stepFraction.takeIf { it.isFinite() && it > 0f } ?: 0.01f
     val latestPosition = rememberUpdatedState(safePosition)
     val latestOnPositionChange = rememberUpdatedState(onPositionChange)
+    val dragDrawPosition = remember { mutableFloatStateOf(safePosition) }
+    val pendingPosition = remember { mutableFloatStateOf(safePosition) }
+    val draggingState = remember { mutableStateOf(false) }
+    var lastDispatchAtMs by remember { mutableLongStateOf(0L) }
+    var dispatchJob by remember { mutableStateOf<Job?>(null) }
+    val dispatchScope = rememberCoroutineScope()
+
+    LaunchedEffect(safePosition) {
+        if (!draggingState.value) {
+            dragDrawPosition.floatValue = safePosition
+            pendingPosition.floatValue = safePosition
+        }
+    }
+
+    fun dispatchScalePosition(value: Float, force: Boolean = false) {
+        val safeValue = value.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: safePosition
+        dragDrawPosition.floatValue = safeValue
+        pendingPosition.floatValue = safeValue
+        val now = SystemClock.elapsedRealtime()
+        val waitMs = (67L - (now - lastDispatchAtMs)).coerceAtLeast(0L)
+        if (force || lastDispatchAtMs == 0L || waitMs == 0L) {
+            dispatchJob?.cancel()
+            dispatchJob = null
+            lastDispatchAtMs = now
+            latestOnPositionChange.value(safeValue)
+        } else if (dispatchJob?.isActive != true) {
+            dispatchJob = dispatchScope.launch {
+                delay(waitMs)
+                lastDispatchAtMs = SystemClock.elapsedRealtime()
+                latestOnPositionChange.value(pendingPosition.floatValue)
+                dispatchJob = null
+            }
+        }
+    }
+
     val textPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
@@ -108,11 +154,11 @@ internal fun FujiScale(
             Spacer(Modifier.weight(1f))
             ScaleKey("-", onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onPositionChange(advanceFujiScalePosition(safePosition, -safeStep))
+                dispatchScalePosition(advanceFujiScalePosition(dragDrawPosition.floatValue, -safeStep), force = true)
             })
             ScaleKey("+", onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onPositionChange(advanceFujiScalePosition(safePosition, safeStep))
+                dispatchScalePosition(advanceFujiScalePosition(dragDrawPosition.floatValue, safeStep), force = true)
             })
         }
 
@@ -124,9 +170,20 @@ internal fun FujiScale(
             Box(
                 modifier = Modifier.weight(1f).height(48.dp)
                     .pointerInput(safeStep) {
-                        var dragPosition = latestPosition.value
+                        var dragPosition = dragDrawPosition.floatValue
                         detectDragGestures(
-                            onDragStart = { dragPosition = latestPosition.value },
+                            onDragStart = {
+                                draggingState.value = true
+                                dragPosition = dragDrawPosition.floatValue
+                            },
+                            onDragEnd = {
+                                dispatchScalePosition(pendingPosition.floatValue, force = true)
+                                draggingState.value = false
+                            },
+                            onDragCancel = {
+                                dispatchScalePosition(pendingPosition.floatValue, force = true)
+                                draggingState.value = false
+                            },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 val next = advanceFujiScalePosition(
@@ -136,7 +193,7 @@ internal fun FujiScale(
                                 val oldDetent = (dragPosition / safeStep).roundToInt()
                                 val newDetent = (next / safeStep).roundToInt()
                                 dragPosition = next
-                                latestOnPositionChange.value(next)
+                                dispatchScalePosition(next)
                                 if (oldDetent != newDetent) {
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
@@ -146,7 +203,7 @@ internal fun FujiScale(
             ) {
                 Canvas(Modifier.fillMaxWidth().height(23.dp).align(Alignment.Center)) {
                     val centerX = size.width * 0.5f
-                    val detents = (safePosition / safeStep).takeIf { it.isFinite() } ?: 0f
+                    val detents = (dragDrawPosition.floatValue / safeStep).takeIf { it.isFinite() } ?: 0f
                     val whole = kotlin.math.floor(detents).toInt()
                     val remainder = detents - whole
                     val stepPx = size.width / 24f

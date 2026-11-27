@@ -58,6 +58,7 @@ internal fun FujiCameraKey(
     secondary: String? = null,
     scale: Float = 1f,
     onHold: (() -> Unit)? = null,
+    onHoldEnd: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
@@ -65,6 +66,7 @@ internal fun FujiCameraKey(
     val scope = rememberCoroutineScope()
     val click by rememberUpdatedState(onClick)
     val hold by rememberUpdatedState(onHold)
+    val holdEnd by rememberUpdatedState(onHoldEnd)
     var pressed by remember { mutableStateOf(false) }
     val holdFired = remember { booleanArrayOf(false) }
     val pressScale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-key-press")
@@ -90,13 +92,14 @@ internal fun FujiCameraKey(
                             while (true) {
                                 holdFired[0] = true
                                 holdAction()
-                                delay(100L)
+                                withFrameNanos { }
                             }
                         } else null
                         try {
                             tryAwaitRelease()
                         } finally {
                             repeatJob?.cancel()
+                            if (holdFired[0]) holdEnd.value?.invoke()
                             pressed = false
                         }
                     },
@@ -158,13 +161,14 @@ internal fun FujiEvRuler(
     scale: Float = 1f,
     positionState: State<Float>? = null,
     onPositionCommit: (() -> Unit)? = null,
-    onPositionChange: (Int) -> Unit
+    onPositionChange: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val safeMin = minimum.coerceAtMost(maximum)
     val safeMax = maximum.coerceAtLeast(safeMin)
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     Box(
-        Modifier.fillMaxWidth().height(heightDp)
+        modifier.fillMaxWidth().height(heightDp)
             .pointerInput(safeMin, safeMax) {
                 val touchSlop = viewConfiguration.touchSlop
                 fun valueAt(x: Float): Int {
@@ -231,7 +235,9 @@ internal fun FujiProFocusStrip(
     touchEnabled: Boolean,
     onFocusPosition: (Float) -> Unit,
     onAuto: () -> Unit,
-    onTouchToggle: () -> Unit
+    onTouchToggle: () -> Unit,
+    positionState: State<Float>? = null,
+    onFocusPositionCommit: () -> Unit = {}
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     Row(
@@ -241,15 +247,16 @@ internal fun FujiProFocusStrip(
         horizontalArrangement = Arrangement.spacedBy(7.dp * safeScale)
     ) {
         Text(stringResource(R.string.camera_focus), color = Color.White, fontSize = 12.sp * safeScale, fontWeight = FontWeight.Bold)
-        androidx.compose.material3.Slider(
-            value = focusPosition.coerceIn(0f, 1f),
-            onValueChange = onFocusPosition,
-            modifier = Modifier.fillMaxWidth(0.40f).height(28.dp * safeScale),
-            colors = androidx.compose.material3.SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = FujiCameraDesign.orange,
-                inactiveTrackColor = Color(0xFF424649)
-            )
+        FujiEvRuler(
+            position = focusPosition.coerceIn(0f, 1f),
+            minimum = 0,
+            maximum = 1000,
+            heightDp = 26.dp * safeScale,
+            scale = safeScale,
+            positionState = positionState,
+            onPositionCommit = onFocusPositionCommit,
+            onPositionChange = { onFocusPosition(it / 1000f) },
+            modifier = Modifier.weight(1f)
         )
         Box(
             Modifier.height(28.dp * safeScale).clip(RoundedCornerShape(14.dp * safeScale))
@@ -277,7 +284,7 @@ internal fun formatCameraClock(hour: Int, minute: Int, second: Int): String =
 
 @Composable
 internal fun FujiProHud(
-    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, hudHeight: Dp = 60.dp, scale: Float = 1f,
+    shutter: String, aperture: String, focus: String, iso: String, kelvin: String, ev: String, batteryPercent: Int, batteryColor: Color = Color.White, hudHeight: Dp = 60.dp, scale: Float = 1f,
     onControlTap: (String) -> Unit = {}
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
@@ -329,12 +336,12 @@ internal fun FujiProHud(
         Column(Modifier.weight(0.22f), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Canvas(Modifier.size(20.dp * safeScale, 12.dp * safeScale)) {
-                    drawRoundRect(Color.White, cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()), style = Stroke(1.dp.toPx()))
-                    drawRect(Color.White, size = androidx.compose.ui.geometry.Size(size.width * batteryPercent.coerceIn(0, 100) / 100f, size.height))
-                    drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.3f),
+                    drawRoundRect(batteryColor, cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()), style = Stroke(1.dp.toPx()))
+                    drawRect(batteryColor, size = androidx.compose.ui.geometry.Size(size.width * batteryPercent.coerceIn(0, 100) / 100f, size.height))
+                    drawRect(batteryColor, topLeft = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.3f),
                         size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height * 0.4f))
                 }
-                Text(" $batteryPercent", color = Color.White, fontSize = 13.sp * safeScale, maxLines = 1)
+                Text(" $batteryPercent", color = batteryColor, fontSize = 13.sp * safeScale, maxLines = 1)
             }
             Text(clock, color = Color.White, fontSize = 12.sp * safeScale, maxLines = 1)
         }
@@ -343,7 +350,7 @@ internal fun FujiProHud(
 
 @Composable
 internal fun FujiPhotoStatus(
-    batteryPercent: Int, resolution: String, fps: Float?, targetFps: Float?, zoom: Float,
+    batteryPercent: Int, batteryColor: Color = Color.White, resolution: String, fps: Float?, targetFps: Float?, zoom: Float,
     minimumZoom: Float, maximumZoom: Float, onZoom: (Float) -> Unit, scale: Float = 1f
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
@@ -372,15 +379,15 @@ internal fun FujiPhotoStatus(
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Canvas(Modifier.size(56.dp * safeScale, 26.dp * safeScale)) {
-                        drawRoundRect(Color.White, cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
-                        drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.32f),
+                        drawRoundRect(batteryColor, cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                        drawRect(batteryColor, topLeft = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.32f),
                             size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height * 0.36f))
                         val fillWidth = (size.width - 8.dp.toPx()) * batteryPercent.coerceIn(0, 100) / 100f
-                        drawRoundRect(Color(0xFF777777), topLeft = androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()),
+                        drawRoundRect(batteryColor, topLeft = androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()),
                             size = androidx.compose.ui.geometry.Size(fillWidth, size.height - 8.dp.toPx()),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
                     }
-                    Text("$batteryPercent%", color = Color.White, fontSize = 13.sp * safeScale, modifier = Modifier.padding(start = 5.dp * safeScale))
+                    Text("$batteryPercent%", color = batteryColor, fontSize = 13.sp * safeScale, modifier = Modifier.padding(start = 5.dp * safeScale))
                 }
                 Text(clock, color = Color.White, fontSize = 12.sp * safeScale)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp * safeScale)) {

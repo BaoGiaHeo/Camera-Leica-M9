@@ -98,6 +98,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -8819,42 +8821,58 @@ private fun FilmTonePad(
         Box(
             Modifier.fillMaxWidth()
                 .aspectRatio(1.08f)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(20.dp))
                 .background(Brush.horizontalGradient(gradientColors))
-                .border(2.dp, Color(0xFFE6E8E7), RoundedCornerShape(16.dp))
+                .border(2.dp, Color(0xFFE6E8E7), RoundedCornerShape(20.dp))
                 .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = { latestOnPointChange(Offset(0.5f, 0.5f)) },
-                        onTap = { position ->
-                            latestOnPointChange(
-                                Offset(
-                                    (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                                    (position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    // One recognizer owns tap, double-tap and drag so the tap detector
+                    // cannot consume DOWN before the separate drag detector sees it.
+                    var lastTapUptimeMillis = 0L
+                    val touchSlop = viewConfiguration.touchSlop
+                    val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var dragging = false
+                        while (true) {
+                            val change = awaitPointerEvent().changes
+                                .firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) {
+                                if (!dragging) {
+                                    val now = change.uptimeMillis
+                                    if (lastTapUptimeMillis > 0L &&
+                                        now - lastTapUptimeMillis <= doubleTapTimeout
+                                    ) {
+                                        latestOnPointChange(Offset(0.5f, 0.5f))
+                                        lastTapUptimeMillis = 0L
+                                    } else {
+                                        latestOnPointChange(
+                                            Offset(
+                                                (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                                                (change.position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                            )
+                                        )
+                                        lastTapUptimeMillis = now
+                                    }
+                                    change.consume()
+                                }
+                                break
+                            }
+                            if (!dragging &&
+                                (change.position - down.position).getDistance() > touchSlop
+                            ) {
+                                dragging = true
+                            }
+                            if (dragging) {
+                                latestOnPointChange(
+                                    Offset(
+                                        (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                                        (change.position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                    )
                                 )
-                            )
+                                change.consume()
+                            }
                         }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { position ->
-                            latestOnPointChange(
-                                Offset(
-                                    (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                                    (position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                                )
-                            )
-                        },
-                        onDrag = { change, _ ->
-                            latestOnPointChange(
-                                Offset(
-                                    (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                                    (change.position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                                )
-                            )
-                            change.consume()
-                        }
-                    )
+                    }
                 }
         ) {
             Canvas(Modifier.fillMaxSize()) {

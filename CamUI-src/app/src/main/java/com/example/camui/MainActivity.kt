@@ -283,6 +283,27 @@ class MainActivity : AppCompatActivity() {
                 val overlayEnterOffsetY = with(density) { 8.dp.toPx() }
                 val overlayTabOffsetX = with(density) { 12.dp.toPx() }
 
+                var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
+                var manualAnimationPerformanceMode by remember {
+                    mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))
+                }
+                var thermalStatus by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
+                DisposableEffect(Unit) {
+                    val powerManager = this@MainActivity.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    val listener = PowerManager.OnThermalStatusChangedListener { status ->
+                        thermalStatus = status
+                    }
+                    thermalStatus = runCatching {
+                        powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE
+                    }.getOrDefault(PowerManager.THERMAL_STATUS_NONE)
+                    runCatching { powerManager?.addThermalStatusListener(listener) }
+                    onDispose { runCatching { powerManager?.removeThermalStatusListener(listener) } }
+                }
+                val animationPerformanceMode = manualAnimationPerformanceMode ||
+                    thermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
+                val reducedMotion = remember {
+                    AnimaT.isSystemReducedMotion(this@MainActivity)
+                }
                 LaunchedEffect(page, animationPerformanceMode, reducedMotion) {
                     if (page == "camera") {
                         if (overlayVisible) {
@@ -322,27 +343,6 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     CrashContextDiagnostics.updateRoute(page)
-                }
-                var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
-                var manualAnimationPerformanceMode by remember {
-                    mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))
-                }
-                var thermalStatus by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
-                DisposableEffect(Unit) {
-                    val powerManager = this@MainActivity.getSystemService(Context.POWER_SERVICE) as? PowerManager
-                    val listener = PowerManager.OnThermalStatusChangedListener { status ->
-                        thermalStatus = status
-                    }
-                    thermalStatus = runCatching {
-                        powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE
-                    }.getOrDefault(PowerManager.THERMAL_STATUS_NONE)
-                    runCatching { powerManager?.addThermalStatusListener(listener) }
-                    onDispose { runCatching { powerManager?.removeThermalStatusListener(listener) } }
-                }
-                val animationPerformanceMode = manualAnimationPerformanceMode ||
-                    thermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
-                val reducedMotion = remember {
-                    AnimaT.isSystemReducedMotion(this@MainActivity)
                 }
                 var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
                 var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }

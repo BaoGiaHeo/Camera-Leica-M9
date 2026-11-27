@@ -157,17 +157,19 @@ fun SettingsScreen(
                     targetState = selectedCategory,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     transitionSpec = {
-                        (fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
-                            slideInHorizontally(
-                                initialOffsetX = { it / 24 },
-                                animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
+                        (
+                            fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
+                                slideInHorizontally(
+                                    initialOffsetX = { it / 24 },
+                                    animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
                                 )
-                }) togetherWith
-                            (fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)) +
+                        ) togetherWith (
+                            fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)) +
                                 slideOutHorizontally(
                                     targetOffsetX = { -it / 36 },
                                     animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)
-                                ))
+                                )
+                        )
                     },
                     label = "Settings detail tab"
                 ) { detailTitle ->

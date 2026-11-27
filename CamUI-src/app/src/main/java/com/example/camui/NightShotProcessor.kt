@@ -14,6 +14,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
@@ -38,6 +39,11 @@ import kotlin.math.sqrt
  * accumulate into trails. Processing is row-based and keeps only two RGB_565
  * frames in memory at a time.
  */
+internal data class NightShotFrameCaptureResult(
+    val success: Boolean,
+    val sensorTimestampNanos: Long?
+)
+
 internal data class LunaDreamDetailStripeReadPlan(
     val sourceRowsToRead: Int,
     val duplicateFinalRow: Boolean
@@ -63,6 +69,9 @@ object NightShotProcessor {
     private const val TAG = "FUJI_NIGHTSHOT"
     private const val MAX_OUTPUT_PIXELS = 108_000_000L
     private const val FRAME_CAPTURE_TIMEOUT_MS = 12_000L
+    private val frameCaptureExecutor: ExecutorService = Executors.newFixedThreadPool(2) { runnable ->
+        Thread(runnable, "FujiFrameCapture").apply { isDaemon = true }
+    }
     private val EXIF_TAGS = listOf(
         ExifInterface.TAG_DATETIME,
         ExifInterface.TAG_DATETIME_ORIGINAL,
@@ -126,9 +135,8 @@ object NightShotProcessor {
 
     suspend fun captureFrameToFile(
         capture: ImageCapture,
-        destination: File,
-        callbackExecutor: Executor
-    ): Boolean {
+        destination: File
+    ): NightShotFrameCaptureResult {
         val rawCompanion = File(
             destination.parentFile,
             destination.nameWithoutExtension + "-discard.dng"
@@ -137,18 +145,17 @@ object NightShotProcessor {
             runCatching { destination.delete() }
             runCatching { rawCompanion.delete() }
         }
-        val captured = withTimeoutOrNull(FRAME_CAPTURE_TIMEOUT_MS) {
-            suspendCancellableCoroutine { continuation ->
+        val result = withTimeoutOrNull(FRAME_CAPTURE_TIMEOUT_MS) {
+            suspendCancellableCoroutine<NightShotFrameCaptureResult> { continuation ->
                 runCatching {
                     destination.parentFile?.mkdirs()
                     clearTemporaryFiles()
                     if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
-                        // RawDream keeps the first full DNG as the original RAW master. Additional
-                        // burst requests still need a JPEG for LunaDream fusion; their temporary DNGs
-                        // are discarded after CameraX confirms both output callbacks.
-// JPEG_INTERMEDIATE_ALLOWLIST: frame/merge/backup/rollback JPEG is an internal processing stage; CameraScreen runs WatermarkFinalizer before publishing the final capture.
+                        // RawDream keeps the first full DNG as its master. Additional frames
+                        // retain only their JPEG companion for fusion; temporary DNGs are deleted.
+                        // JPEG_INTERMEDIATE_ALLOWLIST: RAW+JPEG capture JPEG is an internal stack source; final photo is rewritten through WatermarkFinalizer/ImageSink.
                         val rawOptions = ImageCapture.OutputFileOptions.Builder(rawCompanion).build()
-// JPEG_INTERMEDIATE_ALLOWLIST: frame/merge/backup/rollback JPEG is an internal processing stage; CameraScreen runs WatermarkFinalizer before publishing the final capture.
+                        // JPEG_INTERMEDIATE_ALLOWLIST: RAW+JPEG capture JPEG is an internal stack source; final photo is rewritten through WatermarkFinalizer/ImageSink.
                         val jpegOptions = ImageCapture.OutputFileOptions.Builder(destination).build()
                         var rawSaved = false
                         var jpegSaved = false
@@ -156,13 +163,13 @@ object NightShotProcessor {
                             if (rawSaved && jpegSaved && continuation.isActive) {
                                 val success = destination.exists() && destination.length() > 0L
                                 runCatching { rawCompanion.delete() }
-                                continuation.resume(success)
+                                continuation.resume(NightShotFrameCaptureResult(success, null))
                             }
                         }
                         capture.takePicture(
                             rawOptions,
                             jpegOptions,
-                            callbackExecutor,
+                            frameCaptureExecutor,
                             object : ImageCapture.OnImageSavedCallback {
                                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                                     if (outputFileResults.imageFormat == ImageFormat.RAW_SENSOR) {
@@ -176,26 +183,68 @@ object NightShotProcessor {
                                 override fun onError(exception: ImageCaptureException) {
                                     Log.e(TAG, "RAW+JPEG burst frame capture failed", exception)
                                     clearTemporaryFiles()
-                                    if (continuation.isActive) continuation.resume(false)
+                                    if (continuation.isActive) {
+                                        continuation.resume(NightShotFrameCaptureResult(false, null))
+                                    }
                                 }
                             }
                         )
                     } else {
-// JPEG_INTERMEDIATE_ALLOWLIST: frame/merge/backup/rollback JPEG is an internal processing stage; CameraScreen runs WatermarkFinalizer before publishing the final capture.
-                        val options = ImageCapture.OutputFileOptions.Builder(destination).build()
                         capture.takePicture(
-                            options,
-                            callbackExecutor,
-                            object : ImageCapture.OnImageSavedCallback {
-                                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                                    val success = destination.exists() && destination.length() > 0L
-                                    if (continuation.isActive) continuation.resume(success)
+                            frameCaptureExecutor,
+                            object : ImageCapture.OnImageCapturedCallback() {
+                                override fun onCaptureSuccess(image: ImageProxy) {
+                                    val timestampNanos = image.imageInfo.timestamp
+                                    val rotationDegrees = image.imageInfo.rotationDegrees
+                                    val jpegBytes = runCatching {
+                                        val plane = image.planes.firstOrNull()
+                                            ?: error("Captured JPEG has no image plane")
+                                        val buffer = plane.buffer.duplicate()
+                                        ByteArray(buffer.remaining()).also(buffer::get)
+                                    }.onFailure {
+                                        Log.e(TAG, "Could not copy captured ImageProxy bytes", it)
+                                    }.getOrNull()
+                                    // Release the camera's ImageReader buffer before disk work.
+                                    runCatching { image.close() }
+                                    val saved = runCatching {
+                                        check(!jpegBytes.isNullOrEmpty()) { "Captured JPEG buffer is empty" }
+                                        FileOutputStream(destination).use { output ->
+                                            output.write(jpegBytes)
+                                            output.flush()
+                                        }
+                                        val orientation = when (rotationDegrees) {
+                                            90 -> ExifInterface.ORIENTATION_ROTATE_90
+                                            180 -> ExifInterface.ORIENTATION_ROTATE_180
+                                            270 -> ExifInterface.ORIENTATION_ROTATE_270
+                                            else -> ExifInterface.ORIENTATION_NORMAL
+                                        }
+                                        ExifInterface(destination.absolutePath).apply {
+                                            setAttribute(ExifInterface.TAG_ORIENTATION, orientation.toString())
+                                            saveAttributes()
+                                        }
+                                        destination.exists() && destination.length() > 0L
+                                    }.onFailure {
+                                        Log.e(TAG, "Could not stage ImageProxy frame in cache", it)
+                                    }.getOrDefault(false)
+                                    if (!saved) clearTemporaryFiles()
+                                    if (continuation.isActive) {
+                                        continuation.resume(
+                                            NightShotFrameCaptureResult(
+                                                saved,
+                                                if (saved) timestampNanos else null
+                                            )
+                                        )
+                                    } else {
+                                        clearTemporaryFiles()
+                                    }
                                 }
 
                                 override fun onError(exception: ImageCaptureException) {
-                                    Log.e(TAG, "Frame capture failed", exception)
+                                    Log.e(TAG, "ImageProxy frame capture failed", exception)
                                     clearTemporaryFiles()
-                                    if (continuation.isActive) continuation.resume(false)
+                                    if (continuation.isActive) {
+                                        continuation.resume(NightShotFrameCaptureResult(false, null))
+                                    }
                                 }
                             }
                         )
@@ -203,18 +252,20 @@ object NightShotProcessor {
                 }.onFailure {
                     Log.e(TAG, "Could not start frame capture", it)
                     clearTemporaryFiles()
-                    if (continuation.isActive) continuation.resume(false)
+                    if (continuation.isActive) {
+                        continuation.resume(NightShotFrameCaptureResult(false, null))
+                    }
                 }
                 continuation.invokeOnCancellation { clearTemporaryFiles() }
             }
         }
-        if (captured == null) {
+        if (result == null) {
             clearTemporaryFiles()
             Log.w(TAG, "Frame capture timed out after ${FRAME_CAPTURE_TIMEOUT_MS}ms")
-            return false
+            return NightShotFrameCaptureResult(false, null)
         }
-        if (!captured) clearTemporaryFiles()
-        return captured
+        if (!result.success) clearTemporaryFiles()
+        return result
     }
 
 

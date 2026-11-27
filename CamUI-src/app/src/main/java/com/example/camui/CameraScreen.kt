@@ -834,13 +834,7 @@ fun CameraScreen(
     var proHudShowWhiteBalance by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_white_balance", true)) }
     var mode by remember { mutableStateOf("Pro") }
     LaunchedEffect(Unit) { appPrefs.edit().putString("camera_mode", "Pro").apply() }
-    var burstMode by remember {
-        mutableStateOf(appPrefs.getBoolean("burst_capture_mode_enabled", false))
-    }
-    var burstCaptureActive by remember { mutableStateOf(false) }
-    var burstStopRequested by remember { mutableStateOf(false) }
-    var burstShutterHeld by remember { mutableStateOf(false) }
-    var burstCompletedFrames by remember { mutableIntStateOf(0) }
+    val burstMode = false
     var hdrBracketMode by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_bracketing_enabled", false))
     }
@@ -1363,12 +1357,11 @@ fun CameraScreen(
 
     LaunchedEffect(
         isProcessing,
-        burstCaptureActive,
         nightShotCaptureInProgress,
         starTrailCaptureInProgress,
         bracketCaptureActive
     ) {
-        val captureBusy = isProcessing || burstCaptureActive ||
+        val captureBusy = isProcessing ||
             nightShotCaptureInProgress || starTrailCaptureInProgress || bracketCaptureActive
         if (captureBusy) {
             CaptureDiagnostics.resetPeakMemory()
@@ -1857,9 +1850,9 @@ fun CameraScreen(
         }
     }
     // Keep FIT_CENTER in both orientations so the preview never auto-crops or zooms.
-    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, burstCaptureActive, bracketCaptureActive, isProcessing) {
+    LaunchedEffect(previewView, nightShotCaptureInProgress, starTrailCaptureInProgress, bracketCaptureActive, isProcessing) {
         previewView.keepScreenOn =
-            nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive || isProcessing
+            nightShotCaptureInProgress || starTrailCaptureInProgress || bracketCaptureActive || isProcessing
     }
 
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
@@ -2492,7 +2485,7 @@ fun CameraScreen(
                         }
                     }
                     .setCaptureMode(
-                        if (!lunaDreamRequestedInPrefs && !rawCaptureActive && !livePhotoEnabled) {
+                        if (!rawCaptureActive && !livePhotoEnabled) {
                             ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                         } else {
                             ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
@@ -2510,10 +2503,10 @@ fun CameraScreen(
                             it == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING
                     } == true
                 }.getOrDefault(false)
-                if (zslSupported && !lunaDreamRequestedInPrefs && !rawCaptureActive) {
+                if (zslSupported && !rawCaptureActive && !livePhotoEnabled) {
                     Camera2Interop.Extender(captureBuilder)
                         .setCaptureRequestOption(CaptureRequest.CONTROL_ENABLE_ZSL, true)
-                    android.util.Log.i("FUJI_CAPTURE", "ZSL enabled from CameraCharacteristics capability")
+                    android.util.Log.i("FUJI_CAPTURE", "ZSL enabled for JPEG capture; computationalStack=$lunaDreamRequestedInPrefs")
                 }
                 if (outputFormat != ImageCapture.OUTPUT_FORMAT_JPEG) {
                     captureBuilder.setOutputFormat(outputFormat)
@@ -3731,7 +3724,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         }
     }
 
-    fun takePhoto(forceBurst: Boolean = false) {
+    fun takePhoto() {
         val captureTimestampMillis = System.currentTimeMillis()
         captureTimestampForThumbnail = captureTimestampMillis
         captureStartedRealtimeForThumbnail = SystemClock.elapsedRealtime()
@@ -3794,7 +3787,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
         ) {
             if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
-                nightShotCaptureInProgress || starTrailCaptureInProgress || burstCaptureActive
+                nightShotCaptureInProgress || starTrailCaptureInProgress
             ) return
             val activeCamera = camera ?: return
             val activeCapture = imageCapture ?: return
@@ -4005,227 +3998,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             }
             return
         }
-        if (burstCaptureActive) {
-            burstStopRequested = true
-            localizedToast(context, "Đang dừng Burst sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!livePhotoEnabled && forceBurst &&
-            nightShotMode == "off" && rawCaptureMode == "jpeg" &&
-            lunaDreamMode == "off" && !uhdCaptureEnabled &&
-            !fhdCaptureEnabled && !uhdPlusCaptureEnabled
-        ) {
-            if (!captureSetupReady || camera == null || imageCapture == null || isProcessing ||
-                nightShotCaptureInProgress || starTrailCaptureInProgress
-            ) return
-            localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            scope.launch {
-                val activeCapture = imageCapture ?: return@launch
-                burstCaptureActive = true
-                // Preserve an early finger release that may arrive before this coroutine starts.
-                burstStopRequested = !burstShutterHeld
-                burstCompletedFrames = 0
-                var lastSuccessfulUri: Uri? = null
-                val burstSavedUris = ArrayList<Uri>()
-                val burstCaptureDurationsMs = ArrayList<Long>()
-                var burstFps = 0.0
-                val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
-                try {
-                    if (timerSec > 0) {
-                        for (seconds in timerSec downTo 1) {
-                            countdown = seconds
-                            delay(1000)
-                        }
-                        countdown = 0
-                    }
-                    activeCapture.targetRotation = targetRotation
-                    previewUseCase?.targetRotation = targetRotation
-                    analysisUseCase?.targetRotation = targetRotation
-                    var nextFrameIndex = 0
-                    val pendingCaptures = ArrayList<Pair<Int, Deferred<Pair<Uri?, Long>>>>()
-                    val burstStartedAtMs = SystemClock.elapsedRealtime()
-
-                    suspend fun consumeOldestBurstCapture() {
-                        val (submittedIndex, pending) = pendingCaptures.removeAt(0)
-                        val completed = runCatching { pending.await() }
-                            .onFailure {
-                                android.util.Log.e("FUJI_BURST", "Queued frame ${submittedIndex + 1} failed", it)
-                            }
-                            .getOrNull()
-                        val savedUri = completed?.first
-                        val captureDurationMs = completed?.second ?: -1L
-                        if (savedUri != null) {
-                            burstSavedUris += savedUri
-                            burstCaptureDurationsMs += captureDurationMs.coerceAtLeast(0L)
-                            burstCompletedFrames += 1
-                            // Every published frame gets its own thumbnail request; no bitmap is recycled here.
-                            lastUri = savedUri
-                            thumbnailRequestKey++
-                        } else {
-                            android.util.Log.w(
-                                "FUJI_BURST",
-                                "Frame ${submittedIndex + 1} failed; queued frames are retained and the queue continues"
-                            )
-                        }
-                    }
-
-                    while (burstShutterHeld && !burstStopRequested &&
-                        nextFrameIndex < Tuning.MAX_CONTINUOUS_BURST_FRAMES
-                    ) {
-                        // A full queue applies back-pressure instead of dropping a frame or allocating more work.
-                        if (pendingCaptures.size >= Tuning.BURST_CAPTURE_QUEUE_CAPACITY) {
-                            consumeOldestBurstCapture()
-                            continue
-                        }
-                        val submittedIndex = nextFrameIndex++
-                        val captureStartedAtMs = SystemClock.elapsedRealtime()
-                        pendingCaptures += submittedIndex to async(Dispatchers.Main.immediate) {
-                            val uri = runCatching {
-                                saveBurstFrame(
-                                    context,
-                                    activeCapture,
-                                    mainExecutor,
-                                    sessionId,
-                                    submittedIndex,
-                                    publishOnSave = true
-                                )
-                            }.onFailure {
-                                android.util.Log.w(
-                                    "FUJI_BURST",
-                                    "Could not capture queued frame ${submittedIndex + 1}",
-                                    it
-                                )
-                            }.getOrNull()
-                            uri to (SystemClock.elapsedRealtime() - captureStartedAtMs).coerceAtLeast(0L)
-                        }
-                    }
-
-                    // Releasing the shutter stops new submissions, not the six captures already in flight.
-                    while (pendingCaptures.isNotEmpty()) {
-                        consumeOldestBurstCapture()
-                    }
-                    val burstElapsedMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
-                    burstFps = burstSavedUris.size * 1000.0 / burstElapsedMs
-                    CrashContextDiagnostics.recordUiEvent(
-                        "BURST_CAPTURE_COMPLETE frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=${"%.2f".format(Locale.US, burstFps)}"
-                    )
-                    android.util.Log.i("FUJI_BURST", "Continuous burst frames=${burstSavedUris.size} elapsedMs=$burstElapsedMs fps=$burstFps");
-                    if (nextFrameIndex >= Tuning.MAX_CONTINUOUS_BURST_FRAMES && !burstStopRequested) {
-                        CaptureDiagnostics.recordWarning(context, "Burst tự dừng ở giới hạn an toàn ${Tuning.MAX_CONTINUOUS_BURST_FRAMES} khung hình.")
-                    }
-                } finally {
-                    countdown = 0
-                    burstCaptureActive = false
-                    burstStopRequested = false
-                    burstShutterHeld = false
-                }
-                if (burstSavedUris.isNotEmpty()) {
-                    isProcessing = true
-                    processingProgress = 0
-                    processingLabel = "Đang áp bộ lọc và watermark cho Burst"
-                    try {
-                    for ((index, burstUri) in burstSavedUris.withIndex()) {
-                    val exportStageDurations = linkedMapOf<String, Long>()
-                    val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
-                    val watermarkStartedAtMs = SystemClock.elapsedRealtime()
-                    var stamped = false
-                    var dimensions = 0 to 0
-                    var sampledHeapBytes = 0L
-                    try {
-                        withContext(Dispatchers.IO) {
-                            try {
-                                stamped = runCatching {
-                                    WatermarkFinalizer.ensure(
-                                        context,
-                                        burstUri,
-                                        "",
-                                        "",
-                                        "",
-                                        "AUTO",
-                                                                                onStageDuration = { stage, duration ->
-                                            exportStageDurations[stage] = duration
-                                        },
-                                        captureTimestampMillis = captureTimestampMillis
-                                    )
-                                }.onFailure {
-                                    android.util.Log.e("FUJI_BURST", "Frame " + (index + 1) + " watermark/LUT export failed; original JPEG retained", it)
-                                }.getOrDefault(false)
-                                runCatching {
-                                    finalizeCapturedImageMetadata(context, burstUri)
-                                }.onFailure {
-                                    android.util.Log.w("FUJI_BURST", "Frame " + (index + 1) + " metadata finalization failed", it)
-                                }
-                            } finally {
-                                runCatching {
-                                    context.contentResolver.update(
-                                        burstUri,
-                                        ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
-                                        null,
-                                        null
-                                    )
-                                }.onFailure {
-                                    android.util.Log.e("FUJI_BURST", "Could not publish frame " + (index + 1), it)
-                                }
-                            }
-                            dimensions = CaptureDiagnostics.readImageDimensions(context, burstUri)
-                            val runtime = Runtime.getRuntime()
-                            sampledHeapBytes = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
-                        }
-                    } catch (failure: Throwable) {
-                        android.util.Log.e("FUJI_BURST", "Frame " + (index + 1) + " finalization failed", failure)
-                    }
-                    val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
-                    CaptureDiagnostics.record(
-                        context,
-                        CaptureDiagnosticEntry(
-                            timestamp = captureTimestampMillis,
-                            mode = "Burst",
-                            filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
-                            watermarkEnabled = watermarkWasRequested,
-                            watermarkPrinted = watermarkWasRequested && stamped,
-                            outputWidth = dimensions.first,
-                            outputHeight = dimensions.second,
-                            stageTimesMs = mapOf(
-                                "Chụp" to (burstCaptureDurationsMs.getOrNull(index) ?: -1L),
-                                "Ghép" to -1L,
-                                "Nâng" to -1L,
-                                "Bộ lọc" to (exportStageDurations["Bộ lọc"] ?: -1L),
-                                "Watermark" to (exportStageDurations["Watermark"] ?: watermarkDurationMs),
-                                "Mã hóa" to (exportStageDurations["Mã hóa"] ?: -1L),
-                                "Ghi file" to (exportStageDurations["Ghi file"] ?: -1L)
-                            ),
-                            peakMemoryBytes = maxOf(sampledHeapBytes, CaptureDiagnostics.peakMemoryBytes()),
-                            burstFramesPerSecond = burstFps,
-                            aeLocked = aeLockedAtCapture,
-                            afLocked = afLockedAtCapture,
-                            hudRecompositions = (UiRecompositionCounters.hudCompositionCount() - hudRecompositionsAtCapture).coerceAtLeast(0L),
-zoomRecompositions = (UiRecompositionCounters.zoomCompositionCount() - zoomRecompositionsAtCapture).coerceAtLeast(0L),
-droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount() - droppedFrameReportsAtCapture).coerceAtLeast(0L)
-                        )
-                    )
-                    lastSuccessfulUri = burstUri
-                    lastUri = burstUri
-                    thumbnailRequestKey++
-                    processingProgress = ((index + 1) * 100 / burstSavedUris.size).coerceIn(0, 100)
-                    }
-                } finally {
-                    isProcessing = false
-                    processingProgress = 0
-                    processingLabel = ""
-                }
-                }
-                if (lastSuccessfulUri != null) {
-                    lastUri = lastSuccessfulUri
-                    thumbnailRequestKey++
-                }
-                localizedToast(
-                    context,
-                    "Burst hoàn tất · đã lưu $burstCompletedFrames/25 ảnh JPEG gốc. Tốc độ phụ thuộc camera và bộ nhớ.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            return
-        }
         if (nightShotMode == "star_trails" && starTrailCaptureInProgress) {
             starTrailStopRequested = true
             localizedToast(context, "Đang dừng Star Trails sau khung hình hiện tại…", Toast.LENGTH_SHORT).show()
@@ -4383,6 +4155,39 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             // LunaDream 1.5 is a bounded five-frame stack. Version 2.0 and RawDream
             // keep their existing eight-frame stack depth.
             val captureUseFiveFrameStack = false
+            val captureUsesMultiFrameStack = captureUseLunaDream ||
+                (captureUseNightShot && !captureNightShotExtension)
+            var temporaryAeLockApplied = false
+            var temporaryAwbLockApplied = false
+            var temporaryAfLockApplied = false
+            var stackLocksReleased = false
+            fun releaseStackCaptureLocks() {
+                if (stackLocksReleased) return
+                stackLocksReleased = true
+                if (temporaryAeLockApplied) runCatching { applyCameraAeLock(activeCamera, false) }
+                if (temporaryAwbLockApplied) runCatching { applyCameraAwbLock(activeCamera, false) }
+                if (temporaryAfLockApplied) runCatching { applyAutoFocus(activeCamera) }
+                CrashContextDiagnostics.recordUiEvent(
+                    "MULTIFRAME_LOCKS_RELEASED AE=$temporaryAeLockApplied AWB=$temporaryAwbLockApplied AF=$temporaryAfLockApplied"
+                )
+            }
+            if (captureUsesMultiFrameStack) {
+                temporaryAeLockApplied = !aeLocked && !manualExposure &&
+                    runCatching { applyCameraAeLock(activeCamera, true) }.getOrDefault(false)
+                temporaryAwbLockApplied = !manualColorTempEnabled &&
+                    runCatching { applyCameraAwbLock(activeCamera, true) }.getOrDefault(false)
+                temporaryAfLockApplied = !focusLocked && manualFocus <= 0f && !milkyWayInfinityFocusEnabled &&
+                    runCatching { applyCameraAfLock(activeCamera, true) }.getOrDefault(false)
+                aeLockedAtCapture = aeLocked || temporaryAeLockApplied
+                afLockedAtCapture = focusLocked || temporaryAfLockApplied
+                CrashContextDiagnostics.recordUiEvent(
+                    "MULTIFRAME_LOCKS_APPLIED mode=${if (captureUseNightShot) "NightShot" else lunaDreamMode} " +
+                        "AE=$temporaryAeLockApplied AWB=$temporaryAwbLockApplied AF=$temporaryAfLockApplied"
+                )
+                if (temporaryAeLockApplied || temporaryAwbLockApplied || temporaryAfLockApplied) {
+                    delay(50L)
+                }
+            }
             // Haptic feedback is synchronous and does not wait for camera capture.
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
@@ -4553,7 +4358,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 else -> "Ảnh đang được xử lý"
                             }
                             runCatching {
-                                Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
+                                if (!captureUsesMultiFrameStack) {
+                                    Camera2CameraControl.from(activeCamera.cameraControl).clearCaptureRequestOptions()
+                                }
                                 if (manualColorTempEnabled) applyManualWhiteBalance(activeCamera, manualColorTemp)
                                 if (manualFocus > 0f) applyManualFocus(activeCamera, manualFocus)
                             }
@@ -4607,18 +4414,13 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             var stoppedForBattery = false
                                             var stopSubmitting = false
                                             var nextFrameNumber = stackedFrames.size + 1
-                                            val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, Boolean>>>()
-                                            // LunaDream 1.5 captures serially to avoid overlapping
-                                            // CameraX requests on devices whose HAL cannot queue stills
-                                            // reliably. LunaDream 2.0 retains its known-good two-request queue.
-                                            val maxInFlightCaptures = when {
-                                                // LunaDream 1.5 and 3.0 submit stills serially. The 3.0
-                                                // render is the heaviest stack path; serial requests avoid
-                                                // HAL queue pressure and make all eight frame callbacks deterministic.
-                                                captureUseLunaDream15 || captureUseLunaDream30 -> 1
-                                                captureUseNightShot || captureUseLunaDream20Stack -> 2
-                                                else -> 1
-                                            }
+                                            val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, NightShotFrameCaptureResult>>>()
+                                            val frameSensorTimestamps = ArrayList<Long>(maxFrames)
+                                            // Two stills overlap callback/file work with bounded memory;
+                                            // exposure cadence remains controlled by the active camera HAL.
+                                            val maxInFlightCaptures = if (
+                                                captureUseLunaDream || captureUseNightShot || captureUseMilkyWayStack
+                                            ) 2 else 1
 
                                             while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
                                                 while (!stopSubmitting &&
@@ -4646,10 +4448,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         "fuji-stack-" + System.nanoTime() + "-" + frameNumber + ".jpg"
                                                     )
                                                     pendingCaptures.addLast(async(Dispatchers.IO) {
-                                                        val captured = NightShotProcessor.captureFrameToFile(
-                                                            capture, nextFrame, mainExecutor
+                                                        val captureResult = NightShotProcessor.captureFrameToFile(
+                                                            capture, nextFrame
                                                         )
-                                                        Triple(frameNumber, nextFrame, captured)
+                                                        Triple(frameNumber, nextFrame, captureResult)
                                                     })
                                                     withContext(Dispatchers.Main) {
                                                         val expectedFrame = stackedFrames.size + pendingCaptures.size
@@ -4681,8 +4483,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 }
 
                                                 if (pendingCaptures.isEmpty()) break
-                                                val (frameNumber, nextFrame, captured) = pendingCaptures.removeFirst().await()
-                                                if (!captured) {
+                                                val (frameNumber, nextFrame, captureResult) = pendingCaptures.removeFirst().await()
+                                                if (!captureResult.success) {
                                                     runCatching { nextFrame.delete() }
                                                     if (captureUseLunaDream) {
                                                         LunaDreamDiagnostics.record(
@@ -4705,6 +4507,16 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
 
                                                 consecutiveCaptureFailures = 0
                                                 stackedFrames.add(nextFrame)
+                                                captureResult.sensorTimestampNanos?.let { sensorTimestamp ->
+                                                    frameSensorTimestamps += sensorTimestamp
+                                                    android.util.Log.i(
+                                                        "FUJI_SENSOR_TIMESTAMP",
+                                                        "mode=${if (captureUseNightShot) "NightShot" else lunaDreamMode} frame=$frameNumber timestampNs=$sensorTimestamp"
+                                                    )
+                                                    CrashContextDiagnostics.recordUiEvent(
+                                                        "SENSOR_TIMESTAMP mode=${if (captureUseNightShot) "NightShot" else lunaDreamMode} frame=$frameNumber ns=$sensorTimestamp"
+                                                    )
+                                                }
                                                 withContext(Dispatchers.Main.immediate) {
                                                     multiFrameCapturedFrames = stackedFrames.size
                                                 }
@@ -4715,7 +4527,33 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 }
                                             }
 
+                                            releaseStackCaptureLocks()
                                             val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - captureNightStartedAtNanos) / 1_000_000L).coerceAtLeast(1L)
+                                            val sortedSensorTimestamps = frameSensorTimestamps.sorted()
+                                            val sensorIntervalsMs = sortedSensorTimestamps.zipWithNext { first, second ->
+                                                (second - first).coerceAtLeast(0L) / 1_000_000.0
+                                            }
+                                            val intervalMedianMs = sensorIntervalsMs.sorted().let { sorted ->
+                                                if (sorted.isEmpty()) -1.0 else sorted[sorted.size / 2]
+                                            }
+                                            val frameModeForTiming = if (captureUseNightShot) "NightShot" else lunaDreamMode
+                                            if (frameSensorTimestamps.isNotEmpty()) {
+                                                android.util.Log.i(
+                                                    "FUJI_SENSOR_BURST",
+                                                    "mode=$frameModeForTiming timestamps=${sortedSensorTimestamps.joinToString(",")} " +
+                                                        "intervalsMs=${sensorIntervalsMs.joinToString(",") { "%.2f".format(Locale.US, it) }} " +
+                                                        "medianIntervalMs=${"%.2f".format(Locale.US, intervalMedianMs)}"
+                                                )
+                                                CrashContextDiagnostics.recordUiEvent(
+                                                    "SENSOR_BURST mode=$frameModeForTiming count=${frameSensorTimestamps.size} " +
+                                                        "medianIntervalMs=${"%.2f".format(Locale.US, intervalMedianMs)} totalElapsedMs=$burstElapsedMs"
+                                                )
+                                            } else {
+                                                android.util.Log.w(
+                                                    "FUJI_SENSOR_BURST",
+                                                    "mode=$frameModeForTiming no ImageProxy sensor timestamps were returned (RAW+JPEG capture path)"
+                                                )
+                                            }
                                             if (captureUseNightShot) {
                                                 val achievedFps = stackedFrames.size * 1000.0 / burstElapsedMs
                                                 android.util.Log.i(
@@ -4898,6 +4736,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             lunaDreamFailureReason = "Could not copy the first captured JPEG into the processing cache"
                                         }
                                     } finally {
+                                        releaseStackCaptureLocks()
                                         stackedFrames.forEach { runCatching { it.delete() } }
                                         withContext(Dispatchers.Main) {
                                             if (captureUseNightShot) nightShotCaptureInProgress = false
@@ -5605,6 +5444,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             }
                             }
                         } else {
+                            releaseStackCaptureLocks()
                             nightShotCaptureInProgress = false
                             multiFrameHoldActive = false
                             multiFrameRenderStarted = false
@@ -5614,6 +5454,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         }
                     }
                     override fun onError(exception: androidx.camera.core.ImageCaptureException) {
+                        releaseStackCaptureLocks()
                         activeLivePhotoRecording?.stop()
                         nightShotCaptureInProgress = false
                         multiFrameHoldActive = false
@@ -6817,18 +6658,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         .padding(horizontal = 9.dp, vertical = 5.dp)
                                 )
                             }
-                            if (burstCaptureActive) {
-                                Text(
-                                    "BURST $burstCompletedFrames/25",
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
-                                        .clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000))
-                                        .padding(horizontal = 9.dp, vertical = 5.dp)
-                                )
-                            }
-
                             if (showMilkyWayAdvisor) {
                                 Column(
                                     Modifier.align(Alignment.TopCenter).padding(top = 35.dp, start = 8.dp, end = 8.dp)
@@ -7695,8 +7524,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     FujiShutterButton(
                         enabled = !isProcessing,
-                        onLongPress = { burstShutterHeld = true; takePhoto(forceBurst = true) },
-                        onRelease = { burstShutterHeld = false; if (burstCaptureActive) burstStopRequested = true },
+                        onLongPress = { },
+                        onRelease = { },
                         onHalfPress = {
                             invalidatePendingFocusLock(camera)
                             centerAfStatus = 0
@@ -7706,7 +7535,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         onCapture = { takePhoto() },
                         modifier = Modifier.size(Tuning.CAMERA_SHUTTER_SIZE_DP.dp * designScale)
                     ) {
-                        if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
+                        if (starTrailCaptureInProgress || bracketCaptureActive) {
                             FujiIconGlyph("close", Modifier.size(25.dp), Color.White)
                         } else if (shutterButtonBitmap != null) {
                             Image(shutterButtonBitmap!!, "Nút chụp tùy chỉnh", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
@@ -8974,11 +8803,18 @@ private fun applyCameraAfLock(camera: Camera, locked: Boolean): Boolean {
     val info = runCatching { Camera2CameraInfo.from(camera.cameraInfo) }.getOrNull() ?: return false
     val modes = runCatching { info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) }.getOrNull() ?: return false
     if (modes.isEmpty()) return false
-    val selectedMode = when {
-        locked && modes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO) -> CaptureRequest.CONTROL_AF_MODE_AUTO
-        modes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE) -> CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
-        modes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO) -> CaptureRequest.CONTROL_AF_MODE_AUTO
-        else -> return false
+    val selectedMode = if (locked) {
+        if (!modes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO)) {
+            android.util.Log.w("FUJI_AF", "AF lock unavailable: CONTROL_AF_MODE_AUTO not supported")
+            return false
+        }
+        CaptureRequest.CONTROL_AF_MODE_AUTO
+    } else {
+        when {
+            modes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE) -> CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+            modes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO) -> CaptureRequest.CONTROL_AF_MODE_AUTO
+            else -> return false
+        }
     }
     val control = Camera2CameraControl.from(camera.cameraControl)
     return runCatching {
@@ -9004,6 +8840,30 @@ private fun applyCameraAfLock(camera: Camera, locked: Boolean): Boolean {
         android.util.Log.i("FUJI_AF", "AF_LOCK_ONLY state=$locked mode=$selectedMode")
         true
     }.onFailure { android.util.Log.w("FUJI_AF", "AF-L request failed", it) }.getOrDefault(false)
+}
+
+private fun applyCameraAwbLock(camera: Camera, locked: Boolean): Boolean {
+    val cameraId = runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }
+        .getOrNull() ?: "unknown"
+    val available = runCatching {
+        Camera2CameraInfo.from(camera.cameraInfo)
+            .getCameraCharacteristic(CameraCharacteristics.CONTROL_AWB_LOCK_AVAILABLE) == true
+    }.getOrDefault(false)
+    if (!available) {
+        android.util.Log.w("FUJI_AWB", "CONTROL_AWB_LOCK unavailable cameraId=$cameraId")
+        return !locked
+    }
+    return runCatching {
+        Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(
+            CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_LOCK, locked)
+                .build()
+        )
+        android.util.Log.i("FUJI_AWB", "CONTROL_AWB_LOCK=$locked applied cameraId=$cameraId")
+        true
+    }.onFailure {
+        android.util.Log.w("FUJI_AWB", "Could not apply CONTROL_AWB_LOCK=$locked cameraId=$cameraId", it)
+    }.getOrDefault(false)
 }
 
 private fun applyCameraAeLock(camera: Camera, locked: Boolean): Boolean {

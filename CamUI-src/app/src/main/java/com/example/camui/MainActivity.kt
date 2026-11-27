@@ -51,6 +51,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -425,6 +426,10 @@ class MainActivity : AppCompatActivity() {
                         Box(
                             Modifier.fillMaxSize()
                                 .background(ComposeColor.Black.copy(alpha = overlayDimAlpha.value))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { /* Consume taps outside the panel; never pass them to the camera preview. */ }
                         )
                         Box(
                             Modifier.fillMaxSize().graphicsLayer {

@@ -41,7 +41,9 @@ import kotlin.math.sqrt
  */
 internal data class NightShotFrameCaptureResult(
     val success: Boolean,
-    val sensorTimestampNanos: Long?
+    val sensorTimestampNanos: Long?,
+    val jpegBytes: ByteArray? = null,
+    val rotationDegrees: Int = 0
 )
 
 internal data class LunaDreamDetailStripeReadPlan(
@@ -204,39 +206,25 @@ object NightShotProcessor {
                                     }.onFailure {
                                         Log.e(TAG, "Could not copy captured ImageProxy bytes", it)
                                     }.getOrNull()
-                                    // Release the camera's ImageReader buffer before disk work.
+                                    // Copy the compressed JPEG, then release the camera buffer immediately.
+                                    // Disk I/O and EXIF staging are deferred until the whole multi-frame burst ends.
                                     runCatching { image.close() }
-                                    val saved = runCatching {
-                                        check(jpegBytes != null && jpegBytes.isNotEmpty()) { "Captured JPEG buffer is empty" }
-                                        // JPEG_INTERMEDIATE_ALLOWLIST: cache-only ImageProxy frame for multi-frame fusion; never published. The final JPEG is written through ImageSink/WatermarkFinalizer.
-                                        FileOutputStream(destination).use { output ->
-                                            output.write(jpegBytes)
-                                            output.flush()
-                                        }
-                                        val orientation = when (rotationDegrees) {
-                                            90 -> ExifInterface.ORIENTATION_ROTATE_90
-                                            180 -> ExifInterface.ORIENTATION_ROTATE_180
-                                            270 -> ExifInterface.ORIENTATION_ROTATE_270
-                                            else -> ExifInterface.ORIENTATION_NORMAL
-                                        }
-                                        ExifInterface(destination.absolutePath).apply {
-                                            setAttribute(ExifInterface.TAG_ORIENTATION, orientation.toString())
-                                            saveAttributes()
-                                        }
-                                        destination.exists() && destination.length() > 0L
-                                    }.onFailure {
-                                        Log.e(TAG, "Could not stage ImageProxy frame in cache", it)
-                                    }.getOrDefault(false)
-                                    if (!saved) clearTemporaryFiles()
+                                    val validJpeg = jpegBytes?.takeIf { it.isNotEmpty() }
                                     if (continuation.isActive) {
                                         continuation.resume(
                                             NightShotFrameCaptureResult(
-                                                saved,
-                                                if (saved) timestampNanos else null
+                                                success = validJpeg != null,
+                                                sensorTimestampNanos = if (validJpeg != null) timestampNanos else null,
+                                                jpegBytes = validJpeg,
+                                                rotationDegrees = rotationDegrees
                                             )
                                         )
                                     } else {
                                         clearTemporaryFiles()
+                                    }
+                                    if (validJpeg == null) {
+                                        clearTemporaryFiles()
+                                        Log.e(TAG, "Captured ImageProxy returned an empty JPEG buffer")
                                     }
                                 }
 
@@ -269,11 +257,48 @@ object NightShotProcessor {
         return result
     }
 
+    /**
+     * Materializes a captured JPEG only after its burst has finished. RAW+JPEG paths
+     * already write their internal JPEG companion and therefore return jpegBytes=null.
+     */
+    internal fun persistCapturedFrameToCache(
+        destination: File,
+        result: NightShotFrameCaptureResult
+    ): Boolean {
+        if (!result.success) return false
+        val jpegBytes = result.jpegBytes
+            ?: return destination.exists() && destination.length() > 0L
+        return runCatching {
+            check(jpegBytes.isNotEmpty()) { "Captured JPEG buffer is empty" }
+            destination.parentFile?.mkdirs()
+            // JPEG_INTERMEDIATE_ALLOWLIST: cache-only in-memory burst frame materialized after acquisition; final photo is still written through ImageSink/WatermarkFinalizer.
+            FileOutputStream(destination).use { output ->
+                output.write(jpegBytes)
+            }
+            val orientation = when (result.rotationDegrees) {
+                90 -> ExifInterface.ORIENTATION_ROTATE_90
+                180 -> ExifInterface.ORIENTATION_ROTATE_180
+                270 -> ExifInterface.ORIENTATION_ROTATE_270
+                else -> ExifInterface.ORIENTATION_NORMAL
+            }
+            ExifInterface(destination.absolutePath).apply {
+                setAttribute(ExifInterface.TAG_ORIENTATION, orientation.toString())
+                saveAttributes()
+            }
+            destination.exists() && destination.length() > 0L
+        }.onFailure {
+            Log.e(TAG, "Could not materialize buffered ImageProxy frame", it)
+        }.getOrDefault(false)
+    }
+
     internal suspend fun captureFrameToFile(
         capture: ImageCapture,
         destination: File,
         @Suppress("UNUSED_PARAMETER") callbackExecutor: Executor
-    ): Boolean = captureFrameToFile(capture, destination).success
+    ): Boolean {
+        val result = captureFrameToFile(capture, destination)
+        return persistCapturedFrameToCache(destination, result)
+    }
 
 
     /**

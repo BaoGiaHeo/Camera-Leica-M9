@@ -37,8 +37,8 @@ class LunaDreamCapturePolicyTest {
     }
 
     @Test
-    fun rawDreamFormatMismatchGuardDoesNotRejectProForPersistedRawPreference() {
-        assertFalse(
+    fun rawDreamFormatMismatchGuardRejectsMissingRawJpegOutputInProMode() {
+        assertTrue(
             LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
                 cameraMode = "Pro",
                 rawDreamSelected = true,

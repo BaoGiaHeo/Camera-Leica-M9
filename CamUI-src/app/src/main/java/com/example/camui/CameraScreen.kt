@@ -4385,10 +4385,17 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     (!captureNightShotExtension || captureUseLunaDream15 || captureUseLunaDream20Stack)
                                 ) {
                                     val stackedFrames = mutableListOf<File>()
+                                    val bufferedFrames = ArrayList<Triple<Int, File, NightShotFrameCaptureResult>>()
+                                    val acceptedFrameFiles = ArrayList<Pair<Int, File>>()
+                                    var bufferedFrameBytes = 0L
+                                    val maxBufferedFrameBytes = (Runtime.getRuntime().maxMemory() / 4L)
+                                        .coerceIn(48L * 1024L * 1024L, 96L * 1024L * 1024L)
                                     val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
                                             stackedFrames.add(firstFrame)
+                                            acceptedFrameFiles.add(1 to firstFrame)
+                                            var acceptedFrameCount = 1
                                             val maxFrames = when {
                                                 captureUseNightShot -> captureNightTargetFrames
                                                 captureUseLunaDream20Stack -> 8
@@ -4413,7 +4420,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             var stoppedForStorage = false
                                             var stoppedForBattery = false
                                             var stopSubmitting = false
-                                            var nextFrameNumber = stackedFrames.size + 1
+                                            var nextFrameNumber = acceptedFrameCount + 1
                                             val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, NightShotFrameCaptureResult>>>()
                                             val frameSensorTimestamps = ArrayList<Long>(maxFrames)
                                             // Two stills overlap callback/file work with bounded memory;
@@ -4422,10 +4429,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 captureUseLunaDream || captureUseNightShot || captureUseMilkyWayStack
                                             ) 2 else 1
 
-                                            while (stackedFrames.size < maxFrames || pendingCaptures.isNotEmpty()) {
+                                            while (acceptedFrameCount < maxFrames || pendingCaptures.isNotEmpty()) {
                                                 while (!stopSubmitting &&
                                                     pendingCaptures.size < maxInFlightCaptures &&
-                                                    stackedFrames.size + pendingCaptures.size < maxFrames
+                                                    acceptedFrameCount + pendingCaptures.size < maxFrames
                                                 ) {
                                                     if ((captureUseNightShot || captureUseMilkyWayStack ||
                                                             captureUseLunaDream20Stack) &&
@@ -4454,7 +4461,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         Triple(frameNumber, nextFrame, captureResult)
                                                     })
                                                     withContext(Dispatchers.Main) {
-                                                        val expectedFrame = stackedFrames.size + pendingCaptures.size
+                                                        val expectedFrame = acceptedFrameCount + pendingCaptures.size
                                                         processingLabel = when {
                                                             captureUseLunaDream15 ->
                                                                 "LunaDream 1.5: thu khung $expectedFrame/$maxFrames"
@@ -4473,12 +4480,12 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                             else -> "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
-                                                            (5 + stackedFrames.size * 19 / maxFrames).coerceAtMost(24)
+                                                            (5 + acceptedFrameCount * 19 / maxFrames).coerceAtMost(24)
                                                         } else if (captureUseMilkyWayStack || captureUseLunaDream15 ||
                                                             captureUseLunaDream20Stack
                                                         ) {
-                                                            (8 + stackedFrames.size * 16 / maxFrames).coerceAtMost(24)
-                                                        } else (8 + stackedFrames.size * 3).coerceAtMost(24)
+                                                            (8 + acceptedFrameCount * 16 / maxFrames).coerceAtMost(24)
+                                                        } else (8 + acceptedFrameCount * 3).coerceAtMost(24)
                                                     }
                                                 }
 
@@ -4490,7 +4497,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         LunaDreamDiagnostics.record(
                                                             context,
                                                             "FRAME_CAPTURE_FAILED",
-                                                            "frameAttempt=$frameNumber; validFrames=${stackedFrames.size}; " +
+                                                            "frameAttempt=$frameNumber; validFrames=$acceptedFrameCount; " +
                                                                 "mode=" + captureLunaDreamModeLabel
                                                         )
                                                     }
@@ -4499,14 +4506,53 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         "FUJI_NIGHTSHOT",
                                                         "Capture attempt failed (frame " + frameNumber + ", " +
                                                             consecutiveCaptureFailures + "/3); keeping " +
-                                                            stackedFrames.size + " valid frames"
+                                                            acceptedFrameCount + " valid frames"
                                                     )
                                                     if (consecutiveCaptureFailures >= 3) stopSubmitting = true
                                                     continue
                                                 }
 
                                                 consecutiveCaptureFailures = 0
-                                                stackedFrames.add(nextFrame)
+                                                val frameJpegBytes = captureResult.jpegBytes
+                                                val frameAccepted = if (!frameJpegBytes.isNullOrEmpty()) {
+                                                    val nextBufferedBytes = bufferedFrameBytes + frameJpegBytes.size.toLong()
+                                                    if (nextBufferedBytes <= maxBufferedFrameBytes) {
+                                                        bufferedFrames.add(Triple(frameNumber, nextFrame, captureResult))
+                                                        bufferedFrameBytes = nextBufferedBytes
+                                                        true
+                                                    } else {
+                                                        // RAM cap prevents OOM on long 30/50-frame Night Shot stacks.
+                                                        // Only frames beyond the cap spill to cache during acquisition.
+                                                        val spillSaved = withContext(Dispatchers.IO) {
+                                                            NightShotProcessor.persistCapturedFrameToCache(nextFrame, captureResult)
+                                                        }
+                                                        if (spillSaved) {
+                                                            android.util.Log.w(
+                                                                "FUJI_FRAME_BUFFER",
+                                                                "FRAME_BUFFER_SPILL frame=$frameNumber bytes=${frameJpegBytes.size} reason=RAM_BUDGET capBytes=$maxBufferedFrameBytes"
+                                                            )
+                                                            CrashContextDiagnostics.recordUiEvent(
+                                                                "FRAME_BUFFER_SPILL frame=$frameNumber bytes=${frameJpegBytes.size} capBytes=$maxBufferedFrameBytes"
+                                                            )
+                                                        }
+                                                        spillSaved
+                                                    }
+                                                } else {
+                                                    // RAW+JPEG capture paths already materialized their internal cache JPEG.
+                                                    nextFrame.exists() && nextFrame.length() > 0L
+                                                }
+                                                if (!frameAccepted) {
+                                                    runCatching { nextFrame.delete() }
+                                                    consecutiveCaptureFailures++
+                                                    android.util.Log.e(
+                                                        "FUJI_FRAME_BUFFER",
+                                                        "Could not retain frame=$frameNumber; failures=$consecutiveCaptureFailures"
+                                                    )
+                                                    if (consecutiveCaptureFailures >= 3) stopSubmitting = true
+                                                    continue
+                                                }
+                                                acceptedFrameFiles.add(frameNumber to nextFrame)
+                                                acceptedFrameCount++
                                                 captureResult.sensorTimestampNanos?.let { sensorTimestamp ->
                                                     frameSensorTimestamps += sensorTimestamp
                                                     android.util.Log.i(
@@ -4518,17 +4564,48 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                     )
                                                 }
                                                 withContext(Dispatchers.Main.immediate) {
-                                                    multiFrameCapturedFrames = stackedFrames.size
+                                                    multiFrameCapturedFrames = acceptedFrameCount
                                                 }
                                                 if (captureUseNightShot) {
                                                     withContext(Dispatchers.Main) {
-                                                        nightShotCapturedFrameCount = stackedFrames.size
+                                                        nightShotCapturedFrameCount = acceptedFrameCount
                                                     }
                                                 }
                                             }
 
-                                            releaseStackCaptureLocks()
                                             val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - captureNightStartedAtNanos) / 1_000_000L).coerceAtLeast(1L)
+                                            releaseStackCaptureLocks()
+                                            val cacheStageStartedAtMs = SystemClock.elapsedRealtime()
+                                            val failedBufferedFrameNumbers = HashSet<Int>()
+                                            withContext(Dispatchers.IO) {
+                                                bufferedFrames.forEach { (frameNumber, frameFile, frameResult) ->
+                                                    if (!NightShotProcessor.persistCapturedFrameToCache(frameFile, frameResult)) {
+                                                        failedBufferedFrameNumbers += frameNumber
+                                                        android.util.Log.e("FUJI_FRAME_BUFFER", "FRAME_BUFFER_MATERIALIZE_FAILED frame=$frameNumber")
+                                                    }
+                                                }
+                                            }
+                                            if (failedBufferedFrameNumbers.isNotEmpty()) {
+                                                acceptedFrameFiles.removeAll { it.first in failedBufferedFrameNumbers }
+                                            }
+                                            bufferedFrames.clear()
+                                            bufferedFrameBytes = 0L
+                                            stackedFrames.clear()
+                                            acceptedFrameFiles.sortedBy { it.first }.forEach { (_, frameFile) ->
+                                                if (frameFile.exists() && frameFile.length() > 0L) stackedFrames.add(frameFile)
+                                            }
+                                            val cacheStageElapsedMs = SystemClock.elapsedRealtime() - cacheStageStartedAtMs
+                                            android.util.Log.i(
+                                                "FUJI_FRAME_BUFFER",
+                                                "FRAME_BUFFER_FLUSH frames=${stackedFrames.size} elapsedMs=$cacheStageElapsedMs captureElapsedMs=$burstElapsedMs"
+                                            )
+                                            CrashContextDiagnostics.recordUiEvent(
+                                                "FRAME_BUFFER_FLUSH mode=${if (captureUseNightShot) "NightShot" else lunaDreamMode} frames=${stackedFrames.size} cacheStageMs=$cacheStageElapsedMs captureMs=$burstElapsedMs"
+                                            )
+                                            withContext(Dispatchers.Main.immediate) {
+                                                multiFrameCapturedFrames = stackedFrames.size
+                                                if (captureUseNightShot) nightShotCapturedFrameCount = stackedFrames.size
+                                            }
                                             val sortedSensorTimestamps = frameSensorTimestamps.sorted()
                                             val sensorIntervalsMs = sortedSensorTimestamps.zipWithNext { first, second ->
                                                 (second - first).coerceAtLeast(0L) / 1_000_000.0
@@ -4555,7 +4632,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 )
                                             }
                                             if (captureUseNightShot) {
-                                                val achievedFps = stackedFrames.size * 1000.0 / burstElapsedMs
+                                                val achievedFps = frameSensorTimestamps.size * 1000.0 / burstElapsedMs
                                                 android.util.Log.i(
                                                     "FUJI_NIGHTSHOT",
                                                     "Collected " + stackedFrames.size + "/" + maxFrames +
@@ -4737,6 +4814,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         }
                                     } finally {
                                         releaseStackCaptureLocks()
+                                        bufferedFrames.clear()
+                                        acceptedFrameFiles.forEach { (_, frameFile) -> runCatching { frameFile.delete() } }
                                         stackedFrames.forEach { runCatching { it.delete() } }
                                         withContext(Dispatchers.Main) {
                                             if (captureUseNightShot) nightShotCaptureInProgress = false

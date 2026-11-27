@@ -31,8 +31,8 @@ internal object Tuning {
     const val CAMERA_SCALE_MIN = 0.85f
     const val CAMERA_SCALE_MAX = 1.25f
     const val CAMERA_TOP_BAR_HEIGHT_DP = 55f
-    const val CAMERA_LEFT_COLUMN_WIDTH_DP = 76f
-    const val CAMERA_RIGHT_COLUMN_WIDTH_DP = 278f
+    const val CAMERA_LEFT_COLUMN_WIDTH_DP = 129f
+    const val CAMERA_RIGHT_COLUMN_WIDTH_DP = 314f
     const val CAMERA_ZOOM_KEY_WIDTH_DP = 66f
     const val CAMERA_ZOOM_KEY_HEIGHT_DP = 64f
     const val CAMERA_SIDE_KEY_WIDTH_DP = 70f

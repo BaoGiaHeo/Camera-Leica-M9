@@ -503,11 +503,11 @@ class MainActivity : AppCompatActivity() {
 @androidx.compose.runtime.Composable
 private fun FujifilmBootSplash() {
     Box(
-        Modifier.fillMaxSize().background(ComposeColor.White),
+        Modifier.fillMaxSize().background(ComposeColor.Black),
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(R.drawable.fujifilm_logo),
+            painter = painterResource(R.drawable.fujifilm_logo_white),
             contentDescription = "FUJIFILM",
             modifier = Modifier.width(260.dp).height(58.dp),
             contentScale = ContentScale.Fit

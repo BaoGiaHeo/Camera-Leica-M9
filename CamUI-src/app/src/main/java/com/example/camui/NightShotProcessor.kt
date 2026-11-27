@@ -208,6 +208,7 @@ object NightShotProcessor {
                                     runCatching { image.close() }
                                     val saved = runCatching {
                                         check(!jpegBytes.isNullOrEmpty()) { "Captured JPEG buffer is empty" }
+                                        // JPEG_INTERMEDIATE_ALLOWLIST: cache-only ImageProxy frame for multi-frame fusion; never published. The final JPEG is written through ImageSink/WatermarkFinalizer.
                                         FileOutputStream(destination).use { output ->
                                             output.write(jpegBytes)
                                             output.flush()

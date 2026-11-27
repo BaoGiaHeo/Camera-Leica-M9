@@ -864,6 +864,24 @@ fun CameraScreen(
         )
     }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
+    DisposableEffect(appPrefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { shared, key ->
+            when (key) {
+                "camera_flash_mode" -> {
+                    flash = if (shared?.getInt(key, ImageCapture.FLASH_MODE_OFF) == ImageCapture.FLASH_MODE_ON) {
+                        ImageCapture.FLASH_MODE_ON
+                    } else {
+                        ImageCapture.FLASH_MODE_OFF
+                    }
+                }
+                "camera_timer_seconds" -> {
+                    timerSec = (shared?.getInt(key, 0) ?: 0).coerceIn(0, 10)
+                }
+            }
+        }
+        appPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { appPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var countdown by remember { mutableIntStateOf(0) }
     var showQuick by remember { mutableStateOf(false) }
     var zoomSel by remember { mutableFloatStateOf(appPrefs.getFloat("camera_zoom_ratio", 1f)) }

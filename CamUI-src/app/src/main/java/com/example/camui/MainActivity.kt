@@ -234,7 +234,7 @@ class MainActivity : AppCompatActivity() {
         android.util.Log.i("FUJI_SCREEN_PROFILE", ScreenProfile.read(this).diagnosticLine())
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
-        AppLanguageManager.initialize(this)
+        AppLanguageManager.setLanguage(this, "vi")
         // The camera UI and capture orientation are landscape-only.
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         window.attributes = window.attributes.apply {

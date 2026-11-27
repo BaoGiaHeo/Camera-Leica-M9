@@ -5131,7 +5131,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
                                         captureUseLunaDream20Stack && lunaDreamStackFallbackApplied -> 50_000_000L
                                         captureUseRawDream20 && lunaDreamApplied -> 108_000_000L
-                                        captureUseLunaDream30 && lunaDreamApplied && lunaDream30PreFinalized -> 200_000_000L
+                                        captureUseLunaDream30 && lunaDreamApplied && lunaDream30PreFinalized -> 180_000_000L
                                         captureUseLunaDream25 && lunaDreamApplied -> 150_000_000L
                                         captureUseLunaDream20 && lunaDreamApplied -> 108_000_000L
                                         else -> null
@@ -5200,7 +5200,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         val dimensions = CaptureDiagnostics.readImageDimensions(context, saved)
                                         dimensions.first.toLong() * dimensions.second.toLong()
                                     }.getOrDefault(0L)
-                                    val requestedPixels = 200_000_000L
+                                    val requestedPixels = 180_000_000L
                                     val outputDetails = "cameraMode=$mode; merged=$nightShotMerged; " +
                                         "requestedPixels=$requestedPixels; actualPixels=$actualPixels; " +
                                         "memoryAdaptive=${outputResolutionResult != null && !outputResolutionResult.reachedRequestedSize}; " +
@@ -5452,7 +5452,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 108MP."
                                             else "Đã lưu RawDream 2.0 · DNG gốc + JPEG LunaDream 2.0 ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream30 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 200MP."
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 180MP."
                                             else "Đã lưu LunaDream 3.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream25 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.5 · 150MP."
@@ -5466,7 +5466,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             "RawDream 2.0 đã giữ DNG gốc và ghép JPEG bằng LunaDream 2.0, nhưng chưa thể nâng kích thước JPEG an toàn."
                                         captureUseLunaDream30 && lunaDreamApplied && !outputResolutionApplied ->
                                             "LunaDream 3.0 dừng ở bước nâng JPEG theo tile: " +
-                                                (lunaDreamFailureReason ?: "không đạt nghiệm thu 200MP") +
+                                                (lunaDreamFailureReason ?: "không đạt nghiệm thu 180MP") +
                                                 ". Đã giữ ảnh ghép hợp lệ."
                                         captureUseLunaDream && lunaDreamApplied && !outputResolutionApplied ->
                                             "LunaDream đã ghép và phục hồi ảnh nhưng không thể đạt kích thước đầu ra an toàn; ảnh đã xử lý được giữ lại."

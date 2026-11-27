@@ -102,7 +102,7 @@ object PhotoOutputResolution {
         }
         if (adaptiveMinimumPixels != null) {
             require(adaptiveMinimumPixels == Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS) {
-                "LunaDream 3.0 tile output must use its strict 200MP acceptance target"
+                "LunaDream 3.0 tile output must use its strict 180MP acceptance target"
             }
             return interpolateToMpByTiles(context, uri, targetPixels, targetHeightOverWidth)
         }
@@ -159,7 +159,7 @@ object PhotoOutputResolution {
                 sourceHeight,
                 effectiveTargetPixels,
                 targetHeightOverWidth,
-                dimensionAlignment = if (effectiveTargetPixels >= 200_000_000L) 16 else 1
+                dimensionAlignment = if (effectiveTargetPixels >= 180_000_000L) 16 else 1
             )
             val sourceRect = Rect(
                 geometry.sourceLeft,
@@ -369,7 +369,7 @@ object PhotoOutputResolution {
             val height = geometry.outputHeight
             val outputPixels = geometry.outputPixels
             check(outputPixels >= Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS * 995L / 1000L) {
-                "Kích thước hình học thấp hơn nghiệm thu 200MP: ${width}x$height."
+                "Kích thước hình học thấp hơn nghiệm thu 180MP: ${width}x$height."
             }
             check(width <= 65_000 && height <= 65_000) {
                 "Kích thước đầu ra vượt giới hạn JPEG."
@@ -443,7 +443,7 @@ object PhotoOutputResolution {
                     null
                 )
             }
-            watchdog.beginStage("xác minh JPEG 200MP đã lưu", Tuning.LUNA_DREAM_30_VERIFY_BUDGET_MS)
+            watchdog.beginStage("xác minh JPEG 180MP đã lưu", Tuning.LUNA_DREAM_30_VERIFY_BUDGET_MS)
             verifyStoredOutput(context, uri, width, height)
             watchdog.finish()
             Log.i(

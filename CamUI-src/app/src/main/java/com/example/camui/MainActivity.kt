@@ -233,7 +233,7 @@ class MainActivity : AppCompatActivity() {
         LegacyColorAdjustmentCleanup.migrateOnce(this)
         android.util.Log.i("FUJI_SCREEN_PROFILE", ScreenProfile.read(this).diagnosticLine())
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
-        val showInitialActivation = shouldShowFirstActivation(settingsPrefs)
+        settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
         AppLanguageManager.initialize(this)
         // The camera UI and capture orientation are landscape-only.
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -264,7 +264,7 @@ class MainActivity : AppCompatActivity() {
                     delay(1_050L)
                     bootSplashVisible = false
                 }
-                var page by remember { mutableStateOf(if (showInitialActivation) "activation" else "camera") }
+                var page by remember { mutableStateOf("camera") }
                 LaunchedEffect(page) { CrashContextDiagnostics.updateRoute(page) }
                 var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
                 var manualAnimationPerformanceMode by remember {
@@ -445,25 +445,14 @@ class MainActivity : AppCompatActivity() {
 @androidx.compose.runtime.Composable
 private fun FujifilmBootSplash() {
     Box(
-        Modifier.fillMaxSize().background(ComposeColor(0xFF08090A)),
+        Modifier.fillMaxSize().background(ComposeColor.Black),
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(R.drawable.fujifilm_wordmark),
+            painter = painterResource(R.drawable.fujifilm_logo_white),
             contentDescription = "FUJIFILM",
             modifier = Modifier.width(260.dp).height(58.dp),
             contentScale = ContentScale.Fit
-        )
-        Text(
-            text = "FUJIFILM MODE  ·  CAMERA INITIALIZING",
-            color = ComposeColor(0xFFB8B8B8),
-            fontSize = 10.sp,
-            letterSpacing = 1.4.sp,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 42.dp)
-        )
-        Box(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 29.dp)
-                .width(74.dp).height(2.dp).background(ComposeColor(0xFFDA2635))
         )
     }
 }

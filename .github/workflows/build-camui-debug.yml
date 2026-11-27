@@ -7,6 +7,7 @@ on:
       - fuji-2.9.1-g2
       - fuji-2.9.2-g1
       - fuji-2.9.2-p3-color-pipeline
+      - fuji-2.9.2-boot-ui-shutter
   workflow_dispatch:
 
 concurrency:

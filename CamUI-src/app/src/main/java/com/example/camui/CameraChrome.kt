@@ -54,12 +54,16 @@ internal fun FujiCameraKey(
     selected: Boolean = false,
     secondary: String? = null,
     scale: Float = 1f,
+    onHold: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val safeScale = scale.coerceIn(Tuning.CAMERA_SCALE_MIN, Tuning.CAMERA_SCALE_MAX)
     val view = LocalView.current
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
+    val scope = rememberCoroutineScope()
+    val click by rememberUpdatedState(onClick)
+    val hold by rememberUpdatedState(onHold)
+    var pressed by remember { mutableStateOf(false) }
+    val holdFired = remember { booleanArrayOf(false) }
     val pressScale by animateFloatAsState(if (pressed) Tuning.BUTTON_PRESS_SCALE else 1f, tween(Tuning.BUTTON_PRESS_MS), label = "fuji-key-press")
     Column(
         modifier.graphicsLayer { scaleX = pressScale; scaleY = pressScale }
@@ -71,7 +75,31 @@ internal fun FujiCameraKey(
                 drawContent()
                 if (selected) drawCircle(FujiCameraDesign.orange, 3.dp.toPx(), Offset(size.width - 7.dp.toPx(), 7.dp.toPx()))
             }
-            .clickable(interactionSource = interaction, indication = null) { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK); onClick() }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        holdFired[0] = false
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        val holdAction = hold
+                        val repeatJob = if (holdAction != null) scope.launch {
+                            delay(350L)
+                            while (true) {
+                                holdFired[0] = true
+                                holdAction()
+                                delay(100L)
+                            }
+                        } else null
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            repeatJob?.cancel()
+                            pressed = false
+                        }
+                    },
+                    onTap = { if (!holdFired[0]) click() }
+                )
+            }
             .padding(horizontal = 6.dp * safeScale, vertical = 5.dp * safeScale),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

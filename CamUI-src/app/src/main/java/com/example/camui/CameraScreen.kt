@@ -7654,33 +7654,26 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth().height(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp * designScale)) {
-                Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(evText, color = FujiCameraDesign.text, fontSize = 28.sp * designScale, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                FujiCameraKey("−", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), scale = designScale, onClick = {
-                    if (range != null) {
-                        val next = (evIndex - 1).coerceIn(range.lower, range.upper)
-                        evIndex = next
-                        manualExposure = false
-                        camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
-                    }
-                })
-                FujiCameraKey("+", modifier = Modifier.size(Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale), scale = designScale, onClick = {
-                    if (range != null) {
-                        val next = (evIndex + 1).coerceIn(range.lower, range.upper)
-                        evIndex = next
-                        manualExposure = false
-                        camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
-                    }
-                })
+            Row(
+                Modifier.fillMaxWidth().height(34.dp * designScale),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp * designScale, fontWeight = FontWeight.Bold)
+                Text(
+                    evText,
+                    color = FujiCameraDesign.text,
+                    fontSize = 25.sp * designScale,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End
+                )
             }
+            // EV is controlled directly by dragging the ruler; no +/- step buttons.
             FujiEvRuler(
                 position = if (evMaximum > evMinimum) ((evIndex - evMinimum).toFloat() / (evMaximum - evMinimum)) else 0.5f,
                 minimum = evMinimum,
                 maximum = evMaximum,
-                heightDp = 24.dp * designScale,
+                heightDp = 36.dp * designScale,
                 scale = designScale
             ) { next ->
                 evIndex = next
@@ -7712,7 +7705,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             "T",
                             modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
                             secondary = stringResource(R.string.camera_in),
-                            scale = designScale
+                            scale = designScale,
+                            onHold = { animateZoomTo((zoomSel * 1.025f).coerceIn(minZoom, maxZoom)) }
                         ) {
                             animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom))
                         }
@@ -7720,7 +7714,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             "W",
                             modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
                             secondary = stringResource(R.string.camera_out),
-                            scale = designScale
+                            scale = designScale,
+                            onHold = { animateZoomTo((zoomSel / 1.025f).coerceIn(minZoom, maxZoom)) }
                         ) {
                             animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
                         }

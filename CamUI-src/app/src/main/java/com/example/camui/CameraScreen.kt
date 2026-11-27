@@ -832,7 +832,8 @@ fun CameraScreen(
     var proHudShowIso by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_iso", true)) }
     var proHudShowFocus by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_focus", true)) }
     var proHudShowWhiteBalance by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_white_balance", true)) }
-    var mode by remember { mutableStateOf(appPrefs.getString("camera_mode", "Photo") ?: "Photo") }
+    var mode by remember { mutableStateOf("Pro") }
+    LaunchedEffect(Unit) { appPrefs.edit().putString("camera_mode", "Pro").apply() }
     var burstMode by remember {
         mutableStateOf(appPrefs.getBoolean("burst_capture_mode_enabled", false))
     }
@@ -5923,58 +5924,99 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
     val toolbarContent: @Composable (Modifier, Dp) -> Unit = { toolbarModifier, plateHeight ->
         Row(
             toolbarModifier.fillMaxWidth().height(plateHeight)
-                .background(Brush.verticalGradient(listOf(Color(0xFF292C2F), Color(0xFF090A0B))))
+                .background(Brush.verticalGradient(listOf(Color(0xFF1B1D1F), Color(0xFF050607))))
                 .drawWithContent {
                     drawContent()
-                    val lineY = size.height - 0.5.dp.toPx()
-                    drawLine(Color.White.copy(alpha = 0.14f), androidx.compose.ui.geometry.Offset(0f, lineY),
-                        androidx.compose.ui.geometry.Offset(size.width, lineY), 1.dp.toPx())
+                    val y = size.height - 0.5.dp.toPx()
+                    drawLine(Color.White.copy(alpha = 0.24f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
                 }
                 .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Column(horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.Center) {
-                    Image(
-                        painter = painterResource(R.drawable.fujifilm_logo_white),
-                        contentDescription = "FUJIFILM",
-                        modifier = Modifier.width(154.dp * designScale).height(30.dp * designScale),
-                        contentScale = ContentScale.Fit
-                    )
-                    Text(
-                        stringResource(R.string.camera_brand_subtitle),
-                        color = FujiCameraDesign.muted,
-                        fontSize = 11.sp * designScale,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.7.sp
-                    )
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(6.dp)).clickable { onOpenSettings() }, contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(25.dp)) {
+                    val stroke = 2.dp.toPx()
+                    for (i in 0..2) {
+                        val y = size.height * (0.22f + i * 0.28f)
+                        drawLine(Color.White, Offset(0f, y), Offset(size.width, y), stroke, cap = StrokeCap.Round)
+                    }
                 }
-                Text("Mode", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Bottom))
+            }
+            Box(Modifier.width(1.dp).height(30.dp).background(Color.White.copy(alpha = 0.55f)))
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(6.dp)).clickable { onFocusPeaking(!focusPeaking) }, contentAlignment = Alignment.Center) {
+                FujiIconGlyph("focus-dot", Modifier.size(25.dp), if (focusPeaking) FujiCameraDesign.orange else Color.White)
+            }
+            Canvas(Modifier.width(38.dp).height(28.dp)) {
+                val stroke = 4.dp.toPx()
+                for (i in 0..2) {
+                    val x = size.width * (i * 0.27f)
+                    drawLine(Color.White.copy(alpha = 0.86f), Offset(x, size.height * 0.86f), Offset(x + size.width * 0.62f, size.height * 0.14f), stroke, cap = StrokeCap.Round)
+                }
             }
             Spacer(Modifier.weight(1f))
-            FujiRoundTopKey("af", focusPeaking, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) { onFocusPeaking(!focusPeaking) }
-            FujiRoundTopKey("histogram", showHist, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) { onShowHist(!showHist) }
-            FujiRoundTopKey("tab_03", mode == "Pro", Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale) {
-                if (mode == "Pro") {
-                    mode = "Photo"
-                    proSel = null
-                    manualExposure = false
-                    manualIsoEnabled = false
-                    manualShutterEnabled = false
-                    manualColorTempEnabled = false
-                    manualFocus = 0f
-                    milkyWayInfinityFocusEnabled = false
-                    invalidatePendingFocusLock(camera)
-                    camera?.let { active -> runCatching { applyAutoWhiteBalance(active); applyAutoFocus(active) } }
-                } else mode = "Pro"
+            Box(
+                Modifier.size(38.dp).clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(Color(0xFFE5E7E8), Color(0xFF777D81), Color(0xFF303438))))
+                    .border(1.dp, if (aeLocked) FujiCameraDesign.orange else Color(0xFFBFC4C7), CircleShape)
+                    .clickable {
+                        camera?.let { active ->
+                            val next = !aeLocked
+                            if (applyCameraAeLock(active, next)) {
+                                aeLocked = next
+                                CrashContextDiagnostics.recordUiEvent("AE_LOCK state=$next")
+                            } else localizedToast(context, "Camera không hỗ trợ khóa phơi sáng AE-L.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("AE-L", color = Color(0xFF101214), fontSize = 8.sp, fontWeight = FontWeight.Bold) }
+            Column(Modifier.width(154.dp).height(44.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Focus : " + if (manualFocus > 0f) String.format(Locale.US, "%.1f", manualFocus) else "0.0",
+                    color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        manualFocus = 0f
+                        milkyWayInfinityFocusEnabled = false
+                        selectProAfMode("AF-S")
+                        camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                    }
+                )
+                if (maxFocus > 0f && availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true) {
+                    FujiEvRuler(
+                        position = (manualFocus / maxFocus).coerceIn(0f, 1f),
+                        minimum = 0, maximum = 1000, heightDp = 22.dp
+                    ) { value ->
+                        manualFocus = maxFocus * (value / 1000f)
+                        milkyWayInfinityFocusEnabled = false
+                        proAfMode = "MF"
+                        appPrefs.edit().putString("pro_af_mode", "MF").putFloat("pro_manual_focus", manualFocus).apply()
+                        invalidatePendingFocusLock(camera)
+                        camera?.let { active -> runCatching { applyManualFocus(active, manualFocus) } }
+                        CrashContextDiagnostics.recordUiEvent("FOCUS_DRAG value=" + String.format(Locale.US, "%.2f", manualFocus))
+                    }
+                } else {
+                    Text("AF tự động", color = FujiCameraDesign.muted, fontSize = 8.sp)
+                }
             }
-            FujiRoundTopKey("settings", false, Tuning.CAMERA_EV_KEY_SIZE_DP.dp * designScale, onClick = onOpenSettings)
+            Box(
+                Modifier.size(38.dp).clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(Color(0xFFE5E7E8), Color(0xFF777D81), Color(0xFF303438))))
+                    .border(1.dp, if (focusLocked) FujiCameraDesign.orange else Color(0xFFBFC4C7), CircleShape)
+                    .clickable {
+                        camera?.let { active ->
+                            val next = !focusLocked
+                            if (applyCameraAfLock(active, next)) {
+                                focusLocked = next
+                                if (!next) runCatching { applyAutoFocus(active) }
+                                CrashContextDiagnostics.recordUiEvent("AF_LOCK state=$next")
+                            } else localizedToast(context, "Camera không hỗ trợ khóa nét AF-L.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) { Text("AF-L", color = Color(0xFF101214), fontSize = 8.sp, fontWeight = FontWeight.Bold) }
         }
     }
-
     val previewContent: @Composable (Modifier) -> Unit = { previewModifier ->
                     BoxWithConstraints(
                         previewModifier.background(Color.Transparent),
@@ -7565,7 +7607,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             ) {
                 val latest = thumb
                 if (latest != null) Image(latest, "Ảnh vừa chụp", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                else FujiIconGlyph("film", Modifier.size(25.dp), Color.White)
+                else FujiIconGlyph("image", Modifier.size(25.dp), Color.White)
+                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color(0x99000000)).padding(vertical = 3.dp), contentAlignment = Alignment.Center) {
+                    Text("Album", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
             }
             FujiCameraKey(
                 stringResource(R.string.camera_filter),
@@ -7619,172 +7664,75 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         val evMinimum = range?.lower ?: 0
         val evMaximum = range?.upper ?: 0
         Column(
-            sideModifier.fillMaxSize().padding(2.dp * designScale)
-                .shadow(6.dp * designScale, RoundedCornerShape(20.dp * designScale))
-                .clip(RoundedCornerShape(20.dp * designScale))
-                .background(Color(0xB81C1E20))
-                .border(1.dp * designScale, FujiCameraDesign.stroke, RoundedCornerShape(20.dp * designScale))
-                .padding(horizontal = 3.dp * designScale, vertical = 2.dp * designScale),
+            sideModifier.fillMaxSize().padding(horizontal = 7.dp * designScale, vertical = 7.dp * designScale),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp * designScale)
+            verticalArrangement = Arrangement.spacedBy(8.dp * designScale)
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp * designScale)) {
-                FujiCameraKey(
-                    stringResource(R.string.camera_timer),
-                    modifier = Modifier.size(Tuning.CAMERA_TIMER_FLASH_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
-                    icon = "timer",
-                    horizontalContent = true,
-                    secondary = if (timerSec == 0) stringResource(R.string.camera_off) else "${timerSec}s",
-                    scale = designScale
-                ) { timerSec = when (timerSec) { 0 -> 3; 3 -> 5; 5 -> 10; else -> 0 } }
-                FujiCameraKey(
-                    stringResource(R.string.camera_flash),
-                    modifier = Modifier.size(Tuning.CAMERA_TIMER_FLASH_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
-                    icon = if (flash == ImageCapture.FLASH_MODE_OFF) "flash_off" else "flash",
-                    horizontalContent = true,
-                    secondary = when (flash) {
-                        ImageCapture.FLASH_MODE_AUTO -> stringResource(R.string.camera_auto)
-                        ImageCapture.FLASH_MODE_ON -> stringResource(R.string.camera_on)
-                        else -> stringResource(R.string.camera_off)
-                    },
-                    scale = designScale
-                ) {
-                    flash = when (flash) {
-                        ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO
-                        ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON
-                        else -> ImageCapture.FLASH_MODE_OFF
+            Row(Modifier.fillMaxWidth().height(76.dp * designScale), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * designScale)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp * designScale)) {
+                    Text("EV: " + evText, color = Color.White, fontSize = 12.sp * designScale, fontWeight = FontWeight.Bold)
+                    FujiEvRuler(
+                        position = if (evMaximum > evMinimum) (evIndex - evMinimum).toFloat() / (evMaximum - evMinimum) else 0.5f,
+                        minimum = evMinimum, maximum = evMaximum, heightDp = 34.dp * designScale, scale = designScale
+                    ) { next ->
+                        evIndex = next
+                        manualExposure = false
+                        camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
+                        appPrefs.edit().putInt("pro_ev_index", next).apply()
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(String.format(Locale.US, "%.1f", evMinimum * evStep), color = FujiCameraDesign.muted, fontSize = 8.sp * designScale)
+                        Text(String.format(Locale.US, "%+.1f", evMaximum * evStep), color = FujiCameraDesign.muted, fontSize = 8.sp * designScale)
                     }
                 }
+                FujiCameraKey(
+                    stringResource(R.string.camera_settings),
+                    modifier = Modifier.width(66.dp * designScale).height(70.dp * designScale),
+                    icon = "settings", scale = designScale
+                ) { onOpenSettings() }
             }
-            Row(
-                Modifier.fillMaxWidth().height(34.dp * designScale),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("EV", color = FujiCameraDesign.text, fontSize = 14.sp * designScale, fontWeight = FontWeight.Bold)
-                Text(
-                    evText,
-                    color = FujiCameraDesign.text,
-                    fontSize = 25.sp * designScale,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End
-                )
-            }
-            // EV is controlled directly by dragging the ruler; no +/- step buttons.
-            FujiEvRuler(
-                position = if (evMaximum > evMinimum) ((evIndex - evMinimum).toFloat() / (evMaximum - evMinimum)) else 0.5f,
-                minimum = evMinimum,
-                maximum = evMaximum,
-                heightDp = 36.dp * designScale,
-                scale = designScale
-            ) { next ->
-                evIndex = next
-                manualExposure = false
-                camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
-                appPrefs.edit().putInt("pro_ev_index", next).apply()
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    String.format(Locale.US, "%.1f", evMinimum * evStep),
-                    color = FujiCameraDesign.muted,
-                    fontSize = 9.sp * designScale
-                )
-                Text(
-                    String.format(Locale.US, "%+.1f", evMaximum * evStep),
-                    color = FujiCameraDesign.muted,
-                    fontSize = 9.sp * designScale
-                )
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp * designScale),
-                verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(3.dp * designScale)) {
-                    Text(stringResource(R.string.camera_zoom), color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp * designScale),
-                        horizontalAlignment = Alignment.CenterHorizontally) {
-                        // Vertical zoom rocker: T (tele) on top, W (wide) below.
-                        FujiCameraKey(
-                            "T",
-                            modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
-                            secondary = stringResource(R.string.camera_in),
-                            scale = designScale,
-                            onHold = { animateZoomTo((zoomSel * 1.025f).coerceIn(minZoom, maxZoom)) }
-                        ) {
-                            animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom))
-                        }
-                        FujiCameraKey(
-                            "W",
-                            modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
-                            secondary = stringResource(R.string.camera_out),
-                            scale = designScale,
-                            onHold = { animateZoomTo((zoomSel / 1.025f).coerceIn(minZoom, maxZoom)) }
-                        ) {
-                            animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
-                        }
-                    }
-                }
-                Column(Modifier.width(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale), verticalArrangement = Arrangement.spacedBy(10.dp * designScale)) {
-                    FujiCameraKey(
-                        stringResource(R.string.camera_af_lock),
-                        modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
-                        icon = "af",
-                        selected = focusLocked,
-                        scale = designScale
+            Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp * designScale)) {
+                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    FujiShutterButton(
+                        enabled = !isProcessing,
+                        onLongPress = { burstShutterHeld = true; takePhoto(forceBurst = true) },
+                        onRelease = { burstShutterHeld = false; if (burstCaptureActive) burstStopRequested = true },
+                        onHalfPress = {
+                            invalidatePendingFocusLock(camera)
+                            centerAfStatus = 0
+                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
+                            if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                        },
+                        onCapture = { takePhoto() },
+                        modifier = Modifier.size(Tuning.CAMERA_SHUTTER_SIZE_DP.dp * designScale)
                     ) {
-                        camera?.let { active ->
-                            if (focusLocked) {
-                                invalidatePendingFocusLock(active)
-                                runCatching { active.cameraControl.cancelFocusAndMetering() }
-                                runCatching { applyCameraAfAeLock(active, locked = false) }
-                                focusLocked = false
-                                aeLocked = false
-                            } else {
-                                val lockApplied = applyCameraAfAeLock(active, locked = true)
-                                focusLocked = lockApplied
-                                aeLocked = lockApplied
-                            }
+                        if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
+                            FujiIconGlyph("close", Modifier.size(25.dp), Color.White)
+                        } else if (shutterButtonBitmap != null) {
+                            Image(shutterButtonBitmap!!, "Nút chụp tùy chỉnh", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                        } else {
+                            Text(stringResource(R.string.camera_shutter), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    FujiCameraKey(
-                        stringResource(R.string.camera_settings),
-                        modifier = Modifier.size(Tuning.CAMERA_AF_SETTINGS_WIDTH_DP.dp * designScale, Tuning.CAMERA_TIMER_FLASH_HEIGHT_DP.dp * designScale),
-                        icon = "settings",
-                        scale = designScale
-                    ) { onOpenSettings() }
                 }
-            }
-            FujiShutterButton(
-                enabled = !isProcessing,
-                onLongPress = {
-                    burstShutterHeld = true
-                    takePhoto(forceBurst = true)
-                },
-                onRelease = {
-                    burstShutterHeld = false
-                    if (burstCaptureActive) burstStopRequested = true
-                },
-                onHalfPress = {
-                    invalidatePendingFocusLock(camera)
-                    centerAfStatus = 0
-                    manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
-                    if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
-                        camera?.let { active -> runCatching { applyAutoFocus(active) } }
-                    }
-                },
-                onCapture = { takePhoto() },
-                modifier = Modifier.size(Tuning.CAMERA_SHUTTER_SIZE_DP.dp * designScale)
-            ) {
-                if (starTrailCaptureInProgress || burstCaptureActive || bracketCaptureActive) {
-                    FujiIconGlyph("close", Modifier.size(25.dp), Color.White)
-                } else if (shutterButtonBitmap != null) {
-                    Image(shutterButtonBitmap!!, "Nút chụp tùy chỉnh", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
-                } else {
-                    Text(stringResource(R.string.camera_shutter), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.width(70.dp * designScale).fillMaxHeight(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    FujiCameraKey(
+                        "T",
+                        modifier = Modifier.width(66.dp * designScale).height(64.dp * designScale),
+                        secondary = stringResource(R.string.camera_in), scale = designScale,
+                        onHold = { animateZoomTo((zoomSel * 1.025f).coerceIn(minZoom, maxZoom)) }
+                    ) { animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom)) }
+                    Spacer(Modifier.height(8.dp * designScale))
+                    FujiCameraKey(
+                        "W",
+                        modifier = Modifier.width(66.dp * designScale).height(64.dp * designScale),
+                        secondary = stringResource(R.string.camera_out), scale = designScale,
+                        onHold = { animateZoomTo((zoomSel / 1.025f).coerceIn(minZoom, maxZoom)) }
+                    ) { animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom)) }
                 }
             }
         }
     }
-
     val leftHandedLayout = appPrefs.getBoolean("left_handed_layout_enabled", false)
     val simpleUiMode = appPrefs.getBoolean("simple_ui_mode_enabled", false)
     val leftPanelContent: @Composable (Modifier) -> Unit =
@@ -7823,11 +7771,57 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         Box(Modifier.weight(1f).fillMaxWidth()
                             .onSizeChanged { Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)") }) {
                             previewContent(Modifier.fillMaxSize())
+                            Row(
+                                Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.82f).height(48.dp * designScale)
+                                    .clip(RoundedCornerShape(12.dp * designScale))
+                                    .background(Color(0xB8000000))
+                                    .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(12.dp * designScale))
+                                    .padding(horizontal = 8.dp * designScale, vertical = 4.dp * designScale),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp * designScale)
+                            ) {
+                                Column(Modifier.weight(0.9f), verticalArrangement = Arrangement.Center) {
+                                    Text(shutterText, color = FujiCameraDesign.blue, fontSize = 14.sp * designScale, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    Text("SS", color = Color.White, fontSize = 7.sp * designScale)
+                                }
+                                Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
+                                Column(Modifier.weight(1.05f), verticalArrangement = Arrangement.Center) {
+                                    val apertureDisplay = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
+                                        ?.let { "F%.1f".format(Locale.US, it) } ?: "F--"
+                                    Text(apertureDisplay, color = Color.White, fontSize = 13.sp * designScale, fontWeight = FontWeight.Bold)
+                                    Text("ISO " + isoText, color = Color.White, fontSize = 9.sp * designScale)
+                                }
+                                Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
+                                Column(Modifier.weight(0.85f), verticalArrangement = Arrangement.Center) {
+                                    Text(toneText, color = FujiCameraDesign.blue, fontSize = 13.sp * designScale, fontWeight = FontWeight.Bold)
+                                    Text("WB", color = Color.White, fontSize = 7.sp * designScale)
+                                }
+                                Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
+                                Column(Modifier.weight(0.56f), verticalArrangement = Arrangement.Center) {
+                                    Text("EV", color = Color.White, fontSize = 8.sp * designScale)
+                                    Text(evText, color = Color.White, fontSize = 13.sp * designScale, fontWeight = FontWeight.Bold)
+                                }
+                                Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
+                                Column(Modifier.weight(0.7f), verticalArrangement = Arrangement.Center) {
+                                    Text((if (batteryPercent >= 0) batteryPercent else 0).toString() + "%", color = Color.White, fontSize = 11.sp * designScale, fontWeight = FontWeight.Bold)
+                                    Text(if (batteryCharging) "SẠC" else "PIN", color = Color.White, fontSize = 7.sp * designScale)
+                                }
+                                Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
+                                Column(Modifier.weight(0.9f), verticalArrangement = Arrangement.Center) {
+                                    Text(if (measuredBatteryTempC >= 0) measuredBatteryTempC.toString() + "°C" else "--°C", color = Color.White, fontSize = 11.sp * designScale, fontWeight = FontWeight.Bold)
+                                    Text(if (batteryWarningState.lowRed) "PIN THẤP" else "BATTERY: GOOD", color = if (batteryWarningState.lowRed) Color.Red else Color.White, fontSize = 7.sp * designScale, maxLines = 1)
+                                }
+                            }
                             if (!hasCam) Text(localizedUiText(context, "NO SIGNAL"), color = Color(0xFFE8442B),
                                 fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
                             else if (previewStreamState != PreviewView.StreamState.STREAMING) Text(
                                 localizedUiText(context, "STARTING..."), color = FujiSkin.lcdGreen, fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+                        }
+                        Row(Modifier.fillMaxWidth().height(27.dp * designScale), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.45f)))
+                            Image(painter = painterResource(R.drawable.fujifilm_logo_white), contentDescription = "FUJIFILM", modifier = Modifier.width(118.dp * designScale).height(22.dp * designScale), contentScale = ContentScale.Fit)
+                            Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.45f)))
                         }
                     }
                     if (!leftHandedLayout) {

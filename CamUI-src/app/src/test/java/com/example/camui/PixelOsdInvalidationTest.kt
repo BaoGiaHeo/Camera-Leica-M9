@@ -104,6 +104,14 @@ class PixelOsdInvalidationTest {
     }
 
     @Test
+    fun changingZoomRatioDoesNotChangeTheStaticOsdFrame() {
+        val initial = PixelOsdFrame(showZoomBar = true, zoomRatio = 1.5f)
+        val zoomed = initial.copy(zoomRatio = 4.2f)
+        assertEquals(pixelOsdStaticLayerFrame(initial), pixelOsdStaticLayerFrame(zoomed))
+        assertEquals(1f, pixelOsdStaticLayerFrame(zoomed).zoomRatio)
+    }
+
+    @Test
     fun switchingManualFocusReticleInvalidatesTheCentreAfBox() {
         val previous = PixelOsdFrame(centerAfPoint = Offset(0.5f, 0.5f), manualFocusMode = false)
         val current = previous.copy(manualFocusMode = true)

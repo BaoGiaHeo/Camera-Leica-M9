@@ -12,12 +12,15 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -27,8 +30,13 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.IntSize
 import java.util.Locale
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.sin
 import kotlin.math.roundToInt
+
+internal fun pixelOsdStaticLayerFrame(frame: PixelOsdFrame): PixelOsdFrame =
+    if (frame.showZoomBar) frame.copy(zoomRatio = 1f) else frame
 
 internal const val PIXEL_OSD_GRID_ALPHA = 4
 internal fun formatEvReadout(evStops: Float): String {
@@ -230,6 +238,7 @@ class PixelOsdRenderer(context: Context) {
     private var pixelScale = 2
     private val displayDensity = appContext.resources.displayMetrics.density
     private var lastFrame: PixelOsdFrame? = null
+    private var lastRenderIncludedZoomHandle = true
     private var loadedTypeface: Typeface? = null
     private var fallbackTypeface: Typeface? = null
     private var fontMetrics: PixelOsdFontMetrics? = null
@@ -270,7 +279,13 @@ class PixelOsdRenderer(context: Context) {
         isFilterBitmap = false
     }
 
-    fun render(widthPx: Int, heightPx: Int, frame: PixelOsdFrame, maxRefreshHz: Int = 120) {
+    fun render(
+        widthPx: Int,
+        heightPx: Int,
+        frame: PixelOsdFrame,
+        maxRefreshHz: Int = 120,
+        drawZoomHandleInBitmap: Boolean = true
+    ) {
         if (widthPx <= 0 || heightPx <= 0) return
         val geometry = PixelOsdGeometry.fromDisplayPixels(widthPx, heightPx, frame.pixelScaleMode)
         val newWidth = geometry.logicWidth
@@ -299,7 +314,7 @@ class PixelOsdRenderer(context: Context) {
             val minimumIntervalMs = 1000L / refreshLimit
             if (now - lastRenderUptimeMillis < minimumIntervalMs) return
         }
-        if (lastFrame == frame) return
+        if (lastFrame == frame && lastRenderIncludedZoomHandle == drawZoomHandleInBitmap) return
 
         if (frame.showLevel) {
             val absoluteRoll = kotlin.math.abs(frame.horizonRollDegrees)
@@ -325,8 +340,9 @@ class PixelOsdRenderer(context: Context) {
             android.util.Log.d("FUJI_OSD_LAYOUT", diagnostic)
             lastLayoutDiagnostic = diagnostic
         }
-        drawFrame(canvas, frame, layout)
+        drawFrame(canvas, frame, layout, drawZoomHandleInBitmap)
         lastFrame = frame
+        lastRenderIncludedZoomHandle = drawZoomHandleInBitmap
         lastRenderUptimeMillis = SystemClock.uptimeMillis()
     }
 
@@ -350,7 +366,12 @@ class PixelOsdRenderer(context: Context) {
     internal fun layoutSnapshotForTesting(): PixelOsdLayoutPlan? = currentLayout
     internal fun fontMetricsSnapshotForTesting(): PixelOsdFontMetrics? = fontMetrics
 
-    private fun drawFrame(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
+    private fun drawFrame(
+        canvas: NativeCanvas,
+        frame: PixelOsdFrame,
+        layout: PixelOsdLayoutPlan,
+        drawZoomHandleInBitmap: Boolean
+    ) {
         val width = logicWidth
         val height = logicHeight
         if (frame.showPixelTexture) drawPixelTexture(canvas)
@@ -446,7 +467,7 @@ class PixelOsdRenderer(context: Context) {
         if (frame.showEvScale) drawEvScale(canvas, frame, layout)
         layout.histogramBounds?.let { drawHistogram(canvas, frame.histogram, it) }
         if (frame.isPro && frame.showProHud) drawProHud(canvas, frame, layout)
-        if (frame.showZoomBar) drawZoomBar(canvas, frame, layout)
+        if (frame.showZoomBar) drawZoomBar(canvas, frame, layout, drawZoomHandleInBitmap)
         if (frame.showLevel) {
             val radians = Math.toRadians(frame.horizonRollDegrees.toDouble())
             val halfSpan = (width * 0.19f).roundToInt().coerceAtLeast(8)
@@ -998,7 +1019,39 @@ class PixelOsdRenderer(context: Context) {
         canvas.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), strokePaint)
     }
 
-    private fun drawZoomBar(canvas: NativeCanvas, frame: PixelOsdFrame, layout: PixelOsdLayoutPlan) {
+    private fun drawZoomBar(
+        canvas: NativeCanvas,
+        frame: PixelOsdFrame,
+        layout: PixelOsdLayoutPlan,
+        includeHandle: Boolean
+    ) {
+        val bounds = layout.zoomTrackBounds ?: return
+        val alpha = (frame.zoomBarAlpha.coerceIn(0f, 1f) * 255f).roundToInt()
+        if (alpha <= 0) return
+        val scale = pixelScale.coerceAtLeast(1)
+        val trackLeft = (bounds.left / scale).roundToInt()
+        val trackRight = (bounds.right / scale).roundToInt()
+        val trackTop = (bounds.top / scale).roundToInt()
+        val trackBottom = (bounds.bottom / scale).roundToInt()
+        if (trackRight <= trackLeft || trackBottom <= trackTop) return
+        val borderThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
+        for (offset in 0 until borderThickness) {
+            drawHLine(canvas, trackLeft, trackRight, trackTop + offset, PixelOsdPalette.WHITE, alpha)
+            drawHLine(canvas, trackLeft, trackRight, trackBottom - offset, PixelOsdPalette.WHITE, alpha)
+            drawVLine(canvas, trackLeft + offset, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
+            drawVLine(canvas, trackRight - offset, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
+        }
+        if (includeHandle) drawZoomBarHandle(canvas, frame, layout, frame.zoomRatio)
+        layout.elements.filter { it.section == "zoom" && it.kind == PixelOsdElementKind.TEXT }
+            .forEach { drawPixelOsdText(it, PixelOsdPalette.WHITE, frame.zoomBarAlpha) }
+    }
+
+    private fun drawZoomBarHandle(
+        canvas: NativeCanvas,
+        frame: PixelOsdFrame,
+        layout: PixelOsdLayoutPlan,
+        zoomRatio: Float
+    ) {
         val bounds = layout.zoomTrackBounds ?: return
         val alpha = (frame.zoomBarAlpha.coerceIn(0f, 1f) * 255f).roundToInt()
         if (alpha <= 0) return
@@ -1009,18 +1062,10 @@ class PixelOsdRenderer(context: Context) {
         val trackBottom = (bounds.bottom / scale).roundToInt()
         val vertical = frame.zoomBarPosition == "middle_left"
         if (trackRight <= trackLeft || trackBottom <= trackTop) return
-
         val minimum = frame.zoomMinimumRatio
         val maximum = frame.zoomMaximumRatio
-        val ratioPosition = logarithmicZoomPosition(frame.zoomRatio, minimum, maximum)
+        val ratioPosition = logarithmicZoomPosition(zoomRatio, minimum, maximum)
         val borderThickness = (layout.unitPx * 0.12f / scale).roundToInt().coerceAtLeast(1)
-        for (offset in 0 until borderThickness) {
-            drawHLine(canvas, trackLeft, trackRight, trackTop + offset, PixelOsdPalette.WHITE, alpha)
-            drawHLine(canvas, trackLeft, trackRight, trackBottom - offset, PixelOsdPalette.WHITE, alpha)
-            drawVLine(canvas, trackLeft + offset, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
-            drawVLine(canvas, trackRight - offset, trackTop, trackBottom, PixelOsdPalette.WHITE, alpha)
-        }
-
         if (vertical) {
             val handleHeight = (layout.unitPx * 0.32f / scale).roundToInt().coerceAtLeast(2)
             val usable = (trackBottom - trackTop - handleHeight).coerceAtLeast(0)
@@ -1045,9 +1090,16 @@ class PixelOsdRenderer(context: Context) {
                 drawHLine(canvas, handleLeft, handleLeft + handleWidth - 1, y, PixelOsdPalette.WHITE, alpha)
             }
         }
+    }
 
-        layout.elements.filter { it.section == "zoom" && it.kind == PixelOsdElementKind.TEXT }
-            .forEach { drawPixelOsdText(it, PixelOsdPalette.WHITE, frame.zoomBarAlpha) }
+    fun drawZoomBarHandleOverlay(target: NativeCanvas, frame: PixelOsdFrame, zoomRatio: Float) {
+        if (!frame.showZoomBar) return
+        val layout = currentLayout ?: return
+        val scale = pixelScale.coerceAtLeast(1)
+        target.save()
+        target.scale(scale.toFloat(), scale.toFloat())
+        drawZoomBarHandle(target, frame, layout, zoomRatio)
+        target.restore()
     }
 
     private fun ensureTextFonts() {
@@ -1351,6 +1403,8 @@ fun PixelOsdLayer(
     maxRefreshHz: Int = 120,
     performanceMode: Boolean = false,
     reducedMotion: Boolean = false,
+    zoomRatioState: State<Float>? = null,
+    onZoomRatioChange: ((Float, Boolean) -> Unit)? = null,
     onProControlTap: (String) -> Unit = {}
 ) {
     SideEffect {
@@ -1359,6 +1413,7 @@ fun PixelOsdLayer(
     }
     val context = androidx.compose.ui.platform.LocalContext.current
     val latestProControlTap = rememberUpdatedState(onProControlTap)
+    val latestZoomRatioChange = rememberUpdatedState(onZoomRatioChange)
     val renderer = remember(context.applicationContext) {
         PixelOsdRenderer(context.applicationContext)
     }
@@ -1418,8 +1473,9 @@ fun PixelOsdLayer(
         centerAfPoint = frame.centerAfPoint?.let { animatedAfPoint },
         selectedControlProgress = animatedSelectedControlProgress
     )
+    Box(modifier) {
     Canvas(
-        modifier.pointerInput(frame.isPro) {
+        Modifier.matchParentSize().pointerInput(frame.isPro) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 val plan = if (frame.isPro) renderer.layoutSnapshotForTesting() else null
@@ -1443,10 +1499,83 @@ fun PixelOsdLayer(
     ) {
         val widthPx = size.width.roundToInt()
         val heightPx = size.height.roundToInt()
-        renderer.render(widthPx, heightPx, animatedFrame, maxRefreshHz)
+        val stableFrame = if (zoomRatioState != null) {
+            pixelOsdStaticLayerFrame(animatedFrame)
+        } else {
+            animatedFrame
+        }
+        renderer.render(
+            widthPx,
+            heightPx,
+            stableFrame,
+            maxRefreshHz,
+            drawZoomHandleInBitmap = zoomRatioState == null
+        )
         drawContext.canvas.nativeCanvas.let { native ->
             renderer.drawScaled(native, widthPx, heightPx)
         }
+    }
+    if (frame.showZoomBar && zoomRatioState != null) {
+        Canvas(
+            Modifier.matchParentSize().pointerInput(
+                frame.zoomBarPosition,
+                frame.zoomMinimumRatio,
+                frame.zoomMaximumRatio
+            ) {
+                val layoutBounds = renderer.layoutSnapshotForTesting()?.zoomTrackBounds
+                if (layoutBounds == null) return@pointerInput
+                val safeMinimum = frame.zoomMinimumRatio.coerceAtLeast(0.1f)
+                val safeMaximum = frame.zoomMaximumRatio.coerceAtLeast(safeMinimum)
+                fun contains(point: Offset): Boolean =
+                    point.x >= layoutBounds.left && point.x <= layoutBounds.right &&
+                        point.y >= layoutBounds.top && point.y <= layoutBounds.bottom
+                fun ratioAt(point: Offset): Float {
+                    val span = if (frame.zoomBarPosition == "middle_left") {
+                        layoutBounds.bottom - layoutBounds.top
+                    } else {
+                        layoutBounds.right - layoutBounds.left
+                    }.coerceAtLeast(1f)
+                    val fraction = if (frame.zoomBarPosition == "middle_left") {
+                        (layoutBounds.bottom - point.y) / span
+                    } else {
+                        (point.x - layoutBounds.left) / span
+                    }.coerceIn(0f, 1f)
+                    return (safeMinimum * exp(ln(safeMaximum / safeMinimum) * fraction))
+                        .coerceIn(safeMinimum, safeMaximum)
+                }
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    if (!contains(down.position)) {
+                        waitForUpOrCancellation()
+                        return@awaitEachGesture
+                    }
+                    down.consume()
+                    var lastPosition = down.position
+                    latestZoomRatioChange.value?.invoke(ratioAt(lastPosition), false)
+                    var completed = false
+                    while (!completed) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        lastPosition = change.position
+                        if (!change.pressed) {
+                            change.consume()
+                            latestZoomRatioChange.value?.invoke(ratioAt(lastPosition), true)
+                            completed = true
+                        } else {
+                            change.consume()
+                            latestZoomRatioChange.value?.invoke(ratioAt(lastPosition), false)
+                        }
+                    }
+                    if (!completed) latestZoomRatioChange.value?.invoke(ratioAt(lastPosition), true)
+                }
+            }
+        ) {
+            val widthPx = size.width.roundToInt()
+            val heightPx = size.height.roundToInt()
+            val ratio = zoomRatioState.value
+            renderer.drawZoomBarHandleOverlay(drawContext.canvas.nativeCanvas, frame, ratio)
+        }
+    }
     }
 }
 

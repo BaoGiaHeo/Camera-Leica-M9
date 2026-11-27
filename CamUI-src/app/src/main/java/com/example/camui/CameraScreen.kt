@@ -203,6 +203,7 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -904,6 +905,11 @@ fun CameraScreen(
         animationSpec = tween(durationMillis = if (performanceMode) 90 else 120, easing = FastOutSlowInEasing),
         label = "zoom OSD interpolation"
     )
+    val zoomBarDrawRatio = remember { mutableFloatStateOf(zoomSel) }
+    val zoomBarRequests = remember { Channel<Pair<Float, Boolean>>(Channel.CONFLATED) }
+    LaunchedEffect(actualZoomRatio) {
+        zoomBarDrawRatio.floatValue = actualZoomRatio
+    }
     var zoomButtonsSwapped by remember {
         mutableStateOf(appPrefs.getString("zoom_buttons_mode", "standard") == "swapped")
     }
@@ -5847,6 +5853,55 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         }
     }
 
+    val zoomBarCameraState = rememberUpdatedState(camera)
+    val zoomBarDetailsState = rememberUpdatedState(activeCameraDetails)
+    val zoomBarPhysicalDetailsState = rememberUpdatedState(activePhysicalCameraDetails)
+    val zoomBarInventoryState = rememberUpdatedState(camera2Inventory)
+    LaunchedEffect(zoomBarRequests) {
+        for (firstRequest in zoomBarRequests) {
+            // Conflate pointer movement into at most one CameraControl command per display frame.
+            withFrameNanos { }
+            var latestRequest = firstRequest
+            while (true) {
+                val pending = zoomBarRequests.tryReceive().getOrNull() ?: break
+                latestRequest = pending
+            }
+            val activeCamera = zoomBarCameraState.value ?: continue
+            val cameraZoomState = activeCamera.cameraInfo.zoomState.value ?: continue
+            val details = zoomBarDetailsState.value
+            val physicalDetails = zoomBarPhysicalDetailsState.value
+            val inventory = zoomBarInventoryState.value
+            val assessment = Camera2Info.opticalZoomAssessment(details, physicalDetails, inventory)
+            val reportedMaximum = Camera2Info.cameraReportedZoomMax(details, cameraZoomState.maxZoomRatio)
+            val plan = resolveZoomExecutionPlan(
+                requestedZoomRatio = latestRequest.first,
+                minimumCameraRatio = cameraZoomState.minZoomRatio,
+                cameraReportedMaximum = reportedMaximum,
+                assessment = assessment
+            )
+            val observedCameraRatio = activeCamera.cameraInfo.zoomState.value?.zoomRatio ?: cameraZoomState.zoomRatio
+            if (abs(observedCameraRatio - plan.cameraControlZoomRatio) > 0.002f) {
+                runCatching {
+                    activeCamera.cameraControl.setZoomRatio(plan.cameraControlZoomRatio)
+                }.onFailure {
+                    android.util.Log.w("FUJI_ZOOM_BAR", "Could not apply vsync zoom target=${plan.cameraControlZoomRatio}", it)
+                }
+            }
+            if (latestRequest.second) {
+                zoomSel = plan.effectiveZoomRatio
+                actualZoomRatio = plan.effectiveZoomRatio
+                digitalZoomCropScale = plan.digitalCropRatio
+                zoomBarDrawRatio.floatValue = plan.effectiveZoomRatio
+                zoomInteractionGeneration++
+                appPrefs.edit().putFloat("camera_zoom_ratio", plan.effectiveZoomRatio).apply()
+                android.util.Log.i(
+                    "FUJI_ZOOM_BAR",
+                    "DRAG_COMMIT effective=${plan.effectiveZoomRatio} camera=${plan.cameraControlZoomRatio}"
+                )
+            }
+        }
+    }
+
     val cameraInfo2 = camera?.cameraInfo?.let { runCatching { Camera2CameraInfo.from(it) }.getOrNull() }
     val requestCapabilities = cameraInfo2?.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
     val manualSensorSupported = requestCapabilities?.contains(
@@ -6730,7 +6785,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     showProFocus = proHudShowFocus,
                                     showProWhiteBalance = proHudShowWhiteBalance,
                                     showZoomBar = zoomOverlayVisible || zoomOverlayAlpha > 0.001f,
-                                    zoomRatio = zoomDisplayValue,
+                                    zoomRatio = 1f,
                                     zoomMinimumRatio = camera?.cameraInfo?.zoomState?.value?.minZoomRatio ?: 1f,
                                     zoomMaximumRatio = camera?.cameraInfo?.zoomState?.value?.let { state ->
                                         val reportedMax = Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio)
@@ -6763,6 +6818,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 },
                                 performanceMode = performanceMode,
                                 reducedMotion = dispReducedMotion,
+                                zoomRatioState = zoomBarDrawRatio,
+                                onZoomRatioChange = { ratio, finished ->
+                                    zoomBarDrawRatio.floatValue = ratio
+                                    zoomBarRequests.trySend(ratio to finished)
+                                },
                                 onProControlTap = { selectedControl ->
                                     if (mode == "Pro") {
                                         proSel = if (proSel == selectedControl) null else selectedControl

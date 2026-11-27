@@ -7708,7 +7708,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         nativeImageProcessingEnabled = false
                         appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
                         showLunaDream = false
-                        burstMode = false
                         hdrBracketMode = false
                         focusBracketMode = false
                         if (nightShotMode != "off") {

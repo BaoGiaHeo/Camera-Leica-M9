@@ -133,7 +133,7 @@ object NightShotProcessor {
             destination.length() > 0L
         }.onFailure { Log.e(TAG, "Could not copy first frame", it) }.getOrDefault(false)
 
-    suspend fun captureFrameToFile(
+    internal suspend fun captureFrameToFile(
         capture: ImageCapture,
         destination: File
     ): NightShotFrameCaptureResult {
@@ -200,14 +200,14 @@ object NightShotProcessor {
                                         val plane = image.planes.firstOrNull()
                                             ?: error("Captured JPEG has no image plane")
                                         val buffer = plane.buffer.duplicate()
-                                        ByteArray(buffer.remaining()).also(buffer::get)
+                                        ByteArray(buffer.remaining()).apply { buffer.get(this) }
                                     }.onFailure {
                                         Log.e(TAG, "Could not copy captured ImageProxy bytes", it)
                                     }.getOrNull()
                                     // Release the camera's ImageReader buffer before disk work.
                                     runCatching { image.close() }
                                     val saved = runCatching {
-                                        check(!jpegBytes.isNullOrEmpty()) { "Captured JPEG buffer is empty" }
+                                        check(jpegBytes != null && jpegBytes.isNotEmpty()) { "Captured JPEG buffer is empty" }
                                         // JPEG_INTERMEDIATE_ALLOWLIST: cache-only ImageProxy frame for multi-frame fusion; never published. The final JPEG is written through ImageSink/WatermarkFinalizer.
                                         FileOutputStream(destination).use { output ->
                                             output.write(jpegBytes)
@@ -268,6 +268,12 @@ object NightShotProcessor {
         if (!result.success) clearTemporaryFiles()
         return result
     }
+
+    internal suspend fun captureFrameToFile(
+        capture: ImageCapture,
+        destination: File,
+        @Suppress("UNUSED_PARAMETER") callbackExecutor: Executor
+    ): Boolean = captureFrameToFile(capture, destination).success
 
 
     /**

@@ -255,6 +255,31 @@ class MainActivity : AppCompatActivity() {
         if (!builtInFilterCatalogValid) {
             android.util.Log.e("FUJI_FILTER", "Built-in film catalog failed the 46-entry integrity check")
         }
+        // Validate the real LUT loader away from the UI thread. A catalog definition
+        // alone is not counted as loaded unless its LUT can actually be produced.
+        Thread({
+            var loadedCount = 0
+            val failedIds = ArrayList<String>()
+            builtInCameraLookPresetDefinitions.forEach { preset ->
+                val lut = runCatching {
+                    readCameraLookLut(applicationContext, preset.id)
+                }.onFailure {
+                    android.util.Log.e("FUJI_FILTER", "Built-in LUT load failed id=" + preset.id, it)
+                }.getOrNull()
+                if (lut != null) loadedCount++ else failedIds += preset.id
+            }
+            val report = "BUILT_IN_FILTERS_LOADED count=" + loadedCount +
+                " expected=46 failures=" + failedIds.joinToString(",")
+            if (loadedCount == 46 && failedIds.isEmpty()) {
+                android.util.Log.i("FUJI_FILTER", report)
+            } else {
+                android.util.Log.e("FUJI_FILTER", report)
+            }
+            CrashContextDiagnostics.recordUiEvent(report)
+        }, "FujiFilterCatalogValidation").apply {
+            isDaemon = true
+            start()
+        }
         android.util.Log.i("FUJI_SCREEN_PROFILE", ScreenProfile.read(this).diagnosticLine())
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()

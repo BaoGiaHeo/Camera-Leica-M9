@@ -557,25 +557,15 @@ class MainActivity : AppCompatActivity() {
 
 @androidx.compose.runtime.Composable
 private fun FujifilmBootSplash() {
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 30.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        Modifier.fillMaxSize().background(ComposeColor.Black),
+        contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(R.drawable.fujifilm_logo_white),
-            contentDescription = "FUJIFILM",
-            modifier = Modifier.width(260.dp).height(58.dp),
+            painter = painterResource(R.drawable.fujifilm_mode_logo),
+            contentDescription = "FUJIFILM Mode — logo ứng dụng",
+            modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit
-        )
-        Spacer(Modifier.height(22.dp))
-        Text(
-            "LƯU Ý APP NÀY LÀ GIẢ LẬP MÔ PHỎNG MÁY ẢNH FUJIFILM KHÔNG PHẢI SẢN PHẨM CHÍNH THỨC VUI LÒNG KHÔNG BÁN THƯƠNG MẠI VỚI BẤT KỲ HÌNH THỨC NÀO",
-            color = ComposeColor(0xFFD8283C),
-            fontSize = 8.sp,
-            lineHeight = 10.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
         )
     }
 }

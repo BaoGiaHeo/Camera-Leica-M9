@@ -8422,20 +8422,30 @@ private fun CompactFilterAdjustmentSlider(
         Box(
             Modifier.weight(1f).height(18.dp)
                 .pointerInput(valueRange) {
-                    detectTapGestures { position ->
-                        val next = valueRange.start +
-                            (position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) *
-                            (valueRange.endInclusive - valueRange.start)
-                        latestOnValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
-                    }
-                }
-                .pointerInput(valueRange) {
-                    detectDragGestures { change, _ ->
-                        val next = valueRange.start +
-                            (change.position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) *
-                            (valueRange.endInclusive - valueRange.start)
-                        latestOnValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
-                        change.consume()
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        latestOnValueChange(
+                            filterSliderValueFromPosition(
+                                down.position.x,
+                                size.width.toFloat(),
+                                valueRange
+                            )
+                        )
+                        var tracking = true
+                        while (tracking) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            latestOnValueChange(
+                                filterSliderValueFromPosition(
+                                    change.position.x,
+                                    size.width.toFloat(),
+                                    valueRange
+                                )
+                            )
+                            change.consume()
+                            tracking = change.pressed
+                        }
                     }
                 }
         ) {
@@ -9020,6 +9030,7 @@ private fun FilmTonePad(
                 .border(2.dp, Color(0xFFE6E8E7), RoundedCornerShape(20.dp))
                 .pointerInput(Unit) {
                     var lastTapUptimeMillis = 0L
+                    var lastTapPosition = Offset.Unspecified
                     val touchSlop = viewConfiguration.touchSlop
                     val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
                     fun normalized(position: Offset): Offset = Offset(
@@ -9037,18 +9048,28 @@ private fun FilmTonePad(
                             if (!change.pressed) {
                                 if (!dragging) {
                                     val now = change.uptimeMillis
-                                    if (lastTapUptimeMillis > 0L && now - lastTapUptimeMillis <= doubleTapTimeout) {
+                                    val tapPosition = normalized(change.position)
+                                    val isDoubleTap = lastTapUptimeMillis > 0L &&
+                                        now - lastTapUptimeMillis <= doubleTapTimeout &&
+                                        (tapPosition - lastTapPosition).getDistance() <= 0.12f
+                                    if (isDoubleTap) {
                                         latestOnPointChange(Offset(0.5f, 0.5f))
                                         lastTapUptimeMillis = 0L
+                                        lastTapPosition = Offset.Unspecified
                                     } else {
-                                        latestOnPointChange(normalized(change.position))
+                                        latestOnPointChange(tapPosition)
                                         lastTapUptimeMillis = now
+                                        lastTapPosition = tapPosition
                                     }
                                 }
                                 change.consume()
                                 finished = true
                             } else {
-                                if (!dragging && (change.position - down.position).getDistance() > touchSlop) dragging = true
+                                if (!dragging && (change.position - down.position).getDistance() > touchSlop) {
+                                    dragging = true
+                                    lastTapUptimeMillis = 0L
+                                    lastTapPosition = Offset.Unspecified
+                                }
                                 if (dragging) {
                                     latestOnPointChange(normalized(change.position))
                                     change.consume()

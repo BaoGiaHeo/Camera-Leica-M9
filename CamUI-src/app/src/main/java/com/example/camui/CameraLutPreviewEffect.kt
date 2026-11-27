@@ -188,9 +188,44 @@ internal object CameraLutPreviewEffect {
     private val preparedCache = LinkedHashMap<String, PreparedEffect>()
     private data class ViewEffectState(
         var baseEffect: RenderEffect?,
+        var colorEffect: RenderEffect?,
         var appliedEffect: RenderEffect?
     )
     private val viewEffects = WeakHashMap<View, ViewEffectState>()
+
+    private fun composeAndApply(view: View, state: ViewEffectState) {
+        val composed = state.colorEffect?.let { color ->
+            state.baseEffect?.let { base -> RenderEffect.createChainEffect(color, base) } ?: color
+        } ?: state.baseEffect
+        state.appliedEffect = composed
+        view.setRenderEffect(composed)
+        view.invalidate()
+    }
+
+    /** Updates the zoom/base stage without replacing an already-installed color recipe. */
+    fun updateBaseEffect(view: View, baseEffect: RenderEffect?) {
+        if (Build.VERSION.SDK_INT < 31) return
+        val state = synchronized(viewEffects) {
+            val current = viewEffects[view]
+                ?: ViewEffectState(baseEffect, null, null).also { viewEffects[view] = it }
+            current.baseEffect = baseEffect
+            current
+        }
+        composeAndApply(view, state)
+        Log.d(TAG, "PREVIEW_EFFECT_CHAIN_UPDATED base=${baseEffect != null} color=${state.colorEffect != null}")
+    }
+
+    private fun updateColorEffect(view: View, colorEffect: RenderEffect?, baseEffect: RenderEffect?) {
+        if (Build.VERSION.SDK_INT < 31) return
+        val state = synchronized(viewEffects) {
+            val current = viewEffects[view]
+                ?: ViewEffectState(baseEffect, colorEffect, null).also { viewEffects[view] = it }
+            current.baseEffect = baseEffect
+            current.colorEffect = colorEffect
+            current
+        }
+        composeAndApply(view, state)
+    }
 
     private fun hasActiveColorRecipe(context: Context): Boolean {
         val params = ColorPipelineParams.from(context, "None")
@@ -333,14 +368,7 @@ internal object CameraLutPreviewEffect {
             )
         }
         val colorEffect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(matrix))
-        val composed = baseEffect?.let { base ->
-            RenderEffect.createChainEffect(colorEffect, base)
-        } ?: colorEffect
-        synchronized(viewEffects) {
-            viewEffects[view] = ViewEffectState(baseEffect, composed)
-        }
-        view.setRenderEffect(composed)
-        view.invalidate()
+        updateColorEffect(view, colorEffect, baseEffect)
         Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=ColorMatrix fallback=APPROX")
         CrashContextDiagnostics.recordUiEvent(
             "PREVIEW_FILTER_APPLIED id=$preset method=ColorMatrix fallback=APPROX"
@@ -356,36 +384,21 @@ internal object CameraLutPreviewEffect {
         baseEffect: RenderEffect? = null
     ): String {
         if (preset.isBlank() || (preset == "None" && prepared == null && !hasActiveColorRecipe(context))) {
-            clear(view)
+            updateColorEffect(view, null, baseEffect)
             return "OFF"
         }
         if (Build.VERSION.SDK_INT < 33) {
             return installColorMatrixFallback(context, view, preset, baseEffect)
         }
         val effect = prepared as? PreparedEffect ?: run {
-            clear(view)
+            updateColorEffect(view, null, baseEffect)
             Log.e(TAG, "PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_PREPARE_FAILED")
             CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_PREPARE_FAILED")
             return "LUT_UNAVAILABLE"
         }
         updateRecipeUniforms(context, preset, view, effect.shader)
         val lutEffect = RenderEffect.createRuntimeShaderEffect(effect.shader, "source")
-        val state = synchronized(viewEffects) {
-            val existing = viewEffects[view]
-            if (existing == null) {
-                ViewEffectState(baseEffect = baseEffect, appliedEffect = null).also {
-                    viewEffects[view] = it
-                }
-            } else {
-                existing.baseEffect = baseEffect
-                existing
-            }
-        }
-        val composed = baseEffect?.let { base ->
-            RenderEffect.createChainEffect(lutEffect, base)
-        } ?: lutEffect
-        state.appliedEffect = composed
-        view.setRenderEffect(composed)
+        updateColorEffect(view, lutEffect, baseEffect)
         Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU path=PreviewView.RenderEffect")
         CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU")
         return "AGSL_GPU"
@@ -400,18 +413,20 @@ internal object CameraLutPreviewEffect {
         }
         val prepared = preparedCache[preset] ?: prepare(context, preset)
         if (prepared == null) {
-            clear(view)
+            updateColorEffect(view, null, baseEffect)
             if (preset != "None") {
                 Log.e(TAG, "PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_NOT_FOUND")
                 CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED_FAILED id=$preset reason=LUT_NOT_FOUND")
             }
             return
         }
-        if (viewEffects[view]?.appliedEffect == null) {
+        val state = synchronized(viewEffects) { viewEffects[view] }
+        if (state?.colorEffect == null) {
             install(context, view, preset, prepared, baseEffect)
         } else {
+            state.baseEffect = baseEffect
             updateRecipeUniforms(context, preset, view, prepared.shader)
-            view.invalidate()
+            composeAndApply(view, state)
             Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU update=uniforms")
             CrashContextDiagnostics.recordUiEvent(
                 "PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU update=uniforms"
@@ -533,9 +548,8 @@ internal object CameraLutPreviewEffect {
         if (Build.VERSION.SDK_INT < 31) return
         val state = synchronized(viewEffects) { viewEffects.remove(view) }
         if (state != null) {
-            // View has no public RenderEffect getter. This effect owns the installed
-            // chain and restores the base effect explicitly supplied by the zoom renderer.
-            view.setRenderEffect(state.baseEffect)
+            // Dispose the whole chain only when the PreviewView itself leaves composition.
+            view.setRenderEffect(null)
         }
     }
 }

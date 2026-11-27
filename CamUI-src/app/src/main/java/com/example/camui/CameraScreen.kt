@@ -1813,8 +1813,8 @@ fun CameraScreen(
     val digitalZoomPreviewEffect = remember(previewView) { DigitalZoomPreviewEffect() }
     DisposableEffect(previewView, digitalZoomPreviewEffect) {
         onDispose {
-            CameraLutPreviewEffect.clear(previewView)
             digitalZoomPreviewEffect.clear(previewView)
+            CameraLutPreviewEffect.clear(previewView)
         }
     }
     LaunchedEffect(previewView, digitalZoomCropScale, digitalZoomPreviewEffect) {

@@ -40,18 +40,16 @@ internal class DigitalZoomPreviewEffect {
         ) {
             runtimeShader.setFloatUniform("viewSize", view.width.toFloat(), view.height.toFloat())
             runtimeShader.setFloatUniform("cropScale", ratio)
-            if (!renderEffectApplied) {
-                view.setRenderEffect(renderEffect)
-                renderEffectApplied = true
-            }
+            renderEffectApplied = true
+            CameraLutPreviewEffect.updateBaseEffect(view, renderEffect)
             view.scaleX = 1f
             view.scaleY = 1f
             return "AGSL_LANCZOS3"
         }
 
         if (Build.VERSION.SDK_INT >= 31 && renderEffectApplied) {
-            view.setRenderEffect(null)
             renderEffectApplied = false
+            CameraLutPreviewEffect.updateBaseEffect(view, null)
         }
         view.scaleX = ratio
         view.scaleY = ratio
@@ -63,8 +61,8 @@ internal class DigitalZoomPreviewEffect {
 
     fun clear(view: View) {
         if (Build.VERSION.SDK_INT >= 31 && renderEffectApplied) {
-            view.setRenderEffect(null)
             renderEffectApplied = false
+            CameraLutPreviewEffect.updateBaseEffect(view, null)
         }
         view.scaleX = 1f
         view.scaleY = 1f

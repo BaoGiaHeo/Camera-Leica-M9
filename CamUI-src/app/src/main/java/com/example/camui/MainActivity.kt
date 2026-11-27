@@ -407,7 +407,7 @@ class MainActivity : AppCompatActivity() {
                                 onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
                                 focusPeaking = focusPeaking,
                                 onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                                onReplayActivation = { page = "activation" },
+                                onReplayActivation = { },
                                 onOpenWatermarkPanel = {
                                     settingsSubpageReturnTarget = "settings"
                                     page = "watermark_panel"

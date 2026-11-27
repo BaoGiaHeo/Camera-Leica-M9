@@ -14,8 +14,8 @@ internal fun filterSliderValueFromPosition(
     if (!minimum.isFinite() || !maximum.isFinite() || maximum <= minimum) {
         return minimum.takeIf { it.isFinite() } ?: 0f
     }
-    val safeWidth = trackWidth.takeIf { it.isFinite() && it > 0f } ?: 1f
-    val fraction = (positionX / safeWidth)
+    if (!trackWidth.isFinite() || trackWidth <= 0f) return minimum
+    val fraction = (positionX / trackWidth)
         .takeIf { it.isFinite() }
         ?.coerceIn(0f, 1f)
         ?: 0f

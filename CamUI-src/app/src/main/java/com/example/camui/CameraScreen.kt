@@ -2511,18 +2511,41 @@ fun CameraScreen(
                 val softwareStackCaptureRequested = !rawCaptureActive && !livePhotoEnabled &&
                     (lunaDreamRequestedInPrefs || (mode == "Pro" && nightShotMode != "off"))
                 if (softwareStackCaptureRequested) {
-                    Camera2Interop.Extender(captureBuilder)
-                        .setCaptureRequestOption(
+                    val stackCameraCharacteristics = runCatching {
+                        val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                        activeFacingId?.takeIf { it.isNotBlank() }?.let { cameraId ->
+                            manager.getCameraCharacteristics(cameraId)
+                        }
+                    }.getOrNull()
+                    val availableNoiseModes = stackCameraCharacteristics?.get(
+                        CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES
+                    )
+                    val availableEdgeModes = stackCameraCharacteristics?.get(
+                        CameraCharacteristics.EDGE_AVAILABLE_EDGE_MODES
+                    )
+                    val canDisableNoiseReduction = availableNoiseModes?.contains(
+                        CaptureRequest.NOISE_REDUCTION_MODE_OFF
+                    ) == true
+                    val canUseFastEdge = availableEdgeModes?.contains(
+                        CaptureRequest.EDGE_MODE_FAST
+                    ) == true
+                    val stackCaptureExtender = Camera2Interop.Extender(captureBuilder)
+                    if (canDisableNoiseReduction) {
+                        stackCaptureExtender.setCaptureRequestOption(
                             CaptureRequest.NOISE_REDUCTION_MODE,
                             CaptureRequest.NOISE_REDUCTION_MODE_OFF
                         )
-                        .setCaptureRequestOption(
+                    }
+                    if (canUseFastEdge) {
+                        stackCaptureExtender.setCaptureRequestOption(
                             CaptureRequest.EDGE_MODE,
                             CaptureRequest.EDGE_MODE_FAST
                         )
+                    }
                     android.util.Log.i(
                         "FUJI_CAPTURE",
-                        "SOFTWARE_STACK_FAST_PIPELINE noiseReduction=OFF edge=FAST zsl=$zslSupported flash=OFF"
+                        "SOFTWARE_STACK_FAST_PIPELINE noiseReduction=${if (canDisableNoiseReduction) "OFF" else "HAL_DEFAULT"} " +
+                            "edge=${if (canUseFastEdge) "FAST" else "HAL_DEFAULT"} zsl=$zslSupported flash=OFF"
                     )
                 }
                 if (outputFormat != ImageCapture.OUTPUT_FORMAT_JPEG) {
@@ -4647,6 +4670,20 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 android.util.Log.w(
                                                     "FUJI_SENSOR_BURST",
                                                     "mode=$frameModeForTiming no ImageProxy sensor timestamps were returned (RAW+JPEG capture path)"
+                                                )
+                                            }
+                                            if (burstElapsedMs > 1_000L && (captureUseLunaDream || captureUseNightShot)) {
+                                                val camWarning = if (captureUseNightShot) {
+                                                    "CAM: Night Shot thu ${stackedFrames.size} khung mất ${burstElapsedMs}ms (>1s). " +
+                                                        "Kiểm tra SENSOR_TIMESTAMP, thời gian phơi sáng và giới hạn HAL; không thể ép cảm biến vượt thời gian phơi sáng vật lý."
+                                                } else {
+                                                    "CAM: LunaDream thu ${stackedFrames.size} khung mất ${burstElapsedMs}ms (>1s). " +
+                                                        "Kiểm tra SENSOR_TIMESTAMP và giới hạn tốc độ của HAL."
+                                                }
+                                                android.util.Log.w("FUJI_CAM_WARNING", camWarning)
+                                                CaptureDiagnostics.recordWarning(context, camWarning)
+                                                CrashContextDiagnostics.recordUiEvent(
+                                                    "CAM_WARNING mode=${if (captureUseNightShot) "NightShot" else lunaDreamMode} elapsedMs=$burstElapsedMs targetMs=1000"
                                                 )
                                             }
                                             if (captureUseNightShot) {

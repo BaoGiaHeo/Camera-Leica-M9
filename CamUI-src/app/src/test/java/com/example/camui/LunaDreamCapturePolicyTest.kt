@@ -48,19 +48,26 @@ class LunaDreamCapturePolicyTest {
     }
 
     @Test
-    fun rawDreamFormatMismatchGuardStillProtectsPhotoMode() {
+    fun rawDreamFormatMismatchGuardProtectsTheProOnlyCameraMode() {
         assertTrue(
             LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
-                cameraMode = "Photo",
+                cameraMode = "Pro",
                 rawDreamSelected = true,
                 imageCaptureUsesRawJpeg = false
             )
         )
         assertFalse(
             LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
-                cameraMode = "Photo",
+                cameraMode = "Pro",
                 rawDreamSelected = true,
                 imageCaptureUsesRawJpeg = true
+            )
+        )
+        assertFalse(
+            LunaDreamCapturePolicy.shouldRejectRawDreamFormatMismatch(
+                cameraMode = "Video",
+                rawDreamSelected = true,
+                imageCaptureUsesRawJpeg = false
             )
         )
     }

@@ -1453,7 +1453,7 @@ fun CameraScreen(
     // NightShot must use normal auto exposure: lock EV at zero and do not expose
     // the regular EV slider while either NightShot capture mode is selected.
     LaunchedEffect(nightShotMode, mode, camera) {
-        if (mode == "Photo" && nightShotMode != "off") {
+        if (mode == "Pro" && nightShotMode != "off") {
             evIndex = 0
             camera?.let { active ->
                 runCatching {
@@ -1942,7 +1942,7 @@ fun CameraScreen(
             val rawDreamRequested = rawCaptureMode == "raw_dream" &&
                 !nativeImageProcessingEnabled && !livePhotoEnabled
             val rawCaptureRequested = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                mode == "Photo" && nightShotMode == "off" &&
+                mode == "Pro" && nightShotMode == "off" &&
                 (lunaDreamMode == "off" || rawDreamRequested) &&
                 !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled && rawCaptureMode != "jpeg"
             val requestedRawFormat = when (rawCaptureMode) {
@@ -1976,7 +1976,7 @@ fun CameraScreen(
             // Prefer the OEM AUTO extension, then HDR, while Native Image Processing is active.
             // CameraX applies the selected vendor extension to Preview and ImageCapture.
             val nativeProcessingExtensionMode = if (
-                nativeImageProcessingEnabled && mode == "Photo" && nightShotMode == "off" &&
+                nativeImageProcessingEnabled && mode == "Pro" && nightShotMode == "off" &&
                 !rawCaptureActive && !burstMode && !hdrBracketMode && !focusBracketMode
             ) {
                 listOf(ExtensionMode.AUTO, ExtensionMode.HDR).firstOrNull { extensionMode ->
@@ -2014,7 +2014,7 @@ fun CameraScreen(
             // single high-gain/long-shutter exposure, which is not the requested behaviour.
             nightExtensionActive = false
             val hdrCaptureRequested = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                hdrEnabled && mode == "Photo" &&
+                hdrEnabled && mode == "Pro" &&
                 nightShotMode == "off" && !rawCaptureActive &&
                 !(manualExposure && (manualIsoEnabled || manualShutterEnabled))
             // HDRbyHDMP is the common software path for all devices and HDMP levels.
@@ -2517,7 +2517,7 @@ fun CameraScreen(
                     "High" -> 92
                     else -> 100
                 })
-                if (mode == "Photo" && nightShotMode == "night") {
+                if (mode == "Pro" && nightShotMode == "night") {
                     Camera2Interop.Extender(captureBuilder)
                         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
                         .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
@@ -2527,8 +2527,8 @@ fun CameraScreen(
                 // repeating options into one-shot still captures; avoid stale builder values.
                 val isComputationalHighResolution = !livePhotoEnabled &&
                     (lunaDreamRequestedInPrefs || uhdCaptureEnabled || fhdCaptureEnabled ||
-                        uhdPlusCaptureEnabled || (mode == "Photo" && nightShotMode == "night"))
-                val isOrdinaryPhotoJpeg = mode == "Photo" &&
+                        uhdPlusCaptureEnabled || (mode == "Pro" && nightShotMode == "night"))
+                val isOrdinaryPhotoJpeg = mode == "Pro" &&
                     (nightShotMode == "off" || livePhotoEnabled) &&
                     !rawCaptureActive && !isComputationalHighResolution
                 if (rawCaptureActive) {
@@ -2587,7 +2587,7 @@ fun CameraScreen(
                     )
                 }
                 if (!hdrExtensionActive && !nightExtensionActive &&
-                    nightShotMode == "star_trails" && mode == "Photo"
+                    nightShotMode == "star_trails" && mode == "Pro"
                 ) {
                     val characteristics = activeFacingId?.let { id ->
                         runCatching { cameraManager.getCameraCharacteristics(id) }.getOrNull()
@@ -3745,10 +3745,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             return
         }
         val rawModeConflictsWithComputationalCapture = !nativeImageProcessingEnabled && (
-            (mode == "Photo" && rawCaptureMode == "raw" &&
+            (mode == "Pro" && rawCaptureMode == "raw" &&
                 (nightShotMode != "off" || lunaDreamMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                     uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode)) ||
-            (mode == "Photo" && rawCaptureMode == "raw_dream" &&
+            (mode == "Pro" && rawCaptureMode == "raw_dream" &&
                 (nightShotMode != "off" || uhdCaptureEnabled || fhdCaptureEnabled ||
                     uhdPlusCaptureEnabled || burstMode || hdrBracketMode || focusBracketMode))
         )
@@ -3782,7 +3782,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             return
         }
         if (!livePhotoEnabled && (hdrBracketMode || focusBracketMode) &&
-            mode == "Photo" && nightShotMode == "off" &&
+            mode == "Pro" && nightShotMode == "off" &&
             rawCaptureMode == "jpeg" && lunaDreamMode == "off" &&
             !uhdCaptureEnabled && !fhdCaptureEnabled && !uhdPlusCaptureEnabled
         ) {
@@ -4007,7 +4007,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             isProcessing || livePhotoCaptureInProgress ||
             nightShotCaptureInProgress || starTrailCaptureInProgress
         ) return
-        if (mode == "Photo" && nightShotMode == "star_trails") {
+        if (mode == "Pro" && nightShotMode == "star_trails") {
             val activeCapture = imageCapture ?: return
             val activeCamera = camera ?: return
             startStarTrailSession(activeCapture, activeCamera)
@@ -4067,9 +4067,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             val captureRawOnly = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW
             val captureRawPlus = capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG
             val captureUseRawDream20 = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                mode == "Photo" && rawCaptureMode == "raw_dream"
+                mode == "Pro" && rawCaptureMode == "raw_dream"
             val lunaDreamSelected = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                (mode == "Photo" || mode == "Pro") &&
+                (mode == "Pro" || mode == "Pro") &&
                 (lunaDreamMode != "off" || captureUseRawDream20)
             val lunaDreamJpegCaptureAllowed = LunaDreamCapturePolicy.supportsStackedJpegCapture(
                 cameraMode = mode,
@@ -4130,7 +4130,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 )
             }
             val captureUseNightShot = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                mode == "Photo" && nightShotMode == "night" && !captureUseLunaDream
+                mode == "Pro" && nightShotMode == "night" && !captureUseLunaDream
             val captureUseMilkyWayStack = captureUseNightShot && !front &&
                 kotlin.math.abs(zoomSel - 1f) < 0.08f && milkyWayStackEnabled &&
                 rawCaptureMode == "jpeg" && !captureRawPlus && !captureRawOnly &&
@@ -7334,7 +7334,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     }
                                 }
                             }
-                        } else if (mode == "Photo" && nightShotMode != "off") {
+                        } else if (mode == "Pro" && nightShotMode != "off") {
                             Row(
                                 Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically

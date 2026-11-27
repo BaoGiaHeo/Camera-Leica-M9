@@ -257,9 +257,8 @@ private class SensorOrientationManager {
         }
         smoothedDegrees = filtered
 
-        // Only landscape quadrants are accepted. Portrait quadrants return the last
-        // landscape orientation, preventing portrait ImageCapture target rotation.
-        val candidate = LandscapeRotationPolicy.landscapeCandidate(filtered) ?: return lastValidRotation
+        // Accept all four quadrants; hysteresis below rejects borderline hand movement.
+        val candidate = DeviceRotationPolicy.rotationCandidate(filtered)
         val current = lastValidRotation
         if (current == null) {
             lastValidRotation = candidate
@@ -498,16 +497,15 @@ fun CameraScreen(
     DisposableEffect(faceDetector) {
         onDispose { runCatching { faceDetector.close() } }
     }
-    val initialLandscapeRotation = remember(localView) {
-        val displayRotation = localView.display?.rotation ?: Surface.ROTATION_90
-        if (displayRotation == Surface.ROTATION_270) Surface.ROTATION_270 else Surface.ROTATION_90
+    val initialDeviceRotation = remember(localView) {
+        localView.display?.rotation ?: Surface.ROTATION_0
     }
-    var targetRotation by remember { mutableIntStateOf(initialLandscapeRotation) }
+    var targetRotation by remember { mutableIntStateOf(initialDeviceRotation) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    // Activity orientation and CameraX capture geometry are both landscape-only.
-    // A portrait sensor reading keeps the most recent landscape rotation.
-    var isLandscape by remember { mutableStateOf(true) }
-    val uiIsLandscape = true
+    var isLandscape by remember {
+        mutableStateOf(initialDeviceRotation == Surface.ROTATION_90 || initialDeviceRotation == Surface.ROTATION_270)
+    }
+    val uiIsLandscape = isLandscape
     DisposableEffect(context) {
         val orientationManager = SensorOrientationManager()
         val orientationListener = object : OrientationEventListener(context) {
@@ -1346,33 +1344,30 @@ fun CameraScreen(
         }
     }
 
-    // The camera screen and capture output remain landscape. Portrait sensor readings are ignored.
+    // Orientation changes update existing CameraX use cases via setTargetRotation().
+    // The UseCaseGroup remains bound; no provider.unbindAll()/rebind is triggered by rotation.
     LaunchedEffect(targetRotation) {
         val nextLandscape = targetRotation == Surface.ROTATION_90 ||
             targetRotation == Surface.ROTATION_270
         if (nextLandscape == isLandscape) return@LaunchedEffect
 
-        val previousBindGeneration = cameraBindGeneration
         previewOrientationAlpha.animateTo(
             0f,
-            animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing)
         )
         isLandscape = nextLandscape
-
-        val waitStartedAt = SystemClock.elapsedRealtime()
-        while (SystemClock.elapsedRealtime() - waitStartedAt < 2_800L) {
-            val newBindingStarted = cameraBindGeneration > previousBindGeneration
-            if (newBindingStarted && captureSetupReady && camera != null &&
-                boundCameraLandscape == nextLandscape
-            ) {
-                break
-            }
-            delay(24L)
-        }
-
+        // Let Compose place the portrait/landscape panels before revealing the live viewfinder.
+        withFrameNanos { }
         previewOrientationAlpha.animateTo(
             1f,
-            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+        )
+        CrashContextDiagnostics.recordUiEvent(
+            "ORIENTATION_UI_CHANGED rotation=$targetRotation landscape=$nextLandscape cameraBindGeneration=$cameraBindGeneration"
+        )
+        android.util.Log.i(
+            "FUJI_ORIENTATION",
+            "UI_CHANGED rotation=$targetRotation landscape=$nextLandscape bindGeneration=$cameraBindGeneration (no rebind)"
         )
     }
 
@@ -1955,7 +1950,7 @@ fun CameraScreen(
     // Preview and JPEG share one CameraX ViewPort. A generation guard prevents delayed
     // ProcessCameraProvider callbacks from applying geometry from an earlier rotation.
     LaunchedEffect(
-        hasCam, front, ratioIdx, ultraHdr, isLandscape, renderEngine,
+        hasCam, front, ratioIdx, ultraHdr, renderEngine,
         nativeImageProcessingEnabled, livePhotoEnabled, uhdCaptureEnabled, fhdCaptureEnabled, uhdPlusCaptureEnabled, hdrEnabled, nightShotMode,
         starTrailExposureSeconds, mode, burstMode, hdrBracketMode, focusBracketMode,
         previewFpsMode
@@ -2136,6 +2131,8 @@ fun CameraScreen(
             val rotation = targetRotation
             // Match CameraX Preview/ImageCapture crop geometry to the selected frame ratio.
             // aspectRatioForOrientation returns image height / width for the current grip.
+            // Freeze the ViewPort's sensor-space crop at bind time. Later orientation changes
+            // rotate existing use cases via setTargetRotation() while preserving the same sensor FOV.
             val selectedHeightOverWidth = aspectRatioForOrientation(ratioIdx, isLandscape)
             val ratio = Rational(
                 1000,
@@ -3522,14 +3519,18 @@ fun CameraScreen(
         // The shutter must never pulse the LED: illumination is controlled only by Torch Mode.
         imageCapture?.flashMode = ImageCapture.FLASH_MODE_OFF
     }
-    LaunchedEffect(targetRotation, isLandscape, imageCapture, previewUseCase, analysisUseCase, videoCaptureUseCase) {
+    LaunchedEffect(targetRotation, imageCapture, previewUseCase, analysisUseCase, videoCaptureUseCase) {
         imageCapture?.targetRotation = targetRotation
         previewUseCase?.targetRotation = targetRotation
         analysisUseCase?.targetRotation = targetRotation
         videoCaptureUseCase?.targetRotation = targetRotation
-        // Record the latest physical orientation after both sensor rotation and preview geometry update.
+        // CameraX updates rotation metadata/crop without rebuilding the UseCaseGroup.
         boundCameraRotation = targetRotation
-        boundCameraLandscape = isLandscape
+        boundCameraLandscape = targetRotation == Surface.ROTATION_90 || targetRotation == Surface.ROTATION_270
+        CrashContextDiagnostics.recordUiEvent(
+            "CAMERAX_TARGET_ROTATION rotation=$targetRotation landscape=$boundCameraLandscape bindGeneration=$cameraBindGeneration"
+        )
+        android.util.Log.i("FUJI_ORIENTATION", "CAMERAX_TARGET_ROTATION rotation=$targetRotation bindGeneration=$cameraBindGeneration")
     }
 
     // Restore the latest app-owned photo after relaunch, then refresh its thumbnail.

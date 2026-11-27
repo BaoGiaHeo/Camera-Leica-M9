@@ -2,25 +2,22 @@ package com.example.camui
 
 import android.view.Surface
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
-class LandscapeRotationPolicyTest {
+class DeviceRotationPolicyTest {
     @Test
-    fun portraitQuadrantsNeverProducePortraitCaptureRotation() {
-        listOf(0f, 20f, 44f, 135f, 180f, 220f, 224f, 315f, 340f).forEach { degrees ->
-            assertNull(
-                "Portrait sensor angle $degrees must not select a portrait rotation",
-                LandscapeRotationPolicy.landscapeCandidate(degrees)
-            )
-        }
+    fun mapsAllFourPhysicalOrientations() {
+        assertEquals(Surface.ROTATION_0, DeviceRotationPolicy.rotationCandidate(0f))
+        assertEquals(Surface.ROTATION_0, DeviceRotationPolicy.rotationCandidate(20f))
+        assertEquals(Surface.ROTATION_270, DeviceRotationPolicy.rotationCandidate(90f))
+        assertEquals(Surface.ROTATION_180, DeviceRotationPolicy.rotationCandidate(180f))
+        assertEquals(Surface.ROTATION_90, DeviceRotationPolicy.rotationCandidate(270f))
+        assertEquals(Surface.ROTATION_0, DeviceRotationPolicy.rotationCandidate(359f))
     }
 
     @Test
-    fun landscapeQuadrantsMapOnlyToNinetyOrTwoSeventy() {
-        assertEquals(Surface.ROTATION_270, LandscapeRotationPolicy.landscapeCandidate(90f))
-        assertEquals(Surface.ROTATION_270, LandscapeRotationPolicy.landscapeCandidate(130f))
-        assertEquals(Surface.ROTATION_90, LandscapeRotationPolicy.landscapeCandidate(230f))
-        assertEquals(Surface.ROTATION_90, LandscapeRotationPolicy.landscapeCandidate(270f))
+    fun handlesAnglesOutsideOneTurn() {
+        assertEquals(Surface.ROTATION_270, DeviceRotationPolicy.rotationCandidate(450f))
+        assertEquals(Surface.ROTATION_90, DeviceRotationPolicy.rotationCandidate(-90f))
     }
 }

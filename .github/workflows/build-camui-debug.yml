@@ -1,4 +1,4 @@
-name: FujiFilm Mode 2.9.2 P3 Debug APK
+name: FujiFilm Mode 3.0.0 Debug APK
 
 on:
   push:
@@ -8,10 +8,11 @@ on:
       - fuji-2.9.2-g1
       - fuji-2.9.2-p3-color-pipeline
       - fuji-2.9.2-boot-ui-shutter
+      - fuji-3.0.0
   workflow_dispatch:
 
 concurrency:
-  group: fuji-2.9.2-debug
+  group: fuji-3.0.0-debug
   cancel-in-progress: true
 
 permissions:
@@ -61,7 +62,7 @@ jobs:
       - name: Upload app-debug.apk
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-2.9.2-P3-Debug
+          name: FujiFilm-Mode-3.0.0-Debug
           path: |
             CamUI-src/app/build/outputs/apk/debug/app-debug.apk
             CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt

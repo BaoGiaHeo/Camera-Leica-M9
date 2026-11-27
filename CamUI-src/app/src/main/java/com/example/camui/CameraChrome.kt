@@ -99,7 +99,7 @@ internal fun FujiCameraKey(
                             tryAwaitRelease()
                         } finally {
                             repeatJob?.cancel()
-                            if (holdFired[0]) holdEnd.value?.invoke()
+                            if (holdFired[0]) holdEnd?.invoke()
                             pressed = false
                         }
                     },

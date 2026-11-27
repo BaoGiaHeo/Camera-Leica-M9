@@ -52,7 +52,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -504,9 +506,9 @@ class MainActivity : AppCompatActivity() {
 @androidx.compose.runtime.Composable
 private fun FujifilmBootSplash() {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 30.dp),
+        Modifier.fillMaxSize().padding(horizontal = 30.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(22.dp)
+        verticalArrangement = Arrangement.Center
     ) {
         Image(
             painter = painterResource(R.drawable.fujifilm_logo_white),
@@ -514,6 +516,7 @@ private fun FujifilmBootSplash() {
             modifier = Modifier.width(260.dp).height(58.dp),
             contentScale = ContentScale.Fit
         )
+        Spacer(Modifier.height(22.dp))
         Text(
             "LƯU Ý APP NÀY LÀ GIẢ LẬP MÔ PHỎNG MÁY ẢNH FUJIFILM KHÔNG PHẢI SẢN PHẨM CHÍNH THỨC VUI LÒNG KHÔNG BÁN THƯƠNG MẠI VỚI BẤT KỲ HÌNH THỨC NÀO",
             color = ComposeColor(0xFFD8283C),

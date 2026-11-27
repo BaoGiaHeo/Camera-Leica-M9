@@ -7446,23 +7446,18 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             stepFraction = 1f / span,
                                             onPositionChange = { fraction ->
                                                 val value = (range.lower + fraction * span).roundToInt()
-                                                evIndex = value
-                                                camera?.let { active ->
-                                                    runCatching {
-                                                        applyAutoExposure(active)
-                                                        active.cameraControl.setExposureCompensationIndex(value)
-                                                    }
-                                                }
+                                                queueEvCommand(value)
                                             },
+                                            onPositionCommit = { commitEvCommand() },
                                             onBack = { proSel = null },
-                                        onAuto = {
-                                                evIndex = 0
+                                            onAuto = {
+                                                evCommandJob?.cancel()
+                                                evCommandJob = null
                                                 camera?.let { active ->
-                                                    runCatching {
-                                                        applyAutoExposure(active)
-                                                        active.cameraControl.setExposureCompensationIndex(0)
-                                                    }
+                                                    runCatching { applyAutoExposure(active) }
                                                 }
+                                                queueEvCommand(0)
+                                                commitEvCommand()
                                             }
                                         )
                                     } else {

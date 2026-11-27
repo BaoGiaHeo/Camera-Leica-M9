@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,13 +50,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
@@ -253,6 +258,12 @@ class MainActivity : AppCompatActivity() {
                 LocalActivityResultRegistryOwner provides this@MainActivity
             ) {
             CamTheme {
+                var bootSplashVisible by remember { mutableStateOf(true) }
+                LaunchedEffect(Unit) {
+                    // Keep the splash visible while the underlying camera composition starts.
+                    delay(1_050L)
+                    bootSplashVisible = false
+                }
                 var page by remember { mutableStateOf(if (showInitialActivation) "activation" else "camera") }
                 LaunchedEffect(page) { CrashContextDiagnostics.updateRoute(page) }
                 var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
@@ -423,9 +434,36 @@ class MainActivity : AppCompatActivity() {
                             else -> Spacer(Modifier.fillMaxSize())
                         }
                     }
+                    if (bootSplashVisible) FujifilmBootSplash()
                 }
             }
             }
         }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun FujifilmBootSplash() {
+    Box(
+        Modifier.fillMaxSize().background(ComposeColor(0xFF08090A)),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.fujifilm_wordmark),
+            contentDescription = "FUJIFILM",
+            modifier = Modifier.width(260.dp).height(58.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text(
+            text = "FUJIFILM MODE  ·  CAMERA INITIALIZING",
+            color = ComposeColor(0xFFB8B8B8),
+            fontSize = 10.sp,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 42.dp)
+        )
+        Box(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 29.dp)
+                .width(74.dp).height(2.dp).background(ComposeColor(0xFFDA2635))
+        )
     }
 }

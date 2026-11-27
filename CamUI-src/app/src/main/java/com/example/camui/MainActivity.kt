@@ -24,8 +24,14 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivityResultRegistryOwner
@@ -265,7 +271,58 @@ class MainActivity : AppCompatActivity() {
                     bootSplashVisible = false
                 }
                 var page by remember { mutableStateOf("camera") }
-                LaunchedEffect(page) { CrashContextDiagnostics.updateRoute(page) }
+                // Keep CameraScreen and its PreviewView alive; settings pages are a separate overlay.
+                var overlayPage by remember { mutableStateOf("settings") }
+                var overlayVisible by remember { mutableStateOf(false) }
+                val overlayAlpha = remember { Animatable(0f) }
+                val overlayScale = remember { Animatable(0.985f) }
+                val overlayOffsetY = remember { Animatable(0f) }
+                val overlayOffsetX = remember { Animatable(0f) }
+                val overlayDimAlpha = remember { Animatable(0f) }
+                val density = LocalDensity.current
+                val overlayEnterOffsetY = with(density) { 8.dp.toPx() }
+                val overlayTabOffsetX = with(density) { 12.dp.toPx() }
+
+                LaunchedEffect(page, animationPerformanceMode, reducedMotion) {
+                    if (page == "camera") {
+                        if (overlayVisible) {
+                            val duration = if (reducedMotion) 0 else if (animationPerformanceMode) 70 else Tuning.SETTINGS_EXIT_MS
+                            coroutineScope {
+                                launch { overlayAlpha.animateTo(0f, tween(duration, easing = FastOutSlowInEasing)) }
+                                launch { overlayScale.animateTo(0.995f, tween(duration, easing = FastOutSlowInEasing)) }
+                                launch { overlayOffsetY.animateTo(overlayEnterOffsetY, tween(duration, easing = FastOutSlowInEasing)) }
+                                launch { overlayDimAlpha.animateTo(0f, tween(duration, easing = FastOutSlowInEasing)) }
+                            }
+                            overlayVisible = false
+                        }
+                    } else if (!overlayVisible) {
+                        overlayPage = page
+                        overlayVisible = true
+                        overlayAlpha.snapTo(0f)
+                        overlayScale.snapTo(0.985f)
+                        overlayOffsetY.snapTo(overlayEnterOffsetY)
+                        overlayOffsetX.snapTo(0f)
+                        overlayDimAlpha.snapTo(0f)
+                        val duration = if (reducedMotion) 0 else if (animationPerformanceMode) 90 else Tuning.SETTINGS_ENTER_MS
+                        coroutineScope {
+                            launch { overlayAlpha.animateTo(1f, tween(duration, easing = FastOutSlowInEasing)) }
+                            launch { overlayScale.animateTo(1f, tween(duration, easing = FastOutSlowInEasing)) }
+                            launch { overlayOffsetY.animateTo(0f, tween(duration, easing = FastOutSlowInEasing)) }
+                            launch { overlayDimAlpha.animateTo(0.85f, tween(duration, easing = FastOutSlowInEasing)) }
+                        }
+                    } else if (overlayPage != page) {
+                        val exitDuration = if (reducedMotion) 0 else if (animationPerformanceMode) 70 else 100
+                        overlayAlpha.animateTo(0f, tween(exitDuration, easing = FastOutSlowInEasing))
+                        overlayPage = page
+                        overlayOffsetX.snapTo(overlayTabOffsetX)
+                        val enterDuration = if (reducedMotion) 0 else if (animationPerformanceMode) 90 else Tuning.SETTINGS_TAB_MS
+                        coroutineScope {
+                            launch { overlayAlpha.animateTo(1f, tween(enterDuration, easing = FastOutSlowInEasing)) }
+                            launch { overlayOffsetX.animateTo(0f, tween(enterDuration, easing = FastOutSlowInEasing)) }
+                        }
+                    }
+                    CrashContextDiagnostics.updateRoute(page)
+                }
                 var settingsSubpageReturnTarget by remember { mutableStateOf("camera") }
                 var manualAnimationPerformanceMode by remember {
                     mutableStateOf(settingsPrefs.getBoolean("animation_performance_mode_enabled", false))
@@ -363,78 +420,74 @@ class MainActivity : AppCompatActivity() {
                         onOpenWatermarkPanel = { settingsSubpageReturnTarget = "camera"; page = "watermark_panel" }
                     )
                     }
-                    AnimatedContent(
-                        targetState = page,
-                        modifier = Modifier.fillMaxSize().animaTPageRotation(
-                            pageKey = page,
-                            returningToCamera = page == "camera",
-                            performanceMode = animationPerformanceMode,
-                            reducedMotion = reducedMotion
-                        ),
-                        transitionSpec = {
-                            AnimaT.enter(animationPerformanceMode, reducedMotion) togetherWith
-                                AnimaT.exit(animationPerformanceMode, reducedMotion)
-                        },
-                        label = "FujiFilm Mode page transition"
-                    ) { targetPage ->
-                        when (targetPage) {
-                            "activation" -> ActivationScreen(
-                                onComplete = {
-                                    settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
-                                    page = "camera"
-                                }
-                            )
-                            "camera" -> Spacer(Modifier.fillMaxSize())
-                            "settings" -> Box(
-                                Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                SettingsScreen(
-                                onBack = { page = "camera" },
-                                onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },
-                                onOpenContentsManagement = { settingsSubpageReturnTarget = "settings"; page = "contents" },
-                                ratioIdx = ratioIdx,
-                                onRatio = {
-                                    ratioIdx = it.coerceIn(0, 3)
-                                    settingsPrefs.edit()
-                                        .putInt("capture_ratio_index", ratioIdx)
-                                        .putBoolean("capture_ratio_index_v20202", true)
-                                        .apply()
-                                },
-                                showGrid = showGrid,
-                                onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
-                                showHist = showHist,
-                                onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
-                                focusPeaking = focusPeaking,
-                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                                onReplayActivation = { },
-                                onOpenWatermarkPanel = {
-                                    settingsSubpageReturnTarget = "settings"
-                                    page = "watermark_panel"
-                                },
-                                modifier = Modifier.fillMaxWidth(0.66f).fillMaxHeight(0.78f)
-                            )
+                    if (overlayVisible) {
+                        // The dim layer is independent from the panel; it never crossfades a full-screen camera.
+                        Box(
+                            Modifier.fillMaxSize()
+                                .background(ComposeColor.Black.copy(alpha = overlayDimAlpha.value))
+                        )
+                        Box(
+                            Modifier.fillMaxSize().graphicsLayer {
+                                alpha = overlayAlpha.value
+                                scaleX = overlayScale.value
+                                scaleY = overlayScale.value
+                                translationY = overlayOffsetY.value
+                                translationX = overlayOffsetX.value
                             }
-                            "toolbox" -> ToolboxScreen(
-                                onBack = { page = settingsSubpageReturnTarget },
-                                showGrid = showGrid,
-                                onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
-                                showHist = showHist,
-                                onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
-                                focusPeaking = focusPeaking,
-                                onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                                animationPerformanceMode = manualAnimationPerformanceMode,
-                                onAnimationPerformanceModeChanged = {
-                                    manualAnimationPerformanceMode = it
-                                    settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
-                                },
-                            )
-                            "watermark_panel" -> WatermarkPanelScreen(onBack = { page = settingsSubpageReturnTarget })
-                            "contents" -> ContentManagementScreen(onBack = { page = settingsSubpageReturnTarget })
-                            else -> Spacer(Modifier.fillMaxSize())
+                        ) {
+                            when (overlayPage) {
+                                "activation" -> ActivationScreen(
+                                    onComplete = {
+                                        settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
+                                        page = "camera"
+                                    }
+                                )
+                                "settings" -> SettingsScreen(
+                                    onBack = { page = "camera" },
+                                    onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },
+                                    onOpenContentsManagement = { settingsSubpageReturnTarget = "settings"; page = "contents" },
+                                    ratioIdx = ratioIdx,
+                                    onRatio = {
+                                        ratioIdx = it.coerceIn(0, 3)
+                                        settingsPrefs.edit()
+                                            .putInt("capture_ratio_index", ratioIdx)
+                                            .putBoolean("capture_ratio_index_v20202", true)
+                                            .apply()
+                                    },
+                                    showGrid = showGrid,
+                                    onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
+                                    showHist = showHist,
+                                    onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
+                                    focusPeaking = focusPeaking,
+                                    onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                                    onReplayActivation = { },
+                                    onOpenWatermarkPanel = {
+                                        settingsSubpageReturnTarget = "settings"
+                                        page = "watermark_panel"
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                "toolbox" -> ToolboxScreen(
+                                    onBack = { page = settingsSubpageReturnTarget },
+                                    showGrid = showGrid,
+                                    onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
+                                    showHist = showHist,
+                                    onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
+                                    focusPeaking = focusPeaking,
+                                    onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                                    animationPerformanceMode = manualAnimationPerformanceMode,
+                                    onAnimationPerformanceModeChanged = {
+                                        manualAnimationPerformanceMode = it
+                                        settingsPrefs.edit().putBoolean("animation_performance_mode_enabled", it).apply()
+                                    },
+                                )
+                                "watermark_panel" -> WatermarkPanelScreen(onBack = { page = settingsSubpageReturnTarget })
+                                "contents" -> ContentManagementScreen(onBack = { page = settingsSubpageReturnTarget })
+                                else -> Spacer(Modifier.fillMaxSize())
+                            }
                         }
                     }
-                    if (bootSplashVisible) FujifilmBootSplash()
+                    if (bootSplashVisible) FujifilmBootSplash()                    if (bootSplashVisible) FujifilmBootSplash()
                 }
             }
             }

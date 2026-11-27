@@ -12,6 +12,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -151,8 +153,26 @@ fun SettingsScreen(
                     Text("%02d/%02d".format(activeIndex, visibleSettingItems.size), color = FujiSkin.lcdGreen,
                         fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
-                SettingsDetailPage(
-                    title = selectedCategory,
+                AnimatedContent(
+                    targetState = selectedCategory,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    transitionSpec = {
+                        (fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
+                            slideInHorizontally(
+                                initialOffsetX = { it / 24 },
+                                animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
+                                )
+                }) togetherWith
+                            (fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)) +
+                                slideOutHorizontally(
+                                    targetOffsetX = { -it / 36 },
+                                    animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)
+                                ))
+                    },
+                    label = "Settings detail tab"
+                ) { detailTitle ->
+                    SettingsDetailPage(
+                    title = detailTitle,
                 onBack = {},
                 ratioIdx = ratioIdx,
                 onRatio = onRatio,
@@ -163,7 +183,7 @@ fun SettingsScreen(
                 focusPeaking = focusPeaking,
                 onFocusPeaking = onFocusPeaking,
                 embedded = true,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.fillMaxSize(),
                 onOpenBackup = {
                     categoryBeforeBackup = selectedCategory
                     selectedCategory = "Sao lưu & Khôi phục"

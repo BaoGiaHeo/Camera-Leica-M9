@@ -584,7 +584,7 @@ var nightShotMode by remember {
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            "Sao lưu & Khôi phục" -> {            "Sao lưu & Khôi phục" -> {
+            "Sao lưu & Khôi phục" -> {
                 BackupRestorePanel(onRestoreComplete = {
                     onRatio(prefs.getInt("capture_ratio_index", 1).coerceIn(0, 4))
                     onShowGrid(prefs.getBoolean("viewfinder_grid_enabled", true))

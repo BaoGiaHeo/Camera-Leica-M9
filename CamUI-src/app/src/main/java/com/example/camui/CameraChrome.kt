@@ -154,6 +154,8 @@ internal fun FujiEvRuler(
     maximum: Int,
     heightDp: Dp = 24.dp,
     scale: Float = 1f,
+    positionState: State<Float>? = null,
+    onPositionCommit: (() -> Unit)? = null,
     onPositionChange: (Int) -> Unit
 ) {
     val safeMin = minimum.coerceAtMost(maximum)
@@ -162,16 +164,33 @@ internal fun FujiEvRuler(
     Box(
         Modifier.fillMaxWidth().height(heightDp)
             .pointerInput(safeMin, safeMax) {
-                detectTapGestures { point ->
-                    val fraction = (point.x / size.width).coerceIn(0f, 1f)
-                    onPositionChange((safeMin + fraction * (safeMax - safeMin)).toInt())
+                val touchSlop = viewConfiguration.touchSlop
+                fun valueAt(x: Float): Int {
+                    val fraction = (x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    return (safeMin + fraction * (safeMax - safeMin)).toInt()
                 }
-            }
-            .pointerInput(safeMin, safeMax) {
-                detectDragGestures { change, _ ->
-                    change.consume()
-                    val fraction = (change.position.x / size.width).coerceIn(0f, 1f)
-                    onPositionChange((safeMin + fraction * (safeMax - safeMin)).toInt())
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var dragging = false
+                    var finished = false
+                    while (!finished) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            onPositionChange(valueAt(change.position.x))
+                            onPositionCommit?.invoke()
+                            change.consume()
+                            finished = true
+                        } else {
+                            if (!dragging && (change.position - down.position).getDistance() > touchSlop) {
+                                dragging = true
+                            }
+                            if (dragging) {
+                                onPositionChange(valueAt(change.position.x))
+                                change.consume()
+                            }
+                        }
+                    }
                 }
             }
     ) {
@@ -187,7 +206,7 @@ internal fun FujiEvRuler(
                     androidx.compose.ui.geometry.Offset(x, y),
                     (if (major) 1.2.dp.toPx() else 0.7.dp.toPx()) * safeScale)
             }
-            val cursorX = size.width * position.coerceIn(0f, 1f)
+            val cursorX = size.width * (positionState?.value ?: position).coerceIn(0f, 1f)
             val marker = Path().apply {
                 moveTo(cursorX - 4.dp.toPx() * safeScale, 0f)
                 lineTo(cursorX + 4.dp.toPx() * safeScale, 0f)

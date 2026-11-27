@@ -1157,6 +1157,10 @@ fun CameraScreen(
     }
     // EV is a command value. Do not overwrite it with delayed per-frame Camera2 results.
     var evIndex by remember { mutableIntStateOf(appPrefs.getInt("pro_ev_index", 0)) }
+    val evDragPositionState = remember { mutableFloatStateOf(evIndex.toFloat()) }
+    val pendingEvIndex = remember { intArrayOf(evIndex) }
+    var lastEvCommandAtMs by remember { mutableLongStateOf(0L) }
+    var evCommandJob by remember { mutableStateOf<Job?>(null) }
     val evDisplayIndex by animateFloatAsState(
         targetValue = evIndex.toFloat(),
         animationSpec = spring(dampingRatio = 0.82f, stiffness = if (performanceMode) 720f else 520f),
@@ -1195,9 +1199,77 @@ fun CameraScreen(
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var thumbnailRequestKey by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
+    fun applyEvCommandNow(index: Int, persist: Boolean) {
+        val active = camera
+        val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
+        val safeIndex = range?.let { index.coerceIn(it.lower, it.upper) } ?: index
+        evIndex = safeIndex
+        evDragPositionState.floatValue = safeIndex.toFloat()
+        pendingEvIndex[0] = safeIndex
+        manualExposure = false
+        if (active != null) {
+            runCatching { active.cameraControl.setExposureCompensationIndex(safeIndex) }
+                .onFailure { android.util.Log.w("FUJI_EV", "Could not apply EV index=$safeIndex", it) }
+        }
+        lastEvCommandAtMs = SystemClock.elapsedRealtime()
+        if (persist) {
+            appPrefs.edit().putInt("pro_ev_index", safeIndex).apply()
+        }
+    }
+    fun queueEvCommand(index: Int) {
+        pendingEvIndex[0] = index
+        evDragPositionState.floatValue = index.toFloat()
+        val elapsed = SystemClock.elapsedRealtime() - lastEvCommandAtMs
+        val waitMs = (67L - elapsed).coerceAtLeast(0L)
+        if (waitMs == 0L) {
+            evCommandJob?.cancel()
+            evCommandJob = null
+            applyEvCommandNow(index, persist = false)
+        } else if (evCommandJob?.isActive != true) {
+            evCommandJob = scope.launch {
+                delay(waitMs)
+                applyEvCommandNow(pendingEvIndex[0], persist = false)
+                evCommandJob = null
+            }
+        }
+    }
+    fun commitEvCommand() {
+        evCommandJob?.cancel()
+        evCommandJob = null
+        applyEvCommandNow(pendingEvIndex[0], persist = true)
+    }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var captureSetupReady by remember { mutableStateOf(false) }
+
+    fun restorePersistedEvToCamera(active: Camera) {
+        if (mode != "Pro" || nightShotMode != "off" || manualExposure) return
+        val range = active.cameraInfo.exposureState.exposureCompensationRange
+        val stored = appPrefs.getInt("pro_ev_index", evIndex).coerceIn(range.lower, range.upper)
+        evIndex = stored
+        evDragPositionState.floatValue = stored.toFloat()
+        pendingEvIndex[0] = stored
+        runCatching { active.cameraControl.setExposureCompensationIndex(stored) }
+            .onSuccess {
+                CrashContextDiagnostics.recordUiEvent("EV_RESTORED index=$stored cameraBindGeneration=$cameraBindGeneration")
+                android.util.Log.i("FUJI_EV", "Restored persisted EV index=$stored on camera bind/resume")
+            }
+            .onFailure { android.util.Log.w("FUJI_EV", "Could not restore persisted EV index=$stored", it) }
+    }
+
+    LaunchedEffect(camera, cameraBindGeneration, mode, nightShotMode, manualExposure) {
+        camera?.let(::restorePersistedEvToCamera)
+    }
+
+    DisposableEffect(lifecycleOwner, camera, mode, nightShotMode, manualExposure) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                camera?.let(::restorePersistedEvToCamera)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(faceTrackingMode, camera, activeCameraDetails) {
         val active = camera
@@ -7636,13 +7708,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     Text("EV: " + evText, color = Color.White, fontSize = 12.sp * designScale, fontWeight = FontWeight.Bold)
                     FujiEvRuler(
                         position = if (evMaximum > evMinimum) (evIndex - evMinimum).toFloat() / (evMaximum - evMinimum) else 0.5f,
-                        minimum = evMinimum, maximum = evMaximum, heightDp = 34.dp * designScale, scale = designScale
-                    ) { next ->
-                        evIndex = next
-                        manualExposure = false
-                        camera?.let { active -> runCatching { active.cameraControl.setExposureCompensationIndex(next) } }
-                        appPrefs.edit().putInt("pro_ev_index", next).apply()
-                    }
+                        minimum = evMinimum,
+                        maximum = evMaximum,
+                        heightDp = 34.dp * designScale,
+                        scale = designScale,
+                        positionState = evDragPositionState,
+                        onPositionCommit = { commitEvCommand() },
+                        onPositionChange = { next -> queueEvCommand(next) }
+                    )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(String.format(Locale.US, "%.1f", evMinimum * evStep), color = FujiCameraDesign.muted, fontSize = 8.sp * designScale)
                         Text(String.format(Locale.US, "%+.1f", evMaximum * evStep), color = FujiCameraDesign.muted, fontSize = 8.sp * designScale)

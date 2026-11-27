@@ -1242,35 +1242,6 @@ fun CameraScreen(
     var videoCaptureUseCase by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var captureSetupReady by remember { mutableStateOf(false) }
 
-    fun restorePersistedEvToCamera(active: Camera) {
-        if (mode != "Pro" || nightShotMode != "off" || manualExposure) return
-        val range = active.cameraInfo.exposureState.exposureCompensationRange
-        val stored = appPrefs.getInt("pro_ev_index", evIndex).coerceIn(range.lower, range.upper)
-        evIndex = stored
-        evDragPositionState.floatValue = stored.toFloat()
-        pendingEvIndex[0] = stored
-        runCatching { active.cameraControl.setExposureCompensationIndex(stored) }
-            .onSuccess {
-                CrashContextDiagnostics.recordUiEvent("EV_RESTORED index=$stored cameraBindGeneration=$cameraBindGeneration")
-                android.util.Log.i("FUJI_EV", "Restored persisted EV index=$stored on camera bind/resume")
-            }
-            .onFailure { android.util.Log.w("FUJI_EV", "Could not restore persisted EV index=$stored", it) }
-    }
-
-    LaunchedEffect(camera, cameraBindGeneration, mode, nightShotMode, manualExposure) {
-        camera?.let(::restorePersistedEvToCamera)
-    }
-
-    DisposableEffect(lifecycleOwner, camera, mode, nightShotMode, manualExposure) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                camera?.let(::restorePersistedEvToCamera)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
     LaunchedEffect(faceTrackingMode, camera, activeCameraDetails) {
         val active = camera
         if (faceTrackingMode == "off") {
@@ -1400,6 +1371,36 @@ fun CameraScreen(
     var nightShotMode by remember {
         mutableStateOf(appPrefs.getString("nightshot_mode", "off") ?: "off")
     }
+
+    fun restorePersistedEvToCamera(active: Camera) {
+        if (mode != "Pro" || nightShotMode != "off" || manualExposure) return
+        val range = active.cameraInfo.exposureState.exposureCompensationRange
+        val stored = appPrefs.getInt("pro_ev_index", evIndex).coerceIn(range.lower, range.upper)
+        evIndex = stored
+        evDragPositionState.floatValue = stored.toFloat()
+        pendingEvIndex[0] = stored
+        runCatching { active.cameraControl.setExposureCompensationIndex(stored) }
+            .onSuccess {
+                CrashContextDiagnostics.recordUiEvent("EV_RESTORED index=$stored cameraBindGeneration=$cameraBindGeneration")
+                android.util.Log.i("FUJI_EV", "Restored persisted EV index=$stored on camera bind/resume")
+            }
+            .onFailure { android.util.Log.w("FUJI_EV", "Could not restore persisted EV index=$stored", it) }
+    }
+
+    LaunchedEffect(camera, cameraBindGeneration, mode, nightShotMode, manualExposure) {
+        camera?.let(::restorePersistedEvToCamera)
+    }
+
+    DisposableEffect(lifecycleOwner, camera, mode, nightShotMode, manualExposure) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                camera?.let(::restorePersistedEvToCamera)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     var nightShotFrameCount by remember {
         mutableIntStateOf(appPrefs.getInt("nightshot_frame_count", 6).coerceIn(4, 12))
     }

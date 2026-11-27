@@ -7895,7 +7895,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         Box(
             previewLayerModifier.fillMaxWidth()
                 .onSizeChanged {
-                    Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / previewPxPerDp}dp x ${it.height / pxPerDp}dp)")
+                    Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / previewPxPerDp}dp x ${it.height / previewPxPerDp}dp)")
                 }
         ) {
             previewContent(Modifier.fillMaxSize())

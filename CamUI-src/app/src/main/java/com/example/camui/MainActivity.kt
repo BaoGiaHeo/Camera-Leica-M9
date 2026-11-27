@@ -243,6 +243,18 @@ class MainActivity : AppCompatActivity() {
             frameMetricsDiagnostics = CameraFrameMetricsDiagnostics.attach(window)
         }
         LegacyColorAdjustmentCleanup.migrateOnce(this)
+        val builtInFilterCount = builtInCameraLookPresetDefinitions.size
+        val builtInFilterCatalogValid = builtInCameraLookCatalogIsValid()
+        android.util.Log.i(
+            "FUJI_FILTER",
+            "BUILT_IN_FILTER_CATALOG count=$builtInFilterCount expected=46 valid=$builtInFilterCatalogValid"
+        )
+        CrashContextDiagnostics.recordUiEvent(
+            "BUILT_IN_FILTER_CATALOG count=$builtInFilterCount expected=46 valid=$builtInFilterCatalogValid"
+        )
+        if (!builtInFilterCatalogValid) {
+            android.util.Log.e("FUJI_FILTER", "Built-in film catalog failed the 46-entry integrity check")
+        }
         android.util.Log.i("FUJI_SCREEN_PROFILE", ScreenProfile.read(this).diagnosticLine())
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
         settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
@@ -420,7 +432,7 @@ class MainActivity : AppCompatActivity() {
                     // not dispose/rebind PreviewView or create a black preview interval.
                     if (page != "activation") {
                     CameraScreen(
-                        onOpenSettings = { openPageThroughCurtain("settings", "Đang Vào Setting") },
+                        onOpenSettings = { page = "settings" },
                         onOpenToolbox = { settingsSubpageReturnTarget = "camera"; page = "toolbox" },
                         onOpenContentManagement = { settingsSubpageReturnTarget = "camera"; page = "contents" },
                         onOpenAlbum = { latestPhoto ->

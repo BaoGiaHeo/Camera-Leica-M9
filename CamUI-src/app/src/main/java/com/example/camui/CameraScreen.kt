@@ -7705,15 +7705,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp * designScale)) {
                     Text(stringResource(R.string.camera_zoom), color = FujiCameraDesign.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FujiCameraKey(
-                            "W",
-                            modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
-                            secondary = stringResource(R.string.camera_out),
-                            scale = designScale
-                        ) {
-                            animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
-                        }
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp * designScale),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Vertical zoom rocker: T (tele) on top, W (wide) below.
                         FujiCameraKey(
                             "T",
                             modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
@@ -7721,6 +7715,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             scale = designScale
                         ) {
                             animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom))
+                        }
+                        FujiCameraKey(
+                            "W",
+                            modifier = Modifier.width(Tuning.CAMERA_ZOOM_KEY_WIDTH_DP.dp * designScale).height(Tuning.CAMERA_ZOOM_KEY_HEIGHT_DP.dp * designScale),
+                            secondary = stringResource(R.string.camera_out),
+                            scale = designScale
+                        ) {
+                            animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom))
                         }
                     }
                 }

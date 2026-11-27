@@ -5184,7 +5184,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
                                         captureUseLunaDream20Stack && lunaDreamStackFallbackApplied -> 50_000_000L
                                         captureUseRawDream20 && lunaDreamApplied -> 108_000_000L
-                                        captureUseLunaDream30 && lunaDreamApplied && lunaDream30PreFinalized -> 180_000_000L
+                                        captureUseLunaDream30 && lunaDreamApplied && lunaDream30PreFinalized -> Tuning.LUNA_DREAM_30_MAX_OUTPUT_PIXELS
                                         captureUseLunaDream25 && lunaDreamApplied -> 150_000_000L
                                         captureUseLunaDream20 && lunaDreamApplied -> 108_000_000L
                                         else -> null
@@ -5253,7 +5253,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         val dimensions = CaptureDiagnostics.readImageDimensions(context, saved)
                                         dimensions.first.toLong() * dimensions.second.toLong()
                                     }.getOrDefault(0L)
-                                    val requestedPixels = 180_000_000L
+                                    val requestedPixels = Tuning.LUNA_DREAM_30_MAX_OUTPUT_PIXELS
                                     val outputDetails = "cameraMode=$mode; merged=$nightShotMerged; " +
                                         "requestedPixels=$requestedPixels; actualPixels=$actualPixels; " +
                                         "memoryAdaptive=${outputResolutionResult != null && !outputResolutionResult.reachedRequestedSize}; " +

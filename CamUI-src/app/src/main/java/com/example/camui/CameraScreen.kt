@@ -1247,24 +1247,26 @@ fun CameraScreen(
         val active = camera
         val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
         val safeIndex = range?.let { index.coerceIn(it.lower, it.upper) } ?: index
-        evIndex = safeIndex
-        evDragPositionState.floatValue = safeIndex.toFloat()
         pendingEvIndex[0] = safeIndex
-        manualExposure = false
         if (active != null) {
             runCatching { active.cameraControl.setExposureCompensationIndex(safeIndex) }
                 .onFailure { android.util.Log.w("FUJI_EV", "Could not apply EV index=$safeIndex", it) }
         }
         lastEvCommandAtMs = SystemClock.elapsedRealtime()
         if (persist) {
+            // Publish one stable camera/UI value only after the drag ends.
+            evIndex = safeIndex
+            evDragPositionState.floatValue = safeIndex.toFloat()
+            manualExposure = false
             appPrefs.edit().putInt("pro_ev_index", safeIndex).apply()
+            CrashContextDiagnostics.recordUiEvent("EV_DRAG_COMMIT index=$safeIndex")
         }
     }
     fun queueEvCommand(index: Int) {
         pendingEvIndex[0] = index
         evDragPositionState.floatValue = index.toFloat()
         val elapsed = SystemClock.elapsedRealtime() - lastEvCommandAtMs
-        val waitMs = (67L - elapsed).coerceAtLeast(0L)
+        val waitMs = (Tuning.CAMERA_SLIDER_COMMAND_INTERVAL_MS - elapsed).coerceAtLeast(0L)
         if (waitMs == 0L) {
             evCommandJob?.cancel()
             evCommandJob = null
@@ -5995,18 +5997,122 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         }
     }
 
+    val pendingManualIsoValue = remember { intArrayOf(manualIso) }
+    val pendingManualShutterValue = remember { longArrayOf(manualShutterNs) }
+    val pendingManualIsoEnabled = remember { booleanArrayOf(manualIsoEnabled) }
+    val pendingManualShutterEnabled = remember { booleanArrayOf(manualShutterEnabled) }
+    var manualSensorDragActive by remember { mutableStateOf(false) }
+    var lastManualSensorCommandAtMs by remember { mutableLongStateOf(0L) }
+    var manualSensorCommandJob by remember { mutableStateOf<Job?>(null) }
+
+    LaunchedEffect(manualIso, manualShutterNs, manualIsoEnabled, manualShutterEnabled) {
+        if (!manualSensorDragActive) {
+            pendingManualIsoValue[0] = manualIso
+            pendingManualShutterValue[0] = manualShutterNs
+            pendingManualIsoEnabled[0] = manualIsoEnabled
+            pendingManualShutterEnabled[0] = manualShutterEnabled
+        }
+    }
+
+    fun applyPendingManualSensorCommand(commit: Boolean) {
+        val isoBounds = isoRange
+        val shutterBounds = shutterRange
+        val safeIso = isoBounds?.let { pendingManualIsoValue[0].coerceIn(it.lower, it.upper) }
+            ?: pendingManualIsoValue[0].coerceAtLeast(1)
+        val safeShutter = shutterBounds?.let { pendingManualShutterValue[0].coerceIn(it.lower, it.upper) }
+            ?: pendingManualShutterValue[0].coerceAtLeast(1L)
+        val useManualIso = pendingManualIsoEnabled[0]
+        val useManualShutter = pendingManualShutterEnabled[0]
+        camera?.let { active ->
+            runCatching {
+                applyCameraExposureState(
+                    active, useManualIso, useManualShutter,
+                    safeIso, safeShutter, iso, shutterNs
+                )
+            }.onFailure {
+                android.util.Log.w("FUJI_EXPOSURE_SLIDER", "Could not apply queued ISO/SS command", it)
+            }
+        }
+        lastManualSensorCommandAtMs = SystemClock.elapsedRealtime()
+        if (commit) {
+            manualIso = safeIso
+            manualShutterNs = safeShutter
+            manualIsoEnabled = useManualIso
+            manualShutterEnabled = useManualShutter
+            manualExposure = useManualIso || useManualShutter
+            pendingManualIsoValue[0] = safeIso
+            pendingManualShutterValue[0] = safeShutter
+            manualSensorDragActive = false
+            CrashContextDiagnostics.recordUiEvent(
+                "EXPOSURE_SLIDER_COMMIT iso=$safeIso isoManual=$useManualIso shutterNs=$safeShutter shutterManual=$useManualShutter"
+            )
+        }
+    }
+
+    fun queueManualSensorCommand() {
+        val elapsed = SystemClock.elapsedRealtime() - lastManualSensorCommandAtMs
+        val waitMs = (Tuning.CAMERA_SLIDER_COMMAND_INTERVAL_MS - elapsed).coerceAtLeast(0L)
+        if (waitMs == 0L) {
+            manualSensorCommandJob?.cancel()
+            manualSensorCommandJob = null
+            applyPendingManualSensorCommand(commit = false)
+        } else if (manualSensorCommandJob?.isActive != true) {
+            manualSensorCommandJob = scope.launch {
+                delay(waitMs)
+                applyPendingManualSensorCommand(commit = false)
+                manualSensorCommandJob = null
+            }
+        }
+    }
+
+    fun queueManualIsoFraction(fraction: Float) {
+        val range = isoRange ?: return
+        val low = range.lower.coerceAtLeast(1)
+        val high = range.upper.coerceAtMost(2400).coerceAtLeast(low)
+        val logSpan = if (high > low) ln(high.toDouble() / low) else 0.0
+        val thirdStops = (logSpan * fraction.coerceIn(0f, 1f) / ln(2.0) * 3.0).roundToInt()
+        pendingManualIsoValue[0] = if (logSpan > 0.0) {
+            (low * exp(ln(2.0) * thirdStops / 3.0)).roundToInt().coerceIn(low, high)
+        } else low
+        pendingManualIsoEnabled[0] = true
+        pendingManualShutterValue[0] = manualShutterNs
+        pendingManualShutterEnabled[0] = manualShutterEnabled
+        manualSensorDragActive = true
+        queueManualSensorCommand()
+    }
+
+    fun queueManualShutterFraction(fraction: Float) {
+        val range = shutterRange ?: return
+        pendingManualShutterValue[0] = shutterFromFraction(
+            fraction.coerceIn(0f, 1f), range.lower, range.upper
+        ).coerceIn(range.lower, range.upper)
+        pendingManualIsoValue[0] = manualIso
+        pendingManualIsoEnabled[0] = manualIsoEnabled
+        pendingManualShutterEnabled[0] = true
+        manualSensorDragActive = true
+        queueManualSensorCommand()
+    }
+
+    fun commitManualSensorCommand() {
+        manualSensorCommandJob?.cancel()
+        manualSensorCommandJob = null
+        applyPendingManualSensorCommand(commit = true)
+    }
+
     fun applyManualFocusCommandNow(value: Float, persist: Boolean) {
         val safeMaximum = maxFocus.takeIf { it.isFinite() && it > 0f } ?: 0f
         val safeValue = if (safeMaximum > 0f) value.coerceIn(0f, safeMaximum) else 0f
-        manualFocus = safeValue
-        manualFocusDrawPositionState.floatValue =
-            if (safeMaximum > 0f) (safeValue / safeMaximum).coerceIn(0f, 1f) else 0f
         camera?.let { active ->
             runCatching { applyManualFocus(active, safeValue) }
                 .onFailure { android.util.Log.w("FUJI_FOCUS", "Could not apply manual focus=$safeValue", it) }
         }
         lastManualFocusCommandAtMs = SystemClock.elapsedRealtime()
         if (persist) {
+            // Commit to Compose/HUD state once; pointer movement has already been drawn locally.
+            manualFocus = safeValue
+            manualFocusDrawPositionState.floatValue =
+                if (safeMaximum > 0f) (safeValue / safeMaximum).coerceIn(0f, 1f) else 0f
+            pendingManualFocusValue[0] = safeValue
             appPrefs.edit().putFloat("pro_manual_focus", safeValue).putString("pro_af_mode", "MF").apply()
         }
     }
@@ -6024,7 +6130,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             invalidatePendingFocusLock(camera)
         }
         val elapsed = SystemClock.elapsedRealtime() - lastManualFocusCommandAtMs
-        val waitMs = (67L - elapsed).coerceAtLeast(0L)
+        val waitMs = (Tuning.CAMERA_SLIDER_COMMAND_INTERVAL_MS - elapsed).coerceAtLeast(0L)
         if (waitMs == 0L) {
             manualFocusCommandJob?.cancel()
             manualFocusCommandJob = null
@@ -7033,8 +7139,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 val selectedPanel = proAdjustmentContent
                                 Box(
                                     Modifier.align(Alignment.BottomCenter)
-                                        .width(300.dp * designScale)
-                                        .height(100.dp * designScale)
+                                        .width(if (proSel == "ISO" || proSel == "Tv") 248.dp * designScale else 300.dp * designScale)
+                                        .height(if (proSel == "ISO" || proSel == "Tv") 70.dp * designScale else 100.dp * designScale)
                                         .background(Color(0xE00B0B0B))
                                         .border(1.dp, Color(0xFF737B7D), RoundedCornerShape(6.dp))
                                         .padding(horizontal = 5.dp, vertical = 2.dp)
@@ -7375,27 +7481,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             lowLabel = lo.toString(),
                                             highLabel = hi.toString(),
                                             stepFraction = 1f / steps,
-                                            onPositionChange = { fraction ->
-                                                val thirdStops = (ln(hi.toDouble() / lo) *
-                                                    fraction.coerceIn(0f, 1f) / ln(2.0) * 3.0).roundToInt()
-                                                manualIso = (lo * exp(ln(2.0) * thirdStops / 3.0))
-                                                    .roundToInt().coerceIn(lo, hi)
-                                                manualIsoEnabled = true
-                                                manualExposure = true
-                                                camera?.let { active ->
-                                                    runCatching {
-                                                        applyCameraExposureState(
-                                                            active,
-                                                            true,
-                                                            manualShutterEnabled,
-                                                            manualIso,
-                                                            manualShutterNs,
-                                                            iso,
-                                                            shutterNs
-                                                        )
-                                                    }
-                                                }
-                                            },
+                                            onPositionChange = { fraction -> queueManualIsoFraction(fraction) },
+                                            onPositionCommit = { commitManualSensorCommand() },
+                                            compact = true,
                                             onBack = { proSel = null },
                                         onAuto = {
                                                 val keepManualShutter = manualShutterEnabled
@@ -7446,25 +7534,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             lowLabel = shutterTimeLabel(lo),
                                             highLabel = shutterTimeLabel(hi),
                                             stepFraction = 1f / steps,
-                                            onPositionChange = { next ->
-                                                manualShutterNs = shutterFromFraction(next, lo, hi)
-                                                    .coerceIn(lo, hi)
-                                                manualShutterEnabled = true
-                                                manualExposure = true
-                                                camera?.let { active ->
-                                                    runCatching {
-                                                        applyCameraExposureState(
-                                                            active,
-                                                            manualIsoEnabled,
-                                                            true,
-                                                            manualIso,
-                                                            manualShutterNs,
-                                                            iso,
-                                                            shutterNs
-                                                        )
-                                                    }
-                                                }
-                                            },
+                                            onPositionChange = { next -> queueManualShutterFraction(next) },
+                                            onPositionCommit = { commitManualSensorCommand() },
+                                            compact = true,
                                             onBack = { proSel = null },
                                         onAuto = {
                                                 val keepManualIso = manualIsoEnabled

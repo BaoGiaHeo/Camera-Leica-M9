@@ -25,6 +25,8 @@ internal object Tuning {
     const val FILTER_CROSSFADE_MS = 150
     const val BUTTON_PRESS_MS = 80
     const val BUTTON_PRESS_SCALE = 0.96f
+    const val CAMERA_SLIDER_COMMAND_INTERVAL_MS = 67L
+    const val CAMERA_SLIDER_COMMAND_MAX_HZ = 15
     const val ASPECT_RATIO_ANIMATION_MS = 220
     const val CAMERA_DESIGN_WIDTH_DP = 924f
     const val CAMERA_DESIGN_HEIGHT_DP = 427f

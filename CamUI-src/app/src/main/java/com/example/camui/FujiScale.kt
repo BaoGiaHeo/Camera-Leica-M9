@@ -71,13 +71,16 @@ internal fun FujiScale(
     onPositionChange: (Float) -> Unit,
     onAuto: () -> Unit,
     onBack: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    onPositionCommit: ((Float) -> Unit)? = null
 ) {
     val haptics = LocalHapticFeedback.current
     val safePosition = position.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0.5f
     val safeStep = stepFraction.takeIf { it.isFinite() && it > 0f } ?: 0.01f
     val latestPosition = rememberUpdatedState(safePosition)
     val latestOnPositionChange = rememberUpdatedState(onPositionChange)
+    val latestOnPositionCommit = rememberUpdatedState(onPositionCommit)
     val dragDrawPosition = remember { mutableFloatStateOf(safePosition) }
     val pendingPosition = remember { mutableFloatStateOf(safePosition) }
     val draggingState = remember { mutableStateOf(false) }
@@ -97,7 +100,7 @@ internal fun FujiScale(
         dragDrawPosition.floatValue = safeValue
         pendingPosition.floatValue = safeValue
         val now = SystemClock.elapsedRealtime()
-        val waitMs = (67L - (now - lastDispatchAtMs)).coerceAtLeast(0L)
+        val waitMs = (Tuning.CAMERA_SLIDER_COMMAND_INTERVAL_MS - (now - lastDispatchAtMs)).coerceAtLeast(0L)
         if (force || lastDispatchAtMs == 0L || waitMs == 0L) {
             dispatchJob?.cancel()
             dispatchJob = null
@@ -126,11 +129,11 @@ internal fun FujiScale(
         modifier = modifier
             .fillMaxWidth()
             .background(Color.Transparent)
-            .padding(horizontal = 3.dp, vertical = 1.dp),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
+            .padding(horizontal = if (compact) 1.dp else 3.dp, vertical = if (compact) 0.dp else 1.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 1.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(48.dp),
+            modifier = Modifier.fillMaxWidth().height(if (compact) 22.dp else 48.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -139,8 +142,8 @@ internal fun FujiScale(
                 color = Color(0xFFF2F2F2),
                 fontFamily = FujiTypography.uiFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-                modifier = Modifier.width(27.dp),
+                fontSize = if (compact) 8.sp else 10.sp,
+                modifier = Modifier.width(if (compact) 20.dp else 27.dp),
                 maxLines = 1
             )
             Text(
@@ -148,27 +151,29 @@ internal fun FujiScale(
                 color = if (auto) Color(0xFFF2F2F2) else Color(0xFF4DA3FF),
                 fontFamily = FujiTypography.uiFont,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
+                fontSize = if (compact) 12.sp else 15.sp,
                 maxLines = 1
             )
             Spacer(Modifier.weight(1f))
-            ScaleKey("-", onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                dispatchScalePosition(advanceFujiScalePosition(dragDrawPosition.floatValue, -safeStep), force = true)
-            })
-            ScaleKey("+", onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                dispatchScalePosition(advanceFujiScalePosition(dragDrawPosition.floatValue, safeStep), force = true)
-            })
+            if (!compact) {
+                ScaleKey("-", onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    dispatchScalePosition(advanceFujiScalePosition(dragDrawPosition.floatValue, -safeStep), force = true)
+                })
+                ScaleKey("+", onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    dispatchScalePosition(advanceFujiScalePosition(dragDrawPosition.floatValue, safeStep), force = true)
+                })
+            }
         }
 
         Row(
-            Modifier.fillMaxWidth().height(48.dp),
+            Modifier.fillMaxWidth().height(if (compact) 30.dp else 48.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Box(
-                modifier = Modifier.weight(1f).height(48.dp)
+                modifier = Modifier.weight(1f).height(if (compact) 30.dp else 48.dp)
                     .pointerInput(safeStep) {
                         var dragPosition = dragDrawPosition.floatValue
                         detectDragGestures(
@@ -178,10 +183,12 @@ internal fun FujiScale(
                             },
                             onDragEnd = {
                                 dispatchScalePosition(pendingPosition.floatValue, force = true)
+                                latestOnPositionCommit.value?.invoke(pendingPosition.floatValue)
                                 draggingState.value = false
                             },
                             onDragCancel = {
                                 dispatchScalePosition(pendingPosition.floatValue, force = true)
+                                latestOnPositionCommit.value?.invoke(pendingPosition.floatValue)
                                 draggingState.value = false
                             },
                             onDrag = { change, dragAmount ->
@@ -201,7 +208,7 @@ internal fun FujiScale(
                         )
                     }
             ) {
-                Canvas(Modifier.fillMaxWidth().height(23.dp).align(Alignment.Center)) {
+                Canvas(Modifier.fillMaxWidth().height(if (compact) 18.dp else 23.dp).align(Alignment.Center)) {
                     val centerX = size.width * 0.5f
                     val detents = (dragDrawPosition.floatValue / safeStep).takeIf { it.isFinite() } ?: 0f
                     val whole = kotlin.math.floor(detents).toInt()
@@ -246,7 +253,7 @@ internal fun FujiScale(
             }
             // Auto is intentionally visible only while a Pro value is selected.
             Box(
-                modifier = Modifier.width(38.dp).height(42.dp)
+                modifier = Modifier.width(if (compact) 30.dp else 38.dp).height(if (compact) 25.dp else 42.dp)
                     .clip(RoundedCornerShape(5.dp))
                     .background(if (auto) Color(0xFF352411) else Color(0xFF15191A))
                     .border(
@@ -265,7 +272,7 @@ internal fun FujiScale(
                     color = if (auto) Color(0xFFFFB300) else Color(0xFFF2F2F2),
                     fontFamily = FujiTypography.uiFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    fontSize = if (compact) 9.sp else 12.sp
                 )
             }
         }

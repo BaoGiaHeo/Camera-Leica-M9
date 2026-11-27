@@ -14,8 +14,8 @@ class ScreenProfileLayoutTest {
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor()
         assertEquals(55f, reference.topPlateHeight.value, 0.001f)
-        assertEquals(76f, reference.leftColumnWidth.value, 0.001f)
-        assertEquals(278f, reference.rightColumnWidth.value, 0.001f)
+        assertEquals(129f, reference.leftColumnWidth.value, 0.001f)
+        assertEquals(314f, reference.rightColumnWidth.value, 0.001f)
         assertEquals(60f, reference.proControlHeight.value, 0.001f)
     }
 
@@ -28,8 +28,8 @@ class ScreenProfileLayoutTest {
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor()
         assertEquals(46.75f, compact.topPlateHeight.value, 0.01f)
-        assertEquals(64.6f, compact.leftColumnWidth.value, 0.01f)
-        assertEquals(236.3f, compact.rightColumnWidth.value, 0.01f)
+        assertEquals(109.65f, compact.leftColumnWidth.value, 0.01f)
+        assertEquals(266.9f, compact.rightColumnWidth.value, 0.01f)
         assertEquals(51f, compact.proControlHeight.value, 0.01f)
     }
 
@@ -42,8 +42,8 @@ class ScreenProfileLayoutTest {
             android.graphics.Rect(), emptyList(), emptyList()
         ).layoutFor(1600f, 900f)
         assertEquals(68.75f, profile.topPlateHeight.value, 0.001f)
-        assertEquals(95f, profile.leftColumnWidth.value, 0.001f)
-        assertEquals(347.5f, profile.rightColumnWidth.value, 0.001f)
+        assertEquals(161.25f, profile.leftColumnWidth.value, 0.001f)
+        assertEquals(392.5f, profile.rightColumnWidth.value, 0.001f)
         assertEquals(75f, profile.proControlHeight.value, 0.001f)
     }
 

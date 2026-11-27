@@ -92,6 +92,7 @@ fun SettingsScreen(
     onOpenWatermarkPanel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var showCaptureDiagnostics by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Chụp & Chất lượng") }
     var categoryBeforeBackup by remember { mutableStateOf("Chụp & Chất lượng") }
@@ -196,6 +197,7 @@ fun SettingsScreen(
                 onOpenWatermarkPanel = onOpenWatermarkPanel,
                 onOpenDiagnostics = { showCaptureDiagnostics = true }
                 )
+                }
             }
         }
     }

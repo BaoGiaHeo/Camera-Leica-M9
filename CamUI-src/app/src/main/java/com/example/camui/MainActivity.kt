@@ -487,7 +487,7 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     }
-                    if (bootSplashVisible) FujifilmBootSplash()                    if (bootSplashVisible) FujifilmBootSplash()
+                    if (bootSplashVisible) FujifilmBootSplash()
                 }
             }
             }

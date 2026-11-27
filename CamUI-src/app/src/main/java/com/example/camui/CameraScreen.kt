@@ -2508,6 +2508,23 @@ fun CameraScreen(
                         .setCaptureRequestOption(CaptureRequest.CONTROL_ENABLE_ZSL, true)
                     android.util.Log.i("FUJI_CAPTURE", "ZSL enabled for JPEG capture; computationalStack=$lunaDreamRequestedInPrefs")
                 }
+                val softwareStackCaptureRequested = !rawCaptureActive && !livePhotoEnabled &&
+                    (lunaDreamRequestedInPrefs || (mode == "Pro" && nightShotMode != "off"))
+                if (softwareStackCaptureRequested) {
+                    Camera2Interop.Extender(captureBuilder)
+                        .setCaptureRequestOption(
+                            CaptureRequest.NOISE_REDUCTION_MODE,
+                            CaptureRequest.NOISE_REDUCTION_MODE_OFF
+                        )
+                        .setCaptureRequestOption(
+                            CaptureRequest.EDGE_MODE,
+                            CaptureRequest.EDGE_MODE_FAST
+                        )
+                    android.util.Log.i(
+                        "FUJI_CAPTURE",
+                        "SOFTWARE_STACK_FAST_PIPELINE noiseReduction=OFF edge=FAST zsl=$zslSupported flash=OFF"
+                    )
+                }
                 if (outputFormat != ImageCapture.OUTPUT_FORMAT_JPEG) {
                     captureBuilder.setOutputFormat(outputFormat)
                 }
@@ -4388,8 +4405,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     val bufferedFrames = ArrayList<Triple<Int, File, NightShotFrameCaptureResult>>()
                                     val acceptedFrameFiles = ArrayList<Pair<Int, File>>()
                                     var bufferedFrameBytes = 0L
-                                    val maxBufferedFrameBytes = (Runtime.getRuntime().maxMemory() / 4L)
-                                        .coerceIn(48L * 1024L * 1024L, 96L * 1024L * 1024L)
+                                    val maxBufferedFrameBytes = (Runtime.getRuntime().maxMemory() / 5L)
+                                        .coerceIn(24L * 1024L * 1024L, 64L * 1024L * 1024L)
                                     val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
@@ -4514,7 +4531,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
 
                                                 consecutiveCaptureFailures = 0
                                                 val frameJpegBytes = captureResult.jpegBytes
-                                                val frameAccepted = if (!frameJpegBytes.isNullOrEmpty()) {
+                                                val frameAccepted = if (frameJpegBytes != null && frameJpegBytes.isNotEmpty()) {
                                                     val nextBufferedBytes = bufferedFrameBytes + frameJpegBytes.size.toLong()
                                                     if (nextBufferedBytes <= maxBufferedFrameBytes) {
                                                         bufferedFrames.add(Triple(frameNumber, nextFrame, captureResult))
@@ -4581,6 +4598,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 bufferedFrames.forEach { (frameNumber, frameFile, frameResult) ->
                                                     if (!NightShotProcessor.persistCapturedFrameToCache(frameFile, frameResult)) {
                                                         failedBufferedFrameNumbers += frameNumber
+                                                        runCatching { frameFile.delete() }
                                                         android.util.Log.e("FUJI_FRAME_BUFFER", "FRAME_BUFFER_MATERIALIZE_FAILED frame=$frameNumber")
                                                     }
                                                 }

@@ -8970,6 +8970,42 @@ private fun applyCameraExposureState(
  * AE lock explicitly after focus succeeds. Unsupported AE-lock devices are not reported
  * as having completed a full AF/AE lock.
  */
+private fun applyCameraAfLock(camera: Camera, locked: Boolean): Boolean {
+    val info = runCatching { Camera2CameraInfo.from(camera.cameraInfo) }.getOrNull() ?: return false
+    val modes = runCatching { info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) }.getOrNull() ?: return false
+    if (modes.isEmpty()) return false
+    val selectedMode = when {
+        locked && modes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO) -> CaptureRequest.CONTROL_AF_MODE_AUTO
+        modes.contains(CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE) -> CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+        modes.contains(CaptureRequest.CONTROL_AF_MODE_AUTO) -> CaptureRequest.CONTROL_AF_MODE_AUTO
+        else -> return false
+    }
+    val control = Camera2CameraControl.from(camera.cameraControl)
+    return runCatching {
+        val request = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, selectedMode)
+            .setCaptureRequestOption(
+                CaptureRequest.CONTROL_AF_TRIGGER,
+                if (locked) CaptureRequest.CONTROL_AF_TRIGGER_START else CaptureRequest.CONTROL_AF_TRIGGER_CANCEL
+            ).build()
+        control.addCaptureRequestOptions(request)
+        if (locked) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                runCatching {
+                    control.addCaptureRequestOptions(
+                        CaptureRequestOptions.Builder()
+                            .setCaptureRequestOption(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_IDLE)
+                            .build()
+                    )
+                }.onFailure { android.util.Log.w("FUJI_AF", "Could not settle AF-L trigger", it) }
+            }, 450L)
+        }
+        android.util.Log.i("FUJI_AF", "AF_LOCK_ONLY state=$locked mode=$selectedMode")
+        true
+    }.onFailure { android.util.Log.w("FUJI_AF", "AF-L request failed", it) }.getOrDefault(false)
+}
+
 private fun applyCameraAeLock(camera: Camera, locked: Boolean): Boolean {
     val cameraId = runCatching { Camera2CameraInfo.from(camera.cameraInfo).cameraId }
         .getOrNull() ?: "unknown"

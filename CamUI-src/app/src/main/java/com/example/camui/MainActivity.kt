@@ -30,6 +30,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import androidx.activity.SystemBarStyle
@@ -44,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -275,6 +277,24 @@ class MainActivity : AppCompatActivity() {
                     bootSplashVisible = false
                 }
                 var page by remember { mutableStateOf("camera") }
+                val pageTransitionScope = rememberCoroutineScope()
+                var pageCurtainMessage by remember { mutableStateOf("") }
+                val pageCurtainAlpha = remember { Animatable(0f) }
+                var pageCurtainJob by remember { mutableStateOf<Job?>(null) }
+                fun openPageThroughCurtain(targetPage: String, message: String) {
+                    pageCurtainJob?.cancel()
+                    pageCurtainJob = pageTransitionScope.launch {
+                        pageCurtainMessage = message
+                        pageCurtainAlpha.snapTo(0f)
+                        pageCurtainAlpha.animateTo(1f, tween(250, easing = FastOutSlowInEasing))
+                        page = targetPage
+                        // Keep the black screen visible at least 600 ms after the target page is requested.
+                        delay(600L)
+                        pageCurtainAlpha.animateTo(0f, tween(250, easing = FastOutSlowInEasing))
+                        pageCurtainMessage = ""
+                        pageCurtainJob = null
+                    }
+                }
                 // Keep CameraScreen and its PreviewView alive; settings pages are a separate overlay.
                 var overlayPage by remember { mutableStateOf("settings") }
                 var overlayVisible by remember { mutableStateOf(false) }
@@ -400,7 +420,7 @@ class MainActivity : AppCompatActivity() {
                     // not dispose/rebind PreviewView or create a black preview interval.
                     if (page != "activation") {
                     CameraScreen(
-                        onOpenSettings = { page = "settings" },
+                        onOpenSettings = { openPageThroughCurtain("settings", "Đang Vào Setting") },
                         onOpenToolbox = { settingsSubpageReturnTarget = "camera"; page = "toolbox" },
                         onOpenContentManagement = { settingsSubpageReturnTarget = "camera"; page = "contents" },
                         onOpenAlbum = { latestPhoto ->
@@ -496,6 +516,26 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     if (bootSplashVisible) FujifilmBootSplash()
+                    if (pageCurtainMessage.isNotEmpty()) {
+                        Box(
+                            Modifier.fillMaxSize()
+                                .graphicsLayer { alpha = pageCurtainAlpha.value }
+                                .background(ComposeColor.Black)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                pageCurtainMessage,
+                                color = ComposeColor.White,
+                                fontSize = 13.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                letterSpacing = 0.8.sp
+                            )
+                        }
+                    }
                 }
             }
             }

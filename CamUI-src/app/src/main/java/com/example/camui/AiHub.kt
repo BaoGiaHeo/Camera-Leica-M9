@@ -76,11 +76,19 @@ fun LunaDreamBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "Choose a mode before capture. LunaDream keeps that selection throughout processing.",
+                    "Chọn mô hình trước khi chụp. Lựa chọn này được giữ trong suốt quá trình xử lý ảnh.",
                     color = FujiSkin.muted,
                     fontSize = 10.sp,
                     lineHeight = 15.sp
                 )
+                if (nightShotEnabled) {
+                    Text(
+                        "Night Shot đang bật. Tắt Night Shot trước khi chọn LunaDream.",
+                        color = Color(0xFFFFB45C),
+                        fontSize = 9.sp,
+                        lineHeight = 13.sp
+                    )
+                }
                 val lunaModes = listOf(
                     Triple("luna15", R.string.lunadream_15_title, R.string.lunadream_15_subtitle),
                     Triple("luna20", R.string.lunadream_20_title, R.string.lunadream_20_subtitle),
@@ -97,6 +105,7 @@ fun LunaDreamBottomSheet(
                                             title = stringResource(titleRes),
                                             subtitle = stringResource(subtitleRes),
                                             selected = selectedMode == modeId,
+                                            enabled = !nightShotEnabled,
                                             intensity = when (modeId) {
                                                 "luna15" -> 0.58f
                                                 "luna20" -> 0.82f
@@ -117,6 +126,7 @@ fun LunaDreamBottomSheet(
                             title = stringResource(titleRes),
                             subtitle = stringResource(subtitleRes),
                             selected = selectedMode == modeId,
+                            enabled = !nightShotEnabled,
                             intensity = when (modeId) {
                                 "luna15" -> 0.58f
                                 "luna20" -> 0.82f
@@ -129,7 +139,7 @@ fun LunaDreamBottomSheet(
                     }
                 }
                 Text(
-                    if (selectedMode == "off") "LUNADREAM IS OFF" else "LUNADREAM · ${selectedMode.uppercase()}",
+                    if (selectedMode == "off") "LUNADREAM ĐANG TẮT" else "LUNADREAM · ${selectedMode.uppercase()}",
                     color = FujiSkin.lcdGreen,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
@@ -142,11 +152,32 @@ fun LunaDreamBottomSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("NightShotMode", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("Night capture and Star Trails use separate processing pipelines",
-                            color = FujiSkin.muted, fontSize = 9.sp, lineHeight = 13.sp)
+                        Text("NIGHT SHOT", color = if (selectedMode == "off") Color.White else Color.White.copy(alpha = 0.42f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (selectedMode == "off") "Chụp đêm và Star Trails dùng quy trình xử lý riêng."
+                            else "Đang chọn LunaDream. Tắt mô hình trước khi dùng Night Shot.",
+                            color = FujiSkin.muted.copy(alpha = if (selectedMode == "off") 1f else 0.55f),
+                            fontSize = 9.sp,
+                            lineHeight = 13.sp
+                        )
                     }
-                    FujiSwitch(checked = nightShotEnabled, onCheckedChange = onNightShotToggle)
+                    Box {
+                        FujiSwitch(
+                            checked = nightShotEnabled,
+                            onCheckedChange = { enabled ->
+                                if (selectedMode == "off") onNightShotToggle(enabled)
+                            }
+                        )
+                        if (selectedMode != "off") {
+                            Box(
+                                Modifier.matchParentSize()
+                                    .clickable(
+                                        interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                    ) { }
+                            )
+                        }
+                    }
                 }
                 if (nightShotEnabled) {
                     Row(
@@ -166,13 +197,13 @@ fun LunaDreamBottomSheet(
                     }
                 }
                 Text(
-                    if (nightShotEnabled) "NIGHTSHOT · BẬT · ${nightShotDurationSeconds}s" else "NIGHTSHOT · TẮT",
+                    if (nightShotEnabled) "NIGHT SHOT · BẬT · ${nightShotDurationSeconds}s" else "NIGHT SHOT · TẮT",
                     color = if (nightShotEnabled) FujiSkin.orange else FujiSkin.muted,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Milky Way được bật/tắt trong Cài đặt → NightShotMode.",
+                    "Milky Way được bật/tắt trong Cài đặt → Chụp đêm.",
                     color = FujiSkin.muted,
                     fontSize = 9.sp
                 )
@@ -189,14 +220,16 @@ private fun LunaDreamModeRow(
     selected: Boolean,
     intensity: Float,
     phase: Float,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
         Modifier.fillMaxWidth()
+            .graphicsLayer { alpha = if (enabled) 1f else 0.38f }
             .clip(RoundedCornerShape(4.dp))
             .background(FujiSkin.lcd)
             .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF344247), RoundedCornerShape(4.dp))
-            .clickable { onCheckedChange(!selected) }
+            .clickable(enabled = enabled) { if (enabled) onCheckedChange(!selected) }
             .padding(horizontal = 11.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -205,6 +238,6 @@ private fun LunaDreamModeRow(
             Text(subtitle, color = FujiSkin.muted, fontSize = 9.sp, lineHeight = 13.sp)
         }
         Spacer(Modifier.width(8.dp))
-        FujiSwitch(checked = selected, onCheckedChange = onCheckedChange)
+        FujiSwitch(checked = selected, onCheckedChange = { if (enabled) onCheckedChange(it) })
     }
 }

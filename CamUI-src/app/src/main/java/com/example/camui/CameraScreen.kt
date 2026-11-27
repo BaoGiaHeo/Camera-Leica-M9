@@ -1518,6 +1518,20 @@ fun CameraScreen(
         mutableStateOf(appPrefs.getBoolean("milky_way_stack_enabled", false))
     }
     var showLunaDream by remember { mutableStateOf(false) }
+    var modeActivationMessage by remember { mutableStateOf<String?>(null) }
+    val modeActivationAlpha = remember { Animatable(0f) }
+    LaunchedEffect(modeActivationMessage) {
+        val message = modeActivationMessage ?: return@LaunchedEffect
+        modeActivationAlpha.snapTo(0f)
+        modeActivationAlpha.animateTo(1f, tween(250, easing = FastOutSlowInEasing))
+        delay(600L)
+        val readyDeadline = SystemClock.elapsedRealtime() + 20_000L
+        while ((!captureSetupReady || camera == null) && SystemClock.elapsedRealtime() < readyDeadline) {
+            delay(50L)
+        }
+        modeActivationAlpha.animateTo(0f, tween(250, easing = FastOutSlowInEasing))
+        modeActivationMessage = null
+    }
     LaunchedEffect(mode, ratioIdx, showQuick, filterDialogVisible, showLunaDream) {
         val activePanel = when {
             showQuick -> "Q_MENU"
@@ -8445,21 +8459,66 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     appPrefs.edit().putInt("nightshot_duration_seconds", nightShotDurationSeconds).apply()
                 },
                 onNightShotToggle = { enabled ->
-                    nightShotMode = if (enabled) "night" else "off"
-                    if (enabled && nightShotDurationSeconds !in listOf(5, 10, 3)) nightShotDurationSeconds = 5
-                    appPrefs.edit()
-                        .putString("nightshot_mode", nightShotMode)
-                        .putInt("nightshot_duration_seconds", nightShotDurationSeconds)
-                        .apply()
+                    if (enabled && lunaDreamMode != "off") {
+                        Toast.makeText(context, "Hãy tắt LunaDream trước khi bật Night Shot.", Toast.LENGTH_LONG).show()
+                    } else {
+                        nightShotMode = if (enabled) "night" else "off"
+                        if (enabled && nightShotDurationSeconds !in listOf(5, 10, 3)) nightShotDurationSeconds = 5
+                        appPrefs.edit()
+                            .putString("nightshot_mode", nightShotMode)
+                            .putInt("nightshot_duration_seconds", nightShotDurationSeconds)
+                            .apply()
+                        if (enabled) {
+                            showLunaDream = false
+                            modeActivationMessage = "Night Shot ĐÃ KÍCH HOẠT VUI LÒNG CHỜ"
+                        }
+                    }
                 },
                 selectedMode = lunaDreamMode,
-                onSelectedModeChange = {
-                    lunaDreamMode = it
-                    appPrefs.edit().putString("lunadream_mode", it).apply()
+                onSelectedModeChange = { selected ->
+                    if (selected != "off" && nightShotMode != "off") {
+                        Toast.makeText(context, "Hãy tắt Night Shot trước khi chọn LunaDream.", Toast.LENGTH_LONG).show()
+                    } else {
+                        lunaDreamMode = selected
+                        appPrefs.edit().putString("lunadream_mode", selected).apply()
+                        if (selected != "off") {
+                            val modelLabel = when (selected) {
+                                "luna15" -> "1.5"
+                                "luna20" -> "2.0"
+                                "luna25" -> "2.5"
+                                "luna30" -> "3.0"
+                                else -> selected
+                            }
+                            showLunaDream = false
+                            modeActivationMessage = "LunaDream $modelLabel ĐÃ KÍCH HOẠT VUI LÒNG CHỜ"
+                        }
+                    }
                 }
             )
         }
 
+        if (modeActivationMessage != null) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(
+                    Modifier.fillMaxSize()
+                        .graphicsLayer { alpha = modeActivationAlpha.value }
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        modeActivationMessage.orEmpty(),
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                }
+            }
+        }
         if (ratioTransitionInProgress) {
             Box(
                 Modifier.fillMaxSize()

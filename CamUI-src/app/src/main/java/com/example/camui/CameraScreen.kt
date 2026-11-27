@@ -7890,11 +7890,12 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
     val rightPanelContent: @Composable (Modifier) -> Unit =
         if (leftHandedLayout) leftHardwareContent else rightHardwareContent
 
+    val previewPxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
     val lcdPreviewLayer: @Composable (Modifier) -> Unit = { previewLayerModifier ->
         Box(
             previewLayerModifier.fillMaxWidth()
                 .onSizeChanged {
-                    Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)")
+                    Log.d("LUNA_LAYOUT", "LCD_SLOT ${it.width}px x ${it.height}px (${it.width / previewPxPerDp}dp x ${it.height / pxPerDp}dp)")
                 }
         ) {
             previewContent(Modifier.fillMaxSize())

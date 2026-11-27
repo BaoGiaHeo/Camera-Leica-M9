@@ -7985,6 +7985,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     val nextFilter = if (selected == activeFilter) "None" else selected
                     CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_REQUESTED id=$nextFilter")
                     activeFilter = nextFilter
+                    previewView.invalidate()
+                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_SELECTION state=$nextFilter")
                     appPrefs.edit().putString("selected_filter", nextFilter).apply()
                 },
                 onRecipeChanged = {
@@ -8244,7 +8246,7 @@ private fun FilterLookDialog(
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
     var showingOriginal by remember { mutableStateOf(false) }
-    var showAdjustmentControls by remember { mutableStateOf(true) }
+    var showAdjustmentControls by remember { mutableStateOf(false) }
     var showTonePad by remember { mutableStateOf(true) }
     var customPreviewRevision by remember { mutableIntStateOf(0) }
     val recipePrefs = remember(context) {
@@ -8542,13 +8544,13 @@ private fun FilterLookDialog(
                     val selected = activeFilter == preset
                     val itemName = cameraLookDisplayName(context, preset)
                     Row(
-                        Modifier.fillMaxWidth().height(Tuning.FILM_ROLL_FILTER_ROW_HEIGHT_DP.dp).clip(RoundedCornerShape(4.dp))
+                        Modifier.fillMaxWidth().height(if (LocalConfiguration.current.screenHeightDp < 440) 48.dp else Tuning.FILM_ROLL_FILTER_ROW_HEIGHT_DP.dp).clip(RoundedCornerShape(4.dp))
                             .background(if (selected) Color(0xFF303638) else Color(0xFF15191A))
                             .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
                             .animaTClickable { onSelectFilter(preset) }.padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(Modifier.width(62.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp))
+                        Box(Modifier.width(42.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp))
                             .background(Color(0xFF070909))
                             .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
                             Row(Modifier.fillMaxSize().padding(horizontal = 3.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -8604,22 +8606,24 @@ private fun FilterLookDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         if (isLandscape) {
-            Box(Modifier.fillMaxSize().padding(end = 12.dp, top = 10.dp, bottom = 10.dp), contentAlignment = Alignment.CenterEnd) {
+            val compact = configuration.screenHeightDp < 440
+            Box(Modifier.fillMaxSize().padding(end = 8.dp, top = 4.dp, bottom = 4.dp), contentAlignment = Alignment.CenterEnd) {
                 Column(
-                    Modifier.width(landscapePanelWidth).fillMaxHeight().clip(RoundedCornerShape(26.dp))
-                        .background(Color(0xF50A0C0D)).border(1.dp, Color(0xFF465054), RoundedCornerShape(26.dp))
-                        .padding(horizontal = 11.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Modifier.width(landscapePanelWidth).fillMaxHeight().clip(RoundedCornerShape(24.dp))
+                        .background(Color(0xF50A0C0D)).border(1.dp, Color(0xFF465054), RoundedCornerShape(24.dp))
+                        .padding(horizontal = 7.dp, vertical = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.film_filters_title), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp)
+                    Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Cuộn phim", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Text("×", color = Color.White, fontSize = 20.sp,
-                            modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp))
+                        Text("×", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp))
                     }
-                    searchPane(Modifier.fillMaxWidth())
-                    importPane(Modifier.fillMaxWidth())
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(Modifier.weight(1f)) { searchPane(Modifier.fillMaxWidth()) }
+                        Box(Modifier.width(74.dp)) { importPane(Modifier.fillMaxWidth()) }
+                    }
+                    Row(Modifier.fillMaxWidth().height(28.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                         lookCategories.forEach { category ->
                             val label = category.labelResource?.let { stringResource(it) } ?: category.customLabel.orEmpty()
                             FujiChip(label, selectedLookCategory == category.id, { selectedLookCategory = category.id })
@@ -8627,94 +8631,42 @@ private fun FilterLookDialog(
                     }
                     Text(
                         "$visibleFilterCount / $totalFilterCount bộ lọc",
-                        color = FujiSkin.lcdGreen, fontSize = 7.sp
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    presetGrid(Modifier.weight(1f).fillMaxWidth())
-                    Row(
-                        Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF202526))
-                            .padding(start = 9.dp, end = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Bảng tông màu",
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.4.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Box(
-                            Modifier.size(Tuning.FILM_ROLL_RESET_TOUCH_TARGET_DP.dp).clickable {
-                                updatePalette(Offset(0.5f, 0.5f))
-                            },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                Modifier.size(Tuning.FILM_ROLL_RESET_ICON_SIZE_DP.dp)
-                                    .clip(RoundedCornerShape(5.dp))
-                                    .background(Color(0xFF383F41)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("↺", color = FujiSkin.lcdGreen, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            }
+                    Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1.08f).fillMaxHeight()) {
+                            presetGrid(Modifier.fillMaxSize())
                         }
-                        Text(
-                            "●",
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp)
-                        )
-                    }
-                    if (showTonePad) {
-                        FilmTonePad(
-                            activeFilter = activeFilter,
-                            point = palettePoint,
-                            intensity = filterIntensity,
-                            valueLabel = "Sáng ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_tone", 0f))} · Đậm ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_temperature", 0f))}",
-                            onPointChange = { updatePalette(it) },
-                            onIntensityChange = {
-                                filterIntensity = it
-                                persistRecipeValue("film_filter_intensity", it)
-                            }
-                        )
+                        Box(Modifier.weight(0.92f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            FilmTonePad(
+                                activeFilter = activeFilter,
+                                point = palettePoint,
+                                intensity = filterIntensity,
+                                valueLabel = "Sáng ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_tone", 0f))} · Đậm ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_temperature", 0f))}",
+                                onPointChange = { updatePalette(it) },
+                                onIntensityChange = {
+                                    filterIntensity = it
+                                    persistRecipeValue("film_filter_intensity", it)
+                                }
+                            )
+                        }
                     }
                     Row(
-                        Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(5.dp))
-                            .background(Color(0xFF202526))
-                            .clickable { showAdjustmentControls = !showAdjustmentControls }
-                            .padding(horizontal = 8.dp),
+                        Modifier.fillMaxWidth().height(27.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF202526)).padding(horizontal = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            stringResource(R.string.filter_adjustments_title),
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            "Đặt lại",
-                            color = FujiSkin.orange,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable { resetColorControls() }.padding(horizontal = 5.dp)
-                        )
-                        Text(
-                            if (showAdjustmentControls) "−" else "+",
-                            color = FujiSkin.lcdGreen,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Chỉnh màu", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("Thử màu", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onPreviewColorTest).padding(horizontal = 4.dp))
+                        Text("Đặt lại", color = FujiSkin.orange, fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { resetColorControls() }.padding(horizontal = 4.dp))
+                        Text(if (showAdjustmentControls) "−" else "+", color = FujiSkin.lcdGreen, fontSize = 13.sp, modifier = Modifier.clickable { showAdjustmentControls = !showAdjustmentControls })
                     }
-                    if (showAdjustmentControls) adjustmentControls(Modifier.fillMaxWidth())
-                    FujiKey(
-                        "Thử màu preview",
-                        onClick = onPreviewColorTest,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(if (showingOriginal) "ORIGINAL" else activeFilterName, color = FujiSkin.lcdGreen, fontSize = 7.sp, maxLines = 1)
+                    if (showAdjustmentControls) {
+                        Box(Modifier.heightIn(max = if (compact) 86.dp else 122.dp).verticalScroll(rememberScrollState())) {
+                            adjustmentControls(Modifier.fillMaxWidth())
+                        }
+                    }
                 }
             }
         } else {
@@ -8825,51 +8777,40 @@ private fun FilmTonePad(
                 .background(Brush.horizontalGradient(gradientColors))
                 .border(2.dp, Color(0xFFE6E8E7), RoundedCornerShape(20.dp))
                 .pointerInput(Unit) {
-                    // One recognizer owns tap, double-tap and drag so the tap detector
-                    // cannot consume DOWN before the separate drag detector sees it.
                     var lastTapUptimeMillis = 0L
                     val touchSlop = viewConfiguration.touchSlop
                     val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                    fun normalized(position: Offset): Offset = Offset(
+                        (position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                        (position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    )
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
                         var dragging = false
-                        while (true) {
-                            val change = awaitPointerEvent().changes
-                                .firstOrNull { it.id == down.id } ?: break
+                        var finished = false
+                        while (!finished) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!change.pressed) {
                                 if (!dragging) {
                                     val now = change.uptimeMillis
-                                    if (lastTapUptimeMillis > 0L &&
-                                        now - lastTapUptimeMillis <= doubleTapTimeout
-                                    ) {
+                                    if (lastTapUptimeMillis > 0L && now - lastTapUptimeMillis <= doubleTapTimeout) {
                                         latestOnPointChange(Offset(0.5f, 0.5f))
                                         lastTapUptimeMillis = 0L
                                     } else {
-                                        latestOnPointChange(
-                                            Offset(
-                                                (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                                                (change.position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                                            )
-                                        )
+                                        latestOnPointChange(normalized(change.position))
                                         lastTapUptimeMillis = now
                                     }
+                                }
+                                change.consume()
+                                finished = true
+                            } else {
+                                if (!dragging && (change.position - down.position).getDistance() > touchSlop) dragging = true
+                                if (dragging) {
+                                    latestOnPointChange(normalized(change.position))
                                     change.consume()
                                 }
-                                break
-                            }
-                            if (!dragging &&
-                                (change.position - down.position).getDistance() > touchSlop
-                            ) {
-                                dragging = true
-                            }
-                            if (dragging) {
-                                latestOnPointChange(
-                                    Offset(
-                                        (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
-                                        (change.position.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                                    )
-                                )
-                                change.consume()
                             }
                         }
                     }

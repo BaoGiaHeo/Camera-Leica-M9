@@ -507,31 +507,48 @@ class MainActivity : AppCompatActivity() {
                                         page = "camera"
                                     }
                                 )
-                                "settings" -> SettingsScreen(
-                                    onBack = { page = "camera" },
-                                    onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },
-                                    onOpenContentsManagement = { settingsSubpageReturnTarget = "settings"; page = "contents" },
-                                    ratioIdx = ratioIdx,
-                                    onRatio = {
-                                        ratioIdx = it.coerceIn(0, 3)
-                                        settingsPrefs.edit()
-                                            .putInt("capture_ratio_index", ratioIdx)
-                                            .putBoolean("capture_ratio_index_v20202", true)
-                                            .apply()
-                                    },
-                                    showGrid = showGrid,
-                                    onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
-                                    showHist = showHist,
-                                    onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
-                                    focusPeaking = focusPeaking,
-                                    onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
-                                    onReplayActivation = { },
-                                    onOpenWatermarkPanel = {
-                                        settingsSubpageReturnTarget = "settings"
-                                        page = "watermark_panel"
-                                    },
+                                "settings" -> androidx.compose.foundation.layout.BoxWithConstraints(
                                     modifier = Modifier.fillMaxSize()
-                                )
+                                ) {
+                                    // Landscape LCD bounds from the supplied 924×427 reference:
+                                    // x=6–57%, y=16–92.5%. Keep the live camera rendered behind it.
+                                    val settingsPanelModifier = if (maxWidth > maxHeight) {
+                                        Modifier
+                                            .width(maxWidth * 0.51f)
+                                            .height(maxHeight * 0.765f)
+                                            .offset(x = maxWidth * 0.06f, y = maxHeight * 0.16f)
+                                    } else {
+                                        Modifier
+                                            .fillMaxWidth(0.90f)
+                                            .fillMaxHeight(0.80f)
+                                            .align(Alignment.Center)
+                                    }
+                                    SettingsScreen(
+                                        onBack = { page = "camera" },
+                                        onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },
+                                        onOpenContentsManagement = { settingsSubpageReturnTarget = "settings"; page = "contents" },
+                                        ratioIdx = ratioIdx,
+                                        onRatio = {
+                                            ratioIdx = it.coerceIn(0, 3)
+                                            settingsPrefs.edit()
+                                                .putInt("capture_ratio_index", ratioIdx)
+                                                .putBoolean("capture_ratio_index_v20202", true)
+                                                .apply()
+                                        },
+                                        showGrid = showGrid,
+                                        onShowGrid = { showGrid = it; settingsPrefs.edit().putBoolean("viewfinder_grid_enabled", it).apply() },
+                                        showHist = showHist,
+                                        onShowHist = { showHist = it; settingsPrefs.edit().putBoolean("viewfinder_histogram_enabled", it).apply() },
+                                        focusPeaking = focusPeaking,
+                                        onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
+                                        onReplayActivation = { },
+                                        onOpenWatermarkPanel = {
+                                            settingsSubpageReturnTarget = "settings"
+                                            page = "watermark_panel"
+                                        },
+                                        modifier = settingsPanelModifier
+                                    )
+                                }
                                 "toolbox" -> ToolboxScreen(
                                     onBack = { page = settingsSubpageReturnTarget },
                                     showGrid = showGrid,

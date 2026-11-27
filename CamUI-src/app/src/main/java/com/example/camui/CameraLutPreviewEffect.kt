@@ -308,7 +308,8 @@ internal object CameraLutPreviewEffect {
         context: Context,
         view: View,
         preset: String,
-        baseEffect: RenderEffect?
+        baseEffect: RenderEffect?,
+        testRedAmount: Float = 0f
     ): String {
         if (Build.VERSION.SDK_INT < 31) {
             clear(view)
@@ -323,7 +324,7 @@ internal object CameraLutPreviewEffect {
             postConcat(
                 ColorMatrix(
                     floatArrayOf(
-                        exposure, 0f, 0f, 0f, tint,
+                        exposure, 0f, 0f, 0f, tint + testRedAmount.coerceIn(0f, 1f) * 235f,
                         0f, exposure, 0f, 0f, tint,
                         0f, 0f, exposure, 0f, tint,
                         0f, 0f, 0f, 1f, 0f
@@ -339,7 +340,11 @@ internal object CameraLutPreviewEffect {
             viewEffects[view] = ViewEffectState(baseEffect, composed)
         }
         view.setRenderEffect(composed)
-        Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=ColorMatrix_APPROX")
+        view.invalidate()
+        Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=ColorMatrix fallback=APPROX")
+        CrashContextDiagnostics.recordUiEvent(
+            "PREVIEW_FILTER_APPLIED id=$preset method=ColorMatrix fallback=APPROX"
+        )
         return "COLOR_MATRIX_APPROX"
     }
 
@@ -406,6 +411,11 @@ internal object CameraLutPreviewEffect {
             install(context, view, preset, prepared, baseEffect)
         } else {
             updateRecipeUniforms(context, preset, view, prepared.shader)
+            view.invalidate()
+            Log.i(TAG, "PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU update=uniforms")
+            CrashContextDiagnostics.recordUiEvent(
+                "PREVIEW_FILTER_APPLIED id=$preset method=AGSL_GPU update=uniforms"
+            )
         }
     }
 
@@ -420,12 +430,47 @@ internal object CameraLutPreviewEffect {
         baseEffect: RenderEffect?,
         onResult: (Boolean, String) -> Unit
     ) {
+        if (Build.VERSION.SDK_INT in 31..32) {
+            val before = runCatching { view.bitmap }.getOrNull()
+            val method = installColorMatrixFallback(
+                context, view, preset, baseEffect, testRedAmount = 0.92f
+            )
+            view.invalidate()
+            view.postDelayed({
+                val after = runCatching { view.bitmap }.getOrNull()
+                val beforeMean = before?.let(::sampleMeanRed)
+                val afterMean = after?.let(::sampleMeanRed)
+                val delta = if (beforeMean != null && afterMean != null) afterMean - beforeMean else null
+                val passed = delta != null && delta > 0.08f
+                val reason = when {
+                    before == null || after == null -> "PreviewView.bitmap unavailable"
+                    delta == null -> "Cannot compare preview frames"
+                    !passed -> "ColorMatrix red offset not visible in preview (delta=$delta)"
+                    else -> "red-channel delta=$delta method=$method"
+                }
+                if (before != null && !before.isRecycled) before.recycle()
+                if (after != null && !after.isRecycled) after.recycle()
+                if (passed) {
+                    Log.i(TAG, "PREVIEW_COLOR_TEST_PASS $reason")
+                    CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_PASS $reason")
+                } else {
+                    Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED $reason")
+                    CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_FAILED $reason")
+                }
+                onResult(passed, reason)
+            }, 650L)
+            view.postDelayed({
+                installColorMatrixFallback(context, view, preset, baseEffect)
+                view.invalidate()
+                Log.i(TAG, "PREVIEW_COLOR_TEST_RESTORED id=$preset method=ColorMatrix")
+                CrashContextDiagnostics.recordUiEvent(
+                    "PREVIEW_COLOR_TEST_RESTORED id=$preset method=ColorMatrix"
+                )
+            }, 3_000L)
+            return
+        }
         if (Build.VERSION.SDK_INT < 33) {
-            val reason = if (Build.VERSION.SDK_INT >= 31) {
-                "ColorMatrix fallback does not expose the AGSL red-test uniform"
-            } else {
-                "RenderEffect requires Android 12 or newer"
-            }
+            val reason = "Live color preview requires Android 12 (API 31) or newer"
             Log.e(TAG, "PREVIEW_COLOR_TEST_FAILED reason=$reason")
             CrashContextDiagnostics.recordUiEvent("PREVIEW_COLOR_TEST_FAILED reason=$reason")
             onResult(false, reason)

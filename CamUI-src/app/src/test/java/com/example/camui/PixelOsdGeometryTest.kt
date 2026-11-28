@@ -211,9 +211,9 @@ class PixelOsdGeometryTest {
 
     @Test
     fun afAndEyeReticlesUseScreenRelativeSizeAndReadableStroke() {
-        assertEquals(32, centerAfReticleHalfSize(540))
+        assertEquals(41, centerAfReticleHalfSize(540))
         assertEquals(19, eyeReticleHalfSize(22, 2))
-        assertEquals(2, afReticleStrokeWidth(22, 2))
+        assertEquals(3, afReticleStrokeWidth(22, 2))
     }
 
     @Test

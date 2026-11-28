@@ -4600,7 +4600,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             val captureUseRawDream20 = !nativeImageProcessingEnabled && !livePhotoEnabled &&
                 mode == "Pro" && rawCaptureMode == "raw_dream"
             val lunaDreamSelected = !nativeImageProcessingEnabled && !livePhotoEnabled &&
-                (mode == "Pro" || mode == "Pro") &&
+                (mode == "Photo" || mode == "Pro") &&
                 (lunaDreamMode != "off" || captureUseRawDream20)
             val lunaDreamJpegCaptureAllowed = LunaDreamCapturePolicy.supportsStackedJpegCapture(
                 cameraMode = mode,

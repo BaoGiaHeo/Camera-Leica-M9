@@ -8817,33 +8817,143 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             val chromeAlpha = if (hudVisible) ratioUiAlpha.value else 0f
             val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
 
-            Column(Modifier.fillMaxSize()) {
-                Row(
-                    Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp * designScale),
-                    verticalAlignment = Alignment.CenterVertically
+            var uiLeafEnabled by remember { mutableStateOf(appPrefs.getBoolean("battery_saver_enabled", false)) }
+            val uiZoomState = camera?.cameraInfo?.zoomState?.value
+            val uiMinZoom = uiZoomState?.minZoomRatio ?: 1f
+            val uiMaxZoom = uiZoomState?.let { state ->
+                maxTotalSelectableZoom(
+                    Camera2Info.cameraReportedZoomMax(activeCameraDetails, state.maxZoomRatio),
+                    Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
+                )
+            } ?: 2f
+            val uiEvMin = ((evRange?.lower ?: -9) * (evStep.takeIf { it > 0f } ?: (1f / 3f))).coerceAtMost(-1f)
+            val uiEvMax = ((evRange?.upper ?: 9) * (evStep.takeIf { it > 0f } ?: (1f / 3f))).coerceAtLeast(1f)
+            val uiLunaLabel = when (lunaDreamMode) {
+                "off" -> null
+                "luna15" -> "1.5"
+                "luna20" -> "2.0"
+                else -> "3.0"
+            }
+            val cameraUiState = CameraUiState(
+                ss = if (shutterText == "AUTO") "SS AUTO" else "SS$shutterText",
+                fNumber = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
+                    ?.let { "F%.1f".format(Locale.US, it) } ?: "F--",
+                iso = if (isoText == "AUTO") "ISO AUTO" else "ISO $isoText",
+                kelvin = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
+                ev = evIndex * (evStep.takeIf { it > 0f } ?: (1f / 3f)),
+                evMin = uiEvMin,
+                evMax = uiEvMax,
+                batteryPct = batteryPercent,
+                batteryLook = when {
+                    batteryCharging -> BatteryLook.CHARGING
+                    batteryPercent <= 5 -> BatteryLook.CRITICAL
+                    batteryPercent <= 15 -> BatteryLook.LOW
+                    uiLeafEnabled -> BatteryLook.SAVER
+                    else -> BatteryLook.NORMAL
+                },
+                batteryText = if (batteryCharging) "CHARGING" else "GOOD",
+                tempC = measuredBatteryTempC.takeIf { it > 0 } ?: 34,
+                aspect = "4:3",
+                dr = "DR100",
+                focus01 = if (maxFocus > 0f) (manualFocus / maxFocus).coerceIn(0f, 1f) else 0f,
+                focusText = if (manualFocus <= 0f) "AUTO" else String.format(Locale.US, "%.1f", manualFocus),
+                zoom01 = ((zoomSel - uiMinZoom) / (uiMaxZoom - uiMinZoom).coerceAtLeast(0.001f)).coerceIn(0f, 1f),
+                zoomText = String.format(Locale.US, "%.1fx", zoomSel),
+                aeLocked = aeLocked,
+                afLocked = focusLocked,
+                hideOsd = false,
+                filterOn = filterDialogVisible || activeFilter != "None",
+                lunaLabel = uiLunaLabel,
+                busy = isProcessing,
+                leafOn = uiLeafEnabled,
+                afState = when {
+                    focusLocked -> AfState.LOCKED
+                    centerAfStatus < 0 -> AfState.FAILED
+                    centerAfStatus > 0 -> AfState.FOCUSING
+                    else -> AfState.IDLE
+                }
+            )
+            val cameraUiActions = CameraUiActions(
+                onMenu = { showQuick = !showQuick },
+                onLeaf = {
+                    uiLeafEnabled = !uiLeafEnabled
+                    appPrefs.edit().putBoolean("battery_saver_enabled", uiLeafEnabled).apply()
+                },
+                onAeL = {
+                    camera?.let { active ->
+                        val next = !aeLocked
+                        if (applyCameraAeLock(active, next)) aeLocked = next
+                    }
+                },
+                onAfL = {
+                    camera?.let { active ->
+                        val next = !focusLocked
+                        if (applyCameraAfLock(active, next)) {
+                            focusLocked = next
+                            if (!next) runCatching { applyAutoFocus(active) }
+                        }
+                    }
+                },
+                onFocusChange = { fraction -> queueManualFocusFraction(fraction) },
+                onEvChange = { value ->
+                    val step = evStep.takeIf { it > 0f } ?: (1f / 3f)
+                    queueEvCommand((value / step).roundToInt())
+                },
+                onZoomFraction = { fraction ->
+                    zoomBarRequests.trySend((uiMinZoom + fraction * (uiMaxZoom - uiMinZoom)) to true)
+                },
+                onZoomStep = { direction ->
+                    animateZoomTo((zoomSel + direction * 0.08f).coerceIn(uiMinZoom, uiMaxZoom))
+                },
+                onPinch = { scale -> animateZoomTo((zoomSel * scale).coerceIn(uiMinZoom, uiMaxZoom)) },
+                onTapFocus = { x, y ->
+                    camera?.let { active ->
+                        val px = (previewView.width * x).coerceIn(0f, previewView.width.toFloat())
+                        val py = (previewView.height * y).coerceIn(0f, previewView.height.toFloat())
+                        val point = previewView.meteringPointFactory.createPoint(px, py)
+                        val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+                            .disableAutoCancel().build()
+                        runCatching { active.cameraControl.startFocusAndMetering(action) }
+                        centerAfStatus = 0
+                    }
+                },
+                onAlbum = { onOpenAlbum(null) },
+                onFilter = { filterDialogVisible = true },
+                onLuna = { showLunaDream = true },
+                onSetting = onOpenSettings,
+                onShutter = { takePhoto() },
+                onHoldStart = { startContinuousBurst() },
+                onHoldEnd = { stopContinuousBurst() }
+            )
+            CameraUi(
+                state = cameraUiState,
+                actions = cameraUiActions,
+                modifier = Modifier.fillMaxSize(),
+                preview = { lcdPreviewLayer(Modifier.fillMaxSize()) }
+            )
+            if (filterDialogVisible) {
+                Box(
+                    Modifier.fillMaxSize().background(Color(0x99000000)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(Modifier.weight(1f).fillMaxHeight()) {
-                        lcdPreviewLayer(Modifier.weight(1f).fillMaxWidth())
-                        lcdLogoFooter(Modifier.fillMaxWidth())
-                    }
-                    Box(
-                        Modifier.width(leftColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                            .graphicsLayer { alpha = chromeAlpha }
-                    ) {
-                        leftHardwareContent(Modifier.fillMaxSize())
-                    }
-                    Box(
-                        Modifier.width(rightColumnWidth).fillMaxHeight()
-                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                            .windowInsetsPadding(WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal))
-                            .windowInsetsPadding(WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal))
-                            .graphicsLayer { alpha = chromeAlpha }
-                            .onSizeChanged { Log.d("LUNA_LAYOUT", "RIGHT_COLUMN_310 ${it.width}px x ${it.height}px") }
-                    ) {
-                        rightHardwareContent(Modifier.fillMaxSize())
-                    }
+                    Camera310FilterDropdown(
+                        visible = true,
+                        presets = camera310FilterPresets,
+                        activeFilter = activeFilter,
+                        lightMode = lightUi,
+                        modifier = Modifier.fillMaxWidth(0.84f).fillMaxHeight(0.84f),
+                        onDismiss = { filterDialogVisible = false },
+                        onSelect = { selected ->
+                            activeFilter = selected
+                            appPrefs.edit().putString("selected_filter", selected).apply()
+                            filterDialogVisible = false
+                            CameraLutPreviewEffect.updateRecipe(
+                                context, previewView, selected,
+                                digitalZoomPreviewEffect.currentRenderEffect()
+                            )
+                            CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$selected method=GL_OR_AGSL")
+                        }
+                    )
                 }
             }
             Box(

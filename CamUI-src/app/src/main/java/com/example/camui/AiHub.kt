@@ -56,153 +56,171 @@ fun LunaDreamBottomSheet(
     targetHeightOverWidth: Float,
     onSelectedModeChange: (String) -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    val maxPanelHeight = (configuration.screenHeightDp * 0.94f).dp
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         AnimatedVisibility(
             visible = true,
-            enter = fadeIn(tween(250)) + slideInHorizontally(initialOffsetX = { it / 18 }, animationSpec = tween(250)),
-            exit = fadeOut(tween(180)) + slideOutHorizontally(targetOffsetX = { it / 24 }, animationSpec = tween(180))
-        ) {
-        FujiPanel(
-            title = "LUNADREAM ENGINE",
-            modifier = Modifier.fillMaxSize().padding(10.dp),
-            onBack = onDismiss
+            enter = fadeIn(tween(220)) + slideInHorizontally(
+                initialOffsetX = { it / 30 },
+                animationSpec = tween(220)
+            ),
+            exit = fadeOut(tween(160)) + slideOutHorizontally(
+                targetOffsetX = { it / 36 },
+                animationSpec = tween(160)
+            )
         ) {
             Column(
-                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                Modifier.fillMaxSize()
+                    .background(Color(0xFF171717))
+                    .padding(horizontal = 30.dp, vertical = 14.dp)
             ) {
-                Text(
-                    "Chọn mô hình trước khi chụp. Lựa chọn này được giữ trong suốt quá trình xử lý ảnh.",
-                    color = FujiSkin.muted,
-                    fontSize = 10.sp,
-                    lineHeight = 15.sp
-                )
-                if (nightShotEnabled) {
+                Row(
+                    Modifier.fillMaxWidth().height(48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        "Night Shot đang bật. Tắt Night Shot trước khi chọn LunaDream.",
-                        color = Color(0xFFFFB45C),
-                        fontSize = 9.sp,
-                        lineHeight = 13.sp
+                        "LUNADREAM ENGINE",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.35.sp
                     )
-                }
-                val lunaModes = listOf(
-                    Triple("luna15", R.string.lunadream_15_title, R.string.lunadream_15_subtitle),
-                    Triple("luna20", R.string.lunadream_20_title, R.string.lunadream_20_subtitle),
-                    Triple("luna25", R.string.lunadream_25_title, R.string.lunadream_25_subtitle)
-                )
-                lunaModes.chunked(2).forEach { modelPair ->
-                    Row(
-                        Modifier.fillMaxWidth().weight(1f, fill = false),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Spacer(Modifier.weight(1f))
+                    Box(
+                        Modifier.width(104.dp).height(38.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .border(1.dp, Color(0xFF888888), RoundedCornerShape(7.dp))
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center
                     ) {
-                        modelPair.forEach { (modeId, titleRes, subtitleRes) ->
-                            val outputTarget = lunaDreamOutputTarget(modeId)
-                                ?: error("Missing LunaDream output specification for $modeId")
-                            val outputDimensions = lunaDreamOutputDimensions(modeId, targetHeightOverWidth)
-                                ?: error("Could not calculate LunaDream output dimensions for $modeId")
-                            val resolutionLabel = String.format(
-                                Locale.US,
-                                "%,d × %,d px",
-                                outputDimensions.first,
-                                outputDimensions.second
+                        Text(
+                            "Quay Lại",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                    }
+                }
+                Row(
+                    Modifier.weight(1f).fillMaxWidth()
+                        .clip(RoundedCornerShape(34.dp))
+                        .border(1.dp, Color(0xFF777777), RoundedCornerShape(34.dp))
+                        .padding(horizontal = 28.dp, vertical = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(28.dp)
+                ) {
+                    Column(
+                        Modifier.weight(1.1f).fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        LunaDreamModeCard(
+                            modifier = Modifier.weight(0.9f).fillMaxWidth(),
+                            title = "LunaDream 1.5",
+                            description = "50MP Chất lượng ảnh sẽ Không được nét nhưng xử lý nhanh",
+                            selected = selectedMode == "luna15",
+                            enabled = !nightShotEnabled
+                        ) { onSelectedModeChange(if (selectedMode == "luna15") "off" else "luna15") }
+                        LunaDreamModeCard(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            title = "LunaDream 2.0",
+                            description = "108MP chất lượng nét hơn, Xử lý chậm so với 1.5 xíu",
+                            selected = selectedMode == "luna20",
+                            enabled = !nightShotEnabled
+                        ) { onSelectedModeChange(if (selectedMode == "luna20") "off" else "luna20") }
+                    }
+                    Column(
+                        Modifier.weight(1f).fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        LunaDreamModeCard(
+                            modifier = Modifier.weight(0.9f).fillMaxWidth(),
+                            title = "LunaDream 3.0",
+                            description = "180MP Chất lượng nét hơn, Hình ảnh tốt hơn",
+                            selected = selectedMode == "luna25",
+                            enabled = !nightShotEnabled
+                        ) { onSelectedModeChange(if (selectedMode == "luna25") "off" else "luna25") }
+                        Column(
+                            Modifier.weight(1.12f).fillMaxWidth()
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(Color(0xFF303030))
+                                .border(1.dp, Color(0xFF444444), RoundedCornerShape(22.dp))
+                                .padding(18.dp),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                "LƯU Ý:",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
                             )
-                            val megapixelsLabel = "${outputTarget.targetPixels / 1_000_000L} MP"
-                            Box(
-                                Modifier.weight(1f).fillMaxWidth()
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(Color(0xFF27292B))
-                                    .border(
-                                        1.2.dp,
-                                        if (selectedMode == modeId) Color(0xFFF0A030) else Color(0xFF66696B),
-                                        RoundedCornerShape(18.dp)
-                                    )
-                                    .padding(7.dp)
-                            ) {
-                                LunaDreamModeRow(
-                                    title = stringResource(titleRes),
-                                    subtitle = stringResource(subtitleRes),
-                                    resolutionLabel = resolutionLabel,
-                                    megapixelsLabel = megapixelsLabel,
-                                    selected = selectedMode == modeId,
-                                    enabled = !nightShotEnabled,
-                                    intensity = when (modeId) {
-                                        "luna15" -> 0.58f
-                                        "luna20" -> 0.82f
-                                        "luna25" -> 0.92f
-                                        else -> 1f
-                                    },
-                                    phase = 0f,
-                                    onCheckedChange = { onSelectedModeChange(if (it) modeId else "off") }
+                            Spacer(Modifier.height(7.dp))
+                            Text(
+                                "THUẬT TOÁN LUNADREAM ENGINE TRONG QUÁ TRÌNH PHÁT TRIỂN NÊN CHẤT LƯỢNG ẢNH NÉT THẬT NHƯNG CÓ THỂ BỊ MỜ NẾU GIỮ MÁY KHÔNG ỔN ĐỊNH",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                lineHeight = 19.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (nightShotEnabled) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Night Shot đang bật. Hãy tắt Night Shot trước khi chọn LunaDream.",
+                                    color = Color(0xFFFFB45C),
+                                    fontSize = 10.sp,
+                                    lineHeight = 14.sp
                                 )
                             }
                         }
-                        if (modelPair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                Text(
-                    if (selectedMode == "off") "LUNADREAM ĐANG TẮT" else "LUNADREAM · ${selectedMode.uppercase()}",
-                    color = FujiSkin.lcdGreen,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF55585A)))
-                Text(
-                    "LunaDream ghép nhiều khung hình, căn chỉnh chuyển động và xuất ảnh độ phân giải cao. Giữ máy ổn định khi chụp.",
-                    color = Color(0xFFD5D7D8),
-                    fontSize = 10.sp,
-                    lineHeight = 15.sp,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF202224), RoundedCornerShape(12.dp)).padding(12.dp)
-                )
-                Text(
-                    if (selectedMode == "off") "CHƯA CHỌN MÔ HÌNH" else "ĐANG CHỌN · ${selectedMode.uppercase()}",
-                    color = Color(0xFFF0A030),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
             }
-        }
         }
     }
 }
 
 @Composable
-private fun LunaDreamModeRow(
+private fun LunaDreamModeCard(
+    modifier: Modifier,
     title: String,
-    subtitle: String,
-    resolutionLabel: String,
-    megapixelsLabel: String,
+    description: String,
     selected: Boolean,
-    intensity: Float,
-    phase: Float,
-    enabled: Boolean = true,
-    onCheckedChange: (Boolean) -> Unit
+    enabled: Boolean,
+    onClick: () -> Unit
 ) {
-    Row(
-        Modifier.fillMaxWidth()
-            .graphicsLayer { alpha = if (enabled) 1f else 0.38f }
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFF202426))
-            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF465054), RoundedCornerShape(6.dp))
-            .clickable(enabled = enabled) { if (enabled) onCheckedChange(!selected) }
-            .padding(horizontal = 11.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier.clip(RoundedCornerShape(22.dp))
+            .background(Color(0xFF555555))
+            .border(
+                width = if (selected) 2.5.dp else 1.dp,
+                color = if (selected) Color(0xFFF0A030) else Color(0xFF8A8A8A),
+                shape = RoundedCornerShape(22.dp)
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.42f }
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title.uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = FujiSkin.muted, fontSize = 9.sp, lineHeight = 13.sp, maxLines = 2)
+        Text(
+            title,
+            color = Color.White,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(
+            description,
+            color = Color.White,
+            fontSize = 15.sp,
+            lineHeight = 20.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+        )
+        if (selected) {
+            Spacer(Modifier.height(6.dp))
+            Text("ĐANG CHỌN", color = Color(0xFFFFD18A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.width(8.dp))
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(resolutionLabel, color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            Text(megapixelsLabel, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-        }
-        Spacer(Modifier.width(10.dp))
-        FujiSwitch(checked = selected, onCheckedChange = { if (enabled) onCheckedChange(it) })
     }
 }

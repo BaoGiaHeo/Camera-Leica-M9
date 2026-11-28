@@ -94,8 +94,7 @@ fun LunaDreamBottomSheet(
                 val lunaModes = listOf(
                     Triple("luna15", R.string.lunadream_15_title, R.string.lunadream_15_subtitle),
                     Triple("luna20", R.string.lunadream_20_title, R.string.lunadream_20_subtitle),
-                    Triple("luna25", R.string.lunadream_25_title, R.string.lunadream_25_subtitle),
-                    Triple("luna30", R.string.lunadream_30_title, R.string.lunadream_30_subtitle)
+                    Triple("luna25", R.string.lunadream_25_title, R.string.lunadream_25_subtitle)
                 )
                 lunaModes.chunked(2).forEach { modelPair ->
                     Row(

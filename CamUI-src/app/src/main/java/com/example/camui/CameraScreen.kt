@@ -555,57 +555,6 @@ private fun preferredPhotoRawSize(
         }
     )
 }
-@Composable
-private fun Fuji320Hud(
-    shutter: String,
-    aperture: String,
-    iso: String,
-    kelvin: String,
-    ev: String,
-    batteryPercent: Int,
-    batteryColor: Color,
-    temperatureC: Int
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth(0.88f)
-            .height(58.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xD9141516))
-            .border(1.dp, Color(0xFF3A3C3F), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        @Composable fun Cell(value: String, accent: Boolean = false) {
-            Text(
-                value,
-                color = if (accent) Color(0xFF299BFF) else Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-        }
-        Cell(shutter, true)
-        Box(Modifier.width(1.dp).height(34.dp).background(Color(0x66FFFFFF)))
-        Column(verticalArrangement = Arrangement.Center) {
-            Cell(aperture, true)
-            Cell(iso)
-        }
-        Box(Modifier.width(1.dp).height(34.dp).background(Color(0x66FFFFFF)))
-        Cell(kelvin, true)
-        Box(Modifier.width(1.dp).height(34.dp).background(Color(0x66FFFFFF)))
-        Column(verticalArrangement = Arrangement.Center) {
-            Cell("EV")
-            Cell(ev)
-        }
-        Box(Modifier.width(1.dp).height(34.dp).background(Color(0x66FFFFFF)))
-        Column(verticalArrangement = Arrangement.Center) {
-            Cell("BAT $batteryPercent%", batteryColor != Color.White)
-            Cell(if (temperatureC > 0) "$temperatureC°C" else "TEMP --")
-        }
-    }
-}
 
 @Composable
 fun CameraScreen(
@@ -7478,51 +7427,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     }
                                 }
                             )
-                            if (mode == "Pro") {
-                                val focusMax = maxFocus.coerceAtLeast(0.001f)
-                                Box(
-                                    Modifier.align(Alignment.BottomCenter)
-                                        .padding(bottom = (frameHeight * 0.03f).coerceAtLeast(6.dp))
-                                ) {
-                                    Fuji320Hud(
-                                    shutter = if (shutterText == "AUTO") "SS AUTO" else "SS$shutterText",
-                                    aperture = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
-                                        ?.let { "F%.1f".format(Locale.US, it) } ?: "F--",
-                                    iso = if (isoText == "AUTO") "ISO AUTO" else "ISO $isoText",
-                                    kelvin = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
-                                    ev = evText,
-                                    batteryPercent = batteryPercent,
-                                    batteryColor = batteryIndicatorColor,
-                                    temperatureC = measuredBatteryTempC
-                                    )
-                                }
-                            } else {
-                                val photoZoomState = camera?.cameraInfo?.zoomState?.value
-                                val photoMin = photoZoomState?.minZoomRatio ?: 1f
-                                val photoReportedMax = Camera2Info.cameraReportedZoomMax(activeCameraDetails, photoZoomState?.maxZoomRatio ?: 1f)
-                                val photoMax = maxTotalSelectableZoom(
-                                    photoReportedMax,
-                                    Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
-                                ).coerceAtLeast(photoMin)
-                                FujiPhotoStatus(
-                                    batteryPercent = batteryPercent,
-                                    batteryColor = batteryIndicatorColor,
-                                    resolution = when (lunaDreamMode) {
-                                        "luna15" -> "FHD+"
-                                        "luna20" -> "UHD"
-                                        "luna25" -> "UHD+"
-                                        "luna30" -> "EUHD"
-                                        else -> "FHD"
-                                    },
-                                    fps = measuredPreviewFps,
-                                    targetFps = previewFpsTarget,
-                                    zoom = zoomDisplayValue,
-                                    minimumZoom = photoMin,
-                                    maximumZoom = photoMax,
-                                    onZoom = { requested -> animateZoomTo(requested.coerceIn(photoMin, photoMax)) },
-                                    scale = designScale
-                                )
-                            }
+
                             if (mode == "Pro" && proSel != null) {
                                 val selectedPanel = proAdjustmentContent
                                 Box(

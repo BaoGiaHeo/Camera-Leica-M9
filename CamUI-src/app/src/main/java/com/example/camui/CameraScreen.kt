@@ -4080,7 +4080,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             var submittedFrames = 0
             var finalizedFrames = 0
             var failedFrames = 0
-            var firstFrameTimestampMs: Long? = null
+            var initialFramePending = true
 
             suspend fun finishFrame(frame: FujifilmBurstFrameRequest) {
                 val uri = frame.uri
@@ -4108,7 +4108,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     return
                 }
                 finalizedFrames++
-                firstFrameTimestampMs = firstFrameTimestampMs ?: frame.captureTimestampMillis
                 val elapsedMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
                 val achievedFps = finalizedFrames * 1000.0 / elapsedMs
                 val runtime = Runtime.getRuntime()
@@ -4150,9 +4149,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 runCatching { activeCapture.flashMode = ImageCapture.FLASH_MODE_OFF }
                     .onFailure { android.util.Log.w("FUJI_BURST", "Could not disable flash for continuous capture", it) }
                 while (true) {
-                    while (!burstStopRequested && pending.size < 6) {
+                    while ((!burstStopRequested || initialFramePending) && pending.size < 6) {
                         if (camera !== activeCamera || imageCapture !== activeCapture || !captureSetupReady) {
                             burstStopRequested = true
+                            initialFramePending = false
                             localizedToast(context, "Burst đã dừng vì camera vừa đổi cấu hình.", Toast.LENGTH_SHORT).show()
                             break
                         }
@@ -4177,12 +4177,15 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 requestElapsedRealtimeMs = requestRealtime
                             )
                         })
-                        delay(200L)
+                        initialFramePending = false
+                        if (!burstStopRequested) delay(200L)
                     }
                     if (pending.isEmpty()) break
-                    val next = runCatching { pending.removeFirst().await() }.getOrElse {
+                    val next = try {
+                        pending.removeFirst().await()
+                    } catch (requestFailure: Throwable) {
                         failedFrames++
-                        android.util.Log.e("FUJI_BURST", "Burst request failed", it)
+                        android.util.Log.e("FUJI_BURST", "Burst request failed", requestFailure)
                         continue
                     }
                     runCatching { finishFrame(next) }.onFailure {
@@ -8380,10 +8383,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         },
                         onRelease = { stopContinuousBurst() },
                         onHalfPress = {
-                            invalidatePendingFocusLock(camera)
-                            centerAfStatus = 0
-                            manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
-                            if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                            if (!focusLocked) {
+                                invalidatePendingFocusLock(camera)
+                                centerAfStatus = 0
+                                manualAfOverrideUntilMs = SystemClock.elapsedRealtime() + 700L
+                                if (manualFocus <= 0f && !milkyWayInfinityFocusEnabled) {
+                                    camera?.let { active -> runCatching { applyAutoFocus(active) } }
+                                }
+                            }
                         },
                         onCapture = { takePhoto() },
                         modifier = Modifier.size(Tuning.CAMERA_SHUTTER_SIZE_DP.dp * designScale)

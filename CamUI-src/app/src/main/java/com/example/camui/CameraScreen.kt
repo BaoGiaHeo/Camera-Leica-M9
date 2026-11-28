@@ -6322,11 +6322,18 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     android.util.Log.w("FUJI_ZOOM_BAR", "Could not apply vsync zoom target=${plan.cameraControlZoomRatio}", it)
                 }
             }
+            // Apply physical and digital crop together during the gesture, not only
+            // after release. The old code kept the digital crop stale until commit, then
+            // snapped the preview back to the requested zoom.
+            if (abs(digitalZoomCropScale - plan.digitalCropRatio) > 0.001f) {
+                digitalZoomCropScale = plan.digitalCropRatio
+            }
+            if (abs(actualZoomRatio - plan.effectiveZoomRatio) > 0.001f) {
+                actualZoomRatio = plan.effectiveZoomRatio
+            }
+            zoomBarDrawRatio.floatValue = plan.effectiveZoomRatio
             if (latestRequest.second) {
                 zoomSel = plan.effectiveZoomRatio
-                actualZoomRatio = plan.effectiveZoomRatio
-                digitalZoomCropScale = plan.digitalCropRatio
-                zoomBarDrawRatio.floatValue = plan.effectiveZoomRatio
                 zoomInteractionGeneration++
                 appPrefs.edit().putFloat("camera_zoom_ratio", plan.effectiveZoomRatio).apply()
                 android.util.Log.i(
@@ -8774,7 +8781,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     zoomBarRequests.trySend(zoomBarDrawRatio.floatValue to true)
                 },
                 onZoomStepTap = { direction ->
-                    animateZoomTo((zoomSel + direction * 0.08f).coerceIn(uiMinZoom, uiMaxZoom))
+                    queueUiZoomTarget(
+                        (zoomBarDrawRatio.floatValue * exp(direction * 0.65f / 60f))
+                            .coerceIn(uiMinZoom, uiMaxZoom)
+                    )
                 },
                 onZoomStep = { direction ->
                     queueUiZoomTarget(zoomBarDrawRatio.floatValue * exp(direction * 0.65f / 60f))
@@ -8806,9 +8816,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 onZoomFraction = { fraction ->
                     queueUiZoomTarget(uiMinZoom + fraction * (uiMaxZoom - uiMinZoom))
                 },
-                onZoomStep = { direction ->
-                    animateZoomTo((zoomSel + direction * 0.08f).coerceIn(uiMinZoom, uiMaxZoom))
-                },
                 onPinch = { scale ->
                     queueUiZoomTarget(zoomBarDrawRatio.floatValue * scale)
                 },
@@ -8826,7 +8833,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     }
                 },
                 onAlbum = { onOpenAlbum(null) },
-                onFilter = { filterDialogVisible = true },
+                onFilter = { filterDialogVisible = !filterDialogVisible },
                 onLuna = {
                     when {
                         livePhotoEnabled -> localizedToast(

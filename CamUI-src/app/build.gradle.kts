@@ -170,8 +170,26 @@ val downloadSairaFontResources = tasks.register("downloadSairaFontResources") {
 // The Android source set receives an ordinary directory, not a Provider. Both
 // the KK7 resources and Saira static weights are ready before Android merging.
 android.sourceSets.getByName("main").res.srcDir(kk7FontResourceDirectory.asFile)
+val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
+val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
+val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
+
+val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") {
+    inputs.file(shutterAudioBase64)
+    outputs.file(shutterAudioResource)
+    doLast {
+        val encoded = shutterAudioBase64.asFile.readText(Charsets.US_ASCII)
+        val audioBytes = Base64.getMimeDecoder().decode(encoded)
+        check(audioBytes.size > 2_000 && audioBytes.copyOfRange(0, 3).contentEquals("ID3".toByteArray())) {
+            "Âm thanh màn trập 3.1.0 không phải MP3 hợp lệ."
+        }
+        shutterAudioResource.asFile.parentFile.mkdirs()
+        shutterAudioResource.asFile.writeBytes(audioBytes)
+    }
+}
+
 tasks.named("preBuild").configure {
-    dependsOn(generateKk7FontResource, downloadSairaFontResources)
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio)
 }
 
 kotlin {

@@ -95,6 +95,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     var showCaptureDiagnostics by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Chụp & Chất lượng") }
+    var previousCategory by remember { mutableStateOf("Chụp & Chất lượng") }
     var categoryBeforeBackup by remember { mutableStateOf("Chụp & Chất lượng") }
     val displayVersionName = BuildConfig.VERSION_NAME
         .replace(Regex("(?i)dream.*$"), "")
@@ -138,7 +139,7 @@ fun SettingsScreen(
             selectedCategory = if (selectedCategory == "Sao lưu & Khôi phục") {
                 categoryBeforeBackup
             } else {
-                "Chụp & Chất lượng"
+                previousCategory
             }
         }
     ) {
@@ -205,7 +206,12 @@ fun SettingsScreen(
                                     if (selected) Color(0xFFF2F2F2) else Color.Transparent,
                                     RoundedCornerShape(5.dp)
                                 )
-                                .clickable { selectedCategory = item.title }
+                                .clickable {
+                                    if (selectedCategory != item.title) {
+                                        previousCategory = selectedCategory
+                                        selectedCategory = item.title
+                                    }
+                                }
                                 .padding(horizontal = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)

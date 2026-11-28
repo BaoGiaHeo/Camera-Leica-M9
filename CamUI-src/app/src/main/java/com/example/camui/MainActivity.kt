@@ -411,41 +411,13 @@ class MainActivity : AppCompatActivity() {
                 var showGrid by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_grid_enabled", true)) }
                 var showHist by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_histogram_enabled", true)) }
                 var focusPeaking by remember { mutableStateOf(settingsPrefs.getBoolean("viewfinder_focus_peaking_enabled", false)) }
-                var ratioIdx by remember {
-                    mutableIntStateOf(
-                        if (settingsPrefs.getBoolean("capture_ratio_index_v20203", false)) {
-                            settingsPrefs.getInt("capture_ratio_index", 0).coerceIn(0, 3)
-                        } else {
-                            val oldIndex = if (settingsPrefs.contains("capture_ratio_index")) {
-                                settingsPrefs.getInt("capture_ratio_index", 0)
-                            } else -1
-                            val migrated = if (settingsPrefs.getBoolean("capture_ratio_index_v20202", false)) {
-                                // Previous order: 9:16, 9:21, 3:4, 1:1.
-                                when (oldIndex) {
-                                    0 -> 0
-                                    1 -> 3
-                                    2 -> 1
-                                    3 -> 2
-                                    else -> 0
-                                }
-                            } else {
-                                // Legacy five-choice order: 3:2, 4:3, 16:9, 1:1, 21:9.
-                                when (oldIndex) {
-                                    2 -> 0
-                                    1 -> 1
-                                    3 -> 2
-                                    4 -> 3
-                                    else -> 0
-                                }
-                            }
-                            settingsPrefs.edit()
-                                .putInt("capture_ratio_index", migrated)
-                                .putBoolean("capture_ratio_index_v20202", true)
-                                .putBoolean("capture_ratio_index_v20203", true)
-                                .apply()
-                            migrated
-                        }
-                    )
+                var ratioIdx by remember { mutableIntStateOf(1) }
+                LaunchedEffect(Unit) {
+                    settingsPrefs.edit()
+                        .putInt("capture_ratio_index", 1)
+                        .putBoolean("capture_ratio_index_v20202", true)
+                        .putBoolean("capture_ratio_index_v20203", true)
+                        .apply()
                 }
 
                 BackHandler(enabled = page != "camera" && page != "activation") {
@@ -479,7 +451,7 @@ class MainActivity : AppCompatActivity() {
                         focusPeaking = focusPeaking,
                         onFocusPeaking = { focusPeaking = it; settingsPrefs.edit().putBoolean("viewfinder_focus_peaking_enabled", it).apply() },
                         ratioIdx = ratioIdx,
-                        onRatio = { ratioIdx = it; settingsPrefs.edit().putInt("capture_ratio_index", it).apply() },
+                        onRatio = { ratioIdx = 1; settingsPrefs.edit().putInt("capture_ratio_index", 1).apply() },
                         performanceMode = animationPerformanceMode,
                         onOpenWatermarkPanel = { settingsSubpageReturnTarget = "camera"; page = "watermark_panel" }
                     )
@@ -520,26 +492,16 @@ class MainActivity : AppCompatActivity() {
                                 ) {
                                     // Landscape LCD bounds from the supplied 924×427 reference:
                                     // x=6–57%, y=16–92.5%. Keep the live camera rendered behind it.
-                                    val settingsPanelModifier = if (maxWidth > maxHeight) {
-                                        Modifier
-                                            .width(maxWidth * 0.51f)
-                                            .height(maxHeight * 0.765f)
-                                            .offset(x = maxWidth * 0.06f, y = maxHeight * 0.16f)
-                                    } else {
-                                        Modifier
-                                            .fillMaxWidth(0.90f)
-                                            .fillMaxHeight(0.80f)
-                                            .align(Alignment.Center)
-                                    }
+                                    val settingsPanelModifier = Modifier.fillMaxSize().padding(12.dp)
                                     SettingsScreen(
                                         onBack = { page = "camera" },
                                         onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },
                                         onOpenContentsManagement = { settingsSubpageReturnTarget = "settings"; page = "contents" },
                                         ratioIdx = ratioIdx,
                                         onRatio = {
-                                            ratioIdx = it.coerceIn(0, 3)
+                                            ratioIdx = 1
                                             settingsPrefs.edit()
-                                                .putInt("capture_ratio_index", ratioIdx)
+                                                .putInt("capture_ratio_index", 1)
                                                 .putBoolean("capture_ratio_index_v20202", true)
                                                 .apply()
                                         },

@@ -27,6 +27,9 @@ internal object Tuning {
     const val BUTTON_PRESS_SCALE = 0.96f
     const val CAMERA_SLIDER_COMMAND_INTERVAL_MS = 67L
     const val CAMERA_THUMBNAIL_TARGET_MS = 400L
+    const val CAMERA_BURST_QUEUE_CAPACITY = 6
+    const val CAMERA_BURST_REQUEST_INTERVAL_MS = 200L
+    const val CAMERA_BURST_MIN_TARGET_FPS = 3.0
     const val CAMERA_SLIDER_COMMAND_MAX_HZ = 15
     const val ASPECT_RATIO_ANIMATION_MS = 220
     const val CAMERA_DESIGN_WIDTH_DP = 924f

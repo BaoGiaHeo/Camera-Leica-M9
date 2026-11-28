@@ -184,7 +184,29 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         val packed = Base64.getMimeDecoder().decode(encoded)
         val output = ByteArrayOutputStream()
         GZIPInputStream(ByteArrayInputStream(packed)).use { it.copyTo(output) }
-        val source = output.toString(Charsets.UTF_8.name())
+        var source = output.toString(Charsets.UTF_8.name())
+
+        // The reference UI nests composable helpers outside BoxWithConstraints receiver
+        // scopes. Keep the size helpers as lexical local functions so nested components
+        // can call them without an unavailable implicit receiver.
+        val receiverFixes = listOf(
+            "BoxWithConstraintsScope.d(" to "d(",
+            "BoxWithConstraintsScope.fs(" to "fs(",
+            "BoxWithConstraintsScope.CameraFilterRow(" to "CameraFilterRow("
+        )
+        for ((before, after) in receiverFixes) {
+            check(source.contains(before)) {
+                "Fuji 3.2 UI receiver fix target was not found: $before"
+            }
+            source = source.replace(before, after)
+        }
+        if (!source.contains("import androidx.compose.foundation.layout.fillMaxWidth")) {
+            source = source.replace(
+                "package com.example.camui",
+                "package com.example.camui\\n\\nimport androidx.compose.foundation.layout.fillMaxWidth",
+                ignoreCase = false
+            )
+        }
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."
         }

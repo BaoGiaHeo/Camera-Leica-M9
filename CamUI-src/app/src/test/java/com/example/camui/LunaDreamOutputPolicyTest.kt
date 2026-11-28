@@ -2,6 +2,7 @@ package com.example.camui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class LunaDreamOutputPolicyTest {
@@ -11,7 +12,7 @@ class LunaDreamOutputPolicyTest {
         assertEquals(LunaDreamOutputTarget("UHD", 108_000_000L), lunaDreamOutputTarget("luna20"))
         assertEquals(LunaDreamOutputTarget("UHD+", 150_000_000L), lunaDreamOutputTarget("luna25"))
         assertEquals(LunaDreamOutputTarget("EUHD", 200_000_000L), lunaDreamOutputTarget("luna30"))
-        assertEquals(null, lunaDreamOutputTarget("off"))
+        assertNull(lunaDreamOutputTarget("off"))
     }
 
     @Test

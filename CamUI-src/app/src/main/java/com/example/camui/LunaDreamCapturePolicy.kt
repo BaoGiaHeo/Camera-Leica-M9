@@ -8,7 +8,7 @@ internal data class LunaDreamOutputTarget(
 internal fun lunaDreamOutputTarget(modeId: String): LunaDreamOutputTarget? = when (modeId) {
     "luna15" -> LunaDreamOutputTarget(50_000_000L)
     "luna20" -> LunaDreamOutputTarget(108_000_000L)
-    "luna25" -> LunaDreamOutputTarget(150_000_000L)
+    "luna25" -> LunaDreamOutputTarget(180_000_000L)
     "luna30" -> LunaDreamOutputTarget(Tuning.LUNA_DREAM_30_MAX_OUTPUT_PIXELS)
     else -> null
 }

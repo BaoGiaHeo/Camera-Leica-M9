@@ -7497,7 +7497,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             )
                             if (mode == "Pro") {
                                 val focusMax = maxFocus.coerceAtLeast(0.001f)
-                                Fuji320Hud(
+                                Box(
+                                    Modifier.align(Alignment.BottomCenter)
+                                        .padding(bottom = (frameHeight * 0.03f).coerceAtLeast(6.dp))
+                                ) {
+                                    Fuji320Hud(
                                     shutter = if (shutterText == "AUTO") "SS AUTO" else "SS$shutterText",
                                     aperture = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
                                         ?.let { "F%.1f".format(Locale.US, it) } ?: "F--",
@@ -7507,9 +7511,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     batteryPercent = batteryPercent,
                                     batteryColor = batteryIndicatorColor,
                                     temperatureC = measuredBatteryTempC
-                                )
+                                    )
+                                }
                             } else {
-                                val photoZoomState                                val photoZoomState = camera?.cameraInfo?.zoomState?.value
+                                val photoZoomState = camera?.cameraInfo?.zoomState?.value
                                 val photoMin = photoZoomState?.minZoomRatio ?: 1f
                                 val photoReportedMax = Camera2Info.cameraReportedZoomMax(activeCameraDetails, photoZoomState?.maxZoomRatio ?: 1f)
                                 val photoMax = maxTotalSelectableZoom(

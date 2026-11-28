@@ -25,7 +25,7 @@ internal object WatermarkFinalizer {
         forceSkipWatermark: Boolean = false
     ): Boolean {
         val enabled = !forceSkipWatermark && context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-            .getBoolean("watermark_enabled", true)
+            .getBoolean("watermark_enabled", false)
         val expected = if (enabled) "FM-WM=1" else "FM-WM=0"
         val existing = ImageSink.readWatermarkMarker(context, uri)
         if (!enabled && existing == "FM-WM=0") {

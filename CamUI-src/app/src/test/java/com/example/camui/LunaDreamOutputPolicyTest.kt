@@ -10,7 +10,7 @@ class LunaDreamOutputPolicyTest {
     fun allLunaDreamModelsShareOneResolutionAndMegapixelSpecification() {
         assertEquals(LunaDreamOutputTarget(50_000_000L), lunaDreamOutputTarget("luna15"))
         assertEquals(LunaDreamOutputTarget(108_000_000L), lunaDreamOutputTarget("luna20"))
-        assertEquals(LunaDreamOutputTarget(150_000_000L), lunaDreamOutputTarget("luna25"))
+        assertEquals(LunaDreamOutputTarget(180_000_000L), lunaDreamOutputTarget("luna25"))
         assertEquals(LunaDreamOutputTarget(200_000_000L), lunaDreamOutputTarget("luna30"))
         assertNull(lunaDreamOutputTarget("off"))
     }
@@ -20,7 +20,7 @@ class LunaDreamOutputPolicyTest {
         val modes = listOf(
             "luna15" to 50_000_000L,
             "luna20" to 108_000_000L,
-            "luna25" to 150_000_000L,
+            "luna25" to 180_000_000L,
             "luna30" to 200_000_000L
         )
         modes.forEach { (mode, targetPixels) ->

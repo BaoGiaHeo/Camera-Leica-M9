@@ -25,8 +25,8 @@ android {
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 37
-        versionCode = 24
-        versionName = "3.1.0"
+        versionCode = 25
+        versionName = "3.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
@@ -170,6 +170,29 @@ val downloadSairaFontResources = tasks.register("downloadSairaFontResources") {
 // The Android source set receives an ordinary directory, not a Provider. Both
 // the KK7 resources and Saira static weights are ready before Android merging.
 android.sourceSets.getByName("main").res.srcDir(kk7FontResourceDirectory.asFile)
+// The camera reference UI is bundled compressed so the whole source can be tracked as one
+// deterministic input. It is expanded into a generated Kotlin source directory before compile.
+val fuji320UiArchive = layout.projectDirectory.file("src/main/assets/fuji320_camera_ui.kt.gz.b64")
+val fuji320UiGeneratedDir = layout.buildDirectory.dir("generated/source/fuji320/main")
+val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
+    inputs.file(fuji320UiArchive)
+    outputs.file(fuji320UiGeneratedDir.map { it.file("com/example/camui/CameraUi.kt") })
+    doLast {
+        val encoded = fuji320UiArchive.asFile.readText(Charsets.US_ASCII)
+        val packed = Base64.getMimeDecoder().decode(encoded)
+        val output = java.io.ByteArrayOutputStream()
+        GZIPInputStream(java.io.ByteArrayInputStream(packed)).use { it.copyTo(output) }
+        val source = output.toString(Charsets.UTF_8.name())
+        check(source.startsWith("package com.example.camui")) {
+            "Fuji 3.2 reference UI archive has an invalid Kotlin package."
+        }
+        val target = fuji320UiGeneratedDir.get().file("com/example/camui/CameraUi.kt").asFile
+        target.parentFile.mkdirs()
+        target.writeText(source, Charsets.UTF_8)
+    }
+}
+android.sourceSets.getByName("main").java.srcDir(fuji320UiGeneratedDir)
+
 val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
 val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
 val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
@@ -189,7 +212,7 @@ val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") 
 }
 
 tasks.named("preBuild").configure {
-    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio)
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio, generateFuji320ReferenceUi)
 }
 
 kotlin {

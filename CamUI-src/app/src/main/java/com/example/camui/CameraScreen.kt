@@ -4077,7 +4077,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         )
 
         burstSessionJob = scope.launch {
-            val pending = ArrayDeque<Deferred<FujifilmBurstFrameRequest>>()
+            val capturedFrames = Channel<FujifilmBurstFrameRequest>(capacity = Channel.RENDEZVOUS)
+            val pending = ArrayDeque<Deferred<Unit>>()
             var submittedFrames = 0
             var finalizedFrames = 0
             var failedFrames = 0
@@ -4154,6 +4155,18 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 }
             }
 
+            val consumerJob = launch {
+                for (frame in capturedFrames) {
+                    runCatching { finishFrame(frame) }.onFailure {
+                        failedFrames++
+                        android.util.Log.e("FUJI_BURST", "Burst frame finalization failed index=${frame.frameIndex + 1}", it)
+                        CaptureDiagnostics.recordWarning(
+                            context,
+                            "Burst khung ${frame.frameIndex + 1} lỗi: ${it.message ?: it.javaClass.simpleName}."
+                        )
+                    }
+                }
+            }
             try {
                 runCatching { activeCapture.flashMode = ImageCapture.FLASH_MODE_OFF }
                     .onFailure { android.util.Log.w("FUJI_BURST", "Could not disable flash for continuous capture", it) }
@@ -4179,42 +4192,43 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 filePrefix = "FUJI_BURST",
                                 publishOnSave = false
                             )
-                            FujifilmBurstFrameRequest(
-                                frameIndex = frameIndex,
-                                uri = savedUri,
-                                captureTimestampMillis = frameTimestamp,
-                                requestElapsedRealtimeMs = requestRealtime,
-                                frameSavedElapsedRealtimeMs = SystemClock.elapsedRealtime()
+                            capturedFrames.send(
+                                FujifilmBurstFrameRequest(
+                                    frameIndex = frameIndex,
+                                    uri = savedUri,
+                                    captureTimestampMillis = frameTimestamp,
+                                    requestElapsedRealtimeMs = requestRealtime,
+                                    frameSavedElapsedRealtimeMs = SystemClock.elapsedRealtime()
+                                )
                             )
                         })
                         initialFramePending = false
                         if (!burstStopRequested) delay(Tuning.CAMERA_BURST_REQUEST_INTERVAL_MS)
                     }
                     if (pending.isEmpty()) break
-                    val next = try {
+                    try {
+                        // A task completes when its saved frame is handed to the consumer.
+                        // The watermark/export work continues independently on the consumer.
                         pending.removeFirst().await()
                     } catch (requestFailure: Throwable) {
                         failedFrames++
                         android.util.Log.e("FUJI_BURST", "Burst request failed", requestFailure)
-                        continue
                     }
-                    runCatching { finishFrame(next) }.onFailure {
-                        failedFrames++
-                        android.util.Log.e("FUJI_BURST", "Burst frame finalization failed index=${next.frameIndex + 1}", it)
-                        CaptureDiagnostics.recordWarning(context, "Burst khung ${next.frameIndex + 1} lỗi: ${it.message ?: it.javaClass.simpleName}.")
-                    }
-                    if (burstStopRequested && pending.isEmpty()) break
                 }
             } catch (failure: Throwable) {
                 android.util.Log.e("FUJI_BURST", "Continuous capture stopped unexpectedly", failure)
                 CaptureDiagnostics.recordWarning(context, "Burst dừng do lỗi: ${failure.message ?: failure.javaClass.simpleName}.")
+            } finally {
                 while (pending.isNotEmpty()) {
-                    val next = runCatching { pending.removeFirst().await() }.getOrNull() ?: continue
-                    runCatching { finishFrame(next) }.onFailure {
-                        android.util.Log.e("FUJI_BURST", "Could not finalize queued burst frame", it)
+                    runCatching { pending.removeFirst().await() }.onFailure {
+                        failedFrames++
+                        android.util.Log.e("FUJI_BURST", "Could not flush pending capture request", it)
                     }
                 }
-            } finally {
+                capturedFrames.close()
+                runCatching { consumerJob.join() }.onFailure {
+                    android.util.Log.e("FUJI_BURST", "Could not finish burst export queue", it)
+                }
                 runCatching { activeCapture.flashMode = originalFlashMode }
                 burstMode = false
                 burstStopRequested = false

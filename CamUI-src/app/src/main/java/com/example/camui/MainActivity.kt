@@ -283,6 +283,26 @@ class MainActivity : AppCompatActivity() {
         }
         android.util.Log.i("FUJI_SCREEN_PROFILE", ScreenProfile.read(this).diagnosticLine())
         val settingsPrefs = getSharedPreferences("fujifilm_settings", MODE_PRIVATE)
+        // 3.2.0 resets accidental legacy mode migration before Compose reads camera state.
+        if (!settingsPrefs.getBoolean("fuji_320_defaults_migrated", false)) {
+            settingsPrefs.edit()
+                .putString("lunadream_mode", "off")
+                .remove("hdmp_render_profile")
+                .remove("hdmp_output_mp")
+                .putBoolean("watermark_enabled", false)
+                .putString("selected_filter", "None")
+                .putBoolean("fuji_320_defaults_migrated", true)
+                .putBoolean("fuji_320_preview_filter_selftest_pending", true)
+                .apply()
+            android.util.Log.i("FUJI_320_MIGRATION", "LUNADREAM=off WATERMARK=off FILTER=None")
+        } else {
+            if (!settingsPrefs.contains("lunadream_mode")) {
+                settingsPrefs.edit().putString("lunadream_mode", "off").apply()
+            }
+            if (!settingsPrefs.contains("watermark_enabled")) {
+                settingsPrefs.edit().putBoolean("watermark_enabled", false).apply()
+            }
+        }
         settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
         AppLanguageManager.setLanguage(this, "vi")
         // Allow portrait, landscape and both reverse orientations; configChanges keeps Activity/camera alive.

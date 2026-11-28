@@ -434,7 +434,7 @@ private suspend fun finalizeFujifilmBurstFrame(
     val stageTimes = linkedMapOf<String, Long>()
     stageTimes["Chụp"] = captureLatencyMs.coerceAtLeast(0L)
     val watermarkEnabled = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        .getBoolean("watermark_enabled", true)
+        .getBoolean("watermark_enabled", false)
     val watermarkStartedAt = SystemClock.elapsedRealtime()
     runCatching {
         WatermarkFinalizer.ensure(
@@ -1147,14 +1147,12 @@ fun CameraScreen(
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
     var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
+    // No legacy fallback: LunaDream is opt-in only in 3.2.0.
     var lunaDreamMode by remember {
         mutableStateOf(
-            when (
-                appPrefs.getString("lunadream_mode", null)
-                    ?: if (appPrefs.getString("hdmp_render_profile", null) == "luna") "luna20" else "off"
-            ) {
+            when (appPrefs.getString("lunadream_mode", "off")) {
                 "luna15" -> "luna15"
-                "luna20", "luna" -> "luna20"
+                "luna20" -> "luna20"
                 "luna25" -> "luna25"
                 "luna30" -> "luna30"
                 else -> "off"
@@ -1957,7 +1955,7 @@ fun CameraScreen(
         )
         android.util.Log.d("FUJI_ZOOM_PREVIEW_TRANSFORM", previewTransformText)
     }
-    LaunchedEffect(previewView, activeFilter, digitalZoomCropScale) {
+    LaunchedEffect(previewView, activeFilter) {
         val prepared = withContext(Dispatchers.IO) {
             runCatching { CameraLutPreviewEffect.prepare(context, activeFilter) }
                 .onFailure {
@@ -3883,7 +3881,7 @@ fun CameraScreen(
                                 withContext(Dispatchers.Main) { filterPreviewSourceBitmap = unfilteredPreview }
                             }
                             val exportStageDurations = linkedMapOf<String, Long>()
-                            val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
+                            val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", false)
                             val watermarkStartedAtMs = SystemClock.elapsedRealtime()
                             val stamped = runCatching {
                                 WatermarkFinalizer.ensure(
@@ -4449,7 +4447,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     val bracketAperture = bracketInfo
                         ?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
                         ?.firstOrNull()?.let { "f/%.1f".format(Locale.US, it) } ?: ""
-                    val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
+                    val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", false)
                     val watermarkStartedAtMs = SystemClock.elapsedRealtime()
                     val stamped = withContext(Dispatchers.IO) {
                         runCatching {
@@ -5554,7 +5552,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 shutter = shutterLabel,
                                                 iso = if (actualIso > 0) actualIso.toString() else "AUTO",
                                                 captureTimestampMillis = captureTimestampMillis,
-                                                forceSkipWatermark = true,
+                                                forceSkipWatermark = false,
                                                 onStageDuration = { stage, duration ->
                                                     exportStageDurations[stage] = duration
                                                 }
@@ -5732,9 +5730,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
                                         onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
                                         captureTimestampMillis = captureTimestampMillis,
-                                        forceSkipWatermark = captureUseLunaDream15 ||
-                                            captureUseLunaDream20 || captureUseLunaDream25 ||
-                                            captureUseLunaDream30 || captureUseNightShot
+                                        forceSkipWatermark = false
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
@@ -5784,11 +5780,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 val runtimeForDiagnostics = Runtime.getRuntime()
                                 val sampledUsedHeapBytes = (runtimeForDiagnostics.totalMemory() -
                                     runtimeForDiagnostics.freeMemory()).coerceAtLeast(0L)
-                                val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
-                                val watermarkExpectedForThisCapture = watermarkWasRequested &&
-                                    !captureUseLunaDream15 && !captureUseLunaDream20 &&
-                                    !captureUseLunaDream25 && !captureUseLunaDream30 &&
-                                    !captureUseNightShot
+                                val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", false)
+                                val watermarkExpectedForThisCapture = watermarkWasRequested && !captureIsUltraHdr
                                 val diagnosticMode = when {
                                     captureUseLunaDream15 -> "LunaDream 1.5"
                                     captureUseLunaDream20 -> "LunaDream 2.0"
@@ -5892,7 +5885,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     lastUri = saved
                                     thumbnailRequestKey++
                                     processingProgress = 100
-                                    val watermarkRequested = appPrefs.getBoolean("watermark_enabled", true)
+                                    val watermarkRequested = appPrefs.getBoolean("watermark_enabled", false)
                                     if (captureIsUltraHdr && watermarkRequested) {
                                         android.util.Log.i(
                                             "FUJI_WATERMARK",
@@ -6022,7 +6015,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         timestamp = captureTimestampMillis,
                                         mode = failedMode,
                                         filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
-                                        watermarkEnabled = appPrefs.getBoolean("watermark_enabled", true),
+                                        watermarkEnabled = appPrefs.getBoolean("watermark_enabled", false),
                                         watermarkPrinted = false,
                                         outputWidth = failedDimensions.first,
                                         outputHeight = failedDimensions.second,
@@ -8895,7 +8888,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 },
                 onToolbox = { showQuick = false; onOpenToolbox() },
                 onWatermarkPanel = { showQuick = false; onOpenWatermarkPanel() },
-                watermarkEnabled = appPrefs.getBoolean("watermark_enabled", true),
+                watermarkEnabled = appPrefs.getBoolean("watermark_enabled", false),
                 watermarkLayoutLabel = when (WatermarkLayoutType.fromPreference(appPrefs.getString("watermark_template", "bar"))) {
                     WatermarkLayoutType.BAR -> stringResource(R.string.watermark_layout_bar)
                     WatermarkLayoutType.CAPTION -> stringResource(R.string.watermark_layout_caption)

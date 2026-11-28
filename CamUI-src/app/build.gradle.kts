@@ -454,14 +454,14 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         source = source.replace(filterPanelOld, filterPanelNew)
 
         // The theme switch is in the narrow camera-body column, under Settings.
-        val settingsButton = """        MetalButton(r(1050f, 406f, 82f, 82f), d(22f), onClick = actions.onSetting) {
+        val settingsButton = """        MetalButton(r(1028f, 377f, 84f, 164f), d(22f), onClick = actions.onSetting) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 IconMenu(Modifier.size(d(54f)), C.White)
             }
         }"""
         check(source.contains(settingsButton)) { "Fuji 3.2 Settings key anchor not found." }
         source = source.replace(settingsButton, settingsButton + """
-        MetalButton(r(1050f, 562f, 82f, 82f), d(22f), onClick = actions.onTheme) {
+        MetalButton(r(1028f, 588f, 84f, 82f), d(22f), onClick = actions.onTheme) {
             IconSunMoon(Modifier.size(d(48f)), state.lightUi)
         }""")
         // 3.5.0: restore the supplied leather body panel without changing camera geometry.

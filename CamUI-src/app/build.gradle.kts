@@ -780,6 +780,58 @@ private fun IconLeaf(m: Modifier, c: Color) = Canvas(m) {"""
         check(source.contains("state.flashPulseEnabled") && source.contains("IconTorch(")) {
             "3.5.0 flash mode icon states were not generated."
         }
+        source = source.replace(
+            """    val fullscreenPreview: Boolean = false,\n)""",
+            """    val fullscreenPreview: Boolean = false,\n    val nightShotEnabled: Boolean = false,\n    val nightShotDurationSeconds: Int = 5,\n)"""
+        )
+        source = source.replace(
+            """    val onFullscreenPreview: () -> Unit = {},\n    val onZoomFinished: () -> Unit = {},""",
+            """    val onFullscreenPreview: () -> Unit = {},\n    val onCycleNightShot: () -> Unit = {},\n    val onZoomFinished: () -> Unit = {},"""
+        )
+        source = source.replace("Offset(px(98f), py(24f)), Size(px(1030f), py(768f)), CornerRadius(px(76f))", "Offset(px(92f), py(24f)), Size(px(1072f), py(785f)), CornerRadius(px(72f))")
+        source = source.replace("Color(0x55FFFFFF), Offset(px(10f), py(75f)), Size(px(1275f), py(715f)),\n            CornerRadius(px(60f)), style = Stroke(px(2f))", "Color(0x99C1C7CA), Offset(px(92f), py(24f)), Size(px(1072f), py(785f)),\n            CornerRadius(px(72f)), style = Stroke(px(3.5f))")
+        source = source.replace("r(112f, 48f, 913f, 682f).clip(RoundedCornerShape(d(40f)))", "r(129f, 60f, 900f, 680f).clip(RoundedCornerShape(d(100f)))")
+        source = source.replace("(112f + state.afX * 913f)", "(129f + state.afX * 900f)")
+        source = source.replace("(48f + state.afY * 682f)", "(60f + state.afY * 680f)")
+        source = source.replace("(112f + 913f * 0.5f)", "(129f + 900f * 0.5f)")
+        source = source.replace("(48f + 682f * 0.5f)", "(60f + 680f * 0.5f)")
+        source = source.replace("Offset(190f * sx, centerY), Offset(947f * sx, centerY)", "Offset(150f * sx, centerY), Offset(1008f * sx, centerY)")
+        source = source.replace("Offset(82f * sx, 143f * sy), Offset(104f * sx, 143f * sy)", "Offset(119f * sx, 155f * sy), Offset(145f * sx, 155f * sy)")
+        source = source.replace("Offset(82f * sx, 143f * sy), Offset(82f * sx, 165f * sy)", "Offset(119f * sx, 155f * sy), Offset(119f * sx, 181f * sy)")
+        source = source.replace("Offset(1085f * sx, 143f * sy), Offset(1063f * sx, 143f * sy)", "Offset(1040f * sx, 155f * sy), Offset(1014f * sx, 155f * sy)")
+        source = source.replace("Offset(1085f * sx, 143f * sy), Offset(1085f * sx, 165f * sy)", "Offset(1040f * sx, 155f * sy), Offset(1040f * sx, 181f * sy)")
+        source = source.replace("Offset(1085f * sx, 662f * sy), Offset(1063f * sx, 662f * sy)", "Offset(1040f * sx, 660f * sy), Offset(1014f * sx, 660f * sy)")
+        source = source.replace("Offset(1085f * sx, 662f * sy), Offset(1085f * sx, 640f * sy)", "Offset(1040f * sx, 660f * sy), Offset(1040f * sx, 634f * sy)")
+        source = source.replace("r(1028f, 110f, 84f, 80f)", "r(1050f, 94f, 82f, 82f)")
+        source = source.replace("r(1028f, 210f, 84f, 133f)", "r(1050f, 250f, 82f, 82f)")
+        source = source.replace("r(1028f, 377f, 84f, 164f)", "r(1050f, 406f, 82f, 82f)")
+        source = source.replace("r(1028f, 588f, 84f, 82f)", "r(1050f, 562f, 82f, 82f)")
+        source = source.replace("r(1180f, 95f, 565f, 297f)", "r(1218f, 94f, 570f, 306f)")
+        source = source.replace("r(1188f, 151f, 300f, 54f)", "r(1230f, 145f, 276f, 52f)")
+        source = source.replace("r(1188f, 211f, 300f, 54f)", "r(1230f, 205f, 276f, 52f)")
+        source = source.replace("r(1188f, 271f, 300f, 54f)", "r(1230f, 265f, 276f, 52f)")
+        source = source.replace("r(1488f, 130f, 230f, 234f)", "r(1525f, 123f, 245f, 250f)")
+        source = source.replace("r(1214f, 337f, 45f, 38f)", "r(1230f, 326f, 45f, 38f)")
+        source = source.replace("r(1260f, 338f, 180f, 36f)", "r(1277f, 327f, 200f, 36f)")
+        source = source.replace("r(1448f, 337f, 62f, 38f)", "r(1485f, 326f, 62f, 38f)")
+        source = source.replace("r(1182f, 405f, 150f, 42f)", "r(1218f, 405f, 150f, 42f)")
+        source = source.replace("r(1344f, 405f, 222f, 42f)", "r(1382f, 405f, 225f, 42f)")
+        source = source.replace("r(1352f, 405f, 205f, 20f)", "r(1390f, 405f, 210f, 20f)")
+        source = source.replace("r(1350f, 425f, 205f, 18f)", "r(1390f, 425f, 210f, 18f)")
+        source = source.replace("r(1598f, 417f, 150f, 155f)", "r(1630f, 417f, 150f, 155f)")
+        source = source.replace("r(1598f, 581f, 150f, 154f)", "r(1630f, 581f, 150f, 154f)")
+        source = source.replace("r(1268f, 502f, 244f, 244f)", "r(1290f, 502f, 244f, 244f)")
+        source = source.replace("r(438f, 734f, 235f, 43f)", "r(508f, 748f, 235f, 43f)")
+        source = source.replace("val ly = py(752f)", "val ly = py(770f)")
+        source = source.replace("Offset(px(150f), ly), Offset(px(436f), ly)", "Offset(px(130f), ly), Offset(px(490f), ly)")
+        source = source.replace("Offset(px(672f), ly), Offset(px(1074f), ly)", "Offset(px(760f), ly), Offset(px(1138f), ly)")
+        source = source.replace("        // cột giữa\n        drawRoundRect(\n            Color(0xFF161719), Offset(px(1018f), py(96f)), Size(px(110f), py(580f)), CornerRadius(px(22f)),\n        )\n        drawRoundRect(\n            Color(0xFF2C2D30), Offset(px(1018f), py(96f)), Size(px(110f), py(580f)),\n            CornerRadius(px(22f)), style = Stroke(px(1.5f)),\n        )\n", "")
+        source = source.replace("        // đường kẻ + chân trang", "        drawRoundRect(\n            Color(0x88C3C8CA),\n            Offset(px(118f), py(49f)),\n            Size(px(922f), py(702f)),\n            CornerRadius(px(108f)),\n            style = Stroke(px(1.6f))\n        )\n        // đường kẻ + chân trang")
+        source = source.replace("        // MÀN HÌNH PREVIEW", "        MetalButton(\n            r(18f, 234f, 52f, 52f),\n            d(26f),\n            if (state.nightShotEnabled) Color(0xFF315D72) else null,\n            onClick = actions.onCycleNightShot\n        ) {\n            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {\n                FujiIconGlyph(\"moon\", Modifier.size(d(22f)), if (state.nightShotEnabled) Color(0xFF9DECF4) else C.White)\n                Tx(if (state.nightShotEnabled) state.nightShotDurationSeconds.toString() + \"s\" else \"NIGHT\", fs(10f), C.White)\n            }\n        }\n        // MÀN HÌNH PREVIEW")
+        source = source.replace("        BatteryIcon(Modifier.width(d(56f)).height(d(25f)), s.batteryPct, s.batteryLook)\n        Box(Modifier.width(d(30f)).height(d(27f)).border(d(1f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {", "        BatteryIcon(Modifier.width(d(56f)).height(d(25f)), s.batteryPct, s.batteryLook)\n        if (s.nightShotEnabled) {\n            FujiIconGlyph(\"moon\", Modifier.size(d(19f)), Color(0xFF9DECF4))\n            Tx(s.nightShotDurationSeconds.toString() + \"s\", fs(14f), Color(0xFF9DECF4), family = FontFamily.SansSerif)\n        }\n        Box(Modifier.width(d(30f)).height(d(27f)).border(d(1f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {")
+        source = source.replace("r(184f, 608f, 330f, 32f)", "r(184f, 608f, 390f, 32f)")
+        source = source.replace("CameraFilterRow(row.first, \"FUJIFILM: \" + row.second, state.activeFilterId == row.first, state.lightUi)", "CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi)")
+        check(source.contains("nightShotEnabled") && source.contains("onCycleNightShot") && source.contains("r(18f, 234f, 52f, 52f)")) { "4.0 Night Shot HUD key was not generated." }
         val fullscreenButton = """        MetalButton(r(18f, 172f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
             Canvas(Modifier.size(d(30f))) {
                 val w = size.width

@@ -168,7 +168,7 @@ internal object LunaDreamSelfTest {
             LunaDreamDiagnostics.record(
                 context,
                 "SELF_TEST_TILE_STREAMING_SUCCESS",
-                "frames=$FRAME_COUNT; output=${width}x$height; mp=${String.format(Locale.US, "%.2f", megapixels)}; tileRows=64; stages=$stages; peakHeap=${sampledPeakBytes.get()}"
+                "frames=$FRAME_COUNT; requestedMP=${TEST_REQUESTED_OUTPUT_PIXELS / 1_000_000L}; minimumMP=${TEST_MINIMUM_OUTPUT_PIXELS / 1_000_000L}; output=${width}x$height; mp=${String.format(Locale.US, "%.2f", megapixels)}; tileRows=64; stages=$stages; peakHeap=${sampledPeakBytes.get()}"
             )
             CrashContextDiagnostics.recordUiEvent("LUNADREAM_30_SELF_TEST_TILE_STREAMING_PASS output=${width}x$height stages=$stages")
         } catch (failure: Throwable) {

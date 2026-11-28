@@ -713,8 +713,267 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
             """val lunaSummary: String = "Original","""
         )
         source = source.replace(
-            """Tx("LUNADREAM ${state.lunaLabel ?: "3.0"}", fs(20f))""",
-            """Tx(if (state.lunaLabel == null) "ORIGINAL" else "LUNADREAM ${state.lunaLabel}", fs(20f))"""
+            """Tx("LUNADREAM ${'{state.lunaLabel ?: "3.0"}", fs(20f))""",
+            """Tx(if (state.lunaLabel == null) "ORIGINAL" else "LUNADREAM ${'
+        )
+        check(source.contains("""if (state.lunaLabel == null) "ORIGINAL" """.trimEnd())) {
+            "3.5.0 Original camera mode label missing."
+        }
+        val fullscreenButton = """        MetalButton(r(18f, 172f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
+            Canvas(Modifier.size(d(30f))) {
+                val w = size.width
+                val a = w * 0.16f
+                val b = w * 0.42f
+                val c = w * 0.58f
+                val far = w * 0.84f
+                val stroke = w * 0.075f
+                drawLine(C.White, Offset(a, b), Offset(a, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, a), Offset(b, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(c, a), Offset(far, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(far, a), Offset(far, b), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, c), Offset(a, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, far), Offset(b, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(c, far), Offset(far, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(far, c), Offset(far, far), stroke, StrokeCap.Round)
+            }
+        }
+"""
+        check(source.contains("        // MÀN HÌNH PREVIEW")) { "Preview insertion point missing." }
+        source = source.replace(
+            """        // MÀN HÌNH PREVIEW""",
+            fullscreenButton + """        // MÀN HÌNH PREVIEW"""
+        )
+        val rootOpen = """BoxWithConstraints(modifier.fillMaxSize().background(if (state.lightUi) Color(0xFFE6E6E6) else Color(0xFF080809))) {
+        Chrome()"""
+        check(source.contains(rootOpen)) { "Fullscreen root insertion point missing." }
+        source = source.replace(
+            rootOpen,
+            """BoxWithConstraints(modifier.fillMaxSize().background(if (state.lightUi) Color(0xFFE6E6E6) else Color(0xFF080809))) {
+        if (state.fullscreenPreview) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                preview()
+                MetalButton(r(18f, 18f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
+                    Tx("×", fs(30f), C.White)
+                }
+            }
+        } else {
+        Chrome()"""
+        )
+        val uiEnd = """    }
+}
+
+// ---------------------------------------------------------------------
+// 11. BẢN THỬ: gọi CameraUiDemo() để xem giao diện chạy được chưa"""
+        check(source.contains(uiEnd)) { "Fullscreen branch closing point missing." }
+        source = source.replace(
+            uiEnd,
+            """        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// 11. BẢN THỬ: gọi CameraUiDemo() để xem giao diện chạy được chưa"""
+        )
+        check(source.contains("state.fullscreenPreview")) { "Fullscreen preview state was not generated." }
+        check(source.contains("onFullscreenPreview: () -> Unit")) { "Fullscreen action was not generated." }
+        check(source.contains("r(18f, 172f, 52f, 52f)")) { "Fullscreen button is not below timer." }
+        check(!source.contains("CPU: -- | GPU: --")) { "CPU/GPU demo placeholder was not removed." }
+        val target = fuji320UiGeneratedSource.asFile
+        target.parentFile.mkdirs()
+        target.writeText(source, Charsets.UTF_8)
+    }
+}
+// The generated CameraUi.kt is written into the regular main/java source tree before preBuild.
+
+val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
+val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
+val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
+
+val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") {
+    inputs.file(shutterAudioBase64)
+    outputs.file(shutterAudioResource)
+    doLast {
+        val encoded = shutterAudioBase64.asFile.readText(Charsets.US_ASCII)
+        val audioBytes = Base64.getMimeDecoder().decode(encoded)
+        check(audioBytes.size > 2_000 && audioBytes.copyOfRange(0, 3).contentEquals("ID3".toByteArray())) {
+            "Âm thanh màn trập 3.1.0 không phải MP3 hợp lệ."
+        }
+        shutterAudioResource.asFile.parentFile.mkdirs()
+        shutterAudioResource.asFile.writeBytes(audioBytes)
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio, generateFuji320ReferenceUi)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("androidx.camera.camera2.interop.ExperimentalCamera2Interop")
+    }
+}
+
+dependencies {
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    val camerax = "1.6.2"
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.window:window:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
+    implementation("androidx.camera:camera-extensions:$camerax")
+}
+ }{state.lunaLabel}", fs(20f))"""}{state.lunaLabel ?: "3.0"}", fs(20f))""",
+            """Tx(if (state.lunaLabel == null) "ORIGINAL" else "LUNADREAM ${'
+        )
+        check(source.contains("""if (state.lunaLabel == null) "ORIGINAL" """.trimEnd())) {
+            "3.5.0 Original camera mode label missing."
+        }
+        val fullscreenButton = """        MetalButton(r(18f, 172f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
+            Canvas(Modifier.size(d(30f))) {
+                val w = size.width
+                val a = w * 0.16f
+                val b = w * 0.42f
+                val c = w * 0.58f
+                val far = w * 0.84f
+                val stroke = w * 0.075f
+                drawLine(C.White, Offset(a, b), Offset(a, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, a), Offset(b, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(c, a), Offset(far, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(far, a), Offset(far, b), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, c), Offset(a, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, far), Offset(b, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(c, far), Offset(far, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(far, c), Offset(far, far), stroke, StrokeCap.Round)
+            }
+        }
+"""
+        check(source.contains("        // MÀN HÌNH PREVIEW")) { "Preview insertion point missing." }
+        source = source.replace(
+            """        // MÀN HÌNH PREVIEW""",
+            fullscreenButton + """        // MÀN HÌNH PREVIEW"""
+        )
+        val rootOpen = """BoxWithConstraints(modifier.fillMaxSize().background(if (state.lightUi) Color(0xFFE6E6E6) else Color(0xFF080809))) {
+        Chrome()"""
+        check(source.contains(rootOpen)) { "Fullscreen root insertion point missing." }
+        source = source.replace(
+            rootOpen,
+            """BoxWithConstraints(modifier.fillMaxSize().background(if (state.lightUi) Color(0xFFE6E6E6) else Color(0xFF080809))) {
+        if (state.fullscreenPreview) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                preview()
+                MetalButton(r(18f, 18f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
+                    Tx("×", fs(30f), C.White)
+                }
+            }
+        } else {
+        Chrome()"""
+        )
+        val uiEnd = """    }
+}
+
+// ---------------------------------------------------------------------
+// 11. BẢN THỬ: gọi CameraUiDemo() để xem giao diện chạy được chưa"""
+        check(source.contains(uiEnd)) { "Fullscreen branch closing point missing." }
+        source = source.replace(
+            uiEnd,
+            """        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// 11. BẢN THỬ: gọi CameraUiDemo() để xem giao diện chạy được chưa"""
+        )
+        check(source.contains("state.fullscreenPreview")) { "Fullscreen preview state was not generated." }
+        check(source.contains("onFullscreenPreview: () -> Unit")) { "Fullscreen action was not generated." }
+        check(source.contains("r(18f, 172f, 52f, 52f)")) { "Fullscreen button is not below timer." }
+        check(!source.contains("CPU: -- | GPU: --")) { "CPU/GPU demo placeholder was not removed." }
+        val target = fuji320UiGeneratedSource.asFile
+        target.parentFile.mkdirs()
+        target.writeText(source, Charsets.UTF_8)
+    }
+}
+// The generated CameraUi.kt is written into the regular main/java source tree before preBuild.
+
+val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
+val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
+val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
+
+val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") {
+    inputs.file(shutterAudioBase64)
+    outputs.file(shutterAudioResource)
+    doLast {
+        val encoded = shutterAudioBase64.asFile.readText(Charsets.US_ASCII)
+        val audioBytes = Base64.getMimeDecoder().decode(encoded)
+        check(audioBytes.size > 2_000 && audioBytes.copyOfRange(0, 3).contentEquals("ID3".toByteArray())) {
+            "Âm thanh màn trập 3.1.0 không phải MP3 hợp lệ."
+        }
+        shutterAudioResource.asFile.parentFile.mkdirs()
+        shutterAudioResource.asFile.writeBytes(audioBytes)
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio, generateFuji320ReferenceUi)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("androidx.camera.camera2.interop.ExperimentalCamera2Interop")
+    }
+}
+
+dependencies {
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    val camerax = "1.6.2"
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.window:window:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
+    implementation("androidx.camera:camera-extensions:$camerax")
+}
+ }{state.lunaLabel}", fs(20f))"""
         )
         check(source.contains("""if (state.lunaLabel == null) "ORIGINAL" """.trimEnd())) {
             "3.5.0 Original camera mode label missing."

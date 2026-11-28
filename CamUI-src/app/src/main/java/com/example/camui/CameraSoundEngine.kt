@@ -131,6 +131,30 @@ internal object CameraSoundEngine {
         }.onFailure { Log.w(TAG, "Could not play " + sound, it) }
     }
 
+    /**
+     * Short, pre-synthesized click used for each frame of a fast computational burst.
+     * It avoids repeatedly constructing MediaPlayers inside the acquisition loop.
+     */
+    fun playBurstShutter(context: Context) {
+        val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        configure(context, prefs.getInt("sound_master_volume", 85))
+        if (!prefs.getBoolean("shutter_sound_enabled", true) || !allowed(context)) return
+        runCatching {
+            val track = createTrack(
+                context,
+                pcm(
+                    durationMs = 34,
+                    baseFrequency = 2_350.0,
+                    overtone = 3_550.0,
+                    attackMs = 1,
+                    releaseMs = 10
+                )
+            )
+            registerTrack(track)
+            track.play()
+        }.onFailure { Log.w(TAG, "Could not play rapid burst shutter", it) }
+    }
+
     fun stopAll() {
         val tracks = synchronized(lock) { activeTracks.toList().also { activeTracks.clear() } }
         tracks.forEach { track -> runCatching { track.stop(); track.release() } }

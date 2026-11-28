@@ -1,14 +1,10 @@
 package com.example.camui
 
 /**
- * Required frame targets for the selected NightShot capture duration.
- * Capture completes the target count before alignment and rendering may begin.
+ * Night Shot uses the same fast eight-frame acquisition cadence as LunaDream 2.0/3.0.
+ * The old duration preference is retained for settings migration, not for capture count.
  */
 internal object NightShotFramePlan {
-    fun targetFrames(durationSeconds: Int): Int = when (durationSeconds) {
-        3 -> 15
-        5 -> 30
-        10 -> 50
-        else -> 30
-    }
+    @Suppress("UNUSED_PARAMETER")
+    fun targetFrames(durationSeconds: Int): Int = 8
 }

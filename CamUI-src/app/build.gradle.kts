@@ -27,7 +27,7 @@ android {
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 37
-        versionCode = 28
+        versionCode = 29
         versionName = "3.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
@@ -718,6 +718,67 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         )
         check(source.contains("""if (state.lunaLabel == null) "ORIGINAL" """.trimEnd())) {
             "3.5.0 Original camera mode label missing."
+        }
+
+        source = source.replace(
+            """    val torchEnabled: Boolean = false,""",
+            """    val torchEnabled: Boolean = false,
+    val flashPulseEnabled: Boolean = false,"""
+        )
+        val flashButtonOld = """        MetalButton(r(18f, 48f, 52f, 52f), d(26f), if (state.torchEnabled) C.Yellow else null, onClick = actions.onFlash) {
+            IconFlash(Modifier.size(d(30f)), if (state.torchEnabled) C.Yellow else if (state.lightUi) Color.Black else Color.White)
+        }"""
+        val flashButtonNew = """        MetalButton(
+            r(18f, 48f, 52f, 52f),
+            d(26f),
+            when {
+                state.torchEnabled -> C.Yellow
+                state.flashPulseEnabled -> Color(0xFF48C7F0)
+                else -> null
+            },
+            onClick = actions.onFlash
+        ) {
+            if (state.torchEnabled) {
+                IconTorch(Modifier.size(d(30f)), C.Yellow)
+            } else {
+                IconFlash(
+                    Modifier.size(d(30f)),
+                    if (state.flashPulseEnabled) Color(0xFF48C7F0)
+                    else if (state.lightUi) Color.Black else Color.White
+                )
+            }
+        }"""
+        check(source.contains(flashButtonOld)) { "3.5.0 flash button template missing." }
+        source = source.replace(flashButtonOld, flashButtonNew)
+        source = source.replace(
+            """@Composable
+private fun IconLeaf(m: Modifier, c: Color) = Canvas(m) {""",
+            """@Composable
+private fun IconTorch(m: Modifier, c: Color) = Canvas(m) {
+    val center = Offset(size.width * 0.5f, size.height * 0.5f)
+    val inner = size.minDimension * 0.16f
+    val outerStart = size.minDimension * 0.29f
+    val outerEnd = size.minDimension * 0.43f
+    drawCircle(c, inner, center)
+    for (i in 0..7) {
+        val angle = i * Math.PI / 4.0
+        val dx = kotlin.math.cos(angle).toFloat()
+        val dy = kotlin.math.sin(angle).toFloat()
+        drawLine(
+            c,
+            Offset(center.x + dx * outerStart, center.y + dy * outerStart),
+            Offset(center.x + dx * outerEnd, center.y + dy * outerEnd),
+            size.minDimension * 0.075f,
+            StrokeCap.Round
+        )
+    }
+}
+
+@Composable
+private fun IconLeaf(m: Modifier, c: Color) = Canvas(m) {"""
+        )
+        check(source.contains("state.flashPulseEnabled") && source.contains("IconTorch(")) {
+            "3.5.0 flash mode icon states were not generated."
         }
         val fullscreenButton = """        MetalButton(r(18f, 172f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
             Canvas(Modifier.size(d(30f))) {

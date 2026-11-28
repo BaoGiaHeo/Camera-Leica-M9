@@ -695,7 +695,7 @@ var nightShotMode by remember {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Night Shot thu nhiều khung trong thời lượng đã chọn, căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Số khung thực tế phụ thuộc tốc độ camera; giữ máy ổn định đến khi ghép xong.",
+                    "Night Shot chụp liên tiếp 8 khung ở mục tiêu 8 FPS khi camera hỗ trợ, sau đó căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Tốc độ thực tế phụ thuộc cảm biến và thời gian phơi sáng; giữ máy ổn định đến khi ghép xong.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -830,10 +830,13 @@ var nightShotMode by remember {
                     torchEnabled
                 ) { enabled ->
                     torchEnabled = enabled
-                    prefs.edit().putInt(
-                        "camera_flash_mode",
-                        if (enabled) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
-                    ).apply()
+                    prefs.edit()
+                        .putInt(
+                            "camera_flash_mode",
+                            if (enabled) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
+                        )
+                        .putString("camera_illumination_mode", if (enabled) "continuous" else "off")
+                        .apply()
                 }
                 Spacer(Modifier.padding(5.dp))
                 Text("HẸN GIỜ CHỤP", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)

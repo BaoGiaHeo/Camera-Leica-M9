@@ -39,6 +39,7 @@ import android.provider.OpenableColumns
 import android.util.Rational
 import android.util.Log
 import android.util.Size
+import android.util.Range
 import android.view.Surface
 import android.view.HapticFeedbackConstants
 import android.view.OrientationEventListener
@@ -966,28 +967,28 @@ fun CameraScreen(
         appPrefs.edit().putBoolean("burst_capture_mode_enabled", burstMode).apply()
     }
     var front by remember { mutableStateOf(appPrefs.getBoolean("camera_front_facing", false)) }
-    var flash by remember {
-        mutableIntStateOf(
-            if (appPrefs.getInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF) == ImageCapture.FLASH_MODE_ON) {
-                ImageCapture.FLASH_MODE_ON
-            } else {
-                ImageCapture.FLASH_MODE_OFF
-            }
+    var illuminationMode by remember {
+        mutableStateOf(
+            appPrefs.getString("camera_illumination_mode", null)
+                ?.takeIf { it in setOf("off", "pulse", "continuous") }
+                ?: if (appPrefs.getInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF) == ImageCapture.FLASH_MODE_ON) {
+                    "continuous"
+                } else {
+                    "off"
+                }
         )
     }
-    var torchEnabled by remember { mutableStateOf(false) }
+    val torchEnabled = illuminationMode == "continuous"
+    val flashPulseEnabled = illuminationMode == "pulse"
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var timerMenuVisible by remember { mutableStateOf(false) }
     var fullscreenPreview by remember { mutableStateOf(false) }
     DisposableEffect(appPrefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { shared, key ->
             when (key) {
-                "camera_flash_mode" -> {
-                    flash = if (shared?.getInt(key, ImageCapture.FLASH_MODE_OFF) == ImageCapture.FLASH_MODE_ON) {
-                        ImageCapture.FLASH_MODE_ON
-                    } else {
-                        ImageCapture.FLASH_MODE_OFF
-                    }
+                "camera_illumination_mode" -> {
+                    illuminationMode = shared?.getString(key, "off")
+                        ?.takeIf { it in setOf("off", "pulse", "continuous") } ?: "off"
                 }
                 "camera_timer_seconds" -> {
                     timerSec = (shared?.getInt(key, 0) ?: 0).coerceIn(0, 10)
@@ -1342,12 +1343,6 @@ fun CameraScreen(
     var thumbnailRequestKey by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
 
-    LaunchedEffect(camera, torchEnabled) {
-        camera?.let { active ->
-            runCatching { active.cameraControl.enableTorch(torchEnabled) }
-                .onFailure { android.util.Log.w("FUJI_FLASH", "Không thể bật đèn pin liên tục", it) }
-        }
-    }
     fun applyEvCommandNow(index: Int, persist: Boolean) {
         val active = camera
         val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
@@ -1638,7 +1633,8 @@ fun CameraScreen(
         appPrefs.edit()
             .putString("camera_mode", mode)
             .putBoolean("camera_front_facing", front)
-            .putInt("camera_flash_mode", flash)
+            .putInt("camera_flash_mode", if (illuminationMode == "continuous") ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF)
+            .putString("camera_illumination_mode", illuminationMode)
             .putInt("camera_timer_seconds", timerSec)
             .putBoolean("ultra_hdr_enabled", ultraHdr)
             .putString("camera_render_engine", renderEngine)
@@ -2744,6 +2740,28 @@ fun CameraScreen(
                         CaptureRequest.EDGE_MODE_FAST
                     ) == true
                     val stackCaptureExtender = Camera2Interop.Extender(captureBuilder)
+                    val advertisedStackFpsRanges = stackCameraCharacteristics?.get(
+                        CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES
+                    ).orEmpty()
+                    val requestedStackFpsRange = CameraBurstFpsPolicy.selectEightFpsRange(
+                        advertisedStackFpsRanges.map { CameraBurstFpsRange(it.lower, it.upper) }
+                    )
+                    if (requestedStackFpsRange != null) {
+                        stackCaptureExtender.setCaptureRequestOption(
+                            CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+                            Range(requestedStackFpsRange.lower, requestedStackFpsRange.upper)
+                        )
+                        android.util.Log.i(
+                            "FUJI_STACK_FPS",
+                            "target=8fps requestedRange=${requestedStackFpsRange.lower}..${requestedStackFpsRange.upper} " +
+                                "advertised=${advertisedStackFpsRanges.joinToString()}"
+                        )
+                    } else {
+                        android.util.Log.w(
+                            "FUJI_STACK_FPS",
+                            "target=8fps unsupported by HAL advertised=${advertisedStackFpsRanges.joinToString()}; using camera default"
+                        )
+                    }
                     if (canDisableNoiseReduction) {
                         stackCaptureExtender.setCaptureRequestOption(
                             CaptureRequest.NOISE_REDUCTION_MODE,
@@ -3612,23 +3630,34 @@ fun CameraScreen(
         }, mainExecutor)
     }
 
-    LaunchedEffect(flash, camera, front) {
+    LaunchedEffect(camera, imageCapture, front, illuminationMode, isProcessing) {
         val activeCamera = camera ?: return@LaunchedEffect
-        val hasTorch = !front && activeCamera.cameraInfo.hasFlashUnit()
-        if (flash == ImageCapture.FLASH_MODE_ON && !hasTorch) {
-            flash = ImageCapture.FLASH_MODE_OFF
-            if (!front) {
-                localizedToast(context, "Camera đang chọn không có đèn LED hỗ trợ Torch.", Toast.LENGTH_LONG).show()
-            }
+        val hasLed = !front && activeCamera.cameraInfo.hasFlashUnit()
+        if (illuminationMode != "off" && !hasLed) {
+            illuminationMode = "off"
+            appPrefs.edit()
+                .putString("camera_illumination_mode", "off")
+                .putInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF)
+                .apply()
+            localizedToast(context, "Camera này không có đèn LED/flash phía sau.", Toast.LENGTH_LONG).show()
             return@LaunchedEffect
         }
         runCatching {
-            activeCamera.cameraControl.enableTorch(flash == ImageCapture.FLASH_MODE_ON && hasTorch)
+            activeCamera.cameraControl.enableTorch(illuminationMode == "continuous" && hasLed)
+            imageCapture?.flashMode = if (illuminationMode == "pulse" && !isProcessing && hasLed) {
+                ImageCapture.FLASH_MODE_ON
+            } else {
+                ImageCapture.FLASH_MODE_OFF
+            }
         }.onFailure {
-            android.util.Log.w("FUJI_TORCH", "Could not change continuous LED torch state", it)
-            if (flash == ImageCapture.FLASH_MODE_ON) {
-                flash = ImageCapture.FLASH_MODE_OFF
-                localizedToast(context, "Không thể bật đèn LED liên tục trên camera này.", Toast.LENGTH_LONG).show()
+            android.util.Log.w("FUJI_FLASH", "Could not apply illumination mode=$illuminationMode", it)
+            if (illuminationMode != "off") {
+                illuminationMode = "off"
+                appPrefs.edit()
+                    .putString("camera_illumination_mode", "off")
+                    .putInt("camera_flash_mode", ImageCapture.FLASH_MODE_OFF)
+                    .apply()
+                localizedToast(context, "Không thể bật chế độ đèn đã chọn trên camera này.", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -3637,10 +3666,6 @@ fun CameraScreen(
         onDispose {
             runCatching { activeCamera?.cameraControl?.enableTorch(false) }
         }
-    }
-    LaunchedEffect(imageCapture) {
-        // The shutter must never pulse the LED: illumination is controlled only by Torch Mode.
-        imageCapture?.flashMode = ImageCapture.FLASH_MODE_OFF
     }
     LaunchedEffect(targetRotation, imageCapture, previewUseCase, analysisUseCase, videoCaptureUseCase) {
         imageCapture?.targetRotation = targetRotation
@@ -4722,7 +4747,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             // Haptic feedback is synchronous and does not wait for camera capture.
             localView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             if (appPrefs.getBoolean("shutter_sound_enabled", true)) {
-                playConfiguredShutterSound(context)
+                if (captureUseLunaDream || captureUseNightShot) {
+                    CameraSoundEngine.playBurstShutter(context)
+                } else {
+                    playConfiguredShutterSound(context)
+                }
             }
             // Mechanical shutter curtain: close from the top, hold briefly, then reopen.
             // A black curtain is used instead of a white flash or color wash.
@@ -4924,6 +4953,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     val firstFrame = File(context.cacheDir, "fuji-stack-first-" + System.nanoTime() + ".jpg")
                                     try {
                                         if (NightShotProcessor.copyUriToFile(context, saved, firstFrame)) {
+                                            if (flashPulseEnabled) {
+                                                runCatching { capture.flashMode = ImageCapture.FLASH_MODE_OFF }
+                                            }
                                             stackedFrames.add(firstFrame)
                                             acceptedFrameFiles.add(1 to firstFrame)
                                             var acceptedFrameCount = 1
@@ -4985,6 +5017,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         context.cacheDir,
                                                         "fuji-stack-" + System.nanoTime() + "-" + frameNumber + ".jpg"
                                                     )
+                                                    if (captureUseLunaDream || captureUseNightShot) {
+                                                        CameraSoundEngine.playBurstShutter(context)
+                                                    }
                                                     pendingCaptures.addLast(async(Dispatchers.IO) {
                                                         val captureResult = NightShotProcessor.captureFrameToFile(
                                                             capture, nextFrame
@@ -4995,19 +5030,19 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         val expectedFrame = acceptedFrameCount + pendingCaptures.size
                                                         processingLabel = when {
                                                             captureUseLunaDream15 ->
-                                                                "LunaDream 1.5: thu khung $expectedFrame/$maxFrames"
+                                                                "LunaDream 1.5: thu khung $expectedFrame/$maxFrames · mục tiêu 8FPS"
                                                             captureUseRawDream20 ->
                                                                 "RawDream 2.0: thu khung $expectedFrame/$maxFrames"
                                                             captureUseLunaDream20 ->
-                                                                "LunaDream 2.0: thu khung $expectedFrame/$maxFrames"
+                                                                "LunaDream 2.0: thu khung $expectedFrame/$maxFrames · mục tiêu 8FPS"
                                                             captureUseLunaDream25 ->
-                                                                "LunaDream 3.0: thu khung $expectedFrame/$maxFrames"
+                                                                "LunaDream 3.0: thu khung $expectedFrame/$maxFrames · mục tiêu 8FPS"
                                                             captureUseLunaDream30 ->
                                                                 "LunaDream 3.0: thu khung $expectedFrame/$maxFrames"
                                                             captureUseMilkyWayStack ->
                                                                 "NightShotMode Milky Way: thu khung $expectedFrame/$maxFrames"
                                                             captureUseNightShot ->
-                                                                "NightShotMode: thu khung $expectedFrame/$maxFrames · hàng đợi 2"
+                                                                "NightShotMode: thu khung $expectedFrame/$maxFrames · mục tiêu 8FPS"
                                                             else -> "Multi-frame: chụp khung $expectedFrame/5"
                                                         }
                                                         processingProgress = if (captureUseNightShot) {
@@ -5163,7 +5198,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                     "mode=$frameModeForTiming no ImageProxy sensor timestamps were returned (RAW+JPEG capture path)"
                                                 )
                                             }
-                                            if (burstElapsedMs > 1_000L && (captureUseLunaDream || captureUseNightShot)) {
+                                            if (burstElapsedMs > 1_300L && (captureUseLunaDream || captureUseNightShot)) {
                                                 val camWarning = if (captureUseNightShot) {
                                                     "CAM: Night Shot thu ${stackedFrames.size} khung mất ${burstElapsedMs}ms (>1s). " +
                                                         "Kiểm tra SENSOR_TIMESTAMP, thời gian phơi sáng và giới hạn HAL; không thể ép cảm biến vượt thời gian phơi sáng vật lý."
@@ -5174,7 +5209,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 android.util.Log.w("FUJI_CAM_WARNING", camWarning)
                                                 CaptureDiagnostics.recordWarning(context, camWarning)
                                                 CrashContextDiagnostics.recordUiEvent(
-                                                    "CAM_WARNING mode=${if (captureUseNightShot) "NightShot" else lunaDreamMode} elapsedMs=$burstElapsedMs targetMs=1000"
+                                                    "CAM_WARNING mode=${if (captureUseNightShot) "NightShot" else lunaDreamMode} elapsedMs=$burstElapsedMs targetMs=1300"
                                                 )
                                             }
                                             if (captureUseNightShot) {
@@ -8697,6 +8732,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 filterCount = camera310FilterPresets.size,
                 lightUi = lightUi,
                 torchEnabled = torchEnabled,
+                flashPulseEnabled = flashPulseEnabled,
                 shutter01 = uiShutter01,
                 iso01 = uiIso01,
                 kelvin01 = ((manualColorTemp - 2000) / 8000f).coerceIn(0f, 1f),
@@ -8761,8 +8797,20 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     CrashContextDiagnostics.recordUiEvent("CAMERA_THEME light=$lightUi")
                 },
                 onFlash = {
-                    torchEnabled = !torchEnabled
-                    CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
+                    val nextMode = when (illuminationMode) {
+                        "off" -> "pulse"
+                        "pulse" -> "continuous"
+                        else -> "off"
+                    }
+                    illuminationMode = nextMode
+                    appPrefs.edit()
+                        .putString("camera_illumination_mode", nextMode)
+                        .putInt(
+                            "camera_flash_mode",
+                            if (nextMode == "continuous") ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
+                        )
+                        .apply()
+                    CrashContextDiagnostics.recordUiEvent("CAMERA_ILLUMINATION mode=$nextMode")
                 },
                 onFilterSelect = { selected ->
                     activeFilter = selected

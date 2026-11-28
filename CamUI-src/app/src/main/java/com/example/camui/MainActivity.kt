@@ -492,15 +492,19 @@ class MainActivity : AppCompatActivity() {
                                     indication = null
                                 ) { /* Consume taps outside the panel; never pass them to the camera preview. */ }
                         )
-                        Box(
-                            Modifier.fillMaxSize().graphicsLayer {
-                                alpha = overlayAlpha.value
-                                scaleX = overlayScale.value
-                                scaleY = overlayScale.value
-                                translationY = overlayOffsetY.value
-                                translationX = overlayOffsetX.value
-                            }
-                        ) {
+                    }
+                    // Keep the last Settings composition alive while hidden. The first Settings
+                    // open is an alpha/scale/translation animation rather than a cold menu build.
+                    // Translate a hidden layer outside the LCD so it cannot intercept camera taps.
+                    Box(
+                        Modifier.fillMaxSize().graphicsLayer {
+                            alpha = overlayAlpha.value
+                            scaleX = overlayScale.value
+                            scaleY = overlayScale.value
+                            translationY = overlayOffsetY.value
+                            translationX = if (overlayVisible) overlayOffsetX.value else size.width * 2f
+                        }
+                    ) {
                             when (overlayPage) {
                                 "activation" -> ActivationScreen(
                                     onComplete = {
@@ -568,7 +572,6 @@ class MainActivity : AppCompatActivity() {
                                 "contents" -> ContentManagementScreen(onBack = { page = settingsSubpageReturnTarget })
                                 else -> Spacer(Modifier.fillMaxSize())
                             }
-                        }
                     }
                     if (bootSplashVisible) FujifilmBootSplash()
                     if (pageCurtainMessage.isNotEmpty()) {

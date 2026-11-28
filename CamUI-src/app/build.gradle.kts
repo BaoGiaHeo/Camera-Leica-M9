@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Base64
+import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.GZIPInputStream
@@ -180,8 +182,8 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
     doLast {
         val encoded = fuji320UiArchive.asFile.readText(Charsets.US_ASCII)
         val packed = Base64.getMimeDecoder().decode(encoded)
-        val output = java.io.ByteArrayOutputStream()
-        GZIPInputStream(java.io.ByteArrayInputStream(packed)).use { it.copyTo(output) }
+        val output = ByteArrayOutputStream()
+        GZIPInputStream(ByteArrayInputStream(packed)).use { it.copyTo(output) }
         val source = output.toString(Charsets.UTF_8.name())
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."

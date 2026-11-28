@@ -707,6 +707,18 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
             """val cameraSummary: List<String> = listOf("Template: 29°C", "CPU: -- | GPU: --", "1080P", "30FPS"),""",
             """val cameraSummary: List<String> = listOf("1080P", "30FPS"),"""
         )
+
+        source = source.replace(
+            """val lunaSummary: String = "LunaDream 3.0 · 180 MP",""",
+            """val lunaSummary: String = "Original","""
+        )
+        source = source.replace(
+            """Tx("LUNADREAM ${state.lunaLabel ?: "3.0"}", fs(20f))""",
+            """Tx(if (state.lunaLabel == null) "ORIGINAL" else "LUNADREAM ${state.lunaLabel}", fs(20f))"""
+        )
+        check(source.contains("""if (state.lunaLabel == null) "ORIGINAL" """.trimEnd())) {
+            "3.5.0 Original camera mode label missing."
+        }
         val fullscreenButton = """        MetalButton(r(18f, 172f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
             Canvas(Modifier.size(d(30f))) {
                 val w = size.width

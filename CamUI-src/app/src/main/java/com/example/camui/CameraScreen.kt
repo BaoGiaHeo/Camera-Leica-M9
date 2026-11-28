@@ -5238,12 +5238,12 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 ) {
                                     val requestedMp = when {
                                         captureUseNightShot -> 60_000_000L
-                                        captureUseLunaDream15 && lunaDreamApplied -> 50_000_000L
+                                        captureUseLunaDream15 && lunaDreamApplied -> lunaDreamOutputTarget("luna15")?.targetPixels
                                         captureUseLunaDream20Stack && lunaDreamStackFallbackApplied -> 50_000_000L
-                                        captureUseRawDream20 && lunaDreamApplied -> 108_000_000L
-                                        captureUseLunaDream30 && lunaDreamApplied && lunaDream30PreFinalized -> Tuning.LUNA_DREAM_30_MAX_OUTPUT_PIXELS
-                                        captureUseLunaDream25 && lunaDreamApplied -> 150_000_000L
-                                        captureUseLunaDream20 && lunaDreamApplied -> 108_000_000L
+                                        captureUseRawDream20 && lunaDreamApplied -> lunaDreamOutputTarget("luna20")?.targetPixels
+                                        captureUseLunaDream30 && lunaDreamApplied && lunaDream30PreFinalized -> lunaDreamOutputTarget("luna30")?.targetPixels
+                                        captureUseLunaDream25 && lunaDreamApplied -> lunaDreamOutputTarget("luna25")?.targetPixels
+                                        captureUseLunaDream20 && lunaDreamApplied -> lunaDreamOutputTarget("luna20")?.targetPixels
                                         else -> null
                                     }
                                     withContext(Dispatchers.Main) {

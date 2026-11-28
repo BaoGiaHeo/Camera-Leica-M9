@@ -328,6 +328,11 @@ fun FujiIconGlyph(
             }
         }
         when (name) {
+            "menu" -> {
+                line(3f, 6f, 21f, 6f, 2.dp.toPx())
+                line(3f, 12f, 21f, 12f, 2.dp.toPx())
+                line(3f, 18f, 21f, 18f, 2.dp.toPx())
+            }
             "back" -> {
                 line(20f, 12f, 4f, 12f, 2.2.dp.toPx())
                 line(4f, 12f, 11f, 5f, 2.2.dp.toPx())

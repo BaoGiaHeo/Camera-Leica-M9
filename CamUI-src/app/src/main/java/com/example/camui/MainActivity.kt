@@ -286,7 +286,7 @@ class MainActivity : AppCompatActivity() {
         settingsPrefs.edit().putBoolean("first_activation_completed", true).apply()
         AppLanguageManager.setLanguage(this, "vi")
         // Allow portrait, landscape and both reverse orientations; configChanges keeps Activity/camera alive.
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.attributes = window.attributes.apply {
             rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -309,9 +309,11 @@ class MainActivity : AppCompatActivity() {
             ) {
             CamTheme {
                 var bootSplashVisible by remember { mutableStateOf(true) }
+                val bootSplashAlpha = remember { Animatable(1f) }
                 LaunchedEffect(Unit) {
-                    // Keep the splash visible while the underlying camera composition starts.
+                    // Keep the camera binding alive behind the exact white Fujifilm boot frame.
                     delay(1_000L)
+                    bootSplashAlpha.animateTo(0f, tween(260, easing = FastOutSlowInEasing))
                     bootSplashVisible = false
                 }
                 var page by remember { mutableStateOf("camera") }
@@ -574,7 +576,11 @@ class MainActivity : AppCompatActivity() {
                                 else -> Spacer(Modifier.fillMaxSize())
                             }
                     }
-                    if (bootSplashVisible) FujifilmBootSplash()
+                    if (bootSplashVisible) {
+                        Box(Modifier.fillMaxSize().graphicsLayer { alpha = bootSplashAlpha.value }) {
+                            FujifilmBootSplash()
+                        }
+                    }
                     if (pageCurtainMessage.isNotEmpty()) {
                         Box(
                             Modifier.fillMaxSize()
@@ -605,14 +611,14 @@ class MainActivity : AppCompatActivity() {
 @androidx.compose.runtime.Composable
 private fun FujifilmBootSplash() {
     Box(
-        Modifier.fillMaxSize().background(ComposeColor.Black),
+        Modifier.fillMaxSize().background(ComposeColor.White),
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(R.drawable.fujifilm_mode_logo),
-            contentDescription = "FUJIFILM Mode — logo ứng dụng",
+            painter = painterResource(R.drawable.boot_screen_31),
+            contentDescription = "FUJIFILM — màn khởi động",
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit
+            contentScale = ContentScale.FillBounds
         )
     }
 }

@@ -19,6 +19,7 @@ import androidx.compose.material3.Text as MaterialText
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -112,7 +113,14 @@ fun CamTheme(content: @Composable () -> Unit) {
         CamColors.Sub = Color(0xFF9E9E9E)
         CamColors.Shutter = parseAppColor(shutterHex, Color.White)
     }
-    val appFontFamily = FujiTypography.uiFontFamily(context)
+    // The 3.1.0 interface uses the same Saira family as the Fujifilm watermark artwork.
+    // Camera HUD renders separately and keeps its Arial/system-sans font path.
+    val appFontFamily = FontFamily(
+        Font(R.font.saira_semicondensed_regular, FontWeight.Normal),
+        Font(R.font.saira_semicondensed_medium, FontWeight.Medium),
+        Font(R.font.saira_semicondensed_semibold, FontWeight.SemiBold),
+        Font(R.font.saira_semicondensed_bold, FontWeight.Bold)
+    )
     val baseTypography = Typography()
     val appTypography = baseTypography.copy(
         displayLarge = baseTypography.displayLarge.copy(fontFamily = appFontFamily),

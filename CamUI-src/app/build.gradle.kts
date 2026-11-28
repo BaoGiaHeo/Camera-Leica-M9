@@ -186,24 +186,24 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         GZIPInputStream(ByteArrayInputStream(packed)).use { it.copyTo(output) }
         var source = output.toString(Charsets.UTF_8.name())
 
-        // d()/fs() read BoxWithConstraintsScope.maxWidth and CameraFilterRow uses both.
-        // The compressed reference source declares them as file-level helpers, so promote
-        // those declarations to receiver extensions before Kotlin compilation.
+        // Scale helpers must work inside nested Compose scopes such as RowScope and
+        // AnimatedVisibilityScope. Use screen configuration rather than implicit receivers.
         source = source.replace(
-            "private fun fs(px:",
-            "private fun BoxWithConstraintsScope.fs(px:"
+            "private fun fs(px: Float): TextUnit = (px * maxWidth.value / RW).sp",
+            "@Composable\\nprivate fun fs(px: Float): TextUnit = (px * LocalConfiguration.current.screenWidthDp.toFloat() / RW).sp"
         )
         source = source.replace(
-            "private fun d(px:",
-            "private fun BoxWithConstraintsScope.d(px:"
+            "private fun d(px: Float): Dp = maxWidth * (px / RW)",
+            "@Composable\\nprivate fun d(px: Float): Dp = (LocalConfiguration.current.screenWidthDp.toFloat() * (px / RW)).dp"
         )
-        source = source.replace(
-            "private fun CameraFilterRow(",
-            "private fun BoxWithConstraintsScope.CameraFilterRow("
-        )
-        check(source.contains("private fun BoxWithConstraintsScope.fs(px:"))
-        check(source.contains("private fun BoxWithConstraintsScope.d(px:"))
-        check(source.contains("private fun BoxWithConstraintsScope.CameraFilterRow("))
+        check(source.contains("@Composable\\nprivate fun fs(px: Float): TextUnit"))
+        check(source.contains("@Composable\\nprivate fun d(px: Float): Dp"))
+        if (!source.contains("import androidx.compose.ui.platform.LocalConfiguration")) {
+            source = source.replace(
+                "import androidx.compose.ui.platform.LocalHapticFeedback",
+                "import androidx.compose.ui.platform.LocalConfiguration\\nimport androidx.compose.ui.platform.LocalHapticFeedback"
+            )
+        }
         if (!source.contains("import androidx.compose.foundation.layout.fillMaxWidth")) {
             source = source.replace(
                 "package com.example.camui",
@@ -296,6 +296,19 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         source = source.replace("            Box(r(793f, 105f, 40f, 45f), Alignment.Center) { Tx(\"T\", fs(28f)) }\n", "")
         source = source.replace("            ExposureScale(state.ev)\n", "")
         source = source.replace("            Box(r(50f, 645f, 44f, 46f).border(d(2f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {\n                Column(horizontalAlignment = Alignment.CenterHorizontally) {\n                    Tx(state.dr.take(2), fs(19f))\n                    Tx(state.dr.drop(2), fs(19f))\n                }\n            }\n", "")
+
+        // T is the upper telephoto key, W the lower wide key.
+        val zoomMinusHandler = """onHold = { actions.onZoomStep(-1) }, onHoldEnd = actions.onZoomFinished,
+            onClick = { actions.onZoomStepTap(-1) },"""
+        val zoomPlusHandler = """onHold = { actions.onZoomStep(1) }, onHoldEnd = actions.onZoomFinished,
+            onClick = { actions.onZoomStepTap(1) },"""
+        check(source.contains(zoomMinusHandler) && source.contains(zoomPlusHandler)) { "Fuji 3.2 T/W zoom handlers not found." }
+        source = source.replace(zoomMinusHandler, "__FUJI_ZOOM_PLUS__")
+        source = source.replace(zoomPlusHandler, zoomMinusHandler)
+        source = source.replace("__FUJI_ZOOM_PLUS__", zoomPlusHandler)
+        source = source.replace("Tx(\"W\", fs(66f))", "Tx(\"__FUJI_ZOOM_TOP__\", fs(66f))")
+        source = source.replace("Tx(\"T\", fs(66f))", "Tx(\"W\", fs(66f))")
+        source = source.replace("Tx(\"__FUJI_ZOOM_TOP__\", fs(66f))", "Tx(\"T\", fs(66f))")
 
         // Replace the old wide, multi-column overlay with the compact two-line reference HUD.
         val hudStart = source.indexOf("@Composable\nprivate fun BoxWithConstraintsScope.Hud(")
@@ -400,10 +413,10 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
                     Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
                         Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
                         Spacer(Modifier.weight(1f))
-                        Tx("${'$'}{state.filterCount}/${'$'}{state.filterCount}", fs(16f), C.Green)
+                        Tx("${'$'}{state.filterCount}/${'$'}{state.filterCount}", fs(16f), C.White)
                     }
                     state.filterRows.forEach { row ->
-                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                        CameraFilterRow(row.first, "FUJIFILM: " + row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
                     }
                 }
             }"""

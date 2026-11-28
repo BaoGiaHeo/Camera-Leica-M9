@@ -8569,6 +8569,95 @@ private fun LensTransitionOverlay(
     }
 }
 
+private val DEFAULT_FILM_LOOK_PALETTE = listOf(
+    Color(0xFF20272D), Color(0xFF54788B), Color(0xFFB58C69),
+    Color(0xFFD7B58D), Color(0xFFE6D9C5)
+)
+
+@Composable
+private fun rememberFilmLookPalette(preset: String): List<Color> {
+    val context = LocalContext.current
+    val palette by produceState(
+        initialValue = DEFAULT_FILM_LOOK_PALETTE,
+        key1 = context,
+        key2 = preset
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val cube = runCatching { readCameraLookLut(context, preset) }.getOrNull()
+                ?: return@withContext DEFAULT_FILM_LOOK_PALETTE
+            val samples = arrayOf(
+                floatArrayOf(0.10f, 0.16f, 0.24f),
+                floatArrayOf(0.34f, 0.22f, 0.16f),
+                floatArrayOf(0.52f, 0.46f, 0.38f),
+                floatArrayOf(0.72f, 0.80f, 0.58f),
+                floatArrayOf(0.94f, 0.82f, 0.66f)
+            )
+            val output = FloatArray(3)
+            samples.map { sample ->
+                cube.sampleInto(sample[0], sample[1], sample[2], output)
+                Color(output[0], output[1], output[2])
+            }
+        }
+    }
+    return palette
+}
+
+@Composable
+private fun FilmRollSpoolIcon(
+    shortName: String,
+    accent: Color,
+    selected: Boolean
+) {
+    Box(
+        Modifier.width(28.dp).height(44.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xFF080A0B))
+            .border(
+                if (selected) 1.5.dp else 1.dp,
+                if (selected) FujiSkin.orange else Color(0xFF778084),
+                RoundedCornerShape(4.dp)
+            )
+            .padding(horizontal = 3.dp, vertical = 2.dp)
+    ) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                repeat(4) {
+                    Box(Modifier.size(3.dp).background(Color(0xFF9CA4A7), RoundedCornerShape(1.dp)))
+                }
+            }
+            Box(
+                Modifier.weight(1f).fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFFE0E3E4), Color(0xFF747B7F), Color(0xFFB9BEC0))
+                        )
+                    )
+            ) {
+                Box(
+                    Modifier.fillMaxWidth().height(5.dp).align(Alignment.TopCenter)
+                        .background(accent)
+                )
+                Text(
+                    shortName.take(5).uppercase(Locale.ROOT),
+                    color = Color(0xFF111416),
+                    fontSize = 6.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    modifier = Modifier.width(40.dp).height(9.dp)
+                        .align(Alignment.Center)
+                        .graphicsLayer { rotationZ = -90f },
+                    textAlign = TextAlign.Center
+                )
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                repeat(4) {
+                    Box(Modifier.size(3.dp).background(Color(0xFF9CA4A7), RoundedCornerShape(1.dp)))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun FilterLookPreviewImage(
     source: Bitmap,

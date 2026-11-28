@@ -74,31 +74,32 @@ fun LunaDreamBottomSheet(
             Column(
                 Modifier.fillMaxSize()
                     .background(Color(0xFF171717))
-                    .padding(horizontal = 30.dp, vertical = 14.dp)
+                    .padding(start = 33.dp, end = 44.dp, top = 16.dp, bottom = 47.dp),
+                verticalArrangement = Arrangement.spacedBy(23.dp)
             ) {
                 Row(
-                    Modifier.fillMaxWidth().height(48.dp),
+                    Modifier.fillMaxWidth().height(31.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         "LUNADREAM ENGINE",
                         color = Color.White,
-                        fontSize = 17.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 0.35.sp
                     )
                     Spacer(Modifier.weight(1f))
                     Box(
-                        Modifier.width(104.dp).height(38.dp)
-                            .clip(RoundedCornerShape(7.dp))
-                            .border(1.dp, Color(0xFF888888), RoundedCornerShape(7.dp))
+                        Modifier.width(77.dp).height(31.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .border(1.dp, Color(0xFF888888), RoundedCornerShape(6.dp))
                             .clickable(onClick = onDismiss),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             "Quay Lại",
                             color = Color.White,
-                            fontSize = 15.sp,
+                            fontSize = 13.sp,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                         )
                     }
@@ -107,22 +108,22 @@ fun LunaDreamBottomSheet(
                     Modifier.weight(1f).fillMaxWidth()
                         .clip(RoundedCornerShape(34.dp))
                         .border(1.dp, Color(0xFF777777), RoundedCornerShape(34.dp))
-                        .padding(horizontal = 28.dp, vertical = 18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(28.dp)
+                        .padding(start = 36.dp, end = 84.dp),
+                    horizontalArrangement = Arrangement.spacedBy(30.dp)
                 ) {
                     Column(
-                        Modifier.weight(1.1f).fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        Modifier.weight(1.1f).fillMaxHeight().padding(top = 28.dp, bottom = 70.dp),
+                        verticalArrangement = Arrangement.spacedBy(23.dp)
                     ) {
                         LunaDreamModeCard(
-                            modifier = Modifier.weight(0.9f).fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(88.dp),
                             title = "LunaDream 1.5",
                             description = "50MP Chất lượng ảnh sẽ Không được nét nhưng xử lý nhanh",
                             selected = selectedMode == "luna15",
                             enabled = !nightShotEnabled
                         ) { onSelectedModeChange(if (selectedMode == "luna15") "off" else "luna15") }
                         LunaDreamModeCard(
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(99.dp),
                             title = "LunaDream 2.0",
                             description = "108MP chất lượng nét hơn, Xử lý chậm so với 1.5 xíu",
                             selected = selectedMode == "luna20",
@@ -130,18 +131,18 @@ fun LunaDreamBottomSheet(
                         ) { onSelectedModeChange(if (selectedMode == "luna20") "off" else "luna20") }
                     }
                     Column(
-                        Modifier.weight(1f).fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        Modifier.weight(1f).fillMaxHeight().padding(top = 91.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         LunaDreamModeCard(
-                            modifier = Modifier.weight(0.9f).fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().height(83.dp),
                             title = "LunaDream 3.0",
                             description = "180MP Chất lượng nét hơn, Hình ảnh tốt hơn",
                             selected = selectedMode == "luna25",
                             enabled = !nightShotEnabled
                         ) { onSelectedModeChange(if (selectedMode == "luna25") "off" else "luna25") }
                         Column(
-                            Modifier.weight(1.12f).fillMaxWidth()
+                            Modifier.fillMaxWidth().height(111.dp)
                                 .clip(RoundedCornerShape(22.dp))
                                 .background(Color(0xFF303030))
                                 .border(1.dp, Color(0xFF444444), RoundedCornerShape(22.dp))

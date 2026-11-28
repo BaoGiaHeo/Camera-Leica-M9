@@ -129,83 +129,45 @@ fun SettingsScreen(
     FujiScreenScaffold(
         title = stringResource(R.string.settings_screen_title),
         modifier = modifier.fillMaxSize(),
-        onBack = {
-            if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup
-            else onBack()
-        },
+        onBack = onBack,
         showVersion = false,
-        showHeader = false,
-        footerActions = true,
-        onFooterBack = {
-            selectedCategory = if (selectedCategory == "Sao lưu & Khôi phục") {
-                categoryBeforeBackup
-            } else {
-                previousCategory
-            }
-        }
+        showHeader = true,
+        footerActions = false
     ) {
+        val tabLabelColor = Color(0xFFF1F1F1)
+        val cardSurface = Color(0xFF343638)
         Column(
-            Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+            Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Row(
-                Modifier.fillMaxWidth().height(30.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FujiIconGlyph("camera", Modifier.size(22.dp), Color.White)
-                Text(
-                    "CÀI ĐẶT CHỤP",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.1.sp,
-                    modifier = Modifier.padding(start = 7.dp)
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    activeIndex.toString(),
-                    color = Color.White,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Text(
-                    "/${visibleSettingItems.size}",
-                    color = Color(0xFFB8BEC0),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Light,
-                    modifier = Modifier.padding(start = 1.dp, end = 2.dp)
-                )
-            }
-            Row(
-                Modifier.weight(1f).fillMaxWidth(),
+                Modifier.fillMaxWidth().height(48.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Column(
-                    Modifier.width(82.dp).fillMaxHeight().clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF101416))
-                        .border(1.dp, Color(0xFF3E484B), RoundedCornerShape(6.dp))
-                        .verticalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp, horizontal = 3.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                FujiCameraKey(
+                    "QUAY LẠI",
+                    modifier = Modifier.width(92.dp).height(40.dp),
+                    icon = "back",
+                    scale = 1f
+                ) { onBack() }
+                Row(
+                    Modifier.weight(1f).fillMaxHeight()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "MENU",
-                        color = FujiSkin.lcdGreen,
-                        fontSize = 7.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
-                        modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 3.dp)
-                    )
                     visibleSettingItems.forEach { item ->
                         val selected = selectedCategory == item.title
-                        Row(
-                            Modifier.fillMaxWidth().height(34.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(if (selected) Color(0xFFD0D0D0) else Color.Transparent)
+                        val label = displayTabLabel(item)
+                        Box(
+                            Modifier.width(96.dp).height(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) Color(0xFFF0A030) else Color(0xFF252729))
                                 .border(
-                                    if (selected) 1.dp else 0.dp,
-                                    if (selected) Color(0xFFF2F2F2) else Color.Transparent,
-                                    RoundedCornerShape(5.dp)
+                                    1.dp,
+                                    if (selected) Color(0xFFFFD18B) else Color(0xFF65686A),
+                                    RoundedCornerShape(10.dp)
                                 )
                                 .clickable {
                                     if (selectedCategory != item.title) {
@@ -213,82 +175,72 @@ fun SettingsScreen(
                                         selectedCategory = item.title
                                     }
                                 }
-                                .padding(horizontal = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                .padding(horizontal = 5.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            val label = displayTabLabel(item)
-                            val glyph = when (item.icon) {
-                                "tab_01" -> "wrench"
-                                "tab_04" -> "flash"
-                                "tab_05" -> "moon"
-                                "tab_06" -> "display"
-                                else -> item.icon
-                            }
-                            val textOnlyTab = item.icon == "tab_02" || item.icon == "tab_03" || item.icon == "tab_09"
-                            if (textOnlyTab) {
-                                Text(
-                                    label,
-                                    color = if (selected) Color(0xFF171A1B) else Color.White,
-                                    fontSize = if (item.icon == "tab_02") 8.sp else 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    maxLines = 1,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            } else {
-                                FujiIconGlyph(
-                                    glyph,
-                                    Modifier.size(22.dp),
-                                    if (selected) Color(0xFF171A1B) else Color.White
-                                )
-                                Text(
-                                    label,
-                                    color = if (selected) Color(0xFF171A1B) else Color(0xFFE8EAEB),
-                                    fontSize = 6.8.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            if (selected) {
-                                Box(Modifier.size(5.dp).background(Color(0xFFD8283C), RoundedCornerShape(1.dp)))
-                                Text("◂", color = Color(0xFF171A1B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                label,
+                                color = if (selected) Color(0xFF1B1B1B) else tabLabelColor,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
+            }
+            Row(
+                Modifier.weight(1f).fillMaxWidth()
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(cardSurface)
+                    .border(1.2.dp, Color(0xFF777A7C), RoundedCornerShape(22.dp))
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Column(
-                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp))
-                        .background(FujiSkin.lcd)
-                        .border(1.dp, Color(0xFF596265), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 7.dp, vertical = 6.dp)
+                    Modifier.weight(1f).fillMaxHeight()
+                        .clip(RoundedCornerShape(17.dp))
+                        .background(Color(0xFF26282A))
+                        .padding(8.dp)
                 ) {
+                    Text(
+                        selectedCategory.uppercase(),
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.7.sp
+                    )
+                    Box(
+                        Modifier.fillMaxWidth().height(1.dp)
+                            .padding(top = 4.dp)
+                            .background(Color(0xFF626567))
+                    )
                     AnimatedContent(
                         targetState = selectedCategory,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
                         transitionSpec = {
                             (
                                 fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
                                     slideInHorizontally(
-                                        initialOffsetX = { it / 24 },
+                                        initialOffsetX = { it / 28 },
                                         animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
                                     )
                             ) togetherWith (
-                                fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)) +
+                                fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 110)) +
                                     slideOutHorizontally(
                                         targetOffsetX = { -it / 36 },
-                                        animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)
+                                        animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 110)
                                     )
                             )
                         },
-                        label = "Settings detail tab"
+                        label = "Fuji 3.1 Settings detail"
                     ) { detailTitle ->
                         SettingsDetailPage(
                             title = detailTitle,
                             onBack = {},
-                            ratioIdx = ratioIdx,
-                            onRatio = onRatio,
+                            ratioIdx = 1,
+                            onRatio = { onRatio(1) },
                             showGrid = showGrid,
                             onShowGrid = onShowGrid,
                             showHist = showHist,
@@ -308,6 +260,20 @@ fun SettingsScreen(
                             onOpenDiagnostics = { showCaptureDiagnostics = true }
                         )
                     }
+                }
+                Column(
+                    Modifier.width(168.dp).fillMaxHeight()
+                        .clip(RoundedCornerShape(17.dp))
+                        .background(Color(0xFF292B2D))
+                        .border(1.dp, Color(0xFF55585A), RoundedCornerShape(17.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("FUJIFILM MODE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("CÀI ĐẶT MÁY ẢNH", color = Color(0xFFF0A030), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("Cấu hình được lưu tự động. Các điều khiển áp dụng trực tiếp lên camera đang chạy.", color = Color(0xFFD1D3D4), fontSize = 10.sp, lineHeight = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("TRANG $activeIndex / ${visibleSettingItems.size}", color = Color(0xFFBFC3C5), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

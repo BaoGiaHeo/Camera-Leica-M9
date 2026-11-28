@@ -8929,6 +8929,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 state = cameraUiState,
                 actions = cameraUiActions,
                 modifier = Modifier.fillMaxSize(),
+                logo = painterResource(if (lightUi) R.drawable.fujifilm_logo_black else R.drawable.fujifilm_logo_white),
                 preview = { lcdPreviewLayer(Modifier.fillMaxSize()) }
             )
             if (filterDialogVisible) {

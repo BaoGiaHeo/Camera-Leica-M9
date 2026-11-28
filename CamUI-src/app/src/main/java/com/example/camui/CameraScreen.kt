@@ -1917,7 +1917,9 @@ fun CameraScreen(
     // from the sensor stream, so 16:9, 1:1 and 21:9 do not remain visibly 4:3.
     val previewView = remember(context, renderEngine) {
         PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FIT_CENTER
+            // The 3.2.0 reference viewfinder is a full-bleed LCD window. FIT_CENTER
+            // letterboxed the live image and made the overlay/HUD geometry visibly drift.
+            scaleType = PreviewView.ScaleType.FILL_CENTER
             setBackgroundColor(android.graphics.Color.BLACK)
             // COMPATIBLE uses a TextureView-backed preview so PreviewView.bitmap can
             // preserve the exact last displayed frame during computational capture.

@@ -5455,7 +5455,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         captureUseLunaDream30 && lunaDreamApplied ->
                                             "LunaDream Render · 3.0 đang phục hồi vi chi tiết"
                                         captureUseLunaDream25 && lunaDreamApplied ->
-                                            "LunaDream Render · 2.5 đang phục hồi chi tiết thích ứng"
+                                            "LunaDream 3.0 Render · đang phục hồi chi tiết thích ứng"
                                         captureUseLunaDream20 && lunaDreamApplied ->
                                             "LunaDream Render · 2.0 đang phục hồi chi tiết"
                                         captureUseNightShot && (nightShotMerged || captureNightShotExtension) ->
@@ -5921,7 +5921,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 180MP."
                                             else "Đã lưu LunaDream 3.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream25 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 150MP."
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 180MP."
                                             else "Đã lưu LunaDream 3.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."

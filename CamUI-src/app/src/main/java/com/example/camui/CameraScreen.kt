@@ -8800,6 +8800,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
 
             var uiLeafEnabled by remember { mutableStateOf(appPrefs.getBoolean("battery_saver_enabled", false)) }
+            var uiAfX by remember { mutableFloatStateOf(0.5f) }
+            var uiAfY by remember { mutableFloatStateOf(0.5f) }
             val uiZoomState = camera?.cameraInfo?.zoomState?.value
             val uiMinZoom = uiZoomState?.minZoomRatio ?: 1f
             val uiMaxZoom = uiZoomState?.let { state ->
@@ -8848,6 +8850,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 lunaLabel = uiLunaLabel,
                 busy = isProcessing,
                 leafOn = uiLeafEnabled,
+                afX = uiAfX,
+                afY = uiAfY,
                 afState = when {
                     focusLocked -> AfState.LOCKED
                     centerAfStatus < 0 -> AfState.FAILED
@@ -8889,6 +8893,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 },
                 onPinch = { scale -> animateZoomTo((zoomSel * scale).coerceIn(uiMinZoom, uiMaxZoom)) },
                 onTapFocus = { x, y ->
+                    uiAfX = x.coerceIn(0f, 1f)
+                    uiAfY = y.coerceIn(0f, 1f)
                     camera?.let { active ->
                         val px = (previewView.width * x).coerceIn(0f, previewView.width.toFloat())
                         val py = (previewView.height * y).coerceIn(0f, previewView.height.toFloat())

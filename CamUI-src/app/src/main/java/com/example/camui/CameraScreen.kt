@@ -7311,41 +7311,23 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     gridColor = gridOverlayColor,
                                     gridOpacity = gridOverlayOpacity,
                                     showGrid = false,
-                                    faceCenter = faceTrackCenter.takeIf {
-                                        faceTrackingEnabled &&
-                                            !manualAfReticleOverrideActive &&
-                                            manualFocus <= 0f &&
-                                            !(mode == "Pro" && proAfMode == "MF") &&
-                                            !milkyWayInfinityFocusEnabled &&
-                                            lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
-                                            lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID
-                                    },
-                                    faceSize = faceTrackSize.takeIf {
-                                        !manualAfReticleOverrideActive &&
-                                            manualFocus <= 0f && !milkyWayInfinityFocusEnabled
-                                    },
-                                    eyeCenter = faceEyeCenter.takeIf {
-                                        !manualAfReticleOverrideActive &&
-                                            manualFocus <= 0f && !milkyWayInfinityFocusEnabled
-                                    },
+                                    faceCenter = null,
+                                    faceSize = null,
+                                    eyeCenter = null,
                                     faceFocused = centerAfStatus == 1 &&
                                         !manualAfReticleOverrideActive &&
                                         manualFocus <= 0f && !milkyWayInfinityFocusEnabled,
                                     focusLocked = focusLocked && lcdDisplayMode != CameraLcdDisplayMode.CLEAN &&
                                         lcdDisplayMode != CameraLcdDisplayMode.LEVEL_GRID,
-                                    centerAfPoint = centerAfPoint.takeIf { lcdDisplayMode != CameraLcdDisplayMode.CLEAN },
-                                    centerAfStatus = if (focusLocked) 1 else centerAfStatus,
-                                    showManualAfReticle = manualAfReticleOverrideActive,
+                                    centerAfPoint = null,
+                                    centerAfStatus = 0,
+                                    showManualAfReticle = false,
                                     centerAfScale = CameraAfAreaSize.fromPreference(
                                         appPrefs.getString("af_area_size", "l")
                                     ).pixelScale,
                                     manualFocusMode = (mode == "Pro" && proAfMode == "MF") ||
                                         manualFocus > 0f || milkyWayInfinityFocusEnabled,
-                                    focusPoints = when (lcdDisplayMode) {
-                                        CameraLcdDisplayMode.FULL_INFO -> peakPoints
-                                        CameraLcdDisplayMode.STANDARD -> if (focusPeaking) peakPoints else emptyList()
-                                        else -> emptyList()
-                                    },
+                                    focusPoints = emptyList(),
                                     showLevel = false,
                                     /*showLevel = levelVisible && when (lcdDisplayMode) {
                                         CameraLcdDisplayMode.FULL_INFO,
@@ -7384,7 +7366,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     evMaximumIndex = evRange?.upper ?: 9,
                                     evStepStops = evStep.takeIf { it > 0f } ?: (1f / 3f),
                                     evDisplayIndex = evDisplayIndex,
-                                    showHistogram = mode == "Pro" && showHist && lcdDisplayMode != CameraLcdDisplayMode.CLEAN,
+                                    showHistogram = false,
                                     histogram = hist.toList(),
                                     isPro = lcdDisplayMode.showsProHud(mode == "Pro"),
                                     showProHud = false,
@@ -8958,8 +8940,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 }
             }
             Box(
-                Modifier.align(Alignment.TopStart).padding(10.dp)
-                    .size(38.dp).clip(CircleShape)
+                Modifier.align(Alignment.TopStart).padding(start = 150.dp, top = 10.dp)
+                    .size(34.dp).clip(CircleShape)
                     .background(if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFFE3E3E3) else Color(0xFF303234))
                     .border(1.dp, if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFF777777) else Color(0xFF737678), CircleShape)
                     .clickable {

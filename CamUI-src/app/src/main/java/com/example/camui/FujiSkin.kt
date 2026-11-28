@@ -410,6 +410,17 @@ fun FujiIconGlyph(
                 circle(12f, 12f, 1.4f, true)
             }
             "close" -> { line(6f, 6f, 18f, 18f); line(18f, 6f, 6f, 18f) }
+            "sun" -> {
+                circle(12f, 12f, 5f)
+                line(12f, 1.5f, 12f, 4f)
+                line(12f, 20f, 12f, 22.5f)
+                line(1.5f, 12f, 4f, 12f)
+                line(20f, 12f, 22.5f, 12f)
+                line(4.5f, 4.5f, 6.6f, 6.6f)
+                line(17.4f, 17.4f, 19.5f, 19.5f)
+                line(17.4f, 6.6f, 19.5f, 4.5f)
+                line(4.5f, 19.5f, 6.6f, 17.4f)
+            }
             "moon" -> {
                 val path = Path().apply {
                     moveTo(15f * unit, 3f * unit)

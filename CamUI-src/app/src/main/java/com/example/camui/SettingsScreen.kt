@@ -1,5 +1,9 @@
 package com.example.camui
 
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -130,47 +134,70 @@ fun SettingsScreen(
     val tabLabelColor = Color(0xFFF1F1F1)
     val outerSurface = Color(0xFF12252B)
     val innerSurface = Color(0xFF27353A)
-    FujiScreenScaffold(
-        title = stringResource(R.string.settings_screen_title),
-        modifier = modifier.fillMaxSize(),
-        onBack = onBack,
-        showVersion = false,
-        showHeader = false,
-        footerActions = false
+    val tabIcon: (SettingItem) -> String = { item ->
+        when (item.icon) {
+            "tab_01" -> "wrench"
+            "tab_02" -> "af"
+            "tab_03" -> "camera"
+            "tab_04" -> "flash"
+            "tab_05" -> "moon"
+            "tab_06" -> "display"
+            else -> "settings"
+        }
+    }
+    val tabWidth: (SettingItem) -> androidx.compose.ui.unit.Dp = { item ->
+        when (item.icon) {
+            "tab_01" -> 150.dp
+            "tab_02" -> 132.dp
+            "tab_03" -> 104.dp
+            "tab_04" -> 112.dp
+            "tab_05" -> 108.dp
+            "tab_06" -> 158.dp
+            else -> 96.dp
+        }
+    }
+    Box(
+        Modifier.fillMaxSize()
+            .background(Brush.linearGradient(listOf(Color(0xFF080D10), Color(0xFF111C21), Color(0xFF070A0C))))
+            .padding(10.dp)
     ) {
         Column(
-            Modifier.fillMaxSize()
-                .padding(horizontal = (15f * sx).dp, vertical = (24f * sy).dp),
-            verticalArrangement = Arrangement.spacedBy((20f * sy).dp)
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
-                Modifier.fillMaxWidth().height((124f * sy).dp),
+                Modifier.fillMaxWidth().height(54.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy((15f * sx).dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FujiCameraKey(
                     "Quay Lại",
-                    modifier = Modifier.width((75f * sx).dp).height((124f * sy).dp),
+                    modifier = Modifier.width(142.dp).height(54.dp),
                     icon = "back",
-                    scale = 0.82f
+                    horizontalContent = true,
+                    scale = 0.84f
                 ) { onBack() }
                 Row(
-                    Modifier.weight(1f).fillMaxHeight()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy((90f * sx).dp),
+                    Modifier.weight(1f).fillMaxHeight().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     visibleSettingItems.forEach { item ->
                         val selected = selectedCategory == item.title
                         val label = displayTabLabel(item)
-                        Box(
-                            Modifier.width((435f * sx).dp).height((124f * sy).dp)
-                                .clip(RoundedCornerShape((16f * sx).dp))
-                                .background(if (selected) Color(0xFF164A53) else Color(0xFF20272B))
+                        val tabShape = RoundedCornerShape(9.dp)
+                        Column(
+                            Modifier.width(tabWidth(item)).height(54.dp)
+                                .shadow(if (selected) 9.dp else 1.dp, tabShape)
+                                .clip(tabShape)
+                                .background(
+                                    if (selected) Brush.verticalGradient(listOf(Color(0xFF1D414A), Color(0xFF111E24)))
+                                    else Brush.verticalGradient(listOf(Color(0xFF292D30), Color(0xFF171A1C)))
+                                )
                                 .border(
-                                    (2f * sx).dp,
-                                    if (selected) Color(0xFF4CE4EC) else Color(0xFF60727A),
-                                    RoundedCornerShape((16f * sx).dp)
+                                    if (selected) 1.7.dp else 1.dp,
+                                    if (selected) Color(0xFF65EAF0) else Color(0xFF596367),
+                                    tabShape
                                 )
                                 .clickable {
                                     if (selectedCategory != item.title) {
@@ -178,103 +205,109 @@ fun SettingsScreen(
                                         selectedCategory = item.title
                                     }
                                 },
-                            contentAlignment = Alignment.Center
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                label,
-                                color = if (selected) Color(0xFF7BF3F3) else tabLabelColor,
-                                fontSize = (18f * sx).sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                maxLines = 1,
-                                textAlign = TextAlign.Center
+                            Row(
+                                Modifier.fillMaxWidth().weight(1f).padding(horizontal = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                FujiIconGlyph(
+                                    tabIcon(item),
+                                    Modifier.size(17.dp),
+                                    if (selected) Color(0xFF8EF5F1) else Color(0xFFD0D6D8)
+                                )
+                                Text(
+                                    label,
+                                    color = if (selected) Color(0xFF9CF4F1) else Color(0xFFE4E7E8),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                            Box(
+                                Modifier.fillMaxWidth().height(2.5.dp)
+                                    .background(
+                                        if (selected) Brush.horizontalGradient(
+                                            listOf(Color(0xFF39E0E9), Color(0xFF756BFF), Color(0xFF37E0B2))
+                                        ) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
+                                    )
                             )
                         }
                     }
                 }
             }
-            Column(
+
+            Box(
                 Modifier.weight(1f).fillMaxWidth()
-                    .padding(horizontal = (25f * sx).dp)
-                    .clip(RoundedCornerShape((40f * sx).dp))
-                    .background(outerSurface)
-                    .border((2f * sx).dp, Color(0xFF43C9D7), RoundedCornerShape((40f * sx).dp))
-                    .padding(horizontal = (86f * sx).dp, vertical = (74f * sy).dp),
-                verticalArrangement = Arrangement.spacedBy((124f * sy).dp)
+                    .shadow(16.dp, RoundedCornerShape(25.dp))
+                    .clip(RoundedCornerShape(25.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF122329), Color(0xFF0C151A), Color(0xFF111D22))))
+                    .border(1.8.dp, Color(0xFF4BD4E1), RoundedCornerShape(25.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
-                Column(
-                    Modifier.fillMaxWidth().height((190f * sy).dp)
-                        .clip(RoundedCornerShape((24f * sx).dp))
-                        .background(innerSurface)
-                        .border((1.5f * sx).dp, Color(0xFF58747C), RoundedCornerShape((24f * sx).dp))
-                        .padding(horizontal = (58f * sx).dp, vertical = (28f * sy).dp),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        selectedCategory.uppercase(),
-                        color = Color.White,
-                        fontSize = (24f * sx).sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (0.8f * sx).sp
-                    )
-                    Spacer(Modifier.height((10f * sy).dp))
-                    Text(
-                        visibleSettingItems.firstOrNull { it.title == selectedCategory }?.subtitle.orEmpty(),
-                        color = Color(0xFFE0E0E0),
-                        fontSize = (17f * sx).sp,
-                        maxLines = 1
+                Canvas(Modifier.fillMaxSize()) {
+                    val gap = 19.dp.toPx()
+                    var y = 0f
+                    while (y < size.height) {
+                        drawLine(
+                            Color.White.copy(alpha = 0.018f),
+                            Offset(size.width * 0.03f, y),
+                            Offset(size.width * 0.97f, y),
+                            0.4.dp.toPx()
+                        )
+                        y += gap
+                    }
+                    drawCircle(
+                        Color(0xFF54DCE4).copy(alpha = 0.035f),
+                        size.minDimension * 0.22f,
+                        Offset(size.width * 0.80f, size.height * 0.22f)
                     )
                 }
-                Box(
-                    Modifier.fillMaxWidth().weight(1f)
-                        .clip(RoundedCornerShape((24f * sx).dp))
-                        .background(innerSurface)
-                        .border((1.5f * sx).dp, Color(0xFF58747C), RoundedCornerShape((24f * sx).dp))
-                        .padding(horizontal = (54f * sx).dp, vertical = (18f * sy).dp)
-                ) {
-                    AnimatedContent(
-                        targetState = selectedCategory,
-                        modifier = Modifier.fillMaxSize(),
-                        transitionSpec = {
-                            (
-                                fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
-                                    slideInHorizontally(
-                                        initialOffsetX = { it / 28 },
-                                        animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
-                                    )
-                            ) togetherWith (
-                                fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 110)) +
-                                    slideOutHorizontally(
-                                        targetOffsetX = { -it / 36 },
-                                        animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 110)
-                                    )
-                            )
-                        },
-                        label = "Fuji 3.2 Settings detail"
-                    ) { detailTitle ->
-                        SettingsDetailPage(
-                            title = detailTitle,
-                            onBack = {},
-                            ratioIdx = 1,
-                            onRatio = { onRatio(1) },
-                            showGrid = showGrid,
-                            onShowGrid = onShowGrid,
-                            showHist = showHist,
-                            onShowHist = onShowHist,
-                            focusPeaking = focusPeaking,
-                            onFocusPeaking = onFocusPeaking,
-                            embedded = true,
-                            modifier = Modifier.fillMaxSize(),
-                            onOpenBackup = {
-                                categoryBeforeBackup = selectedCategory
-                                selectedCategory = "Sao lưu & Khôi phục"
-                            },
-                            onOpenToolbox = onOpenToolbox,
-                            onOpenContentsManagement = onOpenContentsManagement,
-                            onReplayActivation = onReplayActivation,
-                            onOpenWatermarkPanel = onOpenWatermarkPanel,
-                            onOpenDiagnostics = { showCaptureDiagnostics = true }
+                AnimatedContent(
+                    targetState = selectedCategory,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = {
+                        (
+                            fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
+                                slideInHorizontally(
+                                    initialOffsetX = { it / 32 },
+                                    animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
+                                )
+                        ) togetherWith (
+                            fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 110)) +
+                                slideOutHorizontally(
+                                    targetOffsetX = { -it / 42 },
+                                    animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 110)
+                                )
                         )
-                    }
+                    },
+                    label = "Fuji 4.0 Settings detail"
+                ) { detailTitle ->
+                    SettingsDetailPage(
+                        title = detailTitle,
+                        onBack = {},
+                        ratioIdx = ratioIdx,
+                        onRatio = onRatio,
+                        showGrid = showGrid,
+                        onShowGrid = onShowGrid,
+                        showHist = showHist,
+                        onShowHist = onShowHist,
+                        focusPeaking = focusPeaking,
+                        onFocusPeaking = onFocusPeaking,
+                        embedded = true,
+                        modifier = Modifier.fillMaxSize(),
+                        onOpenBackup = {
+                            categoryBeforeBackup = selectedCategory
+                            selectedCategory = "Sao lưu & Khôi phục"
+                        },
+                        onOpenToolbox = onOpenToolbox,
+                        onOpenContentsManagement = onOpenContentsManagement,
+                        onReplayActivation = onReplayActivation,
+                        onOpenWatermarkPanel = onOpenWatermarkPanel,
+                        onOpenDiagnostics = { showCaptureDiagnostics = true }
+                    )
                 }
             }
         }

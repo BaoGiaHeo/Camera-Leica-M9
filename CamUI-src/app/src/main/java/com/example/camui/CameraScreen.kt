@@ -8395,6 +8395,19 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         } else {
                             Text(stringResource(R.string.camera_shutter), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
+                        if (burstMode) {
+                            Text(
+                                "BURST · $burstFrameCount",
+                                color = Color.White,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.align(Alignment.TopCenter)
+                                    .offset(y = (-12).dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xCC0B0D0E))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
                 Column(Modifier.width(70.dp * designScale).fillMaxHeight(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {

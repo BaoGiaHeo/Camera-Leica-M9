@@ -556,7 +556,6 @@ private fun preferredPhotoRawSize(
     )
 }
 @Composable
-@Composable
 private fun Fuji320Hud(
     shutter: String,
     aperture: String,

@@ -57,6 +57,15 @@ jobs:
         run: |
           gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
+      - name: Upload generated CameraUi source for diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FujiFilm-Mode-3.2.0-Generated-UI-Source
+          path: CamUI-src/app/src/main/java/com/example/camui/CameraUi.kt
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Calculate APK SHA-256
         run: |
           sha256sum CamUI-src/app/build/outputs/apk/debug/app-debug.apk | tee CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt

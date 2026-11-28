@@ -189,15 +189,43 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         // Scale helpers must work inside nested Compose scopes such as RowScope and
         // AnimatedVisibilityScope. Use screen configuration rather than implicit receivers.
         source = source.replace(
-            "private fun fs(px: Float): TextUnit = (px * maxWidth.value / RW).sp",
+            "private fun BoxWithConstraintsScope.fs(px: Float): TextUnit = (px * maxWidth.value / RW).sp",
             "@Composable\nprivate fun fs(px: Float): TextUnit = (px * LocalConfiguration.current.screenWidthDp.toFloat() / RW).sp"
         )
         source = source.replace(
-            "private fun d(px: Float): Dp = maxWidth * (px / RW)",
+            "private fun BoxWithConstraintsScope.d(px: Float): Dp = maxWidth * (px / RW)",
             "@Composable\nprivate fun d(px: Float): Dp = (LocalConfiguration.current.screenWidthDp.toFloat() * (px / RW)).dp"
         )
-        check(source.contains("@Composable\nprivate fun fs(px: Float): TextUnit"))
-        check(source.contains("@Composable\nprivate fun d(px: Float): Dp"))
+        source = source.replace(
+            "private fun BoxWithConstraintsScope.CameraFilterRow(",
+            "private fun CameraFilterRow("
+        )
+        // Also accept a source archive that already contains the receiver-free signatures.
+        if (source.contains("private fun fs(px: Float): TextUnit") &&
+            !source.contains("@Composable\nprivate fun fs(px: Float): TextUnit")
+        ) {
+            source = source.replace(
+                "private fun fs(px: Float): TextUnit",
+                "@Composable\nprivate fun fs(px: Float): TextUnit"
+            )
+        }
+        if (source.contains("private fun d(px: Float): Dp") &&
+            !source.contains("@Composable\nprivate fun d(px: Float): Dp")
+        ) {
+            source = source.replace(
+                "private fun d(px: Float): Dp",
+                "@Composable\nprivate fun d(px: Float): Dp"
+            )
+        }
+        check(source.contains("@Composable\nprivate fun fs(px: Float): TextUnit")) {
+            "Fuji 3.2 source generator could not promote fs() to a composable helper."
+        }
+        check(source.contains("@Composable\nprivate fun d(px: Float): Dp")) {
+            "Fuji 3.2 source generator could not promote d() to a composable helper."
+        }
+        check(source.contains("private fun CameraFilterRow(")) {
+            "Fuji 3.2 source generator could not remove the nested CameraFilterRow receiver."
+        }
         if (!source.contains("import androidx.compose.ui.platform.LocalConfiguration")) {
             source = source.replace(
                 "import androidx.compose.ui.platform.LocalHapticFeedback",

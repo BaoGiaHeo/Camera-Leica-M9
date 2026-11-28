@@ -14,6 +14,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.MediaDataSource
 import android.media.MediaActionSound
 import android.os.Build
 import android.os.BatteryManager
@@ -601,23 +602,9 @@ fun CameraScreen(
     }
     var targetRotation by remember { mutableIntStateOf(initialDeviceRotation) }
     var cameraBindGeneration by remember { mutableIntStateOf(0) }
-    var isLandscape by remember {
-        mutableStateOf(initialDeviceRotation == Surface.ROTATION_90 || initialDeviceRotation == Surface.ROTATION_270)
-    }
-    val uiIsLandscape = isLandscape
-    DisposableEffect(context) {
-        val orientationManager = SensorOrientationManager()
-        val orientationListener = object : OrientationEventListener(context) {
-            override fun onOrientationChanged(orientation: Int) {
-                val nextRotation = orientationManager.update(orientation)
-                if (nextRotation != null && targetRotation != nextRotation) {
-                    targetRotation = nextRotation
-                }
-            }
-        }
-        if (orientationListener.canDetectOrientation()) orientationListener.enable()
-        onDispose { orientationListener.disable() }
-    }
+    // 3.1.0 is a landscape-only camera surface. Keep UI and preview geometry fixed.
+    val isLandscape = true
+    val uiIsLandscape = true
     // Fade only the live viewfinder while its geometry changes; the hardware UI stays landscape.
     val previewOrientationAlpha = remember { Animatable(1f) }
     val ratioUiAlpha = remember { Animatable(1f) }
@@ -980,6 +967,11 @@ fun CameraScreen(
             }
         )
     }
+    var torchEnabled by remember { mutableStateOf(false) }
+    LaunchedEffect(camera, torchEnabled) {
+        camera?.let { active -> runCatching { active.cameraControl.enableTorch(torchEnabled) }
+            .onFailure { android.util.Log.w("FUJI_FLASH", "Không thể bật đèn pin liên tục", it) } }
+    }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     DisposableEffect(appPrefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { shared, key ->
@@ -1129,6 +1121,10 @@ fun CameraScreen(
     var shutterButtonBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var filterDialogVisible by remember { mutableStateOf(false) }
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
+    var lightUi by remember { mutableStateOf(appPrefs.getBoolean("camera_light_ui_enabled", false)) }
+    val camera310FilterPresets = remember(context) {
+        builtInCameraLookPresetDefinitions.map { it.id to cameraLookDisplayName(context, it.id) }
+    }
     var filterPreviewSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val fallbackFilterPreviewBitmap = remember(context) { createFilmLookPreviewSample(context) }
     val shutterEffectProgress = remember { Animatable(0f) }
@@ -6633,6 +6629,15 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         ?: activePhysicalCameraDetails.mapNotNull { it.eq35Mm }.filter { it.isFinite() && it > 0f }.minOrNull()
     val focalLengthText = mainEquivalentFocal?.let { "${(it * zoomSel).roundToInt()}mm" } ?: "--mm"
     val toneText = if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO"
+    var cameraHudClock by remember {
+        mutableStateOf(SimpleDateFormat("dd/MM/yyyy | HH:mm:ss", Locale.US).format(Date()))
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            cameraHudClock = SimpleDateFormat("dd/MM/yyyy | HH:mm:ss", Locale.US).format(Date())
+            delay(1_000L)
+        }
+    }
 
     // Milky Way setup advice is derived from the active camera's public Camera2 metadata
     // and the live preview's measured luminance. It is advisory; it cannot detect clouds,
@@ -8268,8 +8273,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             .padding(2.dp * designScale)
             .shadow(6.dp * designScale, RoundedCornerShape(20.dp * designScale))
             .clip(RoundedCornerShape(20.dp * designScale))
-            .background(Color(0xB81C1E20))
-            .border(1.dp * designScale, FujiCameraDesign.stroke, RoundedCornerShape(20.dp * designScale))
+            .background(if (lightUi) Color(0xDDE6E6E6) else Color(0xB81C1E20))
+            .border(1.dp * designScale, if (lightUi) Color(0xFF777777) else FujiCameraDesign.stroke, RoundedCornerShape(20.dp * designScale))
 
         val albumButton: @Composable (Modifier) -> Unit = { keyModifier ->
             Box(
@@ -8306,49 +8311,44 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 scale = designScale
             ) {
                 activeFilter = appPrefs.getString("selected_filter", activeFilter) ?: activeFilter
-                filterDialogVisible = true
+                filterDialogVisible = !filterDialogVisible
             }
         }
-        val lunaDreamButton: @Composable (Modifier) -> Unit = { keyModifier ->
+        val settingsButton: @Composable (Modifier) -> Unit = { keyModifier ->
             FujiCameraKey(
-                stringResource(R.string.camera_lunadream),
+                stringResource(R.string.camera_settings),
                 modifier = keyModifier,
-                icon = "moon",
-                iconColor = FujiCameraDesign.red,
-                selected = lunaDreamMode != "off" || nightShotMode == "night",
-                secondary = when (lunaDreamMode) {
-                    "luna15" -> "1.5"
-                    "luna20" -> "2.0"
-                    "luna25" -> "2.5"
-                    "luna30" -> "3.0"
-                    else -> if (nightShotMode == "night") stringResource(R.string.camera_night_shot) else stringResource(R.string.camera_off)
-                },
+                icon = "settings",
+                scale = designScale
+            ) { onOpenSettings() }
+        }
+        val sunButton: @Composable (Modifier) -> Unit = { keyModifier ->
+            FujiCameraKey(
+                if (lightUi) "Mặt trăng" else "Mặt trời",
+                modifier = keyModifier,
+                icon = if (lightUi) "moon" else "sun",
+                selected = lightUi,
+                iconColor = if (lightUi) Color(0xFF343434) else Color(0xFFE0B64D),
                 scale = designScale
             ) {
-                when {
-                    livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
-                    nativeImageProcessingEnabled && mode == "Pro" -> {
-                        nativeImageProcessingEnabled = false
-                        appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
-                        showLunaDream = true
-                        CrashContextDiagnostics.recordUiEvent("LUNADREAM_PRO_OEM_PROCESSING_DISABLED")
-                    }
-                    nativeImageProcessingEnabled -> localizedToast(context, "Vui lòng tắt Xử lý ảnh gốc thiết bị để sử dụng LunaDream.", Toast.LENGTH_LONG).show()
-                    else -> showLunaDream = true
-                }
+                lightUi = !lightUi
+                appPrefs.edit().putBoolean("camera_light_ui_enabled", lightUi).apply()
+                CrashContextDiagnostics.recordUiEvent("CAMERA_THEME light=$lightUi")
             }
         }
 
         if (isLandscape) {
             Column(
                 sideModifier.fillMaxSize().then(panelShell)
-                    .padding(horizontal = 2.dp * designScale, vertical = 6.dp * designScale),
+                    .padding(horizontal = 2.dp * designScale, vertical = 5.dp * designScale),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(7.dp * designScale)
             ) {
-                albumButton(Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale))
-                filterButton(Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale))
-                lunaDreamButton(Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, Tuning.CAMERA_SIDE_KEY_HEIGHT_DP.dp * designScale))
+                albumButton(Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, 66.dp * designScale))
+                filterButton(Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, 66.dp * designScale))
+                settingsButton(Modifier.size(Tuning.CAMERA_SIDE_KEY_WIDTH_DP.dp * designScale, 66.dp * designScale))
+                Spacer(Modifier.weight(1f))
+                sunButton(Modifier.size(48.dp * designScale))
             }
         } else {
             Row(
@@ -8372,48 +8372,275 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             reportedMax,
             Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
         ).coerceAtLeast(minZoom)
-        val range = evRange
-        val evMinimum = range?.lower ?: 0
-        val evMaximum = range?.upper ?: 0
+        val evMinimum = evRange?.lower ?: 0
+        val evMaximum = evRange?.upper ?: 0
+        val safeIsoLow = isoRange?.lower?.coerceAtLeast(1) ?: 50
+        val safeIsoHigh = isoRange?.upper?.coerceAtLeast(safeIsoLow) ?: 2400
+        val displayedIso = if (manualIsoEnabled) manualIso else iso
+        val isoFraction = if (safeIsoHigh > safeIsoLow) {
+            (ln(displayedIso.coerceIn(safeIsoLow, safeIsoHigh).toDouble() / safeIsoLow) /
+                ln(safeIsoHigh.toDouble() / safeIsoLow)).toFloat().coerceIn(0f, 1f)
+        } else 0.5f
+        val currentShutterNs = if (manualShutterEnabled) manualShutterNs else shutterNs
+        val shutterFraction = shutterRange?.let { range ->
+            if (range.upper > range.lower && range.lower > 0L) {
+                (ln(currentShutterNs.coerceIn(range.lower, range.upper).toDouble() / range.lower) /
+                    ln(range.upper.toDouble() / range.lower)).toFloat().coerceIn(0f, 1f)
+            } else 0.5f
+        } ?: 0.5f
+        val kelvinFraction = ((manualColorTemp - 2000) / 8000f).coerceIn(0f, 1f)
+        val panel = if (lightUi) Color(0xFFE0E0E0) else Color(0xFF777777)
+        val foreground = if (lightUi) Color(0xFF171717) else Color.White
+        val subForeground = if (lightUi) Color(0xFF444444) else Color(0xFFE3E3E3)
+        val stroke = if (lightUi) Color(0xFF8D8D8D) else Color(0xFF55585A)
+
         Column(
-            sideModifier.fillMaxSize().padding(horizontal = 7.dp * designScale, vertical = 7.dp * designScale),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp * designScale)
+            sideModifier.fillMaxSize()
+                .padding(horizontal = 5.dp * designScale, vertical = 5.dp * designScale),
+            verticalArrangement = Arrangement.spacedBy(6.dp * designScale)
         ) {
-            Row(Modifier.fillMaxWidth().height(76.dp * designScale), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * designScale)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp * designScale)) {
-                    Text("EV: " + evText, color = Color.White, fontSize = 12.sp * designScale, fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth().weight(0.57f).clip(RoundedCornerShape(18.dp * designScale))
+                    .background(panel)
+                    .border(1.dp * designScale, stroke, RoundedCornerShape(18.dp * designScale))
+                    .padding(7.dp * designScale),
+                horizontalArrangement = Arrangement.spacedBy(7.dp * designScale)
+            ) {
+                Column(
+                    Modifier.weight(0.57f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp * designScale)
+                ) {
+                    Camera310ValueSlider(
+                        "SS",
+                        shutterText,
+                        shutterFraction,
+                        enabled = shutterRange != null,
+                        lightMode = lightUi,
+                        onValueChange = { queueManualShutterFraction(it) },
+                        onValueChangeFinished = { commitManualSensorCommand() }
+                    )
+                    Camera310ValueSlider(
+                        "ISO",
+                        isoText,
+                        isoFraction,
+                        enabled = isoRange != null,
+                        lightMode = lightUi,
+                        onValueChange = { queueManualIsoFraction(it) },
+                        onValueChangeFinished = { commitManualSensorCommand() }
+                    )
+                    Camera310ValueSlider(
+                        "K",
+                        if (manualColorTempEnabled) "${manualColorTemp}K" else "AUTO",
+                        kelvinFraction,
+                        enabled = true,
+                        lightMode = lightUi,
+                        onValueChange = {
+                            manualColorTempEnabled = true
+                            manualColorTemp = (2000 + (it * 8000f).roundToInt()).coerceIn(2000, 10000)
+                            camera?.let { active -> runCatching { applyManualWhiteBalance(active, manualColorTemp) } }
+                        },
+                        onValueChangeFinished = {
+                            appPrefs.edit().putBoolean("pro_manual_wb_enabled", true)
+                                .putInt("pro_manual_wb_kelvin", manualColorTemp).apply()
+                        }
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().height(27.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("EV", color = foreground, fontSize = 10.sp * designScale, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(4.dp * designScale))
+                        Text(evText, color = foreground, fontSize = 13.sp * designScale, fontWeight = FontWeight.ExtraBold)
+                    }
                     FujiEvRuler(
                         position = if (evMaximum > evMinimum) (evIndex - evMinimum).toFloat() / (evMaximum - evMinimum) else 0.5f,
                         minimum = evMinimum,
                         maximum = evMaximum,
-                        heightDp = 34.dp * designScale,
+                        heightDp = 25.dp * designScale,
                         scale = designScale,
                         positionState = evDragPositionState,
                         onPositionCommit = { commitEvCommand() },
                         onPositionChange = { next -> queueEvCommand(next) }
                     )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(String.format(Locale.US, "%.1f", evMinimum * evStep), color = FujiCameraDesign.muted, fontSize = 8.sp * designScale)
-                        Text(String.format(Locale.US, "%+.1f", evMaximum * evStep), color = FujiCameraDesign.muted, fontSize = 8.sp * designScale)
+                }
+                Column(
+                    Modifier.weight(0.43f).fillMaxHeight()
+                        .clip(RoundedCornerShape(15.dp * designScale))
+                        .background(if (lightUi) Color(0xFFF8F8F8) else Color(0xFF282A2C))
+                        .border(1.dp * designScale, if (lightUi) Color(0xFF8C8C8C) else Color(0xFF121314), RoundedCornerShape(15.dp * designScale))
+                        .padding(6.dp * designScale),
+                    verticalArrangement = Arrangement.spacedBy(4.dp * designScale)
+                ) {
+                    if (filterDialogVisible) {
+                        Camera310FilterDropdown(
+                            visible = true,
+                            presets = camera310FilterPresets,
+                            activeFilter = activeFilter,
+                            lightMode = lightUi,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            onDismiss = { filterDialogVisible = false },
+                            onSelect = { selected ->
+                                val nextFilter = if (selected == activeFilter) "None" else selected
+                                activeFilter = nextFilter
+                                appPrefs.edit().putString("selected_filter", nextFilter).apply()
+                                filterDialogVisible = false
+                                CameraLutPreviewEffect.updateRecipe(
+                                    context, previewView, nextFilter,
+                                    digitalZoomPreviewEffect.currentRenderEffect()
+                                )
+                                CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$nextFilter method=GL_OR_AGSL")
+                            }
+                        )
+                    } else {
+                        Text(
+                            if (lunaDreamMode == "off") "PRO CAMERA" else "LUNADREAM ${lunaDreamMode.removePrefix("luna")}",
+                            color = foreground,
+                            fontSize = 12.sp * designScale,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = Fuji310Font,
+                            maxLines = 1
+                        )
+                        Text(
+                            "NHIỆT ĐỘ  ${if (measuredBatteryTempC >= 0) measuredBatteryTempC.toString() + "°C" else "--"}",
+                            color = subForeground,
+                            fontSize = 10.sp * designScale,
+                            fontFamily = Fuji310Font
+                        )
+                        Text(
+                            "PREVIEW  ${previewFpsMode.uppercase()}",
+                            color = subForeground,
+                            fontSize = 10.sp * designScale,
+                            fontFamily = Fuji310Font
+                        )
+                        Text(
+                            "FPS  ${if (measuredPreviewFps.isFinite()) "%.1f".format(Locale.US, measuredPreviewFps) else "--"}",
+                            color = subForeground,
+                            fontSize = 10.sp * designScale,
+                            fontFamily = Fuji310Font
+                        )
+                        Text(
+                            if (batteryCharging) "PIN · ĐANG SẠC" else "PIN · ${batteryPercent.coerceAtLeast(0)}%",
+                            color = if (batteryWarningState.lowRed) Color(0xFFD8283C) else subForeground,
+                            fontSize = 10.sp * designScale,
+                            fontFamily = Fuji310Font
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            if (activeFilter == "None") "FILM · ẢNH GỐC" else "FILM · ${cameraLookDisplayName(context, activeFilter)}",
+                            color = if (activeFilter == "None") subForeground else Color(0xFFF0A030),
+                            fontFamily = Fuji310Font,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp * designScale,
+                            maxLines = 2
+                        )
                     }
                 }
-                FujiCameraKey(
-                    stringResource(R.string.camera_settings),
-                    modifier = Modifier.width(66.dp * designScale).height(70.dp * designScale),
-                    icon = "settings", scale = designScale
-                ) { onOpenSettings() }
             }
-            Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp * designScale)) {
+            Row(
+                Modifier.fillMaxWidth().height(52.dp * designScale)
+                    .clip(RoundedCornerShape(12.dp * designScale))
+                    .background(if (lightUi) Color(0xFFEAEAEA) else Color(0xFF343638))
+                    .border(1.dp * designScale, stroke, RoundedCornerShape(12.dp * designScale))
+                    .padding(horizontal = 6.dp * designScale, vertical = 3.dp * designScale),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp * designScale)
+            ) {
+                Box(
+                    Modifier.width(118.dp * designScale).fillMaxHeight()
+                        .clip(RoundedCornerShape(9.dp * designScale))
+                        .background(if (lightUi) Color(0xFFCCCCCC) else Color(0xFF55575A))
+                        .clickable {
+                            when {
+                                livePhotoEnabled -> localizedToast(context, "Vui lòng tắt Live Photo", Toast.LENGTH_LONG).show()
+                                nativeImageProcessingEnabled -> {
+                                    nativeImageProcessingEnabled = false
+                                    appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
+                                    showLunaDream = true
+                                }
+                                else -> showLunaDream = true
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "LUNADREAM 2.5",
+                        color = if (lightUi) Color(0xFF161616) else Color.White,
+                        fontFamily = Fuji310Font,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp * designScale,
+                        maxLines = 1
+                    )
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "FOCUS  ${if (manualFocus > 0f) "%.1f".format(Locale.US, manualFocus) else "AUTO"}",
+                            color = foreground,
+                            fontSize = 10.sp * designScale,
+                            fontFamily = Fuji310Font,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(if (focusLocked) "AF-L" else if (proAfMode == "MF") "MF" else "AF",
+                            color = if (focusLocked) Color(0xFFF0A030) else foreground,
+                            fontSize = 9.sp * designScale,
+                            fontWeight = FontWeight.Bold)
+                    }
+                    if (maxFocus > 0f && availableAfModes?.contains(CameraCharacteristics.CONTROL_AF_MODE_OFF) == true) {
+                        FujiEvRuler(
+                            position = (manualFocus / maxFocus).coerceIn(0f, 1f),
+                            minimum = 0,
+                            maximum = 1000,
+                            heightDp = 21.dp,
+                            positionState = manualFocusDrawPositionState,
+                            onPositionCommit = { commitManualFocusCommand() },
+                            onPositionChange = { value -> queueManualFocusFraction(value / 1000f) }
+                        )
+                    } else {
+                        Box(Modifier.fillMaxWidth().height(21.dp).clickable { camera?.let { applyAutoFocus(it) } })
+                    }
+                }
+                Box(
+                    Modifier.size(36.dp).clip(RoundedCornerShape(9.dp))
+                        .background(if (aeLocked) Color(0xFFF0A030) else if (lightUi) Color(0xFFD0D0D0) else Color(0xFF55575A))
+                        .clickable {
+                            camera?.let { active ->
+                                val next = !aeLocked
+                                if (applyCameraAeLock(active, next)) {
+                                    aeLocked = next
+                                    CrashContextDiagnostics.recordUiEvent("AE_LOCK state=$next")
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("AE", color = Color(0xFF111111), fontWeight = FontWeight.Black, fontSize = 11.sp) }
+                Box(
+                    Modifier.size(36.dp).clip(RoundedCornerShape(9.dp))
+                        .background(if (focusLocked) Color(0xFFF0A030) else if (lightUi) Color(0xFFD0D0D0) else Color(0xFF55575A))
+                        .clickable {
+                            camera?.let { active ->
+                                val next = !focusLocked
+                                if (applyCameraAfLock(active, next)) {
+                                    focusLocked = next
+                                    if (!next) runCatching { applyAutoFocus(active) }
+                                    CrashContextDiagnostics.recordUiEvent("AF_LOCK state=$next")
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Text("AF", color = Color(0xFF111111), fontWeight = FontWeight.Black, fontSize = 11.sp) }
+            }
+            Row(
+                Modifier.fillMaxWidth().weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp * designScale)
+            ) {
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     FujiShutterButton(
                         enabled = !isProcessing,
                         onLongPress = {
-                            if (nightShotMode == "star_trails" && starTrailCaptureInProgress) {
-                                takePhoto()
-                            } else {
-                                startContinuousBurst()
-                            }
+                            if (nightShotMode == "star_trails" && starTrailCaptureInProgress) takePhoto()
+                            else startContinuousBurst()
                         },
                         onRelease = { stopContinuousBurst() },
                         onHalfPress = {
@@ -8432,38 +8659,33 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         if (starTrailCaptureInProgress || bracketCaptureActive) {
                             FujiIconGlyph("close", Modifier.size(25.dp), Color.White)
                         } else if (shutterButtonBitmap != null) {
-                            Image(shutterButtonBitmap!!, "Nút chụp tùy chỉnh", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                            Image(shutterButtonBitmap!!, "Nút chụp", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                         } else {
-                            Text(stringResource(R.string.camera_shutter), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("CHỤP", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = Fuji310Font)
                         }
                         if (burstMode) {
-                            Text(
-                                "BURST · $burstFrameCount",
-                                color = Color.White,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.align(Alignment.TopCenter)
-                                    .offset(y = (-12).dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xCC0B0D0E))
-                                    .padding(horizontal = 5.dp, vertical = 2.dp)
-                            )
+                            Text("BURST · $burstFrameCount", color = Color.White, fontSize = 8.sp,
+                                fontWeight = FontWeight.ExtraBold, modifier = Modifier.align(Alignment.TopCenter)
+                                    .offset(y = (-12).dp).clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xCC0B0D0E)).padding(horizontal = 5.dp, vertical = 2.dp))
                         }
                     }
                 }
-                Column(Modifier.width(70.dp * designScale).fillMaxHeight(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    Modifier.width(58.dp * designScale).fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     FujiCameraKey(
-                        "T",
-                        modifier = Modifier.width(66.dp * designScale).height(64.dp * designScale),
-                        secondary = stringResource(R.string.camera_in), scale = designScale,
+                        "T", Modifier.width(54.dp * designScale).height(57.dp * designScale),
+                        secondary = "VÀO", scale = designScale,
                         onHold = { queueZoomHoldFrame(1, minZoom, maxZoom) },
                         onHoldEnd = { finishZoomHold() }
                     ) { animateZoomTo((zoomSel + 0.1f).coerceIn(minZoom, maxZoom)) }
-                    Spacer(Modifier.height(8.dp * designScale))
+                    Spacer(Modifier.height(7.dp * designScale))
                     FujiCameraKey(
-                        "W",
-                        modifier = Modifier.width(66.dp * designScale).height(64.dp * designScale),
-                        secondary = stringResource(R.string.camera_out), scale = designScale,
+                        "W", Modifier.width(54.dp * designScale).height(57.dp * designScale),
+                        secondary = "RA", scale = designScale,
                         onHold = { queueZoomHoldFrame(-1, minZoom, maxZoom) },
                         onHoldEnd = { finishZoomHold() }
                     ) { animateZoomTo((zoomSel - 0.1f).coerceIn(minZoom, maxZoom)) }
@@ -8487,48 +8709,43 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 }
         ) {
             previewContent(Modifier.fillMaxSize())
-            if (isLandscape) {
-                Row(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.82f).height(48.dp * designScale)
-                        .clip(RoundedCornerShape(12.dp * designScale))
-                        .background(Color(0xB8000000))
-                        .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(12.dp * designScale))
-                        .padding(horizontal = 8.dp * designScale, vertical = 4.dp * designScale),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp * designScale)
-                ) {
-                    Column(Modifier.weight(0.9f), verticalArrangement = Arrangement.Center) {
-                        Text(shutterText, color = FujiCameraDesign.blue, fontSize = 14.sp * designScale, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text("SS", color = Color.White, fontSize = 7.sp * designScale)
-                    }
-                    Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
-                    Column(Modifier.weight(1.05f), verticalArrangement = Arrangement.Center) {
-                        val apertureDisplay = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
-                            ?.let { "F%.1f".format(Locale.US, it) } ?: "F--"
-                        Text(apertureDisplay + " " + afText, color = Color.White, fontSize = 12.sp * designScale, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text("ISO " + isoText, color = Color.White, fontSize = 9.sp * designScale)
-                    }
-                    Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
-                    Column(Modifier.weight(0.85f), verticalArrangement = Arrangement.Center) {
-                        Text(toneText, color = FujiCameraDesign.blue, fontSize = 13.sp * designScale, fontWeight = FontWeight.Bold)
-                        Text("WB", color = Color.White, fontSize = 7.sp * designScale)
-                    }
-                    Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
-                    Column(Modifier.weight(0.56f), verticalArrangement = Arrangement.Center) {
-                        Text("EV", color = Color.White, fontSize = 8.sp * designScale)
-                        Text(evText, color = Color.White, fontSize = 13.sp * designScale, fontWeight = FontWeight.Bold)
-                    }
-                    Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
-                    Column(Modifier.weight(0.7f), verticalArrangement = Arrangement.Center) {
-                        Text((if (batteryPercent >= 0) batteryPercent else 0).toString() + "%", color = Color.White, fontSize = 11.sp * designScale, fontWeight = FontWeight.Bold)
-                        Text(if (batteryCharging) "SẠC" else "PIN", color = Color.White, fontSize = 7.sp * designScale)
-                    }
-                    Box(Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.40f)))
-                    Column(Modifier.weight(0.9f), verticalArrangement = Arrangement.Center) {
-                        Text(if (measuredBatteryTempC >= 0) measuredBatteryTempC.toString() + "°C" else "--°C", color = Color.White, fontSize = 11.sp * designScale, fontWeight = FontWeight.Bold)
-                        Text(if (batteryWarningState.lowRed) "PIN THẤP" else "BATTERY: GOOD", color = if (batteryWarningState.lowRed) Color.Red else Color.White, fontSize = 7.sp * designScale, maxLines = 1)
-                    }
+            Row(
+                Modifier.align(Alignment.BottomStart)
+                    .padding(start = 12.dp * designScale, bottom = 12.dp * designScale)
+                    .fillMaxWidth(0.68f).height(52.dp * designScale)
+                    .clip(RoundedCornerShape(9.dp * designScale))
+                    .background(Color(0xB8000000))
+                    .border(0.7.dp * designScale, Color.White.copy(alpha = 0.20f), RoundedCornerShape(9.dp * designScale))
+                    .padding(horizontal = 7.dp * designScale, vertical = 4.dp * designScale),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp * designScale)
+            ) {
+                Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.Center) {
+                    Text(
+                        "${shutterText}   ISO ${isoText}",
+                        color = Color.White, fontSize = 12.sp * designScale, fontWeight = FontWeight.Bold,
+                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                    )
+                    Text(
+                        "${toneText}   EV ${evText}",
+                        color = Color.White, fontSize = 10.sp * designScale,
+                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                    )
                 }
+                Box(Modifier.width(1.dp).height(34.dp * designScale).background(Color.White.copy(alpha = 0.36f)))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                    Text(
+                        "${afText}  ·  ${previewFpsMode.uppercase()}",
+                        color = Color.White, fontSize = 10.sp * designScale, fontWeight = FontWeight.Bold,
+                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                    )
+                    Text(
+                        "${if (batteryPercent >= 0) batteryPercent else 0}%  ·  ${if (measuredBatteryTempC >= 0) measuredBatteryTempC.toString() + "°C" else "--°C"}",
+                        color = Color.White, fontSize = 10.sp * designScale,
+                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                    )
+                }
+            }
             } else {
                 Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.94f).height(72.dp * designScale)
@@ -8598,7 +8815,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
 
     FujiLeatherSurface(
         if (performanceMode) Modifier.fillMaxSize() else Modifier.fillMaxSize().animaTContent(),
-        simpleMode = simpleUiMode
+        simpleMode = simpleUiMode,
+        lightMode = lightUi
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val layoutMetrics = screenProfile.layoutFor(maxWidth.value, maxHeight.value)
@@ -8609,48 +8827,30 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
 
             Column(Modifier.fillMaxSize()) {
-                Box(
-                    Modifier.fillMaxWidth().height(topPlateHeight).graphicsLayer { alpha = chromeAlpha }
-                        .onSizeChanged { Log.d("LUNA_LAYOUT", "TOP_PLATE ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)") }
+                Box(Modifier.fillMaxWidth().height(0.dp))
+                Row(
+                    Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp * designScale),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    toolbarContent(Modifier.fillMaxSize(), topPlateHeight)
-                }
-                if (isLandscape) {
-                    Row(
-                        Modifier.fillMaxWidth().weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val leftPaneWidth = if (leftHandedLayout) layoutMetrics.rightColumnWidth else leftColumnWidth
-                        val rightPaneWidth = if (leftHandedLayout) leftColumnWidth else rightColumnWidth
-                        if (leftHandedLayout) {
-                            Box(
-                                Modifier.width(leftPaneWidth).fillMaxHeight()
-                                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                                    .graphicsLayer { alpha = chromeAlpha }
-                            ) { leftPanelContent(Modifier.fillMaxSize()) }
-                        }
-                        Column(Modifier.weight(1f).fillMaxHeight()) {
-                            lcdPreviewLayer(Modifier.weight(1f).fillMaxWidth())
-                            lcdLogoFooter(Modifier.fillMaxWidth())
-                        }
-                        if (!leftHandedLayout) {
-                            Box(
-                                Modifier.width(leftPaneWidth).fillMaxHeight()
-                                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                                    .graphicsLayer { alpha = chromeAlpha }
-                            ) { leftPanelContent(Modifier.fillMaxSize()) }
-                        }
-                        Box(
-                            Modifier.width(rightPaneWidth).fillMaxHeight()
-                                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
-                                .windowInsetsPadding(WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal))
-                                .windowInsetsPadding(WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal))
-                                .graphicsLayer { alpha = chromeAlpha }
-                                .onSizeChanged { Log.d("LUNA_LAYOUT", "RIGHT_COLUMN ${it.width}px x ${it.height}px (${it.width / pxPerDp}dp x ${it.height / pxPerDp}dp)") }
-                        ) { rightPanelContent(Modifier.fillMaxSize()) }
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        lcdPreviewLayer(Modifier.weight(1f).fillMaxWidth())
+                        lcdLogoFooter(Modifier.fillMaxWidth())
                     }
-                } else {
+                    Box(
+                        Modifier.width(leftColumnWidth).fillMaxHeight()
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .graphicsLayer { alpha = chromeAlpha }
+                    ) { leftHardwareContent(Modifier.fillMaxSize()) }
+                    Box(
+                        Modifier.width(rightColumnWidth).fillMaxHeight()
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                            .windowInsetsPadding(WindowInsets.mandatorySystemGestures.only(WindowInsetsSides.Horizontal))
+                            .windowInsetsPadding(WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal))
+                            .graphicsLayer { alpha = chromeAlpha }
+                            .onSizeChanged { Log.d("LUNA_LAYOUT", "RIGHT_COLUMN_310 ${it.width}px x ${it.height}px") }
+                    ) { rightHardwareContent(Modifier.fillMaxSize()) }
+                }
                     // Portrait: camera viewfinder takes the upper area, then the three quick actions,
                     // then EV/Settings/shutter/zoom controls and the FujiFilm footer.
                     Column(
@@ -8673,6 +8873,35 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         }
                         lcdLogoFooter(Modifier.fillMaxWidth())
                     }
+                }
+            }
+                        if (torchEnabled || flash != ImageCapture.FLASH_MODE_OFF) {
+                Box(
+                    Modifier.align(Alignment.TopStart).padding(10.dp)
+                        .size(38.dp).clip(CircleShape)
+                        .background(if (torchEnabled) Color(0xFFF2C230) else Color(0xFF303234))
+                        .border(1.dp, if (torchEnabled) Color(0xFFF2C230) else Color(0xFF737678), CircleShape)
+                        .clickable {
+                            torchEnabled = !torchEnabled
+                            CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    FujiIconGlyph("flash", Modifier.size(22.dp), if (torchEnabled) Color(0xFF171717) else Color.White)
+                }
+            } else {
+                Box(
+                    Modifier.align(Alignment.TopStart).padding(10.dp)
+                        .size(38.dp).clip(CircleShape)
+                        .background(if (lightUi) Color(0xFFE3E3E3) else Color(0xFF303234))
+                        .border(1.dp, if (lightUi) Color(0xFF777777) else Color(0xFF737678), CircleShape)
+                        .clickable {
+                            torchEnabled = !torchEnabled
+                            CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    FujiIconGlyph("flash", Modifier.size(22.dp), if (lightUi) Color(0xFF242424) else Color.White)
                 }
             }
                 AnimatedVisibility(
@@ -8806,41 +9035,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 }
             }
         }
-        if (filterDialogVisible) {
-            FilterLookDialog(
-                previewSource = filterPreviewSourceBitmap ?: fallbackFilterPreviewBitmap,
-                activeFilter = activeFilter,
-                onDismiss = { filterDialogVisible = false },
-                onSelectFilter = { selected ->
-                    val nextFilter = if (selected == activeFilter) "None" else selected
-                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_REQUESTED id=$nextFilter")
-                    activeFilter = nextFilter
-                    previewView.invalidate()
-                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_SELECTION state=$nextFilter")
-                    appPrefs.edit().putString("selected_filter", nextFilter).apply()
-                },
-                onRecipeChanged = {
-                    CameraLutPreviewEffect.updateRecipe(
-                        context, previewView, activeFilter,
-                        digitalZoomPreviewEffect.currentRenderEffect()
-                    )
-                },
-                onPreviewColorTest = {
-                    CameraLutPreviewEffect.runPreviewColorTest(
-                        context, previewView, activeFilter,
-                        digitalZoomPreviewEffect.currentRenderEffect()
-                    ) { passed, detail ->
-                        Toast.makeText(
-                            context,
-                            (if (passed) "Preview đổi màu: ĐẠT · " else "Preview đổi màu: LỖI · ") + detail,
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            )
-        }
-
-        if (showLunaDream && !nativeImageProcessingEnabled && !livePhotoEnabled) {
+        if (showLunaDream        if (showLunaDream && !nativeImageProcessingEnabled && !livePhotoEnabled) {
             LunaDreamBottomSheet(
                 onDismiss = { showLunaDream = false },
                 nightShotEnabled = nightShotMode == "night",

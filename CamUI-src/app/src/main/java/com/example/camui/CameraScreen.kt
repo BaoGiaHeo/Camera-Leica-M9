@@ -4982,6 +4982,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             var consecutiveCaptureFailures = 0
                                             var stoppedForStorage = false
                                             var stoppedForBattery = false
+                                            var stoppedForDuration = false
+                                            val captureNightDeadlineNanos = captureNightStartedAtNanos +
+                                                captureNightDurationSeconds.coerceIn(3, 10) * 1_000_000_000L
                                             var stopSubmitting = false
                                             var nextFrameNumber = acceptedFrameCount + 1
                                             val pendingCaptures = ArrayDeque<Deferred<Triple<Int, File, NightShotFrameCaptureResult>>>()
@@ -4992,11 +4995,22 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 captureUseLunaDream || captureUseNightShot || captureUseMilkyWayStack
                                             ) 2 else 1
 
-                                            while (acceptedFrameCount < maxFrames || pendingCaptures.isNotEmpty()) {
+                                            while (
+                                                (acceptedFrameCount < maxFrames &&
+                                                    (!captureUseNightShot || SystemClock.elapsedRealtimeNanos() < captureNightDeadlineNanos)) ||
+                                                    pendingCaptures.isNotEmpty()
+                                            ) {
                                                 while (!stopSubmitting &&
                                                     pendingCaptures.size < maxInFlightCaptures &&
                                                     acceptedFrameCount + pendingCaptures.size < maxFrames
                                                 ) {
+                                                    if (captureUseNightShot &&
+                                                        SystemClock.elapsedRealtimeNanos() >= captureNightDeadlineNanos
+                                                    ) {
+                                                        stoppedForDuration = true
+                                                        stopSubmitting = true
+                                                        break
+                                                    }
                                                     if ((captureUseNightShot || captureUseMilkyWayStack ||
                                                             captureUseLunaDream20Stack) &&
                                                         !batteryCharging && batteryPercent in 0..5
@@ -5139,6 +5153,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 }
                                             }
 
+                                            if (captureUseNightShot && acceptedFrameCount < maxFrames &&
+                                                SystemClock.elapsedRealtimeNanos() >= captureNightDeadlineNanos
+                                            ) stoppedForDuration = true
                                             val burstElapsedMs = ((SystemClock.elapsedRealtimeNanos() - captureNightStartedAtNanos) / 1_000_000L).coerceAtLeast(1L)
                                             releaseStackCaptureLocks()
                                             val cacheStageStartedAtMs = SystemClock.elapsedRealtime()
@@ -5219,7 +5236,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                     "Collected " + stackedFrames.size + "/" + maxFrames +
                                                         " frames in " + burstElapsedMs + "ms; approx " +
                                                         "%.1f".format(Locale.US, achievedFps) +
-                                                        " FPS; bounded in-flight queue=" + maxInFlightCaptures
+                                                        " FPS; duration=" + captureNightDurationSeconds +
+                                                        "s; stoppedForDuration=$stoppedForDuration; bounded in-flight queue=" +
+                                                        maxInFlightCaptures
                                                 )
                                             }
                                             if (stoppedForStorage) {
@@ -5231,18 +5250,25 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                     "Stopped frame submission at critical battery; retainedFrames=" + stackedFrames.size
                                                 )
                                             }
-                                            if (captureUseNightShot && stackedFrames.size < maxFrames && !stoppedForBattery) {
+                                            if (captureUseNightShot && stackedFrames.size < maxFrames &&
+                                                !stoppedForBattery && !stoppedForStorage && !stoppedForDuration
+                                            ) {
                                                 android.util.Log.w(
                                                     "FUJI_NIGHTSHOT",
-                                                    "Incomplete stack " + stackedFrames.size + "/" + maxFrames +
-                                                        "; merge/render is blocked and the original frame will be preserved"
+                                                    "Camera/HAL ended the 8 FPS target early: collected " +
+                                                        stackedFrames.size + "/" + maxFrames +
+                                                        " frames; valid partial Night Shot frames can still be merged"
                                                 )
                                             }
-                                            // Never publish a computational result with fewer frames than its selected mode.
-                                            // LunaDream 1.5 requires 5; LunaDream 2.0/3.0 and Night Shot require 8.
-                                            // If a capture stops early (camera/HAL, storage or critical battery),
-                                            // preserve the original JPEG instead of labelling a partial stack as complete.
-                                            val minimumFramesRequired = maxFrames
+                                            // LunaDream keeps its validated full stack requirement.
+                                            // Night Shot is duration-based and merges every valid frame
+                                            // captured inside its 3/5/10-second window; at least two frames are required.
+                                            val minimumFramesRequired = when {
+                                                captureUseNightShot -> 2
+                                                captureUseLunaDream15 -> 5
+                                                captureUseLunaDream20Stack -> 8
+                                                else -> maxFrames
+                                            }
                                             lunaDreamCapturedFrameCount = stackedFrames.size
                                             if (captureUseLunaDream) {
                                                 LunaDreamDiagnostics.record(

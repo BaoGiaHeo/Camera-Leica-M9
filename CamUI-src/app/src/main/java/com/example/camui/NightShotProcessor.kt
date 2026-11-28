@@ -101,8 +101,8 @@ object NightShotProcessor {
             mode == MergeMode.LUNA_DREAM_3_0
 
     private fun requestedWorkers(mode: MergeMode): Int = when (mode) {
-        MergeMode.LUNA_DREAM_1_5 -> 3
-        MergeMode.LUNA_DREAM_2_0 -> 5
+        MergeMode.LUNA_DREAM_1_5 -> minOf(4, Runtime.getRuntime().availableProcessors().coerceAtLeast(1))
+        MergeMode.LUNA_DREAM_2_0 -> minOf(6, Runtime.getRuntime().availableProcessors().coerceAtLeast(1))
         MergeMode.LUNA_DREAM_2_5 -> 6
         MergeMode.LUNA_DREAM_3_0 -> Tuning.LUNA_DREAM_30_WORKER_COUNT
         else -> 1

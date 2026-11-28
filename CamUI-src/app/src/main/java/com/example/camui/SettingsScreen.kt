@@ -310,6 +310,33 @@ fun SettingsScreen(
                     )
                 }
             }
+                    }
+                }
+                Canvas(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(3.dp)) {
+                    drawRoundRect(
+                        Color(0xFF26373B),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width / 2f)
+                    )
+                    if (detailScrollState.maxValue > 0) {
+                        val fraction = (size.height / (size.height + detailScrollState.maxValue.toFloat()))
+                            .coerceIn(0.08f, 1f)
+                        val thumbHeight = (size.height * fraction).coerceAtLeast(18.dp.toPx())
+                        val top = (size.height - thumbHeight) *
+                            (detailScrollState.value.toFloat() / detailScrollState.maxValue).coerceIn(0f, 1f)
+                        drawRoundRect(
+                            Color(0xFF63E5E8),
+                            topLeft = Offset(0f, top),
+                            size = androidx.compose.ui.geometry.Size(size.width, thumbHeight),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width / 2f)
+                        )
+                    } else {
+                        drawRoundRect(
+                            Color(0xFF63E5E8),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width / 2f)
+                        )
+                    }
+                }
+            }
         }
     }
     if (showCaptureDiagnostics) {
@@ -421,12 +448,48 @@ var nightShotMode by remember {
         onBack = onBack,
         embedded = embedded
     ) {
+        val detailScrollState = rememberScrollState()
+        val groupIcon = when (title) {
+            "Công cụ hỗ trợ" -> "wrench"
+            "Lấy nét & Ống kính" -> "af"
+            "Chụp & Chất lượng" -> "camera"
+            "Setup" -> "flash"
+            "Chụp đêm" -> "moon"
+            "Hiển thị / Giao diện", "Appearance" -> "display"
+            else -> "settings"
+        }
         Column(
-            Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = if (isLandscape) 22.dp else 12.dp, vertical = 10.dp)
+            Modifier.fillMaxSize().padding(3.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xCC0B151A))
+                .border(1.dp, Color(0xFF334C54), RoundedCornerShape(12.dp))
+                .padding(horizontal = 11.dp, vertical = 8.dp)
         ) {
-        when (title) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FujiIconGlyph(groupIcon, Modifier.size(18.dp), FujiSkin.lcdGreen)
+                Text(
+                    title.uppercase(Locale.ROOT),
+                    color = Color(0xFFECF4F2),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.width(26.dp).height(2.dp).background(
+                    Brush.horizontalGradient(listOf(Color(0xFF47D9DF), Color.Transparent))
+                ))
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                Column(
+                    Modifier.fillMaxSize()
+                        .verticalScroll(detailScrollState)
+                        .padding(end = 9.dp)
+                        .padding(horizontal = if (isLandscape) 12.dp else 7.dp, vertical = 4.dp)
+                ) {
+                    when (title) {
             "Công cụ hỗ trợ" -> {
                 Text("Các lớp phủ màn ngắm được thiết lập trong Hộp công cụ.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))

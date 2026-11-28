@@ -297,19 +297,6 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         source = source.replace("            ExposureScale(state.ev)\n", "")
         source = source.replace("            Box(r(50f, 645f, 44f, 46f).border(d(2f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {\n                Column(horizontalAlignment = Alignment.CenterHorizontally) {\n                    Tx(state.dr.take(2), fs(19f))\n                    Tx(state.dr.drop(2), fs(19f))\n                }\n            }\n", "")
 
-        // T is the upper telephoto key, W the lower wide key.
-        val zoomMinusHandler = """onHold = { actions.onZoomStep(-1) }, onHoldEnd = actions.onZoomFinished,
-            onClick = { actions.onZoomStepTap(-1) },"""
-        val zoomPlusHandler = """onHold = { actions.onZoomStep(1) }, onHoldEnd = actions.onZoomFinished,
-            onClick = { actions.onZoomStepTap(1) },"""
-        check(source.contains(zoomMinusHandler) && source.contains(zoomPlusHandler)) { "Fuji 3.2 T/W zoom handlers not found." }
-        source = source.replace(zoomMinusHandler, "__FUJI_ZOOM_PLUS__")
-        source = source.replace(zoomPlusHandler, zoomMinusHandler)
-        source = source.replace("__FUJI_ZOOM_PLUS__", zoomPlusHandler)
-        source = source.replace("Tx(\"W\", fs(66f))", "Tx(\"__FUJI_ZOOM_TOP__\", fs(66f))")
-        source = source.replace("Tx(\"T\", fs(66f))", "Tx(\"W\", fs(66f))")
-        source = source.replace("Tx(\"__FUJI_ZOOM_TOP__\", fs(66f))", "Tx(\"T\", fs(66f))")
-
         // T is the upper telephoto key; W is the lower wide-angle key.
         val zoomMinusHandler = """onHold = { actions.onZoomStep(-1) }, onHoldEnd = actions.onZoomFinished,
             onClick = { actions.onZoomStepTap(-1) },"""

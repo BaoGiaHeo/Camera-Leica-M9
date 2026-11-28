@@ -612,8 +612,10 @@ fun CameraScreen(
     val ratioTransitionInProgress = ratioTransitionState != RatioUiTransitionState.Idle
 
     fun changeAspectRatio(nextIndex: Int) {
-        val safeIndex = nextIndex.coerceIn(0, aspectRatios.lastIndex)
-        if (safeIndex == ratioIdx || ratioTransitionState != RatioUiTransitionState.Idle) return
+        // 3.1.0 removes the aspect-ratio selector; camera preview and output stay at 4:3.
+        val safeIndex = 1
+        if (ratioIdx != 1) onRatio(1)
+        if (nextIndex == 1 || ratioTransitionState != RatioUiTransitionState.Idle) return
         scope.launch {
             try {
                 ratioTransitionState = RatioUiTransitionState.FadingOut

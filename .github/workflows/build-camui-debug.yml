@@ -68,5 +68,6 @@ jobs:
           path: |
             CamUI-src/app/build/outputs/apk/debug/app-debug.apk
             CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt
+            CamUI-src/app/src/main/java/com/example/camui/CameraUi.kt
           if-no-files-found: error
           retention-days: 14

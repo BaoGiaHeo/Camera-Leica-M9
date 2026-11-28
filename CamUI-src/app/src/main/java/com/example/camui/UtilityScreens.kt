@@ -3153,10 +3153,11 @@ fun applyCameraWatermark(
     preservePhotoAspectRatio: Boolean = true,
     onStageDuration: ((String, Long) -> Unit)? = null,
     applyFilter: Boolean = true,
-    captureTimestampMillis: Long = System.currentTimeMillis()
+    captureTimestampMillis: Long = System.currentTimeMillis(),
+    forceSkipWatermark: Boolean = false
 ): Boolean {
     val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    val watermarkEnabled = preferences.getBoolean("watermark_enabled", true)
+    val watermarkEnabled = !forceSkipWatermark && preferences.getBoolean("watermark_enabled", true)
     val filterPreset = preferences.getString("selected_filter", "None") ?: "None"
     val hasCustomAdjustments =
         kotlin.math.abs(preferences.getFloat("film_custom_highlight", 0f)) > 0.001f ||

@@ -8382,11 +8382,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 activeFilter = nextFilter
                                 appPrefs.edit().putString("selected_filter", nextFilter).apply()
                                 filterDialogVisible = false
-                                CameraLutPreviewEffect.updateRecipe(
-                                    context, previewView, nextFilter,
-                                    digitalZoomPreviewEffect.currentRenderEffect()
-                                )
-                                CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$nextFilter method=GL_OR_AGSL")
+                                // The preview LaunchedEffect prepares the LUT on Dispatchers.IO
+                                // and installs it once; never build a 3D atlas in this click callback.
+                                CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_REQUESTED id=$nextFilter")
                             }
                         )
                     } else {
@@ -8656,6 +8654,19 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     Camera2Info.opticalZoomAssessment(activeCameraDetails, activePhysicalCameraDetails, camera2Inventory)
                 )
             } ?: 2f
+            fun queueUiZoomTarget(rawTarget: Float) {
+                val target = rawTarget.coerceIn(uiMinZoom, uiMaxZoom)
+                // Drag and pinch share one conflated command stream; commit crop/prefs once
+                // after the gesture settles instead of restarting a long animation per sample.
+                zoomBarDrawRatio.floatValue = target
+                zoomBarRequests.trySend(target to false)
+                zoomSliderCommitJob?.cancel()
+                zoomSliderCommitJob = scope.launch {
+                    delay(130L)
+                    zoomBarRequests.trySend(target to true)
+                }
+            }
+
             val uiEvMin = ((evRange?.lower ?: -9) * (evStep.takeIf { it > 0f } ?: (1f / 3f))).coerceAtMost(-1f)
             val uiEvMax = ((evRange?.upper ?: 9) * (evStep.takeIf { it > 0f } ?: (1f / 3f))).coerceAtLeast(1f)
             val uiLunaLabel = when (lunaDreamMode) {
@@ -8732,21 +8743,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     queueEvCommand((value / step).roundToInt())
                 },
                 onZoomFraction = { fraction ->
-                    val target = (uiMinZoom + fraction * (uiMaxZoom - uiMinZoom)).coerceIn(uiMinZoom, uiMaxZoom)
-                    // Stream preview zoom at most once per frame; do not commit preference,
-                    // digital crop and interaction generation for every pointer sample.
-                    zoomBarDrawRatio.floatValue = target
-                    zoomBarRequests.trySend(target to false)
-                    zoomSliderCommitJob?.cancel()
-                    zoomSliderCommitJob = scope.launch {
-                        delay(130L)
-                        zoomBarRequests.trySend(target to true)
-                    }
+                    queueUiZoomTarget(uiMinZoom + fraction * (uiMaxZoom - uiMinZoom))
                 },
                 onZoomStep = { direction ->
                     animateZoomTo((zoomSel + direction * 0.08f).coerceIn(uiMinZoom, uiMaxZoom))
                 },
-                onPinch = { scale -> animateZoomTo((zoomSel * scale).coerceIn(uiMinZoom, uiMaxZoom)) },
+                onPinch = { scale ->
+                    queueUiZoomTarget(zoomBarDrawRatio.floatValue * scale)
+                },
                 onTapFocus = { x, y ->
                     uiAfX = x.coerceIn(0f, 1f)
                     uiAfY = y.coerceIn(0f, 1f)
@@ -8807,11 +8811,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             activeFilter = selected
                             appPrefs.edit().putString("selected_filter", selected).apply()
                             filterDialogVisible = false
-                            CameraLutPreviewEffect.updateRecipe(
-                                context, previewView, selected,
-                                digitalZoomPreviewEffect.currentRenderEffect()
-                            )
-                            CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_APPLIED id=$selected method=GL_OR_AGSL")
+                            // Let the IO-backed activeFilter effect prepare and install the LUT.
+                            CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_REQUESTED id=$selected")
                         }
                     )
                 }

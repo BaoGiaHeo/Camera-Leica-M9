@@ -112,91 +112,171 @@ fun SettingsScreen(
         }
     }
     val visibleSettingItems = localizedSettingItems
+    val activeIndex = visibleSettingItems.indexOfFirst { it.title == selectedCategory }.coerceAtLeast(0) + 1
+    fun displayTabLabel(item: SettingItem): String = when (item.icon) {
+        "tab_01" -> "CÔNG CỤ"
+        "tab_02" -> "AF/MF"
+        "tab_03" -> "I.Q."
+        "tab_04" -> "FLASH"
+        "tab_05" -> "ĐÊM"
+        "tab_06" -> "HUD"
+        "tab_07" -> "ÂM"
+        "tab_09" -> "MY"
+        else -> item.title.uppercase()
+    }
     FujiScreenScaffold(
-        title = stringResource(R.string.settings_screen_title), modifier = modifier.fillMaxSize(),
-        onBack = { if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup else onBack() }
+        title = stringResource(R.string.settings_screen_title),
+        modifier = modifier.fillMaxSize(),
+        onBack = {
+            if (selectedCategory == "Sao lưu & Khôi phục") selectedCategory = categoryBeforeBackup
+            else onBack()
+        },
+        showVersion = false,
+        showHeader = false,
+        footerActions = true,
+        onFooterBack = {
+            if (selectedCategory == "Sao lưu & Khôi phục") categoryBeforeBackup = categoryBeforeBackup
+            selectedCategory = "Chụp & Chất lượng"
+        }
     ) {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Column(
-                Modifier.width(88.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF101416)).border(1.dp, Color(0xFF3E484B), RoundedCornerShape(4.dp))
-                    .verticalScroll(rememberScrollState()).padding(vertical = 5.dp, horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+        Column(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().height(30.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("MENU CÀI ĐẶT", color = FujiSkin.lcdGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp, modifier = Modifier.padding(start = 5.dp, top = 3.dp, bottom = 4.dp))
-                visibleSettingItems.forEach { item ->
-                    val selected = selectedCategory == item.title
-                    Row(
-                        Modifier.fillMaxWidth().height(45.dp).clip(RoundedCornerShape(3.dp))
-                            .background(if (selected) Color(0xFF303638) else Color.Transparent)
-                            .border(1.dp, if (selected) Color(0xFF858D90) else Color.Transparent, RoundedCornerShape(3.dp))
-                            .clickable { selectedCategory = item.title },
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Box(Modifier.width(3.dp).fillMaxHeight().background(if (selected) FujiSkin.orange else Color.Transparent))
-                        FujiIconGlyph(item.icon, Modifier.size(17.dp), if (selected) FujiSkin.orange else FujiSkin.muted)
-                        Text(item.title, color = if (selected) Color.White else Color(0xFFB4BBBD),
-                            fontSize = 7.sp, fontWeight = FontWeight.Bold, maxLines = 2,
-                            modifier = Modifier.weight(1f).padding(end = 2.dp))
+                FujiIconGlyph("camera", Modifier.size(22.dp), Color.White)
+                Text(
+                    "CÀI ĐẶT CHỤP",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.1.sp,
+                    modifier = Modifier.padding(start = 7.dp)
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    activeIndex.toString(),
+                    color = Color.White,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    "/${visibleSettingItems.size}",
+                    color = Color(0xFFB8BEC0),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Light,
+                    modifier = Modifier.padding(start = 1.dp, end = 2.dp)
+                )
+            }
+            Row(
+                Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                Column(
+                    Modifier.width(82.dp).fillMaxHeight().clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF101416))
+                        .border(1.dp, Color(0xFF3E484B), RoundedCornerShape(6.dp))
+                        .verticalScroll(rememberScrollState())
+                        .padding(vertical = 4.dp, horizontal = 3.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        "MENU",
+                        color = FujiSkin.lcdGreen,
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 3.dp)
+                    )
+                    visibleSettingItems.forEach { item ->
+                        val selected = selectedCategory == item.title
+                        Row(
+                            Modifier.fillMaxWidth().height(34.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(if (selected) Color(0xFFD0D0D0) else Color.Transparent)
+                                .border(
+                                    if (selected) 1.dp else 0.dp,
+                                    if (selected) Color(0xFFF2F2F2) else Color.Transparent,
+                                    RoundedCornerShape(5.dp)
+                                )
+                                .clickable { selectedCategory = item.title }
+                                .padding(horizontal = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            FujiIconGlyph(
+                                item.icon,
+                                Modifier.size(22.dp),
+                                if (selected) Color(0xFF171A1B) else Color.White
+                            )
+                            Text(
+                                displayTabLabel(item),
+                                color = if (selected) Color(0xFF171A1B) else Color(0xFFE8EAEB),
+                                fontSize = 6.8.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (selected) {
+                                Box(Modifier.size(5.dp).background(Color(0xFFD8283C), RoundedCornerShape(1.dp)))
+                                Text("◂", color = Color(0xFF171A1B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
-            }
-            Column(
-                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(4.dp))
-                    .background(FujiSkin.lcd).border(1.dp, Color(0xFF596265), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 9.dp, vertical = 7.dp)
-            ) {
-                Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("CÀI ĐẶT CHỤP", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                    Spacer(Modifier.weight(1f))
-                    val activeIndex = visibleSettingItems.indexOfFirst { it.title == selectedCategory }.coerceAtLeast(0) + 1
-                    Text("%02d/%02d".format(activeIndex, visibleSettingItems.size), color = FujiSkin.lcdGreen,
-                        fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                }
-                AnimatedContent(
-                    targetState = selectedCategory,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    transitionSpec = {
-                        (
-                            fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
-                                slideInHorizontally(
-                                    initialOffsetX = { it / 24 },
-                                    animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
-                                )
-                        ) togetherWith (
-                            fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)) +
-                                slideOutHorizontally(
-                                    targetOffsetX = { -it / 36 },
-                                    animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)
-                                )
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp))
+                        .background(FujiSkin.lcd)
+                        .border(1.dp, Color(0xFF596265), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp, vertical = 6.dp)
+                ) {
+                    AnimatedContent(
+                        targetState = selectedCategory,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        transitionSpec = {
+                            (
+                                fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
+                                    slideInHorizontally(
+                                        initialOffsetX = { it / 24 },
+                                        animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)
+                                    )
+                            ) togetherWith (
+                                fadeOut(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)) +
+                                    slideOutHorizontally(
+                                        targetOffsetX = { -it / 36 },
+                                        animationSpec = tween(if (AnimaT.isSystemReducedMotion(context)) 0 else 100)
+                                    )
+                            )
+                        },
+                        label = "Settings detail tab"
+                    ) { detailTitle ->
+                        SettingsDetailPage(
+                            title = detailTitle,
+                            onBack = {},
+                            ratioIdx = ratioIdx,
+                            onRatio = onRatio,
+                            showGrid = showGrid,
+                            onShowGrid = onShowGrid,
+                            showHist = showHist,
+                            onShowHist = onShowHist,
+                            focusPeaking = focusPeaking,
+                            onFocusPeaking = onFocusPeaking,
+                            embedded = true,
+                            modifier = Modifier.fillMaxSize(),
+                            onOpenBackup = {
+                                categoryBeforeBackup = selectedCategory
+                                selectedCategory = "Sao lưu & Khôi phục"
+                            },
+                            onOpenToolbox = onOpenToolbox,
+                            onOpenContentsManagement = onOpenContentsManagement,
+                            onReplayActivation = onReplayActivation,
+                            onOpenWatermarkPanel = onOpenWatermarkPanel,
+                            onOpenDiagnostics = { showCaptureDiagnostics = true }
                         )
-                    },
-                    label = "Settings detail tab"
-                ) { detailTitle ->
-                    SettingsDetailPage(
-                    title = detailTitle,
-                onBack = {},
-                ratioIdx = ratioIdx,
-                onRatio = onRatio,
-                showGrid = showGrid,
-                onShowGrid = onShowGrid,
-                showHist = showHist,
-                onShowHist = onShowHist,
-                focusPeaking = focusPeaking,
-                onFocusPeaking = onFocusPeaking,
-                embedded = true,
-                modifier = Modifier.fillMaxSize(),
-                onOpenBackup = {
-                    categoryBeforeBackup = selectedCategory
-                    selectedCategory = "Sao lưu & Khôi phục"
-                },
-                onOpenToolbox = onOpenToolbox,
-                onOpenContentsManagement = onOpenContentsManagement,
-                onReplayActivation = onReplayActivation,
-                onOpenWatermarkPanel = onOpenWatermarkPanel,
-                onOpenDiagnostics = { showCaptureDiagnostics = true }
-                )
+                    }
                 }
             }
         }

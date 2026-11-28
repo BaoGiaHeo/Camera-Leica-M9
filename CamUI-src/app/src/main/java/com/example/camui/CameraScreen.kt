@@ -4672,7 +4672,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 captureUseLunaDream15 -> "LunaDream 1.5"
                 captureUseRawDream20 -> "RawDream 2.0"
                 captureUseLunaDream20 -> "LunaDream 2.0"
-                captureUseLunaDream25 -> "LunaDream 2.5"
+                captureUseLunaDream25 -> "LunaDream 3.0"
                 captureUseLunaDream30 -> "LunaDream 3.0"
                 else -> "LunaDream"
             }
@@ -4697,7 +4697,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     "mode=" + (when {
                         captureUseRawDream20 -> "RawDream 2.0"
                         captureUseLunaDream15 -> "LunaDream 1.5"
-                        captureUseLunaDream25 -> "LunaDream 2.5"
+                        captureUseLunaDream25 -> "LunaDream 3.0"
                         captureUseLunaDream30 -> "LunaDream 3.0"
                         else -> "LunaDream 2.0"
                     }) + "; cameraMode=$mode; zoom=$zoomSel; rawMode=$rawCaptureMode; " +
@@ -4847,7 +4847,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     captureUseLunaDream15 -> "LunaDream 1.5 · đang chụp khung đầu tiên"
                     captureUseRawDream20 -> "RawDream 2.0 · đang chụp khung đầu tiên"
                     captureUseLunaDream20 -> "LunaDream 2.0 · đang chụp khung đầu tiên"
-                    captureUseLunaDream25 -> "LunaDream 2.5 · đang chụp khung đầu tiên"
+                    captureUseLunaDream25 -> "LunaDream 3.0 · đang chụp khung đầu tiên"
                     captureUseLunaDream30 -> "LunaDream 3.0 · đang chụp khung đầu tiên"
                     else -> "NightShotMode · đang chụp khung đầu tiên"
                 }
@@ -4925,7 +4925,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 captureUseLunaDream15 -> "LunaDream 1.5 · chuẩn bị ghép tối đa 5 khung"
                                 captureUseRawDream20 -> "RawDream 2.0 · chuẩn bị ghép 8 khung, giữ DNG gốc"
                                 captureUseLunaDream20 -> "LunaDream 2.0 · chuẩn bị ghép 8 khung"
-                                captureUseLunaDream25 -> "LunaDream 2.5 · chuẩn bị ghép 8 khung"
+                                captureUseLunaDream25 -> "LunaDream 3.0 · chuẩn bị ghép 8 khung"
                                 captureUseLunaDream30 -> "LunaDream 3.0 · chuẩn bị ghép 8 khung"
                                 captureUseMilkyWayStack -> "NightShotMode Milky Way · chuẩn bị căn chỉnh 8 khung"
                                 captureUseNightShot -> "NightShotMode · chuẩn bị căn chỉnh và ghép nhiều khung"
@@ -5045,7 +5045,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                             captureUseLunaDream20 ->
                                                                 "LunaDream 2.0: thu khung $expectedFrame/$maxFrames"
                                                             captureUseLunaDream25 ->
-                                                                "LunaDream 2.5: thu khung $expectedFrame/$maxFrames"
+                                                                "LunaDream 3.0: thu khung $expectedFrame/$maxFrames"
                                                             captureUseLunaDream30 ->
                                                                 "LunaDream 3.0: thu khung $expectedFrame/$maxFrames"
                                                             captureUseMilkyWayStack ->
@@ -5291,7 +5291,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         captureUseLunaDream20 ->
                                                             "LunaDream 2.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
                                                         captureUseLunaDream25 ->
-                                                            "LunaDream 2.5: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
+                                                            "LunaDream 3.0: căn chỉnh và khử nhiễu " + stackedFrames.size + "/8 khung"
                                                         captureUseLunaDream30 ->
                                                             "LunaDream 3.0: căn chỉnh và phục hồi vi chi tiết " + stackedFrames.size + "/8 khung"
                                                         captureUseMilkyWayStack ->
@@ -5351,9 +5351,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                             captureUseLunaDream30 ->
                                                                 "LunaDream 3.0 · căn chỉnh và ghép 8 khung"
                                                             captureUseLunaDream25 && mergeProgress >= 90 ->
-                                                                "LunaDream 2.5 Render · khử nhiễu và phục hồi chi tiết thích ứng"
+                                                                "LunaDream 3.0 Render · khử nhiễu và phục hồi chi tiết thích ứng"
                                                             captureUseLunaDream25 ->
-                                                                "LunaDream 2.5 · căn chỉnh và ghép 8 khung"
+                                                                "LunaDream 3.0 · căn chỉnh và ghép 8 khung"
                                                             captureUseLunaDream20 && mergeProgress >= 90 ->
                                                                 "LunaDream 2.0 Render · khử nhiễu và phục hồi chi tiết"
                                                             captureUseLunaDream20 ->
@@ -5389,7 +5389,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                     captureUseLunaDream15 -> "LunaDream-1.5"
                                                     captureUseRawDream20 -> "RawDream-2.0"
                                                     captureUseLunaDream20 -> "LunaDream-2.0"
-                                                    captureUseLunaDream25 -> "LunaDream-2.5"
+                                                    captureUseLunaDream25 -> "LunaDream-3.0"
                                                     captureUseLunaDream30 -> "LunaDream-3.0"
                                                     captureUseNightShot -> "NightShotMode-" + captureNightDurationSeconds + "s"
                                                     captureUseMilkyWayStack -> "MilkyWay-8"
@@ -5838,7 +5838,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 val diagnosticMode = when {
                                     captureUseLunaDream15 -> "LunaDream 1.5"
                                     captureUseLunaDream20 -> "LunaDream 2.0"
-                                    captureUseLunaDream25 -> "LunaDream 2.5"
+                                    captureUseLunaDream25 -> "LunaDream 3.0"
                                     captureUseLunaDream30 -> "LunaDream 3.0"
                                     captureUseRawDream20 -> "RawDream 2.0"
                                     captureUseNightShot -> "Night Shot"
@@ -5894,13 +5894,13 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     captureUseLunaDream30 && lunaDreamStackFallbackApplied ->
                                         "LunaDream 3.0 · fallback LunaDream 1.5 · reason: " + (lunaDreamFailureReason ?: "unknown")
                                     captureUseLunaDream25 && lunaDreamStackFallbackApplied ->
-                                        "LunaDream 2.5 · fallback LunaDream 1.5 · reason: " + (lunaDreamFailureReason ?: "unknown")
+                                        "LunaDream 3.0 · fallback LunaDream 1.5 · reason: " + (lunaDreamFailureReason ?: "unknown")
                                     captureUseLunaDream20 && lunaDreamStackFallbackApplied ->
                                         "LunaDream 2.0 · fallback LunaDream 1.5 · reason: " + (lunaDreamFailureReason ?: "unknown")
                                     captureUseLunaDream15 && lunaDreamApplied -> "LunaDream 1.5 · ghép " + lunaDreamCapturedFrameCount + "/5 khung"
                                     captureUseRawDream20 && lunaDreamApplied -> "RawDream 2.0 · DNG gốc + JPEG ghép " + lunaDreamCapturedFrameCount + "/8 khung bằng LunaDream 2.0"
                                     captureUseLunaDream30 && lunaDreamApplied -> "LunaDream 3.0 · ghép 8 khung và phục hồi vi chi tiết"
-                                    captureUseLunaDream25 && lunaDreamApplied -> "LunaDream 2.5 · ghép 8 khung và phục hồi chi tiết thích ứng"
+                                    captureUseLunaDream25 && lunaDreamApplied -> "LunaDream 3.0 · ghép 8 khung và phục hồi chi tiết thích ứng"
                                     captureUseLunaDream20 && lunaDreamApplied -> "LunaDream 2.0 · ghép 8 khung và phục hồi chi tiết"
                                     captureUseLunaDream -> "LunaDream fallback · " + (lunaDreamFailureReason ?: "engine failure")
                                     captureUseNightShot && nightShotMerged -> "NightShotMode · ghép đa khung"
@@ -5965,8 +5965,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 180MP."
                                             else "Đã lưu LunaDream 3.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream25 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
-                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.5 · 150MP."
-                                            else "Đã lưu LunaDream 2.5 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
+                                            if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 3.0 · 150MP."
+                                            else "Đã lưu LunaDream 3.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
                                         captureUseLunaDream20 && lunaDreamApplied && outputResolutionApplied && orientationLabelFixed ->
                                             if (outputResolutionResult!!.reachedRequestedSize) "Đã lưu LunaDream 2.0 · 108MP."
                                             else "Đã lưu LunaDream 2.0 · ${actualOutputMp}MP theo giới hạn bộ nhớ."
@@ -6024,7 +6024,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         captureUseLunaDream15 && lunaDreamApplied -> " LunaDream 1.5 đã ghép " + lunaDreamCapturedFrameCount + " khung hình."
                                         captureUseRawDream20 && lunaDreamApplied -> " RawDream 2.0 giữ DNG cảm biến gốc và ghép " + lunaDreamCapturedFrameCount + " JPEG bằng thuật toán LunaDream 2.0."
                                         captureUseLunaDream30 && lunaDreamApplied -> " LunaDream 3.0 đã ghép 8 khung và phục hồi vi chi tiết."
-                                        captureUseLunaDream25 && lunaDreamApplied -> " LunaDream 2.5 đã ghép 8 khung và phục hồi chi tiết thích ứng."
+                                        captureUseLunaDream25 && lunaDreamApplied -> " LunaDream 3.0 đã ghép 8 khung và phục hồi chi tiết thích ứng."
                                         captureUseLunaDream20 && lunaDreamApplied -> " LunaDream 2.0 đã ghép 8 khung và phục hồi chi tiết đa khung."
                                         captureUseLunaDream -> " LunaDream vẫn được giữ làm chế độ đã chọn."
                                         else -> ""
@@ -6056,7 +6056,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 val failedMode = when {
                                     captureUseLunaDream15 -> "LunaDream 1.5"
                                     captureUseLunaDream20 -> "LunaDream 2.0"
-                                    captureUseLunaDream25 -> "LunaDream 2.5"
+                                    captureUseLunaDream25 -> "LunaDream 3.0"
                                     captureUseLunaDream30 -> "LunaDream 3.0"
                                     captureUseNightShot -> "Night Shot"
                                     mode == "Pro" -> "Pro"
@@ -8567,7 +8567,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "LUNADREAM 2.5",
+                        "LUNADREAM 3.0",
                         color = if (lightUi) Color(0xFF161616) else Color.White,
                         fontFamily = Fuji310Font,
                         fontWeight = FontWeight.Bold,
@@ -9020,7 +9020,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             val modelLabel = when (selected) {
                                 "luna15" -> "1.5"
                                 "luna20" -> "2.0"
-                                "luna25" -> "2.5"
+                                "luna25" -> "3.0"
                                 "luna30" -> "3.0"
                                 else -> selected
                             }

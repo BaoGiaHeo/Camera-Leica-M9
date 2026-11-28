@@ -34,11 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 
-internal val Fuji310Font = FontFamily(
-    Font(R.font.saira_semicondensed_regular, FontWeight.Normal),
-    Font(R.font.saira_semicondensed_medium, FontWeight.Medium),
-    Font(R.font.saira_semicondensed_bold, FontWeight.Bold)
-)
+internal val Fuji310Font = FontFamily.SansSerif
 
 @Composable
 internal fun Camera310ValueSlider(

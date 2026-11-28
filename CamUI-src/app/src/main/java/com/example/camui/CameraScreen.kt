@@ -607,6 +607,7 @@ private fun Fuji320Hud(
     }
 }
 
+@Composable
 fun CameraScreen(
     onOpenSettings: () -> Unit,
     onOpenToolbox: () -> Unit,

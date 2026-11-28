@@ -473,7 +473,8 @@ class MainActivity : AppCompatActivity() {
                         ratioIdx = ratioIdx,
                         onRatio = { ratioIdx = 1; settingsPrefs.edit().putInt("capture_ratio_index", 1).apply() },
                         performanceMode = animationPerformanceMode,
-                        onOpenWatermarkPanel = { settingsSubpageReturnTarget = "camera"; page = "watermark_panel" }
+                        onOpenWatermarkPanel = { settingsSubpageReturnTarget = "camera"; page = "watermark_panel" },
+                        cameraScreenVisible = page == "camera"
                     )
                     }
                     if (overlayVisible) {

@@ -1033,6 +1033,7 @@ fun CameraScreen(
     )
     val zoomBarDrawRatio = remember { mutableFloatStateOf(zoomSel) }
     val zoomBarRequests = remember { Channel<Pair<Float, Boolean>>(Channel.CONFLATED) }
+    var zoomSliderCommitJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     LaunchedEffect(actualZoomRatio) {
         zoomBarDrawRatio.floatValue = actualZoomRatio
     }
@@ -8726,7 +8727,16 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     queueEvCommand((value / step).roundToInt())
                 },
                 onZoomFraction = { fraction ->
-                    zoomBarRequests.trySend((uiMinZoom + fraction * (uiMaxZoom - uiMinZoom)) to true)
+                    val target = (uiMinZoom + fraction * (uiMaxZoom - uiMinZoom)).coerceIn(uiMinZoom, uiMaxZoom)
+                    // Stream preview zoom at most once per frame; do not commit preference,
+                    // digital crop and interaction generation for every pointer sample.
+                    zoomBarDrawRatio.floatValue = target
+                    zoomBarRequests.trySend(target to false)
+                    zoomSliderCommitJob?.cancel()
+                    zoomSliderCommitJob = scope.launch {
+                        delay(130L)
+                        zoomBarRequests.trySend(target to true)
+                    }
                 },
                 onZoomStep = { direction ->
                     animateZoomTo((zoomSel + direction * 0.08f).coerceIn(uiMinZoom, uiMaxZoom))

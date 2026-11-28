@@ -466,7 +466,7 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         }""")
         // 3.5.0: restore the supplied leather body panel without changing camera geometry.
         source = source.replace(
-            "Box(r(1218f, 94f, 570f, 306f).background(Color(0xFF87898B), RoundedCornerShape(d(42f))).border(d(2f), Color(0xFF55585A), RoundedCornerShape(d(42f))))",
+            "Box(r(1180f, 95f, 565f, 297f).background(Color(0xFF87898B), RoundedCornerShape(d(42f))).border(d(2f), Color(0xFF55585A), RoundedCornerShape(d(42f))))",
             "Leather(leather, state.lightUi)"
         )
         source = source.replace(

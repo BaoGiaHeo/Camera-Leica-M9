@@ -327,6 +327,19 @@ fun FujiIconGlyph(
             }
         }
         when (name) {
+            "camera" -> {
+                drawRoundRect(
+                    tint,
+                    point(3f, 7f),
+                    androidx.compose.ui.geometry.Size(18f * unit, 14f * unit),
+                    androidx.compose.ui.geometry.CornerRadius(2.2f * unit),
+                    style = Stroke(stroke)
+                )
+                line(7f, 7f, 9f, 4f)
+                line(9f, 4f, 15f, 4f)
+                circle(12f, 14f, 4f)
+                circle(18f, 9f, 0.8f, true)
+            }
             "settings", "gear" -> {
                 circle(12f, 12f, 8f)
                 circle(12f, 12f, 2.8f)

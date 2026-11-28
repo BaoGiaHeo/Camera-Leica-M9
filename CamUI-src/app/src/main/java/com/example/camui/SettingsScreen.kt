@@ -196,6 +196,7 @@ fun SettingsScreen(
             }
             Column(
                 Modifier.weight(1f).fillMaxWidth()
+                    .padding(horizontal = (25f * sx).dp)
                     .clip(RoundedCornerShape((40f * sx).dp))
                     .background(outerSurface)
                     .border((2f * sx).dp, Color(0xFF858585), RoundedCornerShape((40f * sx).dp))

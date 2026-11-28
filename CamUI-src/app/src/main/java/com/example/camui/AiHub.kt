@@ -95,18 +95,10 @@ fun LunaDreamBottomSheet(
                     Triple("luna30", R.string.lunadream_30_title, R.string.lunadream_30_subtitle)
                 )
                 lunaModes.forEach { (modeId, titleRes, subtitleRes) ->
-                    val resolutionLabel = when (modeId) {
-                        "luna15" -> "FHD+"
-                        "luna20" -> "UHD"
-                        "luna25" -> "UHD+"
-                        else -> "EUHD"
-                    }
-                    val megapixelsLabel = when (modeId) {
-                        "luna15" -> "50 MP"
-                        "luna20" -> "108 MP"
-                        "luna25" -> "150 MP"
-                        else -> "200 MP"
-                    }
+                    val outputTarget = lunaDreamOutputTarget(modeId)
+                        ?: error("Missing LunaDream output specification for $modeId")
+                    val resolutionLabel = outputTarget.resolutionLabel
+                    val megapixelsLabel = "${outputTarget.targetPixels / 1_000_000L} MP"
                     LunaDreamModeRow(
                         title = stringResource(titleRes),
                         subtitle = stringResource(subtitleRes),

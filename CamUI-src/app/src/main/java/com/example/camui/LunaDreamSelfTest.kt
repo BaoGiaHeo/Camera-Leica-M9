@@ -36,7 +36,7 @@ internal data class LunaDreamSelfTestReport(
         appendLine()
         appendLine(message)
         appendLine()
-        appendLine("Bài kiểm tra tạo 8 khung JPEG tổng hợp có dịch chuyển và nhiễu, chạy merge LunaDream 3.0, nâng 180MP bằng native JPEG tile 64 hàng, mã hóa và đọc xác minh JPEG đã ghi.")
+        appendLine("Bài kiểm tra tạo 8 khung JPEG tổng hợp có dịch chuyển và nhiễu, chạy merge LunaDream 3.0, yêu cầu 200MP, chấp nhận tối thiểu an toàn 180MP bằng native JPEG tile 64 hàng, mã hóa và đọc xác minh JPEG đã ghi.")
         appendLine("Bài kiểm tra này không thay thế việc kiểm tra chất lượng ảnh thực tế trên thiết bị.")
     }
 }
@@ -137,7 +137,7 @@ internal object LunaDreamSelfTest {
                 targetPixels = TEST_REQUESTED_OUTPUT_PIXELS,
                 targetHeightOverWidth = null,
                 adaptiveMinimumPixels = TEST_MINIMUM_OUTPUT_PIXELS
-            ) ?: error("Upscale/encode yêu cầu đủ 180MP thất bại hoặc không đủ bộ nhớ an toàn.")
+            ) ?: error("Không đạt yêu cầu 200MP hoặc ngưỡng an toàn tối thiểu 180MP.")
             stages["Upscale + mã hóa JPEG"] = SystemClock.elapsedRealtime() - upscaleStart
             peakHeap = maxOf(peakHeap, sampledPeakBytes.get())
 
@@ -149,7 +149,7 @@ internal object LunaDreamSelfTest {
             val actualPixels = width.toLong() * height.toLong()
             megapixels = actualPixels / 1_000_000.0
             check(actualPixels >= TEST_MINIMUM_OUTPUT_PIXELS * 995L / 1000L) {
-                "Kích thước đầu ra thấp hơn ngưỡng self-test 180MP: ${width}x$height."
+                "Kích thước đầu ra thấp hơn ngưỡng an toàn self-test 180MP: ${width}x$height."
             }
             check(output.length() > 64_000L) {
                 "JPEG đầu ra quá nhỏ; dữ liệu nén có thể bị thiếu."
@@ -162,9 +162,9 @@ internal object LunaDreamSelfTest {
             success = resized.reachedRequestedSize &&
                 actualPixels >= TEST_MINIMUM_OUTPUT_PIXELS * 995L / 1000L
             check(success) {
-                "Native tile encoder không đạt đủ 180MP: actual=${String.format(Locale.US, "%.2f", megapixels)}MP."
+                "Native tile encoder không đạt yêu cầu 200MP hoặc mức an toàn 180MP: actual=${String.format(Locale.US, "%.2f", megapixels)}MP."
             }
-            message = "PASS: đã tạo 8 khung mẫu, chạy merge LunaDream 3.0, nâng ảnh bằng native JPEG tile 64 hàng, ghi và đọc xác minh JPEG 180MP. Kích thước thực tế ${width}x$height (${String.format(Locale.US, "%.2f", megapixels)}MP)."
+            message = "PASS: đã tạo 8 khung mẫu, chạy merge LunaDream 3.0, nâng ảnh bằng native JPEG tile 64 hàng, ghi và đọc xác minh JPEG mục tiêu 200MP (tối thiểu an toàn 180MP). Kích thước thực tế ${width}x$height (${String.format(Locale.US, "%.2f", megapixels)}MP)."
             LunaDreamDiagnostics.record(
                 context,
                 "SELF_TEST_TILE_STREAMING_SUCCESS",

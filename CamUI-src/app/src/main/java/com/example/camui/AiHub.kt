@@ -59,7 +59,7 @@ fun LunaDreamBottomSheet(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         AnimatedVisibility(
             visible = true,
@@ -74,7 +74,7 @@ fun LunaDreamBottomSheet(
         ) {
             Column(
                 Modifier.fillMaxSize()
-                    .background(Color(0xFF171717))
+                    .background(Brush.linearGradient(listOf(Color(0xFF071219), Color(0xFF101D25), Color(0xFF05090D))))
                     .padding(start = 33.dp, end = 44.dp, top = 16.dp, bottom = 47.dp),
                 verticalArrangement = Arrangement.spacedBy(23.dp)
             ) {
@@ -84,16 +84,16 @@ fun LunaDreamBottomSheet(
                 ) {
                     Text(
                         "LUNADREAM ENGINE",
-                        color = Color.White,
+                        color = Color(0xFF70F3F4),
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.35.sp
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.75.sp
                     )
                     Spacer(Modifier.weight(1f))
                     Box(
                         Modifier.width(77.dp).height(31.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .border(1.dp, Color(0xFF888888), RoundedCornerShape(6.dp))
+                            .border(1.5.dp, Color(0xFF59E5ED), RoundedCornerShape(6.dp))
                             .clickable(onClick = onDismiss),
                         contentAlignment = Alignment.Center
                     ) {
@@ -108,7 +108,8 @@ fun LunaDreamBottomSheet(
                 Row(
                     Modifier.weight(1f).fillMaxWidth()
                         .clip(RoundedCornerShape(34.dp))
-                        .border(1.dp, Color(0xFF777777), RoundedCornerShape(34.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF112A33), Color(0xFF14252D), Color(0xFF0C1820))))
+                        .border(2.dp, Color(0xFF48D8E6), RoundedCornerShape(34.dp))
                         .padding(start = 36.dp, end = 84.dp),
                     horizontalArrangement = Arrangement.spacedBy(30.dp)
                 ) {
@@ -139,14 +140,14 @@ fun LunaDreamBottomSheet(
                             modifier = Modifier.fillMaxWidth().height(83.dp),
                             title = "LunaDream 3.0",
                             description = "180MP Chất lượng nét hơn, Hình ảnh tốt hơn",
-                            selected = selectedMode == "luna25",
+                            selected = selectedMode == "luna30",
                             enabled = !nightShotEnabled
-                        ) { onSelectedModeChange(if (selectedMode == "luna25") "off" else "luna25") }
+                        ) { onSelectedModeChange(if (selectedMode == "luna30") "off" else "luna30") }
                         Column(
                             Modifier.fillMaxWidth().height(111.dp)
                                 .clip(RoundedCornerShape(22.dp))
-                                .background(Color(0xFF303030))
-                                .border(1.dp, Color(0xFF444444), RoundedCornerShape(22.dp))
+                                .background(Brush.linearGradient(listOf(Color(0xFF2A2120), Color(0xFF151D22))))
+                                .border(1.dp, Color(0xFFB76D68), RoundedCornerShape(22.dp))
                                 .padding(18.dp),
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -194,10 +195,10 @@ private fun LunaDreamModeCard(
 ) {
     Column(
         modifier.clip(RoundedCornerShape(22.dp))
-            .background(Color(0xFF555555))
+            .background(Brush.linearGradient(listOf(Color(0xFF1D3139), Color(0xFF111C23))))
             .border(
                 width = if (selected) 2.5.dp else 1.dp,
-                color = if (selected) Color(0xFFF0A030) else Color(0xFF8A8A8A),
+                color = if (selected) Color(0xFF58EEF0) else Color(0xFF56727B),
                 shape = RoundedCornerShape(22.dp)
             )
             .clickable(enabled = enabled, onClick = onClick)
@@ -222,7 +223,7 @@ private fun LunaDreamModeCard(
         )
         if (selected) {
             Spacer(Modifier.height(6.dp))
-            Text("ĐANG CHỌN", color = Color(0xFFFFD18A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("ĐANG CHỌN", color = Color(0xFF77F4F1), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

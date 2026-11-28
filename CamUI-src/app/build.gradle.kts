@@ -27,8 +27,8 @@ android {
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 37
-        versionCode = 25
-        versionName = "3.2.0"
+        versionCode = 28
+        versionName = "3.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
@@ -464,6 +464,87 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         MetalButton(r(1028f, 588f, 84f, 82f), d(22f), onClick = actions.onTheme) {
             IconSunMoon(Modifier.size(d(48f)), state.lightUi)
         }""")
+        // 3.5.0: restore the supplied leather body panel without changing camera geometry.
+        source = source.replace(
+            "Box(r(1180f, 95f, 565f, 297f).background(Color(0xFF87898B), RoundedCornerShape(d(42f))).border(d(2f), Color(0xFF55585A), RoundedCornerShape(d(42f))))",
+            "Leather(leather, state.lightUi)"
+        )
+        source = source.replace(
+            """                                a.onAfL()
+                                a.onAeL()""",
+            """                                a.onAfL()"""
+        )
+        source = source.replace(
+            """            Tx("EV : " + String.format(Locale.US, "%.1f", s.ev), fs(21f), C.White, align = TextAlign.Start, family = FontFamily.SansSerif)""",
+            """            Tx("EV : " + String.format(Locale.US, "%.1f", s.ev) + if (s.countdown > 0) "  ·  " + s.countdown + "s" else "", fs(21f), C.White, align = TextAlign.Start, family = FontFamily.SansSerif)"""
+        )
+        source = source.replace(
+            """    Row(
+        r(184f, 650f, 790f, 32f),""",
+            """    if (s.batteryLow && s.batteryBlinkOn) {
+        Box(r(184f, 580f, 155f, 23f), Alignment.CenterStart) {
+            Tx("BATTERY LOW", fs(13f), C.Red, align = TextAlign.Start, family = FontFamily.SansSerif)
+        }
+    }
+    Row(
+        r(184f, 650f, 790f, 32f),"""
+        )
+        source = source.replace(
+            """        // MÀN HÌNH PREVIEW""",
+            """        MetalButton(r(18f, 110f, 52f, 52f), d(26f), if (state.timerSeconds > 0) C.Blue else null, onClick = actions.onTimerMenu) {
+            Tx(if (state.timerSeconds > 0) state.timerSeconds.toString() + "s" else "TMR", fs(20f))
+        }
+        if (state.timerMenuVisible) {
+            Row(
+                Modifier.absoluteOffset(maxWidth * (78f / RW), maxHeight * (110f / RH))
+                    .size(maxWidth * (300f / RW), maxHeight * (52f / RH))
+                    .clip(RoundedCornerShape(d(12f)))
+                    .background(Color(0xE91C252B))
+                    .border(d(1.5f), Color(0xFF42D9EA), RoundedCornerShape(d(12f)))
+                    .padding(d(4f)),
+                horizontalArrangement = Arrangement.spacedBy(d(5f)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(3, 5, 10, 0).forEach { seconds ->
+                    Box(
+                        Modifier.weight(1f).fillMaxSize()
+                            .clip(RoundedCornerShape(d(8f)))
+                            .background(if (state.timerSeconds == seconds) Color(0xFF17616C) else Color(0xFF30383D))
+                            .clickable { actions.onTimerSelect(seconds) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Tx(if (seconds == 0) "OFF" else seconds.toString() + "s", fs(18f), C.White)
+                    }
+                }
+            }
+        }
+        // MÀN HÌNH PREVIEW"""
+        )
+        source = source.replace(
+            """            if (!state.hideOsd) {
+                val m = Color(0xCCFFFFFF); val w = 2f * u""",
+            """            if (!state.hideOsd && state.levelVisible) {
+                val centerX = (112f + 913f * 0.5f) * sx
+                val centerY = (48f + 682f * 0.5f) * sy
+                rotate(state.horizonRollDegrees, Offset(centerX, centerY)) {
+                    val levelColor = if (kotlin.math.abs(state.horizonRollDegrees) <= 0.5f) C.Green else C.Yellow
+                    drawLine(levelColor.copy(alpha = 0.85f), Offset(190f * sx, centerY), Offset(947f * sx, centerY), 2.2f * u, StrokeCap.Round)
+                    drawCircle(levelColor, 4f * u, Offset(centerX, centerY))
+                }
+            }
+            if (!state.hideOsd) {
+                val m = Color(0xCCFFFFFF); val w = 2f * u"""
+        )
+        source = source.replace(
+            """        Tx("EV : " + String.format(Locale.US, "%.1f", s.ev), fs(21f), C.White, align = TextAlign.Start, family = FontFamily.SansSerif)""",
+            """        Tx("EV : " + String.format(Locale.US, "%.1f", s.ev) + if (s.countdown > 0) "  ·  " + s.countdown + "s" else "", fs(21f), C.White, align = TextAlign.Start, family = FontFamily.SansSerif)"""
+        )
+        check(source.startsWith("package com.example.camui"))
+        check(source.contains("Leather(leather, state.lightUi)"))
+        check(source.contains("state.timerMenuVisible"))
+        check(source.contains("BATTERY LOW"))
+        check(source.contains("state.horizonRollDegrees"))
+        check(!source.contains("a.onAeL()"))
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."
         }

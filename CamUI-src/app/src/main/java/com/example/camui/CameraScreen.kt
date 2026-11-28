@@ -5617,10 +5617,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                     context,
                                                     saved,
                                                     requestedMp,
-                                                    targetHeightOverWidth = if (
-                                                        captureUseLunaDream30 && lunaDream30PreFinalized &&
-                                                        appPrefs.getBoolean("watermark_enabled", true)
-                                                    ) null else outputHeightOverWidth,
+                                                    targetHeightOverWidth = outputHeightOverWidth,
                                                     adaptiveMinimumPixels = if (captureUseLunaDream30) {
                                                         Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS
                                                     } else {

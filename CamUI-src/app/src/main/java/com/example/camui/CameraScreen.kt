@@ -2365,7 +2365,7 @@ fun CameraScreen(
                                 centerAfStatus = 0
                                 runCatching {
                                     val afPointSize = CameraAfAreaSize.fromPreference(
-                                        appPrefs.getString("af_area_size", "m")
+                                        appPrefs.getString("af_area_size", "l")
                                     ).focusPointSize
                                     val point = previewView.meteringPointFactory.createPoint(
                                         focusTargetCamera.x * previewWidth,
@@ -6898,7 +6898,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 runCatching { applyAutoFocus(active) }
                                             }
                                             val afPointSize = CameraAfAreaSize.fromPreference(
-                                                appPrefs.getString("af_area_size", "m")
+                                                appPrefs.getString("af_area_size", "l")
                                             ).focusPointSize
                                             val cameraTapPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
                                             val point = previewView.meteringPointFactory.createPoint(
@@ -7075,7 +7075,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
 
                                             val cameraPoint = digitalPreviewPointToCamera(tapPoint, digitalZoomCropScale)
                                             val pointSize = CameraAfAreaSize.fromPreference(
-                                                appPrefs.getString("af_area_size", "m")
+                                                appPrefs.getString("af_area_size", "l")
                                             ).focusPointSize
                                             val meteringPoint = previewView.meteringPointFactory.createPoint(
                                                 cameraPoint.x * previewWidth,
@@ -7181,7 +7181,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                     previewWidth * 0.5f,
                                                     previewHeight * 0.5f,
                                                     CameraAfAreaSize.fromPreference(
-                                                        appPrefs.getString("af_area_size", "m")
+                                                        appPrefs.getString("af_area_size", "l")
                                                     ).focusPointSize
                                                 )
                                                 val action = FocusMeteringAction.Builder(
@@ -7315,7 +7315,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     centerAfStatus = if (focusLocked) 1 else centerAfStatus,
                                     showManualAfReticle = manualAfReticleOverrideActive,
                                     centerAfScale = CameraAfAreaSize.fromPreference(
-                                        appPrefs.getString("af_area_size", "m")
+                                        appPrefs.getString("af_area_size", "l")
                                     ).pixelScale,
                                     manualFocusMode = (mode == "Pro" && proAfMode == "MF") ||
                                         manualFocus > 0f || milkyWayInfinityFocusEnabled,
@@ -8328,7 +8328,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             FujiCameraKey(
                 stringResource(R.string.camera_settings),
                 modifier = keyModifier,
-                icon = "settings",
+                icon = "menu",
                 scale = designScale
             ) { onOpenSettings() }
         }
@@ -8490,7 +8490,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                             onDismiss = { filterDialogVisible = false },
                             onSelect = { selected ->
-                                val nextFilter = if (selected == activeFilter) "None" else selected
+                                val nextFilter = selected
                                 activeFilter = nextFilter
                                 appPrefs.edit().putString("selected_filter", nextFilter).apply()
                                 filterDialogVisible = false

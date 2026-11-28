@@ -3625,7 +3625,19 @@ fun CameraScreen(
                         aeLocked = aeLockAtCapture,
                         afLocked = afLockAtCapture
                     )
-                    CrashContextDiagnostics.recordUiEvent("CAPTURE_TO_THUMBNAIL timestamp=$shutterTimestamp durationMs=$latencyMs")
+                    val withinThumbnailBudget = latencyMs <= Tuning.CAMERA_THUMBNAIL_TARGET_MS
+                    val latencyEvent = "CAPTURE_TO_THUMBNAIL timestamp=$shutterTimestamp durationMs=$latencyMs " +
+                        "targetMs=${Tuning.CAMERA_THUMBNAIL_TARGET_MS} result=${if (withinThumbnailBudget) "PASS" else "OVER_BUDGET"}"
+                    if (withinThumbnailBudget) {
+                        android.util.Log.i("FUJI_CAPTURE_LATENCY", latencyEvent)
+                    } else {
+                        android.util.Log.w("FUJI_CAPTURE_LATENCY", latencyEvent)
+                        CaptureDiagnostics.recordWarning(
+                            context,
+                            "Thumbnail mất ${latencyMs}ms, vượt mục tiêu ${Tuning.CAMERA_THUMBNAIL_TARGET_MS}ms."
+                        )
+                    }
+                    CrashContextDiagnostics.recordUiEvent(latencyEvent)
                 }
             }
         }

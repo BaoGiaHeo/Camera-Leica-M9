@@ -8820,6 +8820,7 @@ private fun FilterLookDialog(
     val scope = rememberCoroutineScope()
     var importedLuts by remember { mutableStateOf(loadCustomCameraLuts(context)) }
     var filterSearch by remember { mutableStateOf("") }
+    var compactSearchExpanded by remember { mutableStateOf(false) }
     var selectedLookCategory by remember { mutableStateOf("all") }
     var activeLutIds by remember { mutableStateOf(activeCustomCameraLutIds(context)) }
     var isImportingLut by remember { mutableStateOf(false) }
@@ -9121,34 +9122,45 @@ private fun FilterLookDialog(
                 items(visiblePresets, key = { it }) { preset ->
                     val selected = activeFilter == preset
                     val itemName = cameraLookDisplayName(context, preset)
+                    val palette = rememberFilmLookPalette(preset)
                     Row(
-                        Modifier.fillMaxWidth().height(if (LocalConfiguration.current.screenHeightDp < 440) 48.dp else Tuning.FILM_ROLL_FILTER_ROW_HEIGHT_DP.dp).clip(RoundedCornerShape(4.dp))
-                            .background(if (selected) Color(0xFF303638) else Color(0xFF15191A))
-                            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF3C4649), RoundedCornerShape(4.dp))
-                            .animaTClickable { onSelectFilter(preset) }.padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Modifier.fillMaxWidth()
+                            .height(Tuning.FILM_ROLL_FILTER_ROW_HEIGHT_DP.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) Color(0xFF292C2E) else Color(0xFF1C1E20))
+                            .border(
+                                if (selected) 1.5.dp else 1.dp,
+                                if (selected) FujiSkin.orange else Color(0xFF343A3D),
+                                RoundedCornerShape(14.dp)
+                            )
+                            .animaTClickable { onSelectFilter(preset) }
+                            .padding(horizontal = 5.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        Box(Modifier.width(42.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp))
-                            .background(Color(0xFF070909))
-                            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF687277), RoundedCornerShape(2.dp))) {
-                            Row(Modifier.fillMaxSize().padding(horizontal = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.width(5.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                                    repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) }
-                                }
-                                Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 3.dp)) {
-                                    FilterLookPreviewImage(source = previewSource, preset = preset, modifier = Modifier.fillMaxSize(), maxDimension = 192)
-                                }
-                                Column(Modifier.width(5.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                                    repeat(6) { Box(Modifier.size(4.dp).background(Color(0xFF9BA2A3), RoundedCornerShape(1.dp))) }
-                                }
-                            }
-                            if (selected) Text("✓", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.align(Alignment.TopEnd).background(FujiSkin.orange).padding(horizontal = 3.dp, vertical = 1.dp))
+                        FilmRollSpoolIcon(
+                            shortName = itemName,
+                            accent = palette.getOrElse(2) { FujiSkin.orange },
+                            selected = selected
+                        )
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                itemName,
+                                color = if (selected) Color.White else Color(0xFFE7E8E8),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Text("Mô phỏng màu phim · LUT 3D", color = Color(0xFF9EA4A7), fontSize = 11.sp, maxLines = 1)
+                            Box(
+                                Modifier.fillMaxWidth(0.60f).height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Brush.horizontalGradient(palette))
+                            )
                         }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(itemName, color = if (selected) Color.White else Color(0xFFE2E7E7),
-                                fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(stringResource(R.string.camera_film_35mm), color = FujiSkin.lcdGreen, fontSize = 7.sp, letterSpacing = 0.8.sp)
+                        if (selected) {
+                            Text("✓", color = FujiSkin.orange, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 2.dp))
                         }
                     }
                 }

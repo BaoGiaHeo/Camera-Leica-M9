@@ -318,6 +318,73 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
 }"""
         source = source.substring(0, hudStart) + hudReplacement + source.substring(hudEnd)
 
+        // Keep the compact, icon-only physical camera keys shown in the reference.
+        source = source.replace("Modifier.fillMaxWidth().height(d(37f)).padding(vertical = d(2f))",
+            "Modifier.fillMaxWidth().height(d(56f)).padding(vertical = d(3f))")
+        source = source.replace("""                    IconAlbum(Modifier.size(d(46f)), C.White)
+                    Spacer(Modifier.height(d(10f)))
+                    Tx("Album", fs(22f))""", """                    IconAlbum(Modifier.size(d(54f)), C.White)""")
+        source = source.replace("""                IconFilter(Modifier.size(d(62f)), state.filterOn)
+                Spacer(Modifier.height(d(10f)))
+                Tx("BỘ LỌC", fs(22f))""", """                IconFilter(Modifier.size(d(62f)), state.filterOn)""")
+        source = source.replace("""                IconMenu(Modifier.size(d(46f)), C.White)
+                Spacer(Modifier.height(d(8f)))
+                Tx("SETTING", fs(22f))""", """                IconMenu(Modifier.size(d(54f)), C.White)""")
+        source = source.replace("            Box(r(1448f, 337f, 62f, 38f), Alignment.CenterStart) { Tx(evText, fs(22f), align = TextAlign.Start) }\n", "")
+
+        // Animate the inline filter list instead of replacing the whole camera panel abruptly.
+        source = source.replace(
+            "import androidx.compose.animation.core.LinearEasing",
+            "import androidx.compose.animation.AnimatedVisibility\nimport androidx.compose.animation.fadeIn\nimport androidx.compose.animation.fadeOut\nimport androidx.compose.animation.core.LinearEasing"
+        )
+        val filterPanelOld = """            if (state.filterExpanded) {
+                Column(Modifier.fillMaxSize().padding(d(10f)).verticalScroll(rememberScrollState())) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
+                        Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
+                        Spacer(Modifier.weight(1f))
+                        Tx("${state.filterCount}/${state.filterCount}", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize().padding(d(16f)), verticalArrangement = Arrangement.spacedBy(d(6f))) {
+                    Tx(state.lunaSummary, fs(21f), if (state.lightUi) Color.Black else C.White, align = TextAlign.Start)
+                    state.cameraSummary.take(5).forEach { line ->
+                        Tx(line, fs(18f), if (state.lightUi) Color(0xFF262626) else C.White, align = TextAlign.Start)
+                    }
+                }
+            }"""
+        val filterPanelNew = """            if (!state.filterExpanded) {
+                Column(Modifier.fillMaxSize().padding(d(16f)), verticalArrangement = Arrangement.spacedBy(d(6f))) {
+                    Tx(state.lunaSummary, fs(21f), if (state.lightUi) Color.Black else C.White, align = TextAlign.Start)
+                    state.cameraSummary.take(5).forEach { line ->
+                        Tx(line, fs(18f), if (state.lightUi) Color(0xFF262626) else C.White, align = TextAlign.Start)
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = state.filterExpanded,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(140))
+            ) {
+                Column(Modifier.fillMaxSize().padding(d(10f)).verticalScroll(rememberScrollState())) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
+                        Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
+                        Spacer(Modifier.weight(1f))
+                        Tx("${state.filterCount}/${state.filterCount}", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            }"""
+        check(source.contains(filterPanelOld)) { "Fuji 3.2 filter panel animation anchor not found." }
+        source = source.replace(filterPanelOld, filterPanelNew)
+
         // The theme switch is in the narrow camera-body column, under Settings.
         val settingsButton = """        MetalButton(r(1028f, 377f, 84f, 164f), d(22f), onClick = actions.onSetting) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {

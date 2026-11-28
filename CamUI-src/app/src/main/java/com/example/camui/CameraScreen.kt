@@ -8790,10 +8790,16 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
     val lcdLogoFooter: @Composable (Modifier) -> Unit = { logoModifier ->
         Row(logoModifier.fillMaxWidth().height(27.dp * designScale), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.45f)))
-            Image(painter = painterResource(R.drawable.fujifilm_logo_white), contentDescription = "FUJIFILM",
-                modifier = Modifier.width(118.dp * designScale).height(22.dp * designScale), contentScale = ContentScale.Fit)
-            Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.45f)))
+            val logoInk = if (lightUi) Color.Black else Color.White
+            Box(Modifier.weight(1f).height(1.dp).background(logoInk.copy(alpha = 0.45f)))
+            Image(
+                painter = painterResource(R.drawable.fujifilm_logo_white),
+                contentDescription = "FUJIFILM",
+                modifier = Modifier.width(118.dp * designScale).height(22.dp * designScale),
+                contentScale = ContentScale.Fit,
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(logoInk)
+            )
+            Box(Modifier.weight(1f).height(1.dp).background(logoInk.copy(alpha = 0.45f)))
         }
     }
 

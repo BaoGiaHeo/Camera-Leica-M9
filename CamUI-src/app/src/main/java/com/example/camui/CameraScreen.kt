@@ -406,7 +406,8 @@ private data class FujifilmBurstFrameRequest(
     val frameIndex: Int,
     val uri: Uri?,
     val captureTimestampMillis: Long,
-    val requestElapsedRealtimeMs: Long
+    val requestElapsedRealtimeMs: Long,
+    val frameSavedElapsedRealtimeMs: Long
 )
 
 private data class FujifilmBurstFrameFinalization(
@@ -4081,6 +4082,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             var finalizedFrames = 0
             var failedFrames = 0
             var initialFramePending = true
+            var firstFrameSavedElapsedMs: Long? = null
+            var lastFrameSavedElapsedMs: Long? = null
 
             suspend fun finishFrame(frame: FujifilmBurstFrameRequest) {
                 val uri = frame.uri
@@ -4108,15 +4111,21 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     return
                 }
                 finalizedFrames++
-                val elapsedMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
-                val achievedFps = finalizedFrames * 1000.0 / elapsedMs
+                firstFrameSavedElapsedMs = firstFrameSavedElapsedMs ?: frame.frameSavedElapsedRealtimeMs
+                lastFrameSavedElapsedMs = frame.frameSavedElapsedRealtimeMs
+                val captureWindowMs = (lastFrameSavedElapsedMs!! - firstFrameSavedElapsedMs!!).coerceAtLeast(1L)
+                val achievedFps = if (finalizedFrames > 1) {
+                    (finalizedFrames - 1) * 1000.0 / captureWindowMs
+                } else {
+                    0.0
+                }
                 val runtime = Runtime.getRuntime()
                 val heapBytes = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
                 CaptureDiagnostics.record(
                     context,
                     CaptureDiagnosticEntry(
                         timestamp = frame.captureTimestampMillis,
-                        mode = if (nightShotMode == "night") "Night Shot Burst" else "Pro Burst",
+                        mode = if (nightShotMode == "night") "Night Shot Burst" else "$mode Burst",
                         filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
                         watermarkEnabled = finished.watermarkEnabled,
                         watermarkPrinted = finished.watermarkPrinted,
@@ -4149,7 +4158,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 runCatching { activeCapture.flashMode = ImageCapture.FLASH_MODE_OFF }
                     .onFailure { android.util.Log.w("FUJI_BURST", "Could not disable flash for continuous capture", it) }
                 while (true) {
-                    while ((!burstStopRequested || initialFramePending) && pending.size < 6) {
+                    while ((!burstStopRequested || initialFramePending) && pending.size < Tuning.CAMERA_BURST_QUEUE_CAPACITY) {
                         if (camera !== activeCamera || imageCapture !== activeCapture || !captureSetupReady) {
                             burstStopRequested = true
                             initialFramePending = false
@@ -4174,11 +4183,12 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 frameIndex = frameIndex,
                                 uri = savedUri,
                                 captureTimestampMillis = frameTimestamp,
-                                requestElapsedRealtimeMs = requestRealtime
+                                requestElapsedRealtimeMs = requestRealtime,
+                                frameSavedElapsedRealtimeMs = SystemClock.elapsedRealtime()
                             )
                         })
                         initialFramePending = false
-                        if (!burstStopRequested) delay(200L)
+                        if (!burstStopRequested) delay(Tuning.CAMERA_BURST_REQUEST_INTERVAL_MS)
                     }
                     if (pending.isEmpty()) break
                     val next = try {
@@ -4209,15 +4219,21 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 burstMode = false
                 burstStopRequested = false
                 val durationMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
-                val achievedFps = finalizedFrames * 1000.0 / durationMs
+                val captureWindowMs = if (firstFrameSavedElapsedMs != null && lastFrameSavedElapsedMs != null) {
+                    (lastFrameSavedElapsedMs!! - firstFrameSavedElapsedMs!!).coerceAtLeast(1L)
+                } else 0L
+                val achievedFps = if (finalizedFrames > 1 && captureWindowMs > 0L) {
+                    (finalizedFrames - 1) * 1000.0 / captureWindowMs
+                } else 0.0
                 val summary = "BURST_STOP frames=$finalizedFrames failed=$failedFrames submitted=$submittedFrames " +
-                    "elapsedMs=$durationMs fps=${"%.2f".format(Locale.US, achievedFps)} queueCapacity=6"
+                    "sessionMs=$durationMs captureWindowMs=$captureWindowMs fps=${"%.2f".format(Locale.US, achievedFps)} " +
+                    "queueCapacity=${Tuning.CAMERA_BURST_QUEUE_CAPACITY} requestIntervalMs=${Tuning.CAMERA_BURST_REQUEST_INTERVAL_MS}"
                 android.util.Log.i("FUJI_BURST", summary)
                 CrashContextDiagnostics.recordUiEvent(summary)
-                if (finalizedFrames >= 2 && achievedFps < 3.0) {
+                if (finalizedFrames >= 2 && achievedFps < Tuning.CAMERA_BURST_MIN_TARGET_FPS) {
                     CaptureDiagnostics.recordWarning(
                         context,
-                        "Burst đạt ${"%.2f".format(Locale.US, achievedFps)} khung/giây, thấp hơn mục tiêu 3 khung/giây trên thiết bị này."
+                        "Burst đạt ${"%.2f".format(Locale.US, achievedFps)} khung/giây, thấp hơn mục tiêu ${Tuning.CAMERA_BURST_MIN_TARGET_FPS} khung/giây trên thiết bị này."
                     )
                 }
                 localizedToast(

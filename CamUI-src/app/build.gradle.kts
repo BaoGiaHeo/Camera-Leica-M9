@@ -246,6 +246,34 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
             source = source.replace(before, after)
         }
 
+        val previewGestureBox = """            Box(
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    detectTransformGestures { _, _, zoom, _ -> if (zoom != 1f) a.onPinch(zoom) }
+                }
+            )"""
+        val previewGestureBoxFixed = """            Box(
+                Modifier.fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, _, zoom, _ -> if (zoom != 1f) a.onPinch(zoom) }
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { point ->
+                                a.onTapFocus(
+                                    (point.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                                    (point.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                )
+                            },
+                            onLongPress = {
+                                a.onAfL()
+                                a.onAeL()
+                            }
+                        )
+                    }
+            )"""
+        check(source.contains(previewGestureBox)) { "Fuji 3.2 preview gesture anchor not found." }
+        source = source.replace(previewGestureBox, previewGestureBoxFixed)
+
         // The preview has no W/T zoom slider over the live image: zoom keys sit at far right.
         source = source.replace("            Box(r(335f, 105f, 55f, 45f), Alignment.Center) { Tx(\"W\", fs(28f)) }\n", "")
         source = source.replace("            ZoomBar(r(402f, 115f, 385f, 25f), state.zoom01, state.zoomText, fs(24f), actions.onZoomFraction, actions.onZoomFinished)\n", "")

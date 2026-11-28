@@ -8917,6 +8917,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 state = cameraUiState,
                 actions = cameraUiActions,
                 modifier = Modifier.fillMaxSize(),
+                leather = painterResource(R.drawable.fuji_leather_texture),
                 logo = painterResource(if (lightUi) R.drawable.fujifilm_logo_black else R.drawable.fujifilm_logo_white),
                 preview = { lcdPreviewLayer(Modifier.fillMaxSize()) }
             )

@@ -1,4 +1,4 @@
-name: FujiFilm Mode 3.5.0 Debug APK
+name: FujiFilm Mode 4.0.0 Debug APK
 # Rebuild on every 3.2.0 source correction (including live CameraUi integration and OSD cleanup).
 
 on:
@@ -11,11 +11,12 @@ on:
       - fuji-2.9.2-boot-ui-shutter
       - fuji-3.1.0
       - fuji-3.2.0
-      - fuji-3.5.0
+      - fuji-4.0.0
+      - fuji-4.0.0
   workflow_dispatch:
 
 concurrency:
-  group: fuji-3.5.0-debug
+  group: fuji-4.0.0-debug
   cancel-in-progress: true
 
 permissions:
@@ -62,7 +63,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-3.5.0-Generated-UI-Source
+          name: FujiFilm-Mode-4.0.0-Generated-UI-Source
           path: CamUI-src/app/src/main/java/com/example/camui/CameraUi.kt
           if-no-files-found: warn
           retention-days: 14
@@ -74,7 +75,7 @@ jobs:
       - name: Upload app-debug.apk
         uses: actions/upload-artifact@v4
         with:
-          name: FujiFilm-Mode-3.5.0-Debug
+          name: FujiFilm-Mode-4.0.0-Debug
           path: |
             CamUI-src/app/build/outputs/apk/debug/app-debug.apk
             CamUI-src/app/build/outputs/apk/debug/SHA256SUMS.txt

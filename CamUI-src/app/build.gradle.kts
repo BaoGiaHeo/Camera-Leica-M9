@@ -195,6 +195,114 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
                 ignoreCase = false
             )
         }
+
+        // 3.2.0 geometry corrections from the supplied 1846×852 reference.
+        val geometryReplacements = listOf(
+            "drawRect(Brush.verticalGradient(listOf(Color(0xFF1B1C1E), Color(0xFF070708))))" to "drawRect(Brush.verticalGradient(listOf(Color(0xFF1B1B1B), Color(0xFF111111))))",
+            "        // thanh trên\n        drawRect(\n            Brush.verticalGradient(listOf(Color(0xFF2B2C2F), Color(0xFF0B0B0C))),\n            size = Size(size.width, py(72f)),\n        )\n        drawLine(Color(0x66FFFFFF), Offset(0f, py(72f)), Offset(size.width, py(72f)), py(1.5f))\n        for (i in 0..2) {\n            drawLine(\n                Color(0xFF9A9DA1), Offset(px(300f + i * 22f), py(62f)), Offset(px(345f + i * 22f), py(10f)),\n                px(5f), StrokeCap.Round,\n            )\n        }\n" to "",
+            "Offset(px(10f), py(75f)), Size(px(1275f), py(715f)), CornerRadius(px(60f))" to "Offset(px(98f), py(24f)), Size(px(1030f), py(768f)), CornerRadius(px(76f))",
+            "Offset(px(1095f), py(85f)), Size(px(190f), py(695f)), CornerRadius(px(30f))" to "Offset(px(1018f), py(96f)), Size(px(110f), py(580f)), CornerRadius(px(22f))",
+            "Offset(px(1095f), py(85f)), Size(px(190f), py(695f)),\n            CornerRadius(px(30f))" to "Offset(px(1018f), py(96f)), Size(px(110f), py(580f)),\n            CornerRadius(px(22f))",
+            "Box(r(1262f, 92f, 640f, 698f)" to "Box(r(1180f, 95f, 565f, 297f)",
+            "r(18f, 22f, 52f, 52f)" to "r(18f, 48f, 52f, 52f)",
+            "r(30f, 92f, 1075f, 680f)" to "r(112f, 48f, 913f, 682f)",
+            "(30f + state.afX * 1075f)" to "(112f + state.afX * 913f)",
+            "(92f + state.afY * 680f)" to "(48f + state.afY * 682f)",
+            "r(1128f, 140f, 124f, 173f)" to "r(1028f, 110f, 84f, 80f)",
+            "r(1128f, 348f, 124f, 167f)" to "r(1028f, 210f, 84f, 133f)",
+            "r(1128f, 548f, 124f, 160f)" to "r(1028f, 377f, 84f, 164f)",
+            "r(1302f, 96f, 584f, 300f)" to "r(1180f, 95f, 565f, 297f)",
+            "r(1310f, 151f, 302f, 54f)" to "r(1188f, 151f, 300f, 54f)",
+            "r(1310f, 211f, 302f, 54f)" to "r(1188f, 211f, 300f, 54f)",
+            "r(1310f, 271f, 302f, 54f)" to "r(1188f, 271f, 300f, 54f)",
+            "r(1620f, 126f, 232f, 246f)" to "r(1488f, 130f, 230f, 234f)",
+            "r(1312f, 337f, 70f, 38f)" to "r(1214f, 337f, 45f, 38f)",
+            "r(1370f, 338f, 265f, 36f)" to "r(1260f, 338f, 180f, 36f)",
+            "r(1638f, 337f, 66f, 38f)" to "r(1448f, 337f, 62f, 38f)",
+            "r(1310f, 418f, 180f, 48f)" to "r(1182f, 405f, 150f, 42f)",
+            "r(1503f, 418f, 346f, 48f)" to "r(1344f, 405f, 222f, 42f)",
+            "r(1512f, 418f, 328f, 20f)" to "r(1352f, 405f, 205f, 20f)",
+            "r(1510f, 440f, 328f, 22f)" to "r(1350f, 425f, 205f, 18f)",
+            "r(1720f, 327f, 98f, 105f)" to "r(1598f, 417f, 150f, 155f)",
+            "r(1720f, 453f, 98f, 107f)" to "r(1598f, 581f, 150f, 154f)",
+            "r(1368f, 515f, 235f, 235f)" to "r(1268f, 502f, 244f, 244f)",
+            "r(540f, 795f, 220f, 55f)" to "r(438f, 734f, 235f, 43f)",
+            "r(520f, 795f, 260f, 55f)" to "r(438f, 734f, 235f, 43f)",
+            "val ly = py(818f)" to "val ly = py(752f)",
+            "Offset(px(133f), ly), Offset(px(478f), ly)" to "Offset(px(150f), ly), Offset(px(436f), ly)",
+            "Offset(px(823f), ly), Offset(px(1730f), ly)" to "Offset(px(672f), ly), Offset(px(1074f), ly)",
+            "val left = if (selected) C.Yellow else Color(0xFFFF5A7A)" to "val left = if (selected) C.Yellow else C.White",
+            "val right = if (selected) C.Yellow else Color(0xFF38C8FF)" to "val right = if (selected) C.Yellow else C.White",
+            "TopBar(state, actions)" to "",
+            "ExposureScale(state.ev)" to "",
+            "Leather(leather, state.lightUi)" to ""
+        )
+        for ((before, after) in geometryReplacements) {
+            if (before.isNotEmpty() && !source.contains(before)) {
+                check(before == "TopBar(state, actions)" || before == "ExposureScale(state.ev)" || before == "Leather(leather, state.lightUi)") {
+                    "Fuji 3.2 reference UI geometry anchor not found: $before"
+                }
+            }
+            source = source.replace(before, after)
+        }
+
+        // The preview has no W/T zoom slider over the live image: zoom keys sit at far right.
+        source = source.replace("            Box(r(335f, 105f, 55f, 45f), Alignment.Center) { Tx(\"W\", fs(28f)) }\n", "")
+        source = source.replace("            ZoomBar(r(402f, 115f, 385f, 25f), state.zoom01, state.zoomText, fs(24f), actions.onZoomFraction, actions.onZoomFinished)\n", "")
+        source = source.replace("            Box(r(793f, 105f, 40f, 45f), Alignment.Center) { Tx(\"T\", fs(28f)) }\n", "")
+        source = source.replace("            ExposureScale(state.ev)\n", "")
+        source = source.replace("            Box(r(50f, 645f, 44f, 46f).border(d(2f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {\n                Column(horizontalAlignment = Alignment.CenterHorizontally) {\n                    Tx(state.dr.take(2), fs(19f))\n                    Tx(state.dr.drop(2), fs(19f))\n                }\n            }\n", "")
+
+        // Replace the old wide, multi-column overlay with the compact two-line reference HUD.
+        val hudStart = source.indexOf("@Composable\\nprivate fun BoxWithConstraintsScope.Hud(")
+        val hudEnd = source.indexOf("\\n// ---------------------------------------------------------------------\\n// 10. MÀN CHỤP HOÀN CHỈNH", hudStart)
+        check(hudStart >= 0 && hudEnd > hudStart) { "Fuji 3.2 HUD replacement anchors not found." }
+        val hudReplacement = """@Composable
+private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
+    val dateTime = java.text.SimpleDateFormat("dd/MM/yyyy | HH:mm:ss", Locale.getDefault()).format(java.util.Date())
+    Row(
+        r(184f, 608f, 330f, 32f),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(d(8f))
+    ) {
+        BatteryIcon(r(184f, 612f, 56f, 25f), s.batteryPct, s.batteryLook)
+        Box(r(248f, 610f, 30f, 27f).border(d(1f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {
+            Tx("AF-L", fs(15f), C.White, family = FontFamily.SansSerif)
+        }
+        Box(r(284f, 610f, 58f, 27f).background(Color(0xFF333638), RoundedCornerShape(d(4f))), Alignment.Center) {
+            Tx("1080P/30FPS", fs(12f), C.White, family = FontFamily.SansSerif)
+        }
+        Box(r(360f, 610f, 125f, 27f), Alignment.CenterStart) {
+            Tx("EV : " + String.format(Locale.US, "%.1f", s.ev), fs(21f), C.White, align = TextAlign.Start, family = FontFamily.SansSerif)
+        }
+    }
+    Row(
+        r(184f, 650f, 790f, 32f),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(d(20f))
+    ) {
+        Tx(s.ss, fs(26f), C.White, family = FontFamily.SansSerif)
+        Tx(s.iso, fs(26f), C.White, family = FontFamily.SansSerif)
+        Tx(s.kelvin, fs(26f), C.White, family = FontFamily.SansSerif)
+        Box(Modifier.width(d(1.5f)).height(d(25f)).background(Color.White.copy(alpha = 0.72f)))
+        Tx(dateTime, fs(24f), C.White, family = FontFamily.SansSerif)
+    }
+}"""
+        source = source.substring(0, hudStart) + hudReplacement + source.substring(hudEnd)
+
+        // The theme switch is in the narrow camera-body column, under Settings.
+        val settingsButton = """        MetalButton(r(1028f, 377f, 84f, 164f), d(22f), onClick = actions.onSetting) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                IconMenu(Modifier.size(d(46f)), C.White)
+                Spacer(Modifier.height(d(8f)))
+                Tx("SETTING", fs(22f))
+            }
+        }"""
+        check(source.contains(settingsButton)) { "Fuji 3.2 Settings key anchor not found." }
+        source = source.replace(settingsButton, settingsButton + """
+        MetalButton(r(1028f, 588f, 84f, 82f), d(22f), onClick = actions.onTheme) {
+            IconSunMoon(Modifier.size(d(48f)), state.lightUi)
+        }""")
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."
         }

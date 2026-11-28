@@ -5576,6 +5576,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 shutter = shutterLabel,
                                                 iso = if (actualIso > 0) actualIso.toString() else "AUTO",
                                                 captureTimestampMillis = captureTimestampMillis,
+                                                forceSkipWatermark = true,
                                                 onStageDuration = { stage, duration ->
                                                     exportStageDurations[stage] = duration
                                                 }
@@ -5754,8 +5755,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     WatermarkFinalizer.ensure(
                                         context, saved, focal, aperture, shutterLabel,
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
-                                                                                onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
-                                        captureTimestampMillis = captureTimestampMillis
+                                        onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
+                                        captureTimestampMillis = captureTimestampMillis,
+                                        forceSkipWatermark = captureUseLunaDream15 ||
+                                            captureUseLunaDream20 || captureUseLunaDream25 ||
+                                            captureUseLunaDream30 || captureUseNightShot
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
@@ -5806,6 +5810,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 val sampledUsedHeapBytes = (runtimeForDiagnostics.totalMemory() -
                                     runtimeForDiagnostics.freeMemory()).coerceAtLeast(0L)
                                 val watermarkWasRequested = appPrefs.getBoolean("watermark_enabled", true)
+                                val watermarkExpectedForThisCapture = watermarkWasRequested &&
+                                    !captureUseLunaDream15 && !captureUseLunaDream20 &&
+                                    !captureUseLunaDream25 && !captureUseLunaDream30 &&
+                                    !captureUseNightShot
                                 val diagnosticMode = when {
                                     captureUseLunaDream15 -> "LunaDream 1.5"
                                     captureUseLunaDream20 -> "LunaDream 2.0"
@@ -5822,8 +5830,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         timestamp = captureTimestampMillis,
                                         mode = diagnosticMode,
                                         filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
-                                        watermarkEnabled = watermarkWasRequested,
-                                        watermarkPrinted = watermarkWasRequested && stamped && !captureIsUltraHdr,
+                                        watermarkEnabled = watermarkExpectedForThisCapture,
+                                        watermarkPrinted = watermarkExpectedForThisCapture && stamped && !captureIsUltraHdr,
                                         outputWidth = diagnosticDimensions.first,
                                         outputHeight = diagnosticDimensions.second,
                                         stageTimesMs = mapOf(

@@ -308,7 +308,7 @@ private fun SettingsDetailPage(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val prefs = remember { context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE) }
     var afAreaSize by remember {
-        mutableStateOf(CameraAfAreaSize.fromPreference(prefs.getString("af_area_size", "m")).preferenceValue)
+        mutableStateOf(CameraAfAreaSize.fromPreference(prefs.getString("af_area_size", "l")).preferenceValue)
     }
     var faceTrackingMode by remember {
         mutableStateOf(

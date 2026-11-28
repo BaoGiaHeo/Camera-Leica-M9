@@ -466,7 +466,7 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         }""")
         // 3.5.0: restore the supplied leather body panel without changing camera geometry.
         source = source.replace(
-            "Box(r(1180f, 95f, 565f, 297f).background(Color(0xFF87898B), RoundedCornerShape(d(42f))).border(d(2f), Color(0xFF55585A), RoundedCornerShape(d(42f))))",
+            "Box(r(1218f, 94f, 570f, 306f).background(Color(0xFF87898B), RoundedCornerShape(d(42f))).border(d(2f), Color(0xFF55585A), RoundedCornerShape(d(42f))))",
             "Leather(leather, state.lightUi)"
         )
         source = source.replace(
@@ -528,11 +528,11 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
             """            if (!state.hideOsd) {
                 val m = Color(0xCCFFFFFF); val w = 2f * u""",
             """            if (!state.hideOsd && state.levelVisible) {
-                val centerX = (112f + 913f * 0.5f) * sx
-                val centerY = (48f + 682f * 0.5f) * sy
+                val centerX = (129f + 900f * 0.5f) * sx
+                val centerY = (60f + 680f * 0.5f) * sy
                 rotate(state.horizonRollDegrees, Offset(centerX, centerY)) {
                     val levelColor = if (kotlin.math.abs(state.horizonRollDegrees) <= 0.5f) C.Green else C.Yellow
-                    drawLine(levelColor.copy(alpha = 0.85f), Offset(190f * sx, centerY), Offset(947f * sx, centerY), 2.2f * u, StrokeCap.Round)
+                    drawLine(levelColor.copy(alpha = 0.85f), Offset(150f * sx, centerY), Offset(1008f * sx, centerY), 2.2f * u, StrokeCap.Round)
                     drawCircle(levelColor, 4f * u, Offset(centerX, centerY))
                 }
             }

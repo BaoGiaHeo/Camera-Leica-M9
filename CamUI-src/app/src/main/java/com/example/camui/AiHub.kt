@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
-import androidx.compose.material3.Text
 
 private val LunaCyan = Color(0xFF69EAF0)
 private val LunaMuted = Color(0xFFB9C5C8)

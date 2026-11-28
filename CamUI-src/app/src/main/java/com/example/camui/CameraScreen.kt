@@ -8801,18 +8801,20 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     )
                 }
             }
+            // Flash key belongs at the far upper-left corner of the reference body,
+            // not 150dp inside the preview. Keep it compact like the 3.1 reference glyph.
             Box(
-                Modifier.align(Alignment.TopStart).padding(start = 150.dp, top = 10.dp)
-                    .size(34.dp).clip(CircleShape)
+                Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp)
+                    .size(18.dp).clip(CircleShape)
                     .background(if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFFE3E3E3) else Color(0xFF303234))
-                    .border(1.dp, if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFF777777) else Color(0xFF737678), CircleShape)
+                    .border(0.8.dp, if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFF777777) else Color(0xFF737678), CircleShape)
                     .clickable {
                         torchEnabled = !torchEnabled
                         CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
                     },
                 contentAlignment = Alignment.Center
             ) {
-                FujiIconGlyph("flash", Modifier.size(22.dp), if (torchEnabled || lightUi) Color(0xFF242424) else Color.White)
+                FujiIconGlyph("flash", Modifier.size(11.dp), if (torchEnabled || lightUi) Color(0xFF242424) else Color.White)
             }
                 AnimatedVisibility(
             visible = showQuick,

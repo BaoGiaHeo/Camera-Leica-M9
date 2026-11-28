@@ -8866,6 +8866,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     }
                 },
                 selectedMode = lunaDreamMode,
+                targetHeightOverWidth = aspectRatioForOrientation(ratioIdx, isLandscape),
                 onSelectedModeChange = { selected ->
                     if (selected != "off" && nightShotMode != "off") {
                         Toast.makeText(context, "Hãy tắt Night Shot trước khi chọn LunaDream.", Toast.LENGTH_LONG).show()

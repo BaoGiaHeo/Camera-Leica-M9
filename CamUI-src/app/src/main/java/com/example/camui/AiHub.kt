@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import java.util.Locale
 
 
 @Composable
@@ -51,6 +52,7 @@ fun LunaDreamBottomSheet(
     onNightShotDurationChange: (Int) -> Unit,
     onNightShotToggle: (Boolean) -> Unit,
     selectedMode: String,
+    targetHeightOverWidth: Float,
     onSelectedModeChange: (String) -> Unit
 ) {
     val configuration = LocalConfiguration.current
@@ -97,7 +99,14 @@ fun LunaDreamBottomSheet(
                 lunaModes.forEach { (modeId, titleRes, subtitleRes) ->
                     val outputTarget = lunaDreamOutputTarget(modeId)
                         ?: error("Missing LunaDream output specification for $modeId")
-                    val resolutionLabel = outputTarget.resolutionLabel
+                    val outputDimensions = lunaDreamOutputDimensions(modeId, targetHeightOverWidth)
+                        ?: error("Could not calculate LunaDream output dimensions for $modeId")
+                    val resolutionLabel = String.format(
+                        Locale.US,
+                        "%,d × %,d px",
+                        outputDimensions.first,
+                        outputDimensions.second
+                    )
                     val megapixelsLabel = "${outputTarget.targetPixels / 1_000_000L} MP"
                     LunaDreamModeRow(
                         title = stringResource(titleRes),

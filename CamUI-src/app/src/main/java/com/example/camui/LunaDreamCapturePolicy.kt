@@ -1,17 +1,37 @@
 package com.example.camui
 
 internal data class LunaDreamOutputTarget(
-    val resolutionLabel: String,
     val targetPixels: Long
 )
 
 /** One source of truth for the model picker and the final JPEG output pipeline. */
 internal fun lunaDreamOutputTarget(modeId: String): LunaDreamOutputTarget? = when (modeId) {
-    "luna15" -> LunaDreamOutputTarget("FHD+", 50_000_000L)
-    "luna20" -> LunaDreamOutputTarget("UHD", 108_000_000L)
-    "luna25" -> LunaDreamOutputTarget("UHD+", 150_000_000L)
-    "luna30" -> LunaDreamOutputTarget("EUHD", Tuning.LUNA_DREAM_30_MAX_OUTPUT_PIXELS)
+    "luna15" -> LunaDreamOutputTarget(50_000_000L)
+    "luna20" -> LunaDreamOutputTarget(108_000_000L)
+    "luna25" -> LunaDreamOutputTarget(150_000_000L)
+    "luna30" -> LunaDreamOutputTarget(Tuning.LUNA_DREAM_30_MAX_OUTPUT_PIXELS)
     else -> null
+}
+
+/**
+ * Calculate the output dimensions using the same pure geometry function as the JPEG writer.
+ * The virtual source only supplies a center-crop rectangle; no bitmap is allocated here.
+ */
+internal fun lunaDreamOutputDimensions(
+    modeId: String,
+    targetHeightOverWidth: Float
+): Pair<Int, Int>? {
+    val target = lunaDreamOutputTarget(modeId) ?: return null
+    val safeRatio = targetHeightOverWidth.takeIf { it.isFinite() && it > 0f } ?: (3f / 4f)
+    val alignment = if (target.targetPixels >= Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS) 16 else 1
+    val geometry = PhotoOutputGeometry.calculate(
+        sourceWidth = 65_000,
+        sourceHeight = 65_000,
+        targetPixels = target.targetPixels,
+        targetHeightOverWidth = safeRatio,
+        dimensionAlignment = alignment
+    )
+    return geometry.outputWidth to geometry.outputHeight
 }
 
 /**

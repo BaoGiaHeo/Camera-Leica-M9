@@ -175,10 +175,10 @@ android.sourceSets.getByName("main").res.srcDir(kk7FontResourceDirectory.asFile)
 // The camera reference UI is bundled compressed so the whole source can be tracked as one
 // deterministic input. It is expanded into a generated Kotlin source directory before compile.
 val fuji320UiArchive = layout.projectDirectory.file("src/main/assets/fuji320_camera_ui.kt.gz.b64")
-val fuji320UiGeneratedDir = layout.buildDirectory.dir("generated/source/fuji320/main")
+val fuji320UiGeneratedSource = layout.projectDirectory.file("src/main/java/com/example/camui/CameraUi.kt")
 val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
     inputs.file(fuji320UiArchive)
-    outputs.file(fuji320UiGeneratedDir.map { it.file("com/example/camui/CameraUi.kt") })
+    outputs.file(fuji320UiGeneratedSource)
     doLast {
         val encoded = fuji320UiArchive.asFile.readText(Charsets.US_ASCII)
         val packed = Base64.getMimeDecoder().decode(encoded)
@@ -188,14 +188,12 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."
         }
-        val target = fuji320UiGeneratedDir.get().file("com/example/camui/CameraUi.kt").asFile
+        val target = fuji320UiGeneratedSource.asFile
         target.parentFile.mkdirs()
         target.writeText(source, Charsets.UTF_8)
     }
 }
-android.sourceSets.getByName("main").java.srcDir(fuji320UiGeneratedDir.get().asFile)
-// Kotlin Android compiles .kt from the Kotlin source set; register generated Compose UI there too.
-kotlin.sourceSets.getByName("main").kotlin.srcDir(fuji320UiGeneratedDir.get().asFile)
+// The generated CameraUi.kt is written into the regular main/java source tree before preBuild.
 
 val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
 val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")

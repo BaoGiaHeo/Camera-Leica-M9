@@ -750,11 +750,9 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
             rootOpen,
             """BoxWithConstraints(modifier.fillMaxSize().background(if (state.lightUi) Color(0xFFE6E6E6) else Color(0xFF080809))) {
         if (state.fullscreenPreview) {
-            Box(Modifier.fillMaxSize().background(Color.Black)) {
-                preview()
-                MetalButton(r(18f, 18f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
-                    Tx("×", fs(30f), C.White)
-                }
+            Box(Modifier.fillMaxSize().background(Color.Black)) { preview() }
+            MetalButton(r(18f, 18f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
+                Tx("×", fs(30f), C.White)
             }
         } else {
         Chrome()"""

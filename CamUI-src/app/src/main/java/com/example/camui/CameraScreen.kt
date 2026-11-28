@@ -8722,76 +8722,56 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             ) {
                 Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.Center) {
                     Text(
-                        "${shutterText}   ISO ${isoText}",
-                        color = Color.White, fontSize = 12.sp * designScale, fontWeight = FontWeight.Bold,
-                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                        "$shutterText   ISO $isoText",
+                        color = Color.White,
+                        fontSize = 12.sp * designScale,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FujiTypography.uiFontFamily(context),
+                        maxLines = 1
                     )
                     Text(
-                        "${toneText}   EV ${evText}",
-                        color = Color.White, fontSize = 10.sp * designScale,
-                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                        "$toneText   EV $evText",
+                        color = Color.White,
+                        fontSize = 10.sp * designScale,
+                        fontFamily = FujiTypography.uiFontFamily(context),
+                        maxLines = 1
                     )
                 }
                 Box(Modifier.width(1.dp).height(34.dp * designScale).background(Color.White.copy(alpha = 0.36f)))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                     Text(
-                        "${afText}  ·  ${previewFpsMode.uppercase()}",
-                        color = Color.White, fontSize = 10.sp * designScale, fontWeight = FontWeight.Bold,
-                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                        "$afText  ·  ${previewFpsMode.uppercase()}",
+                        color = Color.White,
+                        fontSize = 10.sp * designScale,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FujiTypography.uiFontFamily(context),
+                        maxLines = 1
                     )
                     Text(
-                        "${if (batteryPercent >= 0) batteryPercent else 0}%  ·  ${if (measuredBatteryTempC >= 0) measuredBatteryTempC.toString() + "°C" else "--°C"}",
-                        color = Color.White, fontSize = 10.sp * designScale,
-                        fontFamily = FujiTypography.uiFontFamily(context), maxLines = 1
+                        "$cameraHudClock",
+                        color = Color.White,
+                        fontSize = 9.sp * designScale,
+                        fontFamily = FujiTypography.uiFontFamily(context),
+                        maxLines = 1
                     )
                 }
-            }
-            } else {
-                Column(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.94f).height(72.dp * designScale)
-                        .clip(RoundedCornerShape(12.dp * designScale))
-                        .background(Color(0xB8000000))
-                        .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(12.dp * designScale))
-                        .padding(horizontal = 7.dp * designScale, vertical = 4.dp * designScale),
-                    verticalArrangement = Arrangement.spacedBy(3.dp * designScale)
-                ) {
-                    Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp * designScale)) {
-                        Column(Modifier.weight(0.85f), verticalArrangement = Arrangement.Center) {
-                            Text(shutterText, color = FujiCameraDesign.blue, fontSize = 12.sp * designScale, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text("SS", color = Color.White, fontSize = 7.sp * designScale)
-                        }
-                        Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 3.dp * designScale).background(Color.White.copy(alpha = 0.35f)))
-                        Column(Modifier.weight(1.15f), verticalArrangement = Arrangement.Center) {
-                            val apertureDisplay = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
-                                ?.let { "F%.1f".format(Locale.US, it) } ?: "F--"
-                            Text(apertureDisplay + " " + afText, color = Color.White, fontSize = 11.sp * designScale, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text("ISO " + isoText, color = Color.White, fontSize = 8.sp * designScale, maxLines = 1)
-                        }
-                        Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 3.dp * designScale).background(Color.White.copy(alpha = 0.35f)))
-                        Column(Modifier.weight(0.85f), verticalArrangement = Arrangement.Center) {
-                            Text(toneText, color = FujiCameraDesign.blue, fontSize = 11.sp * designScale, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text("WB", color = Color.White, fontSize = 7.sp * designScale)
-                        }
-                    }
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.35f)))
-                    Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp * designScale)) {
-                        Column(Modifier.weight(0.75f), verticalArrangement = Arrangement.Center) {
-                            Text("EV", color = Color.White, fontSize = 8.sp * designScale)
-                            Text(evText, color = Color.White, fontSize = 11.sp * designScale, fontWeight = FontWeight.Bold)
-                        }
-                        Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 3.dp * designScale).background(Color.White.copy(alpha = 0.35f)))
-                        Column(Modifier.weight(0.9f), verticalArrangement = Arrangement.Center) {
-                            Text((if (batteryPercent >= 0) batteryPercent else 0).toString() + "%", color = Color.White, fontSize = 10.sp * designScale, fontWeight = FontWeight.Bold)
-                            Text(if (batteryCharging) "SẠC" else "PIN", color = Color.White, fontSize = 7.sp * designScale)
-                        }
-                        Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 3.dp * designScale).background(Color.White.copy(alpha = 0.35f)))
-                        Column(Modifier.weight(1.0f), verticalArrangement = Arrangement.Center) {
-                            Text(if (measuredBatteryTempC >= 0) measuredBatteryTempC.toString() + "°C" else "--°C", color = Color.White, fontSize = 10.sp * designScale, fontWeight = FontWeight.Bold)
-                            Text(if (batteryWarningState.lowRed) "PIN THẤP" else "BATTERY: GOOD", color = if (batteryWarningState.lowRed) Color.Red else Color.White, fontSize = 7.sp * designScale, maxLines = 1)
-                        }
-                    }
+                Box(Modifier.width(1.dp).height(34.dp * designScale).background(Color.White.copy(alpha = 0.36f)))
+                Column(Modifier.weight(0.75f), verticalArrangement = Arrangement.Center) {
+                    Text(
+                        "${batteryPercent.coerceAtLeast(0)}%  ·  ${if (measuredBatteryTempC >= 0) measuredBatteryTempC.toString() + "°C" else "--°C"}",
+                        color = if (batteryWarningState.lowRed) Color(0xFFD8283C) else Color.White,
+                        fontSize = 9.sp * designScale,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FujiTypography.uiFontFamily(context),
+                        maxLines = 1
+                    )
+                    Text(
+                        if (batteryCharging) "ĐANG SẠC" else "BATTERY · GOOD",
+                        color = Color.White,
+                        fontSize = 8.sp * designScale,
+                        fontFamily = FujiTypography.uiFontFamily(context),
+                        maxLines = 1
+                    )
                 }
             }
             if (!hasCam) {
@@ -8827,7 +8807,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             val pxPerDp = androidx.compose.ui.platform.LocalDensity.current.density
 
             Column(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxWidth().height(0.dp))
                 Row(
                     Modifier.fillMaxWidth().weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(5.dp * designScale),
@@ -8841,7 +8820,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         Modifier.width(leftColumnWidth).fillMaxHeight()
                             .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                             .graphicsLayer { alpha = chromeAlpha }
-                    ) { leftHardwareContent(Modifier.fillMaxSize()) }
+                    ) {
+                        leftHardwareContent(Modifier.fillMaxSize())
+                    }
                     Box(
                         Modifier.width(rightColumnWidth).fillMaxHeight()
                             .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
@@ -8849,60 +8830,23 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                             .windowInsetsPadding(WindowInsets.tappableElement.only(WindowInsetsSides.Horizontal))
                             .graphicsLayer { alpha = chromeAlpha }
                             .onSizeChanged { Log.d("LUNA_LAYOUT", "RIGHT_COLUMN_310 ${it.width}px x ${it.height}px") }
-                    ) { rightHardwareContent(Modifier.fillMaxSize()) }
-                }
-                    // Portrait: camera viewfinder takes the upper area, then the three quick actions,
-                    // then EV/Settings/shutter/zoom controls and the FujiFilm footer.
-                    Column(
-                        Modifier.fillMaxWidth().weight(1f)
-                            .padding(horizontal = 7.dp * designScale, vertical = 4.dp * designScale),
-                        verticalArrangement = Arrangement.spacedBy(5.dp * designScale)
                     ) {
-                        lcdPreviewLayer(Modifier.weight(1f).fillMaxWidth())
-                        Box(
-                            Modifier.fillMaxWidth().height(76.dp * designScale)
-                                .graphicsLayer { alpha = chromeAlpha }
-                        ) {
-                            leftHardwareContent(Modifier.fillMaxSize())
-                        }
-                        Box(
-                            Modifier.fillMaxWidth().height(230.dp * designScale)
-                                .graphicsLayer { alpha = chromeAlpha }
-                        ) {
-                            rightHardwareContent(Modifier.fillMaxSize())
-                        }
-                        lcdLogoFooter(Modifier.fillMaxWidth())
+                        rightHardwareContent(Modifier.fillMaxSize())
                     }
                 }
             }
-                        if (torchEnabled || flash != ImageCapture.FLASH_MODE_OFF) {
-                Box(
-                    Modifier.align(Alignment.TopStart).padding(10.dp)
-                        .size(38.dp).clip(CircleShape)
-                        .background(if (torchEnabled) Color(0xFFF2C230) else Color(0xFF303234))
-                        .border(1.dp, if (torchEnabled) Color(0xFFF2C230) else Color(0xFF737678), CircleShape)
-                        .clickable {
-                            torchEnabled = !torchEnabled
-                            CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    FujiIconGlyph("flash", Modifier.size(22.dp), if (torchEnabled) Color(0xFF171717) else Color.White)
-                }
-            } else {
-                Box(
-                    Modifier.align(Alignment.TopStart).padding(10.dp)
-                        .size(38.dp).clip(CircleShape)
-                        .background(if (lightUi) Color(0xFFE3E3E3) else Color(0xFF303234))
-                        .border(1.dp, if (lightUi) Color(0xFF777777) else Color(0xFF737678), CircleShape)
-                        .clickable {
-                            torchEnabled = !torchEnabled
-                            CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    FujiIconGlyph("flash", Modifier.size(22.dp), if (lightUi) Color(0xFF242424) else Color.White)
-                }
+            Box(
+                Modifier.align(Alignment.TopStart).padding(10.dp)
+                    .size(38.dp).clip(CircleShape)
+                    .background(if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFFE3E3E3) else Color(0xFF303234))
+                    .border(1.dp, if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFF777777) else Color(0xFF737678), CircleShape)
+                    .clickable {
+                        torchEnabled = !torchEnabled
+                        CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                FujiIconGlyph("flash", Modifier.size(22.dp), if (torchEnabled || lightUi) Color(0xFF242424) else Color.White)
             }
                 AnimatedVisibility(
             visible = showQuick,
@@ -9035,7 +8979,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 }
             }
         }
-        if (showLunaDream        if (showLunaDream && !nativeImageProcessingEnabled && !livePhotoEnabled) {
+        if (showLunaDream && !nativeImageProcessingEnabled && !livePhotoEnabled) {
             LunaDreamBottomSheet(
                 onDismiss = { showLunaDream = false },
                 nightShotEnabled = nightShotMode == "night",

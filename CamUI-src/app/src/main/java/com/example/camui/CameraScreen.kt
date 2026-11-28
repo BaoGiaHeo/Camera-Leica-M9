@@ -8675,8 +8675,36 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 "luna20" -> "2.0"
                 else -> "3.0"
             }
+            val uiShutter01 = shutterRange?.let { range ->
+                val low = range.lower.toDouble().coerceAtLeast(1.0)
+                val high = range.upper.toDouble().coerceAtLeast(low)
+                val value = manualShutterNs.toDouble().coerceIn(low, high)
+                if (high > low) (ln(value / low) / ln(high / low)).toFloat().coerceIn(0f, 1f) else 0.5f
+            } ?: 0.5f
+            val uiIso01 = isoRange?.let { range ->
+                val low = range.lower.toDouble().coerceAtLeast(1.0)
+                val high = range.upper.toDouble().coerceAtLeast(low)
+                val value = manualIso.toDouble().coerceIn(low, high)
+                if (high > low) (ln(value / low) / ln(high / low)).toFloat().coerceIn(0f, 1f) else 0.5f
+            } ?: 0.5f
             val cameraUiState = CameraUiState(
                 ss = if (shutterText == "AUTO") "SS AUTO" else "SS$shutterText",
+                activeFilterId = activeFilter,
+                filterExpanded = filterDialogVisible,
+                filterRows = camera310FilterPresets,
+                filterCount = camera310FilterPresets.size,
+                lightUi = lightUi,
+                torchEnabled = torchEnabled,
+                shutter01 = uiShutter01,
+                iso01 = uiIso01,
+                kelvin01 = ((manualColorTemp - 2000) / 8000f).coerceIn(0f, 1f),
+                lunaSummary = if (lunaDreamMode == "off") "LunaDream: OFF" else "LunaDream: $uiLunaLabel",
+                cameraSummary = listOf(
+                    "Template: " + (measuredBatteryTempC.takeIf { it > 0 } ?: 29) + "°C",
+                    "CPU: -- | GPU: --",
+                    previewFpsMode.uppercase(),
+                    "30FPS"
+                ),
                 fNumber = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())
                     ?.let { "F%.1f".format(Locale.US, it) } ?: "F--",
                 iso = if (isoText == "AUTO") "ISO AUTO" else "ISO $isoText",
@@ -8718,6 +8746,39 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             )
             val cameraUiActions = CameraUiActions(
                 onMenu = { showQuick = !showQuick },
+                onTheme = {
+                    lightUi = !lightUi
+                    appPrefs.edit().putBoolean("camera_light_ui_enabled", lightUi).apply()
+                    CrashContextDiagnostics.recordUiEvent("CAMERA_THEME light=$lightUi")
+                },
+                onFlash = {
+                    torchEnabled = !torchEnabled
+                    CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
+                },
+                onFilterSelect = { selected ->
+                    activeFilter = selected
+                    appPrefs.edit().putString("selected_filter", selected).apply()
+                    filterDialogVisible = false
+                    CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_REQUESTED id=$selected")
+                },
+                onShutterFraction = { fraction -> queueManualShutterFraction(fraction) },
+                onIsoFraction = { fraction -> queueManualIsoFraction(fraction) },
+                onKelvinFraction = { fraction ->
+                    manualColorTemp = (2000 + (fraction.coerceIn(0f, 1f) * 8000f).roundToInt()).coerceIn(2000, 10000)
+                    manualColorTempEnabled = true
+                    camera?.let { active -> runCatching { applyManualWhiteBalance(active, manualColorTemp) } }
+                },
+                onSensorFinished = { commitManualSensorCommand() },
+                onZoomFinished = {
+                    zoomSliderCommitJob?.cancel()
+                    zoomBarRequests.trySend(zoomBarDrawRatio.floatValue to true)
+                },
+                onZoomStepTap = { direction ->
+                    animateZoomTo((zoomSel + direction * 0.08f).coerceIn(uiMinZoom, uiMaxZoom))
+                },
+                onZoomStep = { direction ->
+                    queueUiZoomTarget(zoomBarDrawRatio.floatValue * exp(direction * 0.65f / 60f))
+                },
                 onLeaf = {
                     uiLeafEnabled = !uiLeafEnabled
                     appPrefs.edit().putBoolean("battery_saver_enabled", uiLeafEnabled).apply()
@@ -8795,43 +8856,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 logo = painterResource(if (lightUi) R.drawable.fujifilm_logo_black else R.drawable.fujifilm_logo_white),
                 preview = { lcdPreviewLayer(Modifier.fillMaxSize()) }
             )
-            if (filterDialogVisible) {
-                Box(
-                    Modifier.fillMaxSize().background(Color(0x99000000)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Camera310FilterDropdown(
-                        visible = true,
-                        presets = camera310FilterPresets,
-                        activeFilter = activeFilter,
-                        lightMode = lightUi,
-                        modifier = Modifier.fillMaxWidth(0.84f).fillMaxHeight(0.84f),
-                        onDismiss = { filterDialogVisible = false },
-                        onSelect = { selected ->
-                            activeFilter = selected
-                            appPrefs.edit().putString("selected_filter", selected).apply()
-                            filterDialogVisible = false
-                            // Let the IO-backed activeFilter effect prepare and install the LUT.
-                            CrashContextDiagnostics.recordUiEvent("PREVIEW_FILTER_REQUESTED id=$selected")
-                        }
-                    )
-                }
-            }
-            // Flash key belongs at the far upper-left corner of the reference body,
-            // not 150dp inside the preview. Keep it compact like the 3.1 reference glyph.
-            Box(
-                Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp)
-                    .size(18.dp).clip(CircleShape)
-                    .background(if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFFE3E3E3) else Color(0xFF303234))
-                    .border(0.8.dp, if (torchEnabled) Color(0xFFF2C230) else if (lightUi) Color(0xFF777777) else Color(0xFF737678), CircleShape)
-                    .clickable {
-                        torchEnabled = !torchEnabled
-                        CrashContextDiagnostics.recordUiEvent("TORCH_CONTINUOUS state=$torchEnabled")
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                FujiIconGlyph("flash", Modifier.size(11.dp), if (torchEnabled || lightUi) Color(0xFF242424) else Color.White)
-            }
                 AnimatedVisibility(
             visible = showQuick,
             enter = AnimaT.enter(

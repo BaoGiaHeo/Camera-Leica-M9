@@ -342,7 +342,7 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
                     Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
                         Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
                         Spacer(Modifier.weight(1f))
-                        Tx("${state.filterCount}/${state.filterCount}", fs(16f), C.Green)
+                        Tx("\${state.filterCount}/\${state.filterCount}", fs(16f), C.Green)
                     }
                     CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
                     state.filterRows.forEach { row ->
@@ -374,7 +374,7 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
                     Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
                         Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
                         Spacer(Modifier.weight(1f))
-                        Tx("${state.filterCount}/${state.filterCount}", fs(16f), C.Green)
+                        Tx("\${state.filterCount}/\${state.filterCount}", fs(16f), C.Green)
                     }
                     CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
                     state.filterRows.forEach { row ->

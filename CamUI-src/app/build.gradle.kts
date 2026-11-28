@@ -186,20 +186,8 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         GZIPInputStream(ByteArrayInputStream(packed)).use { it.copyTo(output) }
         var source = output.toString(Charsets.UTF_8.name())
 
-        // The reference UI nests composable helpers outside BoxWithConstraints receiver
-        // scopes. Keep the size helpers as lexical local functions so nested components
-        // can call them without an unavailable implicit receiver.
-        val receiverFixes = listOf(
-            "BoxWithConstraintsScope.d(" to "d(",
-            "BoxWithConstraintsScope.fs(" to "fs(",
-            "BoxWithConstraintsScope.CameraFilterRow(" to "CameraFilterRow("
-        )
-        for ((before, after) in receiverFixes) {
-            check(source.contains(before)) {
-                "Fuji 3.2 UI receiver fix target was not found: $before"
-            }
-            source = source.replace(before, after)
-        }
+        // Keep BoxWithConstraintsScope receivers intact: d(), fs() and CameraFilterRow()
+        // read maxWidth/maxHeight, so stripping the receiver makes them uncompilable.
         if (!source.contains("import androidx.compose.foundation.layout.fillMaxWidth")) {
             source = source.replace(
                 "package com.example.camui",

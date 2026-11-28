@@ -328,6 +328,11 @@ fun FujiIconGlyph(
             }
         }
         when (name) {
+            "back" -> {
+                line(20f, 12f, 4f, 12f, 2.2.dp.toPx())
+                line(4f, 12f, 11f, 5f, 2.2.dp.toPx())
+                line(4f, 12f, 11f, 19f, 2.2.dp.toPx())
+            }
             "wrench" -> {
                 line(14f, 4f, 19f, 9f, 2.0.dp.toPx())
                 line(17.5f, 5.5f, 8f, 15f, 2.1.dp.toPx())

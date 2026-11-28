@@ -547,12 +547,30 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
                 else -> ""
             }, fs(21f), C.White, align = TextAlign.Start, family = FontFamily.SansSerif)"""
         )
-        check(source.startsWith("package com.example.camui"))
-        check(source.contains("Leather(leather, state.lightUi)"))
-        check(source.contains("state.timerMenuVisible"))
-        check(source.contains("BATTERY LOW"))
-        check(source.contains("state.horizonRollDegrees"))
-        check(!source.contains("a.onAeL()"))
+        // Preserve the fully transformed source even when a generator invariant fails;
+        // this is uploaded by the debug workflow so exact string anchors can be repaired.
+        val diagnosticGeneratedUi = fuji320UiGeneratedSource.asFile
+        diagnosticGeneratedUi.parentFile.mkdirs()
+        diagnosticGeneratedUi.writeText(source, Charsets.UTF_8)
+
+        check(source.startsWith("package com.example.camui")) {
+            "Fuji 4.0 generated source lost its Kotlin package declaration."
+        }
+        check(source.contains("Leather(leather, state.lightUi)")) {
+            "Fuji 4.0 right control panel did not receive its Leather background."
+        }
+        check(source.contains("state.timerMenuVisible")) {
+            "Fuji 4.0 timer menu was not inserted into CameraUi."
+        }
+        check(source.contains("BATTERY LOW")) {
+            "Fuji 4.0 battery warning HUD was not inserted into CameraUi."
+        }
+        check(source.contains("state.horizonRollDegrees")) {
+            "Fuji 4.0 horizon level overlay was not inserted into CameraUi."
+        }
+        check(!source.contains("a.onAeL()")) {
+            "Fuji 4.0 preview long-press still invokes the old AE lock callback."
+        }
         source = source.replace(
             """    val afState: AfState = AfState.IDLE,
 )""",

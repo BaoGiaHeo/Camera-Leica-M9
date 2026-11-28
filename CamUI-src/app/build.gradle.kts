@@ -456,7 +456,7 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         // The theme switch is in the narrow camera-body column, under Settings.
         val settingsButton = """        MetalButton(r(1050f, 406f, 82f, 82f), d(22f), onClick = actions.onSetting) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                IconMenu(Modifier.size(d(46f)), C.White)
+                IconMenu(Modifier.size(d(54f)), C.White)
             }
         }"""
         check(source.contains(settingsButton)) { "Fuji 3.2 Settings key anchor not found." }

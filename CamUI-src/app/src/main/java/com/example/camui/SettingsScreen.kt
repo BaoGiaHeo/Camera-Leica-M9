@@ -345,6 +345,40 @@ fun SettingsScreen(
 }
 
 @Composable
+private fun SettingsGroupRow(
+    title: String,
+    value: String,
+    icon: String,
+    onClick: () -> Unit,
+    description: String? = null
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp)
+            .clip(RoundedCornerShape(7.dp))
+            .background(Color(0xFF111C21))
+            .border(1.dp, Color(0xFF344B53), RoundedCornerShape(7.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 7.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier.size(27.dp).clip(RoundedCornerShape(5.dp))
+                    .background(Color(0xFF1B3036)),
+                contentAlignment = Alignment.Center
+            ) { FujiIconGlyph(icon, Modifier.size(15.dp), FujiSkin.lcdGreen) }
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Color(0xFFE8F0EF), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                if (description != null) {
+                    Text(description, color = CamColors.Sub, fontSize = 8.sp, lineHeight = 10.sp)
+                }
+            }
+            Text(value, color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("›", color = FujiSkin.lcdGreen, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 private fun SettingsDetailPage(
     title: String,
     onBack: () -> Unit,
@@ -493,9 +527,9 @@ var nightShotMode by remember {
             "Công cụ hỗ trợ" -> {
                 Text("Các lớp phủ màn ngắm được thiết lập trong Hộp công cụ.",
                     color = CamColors.Sub, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
-                FujiListRow("Hộp công cụ", "MỞ", onClick = onOpenToolbox, description = "Lưới · Cân bằng · Biểu đồ · Nét đỉnh · HUD")
-                FujiListRow("Quản lý LUT", "MỞ", onClick = onOpenContentsManagement, description = "Nhập và quản lý LUT")
-                FujiListRow("Nhật ký chẩn đoán", "MỞ", onClick = onOpenDiagnostics, description = "30 lần chụp gần nhất · xuất tệp TXT")
+                SettingsGroupRow("Hộp công cụ", "MỞ", "sliders", onClick = onOpenToolbox, description = "Lưới · Cân bằng · Biểu đồ · Nét đỉnh · HUD")
+                SettingsGroupRow("Quản lý LUT", "MỞ", "film", onClick = onOpenContentsManagement, description = "Nhập và quản lý LUT")
+                SettingsGroupRow("Nhật ký chẩn đoán", "MỞ", "display", onClick = onOpenDiagnostics, description = "30 lần chụp gần nhất · xuất tệp TXT")
             }
             "Lấy nét & Ống kính" -> {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -595,9 +629,9 @@ var nightShotMode by remember {
                 }
                 Text("Ảnh được lưu vào Pictures/FujifilmMode.",
                     color = CamColors.Sub, fontSize = 11.sp, modifier = Modifier.padding(top = 14.dp))
-                FujiListRow("Watermark", "MỞ", onClick = onOpenWatermarkPanel,
+                SettingsGroupRow("Watermark", "MỞ", "camera", onClick = onOpenWatermarkPanel,
                     description = "Bật/tắt, kiểu, nội dung, ngày giờ và vị trí")
-                FujiListRow("Sao lưu & Khôi phục", "SAO LƯU", onClick = onOpenBackup,
+                SettingsGroupRow("Sao lưu & Khôi phục", "SAO LƯU", "settings", onClick = onOpenBackup,
                     description = "Lưu hoặc nạp lại các thiết lập camera")
             }
             "Hiển thị / Giao diện", "Appearance" -> {

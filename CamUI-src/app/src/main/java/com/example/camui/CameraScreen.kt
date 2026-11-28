@@ -5555,7 +5555,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 shutter = shutterLabel,
                                                 iso = if (actualIso > 0) actualIso.toString() else "AUTO",
                                                 captureTimestampMillis = captureTimestampMillis,
-                                                forceSkipWatermark = false,
+                                                forceSkipWatermark = captureUseLunaDream30,
                                                 onStageDuration = { stage, duration ->
                                                     exportStageDurations[stage] = duration
                                                 }
@@ -5733,7 +5733,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
                                         onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
                                         captureTimestampMillis = captureTimestampMillis,
-                                        forceSkipWatermark = false
+                                        forceSkipWatermark = captureUseLunaDream
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs
@@ -8747,7 +8747,22 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 },
                 onAlbum = { onOpenAlbum(null) },
                 onFilter = { filterDialogVisible = true },
-                onLuna = { showLunaDream = true },
+                onLuna = {
+                    when {
+                        livePhotoEnabled -> localizedToast(
+                            context,
+                            "Vui lòng tắt Live Photo trước khi mở LunaDream.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        else -> {
+                            if (nativeImageProcessingEnabled) {
+                                nativeImageProcessingEnabled = false
+                                appPrefs.edit().putBoolean("native_image_processing_enabled", false).apply()
+                            }
+                            showLunaDream = true
+                        }
+                    }
+                },
                 onSetting = onOpenSettings,
                 onShutter = { takePhoto() },
                 onHoldStart = { startContinuousBurst() },

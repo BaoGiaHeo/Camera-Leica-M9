@@ -486,7 +486,8 @@ class MainActivity : AppCompatActivity() {
                         // The dim layer is independent from the panel; it never crossfades a full-screen camera.
                         Box(
                             Modifier.fillMaxSize()
-                                .background(ComposeColor.Black.copy(alpha = overlayDimAlpha.value))
+                                .graphicsLayer { alpha = overlayDimAlpha.value }
+                                .background(ComposeColor.Black)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null

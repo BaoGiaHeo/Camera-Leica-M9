@@ -1129,7 +1129,10 @@ fun CameraScreen(
     var activeFilter by remember { mutableStateOf(context.getSharedPreferences("fujifilm_settings", 0).getString("selected_filter", "None") ?: "None") }
     var lightUi by remember { mutableStateOf(appPrefs.getBoolean("camera_light_ui_enabled", false)) }
     val camera310FilterPresets = remember(context) {
-        builtInCameraLookPresetDefinitions.map { it.id to cameraLookDisplayName(context, it.id) }
+        builtInCameraLookPresetDefinitions.map { definition ->
+            val presetId = builtInCameraLookPreset(definition.id)
+            presetId to cameraLookDisplayName(context, presetId)
+        }
     }
     var filterPreviewSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val fallbackFilterPreviewBitmap = remember(context) { createFilmLookPreviewSample(context) }

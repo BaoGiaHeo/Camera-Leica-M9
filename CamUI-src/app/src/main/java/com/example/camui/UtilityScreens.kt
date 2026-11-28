@@ -889,7 +889,7 @@ fun WatermarkStudioScreen(onBack: () -> Unit) {
     var showNightLabel by remember { mutableStateOf(prefs.getBoolean("watermark_show_night", true)) }
     var showCopyright by remember { mutableStateOf(prefs.getBoolean("watermark_show_copyright", false)) }
     var showMegapixels by remember { mutableStateOf(prefs.getBoolean("watermark_show_megapixels", true)) }
-    var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", true)) }
+    var watermarkEnabled by remember { mutableStateOf(prefs.getBoolean("watermark_enabled", false)) }
     var customModel by remember { mutableStateOf(prefs.getString("watermark_custom_model", "") ?: "") }
     var customLocation by remember { mutableStateOf(prefs.getString("watermark_custom_location", "") ?: "") }
     var customCopyright by remember { mutableStateOf(prefs.getString("watermark_custom_copyright", "") ?: "") }
@@ -3157,7 +3157,7 @@ fun applyCameraWatermark(
     forceSkipWatermark: Boolean = false
 ): Boolean {
     val preferences = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-    val watermarkEnabled = !forceSkipWatermark && preferences.getBoolean("watermark_enabled", true)
+    val watermarkEnabled = !forceSkipWatermark && preferences.getBoolean("watermark_enabled", false)
     val filterPreset = preferences.getString("selected_filter", "None") ?: "None"
     val hasCustomAdjustments =
         kotlin.math.abs(preferences.getFloat("film_custom_highlight", 0f)) > 0.001f ||

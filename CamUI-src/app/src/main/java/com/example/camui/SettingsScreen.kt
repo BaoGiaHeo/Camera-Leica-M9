@@ -216,19 +216,40 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            FujiIconGlyph(
-                                item.icon,
-                                Modifier.size(22.dp),
-                                if (selected) Color(0xFF171A1B) else Color.White
-                            )
-                            Text(
-                                displayTabLabel(item),
-                                color = if (selected) Color(0xFF171A1B) else Color(0xFFE8EAEB),
-                                fontSize = 6.8.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                maxLines = 1,
-                                modifier = Modifier.weight(1f)
-                            )
+                            val label = displayTabLabel(item)
+                            val glyph = when (item.icon) {
+                                "tab_01" -> "wrench"
+                                "tab_04" -> "flash"
+                                "tab_05" -> "moon"
+                                "tab_06" -> "display"
+                                else -> item.icon
+                            }
+                            val textOnlyTab = item.icon == "tab_02" || item.icon == "tab_03" || item.icon == "tab_09"
+                            if (textOnlyTab) {
+                                Text(
+                                    label,
+                                    color = if (selected) Color(0xFF171A1B) else Color.White,
+                                    fontSize = if (item.icon == "tab_02") 8.sp else 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 1,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            } else {
+                                FujiIconGlyph(
+                                    glyph,
+                                    Modifier.size(22.dp),
+                                    if (selected) Color(0xFF171A1B) else Color.White
+                                )
+                                Text(
+                                    label,
+                                    color = if (selected) Color(0xFF171A1B) else Color(0xFFE8EAEB),
+                                    fontSize = 6.8.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                             if (selected) {
                                 Box(Modifier.size(5.dp).background(Color(0xFFD8283C), RoundedCornerShape(1.dp)))
                                 Text("◂", color = Color(0xFF171A1B), fontSize = 9.sp, fontWeight = FontWeight.Bold)

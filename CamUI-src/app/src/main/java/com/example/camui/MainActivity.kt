@@ -615,10 +615,10 @@ private fun FujifilmBootSplash() {
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(R.drawable.boot_screen_31),
+            painter = painterResource(R.drawable.fujifilm_wordmark),
             contentDescription = "FUJIFILM — màn khởi động",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
+            modifier = Modifier.fillMaxWidth(0.34f).height(72.dp),
+            contentScale = ContentScale.Fit
         )
     }
 }

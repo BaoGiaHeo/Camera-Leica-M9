@@ -5238,17 +5238,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                         "; merge/render is blocked and the original frame will be preserved"
                                                 )
                                             }
-                                            // 1.5 aims for five frames, but a three-frame stack is
-                                            // enough to complete a valid multi-frame result when the
-                                            // camera HAL rejects a late request. 2.0 keeps its prior rule.
-                                            val minimumFramesRequired = when {
-                                                captureUseNightShot && !stoppedForBattery -> maxFrames
-                                                captureUseLunaDream15 -> 3
-                                                // 3.0 is an eight-frame detail-recovery mode. Do not
-                                                // publish a nominal 3.0 result from a two-frame partial stack.
-                                                captureUseLunaDream30 -> 6
-                                                else -> 2
-                                            }
+                                            // Never publish a computational result with fewer frames than its selected mode.
+                                            // LunaDream 1.5 requires 5; LunaDream 2.0/3.0 and Night Shot require 8.
+                                            // If a capture stops early (camera/HAL, storage or critical battery),
+                                            // preserve the original JPEG instead of labelling a partial stack as complete.
+                                            val minimumFramesRequired = maxFrames
                                             lunaDreamCapturedFrameCount = stackedFrames.size
                                             if (captureUseLunaDream) {
                                                 LunaDreamDiagnostics.record(

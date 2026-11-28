@@ -8688,7 +8688,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 if (high > low) (ln(value / low) / ln(high / low)).toFloat().coerceIn(0f, 1f) else 0.5f
             } ?: 0.5f
             val cameraUiState = CameraUiState(
-                ss = if (shutterText == "AUTO") "SS AUTO" else "SS$shutterText",
+                ss = if (shutterText == "AUTO") "AUTO" else shutterText,
                 activeFilterId = activeFilter,
                 filterExpanded = filterDialogVisible,
                 filterRows = camera310FilterPresets,
@@ -8700,9 +8700,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 kelvin01 = ((manualColorTemp - 2000) / 8000f).coerceIn(0f, 1f),
                 lunaSummary = if (lunaDreamMode == "off") "LunaDream: OFF" else "LunaDream: $uiLunaLabel",
                 cameraSummary = listOf(
-                    "Template: " + (measuredBatteryTempC.takeIf { it > 0 } ?: 29) + "°C",
+                    "Template: " + (measuredBatteryTempC.takeIf { it > 0 } ?: 29) + "°C (GOOD)",
                     "CPU: -- | GPU: --",
-                    previewFpsMode.uppercase(),
+                    "1080P",
                     "30FPS"
                 ),
                 fNumber = (apertureValue.takeIf { it > 0f } ?: activeCameraDetails?.apertures?.minOrNull())

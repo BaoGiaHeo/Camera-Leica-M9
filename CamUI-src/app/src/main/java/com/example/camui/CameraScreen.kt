@@ -5312,7 +5312,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     }.getOrDefault(0L)
                                     val requestedPixels = Tuning.LUNA_DREAM_30_MAX_OUTPUT_PIXELS
                                     val outputDetails = "cameraMode=$mode; merged=$nightShotMerged; " +
-                                        "requestedPixels=$requestedPixels; actualPixels=$actualPixels; " +
+                                        "requestedPixels=$requestedPixels; minimumAcceptedPixels=${Tuning.LUNA_DREAM_30_MIN_OUTPUT_PIXELS}; " +
+                                        "actualPixels=$actualPixels; " +
                                         "memoryAdaptive=${outputResolutionResult != null && !outputResolutionResult.reachedRequestedSize}; " +
                                         "outputSizeApplied=$outputResolutionApplied"
                                     android.util.Log.i("FUJI_LUNADREAM_30", "OUTPUT_RESULT $outputDetails")

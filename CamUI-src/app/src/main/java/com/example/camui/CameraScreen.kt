@@ -1081,10 +1081,10 @@ fun CameraScreen(
             android.util.Log.d("FUJI_ZOOM_OSD", "SHOW reason=W_T generation=$observedGeneration")
         }
         zoomOverlayVisible = true
-        delay(1_200L)
+        delay(180L)
         if (zoomInteractionGeneration == observedGeneration) {
             zoomOverlayVisible = false
-            android.util.Log.d("FUJI_ZOOM_OSD", "HIDE idleMs=1200 generation=$observedGeneration")
+            android.util.Log.d("FUJI_ZOOM_OSD", "HIDE idleMs=180 generation=$observedGeneration")
         }
     }
     var zoomHoldDirection by remember { mutableIntStateOf(0) }
@@ -8721,6 +8721,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 val value = manualIso.toDouble().coerceIn(low, high)
                 if (high > low) (ln(value / low) / ln(high / low)).toFloat().coerceIn(0f, 1f) else 0.5f
             } ?: 0.5f
+            var lastUiDragTickMs by remember { mutableLongStateOf(0L) }
+            fun playUiDragTick() {
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastUiDragTickMs >= 75L) {
+                    lastUiDragTickMs = now
+                    FujiFeedback.dialClick(context)
+                }
+            }
             val cameraUiState = CameraUiState(
                 ss = if (shutterText == "AUTO") "AUTO" else shutterText,
                 activeFilterId = activeFilter,
@@ -8773,6 +8781,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 afLocked = focusLocked,
                 hideOsd = false,
                 fullscreenPreview = fullscreenPreview,
+                nightShotEnabled = nightShotMode == "night",
+                nightShotDurationSeconds = nightShotDurationSeconds,
                 filterOn = filterDialogVisible || activeFilter != "None",
                 lunaLabel = uiLunaLabel,
                 busy = isProcessing,
@@ -8810,6 +8820,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     CrashContextDiagnostics.recordUiEvent("CAMERA_ILLUMINATION mode=$nextMode")
                 },
                 onFilterSelect = { selected ->
+                    FujiFeedback.keyTick(context)
                     activeFilter = selected
                     appPrefs.edit().putString("selected_filter", selected).apply()
                     filterDialogVisible = false
@@ -8842,6 +8853,33 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 onFullscreenPreview = {
                     fullscreenPreview = !fullscreenPreview
                     if (fullscreenPreview) showQuick = false
+                },
+                onCycleNightShot = {
+                    if (isProcessing || nightShotCaptureInProgress || starTrailCaptureInProgress) {
+                        Toast.makeText(context, "Đang chụp hoặc xử lý ảnh.", Toast.LENGTH_SHORT).show()
+                    } else if (lunaDreamMode != "off" && nightShotMode != "night") {
+                        Toast.makeText(context, "Hãy tắt LunaDream trước khi bật Night Shot.", Toast.LENGTH_LONG).show()
+                    } else {
+                        val nextDuration = when {
+                            nightShotMode != "night" -> 3
+                            nightShotDurationSeconds == 3 -> 5
+                            nightShotDurationSeconds == 5 -> 10
+                            else -> 0
+                        }
+                        nightShotMode = if (nextDuration == 0) "off" else "night"
+                        if (nextDuration > 0) nightShotDurationSeconds = nextDuration
+                        appPrefs.edit()
+                            .putString("nightshot_mode", nightShotMode)
+                            .putInt("nightshot_duration_seconds", nightShotDurationSeconds)
+                            .apply()
+                        if (nightShotMode == "night") {
+                            showLunaDream = false
+                            showQuick = false
+                            localizedToast(context, "Night Shot " + nightShotDurationSeconds + "s · mục tiêu 8 FPS", Toast.LENGTH_SHORT).show()
+                        } else {
+                            localizedToast(context, "Night Shot đã tắt.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 },
                 onTimerSelect = { seconds ->
                     timerSec = seconds.coerceIn(0, 10)
@@ -8923,8 +8961,12 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         }
                     }
                 },
-                onFocusChange = { fraction -> queueManualFocusFraction(fraction) },
+                onFocusChange = { fraction ->
+                    playUiDragTick()
+                    queueManualFocusFraction(fraction)
+                },
                 onEvChange = { value ->
+                    playUiDragTick()
                     val step = evStep.takeIf { it > 0f } ?: (1f / 3f)
                     queueEvCommand((value / step).roundToInt())
                 },

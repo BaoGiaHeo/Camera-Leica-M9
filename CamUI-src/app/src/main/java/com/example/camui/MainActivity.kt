@@ -513,7 +513,7 @@ class MainActivity : AppCompatActivity() {
                                 ) {
                                     // Landscape LCD bounds from the supplied 924×427 reference:
                                     // x=6–57%, y=16–92.5%. Keep the live camera rendered behind it.
-                                    val settingsPanelModifier = Modifier.fillMaxSize().padding(12.dp)
+                                    val settingsPanelModifier = Modifier.fillMaxSize()
                                     SettingsScreen(
                                         onBack = { page = "camera" },
                                         onOpenToolbox = { settingsSubpageReturnTarget = "settings"; page = "toolbox" },

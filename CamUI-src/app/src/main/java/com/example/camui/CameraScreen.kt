@@ -320,26 +320,26 @@ private fun playConfiguredShutterSound(context: Context) {
     val player = runCatching {
         MediaPlayer.create(
             context,
-            R.raw.lunadream_shutter,
+            R.raw.fuji_mechanical_shutter_31,
             attributes,
             android.media.AudioManager.AUDIO_SESSION_ID_GENERATE
         )
     }.getOrNull()
     if (player == null) {
-        android.util.Log.w("LUNADREAM_SHUTTER", "Bundled shutter WAV could not be opened; using system fallback")
+        android.util.Log.w("LUNADREAM_SHUTTER", "Bundled mechanical shutter MP3 could not be opened; using system fallback")
         playSystemShutterFallback()
         return
     }
     player.setVolume(master, master)
     player.setOnCompletionListener { it.release() }
     player.setOnErrorListener { mediaPlayer, what, extra ->
-        android.util.Log.w("LUNADREAM_SHUTTER", "Shutter WAV playback failed: $what/$extra")
+        android.util.Log.w("LUNADREAM_SHUTTER", "Mechanical shutter MP3 playback failed: $what/$extra")
         mediaPlayer.release()
         playSystemShutterFallback()
         true
     }
     runCatching { player.start() }.onFailure {
-        android.util.Log.w("LUNADREAM_SHUTTER", "Could not start bundled shutter WAV", it)
+        android.util.Log.w("LUNADREAM_SHUTTER", "Could not start bundled mechanical shutter MP3", it)
         runCatching { player.release() }
         playSystemShutterFallback()
     }

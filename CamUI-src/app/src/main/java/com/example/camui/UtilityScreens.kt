@@ -3164,6 +3164,9 @@ fun applyCameraWatermark(
         kotlin.math.abs(preferences.getFloat("film_custom_shadow", 0f)) > 0.001f ||
         preferences.getFloat("film_custom_color_chrome", 0f) > 0.001f ||
         preferences.getFloat("film_custom_grain", 0f) > 0.001f ||
+        preferences.getFloat("film_custom_sharpness", 0f) > 0.001f ||
+        preferences.getFloat("film_custom_noise_reduction", 0f) > 0.001f ||
+        kotlin.math.abs(preferences.getFloat("film_filter_intensity", 1f) - 1f) > 0.001f ||
         kotlin.math.abs(preferences.getFloat("film_custom_temperature", 0f)) > 0.001f ||
         kotlin.math.abs(preferences.getFloat("film_custom_tone", 0f)) > 0.001f ||
         kotlin.math.abs(preferences.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||

@@ -89,25 +89,14 @@ internal class DigitalZoomPreviewEffect {
             }
 
             half4 main(float2 coord) {
+                // Preview zoom is a live interaction: let the GPU texture sampler perform
+                // bilinear reconstruction. The former 6x6 Lanczos loop evaluated 36 samples
+                // per output pixel and caused visible frame stalls while dragging W/T.
                 float safeScale = max(cropScale, 1.0);
                 float2 center = viewSize * 0.5;
                 float2 source = (coord - center) / safeScale + center;
-                float2 base = floor(source);
-                half4 accum = half4(0.0);
-                float weightSum = 0.0;
-
-                for (int iy = -2; iy <= 3; iy++) {
-                    float sy = clamp(base.y + float(iy), 0.0, viewSize.y - 1.0);
-                    float wy = lanczos3(source.y - (base.y + float(iy)));
-                    for (int ix = -2; ix <= 3; ix++) {
-                        float sx = clamp(base.x + float(ix), 0.0, viewSize.x - 1.0);
-                        float wx = lanczos3(source.x - (base.x + float(ix)));
-                        float weight = wx * wy;
-                        accum += inputShader.eval(float2(sx, sy)) * half(weight);
-                        weightSum += weight;
-                    }
-                }
-                return accum / half(max(weightSum, 0.00001));
+                source = clamp(source, float2(0.5), viewSize - float2(0.5));
+                return inputShader.eval(source);
             }
         """
     }

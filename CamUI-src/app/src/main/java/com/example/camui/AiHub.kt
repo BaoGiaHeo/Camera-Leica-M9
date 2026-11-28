@@ -68,8 +68,8 @@ fun LunaDreamBottomSheet(
             exit = fadeOut(tween(180)) + slideOutHorizontally(targetOffsetX = { it / 24 }, animationSpec = tween(180))
         ) {
         FujiPanel(
-            title = "LUNADREAM",
-            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = maxPanelHeight),
+            title = "LUNADREAM ENGINE",
+            modifier = Modifier.fillMaxSize().padding(10.dp),
             onBack = onDismiss
         ) {
             Column(
@@ -96,34 +96,54 @@ fun LunaDreamBottomSheet(
                     Triple("luna25", R.string.lunadream_25_title, R.string.lunadream_25_subtitle),
                     Triple("luna30", R.string.lunadream_30_title, R.string.lunadream_30_subtitle)
                 )
-                lunaModes.forEach { (modeId, titleRes, subtitleRes) ->
-                    val outputTarget = lunaDreamOutputTarget(modeId)
-                        ?: error("Missing LunaDream output specification for $modeId")
-                    val outputDimensions = lunaDreamOutputDimensions(modeId, targetHeightOverWidth)
-                        ?: error("Could not calculate LunaDream output dimensions for $modeId")
-                    val resolutionLabel = String.format(
-                        Locale.US,
-                        "%,d × %,d px",
-                        outputDimensions.first,
-                        outputDimensions.second
-                    )
-                    val megapixelsLabel = "${outputTarget.targetPixels / 1_000_000L} MP"
-                    LunaDreamModeRow(
-                        title = stringResource(titleRes),
-                        subtitle = stringResource(subtitleRes),
-                        resolutionLabel = resolutionLabel,
-                        megapixelsLabel = megapixelsLabel,
-                        selected = selectedMode == modeId,
-                        enabled = !nightShotEnabled,
-                        intensity = when (modeId) {
-                            "luna15" -> 0.58f
-                            "luna20" -> 0.82f
-                            "luna25" -> 0.92f
-                            else -> 1f
-                        },
-                        phase = 0f,
-                        onCheckedChange = { onSelectedModeChange(if (it) modeId else "off") }
-                    )
+                lunaModes.chunked(2).forEach { modelPair ->
+                    Row(
+                        Modifier.fillMaxWidth().weight(1f, fill = false),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        modelPair.forEach { (modeId, titleRes, subtitleRes) ->
+                            val outputTarget = lunaDreamOutputTarget(modeId)
+                                ?: error("Missing LunaDream output specification for $modeId")
+                            val outputDimensions = lunaDreamOutputDimensions(modeId, targetHeightOverWidth)
+                                ?: error("Could not calculate LunaDream output dimensions for $modeId")
+                            val resolutionLabel = String.format(
+                                Locale.US,
+                                "%,d × %,d px",
+                                outputDimensions.first,
+                                outputDimensions.second
+                            )
+                            val megapixelsLabel = "${outputTarget.targetPixels / 1_000_000L} MP"
+                            Box(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(Color(0xFF27292B))
+                                    .border(
+                                        1.2.dp,
+                                        if (selectedMode == modeId) Color(0xFFF0A030) else Color(0xFF66696B),
+                                        RoundedCornerShape(18.dp)
+                                    )
+                                    .padding(7.dp)
+                            ) {
+                                LunaDreamModeRow(
+                                    title = stringResource(titleRes),
+                                    subtitle = stringResource(subtitleRes),
+                                    resolutionLabel = resolutionLabel,
+                                    megapixelsLabel = megapixelsLabel,
+                                    selected = selectedMode == modeId,
+                                    enabled = !nightShotEnabled,
+                                    intensity = when (modeId) {
+                                        "luna15" -> 0.58f
+                                        "luna20" -> 0.82f
+                                        "luna25" -> 0.92f
+                                        else -> 1f
+                                    },
+                                    phase = 0f,
+                                    onCheckedChange = { onSelectedModeChange(if (it) modeId else "off") }
+                                )
+                            }
+                        }
+                        if (modelPair.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
                 Text(
                     if (selectedMode == "off") "LUNADREAM ĐANG TẮT" else "LUNADREAM · ${selectedMode.uppercase()}",
@@ -131,68 +151,19 @@ fun LunaDreamBottomSheet(
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF354247)))
-                Row(
-                    Modifier.fillMaxWidth().background(Color(0xFF101516))
-                        .border(1.dp, if (nightShotEnabled) FujiSkin.orange else Color(0xFF344247), RoundedCornerShape(3.dp))
-                        .padding(horizontal = 10.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("NIGHT SHOT", color = if (selectedMode == "off") Color.White else Color.White.copy(alpha = 0.42f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            if (selectedMode == "off") "Chụp đêm và Star Trails dùng quy trình xử lý riêng."
-                            else "Đang chọn LunaDream. Tắt mô hình trước khi dùng Night Shot.",
-                            color = FujiSkin.muted.copy(alpha = if (selectedMode == "off") 1f else 0.55f),
-                            fontSize = 9.sp,
-                            lineHeight = 13.sp
-                        )
-                    }
-                    Box {
-                        FujiSwitch(
-                            checked = nightShotEnabled,
-                            onCheckedChange = { enabled ->
-                                if (selectedMode == "off") onNightShotToggle(enabled)
-                            }
-                        )
-                        if (selectedMode != "off") {
-                            Box(
-                                Modifier.matchParentSize()
-                                    .clickable(
-                                        interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null
-                                    ) { }
-                            )
-                        }
-                    }
-                }
-                if (nightShotEnabled) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        listOf(5, 10, 3).forEach { seconds ->
-                            FujiChip(
-                                text = "${seconds}s",
-                                selected = nightShotDurationSeconds == seconds,
-                                onClick = {
-                                    if (nightShotDurationSeconds != seconds) onNightShotDurationChange(seconds)
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF55585A)))
                 Text(
-                    if (nightShotEnabled) "NIGHT SHOT · BẬT · ${nightShotDurationSeconds}s" else "NIGHT SHOT · TẮT",
-                    color = if (nightShotEnabled) FujiSkin.orange else FujiSkin.muted,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold
+                    "LunaDream ghép nhiều khung hình, căn chỉnh chuyển động và xuất ảnh độ phân giải cao. Giữ máy ổn định khi chụp.",
+                    color = Color(0xFFD5D7D8),
+                    fontSize = 10.sp,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.fillMaxWidth().background(Color(0xFF202224), RoundedCornerShape(12.dp)).padding(12.dp)
                 )
                 Text(
-                    "Milky Way được bật/tắt trong Cài đặt → Chụp đêm.",
-                    color = FujiSkin.muted,
-                    fontSize = 9.sp
+                    if (selectedMode == "off") "CHƯA CHỌN MÔ HÌNH" else "ĐANG CHỌN · ${selectedMode.uppercase()}",
+                    color = Color(0xFFF0A030),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold
                 )
             }
         }

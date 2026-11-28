@@ -2753,76 +2753,86 @@ private fun applyCameraLookPixels(
     val width = bitmap.width
     val height = bitmap.height
     val radius = params.spatialRadius(width, height)
-    // A small ring buffer keeps the same proportional neighbourhood without cloning
-    // a full 12–50 MP image into another 50–200 MB bitmap.
-    val rowRing = Array(radius * 2 + 1) { IntArray(width) }
+    val ringSize = radius * 2 + 1
+
+    // Cache the LUT/tone/color result for each source pixel once. The previous
+    // implementation recalculated that same sample for centre/north/south/west/east
+    // up to five times per output pixel. Keeping transformed RGB rows in a small ring
+    // preserves the identical edge-aware neighbourhood equation while avoiding the
+    // repeated 3D LUT interpolation that made saved filtered photos slow.
+    val rawRows = Array(ringSize) { IntArray(width) }
+    val redRows = Array(ringSize) { FloatArray(width) }
+    val greenRows = Array(ringSize) { FloatArray(width) }
+    val blueRows = Array(ringSize) { FloatArray(width) }
     val outputRow = IntArray(width)
     val lutSample = FloatArray(3)
-    val center = FloatArray(3)
-    val north = FloatArray(3)
-    val south = FloatArray(3)
-    val west = FloatArray(3)
-    val east = FloatArray(3)
+    val transformed = FloatArray(3)
 
-    for (slot in rowRing.indices) {
-        val sourceY = (slot - radius).coerceIn(0, height - 1)
-        bitmap.getPixels(rowRing[slot], 0, width, 0, sourceY, width, 1)
+    fun loadTransformedRow(slot: Int, sourceY: Int) {
+        val raw = rawRows[slot]
+        bitmap.getPixels(raw, 0, width, 0, sourceY, width, 1)
+        val reds = redRows[slot]
+        val greens = greenRows[slot]
+        val blues = blueRows[slot]
+        for (x in 0 until width) {
+            val pixel = raw[x]
+            applyColorPipelinePixel(
+                AndroidColor.red(pixel) / 255f,
+                AndroidColor.green(pixel) / 255f,
+                AndroidColor.blue(pixel) / 255f,
+                cube,
+                params,
+                lutSample,
+                transformed
+            )
+            reds[x] = transformed[0]
+            greens[x] = transformed[1]
+            blues[x] = transformed[2]
+        }
+    }
+
+    for (slot in 0 until ringSize) {
+        loadTransformedRow(slot, (slot - radius).coerceIn(0, height - 1))
     }
 
     for (y in 0 until height) {
-        val rowAbove = rowRing[0]
-        val rowCurrent = rowRing[radius]
-        val rowBelow = rowRing[rowRing.lastIndex]
+        val northRed = redRows[0]
+        val northGreen = greenRows[0]
+        val northBlue = blueRows[0]
+        val centerRed = redRows[radius]
+        val centerGreen = greenRows[radius]
+        val centerBlue = blueRows[radius]
+        val southRed = redRows[ringSize - 1]
+        val southGreen = greenRows[ringSize - 1]
+        val southBlue = blueRows[ringSize - 1]
+        val rawCenter = rawRows[radius]
+
         for (x in 0 until width) {
-            val centerPixel = rowCurrent[x]
-            val northPixel = rowAbove[x]
-            val southPixel = rowBelow[x]
-            val westPixel = rowCurrent[(x - radius).coerceAtLeast(0)]
-            val eastPixel = rowCurrent[(x + radius).coerceAtMost(width - 1)]
+            val left = (x - radius).coerceAtLeast(0)
+            val right = (x + radius).coerceAtMost(width - 1)
+            val centerR = centerRed[x]
+            val centerG = centerGreen[x]
+            val centerB = centerBlue[x]
 
-            applyColorPipelinePixel(
-                AndroidColor.red(centerPixel) / 255f,
-                AndroidColor.green(centerPixel) / 255f,
-                AndroidColor.blue(centerPixel) / 255f,
-                cube, params, lutSample, center
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(northPixel) / 255f,
-                AndroidColor.green(northPixel) / 255f,
-                AndroidColor.blue(northPixel) / 255f,
-                cube, params, lutSample, north
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(southPixel) / 255f,
-                AndroidColor.green(southPixel) / 255f,
-                AndroidColor.blue(southPixel) / 255f,
-                cube, params, lutSample, south
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(westPixel) / 255f,
-                AndroidColor.green(westPixel) / 255f,
-                AndroidColor.blue(westPixel) / 255f,
-                cube, params, lutSample, west
-            )
-            applyColorPipelinePixel(
-                AndroidColor.red(eastPixel) / 255f,
-                AndroidColor.green(eastPixel) / 255f,
-                AndroidColor.blue(eastPixel) / 255f,
-                cube, params, lutSample, east
-            )
+            val averageRed = (
+                centerR * 4f + northRed[x] + southRed[x] + centerRed[left] + centerRed[right]
+            ) * 0.125f
+            val averageGreen = (
+                centerG * 4f + northGreen[x] + southGreen[x] + centerGreen[left] + centerGreen[right]
+            ) * 0.125f
+            val averageBlue = (
+                centerB * 4f + northBlue[x] + southBlue[x] + centerBlue[left] + centerBlue[right]
+            ) * 0.125f
 
-            val alpha = AndroidColor.alpha(centerPixel)
-            val averageRed = (center[0] * 4f + north[0] + south[0] + west[0] + east[0]) * 0.125f
-            val averageGreen = (center[1] * 4f + north[1] + south[1] + west[1] + east[1]) * 0.125f
-            val averageBlue = (center[2] * 4f + north[2] + south[2] + west[2] + east[2]) * 0.125f
-            val resultRed = center[0] + (averageRed - center[0]) * params.noiseReduction +
-                (center[0] - averageRed) * params.sharpness * 0.85f
-            val resultGreen = center[1] + (averageGreen - center[1]) * params.noiseReduction +
-                (center[1] - averageGreen) * params.sharpness * 0.85f
-            val resultBlue = center[2] + (averageBlue - center[2]) * params.noiseReduction +
-                (center[2] - averageBlue) * params.sharpness * 0.85f
+            val resultRed = centerR + (averageRed - centerR) * params.noiseReduction +
+                (centerR - averageRed) * params.sharpness * 0.85f
+            val resultGreen = centerG + (averageGreen - centerG) * params.noiseReduction +
+                (centerG - averageGreen) * params.sharpness * 0.85f
+            val resultBlue = centerB + (averageBlue - centerB) * params.noiseReduction +
+                (centerB - averageBlue) * params.sharpness * 0.85f
+
             outputRow[x] = AndroidColor.argb(
-                alpha,
+                AndroidColor.alpha(rawCenter[x]),
                 clamp8(resultRed.coerceIn(0f, 1f) * 255f),
                 clamp8(resultGreen.coerceIn(0f, 1f) * 255f),
                 clamp8(resultBlue.coerceIn(0f, 1f) * 255f)
@@ -2831,11 +2841,22 @@ private fun applyCameraLookPixels(
         bitmap.setPixels(outputRow, 0, width, 0, y, width, 1)
 
         if (y < height - 1) {
-            val recycledRow = rowRing[0]
-            for (slot in 0 until rowRing.lastIndex) rowRing[slot] = rowRing[slot + 1]
-            rowRing[rowRing.lastIndex] = recycledRow
-            val nextSourceY = (y + radius + 1).coerceAtMost(height - 1)
-            bitmap.getPixels(rowRing[rowRing.lastIndex], 0, width, 0, nextSourceY, width, 1)
+            val recycledRaw = rawRows[0]
+            for (slot in 0 until ringSize - 1) rawRows[slot] = rawRows[slot + 1]
+            rawRows[ringSize - 1] = recycledRaw
+
+            val recycledRed = redRows[0]
+            val recycledGreen = greenRows[0]
+            val recycledBlue = blueRows[0]
+            for (slot in 0 until ringSize - 1) {
+                redRows[slot] = redRows[slot + 1]
+                greenRows[slot] = greenRows[slot + 1]
+                blueRows[slot] = blueRows[slot + 1]
+            }
+            redRows[ringSize - 1] = recycledRed
+            greenRows[ringSize - 1] = recycledGreen
+            blueRows[ringSize - 1] = recycledBlue
+            loadTransformedRow(ringSize - 1, (y + radius + 1).coerceAtMost(height - 1))
         }
     }
     return true

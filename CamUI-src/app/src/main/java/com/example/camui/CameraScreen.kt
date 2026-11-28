@@ -402,6 +402,104 @@ private suspend fun saveBurstFrame(
     })
 }
 
+private data class FujifilmBurstFrameRequest(
+    val frameIndex: Int,
+    val uri: Uri?,
+    val captureTimestampMillis: Long,
+    val requestElapsedRealtimeMs: Long
+)
+
+private data class FujifilmBurstFrameFinalization(
+    val published: Boolean,
+    val watermarkEnabled: Boolean,
+    val watermarkPrinted: Boolean,
+    val width: Int,
+    val height: Int,
+    val stageTimesMs: Map<String, Long>,
+    val errorMessage: String?
+)
+
+private suspend fun finalizeFujifilmBurstFrame(
+    context: Context,
+    uri: Uri,
+    focal: String,
+    aperture: String,
+    shutter: String,
+    iso: String,
+    captureTimestampMillis: Long,
+    captureLatencyMs: Long
+): FujifilmBurstFrameFinalization = withContext(Dispatchers.IO) {
+    val stageTimes = linkedMapOf<String, Long>()
+    stageTimes["Chụp"] = captureLatencyMs.coerceAtLeast(0L)
+    val watermarkEnabled = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        .getBoolean("watermark_enabled", true)
+    val watermarkStartedAt = SystemClock.elapsedRealtime()
+    runCatching {
+        WatermarkFinalizer.ensure(
+            context = context,
+            uri = uri,
+            focal = focal,
+            aperture = aperture,
+            shutter = shutter,
+            iso = iso,
+            captureTimestampMillis = captureTimestampMillis,
+            onStageDuration = { stage, duration -> stageTimes[stage] = duration }
+        )
+    }.onFailure {
+        android.util.Log.e("FUJI_BURST", "Watermark/filter finalization failed for frame $uri", it)
+    }
+    if (stageTimes["Watermark"] == null) {
+        stageTimes["Watermark"] = SystemClock.elapsedRealtime() - watermarkStartedAt
+    }
+
+    val marker = runCatching { ImageSink.readWatermarkMarker(context, uri) }.getOrNull()
+    val watermarkPrinted = watermarkEnabled && marker == "FM-WM=1" &&
+        runCatching { ImageSink.verifyStoredWatermark(context, uri) }.getOrDefault(false)
+    val watermarkDecisionVerified = if (watermarkEnabled) watermarkPrinted else marker == "FM-WM=0"
+    val errors = ArrayList<String>()
+    if (!watermarkDecisionVerified) {
+        errors += "watermark/LUT chưa xác minh"
+        CaptureDiagnostics.recordWarning(
+            context,
+            "Khung Burst chưa xác minh được watermark/LUT: frame=$uri enabled=$watermarkEnabled marker=$marker."
+        )
+    }
+
+    val metadataStartedAt = SystemClock.elapsedRealtime()
+    val metadataPublished = runCatching { finalizeCapturedImageMetadata(context, uri) }.getOrDefault(false)
+    stageTimes["Metadata"] = SystemClock.elapsedRealtime() - metadataStartedAt
+    if (!metadataPublished) {
+        errors += "metadata chưa xác minh"
+        CaptureDiagnostics.recordWarning(context, "Không xác minh được metadata cho khung Burst $uri.")
+    }
+
+    val publishStartedAt = SystemClock.elapsedRealtime()
+    val published = runCatching {
+        context.contentResolver.update(
+            uri,
+            ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+            null,
+            null
+        ) > 0
+    }.onFailure {
+        android.util.Log.e("FUJI_BURST", "Could not publish finalized burst frame $uri", it)
+    }.getOrDefault(false)
+    stageTimes["Ghi file"] = SystemClock.elapsedRealtime() - publishStartedAt
+    if (!published) errors += "MediaStore không công bố được ảnh"
+
+    val dimensions = runCatching { CaptureDiagnostics.readImageDimensions(context, uri) }
+        .getOrDefault(0 to 0)
+    FujifilmBurstFrameFinalization(
+        published = published,
+        watermarkEnabled = watermarkEnabled,
+        watermarkPrinted = watermarkPrinted,
+        width = dimensions.first,
+        height = dimensions.second,
+        stageTimesMs = stageTimes,
+        errorMessage = errors.takeIf { it.isNotEmpty() }?.joinToString("; ")
+    )
+}
+
 /** Select the nearest supported native JPEG size around the 12.5MP Photo target. */
 private fun preferredPhotoJpegSize(
     context: Context,
@@ -850,7 +948,10 @@ fun CameraScreen(
     var proHudShowWhiteBalance by remember { mutableStateOf(appPrefs.getBoolean("pro_hud_show_white_balance", true)) }
     var mode by remember { mutableStateOf("Pro") }
     LaunchedEffect(Unit) { appPrefs.edit().putString("camera_mode", "Pro").apply() }
-    val burstMode = false
+    var burstMode by remember { mutableStateOf(false) }
+    var burstStopRequested by remember { mutableStateOf(false) }
+    var burstFrameCount by remember { mutableIntStateOf(0) }
+    var burstSessionJob by remember { mutableStateOf<Job?>(null) }
     var hdrBracketMode by remember {
         mutableStateOf(appPrefs.getBoolean("hdr_bracketing_enabled", false))
     }
@@ -3912,7 +4013,229 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         }
     }
 
+    fun startContinuousBurst() {
+        if (burstMode || burstSessionJob?.isActive == true) return
+        if (lunaDreamMode != "off" || rawCaptureMode == "raw_dream") {
+            localizedToast(
+                context,
+                "LunaDream chạy loạt bằng một lần bấm; không hỗ trợ nhấn giữ Burst.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        if (nightShotMode == "star_trails" || starTrailCaptureInProgress) {
+            localizedToast(context, "Star Trails có nút dừng riêng; không dùng Burst nhấn giữ.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val activeCapture = imageCapture
+        val activeCamera = camera
+        val unsupported = when {
+            !captureSetupReady || activeCapture == null || activeCamera == null -> "Camera chưa sẵn sàng."
+            isProcessing || livePhotoCaptureInProgress || nightShotCaptureInProgress || bracketCaptureActive ->
+                "Camera đang xử lý một tác vụ khác."
+            timerSec > 0 -> "Hãy tắt Hẹn giờ trước khi chụp liên tục."
+            hdrBracketMode || focusBracketMode -> "Hãy tắt Bracketing trước khi chụp liên tục."
+            rawCaptureMode != "jpeg" || activeCapture.outputFormat != ImageCapture.OUTPUT_FORMAT_JPEG ->
+                "Burst cần định dạng JPEG thường; hãy tắt RAW/RAW+JPEG."
+            livePhotoEnabled -> "Burst chưa hỗ trợ Live Photo."
+            else -> null
+        }
+        if (unsupported != null) {
+            localizedToast(context, unsupported, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val captureInfo = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
+        val focal = captureInfo?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+            ?.firstOrNull()?.let { "%.1f mm".format(Locale.US, it) } ?: ""
+        val aperture = captureInfo?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
+            ?.firstOrNull()?.let { "f/%.1f".format(Locale.US, it) } ?: ""
+        val actualIso = if (manualIsoEnabled) manualIso else iso
+        val actualShutterNs = if (manualShutterEnabled) manualShutterNs else shutterNs
+        val shutterLabel = if (actualShutterNs > 0L) {
+            val seconds = actualShutterNs / 1_000_000_000.0
+            if (seconds >= 0.5) "%.1fs".format(Locale.US, seconds)
+            else "1/" + (1.0 / seconds).roundToInt() + "s"
+        } else ""
+        val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val originalFlashMode = activeCapture.flashMode
+        val burstStartedAtMs = SystemClock.elapsedRealtime()
+        val hudCountAtStart = UiRecompositionCounters.hudCompositionCount()
+        val zoomCountAtStart = UiRecompositionCounters.zoomCompositionCount()
+        val droppedReportsAtStart = CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount()
+        val aeAtStart = aeLocked
+        val afAtStart = focusLocked
+
+        burstStopRequested = false
+        burstFrameCount = 0
+        burstMode = true
+        aeLockedAtCapture = aeAtStart
+        afLockedAtCapture = afAtStart
+        CrashContextDiagnostics.recordUiEvent(
+            "BURST_START queueCapacity=6 requestIntervalMs=200 mode=${if (nightShotMode == "night") "Night Shot" else "Pro"} AE-L=$aeAtStart AF-L=$afAtStart"
+        )
+
+        burstSessionJob = scope.launch {
+            val pending = ArrayDeque<Deferred<FujifilmBurstFrameRequest>>()
+            var submittedFrames = 0
+            var finalizedFrames = 0
+            var failedFrames = 0
+            var firstFrameTimestampMs: Long? = null
+
+            suspend fun finishFrame(frame: FujifilmBurstFrameRequest) {
+                val uri = frame.uri
+                if (uri == null) {
+                    failedFrames++
+                    android.util.Log.w("FUJI_BURST", "Frame ${frame.frameIndex + 1} failed before MediaStore save")
+                    return
+                }
+                val finished = finalizeFujifilmBurstFrame(
+                    context = context,
+                    uri = uri,
+                    focal = focal,
+                    aperture = aperture,
+                    shutter = shutterLabel,
+                    iso = if (actualIso > 0) actualIso.toString() else "AUTO",
+                    captureTimestampMillis = frame.captureTimestampMillis,
+                    captureLatencyMs = SystemClock.elapsedRealtime() - frame.requestElapsedRealtimeMs
+                )
+                if (!finished.published) {
+                    failedFrames++
+                    CaptureDiagnostics.recordWarning(
+                        context,
+                        "Burst khung ${frame.frameIndex + 1} chưa được công bố: ${finished.errorMessage ?: "lỗi MediaStore"}."
+                    )
+                    return
+                }
+                finalizedFrames++
+                firstFrameTimestampMs = firstFrameTimestampMs ?: frame.captureTimestampMillis
+                val elapsedMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
+                val achievedFps = finalizedFrames * 1000.0 / elapsedMs
+                val runtime = Runtime.getRuntime()
+                val heapBytes = (runtime.totalMemory() - runtime.freeMemory()).coerceAtLeast(0L)
+                CaptureDiagnostics.record(
+                    context,
+                    CaptureDiagnosticEntry(
+                        timestamp = frame.captureTimestampMillis,
+                        mode = if (nightShotMode == "night") "Night Shot Burst" else "Pro Burst",
+                        filter = appPrefs.getString("selected_filter", "Không") ?: "Không",
+                        watermarkEnabled = finished.watermarkEnabled,
+                        watermarkPrinted = finished.watermarkPrinted,
+                        outputWidth = finished.width,
+                        outputHeight = finished.height,
+                        stageTimesMs = finished.stageTimesMs,
+                        peakMemoryBytes = maxOf(heapBytes, CaptureDiagnostics.peakMemoryBytes()),
+                        burstFramesPerSecond = achievedFps,
+                        aeLocked = aeAtStart,
+                        afLocked = afAtStart,
+                        hudRecompositions = (UiRecompositionCounters.hudCompositionCount() - hudCountAtStart).coerceAtLeast(0L),
+                        zoomRecompositions = (UiRecompositionCounters.zoomCompositionCount() - zoomCountAtStart).coerceAtLeast(0L),
+                        droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportCount() - droppedReportsAtStart).coerceAtLeast(0L),
+                        errorMessage = finished.errorMessage
+                    )
+                )
+                if (finished.errorMessage != null) {
+                    android.util.Log.w("FUJI_BURST", "Frame ${frame.frameIndex + 1} saved with warnings: ${finished.errorMessage}")
+                }
+                withContext(Dispatchers.Main.immediate) {
+                    captureTimestampForThumbnail = frame.captureTimestampMillis
+                    captureStartedRealtimeForThumbnail = frame.requestElapsedRealtimeMs
+                    lastUri = uri
+                    thumbnailRequestKey++
+                    burstFrameCount = finalizedFrames
+                }
+            }
+
+            try {
+                runCatching { activeCapture.flashMode = ImageCapture.FLASH_MODE_OFF }
+                    .onFailure { android.util.Log.w("FUJI_BURST", "Could not disable flash for continuous capture", it) }
+                while (true) {
+                    while (!burstStopRequested && pending.size < 6) {
+                        if (camera !== activeCamera || imageCapture !== activeCapture || !captureSetupReady) {
+                            burstStopRequested = true
+                            localizedToast(context, "Burst đã dừng vì camera vừa đổi cấu hình.", Toast.LENGTH_SHORT).show()
+                            break
+                        }
+                        val frameIndex = submittedFrames++
+                        val frameTimestamp = System.currentTimeMillis()
+                        val requestRealtime = SystemClock.elapsedRealtime()
+                        pending.addLast(async(Dispatchers.IO) {
+                            val savedUri = saveBurstFrame(
+                                context = context,
+                                capture = activeCapture,
+                                executor = mainExecutor,
+                                sessionId = sessionId,
+                                frameIndex = frameIndex,
+                                folder = "Burst",
+                                filePrefix = "FUJI_BURST",
+                                publishOnSave = false
+                            )
+                            FujifilmBurstFrameRequest(
+                                frameIndex = frameIndex,
+                                uri = savedUri,
+                                captureTimestampMillis = frameTimestamp,
+                                requestElapsedRealtimeMs = requestRealtime
+                            )
+                        })
+                        delay(200L)
+                    }
+                    if (pending.isEmpty()) break
+                    val next = runCatching { pending.removeFirst().await() }.getOrElse {
+                        failedFrames++
+                        android.util.Log.e("FUJI_BURST", "Burst request failed", it)
+                        continue
+                    }
+                    runCatching { finishFrame(next) }.onFailure {
+                        failedFrames++
+                        android.util.Log.e("FUJI_BURST", "Burst frame finalization failed index=${next.frameIndex + 1}", it)
+                        CaptureDiagnostics.recordWarning(context, "Burst khung ${next.frameIndex + 1} lỗi: ${it.message ?: it.javaClass.simpleName}.")
+                    }
+                    if (burstStopRequested && pending.isEmpty()) break
+                }
+            } catch (failure: Throwable) {
+                android.util.Log.e("FUJI_BURST", "Continuous capture stopped unexpectedly", failure)
+                CaptureDiagnostics.recordWarning(context, "Burst dừng do lỗi: ${failure.message ?: failure.javaClass.simpleName}.")
+                while (pending.isNotEmpty()) {
+                    val next = runCatching { pending.removeFirst().await() }.getOrNull() ?: continue
+                    runCatching { finishFrame(next) }.onFailure {
+                        android.util.Log.e("FUJI_BURST", "Could not finalize queued burst frame", it)
+                    }
+                }
+            } finally {
+                runCatching { activeCapture.flashMode = originalFlashMode }
+                burstMode = false
+                burstStopRequested = false
+                val durationMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)
+                val achievedFps = finalizedFrames * 1000.0 / durationMs
+                val summary = "BURST_STOP frames=$finalizedFrames failed=$failedFrames submitted=$submittedFrames " +
+                    "elapsedMs=$durationMs fps=${"%.2f".format(Locale.US, achievedFps)} queueCapacity=6"
+                android.util.Log.i("FUJI_BURST", summary)
+                CrashContextDiagnostics.recordUiEvent(summary)
+                if (finalizedFrames >= 2 && achievedFps < 3.0) {
+                    CaptureDiagnostics.recordWarning(
+                        context,
+                        "Burst đạt ${"%.2f".format(Locale.US, achievedFps)} khung/giây, thấp hơn mục tiêu 3 khung/giây trên thiết bị này."
+                    )
+                }
+                localizedToast(
+                    context,
+                    if (finalizedFrames > 0) "Đã lưu $finalizedFrames khung Burst." else "Burst không lưu được khung ảnh nào.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                burstSessionJob = null
+            }
+        }
+    }
+
+    fun stopContinuousBurst() {
+        if (burstMode) {
+            burstStopRequested = true
+            CrashContextDiagnostics.recordUiEvent("BURST_STOP_REQUESTED")
+        }
+    }
+
     fun takePhoto() {
+        if (burstMode) return
         val captureTimestampMillis = System.currentTimeMillis()
         captureTimestampForThumbnail = captureTimestampMillis
         captureStartedRealtimeForThumbnail = SystemClock.elapsedRealtime()
@@ -8048,8 +8371,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     FujiShutterButton(
                         enabled = !isProcessing,
-                        onLongPress = { },
-                        onRelease = { },
+                        onLongPress = {
+                            if (nightShotMode == "star_trails" && starTrailCaptureInProgress) {
+                                takePhoto()
+                            } else {
+                                startContinuousBurst()
+                            }
+                        },
+                        onRelease = { stopContinuousBurst() },
                         onHalfPress = {
                             invalidatePendingFocusLock(camera)
                             centerAfStatus = 0

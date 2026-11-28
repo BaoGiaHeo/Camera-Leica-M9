@@ -4045,8 +4045,12 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             localizedToast(context, unsupported, Toast.LENGTH_LONG).show()
             return
         }
+        // The nullable camera state was validated above; capture stable non-null references
+        // for the asynchronous producer/consumer lifetime.
+        val burstCapture = checkNotNull(activeCapture)
+        val burstCamera = checkNotNull(activeCamera)
 
-        val captureInfo = runCatching { Camera2CameraInfo.from(activeCamera.cameraInfo) }.getOrNull()
+        val captureInfo = runCatching { Camera2CameraInfo.from(burstCamera.cameraInfo) }.getOrNull()
         val focal = captureInfo?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
             ?.firstOrNull()?.let { "%.1f mm".format(Locale.US, it) } ?: ""
         val aperture = captureInfo?.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
@@ -4059,7 +4063,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             else "1/" + (1.0 / seconds).roundToInt() + "s"
         } else ""
         val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
-        val originalFlashMode = activeCapture.flashMode
+        val originalFlashMode = burstCapture.flashMode
         val burstStartedAtMs = SystemClock.elapsedRealtime()
         val hudCountAtStart = UiRecompositionCounters.hudCompositionCount()
         val zoomCountAtStart = UiRecompositionCounters.zoomCompositionCount()
@@ -4168,7 +4172,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 }
             }
             try {
-                runCatching { activeCapture.flashMode = ImageCapture.FLASH_MODE_OFF }
+                runCatching { burstCapture.flashMode = ImageCapture.FLASH_MODE_OFF }
                     .onFailure { android.util.Log.w("FUJI_BURST", "Could not disable flash for continuous capture", it) }
                 while (true) {
                     while ((!burstStopRequested || initialFramePending) && pending.size < Tuning.CAMERA_BURST_QUEUE_CAPACITY) {
@@ -4184,7 +4188,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         pending.addLast(async(Dispatchers.IO) {
                             val savedUri = saveBurstFrame(
                                 context = context,
-                                capture = activeCapture,
+                                capture = burstCapture,
                                 executor = mainExecutor,
                                 sessionId = sessionId,
                                 frameIndex = frameIndex,
@@ -4229,7 +4233,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 runCatching { consumerJob.join() }.onFailure {
                     android.util.Log.e("FUJI_BURST", "Could not finish burst export queue", it)
                 }
-                runCatching { activeCapture.flashMode = originalFlashMode }
+                runCatching { burstCapture.flashMode = originalFlashMode }
                 burstMode = false
                 burstStopRequested = false
                 val durationMs = (SystemClock.elapsedRealtime() - burstStartedAtMs).coerceAtLeast(1L)

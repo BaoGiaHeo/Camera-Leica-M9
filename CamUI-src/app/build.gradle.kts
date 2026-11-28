@@ -254,8 +254,8 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         source = source.replace("            Box(r(50f, 645f, 44f, 46f).border(d(2f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {\n                Column(horizontalAlignment = Alignment.CenterHorizontally) {\n                    Tx(state.dr.take(2), fs(19f))\n                    Tx(state.dr.drop(2), fs(19f))\n                }\n            }\n", "")
 
         // Replace the old wide, multi-column overlay with the compact two-line reference HUD.
-        val hudStart = source.indexOf("@Composable\\nprivate fun BoxWithConstraintsScope.Hud(")
-        val hudEnd = source.indexOf("\\n// ---------------------------------------------------------------------\\n// 10. MÀN CHỤP HOÀN CHỈNH", hudStart)
+        val hudStart = source.indexOf("@Composable\nprivate fun BoxWithConstraintsScope.Hud(")
+        val hudEnd = source.indexOf("\n// ---------------------------------------------------------------------\n// 10. MÀN CHỤP HOÀN CHỈNH", hudStart)
         check(hudStart >= 0 && hudEnd > hudStart) { "Fuji 3.2 HUD replacement anchors not found." }
         val hudReplacement = """@Composable
 private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
@@ -265,14 +265,14 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(d(8f))
     ) {
-        BatteryIcon(r(184f, 612f, 56f, 25f), s.batteryPct, s.batteryLook)
-        Box(r(248f, 610f, 30f, 27f).border(d(1f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {
+        BatteryIcon(Modifier.width(d(56f)).height(d(25f)), s.batteryPct, s.batteryLook)
+        Box(Modifier.width(d(30f)).height(d(27f)).border(d(1f), C.White, RoundedCornerShape(d(4f))), Alignment.Center) {
             Tx("AF-L", fs(15f), C.White, family = FontFamily.SansSerif)
         }
-        Box(r(284f, 610f, 58f, 27f).background(Color(0xFF333638), RoundedCornerShape(d(4f))), Alignment.Center) {
+        Box(Modifier.width(d(58f)).height(d(27f)).background(Color(0xFF333638), RoundedCornerShape(d(4f))), Alignment.Center) {
             Tx("1080P/30FPS", fs(12f), C.White, family = FontFamily.SansSerif)
         }
-        Box(r(360f, 610f, 125f, 27f), Alignment.CenterStart) {
+        Box(Modifier.width(d(125f)).height(d(27f)), Alignment.CenterStart) {
             Tx("EV : " + String.format(Locale.US, "%.1f", s.ev), fs(21f), C.White, align = TextAlign.Start, family = FontFamily.SansSerif)
         }
     }

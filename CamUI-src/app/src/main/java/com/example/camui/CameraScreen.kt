@@ -1624,7 +1624,7 @@ fun CameraScreen(
         )
     }
     LaunchedEffect(
-        mode, front, flash, timerSec, ultraHdr, renderEngine, metering,
+        mode, front, illuminationMode, timerSec, ultraHdr, renderEngine, metering,
         nightShotMode, nightShotFrameCount, nightShotDurationSeconds, starTrailExposureSeconds, rawCaptureMode,
         manualExposure, manualIsoEnabled, manualShutterEnabled, manualColorTempEnabled,
         manualColorTemp, manualIso, manualShutterNs, manualFocus, proSel, evIndex,
@@ -3630,7 +3630,7 @@ fun CameraScreen(
         }, mainExecutor)
     }
 
-    LaunchedEffect(camera, imageCapture, front, illuminationMode, isProcessing) {
+    LaunchedEffect(camera, imageCapture, front, illuminationMode) {
         val activeCamera = camera ?: return@LaunchedEffect
         val hasLed = !front && activeCamera.cameraInfo.hasFlashUnit()
         if (illuminationMode != "off" && !hasLed) {
@@ -3644,7 +3644,7 @@ fun CameraScreen(
         }
         runCatching {
             activeCamera.cameraControl.enableTorch(illuminationMode == "continuous" && hasLed)
-            imageCapture?.flashMode = if (illuminationMode == "pulse" && !isProcessing && hasLed) {
+            imageCapture?.flashMode = if (illuminationMode == "pulse" && hasLed) {
                 ImageCapture.FLASH_MODE_ON
             } else {
                 ImageCapture.FLASH_MODE_OFF
@@ -6228,6 +6228,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 }
             }
             captureRequestAtMs = SystemClock.elapsedRealtime()
+            capture.flashMode = if (flashPulseEnabled && !front) {
+                ImageCapture.FLASH_MODE_ON
+            } else {
+                ImageCapture.FLASH_MODE_OFF
+            }
             if (capture.outputFormat == ImageCapture.OUTPUT_FORMAT_RAW_JPEG) {
                 capture.takePicture(
                     rawOutput,
@@ -8145,7 +8150,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 )
                                 Spacer(Modifier.weight(1f))
                                 Text(
-                                    if (nightShotMode == "night") "AUTO · EV 0.0 · ${nightShotDurationSeconds}s · MULTI-FRAME"
+                                    if (nightShotMode == "night") "AUTO · EV 0.0 · 8 FRAMES · 8FPS"
                                     else "${starTrailExposureSeconds}s · ISO 800 · EV 0.0",
                                     color = CamColors.Sub,
                                     fontWeight = FontWeight.SemiBold,

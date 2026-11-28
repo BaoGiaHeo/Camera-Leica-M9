@@ -347,9 +347,6 @@ private fun SettingsDetailPage(
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
-    var nightShotDurationSeconds by remember {
-        mutableStateOf(prefs.getInt("nightshot_duration_seconds", 5).let { if (it in listOf(5, 10, 3)) it else 5 })
-    }
     var starTrailExposureSeconds by remember {
         mutableStateOf(prefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
     }
@@ -740,29 +737,13 @@ var nightShotMode by remember {
                 }
                 if (nightShotMode == "night") {
                     Spacer(Modifier.padding(5.dp))
-                    Text("Thời lượng thu khung", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                    Text("CHẾ ĐỘ CHỤP NHANH", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Camera liên tục chụp trong khoảng thời gian đã chọn; số khung thực tế tùy tốc độ cảm biến và giới hạn CameraX.",
+                        "Night Shot tự chụp liên tiếp 8 khung. Mục tiêu 8 FPS khi cảm biến hỗ trợ; tốc độ thực tế phụ thuộc thời gian phơi sáng và giới hạn camera.",
                         color = CamColors.Sub,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                     )
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        listOf(5, 10, 3).forEach { seconds ->
-                            FujiChip(
-                                "$seconds giây",
-                                nightShotDurationSeconds == seconds,
-                                {
-                                    nightShotDurationSeconds = seconds
-                                    prefs.edit().putInt("nightshot_duration_seconds", seconds).apply()
-                                },
-                                Modifier.width(82.dp)
-                            )
-                        }
-                    }
                 }
                 if (nightShotMode == "night") {
                     Spacer(Modifier.padding(5.dp))

@@ -1,5 +1,5 @@
 name: FujiFilm Mode 3.2.0 Debug APK
-# Rebuild on every 3.2.0 source correction (including generated Compose UI and HUD).
+# Rebuild on every 3.2.0 source correction (including live CameraUi integration and OSD cleanup).
 
 on:
   push:

@@ -9200,47 +9200,78 @@ private fun FilterLookDialog(
             Box(Modifier.fillMaxSize().padding(end = 8.dp, top = 4.dp, bottom = 4.dp), contentAlignment = Alignment.CenterEnd) {
                 Column(
                     Modifier.width(landscapePanelWidth).fillMaxHeight().clip(RoundedCornerShape(24.dp))
-                        .background(Color(0xF50A0C0D)).border(1.dp, Color(0xFF465054), RoundedCornerShape(24.dp))
+                        .background(Color(0xF50A0C0D)).border(1.dp, Color(0xFF465054), RoundedCornerShape(28.dp))
                         .padding(horizontal = 7.dp, vertical = 5.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Cuộn phim", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Text("×", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 4.dp))
+                        Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+                            Text("×", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Medium)
+                        }
                     }
-                    Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(Modifier.weight(1f)) { searchPane(Modifier.fillMaxWidth()) }
+                    Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (compact && !compactSearchExpanded) {
+                            Box(
+                                Modifier.size(36.dp).clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF202426)).clickable { compactSearchExpanded = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Canvas(Modifier.size(18.dp)) {
+                                    drawCircle(Color.White, radius = size.minDimension * 0.30f,
+                                        center = Offset(size.width * 0.40f, size.height * 0.40f),
+                                        style = Stroke(width = 1.7.dp.toPx()))
+                                    drawLine(Color.White, Offset(size.width * 0.62f, size.height * 0.62f),
+                                        Offset(size.width * 0.92f, size.height * 0.92f),
+                                        strokeWidth = 1.7.dp.toPx(), cap = StrokeCap.Round)
+                                }
+                            }
+                        } else {
+                            Box(Modifier.weight(1f)) { searchPane(Modifier.fillMaxWidth()) }
+                            if (compact) {
+                                Box(Modifier.size(24.dp).clickable { compactSearchExpanded = false }, contentAlignment = Alignment.Center) {
+                                    Text("×", color = Color.White, fontSize = 17.sp)
+                                }
+                            }
+                        }
                         Box(Modifier.width(74.dp)) { importPane(Modifier.fillMaxWidth()) }
                     }
-                    Row(Modifier.fillMaxWidth().height(28.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().height(32.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                         lookCategories.forEach { category ->
                             val label = category.labelResource?.let { stringResource(it) } ?: category.customLabel.orEmpty()
-                            FujiChip(label, selectedLookCategory == category.id, { selectedLookCategory = category.id })
+                            Box(Modifier.height(32.dp), contentAlignment = Alignment.Center) {
+                                FujiChip(label, selectedLookCategory == category.id, { selectedLookCategory = category.id })
+                            }
                         }
                     }
-                    Text(
-                        "$visibleFilterCount / $totalFilterCount bộ lọc",
-                        color = FujiSkin.lcdGreen,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1.08f).fillMaxHeight()) {
-                            presetGrid(Modifier.fillMaxSize())
-                        }
-                        Box(Modifier.weight(0.92f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    Text("$visibleFilterCount / $totalFilterCount bộ lọc", color = FujiSkin.lcdGreen, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    if (configuration.screenHeightDp >= 620) {
+                        Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Box(Modifier.weight(1f).fillMaxWidth()) { presetGrid(Modifier.fillMaxSize()) }
                             FilmTonePad(
                                 activeFilter = activeFilter,
                                 point = palettePoint,
                                 intensity = filterIntensity,
-                                valueLabel = "Sáng ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_tone", 0f))} · Đậm ${"%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_temperature", 0f))}",
+                                valueLabel = "Sáng " + "%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_tone", 0f)) + " · Đậm " + "%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_temperature", 0f)),
+                                modifier = Modifier.width(150.dp),
                                 onPointChange = { updatePalette(it) },
-                                onIntensityChange = {
-                                    filterIntensity = it
-                                    persistRecipeValue("film_filter_intensity", it)
-                                }
+                                onIntensityChange = { filterIntensity = it; persistRecipeValue("film_filter_intensity", it) }
                             )
+                        }
+                    } else {
+                        Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1.08f).fillMaxHeight()) { presetGrid(Modifier.fillMaxSize()) }
+                            Box(Modifier.weight(0.92f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                                FilmTonePad(
+                                    activeFilter = activeFilter,
+                                    point = palettePoint,
+                                    intensity = filterIntensity,
+                                    valueLabel = "Sáng " + "%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_tone", 0f)) + " · Đậm " + "%+.2f".format(Locale.US, recipePrefs.getFloat("film_custom_temperature", 0f)),
+                                    onPointChange = { updatePalette(it) },
+                                    onIntensityChange = { filterIntensity = it; persistRecipeValue("film_filter_intensity", it) }
+                                )
+                            }
                         }
                     }
                     Row(

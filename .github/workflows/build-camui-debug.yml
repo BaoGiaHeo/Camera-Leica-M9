@@ -12,7 +12,6 @@ on:
       - fuji-3.1.0
       - fuji-3.2.0
       - fuji-4.0.0
-      - fuji-4.0.0
   workflow_dispatch:
 
 concurrency:

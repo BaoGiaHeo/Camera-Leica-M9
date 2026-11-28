@@ -327,6 +327,26 @@ fun FujiIconGlyph(
             }
         }
         when (name) {
+            "wrench" -> {
+                line(14f, 4f, 19f, 9f, 2.0.dp.toPx())
+                line(17.5f, 5.5f, 8f, 15f, 2.1.dp.toPx())
+                circle(6.3f, 17f, 3.1f)
+                line(4f, 19.3f, 2.5f, 21f)
+                line(13f, 4f, 17f, 2.5f)
+            }
+            "display" -> {
+                drawRoundRect(
+                    tint,
+                    point(2.5f, 3.5f),
+                    androidx.compose.ui.geometry.Size(19f * unit, 14f * unit),
+                    androidx.compose.ui.geometry.CornerRadius(1.8f * unit),
+                    style = Stroke(stroke)
+                )
+                line(12f, 17.5f, 12f, 21f)
+                line(7f, 21f, 17f, 21f)
+                line(5.5f, 8f, 18.5f, 8f, 1.1.dp.toPx())
+                line(5.5f, 12f, 14f, 12f, 1.1.dp.toPx())
+            }
             "camera" -> {
                 drawRoundRect(
                     tint,

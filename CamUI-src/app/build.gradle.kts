@@ -358,7 +358,7 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
                     Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
                         Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
                         Spacer(Modifier.weight(1f))
-                        Tx("\${state.filterCount}/\${state.filterCount}", fs(16f), C.Green)
+                        Tx("${'/\${state.filterCount}", fs(16f), C.Green)
                     }
                     CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
                     state.filterRows.forEach { row ->
@@ -391,6 +391,438 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
                         Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
                         Spacer(Modifier.weight(1f))
                         Tx("\${state.filterCount}/\${state.filterCount}", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            }"""
+        check(source.contains(filterPanelOld)) { "Fuji 3.2 filter panel animation anchor not found." }
+        source = source.replace(filterPanelOld, filterPanelNew)
+
+        // The theme switch is in the narrow camera-body column, under Settings.
+        val settingsButton = """        MetalButton(r(1028f, 377f, 84f, 164f), d(22f), onClick = actions.onSetting) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                IconMenu(Modifier.size(d(46f)), C.White)
+                Spacer(Modifier.height(d(8f)))
+                Tx("SETTING", fs(22f))
+            }
+        }"""
+        check(source.contains(settingsButton)) { "Fuji 3.2 Settings key anchor not found." }
+        source = source.replace(settingsButton, settingsButton + """
+        MetalButton(r(1028f, 588f, 84f, 82f), d(22f), onClick = actions.onTheme) {
+            IconSunMoon(Modifier.size(d(48f)), state.lightUi)
+        }""")
+        check(source.startsWith("package com.example.camui")) {
+            "Fuji 3.2 reference UI archive has an invalid Kotlin package."
+        }
+        val target = fuji320UiGeneratedSource.asFile
+        target.parentFile.mkdirs()
+        target.writeText(source, Charsets.UTF_8)
+    }
+}
+// The generated CameraUi.kt is written into the regular main/java source tree before preBuild.
+
+val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
+val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
+val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
+
+val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") {
+    inputs.file(shutterAudioBase64)
+    outputs.file(shutterAudioResource)
+    doLast {
+        val encoded = shutterAudioBase64.asFile.readText(Charsets.US_ASCII)
+        val audioBytes = Base64.getMimeDecoder().decode(encoded)
+        check(audioBytes.size > 2_000 && audioBytes.copyOfRange(0, 3).contentEquals("ID3".toByteArray())) {
+            "Âm thanh màn trập 3.1.0 không phải MP3 hợp lệ."
+        }
+        shutterAudioResource.asFile.parentFile.mkdirs()
+        shutterAudioResource.asFile.writeBytes(audioBytes)
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio, generateFuji320ReferenceUi)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("androidx.camera.camera2.interop.ExperimentalCamera2Interop")
+    }
+}
+
+dependencies {
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    val camerax = "1.6.2"
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.window:window:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
+    implementation("androidx.camera:camera-extensions:$camerax")
+}
+}{state.filterCount}/${'", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize().padding(d(16f)), verticalArrangement = Arrangement.spacedBy(d(6f))) {
+                    Tx(state.lunaSummary, fs(21f), if (state.lightUi) Color.Black else C.White, align = TextAlign.Start)
+                    state.cameraSummary.take(5).forEach { line ->
+                        Tx(line, fs(18f), if (state.lightUi) Color(0xFF262626) else C.White, align = TextAlign.Start)
+                    }
+                }
+            }"""
+        val filterPanelNew = """            if (!state.filterExpanded) {
+                Column(Modifier.fillMaxSize().padding(d(16f)), verticalArrangement = Arrangement.spacedBy(d(6f))) {
+                    Tx(state.lunaSummary, fs(21f), if (state.lightUi) Color.Black else C.White, align = TextAlign.Start)
+                    state.cameraSummary.take(5).forEach { line ->
+                        Tx(line, fs(18f), if (state.lightUi) Color(0xFF262626) else C.White, align = TextAlign.Start)
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = state.filterExpanded,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(140))
+            ) {
+                Column(Modifier.fillMaxSize().padding(d(10f)).verticalScroll(rememberScrollState())) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
+                        Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
+                        Spacer(Modifier.weight(1f))
+                        Tx("\${state.filterCount}/\${state.filterCount}", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            }"""
+        check(source.contains(filterPanelOld)) { "Fuji 3.2 filter panel animation anchor not found." }
+        source = source.replace(filterPanelOld, filterPanelNew)
+
+        // The theme switch is in the narrow camera-body column, under Settings.
+        val settingsButton = """        MetalButton(r(1028f, 377f, 84f, 164f), d(22f), onClick = actions.onSetting) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                IconMenu(Modifier.size(d(46f)), C.White)
+                Spacer(Modifier.height(d(8f)))
+                Tx("SETTING", fs(22f))
+            }
+        }"""
+        check(source.contains(settingsButton)) { "Fuji 3.2 Settings key anchor not found." }
+        source = source.replace(settingsButton, settingsButton + """
+        MetalButton(r(1028f, 588f, 84f, 82f), d(22f), onClick = actions.onTheme) {
+            IconSunMoon(Modifier.size(d(48f)), state.lightUi)
+        }""")
+        check(source.startsWith("package com.example.camui")) {
+            "Fuji 3.2 reference UI archive has an invalid Kotlin package."
+        }
+        val target = fuji320UiGeneratedSource.asFile
+        target.parentFile.mkdirs()
+        target.writeText(source, Charsets.UTF_8)
+    }
+}
+// The generated CameraUi.kt is written into the regular main/java source tree before preBuild.
+
+val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
+val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
+val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
+
+val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") {
+    inputs.file(shutterAudioBase64)
+    outputs.file(shutterAudioResource)
+    doLast {
+        val encoded = shutterAudioBase64.asFile.readText(Charsets.US_ASCII)
+        val audioBytes = Base64.getMimeDecoder().decode(encoded)
+        check(audioBytes.size > 2_000 && audioBytes.copyOfRange(0, 3).contentEquals("ID3".toByteArray())) {
+            "Âm thanh màn trập 3.1.0 không phải MP3 hợp lệ."
+        }
+        shutterAudioResource.asFile.parentFile.mkdirs()
+        shutterAudioResource.asFile.writeBytes(audioBytes)
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio, generateFuji320ReferenceUi)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("androidx.camera.camera2.interop.ExperimentalCamera2Interop")
+    }
+}
+
+dependencies {
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    val camerax = "1.6.2"
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.window:window:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
+    implementation("androidx.camera:camera-extensions:$camerax")
+}
+}{state.filterCount}", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize().padding(d(16f)), verticalArrangement = Arrangement.spacedBy(d(6f))) {
+                    Tx(state.lunaSummary, fs(21f), if (state.lightUi) Color.Black else C.White, align = TextAlign.Start)
+                    state.cameraSummary.take(5).forEach { line ->
+                        Tx(line, fs(18f), if (state.lightUi) Color(0xFF262626) else C.White, align = TextAlign.Start)
+                    }
+                }
+            }"""
+        val filterPanelNew = """            if (!state.filterExpanded) {
+                Column(Modifier.fillMaxSize().padding(d(16f)), verticalArrangement = Arrangement.spacedBy(d(6f))) {
+                    Tx(state.lunaSummary, fs(21f), if (state.lightUi) Color.Black else C.White, align = TextAlign.Start)
+                    state.cameraSummary.take(5).forEach { line ->
+                        Tx(line, fs(18f), if (state.lightUi) Color(0xFF262626) else C.White, align = TextAlign.Start)
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = state.filterExpanded,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(140))
+            ) {
+                Column(Modifier.fillMaxSize().padding(d(10f)).verticalScroll(rememberScrollState())) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = d(8f)), verticalAlignment = Alignment.CenterVertically) {
+                        Tx("FUJIFILM", fs(19f), if (state.lightUi) Color.Black else Color.White, align = TextAlign.Start)
+                        Spacer(Modifier.weight(1f))
+                        Tx("${'/\${state.filterCount}", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            }"""
+        check(source.contains(filterPanelOld)) { "Fuji 3.2 filter panel animation anchor not found." }
+        source = source.replace(filterPanelOld, filterPanelNew)
+
+        // The theme switch is in the narrow camera-body column, under Settings.
+        val settingsButton = """        MetalButton(r(1028f, 377f, 84f, 164f), d(22f), onClick = actions.onSetting) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                IconMenu(Modifier.size(d(46f)), C.White)
+                Spacer(Modifier.height(d(8f)))
+                Tx("SETTING", fs(22f))
+            }
+        }"""
+        check(source.contains(settingsButton)) { "Fuji 3.2 Settings key anchor not found." }
+        source = source.replace(settingsButton, settingsButton + """
+        MetalButton(r(1028f, 588f, 84f, 82f), d(22f), onClick = actions.onTheme) {
+            IconSunMoon(Modifier.size(d(48f)), state.lightUi)
+        }""")
+        check(source.startsWith("package com.example.camui")) {
+            "Fuji 3.2 reference UI archive has an invalid Kotlin package."
+        }
+        val target = fuji320UiGeneratedSource.asFile
+        target.parentFile.mkdirs()
+        target.writeText(source, Charsets.UTF_8)
+    }
+}
+// The generated CameraUi.kt is written into the regular main/java source tree before preBuild.
+
+val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
+val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
+val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
+
+val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") {
+    inputs.file(shutterAudioBase64)
+    outputs.file(shutterAudioResource)
+    doLast {
+        val encoded = shutterAudioBase64.asFile.readText(Charsets.US_ASCII)
+        val audioBytes = Base64.getMimeDecoder().decode(encoded)
+        check(audioBytes.size > 2_000 && audioBytes.copyOfRange(0, 3).contentEquals("ID3".toByteArray())) {
+            "Âm thanh màn trập 3.1.0 không phải MP3 hợp lệ."
+        }
+        shutterAudioResource.asFile.parentFile.mkdirs()
+        shutterAudioResource.asFile.writeBytes(audioBytes)
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio, generateFuji320ReferenceUi)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("androidx.camera.camera2.interop.ExperimentalCamera2Interop")
+    }
+}
+
+dependencies {
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    val camerax = "1.6.2"
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.window:window:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
+    implementation("androidx.camera:camera-extensions:$camerax")
+}
+}{state.filterCount}/${'", fs(16f), C.Green)
+                    }
+                    CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
+                    state.filterRows.forEach { row ->
+                        CameraFilterRow(row.first, row.second, state.activeFilterId == row.first, state.lightUi) { a.onFilterSelect(row.first) }
+                    }
+                }
+            }"""
+        check(source.contains(filterPanelOld)) { "Fuji 3.2 filter panel animation anchor not found." }
+        source = source.replace(filterPanelOld, filterPanelNew)
+
+        // The theme switch is in the narrow camera-body column, under Settings.
+        val settingsButton = """        MetalButton(r(1028f, 377f, 84f, 164f), d(22f), onClick = actions.onSetting) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                IconMenu(Modifier.size(d(46f)), C.White)
+                Spacer(Modifier.height(d(8f)))
+                Tx("SETTING", fs(22f))
+            }
+        }"""
+        check(source.contains(settingsButton)) { "Fuji 3.2 Settings key anchor not found." }
+        source = source.replace(settingsButton, settingsButton + """
+        MetalButton(r(1028f, 588f, 84f, 82f), d(22f), onClick = actions.onTheme) {
+            IconSunMoon(Modifier.size(d(48f)), state.lightUi)
+        }""")
+        check(source.startsWith("package com.example.camui")) {
+            "Fuji 3.2 reference UI archive has an invalid Kotlin package."
+        }
+        val target = fuji320UiGeneratedSource.asFile
+        target.parentFile.mkdirs()
+        target.writeText(source, Charsets.UTF_8)
+    }
+}
+// The generated CameraUi.kt is written into the regular main/java source tree before preBuild.
+
+val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
+val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")
+val shutterAudioResource = shutterAudioResourceDirectory.file("fuji_mechanical_shutter_31.mp3")
+
+val generateFuji310ShutterAudio = tasks.register("generateFuji310ShutterAudio") {
+    inputs.file(shutterAudioBase64)
+    outputs.file(shutterAudioResource)
+    doLast {
+        val encoded = shutterAudioBase64.asFile.readText(Charsets.US_ASCII)
+        val audioBytes = Base64.getMimeDecoder().decode(encoded)
+        check(audioBytes.size > 2_000 && audioBytes.copyOfRange(0, 3).contentEquals("ID3".toByteArray())) {
+            "Âm thanh màn trập 3.1.0 không phải MP3 hợp lệ."
+        }
+        shutterAudioResource.asFile.parentFile.mkdirs()
+        shutterAudioResource.asFile.writeBytes(audioBytes)
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateKk7FontResource, downloadSairaFontResources, generateFuji310ShutterAudio, generateFuji320ReferenceUi)
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.add("androidx.camera.camera2.interop.ExperimentalCamera2Interop")
+    }
+}
+
+dependencies {
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    val camerax = "1.6.2"
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.window:window:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.camera:camera-core:$camerax")
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("androidx.camera:camera-video:$camerax")
+    implementation("androidx.camera:camera-extensions:$camerax")
+}
+}{state.filterCount}", fs(16f), C.Green)
                     }
                     CameraFilterRow("None", "Không (ảnh gốc)", state.activeFilterId == "None", state.lightUi) { a.onFilterSelect("None") }
                     state.filterRows.forEach { row ->

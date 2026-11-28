@@ -687,6 +687,85 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."
         }
+
+        // 3.5.0 follow-up: add clean preview fullscreen and remove demo telemetry placeholders.
+        source = source.replace(
+            """    val batteryBlinkOn: Boolean = true,
+)""",
+            """    val batteryBlinkOn: Boolean = true,
+    val fullscreenPreview: Boolean = false,
+)"""
+        )
+        source = source.replace(
+            """    val onTimerSelect: (Int) -> Unit = {},
+    val onZoomFinished: () -> Unit = {},""",
+            """    val onTimerSelect: (Int) -> Unit = {},
+    val onFullscreenPreview: () -> Unit = {},
+    val onZoomFinished: () -> Unit = {},"""
+        )
+        source = source.replace(
+            """val cameraSummary: List<String> = listOf("Template: 29°C", "CPU: -- | GPU: --", "1080P", "30FPS"),""",
+            """val cameraSummary: List<String> = listOf("1080P", "30FPS"),"""
+        )
+        val fullscreenButton = """        MetalButton(r(18f, 172f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
+            Canvas(Modifier.size(d(30f))) {
+                val w = size.width
+                val a = w * 0.16f
+                val b = w * 0.42f
+                val c = w * 0.58f
+                val far = w * 0.84f
+                val stroke = w * 0.075f
+                drawLine(C.White, Offset(a, b), Offset(a, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, a), Offset(b, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(c, a), Offset(far, a), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(far, a), Offset(far, b), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, c), Offset(a, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(a, far), Offset(b, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(c, far), Offset(far, far), stroke, StrokeCap.Round)
+                drawLine(C.White, Offset(far, c), Offset(far, far), stroke, StrokeCap.Round)
+            }
+        }
+"""
+        check(source.contains("        // MÀN HÌNH PREVIEW")) { "Preview insertion point missing." }
+        source = source.replace(
+            """        // MÀN HÌNH PREVIEW""",
+            fullscreenButton + """        // MÀN HÌNH PREVIEW"""
+        )
+        val rootOpen = """BoxWithConstraints(modifier.fillMaxSize().background(if (state.lightUi) Color(0xFFE6E6E6) else Color(0xFF080809))) {
+        Chrome()"""
+        check(source.contains(rootOpen)) { "Fullscreen root insertion point missing." }
+        source = source.replace(
+            rootOpen,
+            """BoxWithConstraints(modifier.fillMaxSize().background(if (state.lightUi) Color(0xFFE6E6E6) else Color(0xFF080809))) {
+        if (state.fullscreenPreview) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                preview()
+                MetalButton(r(18f, 18f, 52f, 52f), d(26f), onClick = actions.onFullscreenPreview) {
+                    Tx("×", fs(30f), C.White)
+                }
+            }
+        } else {
+        Chrome()"""
+        )
+        val uiEnd = """    }
+}
+
+// ---------------------------------------------------------------------
+// 11. BẢN THỬ: gọi CameraUiDemo() để xem giao diện chạy được chưa"""
+        check(source.contains(uiEnd)) { "Fullscreen branch closing point missing." }
+        source = source.replace(
+            uiEnd,
+            """        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// 11. BẢN THỬ: gọi CameraUiDemo() để xem giao diện chạy được chưa"""
+        )
+        check(source.contains("state.fullscreenPreview")) { "Fullscreen preview state was not generated." }
+        check(source.contains("onFullscreenPreview: () -> Unit")) { "Fullscreen action was not generated." }
+        check(source.contains("r(18f, 172f, 52f, 52f)")) { "Fullscreen button is not below timer." }
+        check(!source.contains("CPU: -- | GPU: --")) { "CPU/GPU demo placeholder was not removed." }
         val target = fuji320UiGeneratedSource.asFile
         target.parentFile.mkdirs()
         target.writeText(source, Charsets.UTF_8)

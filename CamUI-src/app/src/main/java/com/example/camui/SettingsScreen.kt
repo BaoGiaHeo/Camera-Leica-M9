@@ -77,7 +77,6 @@ private val settingItems = listOf(
     SettingItem("tab_04", "Setup", "Flash · Hẹn giờ · HDR · RAW · Preview FPS", R.string.settings_tab_photo_mode),
     SettingItem("tab_05", "Chụp đêm", "Night Shot · Phơi sáng dài · Star Trails", R.string.settings_tab_nightshot),
     SettingItem("tab_06", "Hiển thị / Giao diện", "Zoom · LCD · Nút chụp · Bố cục", R.string.settings_tab_display),
-    SettingItem("tab_07", "Âm thanh & Rung", "Âm màn trập · Âm giao diện · Phản hồi rung", R.string.settings_tab_sound),
     SettingItem("tab_09", "Giới thiệu", "FujiFilm Mode · thông tin phiên bản", R.string.settings_tab_about),
 )
 
@@ -122,7 +121,6 @@ fun SettingsScreen(
         "tab_04" -> "FLASH"
         "tab_05" -> "ĐÊM"
         "tab_06" -> "HUD"
-        "tab_07" -> "ÂM"
         "tab_09" -> "MY"
         else -> item.title.uppercase()
     }

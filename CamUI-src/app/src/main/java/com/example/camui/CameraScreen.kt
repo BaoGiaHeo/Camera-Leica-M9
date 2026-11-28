@@ -978,6 +978,7 @@ fun CameraScreen(
     var torchEnabled by remember { mutableStateOf(false) }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     var timerMenuVisible by remember { mutableStateOf(false) }
+    var fullscreenPreview by remember { mutableStateOf(false) }
     DisposableEffect(appPrefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { shared, key ->
             when (key) {
@@ -8699,7 +8700,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 shutter01 = uiShutter01,
                 iso01 = uiIso01,
                 kelvin01 = ((manualColorTemp - 2000) / 8000f).coerceIn(0f, 1f),
-                lunaSummary = if (lunaDreamMode == "off") "LunaDream: OFF" else "LunaDream: $uiLunaLabel",
+                lunaSummary = if (lunaDreamMode == "off") "Original" else "LunaDream: $uiLunaLabel",
                 cameraSummary = listOf(
                     "BATTERY TEMP: " + (measuredBatteryTempC.takeIf { it > 0 }?.let { it.toString() + "°C" } ?: "--"),
                     "1080P",
@@ -8738,6 +8739,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 aeLocked = aeLocked,
                 afLocked = focusLocked,
                 hideOsd = false,
+                fullscreenPreview = fullscreenPreview,
                 filterOn = filterDialogVisible || activeFilter != "None",
                 lunaLabel = uiLunaLabel,
                 busy = isProcessing,
@@ -8792,6 +8794,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                     camera?.let { active -> runCatching { applyAutoWhiteBalance(active) } }
                 },
                 onTimerMenu = { timerMenuVisible = !timerMenuVisible },
+                onFullscreenPreview = {
+                    fullscreenPreview = !fullscreenPreview
+                    if (fullscreenPreview) showQuick = false
+                },
                 onTimerSelect = { seconds ->
                     timerSec = seconds.coerceIn(0, 10)
                     appPrefs.edit().putInt("camera_timer_seconds", timerSec).apply()

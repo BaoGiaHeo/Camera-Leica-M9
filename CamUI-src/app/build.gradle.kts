@@ -713,8 +713,8 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
             """val lunaSummary: String = "Original","""
         )
         source = source.replace(
-            """Tx("LUNADREAM ${'{state.lunaLabel ?: "3.0"}", fs(20f))""",
-            """Tx(if (state.lunaLabel == null) "ORIGINAL" else "LUNADREAM ${'
+            """Tx("LUNADREAM ${'$'}{state.lunaLabel ?: "3.0"}", fs(20f))""",
+            """Tx(if (state.lunaLabel == null) "ORIGINAL" else "LUNADREAM ${'$'}{state.lunaLabel}", fs(20f))"""
         )
         check(source.contains("""if (state.lunaLabel == null) "ORIGINAL" """.trimEnd())) {
             "3.5.0 Original camera mode label missing."

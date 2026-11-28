@@ -836,7 +836,7 @@ private suspend fun renderWatermarkStudioPreview(context: Context): ImageBitmap?
         if (!copied) return@withContext null
 
         val prefs = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
-        if (prefs.getBoolean("watermark_enabled", true)) {
+        if (prefs.getBoolean("watermark_enabled", false)) {
             applyCameraWatermark(context, previewUri, "", "", "", "", preservePhotoAspectRatio = true)
         }
         resolver.update(

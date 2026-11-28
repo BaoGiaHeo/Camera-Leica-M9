@@ -135,8 +135,11 @@ fun SettingsScreen(
         showHeader = false,
         footerActions = true,
         onFooterBack = {
-            if (selectedCategory == "Sao lưu & Khôi phục") categoryBeforeBackup = categoryBeforeBackup
-            selectedCategory = "Chụp & Chất lượng"
+            selectedCategory = if (selectedCategory == "Sao lưu & Khôi phục") {
+                categoryBeforeBackup
+            } else {
+                "Chụp & Chất lượng"
+            }
         }
     ) {
         Column(

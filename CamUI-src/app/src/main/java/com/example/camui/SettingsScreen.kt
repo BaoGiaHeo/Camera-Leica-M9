@@ -126,62 +126,66 @@ fun SettingsScreen(
         "tab_09" -> "MY"
         else -> item.title.uppercase()
     }
+    val screenConfig = LocalConfiguration.current
+    val sx = screenConfig.screenWidthDp.toFloat() / 1846f
+    val sy = screenConfig.screenHeightDp.toFloat() / 852f
+    val tabLabelColor = Color(0xFFF1F1F1)
+    val outerSurface = Color(0xFF343638)
+    val innerSurface = Color(0xFF555555)
     FujiScreenScaffold(
         title = stringResource(R.string.settings_screen_title),
         modifier = modifier.fillMaxSize(),
         onBack = onBack,
         showVersion = false,
-        showHeader = true,
+        showHeader = false,
         footerActions = false
     ) {
-        val tabLabelColor = Color(0xFFF1F1F1)
-        val cardSurface = Color(0xFF343638)
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            Modifier.fillMaxSize()
+                .padding(horizontal = (15f * sx).dp, vertical = (24f * sy).dp),
+            verticalArrangement = Arrangement.spacedBy((20f * sy).dp)
         ) {
             Row(
-                Modifier.fillMaxWidth().height(48.dp),
+                Modifier.fillMaxWidth().height((124f * sy).dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                horizontalArrangement = Arrangement.spacedBy((15f * sx).dp)
             ) {
                 FujiCameraKey(
-                    "QUAY LẠI",
-                    modifier = Modifier.width(92.dp).height(40.dp),
+                    "Quay Lại",
+                    modifier = Modifier.width((75f * sx).dp).height((124f * sy).dp),
                     icon = "back",
-                    scale = 1f
+                    scale = 0.82f
                 ) { onBack() }
                 Row(
                     Modifier.weight(1f).fillMaxHeight()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy((90f * sx).dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     visibleSettingItems.forEach { item ->
                         val selected = selectedCategory == item.title
                         val label = displayTabLabel(item)
                         Box(
-                            Modifier.width(96.dp).height(38.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (selected) Color(0xFFF0A030) else Color(0xFF252729))
+                            Modifier.width((435f * sx).dp).height((124f * sy).dp)
+                                .clip(RoundedCornerShape((16f * sx).dp))
+                                .background(if (selected) Color(0xFF444444) else Color(0xFF353535))
                                 .border(
-                                    1.dp,
-                                    if (selected) Color(0xFFFFD18B) else Color(0xFF65686A),
-                                    RoundedCornerShape(10.dp)
+                                    (2f * sx).dp,
+                                    if (selected) Color(0xFFE2B46B) else Color(0xFF777777),
+                                    RoundedCornerShape((16f * sx).dp)
                                 )
                                 .clickable {
                                     if (selectedCategory != item.title) {
                                         previousCategory = selectedCategory
                                         selectedCategory = item.title
                                     }
-                                }
-                                .padding(horizontal = 5.dp),
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 label,
-                                color = if (selected) Color(0xFF1B1B1B) else tabLabelColor,
-                                fontSize = 10.sp,
+                                color = if (selected) Color(0xFFFFD28F) else tabLabelColor,
+                                fontSize = (18f * sx).sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
                                 textAlign = TextAlign.Center
@@ -190,35 +194,47 @@ fun SettingsScreen(
                     }
                 }
             }
-            Row(
+            Column(
                 Modifier.weight(1f).fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(cardSurface)
-                    .border(1.2.dp, Color(0xFF777A7C), RoundedCornerShape(22.dp))
-                    .padding(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .clip(RoundedCornerShape((40f * sx).dp))
+                    .background(outerSurface)
+                    .border((2f * sx).dp, Color(0xFF858585), RoundedCornerShape((40f * sx).dp))
+                    .padding(horizontal = (86f * sx).dp, vertical = (74f * sy).dp),
+                verticalArrangement = Arrangement.spacedBy((124f * sy).dp)
             ) {
                 Column(
-                    Modifier.weight(1f).fillMaxHeight()
-                        .clip(RoundedCornerShape(17.dp))
-                        .background(Color(0xFF26282A))
-                        .padding(8.dp)
+                    Modifier.fillMaxWidth().height((190f * sy).dp)
+                        .clip(RoundedCornerShape((24f * sx).dp))
+                        .background(innerSurface)
+                        .border((1.5f * sx).dp, Color(0xFF898989), RoundedCornerShape((24f * sx).dp))
+                        .padding(horizontal = (58f * sx).dp, vertical = (28f * sy).dp),
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
                         selectedCategory.uppercase(),
                         color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.7.sp
+                        fontSize = (24f * sx).sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (0.8f * sx).sp
                     )
-                    Box(
-                        Modifier.fillMaxWidth().height(1.dp)
-                            .padding(top = 4.dp)
-                            .background(Color(0xFF626567))
+                    Spacer(Modifier.height((10f * sy).dp))
+                    Text(
+                        visibleSettingItems.firstOrNull { it.title == selectedCategory }?.subtitle.orEmpty(),
+                        color = Color(0xFFE0E0E0),
+                        fontSize = (17f * sx).sp,
+                        maxLines = 1
                     )
+                }
+                Box(
+                    Modifier.fillMaxWidth().weight(1f)
+                        .clip(RoundedCornerShape((24f * sx).dp))
+                        .background(innerSurface)
+                        .border((1.5f * sx).dp, Color(0xFF898989), RoundedCornerShape((24f * sx).dp))
+                        .padding(horizontal = (54f * sx).dp, vertical = (18f * sy).dp)
+                ) {
                     AnimatedContent(
                         targetState = selectedCategory,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        modifier = Modifier.fillMaxSize(),
                         transitionSpec = {
                             (
                                 fadeIn(tween(if (AnimaT.isSystemReducedMotion(context)) 0 else Tuning.SETTINGS_TAB_MS)) +
@@ -234,7 +250,7 @@ fun SettingsScreen(
                                     )
                             )
                         },
-                        label = "Fuji 3.1 Settings detail"
+                        label = "Fuji 3.2 Settings detail"
                     ) { detailTitle ->
                         SettingsDetailPage(
                             title = detailTitle,
@@ -260,20 +276,6 @@ fun SettingsScreen(
                             onOpenDiagnostics = { showCaptureDiagnostics = true }
                         )
                     }
-                }
-                Column(
-                    Modifier.width(168.dp).fillMaxHeight()
-                        .clip(RoundedCornerShape(17.dp))
-                        .background(Color(0xFF292B2D))
-                        .border(1.dp, Color(0xFF55585A), RoundedCornerShape(17.dp))
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("FUJIFILM MODE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("CÀI ĐẶT MÁY ẢNH", color = Color(0xFFF0A030), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text("Cấu hình được lưu tự động. Các điều khiển áp dụng trực tiếp lên camera đang chạy.", color = Color(0xFFD1D3D4), fontSize = 10.sp, lineHeight = 14.sp)
-                    Spacer(Modifier.weight(1f))
-                    Text("TRANG $activeIndex / ${visibleSettingItems.size}", color = Color(0xFFBFC3C5), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

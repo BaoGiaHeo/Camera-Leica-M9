@@ -21,9 +21,10 @@ internal object WatermarkFinalizer {
         shutter: String,
         iso: String,
         captureTimestampMillis: Long,
-        onStageDuration: ((String, Long) -> Unit)? = null
+        onStageDuration: ((String, Long) -> Unit)? = null,
+        forceSkipWatermark: Boolean = false
     ): Boolean {
-        val enabled = context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
+        val enabled = !forceSkipWatermark && context.getSharedPreferences("fujifilm_settings", Context.MODE_PRIVATE)
             .getBoolean("watermark_enabled", true)
         val expected = if (enabled) "FM-WM=1" else "FM-WM=0"
         val existing = ImageSink.readWatermarkMarker(context, uri)
@@ -52,7 +53,8 @@ internal object WatermarkFinalizer {
                 preservePhotoAspectRatio = true,
                 applyFilter = true,
                 captureTimestampMillis = captureTimestampMillis,
-                onStageDuration = onStageDuration
+                onStageDuration = onStageDuration,
+                forceSkipWatermark = forceSkipWatermark
             )
         }.onFailure {
             Log.e(TAG, "Watermark finalizer failed for $uri", it)

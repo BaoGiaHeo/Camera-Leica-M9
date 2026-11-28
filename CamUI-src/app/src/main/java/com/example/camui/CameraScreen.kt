@@ -970,10 +970,6 @@ fun CameraScreen(
         )
     }
     var torchEnabled by remember { mutableStateOf(false) }
-    LaunchedEffect(camera, torchEnabled) {
-        camera?.let { active -> runCatching { active.cameraControl.enableTorch(torchEnabled) }
-            .onFailure { android.util.Log.w("FUJI_FLASH", "Không thể bật đèn pin liên tục", it) } }
-    }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
     DisposableEffect(appPrefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { shared, key ->
@@ -1343,6 +1339,13 @@ fun CameraScreen(
     var thumb by remember { mutableStateOf<ImageBitmap?>(null) }
     var thumbnailRequestKey by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
+
+    LaunchedEffect(camera, torchEnabled) {
+        camera?.let { active ->
+            runCatching { active.cameraControl.enableTorch(torchEnabled) }
+                .onFailure { android.util.Log.w("FUJI_FLASH", "Không thể bật đèn pin liên tục", it) }
+        }
+    }
     fun applyEvCommandNow(index: Int, persist: Boolean) {
         val active = camera
         val range = active?.cameraInfo?.exposureState?.exposureCompensationRange
@@ -1468,32 +1471,7 @@ fun CameraScreen(
         }
     }
 
-    // Orientation changes update existing CameraX use cases via setTargetRotation().
-    // The UseCaseGroup remains bound; no provider.unbindAll()/rebind is triggered by rotation.
-    LaunchedEffect(targetRotation) {
-        val nextLandscape = targetRotation == Surface.ROTATION_90 ||
-            targetRotation == Surface.ROTATION_270
-        if (nextLandscape == isLandscape) return@LaunchedEffect
-
-        previewOrientationAlpha.animateTo(
-            0f,
-            animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing)
-        )
-        isLandscape = nextLandscape
-        // Let Compose place the portrait/landscape panels before revealing the live viewfinder.
-        withFrameNanos { }
-        previewOrientationAlpha.animateTo(
-            1f,
-            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
-        )
-        CrashContextDiagnostics.recordUiEvent(
-            "ORIENTATION_UI_CHANGED rotation=$targetRotation landscape=$nextLandscape cameraBindGeneration=$cameraBindGeneration"
-        )
-        android.util.Log.i(
-            "FUJI_ORIENTATION",
-            "UI_CHANGED rotation=$targetRotation landscape=$nextLandscape bindGeneration=$cameraBindGeneration (no rebind)"
-        )
-    }
+    // 3.1.0 is locked to landscape; the old portrait/landscape transition is removed.
 
     var previewUseCase by remember { mutableStateOf<Preview?>(null) }
     var analysisUseCase by remember { mutableStateOf<ImageAnalysis?>(null) }
@@ -8361,16 +8339,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 sunButton(Modifier.size(48.dp * designScale))
             }
         } else {
-            Row(
-                sideModifier.fillMaxWidth().height(76.dp * designScale).then(panelShell)
-                    .padding(horizontal = 5.dp * designScale, vertical = 4.dp * designScale),
-                horizontalArrangement = Arrangement.spacedBy(6.dp * designScale),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                albumButton(Modifier.weight(1f).fillMaxHeight())
-                filterButton(Modifier.weight(1f).fillMaxHeight())
-                lunaDreamButton(Modifier.weight(1f).fillMaxHeight())
-            }
+            Spacer(sideModifier.height(0.dp))
         }
     }
 

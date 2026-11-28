@@ -193,7 +193,7 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         target.writeText(source, Charsets.UTF_8)
     }
 }
-android.sourceSets.getByName("main").java.srcDir(fuji320UiGeneratedDir)
+android.sourceSets.getByName("main").java.srcDir(fuji320UiGeneratedDir.get().asFile)
 
 val shutterAudioBase64 = layout.projectDirectory.file("src/main/assets/fuji_mechanical_shutter_31.mp3.b64")
 val shutterAudioResourceDirectory = layout.projectDirectory.dir("src/main/res/raw")

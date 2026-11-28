@@ -545,6 +545,120 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         check(source.contains("BATTERY LOW"))
         check(source.contains("state.horizonRollDegrees"))
         check(!source.contains("a.onAeL()"))
+        source = source.replace(
+            """    val afState: AfState = AfState.IDLE,
+)""",
+            """    val afState: AfState = AfState.IDLE,
+    val timerSeconds: Int = 0,
+    val timerMenuVisible: Boolean = false,
+    val countdown: Int = 0,
+    val levelVisible: Boolean = false,
+    val horizonRollDegrees: Float = 0f,
+    val batteryLow: Boolean = false,
+    val batteryBlinkOn: Boolean = true,
+)"""
+        )
+        source = source.replace(
+            """    val onKelvinFraction: (Float) -> Unit = {},
+    val onZoomFinished: () -> Unit = {},""",
+            """    val onKelvinFraction: (Float) -> Unit = {},
+    val onShutterAuto: () -> Unit = {},
+    val onIsoAuto: () -> Unit = {},
+    val onKelvinAuto: () -> Unit = {},
+    val onTimerMenu: () -> Unit = {},
+    val onTimerSelect: (Int) -> Unit = {},
+    val onZoomFinished: () -> Unit = {},"""
+        )
+        source = source.replace(
+            """    onChange: (Float) -> Unit,
+    onFinished: () -> Unit = {},
+) {
+    val current by rememberUpdatedState(onChange)
+    var trackWidth by remember { mutableStateOf(1f) }""",
+            """    onChange: (Float) -> Unit,
+    onFinished: () -> Unit = {},
+    onAuto: () -> Unit = {},
+) {
+    val current by rememberUpdatedState(onChange)
+    var trackWidth by remember { mutableStateOf(1f) }
+    var dragFraction by remember { mutableStateOf(fraction.coerceIn(0f, 1f)) }
+    var isDragging by remember { mutableStateOf(false) }"""
+        )
+        source = source.replace(
+            """                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(onDragEnd = onFinished, onDragCancel = onFinished) { change, _ ->
+                        change.consume()
+                        current((change.position.x / trackWidth).coerceIn(0f, 1f))
+                    }
+                }
+                .pointerInput(Unit) { detectTapGestures { current((it.x / trackWidth).coerceIn(0f, 1f)); onFinished() } },""",
+            """                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { start ->
+                            isDragging = true
+                            dragFraction = (start.x / trackWidth).coerceIn(0f, 1f)
+                            current(dragFraction)
+                        },
+                        onDragEnd = { isDragging = false; onFinished() },
+                        onDragCancel = { isDragging = false; onFinished() }
+                    ) { change, _ ->
+                        change.consume()
+                        dragFraction = (change.position.x / trackWidth).coerceIn(0f, 1f)
+                        current(dragFraction)
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures {
+                        val selected = (it.x / trackWidth).coerceIn(0f, 1f)
+                        dragFraction = selected
+                        current(selected)
+                        onFinished()
+                    }
+                },"""
+        )
+        source = source.replace(
+            """drawCircle(Color.White, size.height * 0.43f, Offset(size.width * fraction.coerceIn(0f, 1f), cy))""",
+            """drawCircle(Color.White, size.height * 0.43f, Offset(size.width * (if (isDragging) dragFraction else fraction).coerceIn(0f, 1f), cy))"""
+        )
+        source = source.replace(
+            """        Box(Modifier.width(d(72f)), Alignment.CenterStart) { Tx(rightText, fs(18f), Color.White, align = TextAlign.Start) }""",
+            """        Box(Modifier.width(d(66f)), Alignment.CenterEnd) {
+            Tx(if (valueText == "AUTO" || valueText == "ISO AUTO") "--" else valueText, fs(14f), Color.White, align = TextAlign.End)
+        }
+        Box(
+            Modifier.width(d(57f)).height(d(30f))
+                .clip(RoundedCornerShape(d(9f)))
+                .background(Color(0xFF26343A))
+                .border(d(1f), Color(0xFF55DCE8), RoundedCornerShape(d(9f)))
+                .clickable(onClick = onAuto),
+            Alignment.Center
+        ) { Tx(rightText, fs(14f), Color(0xFF7CF4F4)) }"""
+        )
+        source = source.replace(
+            """            r(1188f, 151f, 300f, 54f), "SS", state.ss, state.shutter01, "AUTO", actions.onShutterFraction, actions.onSensorFinished
+        )""",
+            """            r(1188f, 151f, 300f, 54f), "SS", state.ss, state.shutter01, "AUTO", actions.onShutterFraction, actions.onSensorFinished,
+            onAuto = actions.onShutterAuto
+        )"""
+        )
+        source = source.replace(
+            """            r(1188f, 211f, 300f, 54f), "ISO", state.iso, state.iso01, "AUTO", actions.onIsoFraction, actions.onSensorFinished
+        )""",
+            """            r(1188f, 211f, 300f, 54f), "ISO", state.iso, state.iso01, "AUTO", actions.onIsoFraction, actions.onSensorFinished,
+            onAuto = actions.onIsoAuto
+        )"""
+        )
+        source = source.replace(
+            """            r(1188f, 271f, 300f, 54f), "K", state.kelvin, state.kelvin01, "AUTO", actions.onKelvinFraction, actions.onSensorFinished
+        )""",
+            """            r(1188f, 271f, 300f, 54f), "K", state.kelvin, state.kelvin01, "AUTO", actions.onKelvinFraction, actions.onSensorFinished,
+            onAuto = actions.onKelvinAuto
+        )"""
+        )
+        check(source.contains("val timerSeconds: Int = 0")) { "Camera timer state generation failed." }
+        check(source.contains("onKelvinAuto")) { "Auto WB action generation failed." }
+        check(source.contains("onAuto = actions.onShutterAuto")) { "SS Auto control not wired." }
+        check(source.contains("isDragging) dragFraction")) { "Slider thumb tracking missing." }
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."
         }

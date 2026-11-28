@@ -215,7 +215,7 @@
     <string name="lunadream_15_subtitle">50 MP target · 5-frame fusion · speed-oriented</string>
     <string name="lunadream_20_title">LunaDream 2.0</string>
     <string name="lunadream_20_subtitle">108 MP target · 8-frame Lucas–Kanade fusion</string>
-    <string name="lunadream_25_title">LunaDream 2.5</string>
+    <string name="lunadream_25_title">LunaDream 3.0</string>
     <string name="lunadream_25_subtitle">150 MP target · 8-frame fusion · adaptive detail finish</string>
     <string name="lunadream_30_title">LunaDream 3.0</string>
     <string name="lunadream_30_subtitle">200 MP target · 8-frame fusion · stronger bounded micro-detail</string>

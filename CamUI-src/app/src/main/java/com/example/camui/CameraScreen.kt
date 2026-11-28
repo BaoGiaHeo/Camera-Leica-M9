@@ -571,9 +571,11 @@ fun CameraScreen(
     ratioIdx: Int,
     onRatio: (Int) -> Unit,
     performanceMode: Boolean = false,
-    onOpenWatermarkPanel: () -> Unit = {}
+    onOpenWatermarkPanel: () -> Unit = {},
+    cameraScreenVisible: Boolean = true
 ) {
     val context = LocalContext.current
+    val cameraScreenVisibleState = rememberUpdatedState(cameraScreenVisible)
     val configuration = LocalConfiguration.current
     val localView = LocalView.current
     val screenProfile = rememberScreenProfile()
@@ -2921,6 +2923,9 @@ fun CameraScreen(
                 analysis.setAnalyzer(analysisExecutor) { image ->
                     var imageReleasedByFaceDetector = false
                     try {
+                        // Keep PreviewView/session alive under Settings, but suspend costly
+                        // ML face detection, histogram and peaking analysis while covered.
+                        if (!cameraScreenVisibleState.value) return@setAnalyzer
                         val faceDetectionNowMs = SystemClock.elapsedRealtime()
                         if (useMlFaceDetectionState.value &&
                             shouldRunFaceDetectionFrame(

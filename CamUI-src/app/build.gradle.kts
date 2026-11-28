@@ -203,7 +203,7 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         if (!source.contains("import androidx.compose.foundation.layout.fillMaxWidth")) {
             source = source.replace(
                 "package com.example.camui",
-                "package com.example.camui\\n\\nimport androidx.compose.foundation.layout.fillMaxWidth",
+                "package com.example.camui\n\nimport androidx.compose.foundation.layout.fillMaxWidth",
                 ignoreCase = false
             )
         }

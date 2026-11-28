@@ -476,15 +476,8 @@ var nightShotMode by remember {
                 }
             }
             "Chụp & Chất lượng" -> {
-                Text("Tỉ lệ khung hình", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    aspectRatios.forEachIndexed { index, pair ->
-                        FujiChip(aspectRatioDisplayLabel(index, isLandscape), index == ratioIdx, { onRatio(index) }, Modifier.width(68.dp))
-                    }
-                }
+                Text("Khung hình cố định · 4:3", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                Text("Tỉ lệ ảnh và preview được cố định ở 4:3 trong phiên bản 3.1.0.", color = CamColors.Sub, fontSize = 10.sp)
                 Spacer(Modifier.padding(7.dp))
                 Text("Chất lượng ảnh", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
                 Text("Tốt nhất sử dụng mức nén JPEG cao nhất; độ phân giải thực tế phụ thuộc độ phân giải mà Camera2/CameraX cung cấp cho camera đang chọn.",

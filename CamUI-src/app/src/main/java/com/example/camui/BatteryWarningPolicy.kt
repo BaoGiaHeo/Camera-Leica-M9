@@ -18,6 +18,6 @@ internal fun updateBatteryWarningState(
         lowRed = batteryPercent <= 20,
         blinking = batteryPercent <= 5,
         crossed = batteryPercent <= 1,
-        showLowNotice = batteryPercent <= 1
+        showLowNotice = batteryPercent <= 5
     )
 }

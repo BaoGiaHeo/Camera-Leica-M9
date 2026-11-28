@@ -22,7 +22,7 @@ class BatteryWarningPolicyTest {
         assertTrue(blink.lowRed)
         assertTrue(blink.blinking)
         assertFalse(blink.crossed)
-        assertFalse(blink.showLowNotice)
+        assertTrue(blink.showLowNotice)
 
         val critical = updateBatteryWarningState(blink, 1, false)
         assertTrue(critical.lowRed)

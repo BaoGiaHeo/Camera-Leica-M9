@@ -186,8 +186,24 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         GZIPInputStream(ByteArrayInputStream(packed)).use { it.copyTo(output) }
         var source = output.toString(Charsets.UTF_8.name())
 
-        // Keep BoxWithConstraintsScope receivers intact: d(), fs() and CameraFilterRow()
-        // read maxWidth/maxHeight, so stripping the receiver makes them uncompilable.
+        // d()/fs() read BoxWithConstraintsScope.maxWidth and CameraFilterRow uses both.
+        // The compressed reference source declares them as file-level helpers, so promote
+        // those declarations to receiver extensions before Kotlin compilation.
+        source = source.replace(
+            "private fun fs(px:",
+            "private fun BoxWithConstraintsScope.fs(px:"
+        )
+        source = source.replace(
+            "private fun d(px:",
+            "private fun BoxWithConstraintsScope.d(px:"
+        )
+        source = source.replace(
+            "private fun CameraFilterRow(",
+            "private fun BoxWithConstraintsScope.CameraFilterRow("
+        )
+        check(source.contains("private fun BoxWithConstraintsScope.fs(px:"))
+        check(source.contains("private fun BoxWithConstraintsScope.d(px:"))
+        check(source.contains("private fun BoxWithConstraintsScope.CameraFilterRow("))
         if (!source.contains("import androidx.compose.foundation.layout.fillMaxWidth")) {
             source = source.replace(
                 "package com.example.camui",

@@ -793,6 +793,7 @@ fun CameraScreen(
     var batteryPercent by remember { mutableIntStateOf(-1) }
     var batteryCharging by remember { mutableStateOf(false) }
     var batterySaverEnabled by remember { mutableStateOf(false) }
+    var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var batteryWarningState by remember { mutableStateOf(BatteryWarningState()) }
     var batteryLowBlinkOn by remember { mutableStateOf(true) }
     LaunchedEffect(batteryWarningState.blinking, batteryWarningState.showLowNotice) {
@@ -812,6 +813,8 @@ fun CameraScreen(
             val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
             val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val tempTenths = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+            if (tempTenths >= 0) measuredBatteryTempC = (tempTenths / 10f).roundToInt()
             batteryCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
             if (level >= 0 && scale > 0) {
@@ -974,6 +977,7 @@ fun CameraScreen(
     }
     var torchEnabled by remember { mutableStateOf(false) }
     var timerSec by remember { mutableIntStateOf(appPrefs.getInt("camera_timer_seconds", 0).coerceIn(0, 10)) }
+    var timerMenuVisible by remember { mutableStateOf(false) }
     DisposableEffect(appPrefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { shared, key ->
             when (key) {
@@ -1149,7 +1153,6 @@ fun CameraScreen(
     var multiFrameCapturedFrames by remember { mutableIntStateOf(0) }
     var multiFrameTargetFrames by remember { mutableIntStateOf(5) }
     var processingElapsedSeconds by remember { mutableIntStateOf(0) }
-    var measuredBatteryTempC by remember { mutableIntStateOf(-1) }
     var thermalStatusCode by remember { mutableIntStateOf(PowerManager.THERMAL_STATUS_NONE) }
     // No legacy fallback: LunaDream is opt-in only in 3.2.0.
     var lunaDreamMode by remember {
@@ -1270,26 +1273,19 @@ fun CameraScreen(
             )
         }
     }
-    LaunchedEffect(isProcessing) {
-        if (isProcessing) {
-            while (isProcessing) {
-                val batteryIntent = runCatching {
-                    context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                }.getOrNull()
-                val tempTenths = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
-                measuredBatteryTempC = if (tempTenths > 0) tempTenths / 10 else -1
-                val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-                thermalStatusCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    runCatching { powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE }
-                        .getOrDefault(PowerManager.THERMAL_STATUS_NONE)
-                } else {
-                    PowerManager.THERMAL_STATUS_NONE
-                }
-                delay(1_000L)
-            }
-        } else {
-            measuredBatteryTempC = -1
-            thermalStatusCode = PowerManager.THERMAL_STATUS_NONE
+    LaunchedEffect(Unit) {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        while (true) {
+            val batteryIntent = runCatching {
+                context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            }.getOrNull()
+            val tempTenths = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+            if (tempTenths >= 0) measuredBatteryTempC = (tempTenths / 10f).roundToInt()
+            thermalStatusCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                runCatching { powerManager?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE }
+                    .getOrDefault(PowerManager.THERMAL_STATUS_NONE)
+            } else PowerManager.THERMAL_STATUS_NONE
+            delay(5_000L)
         }
     }
     // EV is a command value. Do not overwrite it with delayed per-frame Camera2 results.
@@ -5541,7 +5537,10 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_tone", 0f)) > 0.001f ||
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_saturation", 1f) - 1f) > 0.001f ||
                                     kotlin.math.abs(lookPrefs.getFloat("film_custom_hue", 0f)) > 0.001f ||
-                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_lightness", 0f)) > 0.001f
+                                    kotlin.math.abs(lookPrefs.getFloat("film_custom_lightness", 0f)) > 0.001f ||
+                                    lookPrefs.getFloat("film_custom_sharpness", 0f) > 0.001f ||
+                                    lookPrefs.getFloat("film_custom_noise_reduction", 0f) > 0.001f ||
+                                    kotlin.math.abs(lookPrefs.getFloat("film_filter_intensity", 1f) - 1f) > 0.001f
                                 )
                                 val exportStageDurations = linkedMapOf<String, Long>()
                                 // For LunaDream 3.0, stamp LUT/watermark on the merged source before
@@ -7075,8 +7074,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                             val maxAeRegions = camera2Info?.getCameraCharacteristic(
                                                 CameraCharacteristics.CONTROL_MAX_REGIONS_AE
                                             ) ?: 0
-                                            val flags = (if (maxAfRegions > 0) FocusMeteringAction.FLAG_AF else 0) or
-                                                (if (maxAeRegions > 0) FocusMeteringAction.FLAG_AE else 0)
+                                            val flags = if (maxAfRegions > 0) FocusMeteringAction.FLAG_AF else 0
                                             val requestId = focusLockRequestGeneration
                                             android.util.Log.i(
                                                 "FUJI_AF",
@@ -7088,16 +7086,11 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
 
                                             if (maxAfRegions <= 0) {
                                                 val triggerSent = triggerCamera2AfOnce(active)
-                                                if (maxAeRegions <= 0) {
-                                                    focusLocked = triggerSent
-                                                    aeLocked = false
-                                                    centerAfStatus = if (triggerSent) 1 else -1
-                                                    android.util.Log.i(
-                                                        "FUJI_AF",
-                                                        "AF_LONG_PRESS sensorTrigger=" + triggerSent + " AE_LOCK_UNAVAILABLE=true"
-                                                    )
-                                                    return@detectTapGestures
-                                                }
+                                                focusLocked = triggerSent
+                                                aeLocked = false
+                                                centerAfStatus = if (triggerSent) 1 else -1
+                                                android.util.Log.i("FUJI_AF", "AF_LONG_PRESS sensorTrigger=$triggerSent; AF-only fallback")
+                                                return@detectTapGestures
                                             }
                                             val action = FocusMeteringAction.Builder(meteringPoint, flags)
                                                 .disableAutoCancel()
@@ -7117,16 +7110,14 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 val focusSuccess = runCatching {
                                                     future.get().isFocusSuccessful
                                                 }.getOrDefault(false)
-                                                val aeLockApplied = focusSuccess && applyCameraAeLock(active, locked = true)
                                                 focusLocked = focusSuccess
-                                                aeLocked = aeLockApplied
+                                                aeLocked = false
                                                 centerAfStatus = if (focusSuccess) 1 else -1
                                                 android.util.Log.i(
                                                     "FUJI_AF",
                                                     "AF_LONG_PRESS_RESULT focusSuccess=" + focusSuccess +
-                                                        " aeLockApplied=" + aeLockApplied +
-                                                        " AF_LOCK=" + focusSuccess + " AE_LOCK=" + aeLockApplied +
-                                                        " point=" + tapPoint.x + "," + tapPoint.y
+                                                        " AF_LOCK=" + focusSuccess +
+                                                        " AE_LOCK=false point=" + tapPoint.x + "," + tapPoint.y
                                                 )
                                                 if (!focusSuccess) {
                                                     scope.launch(Dispatchers.Main) {
@@ -8707,8 +8698,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 kelvin01 = ((manualColorTemp - 2000) / 8000f).coerceIn(0f, 1f),
                 lunaSummary = if (lunaDreamMode == "off") "LunaDream: OFF" else "LunaDream: $uiLunaLabel",
                 cameraSummary = listOf(
-                    "Template: " + (measuredBatteryTempC.takeIf { it > 0 } ?: 29) + "°C (GOOD)",
-                    "CPU: -- | GPU: --",
+                    "BATTERY TEMP: " + (measuredBatteryTempC.takeIf { it > 0 }?.let { it.toString() + "°C" } ?: "--"),
                     "1080P",
                     "30FPS"
                 ),
@@ -8723,12 +8713,19 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 batteryLook = when {
                     batteryCharging -> BatteryLook.CHARGING
                     batteryPercent <= 5 -> BatteryLook.CRITICAL
-                    batteryPercent <= 15 -> BatteryLook.LOW
-                    uiLeafEnabled -> BatteryLook.SAVER
+                    batteryPercent <= 20 -> BatteryLook.LOW
+                    batterySaverEnabled || uiLeafEnabled -> BatteryLook.SAVER
                     else -> BatteryLook.NORMAL
                 },
                 batteryText = if (batteryCharging) "CHARGING" else "GOOD",
-                tempC = measuredBatteryTempC.takeIf { it > 0 } ?: 34,
+                tempC = measuredBatteryTempC.coerceAtLeast(0),
+                timerSeconds = timerSec,
+                timerMenuVisible = timerMenuVisible,
+                countdown = countdown,
+                levelVisible = levelEnabled,
+                horizonRollDegrees = horizonRollDegrees,
+                batteryLow = batteryWarningState.blinking,
+                batteryBlinkOn = batteryLowBlinkOn,
                 aspect = "4:3",
                 dr = "DR100",
                 focus01 = if (maxFocus > 0f) (manualFocus / maxFocus).coerceIn(0f, 1f) else 0f,
@@ -8770,6 +8767,33 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 },
                 onShutterFraction = { fraction -> queueManualShutterFraction(fraction) },
                 onIsoFraction = { fraction -> queueManualIsoFraction(fraction) },
+                onShutterAuto = {
+                    pendingManualIsoValue[0] = manualIso
+                    pendingManualIsoEnabled[0] = manualIsoEnabled
+                    pendingManualShutterValue[0] = manualShutterNs
+                    pendingManualShutterEnabled[0] = false
+                    manualSensorDragActive = true
+                    commitManualSensorCommand()
+                },
+                onIsoAuto = {
+                    pendingManualIsoValue[0] = manualIso
+                    pendingManualIsoEnabled[0] = false
+                    pendingManualShutterValue[0] = manualShutterNs
+                    pendingManualShutterEnabled[0] = manualShutterEnabled
+                    manualSensorDragActive = true
+                    commitManualSensorCommand()
+                },
+                onKelvinAuto = {
+                    manualColorTempEnabled = false
+                    appPrefs.edit().putBoolean("pro_manual_wb_enabled", false).apply()
+                    camera?.let { active -> runCatching { applyAutoWhiteBalance(active) } }
+                },
+                onTimerMenu = { timerMenuVisible = !timerMenuVisible },
+                onTimerSelect = { seconds ->
+                    timerSec = seconds.coerceIn(0, 10)
+                    appPrefs.edit().putInt("camera_timer_seconds", timerSec).apply()
+                    timerMenuVisible = false
+                },
                 onKelvinFraction = { fraction ->
                     manualColorTemp = (2000 + (fraction.coerceIn(0f, 1f) * 8000f).roundToInt()).coerceIn(2000, 10000)
                     manualColorTempEnabled = true
@@ -8801,10 +8825,45 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                 },
                 onAfL = {
                     camera?.let { active ->
-                        val next = !focusLocked
-                        if (applyCameraAfLock(active, next)) {
-                            focusLocked = next
-                            if (!next) runCatching { applyAutoFocus(active) }
+                        if (focusLocked) {
+                            invalidatePendingFocusLock(active)
+                            runCatching { active.cameraControl.cancelFocusAndMetering() }
+                            runCatching { applyAutoFocus(active) }
+                            centerAfStatus = 0
+                        } else {
+                            val width = previewView.width
+                            val height = previewView.height
+                            if (width <= 0 || height <= 0) {
+                                centerAfStatus = -1
+                                android.util.Log.w("FUJI_AF", "AF-L rejected: preview has no dimensions")
+                            } else {
+                                invalidatePendingFocusLock(active)
+                                val requestId = focusLockRequestGeneration
+                                val point = previewView.meteringPointFactory.createPoint(
+                                    (uiAfX * width).coerceIn(0f, width.toFloat()),
+                                    (uiAfY * height).coerceIn(0f, height.toFloat())
+                                )
+                                val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+                                    .disableAutoCancel().build()
+                                val future = runCatching { active.cameraControl.startFocusAndMetering(action) }
+                                    .onFailure { android.util.Log.e("FUJI_AF", "AF-L request failed", it) }
+                                    .getOrNull()
+                                if (future == null) {
+                                    focusLocked = false
+                                    aeLocked = false
+                                    centerAfStatus = -1
+                                } else {
+                                    centerAfStatus = 0
+                                    future.addListener({
+                                        if (camera !== active || focusLockRequestGeneration != requestId) return@addListener
+                                        val success = runCatching { future.get().isFocusSuccessful }.getOrDefault(false)
+                                        focusLocked = success
+                                        aeLocked = false
+                                        centerAfStatus = if (success) 1 else -1
+                                        android.util.Log.i("FUJI_AF", "AF_L_ONLY result=$success point=$uiAfX,$uiAfY")
+                                    }, mainExecutor)
+                                }
+                            }
                         }
                     }
                 },
@@ -8952,10 +9011,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
             )
         }
 
-        if (countdown > 0) {
-            Text("$countdown", color = Color.White, fontSize = 88.sp,
-                fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
-        }
         if (starTrailCaptureInProgress) {
             Box(
                 Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 86.dp),
@@ -9046,7 +9101,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
         if (modeActivationMessage != null) {
             androidx.compose.ui.window.Dialog(
                 onDismissRequest = { },
-                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
             ) {
                 Box(
                     Modifier.fillMaxSize()
@@ -10394,7 +10449,7 @@ private fun applyManualWhiteBalance(camera: Camera, kelvin: Int) {
     val options = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF)
-        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_FAST)
+        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX)
         .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, gains)
         .build()
     Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)

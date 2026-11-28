@@ -659,6 +659,31 @@ private fun BoxWithConstraintsScope.Hud(s: CameraUiState) {
         check(source.contains("onKelvinAuto")) { "Auto WB action generation failed." }
         check(source.contains("onAuto = actions.onShutterAuto")) { "SS Auto control not wired." }
         check(source.contains("isDragging) dragFraction")) { "Slider thumb tracking missing." }
+        source = source.replace(
+            """    val onAfL: () -> Unit = {},""",
+            """    val onAfL: (Float, Float) -> Unit = { _, _ -> },"""
+        )
+        source = source.replace(
+            """                            onLongPress = {
+                                a.onAfL()
+                            }""",
+            """                            onLongPress = { point ->
+                                a.onAfL(
+                                    (point.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+                                    (point.y / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                )
+                            }"""
+        )
+        source = source.replace(
+            """onClick = a.onAfL""",
+            """onClick = { a.onAfL(0.5f, 0.5f) }"""
+        )
+        source = source.replace(
+            """            onAfL = { s = s.copy(afLocked = !s.afLocked) },""",
+            """            onAfL = { _, _ -> s = s.copy(afLocked = !s.afLocked) },"""
+        )
+        check(source.contains("val onAfL: (Float, Float) -> Unit")) { "AF-L touch coordinate callback not generated." }
+        check(source.contains("point.x / size.width")) { "AF-L long press point not forwarded." }
         check(source.startsWith("package com.example.camui")) {
             "Fuji 3.2 reference UI archive has an invalid Kotlin package."
         }

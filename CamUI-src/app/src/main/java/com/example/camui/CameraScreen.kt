@@ -8823,7 +8823,9 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                         if (applyCameraAeLock(active, next)) aeLocked = next
                     }
                 },
-                onAfL = {
+                onAfL = { afX, afY ->
+                    uiAfX = afX.coerceIn(0f, 1f)
+                    uiAfY = afY.coerceIn(0f, 1f)
                     camera?.let { active ->
                         if (focusLocked) {
                             invalidatePendingFocusLock(active)
@@ -8840,8 +8842,8 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                 invalidatePendingFocusLock(active)
                                 val requestId = focusLockRequestGeneration
                                 val point = previewView.meteringPointFactory.createPoint(
-                                    (uiAfX * width).coerceIn(0f, width.toFloat()),
-                                    (uiAfY * height).coerceIn(0f, height.toFloat())
+                                    (afX.coerceIn(0f, 1f) * width).coerceIn(0f, width.toFloat()),
+                                    (afY.coerceIn(0f, 1f) * height).coerceIn(0f, height.toFloat())
                                 )
                                 val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
                                     .disableAutoCancel().build()
@@ -8860,7 +8862,7 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         focusLocked = success
                                         aeLocked = false
                                         centerAfStatus = if (success) 1 else -1
-                                        android.util.Log.i("FUJI_AF", "AF_L_ONLY result=$success point=$uiAfX,$uiAfY")
+                                        android.util.Log.i("FUJI_AF", "AF_L_ONLY result=$success point=$afX,$afY")
                                     }, mainExecutor)
                                 }
                             }
@@ -10436,6 +10438,8 @@ private fun applyAutoWhiteBalance(camera: Camera) {
     val options = CaptureRequestOptions.Builder()
         .setCaptureRequestOption(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_LOCK, false)
+        .setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_FAST)
         .build()
     Camera2CameraControl.from(camera.cameraControl).addCaptureRequestOptions(options)
 }

@@ -130,8 +130,8 @@ fun SettingsScreen(
     val sx = screenConfig.screenWidthDp.toFloat() / 1846f
     val sy = screenConfig.screenHeightDp.toFloat() / 852f
     val tabLabelColor = Color(0xFFF1F1F1)
-    val outerSurface = Color(0xFF343638)
-    val innerSurface = Color(0xFF555555)
+    val outerSurface = Color(0xFF12252B)
+    val innerSurface = Color(0xFF27353A)
     FujiScreenScaffold(
         title = stringResource(R.string.settings_screen_title),
         modifier = modifier.fillMaxSize(),
@@ -168,10 +168,10 @@ fun SettingsScreen(
                         Box(
                             Modifier.width((435f * sx).dp).height((124f * sy).dp)
                                 .clip(RoundedCornerShape((16f * sx).dp))
-                                .background(if (selected) Color(0xFF444444) else Color(0xFF353535))
+                                .background(if (selected) Color(0xFF164A53) else Color(0xFF20272B))
                                 .border(
                                     (2f * sx).dp,
-                                    if (selected) Color(0xFFE2B46B) else Color(0xFF777777),
+                                    if (selected) Color(0xFF4CE4EC) else Color(0xFF60727A),
                                     RoundedCornerShape((16f * sx).dp)
                                 )
                                 .clickable {
@@ -184,7 +184,7 @@ fun SettingsScreen(
                         ) {
                             Text(
                                 label,
-                                color = if (selected) Color(0xFFFFD28F) else tabLabelColor,
+                                color = if (selected) Color(0xFF7BF3F3) else tabLabelColor,
                                 fontSize = (18f * sx).sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
@@ -199,7 +199,7 @@ fun SettingsScreen(
                     .padding(horizontal = (25f * sx).dp)
                     .clip(RoundedCornerShape((40f * sx).dp))
                     .background(outerSurface)
-                    .border((2f * sx).dp, Color(0xFF858585), RoundedCornerShape((40f * sx).dp))
+                    .border((2f * sx).dp, Color(0xFF43C9D7), RoundedCornerShape((40f * sx).dp))
                     .padding(horizontal = (86f * sx).dp, vertical = (74f * sy).dp),
                 verticalArrangement = Arrangement.spacedBy((124f * sy).dp)
             ) {
@@ -207,7 +207,7 @@ fun SettingsScreen(
                     Modifier.fillMaxWidth().height((190f * sy).dp)
                         .clip(RoundedCornerShape((24f * sx).dp))
                         .background(innerSurface)
-                        .border((1.5f * sx).dp, Color(0xFF898989), RoundedCornerShape((24f * sx).dp))
+                        .border((1.5f * sx).dp, Color(0xFF58747C), RoundedCornerShape((24f * sx).dp))
                         .padding(horizontal = (58f * sx).dp, vertical = (28f * sy).dp),
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -230,7 +230,7 @@ fun SettingsScreen(
                     Modifier.fillMaxWidth().weight(1f)
                         .clip(RoundedCornerShape((24f * sx).dp))
                         .background(innerSurface)
-                        .border((1.5f * sx).dp, Color(0xFF898989), RoundedCornerShape((24f * sx).dp))
+                        .border((1.5f * sx).dp, Color(0xFF58747C), RoundedCornerShape((24f * sx).dp))
                         .padding(horizontal = (54f * sx).dp, vertical = (18f * sy).dp)
                 ) {
                     AnimatedContent(

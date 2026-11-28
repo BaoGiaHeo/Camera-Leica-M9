@@ -216,7 +216,7 @@
     <string name="lunadream_20_title">LunaDream 2.0</string>
     <string name="lunadream_20_subtitle">108 MP target · 8-frame Lucas–Kanade fusion</string>
     <string name="lunadream_25_title">LunaDream 3.0</string>
-    <string name="lunadream_25_subtitle">150 MP target · 8-frame fusion · adaptive detail finish</string>
+    <string name="lunadream_25_subtitle">180MP Chất lượng nét hơn, Hình ảnh tốt hơn</string>
     <string name="lunadream_30_title">LunaDream 3.0</string>
     <string name="lunadream_30_subtitle">200 MP target · 8-frame fusion · stronger bounded micro-detail</string>
     <string name="watermark_layout_bar_description">Classic footer with logo, camera and exposure data.</string>

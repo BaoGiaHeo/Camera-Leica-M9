@@ -1,10 +1,12 @@
 package com.example.camui
 
 /**
- * Night Shot uses the same fast eight-frame acquisition cadence as LunaDream 2.0/3.0.
- * The old duration preference is retained for settings migration, not for capture count.
+ * Night Shot target count follows the selected duration at the requested 8 FPS cadence.
+ * Actual camera throughput and exposure time can reduce measured FPS; capture diagnostics
+ * remain based on sensor timestamps instead of assuming the target was met.
  */
 internal object NightShotFramePlan {
-    @Suppress("UNUSED_PARAMETER")
-    fun targetFrames(durationSeconds: Int): Int = 8
+    const val TARGET_FPS = 8
+    fun targetFrames(durationSeconds: Int): Int =
+        durationSeconds.coerceIn(3, 10) * TARGET_FPS
 }

@@ -347,6 +347,9 @@ private fun SettingsDetailPage(
 var nightShotMode by remember {
         mutableStateOf(prefs.getString("nightshot_mode", "off") ?: "off")
     }
+    var nightShotDurationSeconds by remember {
+        mutableIntStateOf(prefs.getInt("nightshot_duration_seconds", 5).let { if (it in listOf(3, 5, 10)) it else 5 })
+    }
     var starTrailExposureSeconds by remember {
         mutableStateOf(prefs.getInt("star_trails_exposure_seconds", 4).coerceIn(1, 8))
     }
@@ -692,7 +695,7 @@ var nightShotMode by remember {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Night Shot chụp liên tiếp 8 khung ở mục tiêu 8 FPS khi camera hỗ trợ, sau đó căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Tốc độ thực tế phụ thuộc cảm biến và thời gian phơi sáng; giữ máy ổn định đến khi ghép xong.",
+                    "Night Shot chụp liên tiếp theo thời lượng đã chọn ở mục tiêu 8 FPS khi camera hỗ trợ; sau đó căn chỉnh và ghép để giảm nhiễu, tăng sáng có kiểm soát. Tốc độ thực tế phụ thuộc cảm biến và thời gian phơi sáng.",
                     color = CamColors.Sub,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 5.dp, bottom = 12.dp)
@@ -739,11 +742,31 @@ var nightShotMode by remember {
                     Spacer(Modifier.padding(5.dp))
                     Text("CHẾ ĐỘ CHỤP NHANH", color = FujiSkin.lcdGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Night Shot tự chụp liên tiếp 8 khung. Mục tiêu 8 FPS khi cảm biến hỗ trợ; tốc độ thực tế phụ thuộc thời gian phơi sáng và giới hạn camera.",
+                        "Night Shot tự chụp liên tiếp trong ${nightShotDurationSeconds} giây, mục tiêu 8 FPS khi camera hỗ trợ. Số khung thực tế phụ thuộc cảm biến, thời gian phơi sáng và giới hạn HAL.",
                         color = CamColors.Sub,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                     )
+                }
+                if (nightShotMode == "night") {
+                    Spacer(Modifier.padding(5.dp))
+                    Text("Thời lượng chụp Night Shot", color = CamColors.TextColor, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf(3, 5, 10).forEach { seconds ->
+                            FujiChip(
+                                "${seconds}s",
+                                nightShotDurationSeconds == seconds,
+                                {
+                                    nightShotDurationSeconds = seconds
+                                    prefs.edit().putInt("nightshot_duration_seconds", seconds).apply()
+                                },
+                                Modifier.width(72.dp)
+                            )
+                        }
+                    }
                 }
                 if (nightShotMode == "night") {
                     Spacer(Modifier.padding(5.dp))

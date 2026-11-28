@@ -5593,7 +5593,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                                 shutter = shutterLabel,
                                                 iso = if (actualIso > 0) actualIso.toString() else "AUTO",
                                                 captureTimestampMillis = captureTimestampMillis,
-                                                forceSkipWatermark = captureUseLunaDream30,
                                                 onStageDuration = { stage, duration ->
                                                     exportStageDurations[stage] = duration
                                                 }
@@ -5771,7 +5770,6 @@ droppedFrameReports = (CameraFrameMetricsDiagnostics.totalDroppedCallbackReportC
                                         if (actualIso > 0) actualIso.toString() else "AUTO",
                                         onStageDuration = { stage, duration -> exportStageDurations[stage] = duration },
                                         captureTimestampMillis = captureTimestampMillis,
-                                        forceSkipWatermark = captureUseLunaDream
                                     )
                                 }.getOrDefault(false)
                                 val watermarkDurationMs = SystemClock.elapsedRealtime() - watermarkStartedAtMs

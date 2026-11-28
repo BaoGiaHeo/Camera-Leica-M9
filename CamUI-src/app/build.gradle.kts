@@ -27,8 +27,8 @@ android {
         minSdk = 29
         // Keep targetSdk unchanged to avoid changing runtime permission behavior.
         targetSdk = 37
-        versionCode = 29
-        versionName = "3.5.0"
+        versionCode = 30
+        versionName = "4.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {

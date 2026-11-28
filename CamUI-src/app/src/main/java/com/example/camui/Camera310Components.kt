@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 
-private val Fuji310Font = FontFamily(
+internal val Fuji310Font = FontFamily(
     Font(R.font.saira_semicondensed_regular, FontWeight.Normal),
     Font(R.font.saira_semicondensed_medium, FontWeight.Medium),
     Font(R.font.saira_semicondensed_bold, FontWeight.Bold)

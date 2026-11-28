@@ -147,6 +147,7 @@ object FujiSkin {
 fun FujiLeatherSurface(
     modifier: Modifier = Modifier,
     simpleMode: Boolean = false,
+    lightMode: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
     val context = LocalContext.current
@@ -179,9 +180,9 @@ fun FujiLeatherSurface(
             }.getOrNull()
         }
     }
-    Box(modifier.background(FujiSkin.bodyDeep)) {
+    Box(modifier.background(if (lightMode) Color(0xFFF1F1F1) else FujiSkin.bodyDeep)) {
         val image = leatherBitmap
-        if (image != null) {
+        if (image != null && !lightMode) {
             Box(
                 Modifier.fillMaxSize().drawWithCache {
                     val destinationWidth = size.width.roundToInt().coerceAtLeast(1)
@@ -214,8 +215,8 @@ fun FujiLeatherSurface(
                 }
             )
         }
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
-        if (!simpleMode) {
+        if (!lightMode) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+        if (!simpleMode && !lightMode) {
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.radialGradient(

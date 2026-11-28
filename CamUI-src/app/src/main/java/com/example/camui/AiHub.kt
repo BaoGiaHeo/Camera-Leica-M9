@@ -54,7 +54,6 @@ fun LunaDreamBottomSheet(
     onSelectedModeChange: (String) -> Unit
 ) {
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
     val maxPanelHeight = (configuration.screenHeightDp * 0.94f).dp
 
     Dialog(
@@ -95,48 +94,35 @@ fun LunaDreamBottomSheet(
                     Triple("luna25", R.string.lunadream_25_title, R.string.lunadream_25_subtitle),
                     Triple("luna30", R.string.lunadream_30_title, R.string.lunadream_30_subtitle)
                 )
-                if (isLandscape) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        lunaModes.chunked(2).forEach { pair ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                pair.forEach { (modeId, titleRes, subtitleRes) ->
-                                    Box(Modifier.weight(1f)) {
-                                        LunaDreamModeRow(
-                                            title = stringResource(titleRes),
-                                            subtitle = stringResource(subtitleRes),
-                                            selected = selectedMode == modeId,
-                                            enabled = !nightShotEnabled,
-                                            intensity = when (modeId) {
-                                                "luna15" -> 0.58f
-                                                "luna20" -> 0.82f
-                                                "luna25" -> 0.92f
-                                                else -> 1f
-                                            },
-                                            phase = 0f,
-                                            onCheckedChange = { onSelectedModeChange(if (it) modeId else "off") }
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                lunaModes.forEach { (modeId, titleRes, subtitleRes) ->
+                    val resolutionLabel = when (modeId) {
+                        "luna15" -> "FHD+"
+                        "luna20" -> "UHD"
+                        "luna25" -> "UHD+"
+                        else -> "EUHD"
                     }
-                } else {
-                    lunaModes.forEach { (modeId, titleRes, subtitleRes) ->
-                        LunaDreamModeRow(
-                            title = stringResource(titleRes),
-                            subtitle = stringResource(subtitleRes),
-                            selected = selectedMode == modeId,
-                            enabled = !nightShotEnabled,
-                            intensity = when (modeId) {
-                                "luna15" -> 0.58f
-                                "luna20" -> 0.82f
-                                "luna25" -> 0.92f
-                                else -> 1f
-                            },
-                            phase = 0f,
-                            onCheckedChange = { onSelectedModeChange(if (it) modeId else "off") }
-                        )
+                    val megapixelsLabel = when (modeId) {
+                        "luna15" -> "50 MP"
+                        "luna20" -> "108 MP"
+                        "luna25" -> "150 MP"
+                        else -> "200 MP"
                     }
+                    LunaDreamModeRow(
+                        title = stringResource(titleRes),
+                        subtitle = stringResource(subtitleRes),
+                        resolutionLabel = resolutionLabel,
+                        megapixelsLabel = megapixelsLabel,
+                        selected = selectedMode == modeId,
+                        enabled = !nightShotEnabled,
+                        intensity = when (modeId) {
+                            "luna15" -> 0.58f
+                            "luna20" -> 0.82f
+                            "luna25" -> 0.92f
+                            else -> 1f
+                        },
+                        phase = 0f,
+                        onCheckedChange = { onSelectedModeChange(if (it) modeId else "off") }
+                    )
                 }
                 Text(
                     if (selectedMode == "off") "LUNADREAM ĐANG TẮT" else "LUNADREAM · ${selectedMode.uppercase()}",
@@ -217,6 +203,8 @@ fun LunaDreamBottomSheet(
 private fun LunaDreamModeRow(
     title: String,
     subtitle: String,
+    resolutionLabel: String,
+    megapixelsLabel: String,
     selected: Boolean,
     intensity: Float,
     phase: Float,
@@ -226,18 +214,23 @@ private fun LunaDreamModeRow(
     Row(
         Modifier.fillMaxWidth()
             .graphicsLayer { alpha = if (enabled) 1f else 0.38f }
-            .clip(RoundedCornerShape(4.dp))
-            .background(FujiSkin.lcd)
-            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF344247), RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFF202426))
+            .border(1.dp, if (selected) FujiSkin.orange else Color(0xFF465054), RoundedCornerShape(6.dp))
             .clickable(enabled = enabled) { if (enabled) onCheckedChange(!selected) }
-            .padding(horizontal = 11.dp, vertical = 10.dp),
+            .padding(horizontal = 11.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title.uppercase(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = FujiSkin.muted, fontSize = 9.sp, lineHeight = 13.sp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title.uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = FujiSkin.muted, fontSize = 9.sp, lineHeight = 13.sp, maxLines = 2)
         }
         Spacer(Modifier.width(8.dp))
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(resolutionLabel, color = FujiSkin.lcdGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text(megapixelsLabel, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        Spacer(Modifier.width(10.dp))
         FujiSwitch(checked = selected, onCheckedChange = { if (enabled) onCheckedChange(it) })
     }
 }

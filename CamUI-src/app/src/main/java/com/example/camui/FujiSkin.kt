@@ -651,6 +651,9 @@ fun FujiScreenScaffold(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     showVersion: Boolean = true,
+    showHeader: Boolean = true,
+    footerActions: Boolean = false,
+    onFooterBack: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val kk7Font = FujiTypography.composeFamily(androidx.compose.ui.platform.LocalContext.current)
@@ -661,23 +664,25 @@ fun FujiScreenScaffold(
             .background(FujiSkin.body)
             .border(1.dp, Color(0xFF9CA2A4), RoundedCornerShape(5.dp))
     ) {
-        Row(
-            Modifier.fillMaxWidth().height(48.dp)
-                .background(Brush.horizontalGradient(listOf(Color(0xFFF2F2EE), FujiSkin.silver, Color(0xFFD3D5D8))))
-                .padding(start = 12.dp, end = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Text(title.uppercase(), color = Color(0xFF171A1B), fontSize = 10.sp,
-                    fontWeight = FontWeight.Black, letterSpacing = 0.85.sp, maxLines = 1)
-                breadcrumb?.takeIf { it.isNotBlank() }?.let { crumb ->
-                    Text("  ›  ", color = Color(0xFF454D50), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Text(crumb.uppercase(), color = Color(0xFF333A3D), fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp, maxLines = 1)
+        if (showHeader) {
+            Row(
+                Modifier.fillMaxWidth().height(48.dp)
+                    .background(Brush.horizontalGradient(listOf(Color(0xFFF2F2EE), FujiSkin.silver, Color(0xFFD3D5D8))))
+                    .padding(start = 12.dp, end = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(title.uppercase(), color = Color(0xFF171A1B), fontSize = 10.sp,
+                        fontWeight = FontWeight.Black, letterSpacing = 0.85.sp, maxLines = 1)
+                    breadcrumb?.takeIf { it.isNotBlank() }?.let { crumb ->
+                        Text("  ›  ", color = Color(0xFF454D50), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(crumb.uppercase(), color = Color(0xFF333A3D), fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp, maxLines = 1)
+                    }
                 }
-            }
-            if (onBack != null) {
-                FujiKey("THOÁT", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))
+                if (onBack != null) {
+                    FujiKey("THOÁT", onClick = onBack, modifier = Modifier.width(82.dp).height(34.dp))
+                }
             }
         }
         Column(
@@ -686,29 +691,50 @@ fun FujiScreenScaffold(
                 .padding(horizontal = 9.dp, vertical = 7.dp),
             content = content
         )
-        Row(
-            Modifier.fillMaxWidth().height(27.dp)
-                .background(Color(0xFF101516))
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                stringResource(R.string.settings_footer_hint),
-                color = FujiSkin.lcdGreen,
-                fontSize = 7.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.4.sp,
-                maxLines = 1
-            )
-            if (showVersion) {
+        if (footerActions) {
+            Row(
+                Modifier.fillMaxWidth().height(48.dp)
+                    .background(Color(0xFF101516))
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                FujiKey(
+                    "QUAY LẠI",
+                    onClick = onFooterBack ?: {},
+                    modifier = Modifier.width(112.dp).height(36.dp)
+                )
+                FujiKey(
+                    "THOÁT",
+                    onClick = onBack ?: {},
+                    modifier = Modifier.width(88.dp).height(36.dp)
+                )
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().height(27.dp)
+                    .background(Color(0xFF101516))
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(
-                    stringResource(R.string.fujifilm_mode_version, cleanVersionName).uppercase(),
-                    color = FujiSkin.muted,
+                    stringResource(R.string.settings_footer_hint),
+                    color = FujiSkin.lcdGreen,
                     fontSize = 7.sp,
-                    fontFamily = kk7Font,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.4.sp,
                     maxLines = 1
                 )
+                if (showVersion) {
+                    Text(
+                        stringResource(R.string.fujifilm_mode_version, cleanVersionName).uppercase(),
+                        color = FujiSkin.muted,
+                        fontSize = 7.sp,
+                        fontFamily = kk7Font,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }

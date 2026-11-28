@@ -122,7 +122,7 @@ internal fun Camera310FilterDropdown(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    "${presets.size + 1}/${presets.size + 1}",
+                    "${presets.size}/${presets.size}",
                     color = if (lightMode) Color(0xFF3B6F4D) else Color(0xFF5ED08A),
                     fontFamily = Fuji310Font,
                     fontWeight = FontWeight.Bold,

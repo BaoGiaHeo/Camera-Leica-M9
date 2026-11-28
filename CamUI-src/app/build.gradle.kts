@@ -190,18 +190,18 @@ val generateFuji320ReferenceUi = tasks.register("generateFuji320ReferenceUi") {
         // AnimatedVisibilityScope. Use screen configuration rather than implicit receivers.
         source = source.replace(
             "private fun fs(px: Float): TextUnit = (px * maxWidth.value / RW).sp",
-            "@Composable\\nprivate fun fs(px: Float): TextUnit = (px * LocalConfiguration.current.screenWidthDp.toFloat() / RW).sp"
+            "@Composable\nprivate fun fs(px: Float): TextUnit = (px * LocalConfiguration.current.screenWidthDp.toFloat() / RW).sp"
         )
         source = source.replace(
             "private fun d(px: Float): Dp = maxWidth * (px / RW)",
-            "@Composable\\nprivate fun d(px: Float): Dp = (LocalConfiguration.current.screenWidthDp.toFloat() * (px / RW)).dp"
+            "@Composable\nprivate fun d(px: Float): Dp = (LocalConfiguration.current.screenWidthDp.toFloat() * (px / RW)).dp"
         )
-        check(source.contains("@Composable\\nprivate fun fs(px: Float): TextUnit"))
-        check(source.contains("@Composable\\nprivate fun d(px: Float): Dp"))
+        check(source.contains("@Composable\nprivate fun fs(px: Float): TextUnit"))
+        check(source.contains("@Composable\nprivate fun d(px: Float): Dp"))
         if (!source.contains("import androidx.compose.ui.platform.LocalConfiguration")) {
             source = source.replace(
                 "import androidx.compose.ui.platform.LocalHapticFeedback",
-                "import androidx.compose.ui.platform.LocalConfiguration\\nimport androidx.compose.ui.platform.LocalHapticFeedback"
+                "import androidx.compose.ui.platform.LocalConfiguration\nimport androidx.compose.ui.platform.LocalHapticFeedback"
             )
         }
         if (!source.contains("import androidx.compose.foundation.layout.fillMaxWidth")) {
